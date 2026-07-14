@@ -17,6 +17,8 @@
     "'tree-shake:HonuaClient' is a deep-import-hygiene guard: a fixture importing ONLY",
     "{ HonuaClient } from the root entry must stay under its ceiling, proving a single",
     "symbol does not drag the whole SDK into a consumer bundle.",
+    "/source-schema is the focused experimental SourceSchemaV2 runtime, including the pinned PROJJSON validator. 'tree-shake:root-connect' proves default root discovery does not retain that validation stack. Both ceilings are measured actual plus ~10% headroom.",
+    "/geoparquet was reset for bounded GeoParquet 1.0/1.1 projection validation (exact versions, geometry types, bbox, epoch, and covering checks): 22,092 minified / 7,889 gzip bytes. /map's gzip ceiling was reset after the lightweight structural SourceSchemaV2 envelope check reached its shared discovery path: 42,656 gzip bytes. Ceilings are measured actual plus ~10% headroom; root, /honua, browser, /contract, and /query-planner ceilings remain unchanged.",
     "/react and /geometry landed with the adoption-wave-1 bundle (issues #349/#351). /esri-compat's budget was reset for the geometryEngine shim's turf/proj4 backing; 'tree-shake:esri-compat-FeatureLayerCompat' guards that compat consumers who never touch geometryEngine keep paying only the pre-shim cost. 'tree-shake:geometry-buffer' is intentionally large: @turf/buffer carries a JSTS port (~66 KiB gzip); light ops like area() shake down to ~1 KiB.",
     "/map was reset for the accepted-plan source workflow (#390): 62.6 to 79.5 KiB min and 16.2 to 21.8 KiB gzip after removing the generic aggregate executor. Keeping the adapter on /map preserves the canonical endpoint-to-map import; 'tree-shake:map-source-workflow' isolates its 17.1 KiB min / 6.4 KiB gzip consumer cost.",
     "/contract gzip was reset for credential-safe discovery (#391): provider-aware Azure SAS, CloudFront, AWS, and GCS signed-URL normalization plus runtime evidence-kind validation. The measured 61,493 bytes gzip is budgeted at 67,643 bytes per the 10% headroom policy.",
@@ -52,6 +54,10 @@
     "/contract": {
       "min": 267322,
       "gzip": 67643
+    },
+    "/source-schema": {
+      "min": 679677,
+      "gzip": 137190
     },
     "/plugin": {
       "min": 44785,
@@ -119,11 +125,11 @@
     },
     "/map": {
       "min": 153404,
-      "gzip": 42555
+      "gzip": 46922
     },
     "/geoparquet": {
-      "min": 18254,
-      "gzip": 6613
+      "min": 24302,
+      "gzip": 8678
     },
     "/deckgl": {
       "min": 16916,
@@ -140,6 +146,10 @@
     "tree-shake:HonuaClient": {
       "min": 209173,
       "gzip": 53307
+    },
+    "tree-shake:root-connect": {
+      "min": 367787,
+      "gzip": 95076
     },
     "/react": {
       "min": 457456,

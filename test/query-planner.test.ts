@@ -75,6 +75,20 @@ describe("query IR", () => {
     expect(Object.isFrozen(first.query.spatialFilter?.geometry)).toBe(true);
   });
 
+  it("fails closed for malformed authority credentials while preserving safe relative paths", () => {
+    const malformed = descriptor();
+    malformed.locator.url = "https://user:password@example.test:bad/FeatureServer?token=secret";
+    const malformedIr = createQueryIr({ descriptor: malformed, query: {} });
+    expect(malformedIr.source.endpoint).toBe("[invalid-endpoint]");
+    expect(JSON.stringify(malformedIr)).not.toContain("user");
+    expect(JSON.stringify(malformedIr)).not.toContain("password");
+    expect(JSON.stringify(malformedIr)).not.toContain("secret");
+
+    const relative = descriptor();
+    relative.locator.url = "fixtures/places.parquet?token=secret#fragment";
+    expect(createQueryIr({ descriptor: relative, query: {} }).source.endpoint).toBe("fixtures/places.parquet");
+  });
+
   it("rejects non-serializable geometry and invalid pagination", () => {
     const cyclic: Record<string, unknown> = {};
     cyclic.self = cyclic;

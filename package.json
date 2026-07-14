@@ -88,6 +88,10 @@
       "types": "./dist/src/contract/index.d.ts",
       "default": "./dist/src/contract/index.js"
     },
+    "./source-schema": {
+      "types": "./dist/src/source-schema.d.ts",
+      "default": "./dist/src/source-schema.js"
+    },
     "./query-planner": {
       "types": "./dist/src/query-planner/index.d.ts",
       "default": "./dist/src/query-planner/index.js"
@@ -278,6 +282,8 @@
     "verify:skills": "node scripts/verify-skills.mjs",
     "verify:north-star-api": "tsc -p test/design/north-star-api/tsconfig.json --noEmit",
     "verify:contract-v2-design": "node scripts/verify-contract-v2-design.mjs",
+    "projjson:generate": "node scripts/generate-projjson-validator.mjs",
+    "verify:projjson-validator": "node scripts/generate-projjson-validator.mjs --check",
     "samples:generate": "node scripts/sample-contract.mjs write",
     "samples:verify": "node scripts/sample-contract.mjs check",
     "samples:verify:flagships": "node scripts/verify-flagship-evidence.mjs",

@@ -475,8 +475,8 @@ correctly use this SDK:
     The agent surface's security posture is documented in the
     [agent-safety threat model](./docs/agent-safety-threat-model.md).
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
-    `/nl-map-control`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`,
-    `/diagnostics`, `/routing` — with `/query-planner` below, 8 experimental subpaths in total.
+    `/nl-map-control`, `/geoparquet`, `/source-schema`, `/plugin`, `/deckgl`, `/offline`,
+    `/diagnostics`, `/routing` — with `/query-planner` below, 9 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.

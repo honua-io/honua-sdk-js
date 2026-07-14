@@ -92,6 +92,29 @@ describe("odata / parseOdataMetadata", () => {
     const meta = parseOdataMetadata(xml);
     expect(meta.capabilities.Features?.delta).toBe(false);
   });
+
+  it("evaluates mixed implicit and explicit enum values sequentially in document order", () => {
+    const meta = parseOdataMetadata(`
+      <Schema Namespace="Example">
+        <EnumType Name="ShippingMethod">
+          <Member Name="FirstClass"/>
+          <Member Name="TwoDay" Value="4"/>
+          <Member Name="Overnight"/>
+        </EnumType>
+      </Schema>
+    `);
+
+    expect(meta.enumTypes?.ShippingMethod).toEqual({
+      underlyingType: "Edm.Int32",
+      isFlags: false,
+      members: [
+        { name: "FirstClass", value: 0 },
+        { name: "TwoDay", value: 4 },
+        { name: "Overnight", value: 5 },
+      ],
+      declaration: { state: "valid", valueMode: "mixed" },
+    });
+  });
 });
 
 describe("odata / rewriteWhereToOdataFilter", () => {
@@ -824,8 +847,8 @@ describe("odata / pipeline integrity", () => {
     expect(observedAuth).toBe("ak-test");
   });
 
-  it("add and update send Content-Type application/json so OData servers accept the body", async () => {
-    const observed: Array<{ method: string; contentType: string | null }> = [];
+  it("negotiates IEEE754-compatible OData JSON for reads and writes", async () => {
+    const observed: Array<{ method: string; url: string; accept: string | null; contentType: string | null }> = [];
     const client = new (await import("../../src/core/client.js")).HonuaClient({
       baseUrl: "https://mock.honua.test",
       fetchFn: async (input, init) => {
@@ -833,9 +856,20 @@ describe("odata / pipeline integrity", () => {
         if (url.pathname.endsWith("/$metadata")) return odataMetadataResponse();
         observed.push({
           method: init?.method ?? "GET",
+          url: url.toString(),
+          accept: new Headers(init?.headers).get("Accept"),
           contentType: new Headers(init?.headers).get("Content-Type"),
         });
-        return new Response(JSON.stringify({ OBJECTID: 1 }), {
+        const payload =
+          (init?.method ?? "GET") === "GET"
+            ? url.searchParams.has("$skiptoken")
+              ? { value: [{ OBJECTID: 2 }] }
+              : {
+                  value: [{ OBJECTID: 1 }],
+                  "@odata.nextLink": "https://mock.honua.test/odata/Parcels?$skiptoken=ieee754-next",
+                }
+            : { OBJECTID: 1 };
+        return new Response(JSON.stringify(payload), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
@@ -843,11 +877,17 @@ describe("odata / pipeline integrity", () => {
     });
 
     const entity = new HonuaOdataEntitySet({ client, entitySet: "Parcels" });
+    await entity.queryAll();
     await entity.add({ NAME: "x" });
     await entity.update("1", { NAME: "y" });
 
-    expect(observed.find((o) => o.method === "POST")?.contentType).toBe("application/json");
-    expect(observed.find((o) => o.method === "PATCH")?.contentType).toBe("application/json");
+    const mediaType = "application/json;IEEE754Compatible=true";
+    expect(observed.every((entry) => entry.accept === mediaType)).toBe(true);
+    const reads = observed.filter((entry) => entry.method === "GET");
+    expect(reads).toHaveLength(2);
+    expect(new URL(reads[1]!.url).searchParams.get("$skiptoken")).toBe("ieee754-next");
+    expect(observed.find((o) => o.method === "POST")?.contentType).toBe(mediaType);
+    expect(observed.find((o) => o.method === "PATCH")?.contentType).toBe(mediaType);
   });
 });
 

@@ -12,6 +12,7 @@ import {
   resolveDiscoveryCapabilities,
 } from "../../src/contract/index.js";
 import { isHonuaError } from "../../src/core/errors.js";
+import { createSourceSchemaV2 } from "../../src/source-schema.js";
 
 describe("contract / discovery capability truth", () => {
   it("intersects adapter defaults with metadata and caller policy", () => {
@@ -247,6 +248,45 @@ describe("contract / discovery capability truth", () => {
           schema: {
             fields: [{ name: "value", type: "esriFieldTypeString", defaultValue: new Map([["mutable", true]]) }],
           },
+        },
+        resolution,
+      ),
+    ).toThrowError(expect.objectContaining({ code: "invalid-capability" }));
+  });
+
+  it("accepts transported schema v2 envelopes and clones them immutably", () => {
+    const resolution = resolveDiscoveryCapabilities("odata", { kind: "metadata", capabilities: ["query"] });
+    const schemaV2 = createSourceSchemaV2({
+      fields: [],
+      key: { state: "none" },
+      geometry: { state: "none", reason: "no-geometry-fields" },
+      temporal: { state: "none" },
+      openContent: "closed",
+      provenance: [{ method: "observed", protocol: "odata", source: "https://example.test/$metadata" }],
+    });
+    const transported = JSON.parse(JSON.stringify(schemaV2)) as typeof schemaV2;
+    const inspection = inspectDiscoveredSource(
+      {
+        id: "transported",
+        protocol: "odata",
+        locator: { url: "https://example.test/odata", entitySet: "Assets" },
+        capabilities: capabilities(["query"]),
+        schemaV2: transported,
+      },
+      resolution,
+    );
+    expect(inspection.descriptor.schemaV2).toEqual(schemaV2);
+    expect(inspection.descriptor.schemaV2).not.toBe(transported);
+    expect(Object.isFrozen(inspection.descriptor.schemaV2?.fields[0])).toBe(true);
+
+    expect(() =>
+      inspectDiscoveredSource(
+        {
+          id: "invalid-envelope",
+          protocol: "odata",
+          locator: { url: "https://example.test/odata", entitySet: "Assets" },
+          capabilities: capabilities(["query"]),
+          schemaV2: { ...schemaV2, fingerprint: "sha256:not-a-digest" as `sha256:${string}` },
         },
         resolution,
       ),

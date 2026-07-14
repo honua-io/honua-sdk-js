@@ -936,7 +936,33 @@ export interface HonuaFieldInfo {
   nullable?: boolean;
   editable?: boolean;
   defaultValue?: unknown;
+  /** Raw GeoServices field domain. Kept on this explicit native surface. */
+  domain?: HonuaFieldDomain | null;
 }
+
+/** Raw GeoServices coded-value member. */
+export interface HonuaCodedValue {
+  name?: string;
+  code: string | number;
+}
+
+/** Raw GeoServices field-domain metadata. */
+export type HonuaFieldDomain =
+  | {
+      type: "codedValue";
+      name?: string;
+      codedValues?: HonuaCodedValue[];
+      mergePolicy?: string;
+      splitPolicy?: string;
+    }
+  | {
+      type: "range";
+      name?: string;
+      range?: [string | number, string | number];
+      mergePolicy?: string;
+      splitPolicy?: string;
+    }
+  | ({ type: string } & Record<string, unknown>);
 
 // ── Feature ───────────────────────────────────
 
@@ -1144,8 +1170,25 @@ export interface HonuaLayerMetadata {
   name: string;
   type?: string;
   geometryType?: EsriGeometryType;
+  /** Whether GeoServices coordinates include a z ordinate. */
+  hasZ?: boolean;
+  /** Whether GeoServices coordinates include a measure ordinate. */
+  hasM?: boolean;
   description?: string;
   fields?: HonuaFieldInfo[];
+  objectIdField?: string;
+  globalIdField?: string;
+  displayField?: string;
+  timeInfo?: {
+    startTimeField?: string;
+    endTimeField?: string;
+    trackIdField?: string;
+    timeExtent?: [number, number];
+    timeReference?: {
+      timeZone?: string;
+      respectsDaylightSaving?: boolean;
+    };
+  };
   extent?: HonuaExtent;
   spatialReference?: HonuaSpatialReference;
   maxRecordCount?: number;

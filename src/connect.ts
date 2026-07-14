@@ -9,7 +9,11 @@
  * @experimental
  */
 
-import { type GeoParquetSourceProfiler, discoverGeoParquetSources } from "./connect-geoparquet.js";
+import {
+  type GeoParquetSourceProfile,
+  type GeoParquetSourceProfiler,
+  discoverGeoParquetSources,
+} from "./connect-geoparquet.js";
 import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
 export type { GeoParquetSourceProfiler } from "./connect-geoparquet.js";
 import { discoverOdataSources } from "./connect-odata.js";
@@ -36,6 +40,7 @@ import {
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
 } from "./contract/discovery.js";
+import type { SourceSchemaV2 } from "./contract/schema.js";
 import { createDataset } from "./contract/source.js";
 import type {
   Dataset,
@@ -50,10 +55,12 @@ import type {
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
+import type { HonuaOdataMetadata } from "./core/odata.js";
 import { negotiateOgcCapabilities } from "./core/ogc-conformance.js";
 import { findOgcLink, ogcApiFeaturesLayout } from "./core/ogc-endpoint-layout.js";
 import type {
   HonuaClientOptions,
+  HonuaLayerMetadata,
   HonuaOgcCollectionSummary,
   HonuaOgcCollectionsResponse,
   HonuaOgcConformanceResponse,
@@ -61,6 +68,40 @@ import type {
   HonuaStacLandingResponse,
   OgcEndpointLayout,
 } from "./core/types.js";
+
+export interface ConnectSourceSchemaProjectionContext {
+  readonly source: string;
+  readonly observedAt?: string;
+  readonly validator?:
+    | { readonly kind: "etag"; readonly value: string }
+    | { readonly kind: "last-modified"; readonly value: string }
+    | { readonly kind: "version"; readonly value: string };
+}
+
+/**
+ * Internal opt-in seam used by the focused `./source-schema` entrypoint.
+ * A projector returns `undefined` only when the protocol does not advertise a
+ * field inventory. Invalid advertised metadata and projection failures throw.
+ */
+export interface ConnectSourceSchemaProjection {
+  readonly cacheIdentity: string;
+  parseCached(value: unknown): SourceSchemaV2;
+  geoServices(
+    metadata: HonuaLayerMetadata,
+    context: ConnectSourceSchemaProjectionContext & {
+      readonly protocol: "geoservices-feature-service" | "geoservices-map-service";
+    },
+  ): SourceSchemaV2 | undefined;
+  odata(
+    metadata: HonuaOdataMetadata,
+    entitySet: string,
+    context: ConnectSourceSchemaProjectionContext,
+  ): SourceSchemaV2 | undefined;
+  geoParquet(
+    profile: GeoParquetSourceProfile,
+    context: ConnectSourceSchemaProjectionContext,
+  ): SourceSchemaV2 | undefined;
+}
 
 /** Schema version for values stored through {@link ConnectDiscoveryCache}. */
 export const HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION = 4 as const;
@@ -100,6 +141,8 @@ export interface ConnectDiscoverySourceSnapshot {
   readonly crs?: readonly string[];
   readonly extent?: ConnectDiscoveryExtent;
   readonly schema?: SourceSchema;
+  /** Experimental v2 schema projected alongside the byte-compatible legacy schema. */
+  readonly schemaV2?: SourceSchemaV2;
   readonly evidence?: readonly DiscoveryCapabilityEvidence[];
 }
 
@@ -212,6 +255,14 @@ export type ConnectResolvedProtocol =
  * @experimental
  */
 export async function connect(options: ConnectOptions): Promise<HonuaConnection> {
+  return connectWithSourceSchemaProjection(options);
+}
+
+/** @internal Focused source-schema entrypoint hook; not exported from root barrels. */
+export async function connectWithSourceSchemaProjection(
+  options: ConnectOptions,
+  sourceSchemaProjection?: ConnectSourceSchemaProjection,
+): Promise<HonuaConnection> {
   throwIfAborted(options.signal);
   const endpoint = validateConnectEndpoint(options.endpoint);
   const target = resolveConnectTarget(endpoint, options.protocol);
@@ -249,8 +300,12 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     endpoint: target.endpoint,
     protocol: target.protocol,
     authorizationScopeFingerprint: options.authorizationScopeFingerprint,
-    adapterVersion: HONUA_CONNECT_ADAPTER_VERSION,
-    projectionVersion: HONUA_CONNECT_PROJECTION_VERSION,
+    adapterVersion: sourceSchemaProjection
+      ? `${HONUA_CONNECT_ADAPTER_VERSION}:${sourceSchemaProjection.cacheIdentity}`
+      : HONUA_CONNECT_ADAPTER_VERSION,
+    projectionVersion: sourceSchemaProjection
+      ? `${HONUA_CONNECT_PROJECTION_VERSION}:${sourceSchemaProjection.cacheIdentity}`
+      : HONUA_CONNECT_PROJECTION_VERSION,
     ...(options.collectionId ? { collectionId: options.collectionId } : {}),
     ...(options.typeName ? { typeName: options.typeName } : {}),
     ...(target.serviceId ? { serviceId: target.serviceId } : {}),
@@ -266,7 +321,14 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     snapshot = await awaitAbortable(options.cache.get(identity, cacheContext), options.signal);
     throwIfAborted(options.signal);
     if (snapshot) {
-      snapshot = validateSnapshot(snapshot, identity, target, options.collectionId, options.typeName);
+      snapshot = validateSnapshot(
+        snapshot,
+        identity,
+        target,
+        options.collectionId,
+        options.typeName,
+        sourceSchemaProjection,
+      );
       cacheStatus = "hit";
     }
   }
@@ -281,16 +343,16 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
           : target.protocol === "wfs"
             ? await discoverWfs(client, identity, options)
             : target.protocol === "odata"
-              ? await discoverOdata(client, identity, target, options)
+              ? await discoverOdata(client, identity, target, options, sourceSchemaProjection)
               : target.protocol === "geoparquet"
-                ? await discoverGeoParquet(identity, options)
+                ? await discoverGeoParquet(identity, options, sourceSchemaProjection)
                 : target.protocol === "ogc-records"
                   ? await discoverOgcRecords(client, identity, target, options)
                   : target.protocol === "ogc-tiles"
                     ? await discoverOgcTiles(client, identity, target, options)
                     : target.protocol === "ogc-maps"
                       ? await discoverOgcMaps(client, identity, target, options)
-                      : await discoverGeoServices(client, identity, target, options);
+                      : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
     if (options.cache) {
       await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
@@ -311,6 +373,7 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
         locator: source.locator,
         capabilities: resolution.capabilities,
         ...(source.schema ? { schema: source.schema } : {}),
+        ...(source.schemaV2 ? { schemaV2: source.schemaV2 } : {}),
         ...(source.title ? { attribution: source.title } : {}),
       };
       return Object.freeze({
@@ -597,8 +660,9 @@ async function discoverGeoServices(
   identity: DiscoveryCacheIdentity,
   target: ConnectTarget,
   options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
-  const discovered = await discoverGeoServicesSources(client, target, options);
+  const discovered = await discoverGeoServicesSources(client, target, options, sourceSchemaProjection);
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -632,8 +696,15 @@ async function discoverOdata(
   identity: DiscoveryCacheIdentity,
   target: ConnectTarget,
   options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
-  const discovered = await discoverOdataSources(client, identity, target.odataBasePath ?? "/odata", options);
+  const discovered = await discoverOdataSources(
+    client,
+    identity,
+    target.odataBasePath ?? "/odata",
+    options,
+    sourceSchemaProjection,
+  );
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -720,6 +791,7 @@ async function discoverOgcMaps(
 async function discoverGeoParquet(
   identity: DiscoveryCacheIdentity,
   options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
   const profiler = options.geoparquet?.profiler;
   if (!profiler) {
@@ -728,7 +800,7 @@ async function discoverGeoParquet(
       "GeoParquet discovery requires a footer metadata reader; pass geoparquet.profiler (for example a GeoparquetRuntime from @honua/sdk-js/geoparquet).",
     );
   }
-  const discovered = await discoverGeoParquetSources(profiler, identity, options);
+  const discovered = await discoverGeoParquetSources(profiler, identity, options, sourceSchemaProjection);
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -1043,6 +1115,7 @@ function validateSnapshot(
   target: ConnectTarget,
   collectionId: string | undefined,
   typeName: string | undefined,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): ConnectDiscoverySnapshot {
   const owned = snapshotCacheData(value);
   if (
@@ -1078,6 +1151,25 @@ function validateSnapshot(
     if (source.schema?.fields !== undefined && !Array.isArray(source.schema.fields)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source schema fields must be an array.");
     }
+    let schemaV2: SourceSchemaV2 | undefined;
+    if (source.schemaV2 !== undefined) {
+      if (!sourceSchemaProjection) {
+        throw new HonuaDiscoveryError(
+          "invalid-discovery-cache",
+          "Cached source schemaV2 requires the focused source-schema connection path.",
+        );
+      }
+      try {
+        schemaV2 = sourceSchemaProjection.parseCached(source.schemaV2);
+      } catch (cause) {
+        throw new HonuaDiscoveryError(
+          "invalid-discovery-cache",
+          "Cached source schemaV2 is invalid or its fingerprint has drifted.",
+          undefined,
+          { cause },
+        );
+      }
+    }
     if (source.evidence !== undefined && (!Array.isArray(source.evidence) || source.evidence.length === 0)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source evidence must be a non-empty array.");
     }
@@ -1102,6 +1194,7 @@ function validateSnapshot(
             }),
           }
         : {}),
+      ...(schemaV2 ? { schemaV2 } : {}),
       ...(sourceEvidence ? { evidence: sourceEvidence } : {}),
     });
   });

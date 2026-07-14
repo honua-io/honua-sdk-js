@@ -53,6 +53,25 @@ for (const [name, directory] of Object.entries(packageDirs)) {
   }
 }
 
+const generatedProjJsonValidator = path.join(
+  packageDirs["@honua/sdk"],
+  "contract",
+  "generated",
+  "projjson-v0.7-crs-validator.js",
+);
+const generatedProjJsonContents = fs.readFileSync(generatedProjJsonValidator, "utf8");
+for (const noticeFragment of [
+  "Copyright (c) Even Rouault and PROJ contributors, 2019-2023",
+  "Copyright (c) 2015-2021 Evgeny Poberezkin",
+  "Permission is hereby granted, free of charge, to any person obtaining a copy",
+  'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND',
+]) {
+  if (!generatedProjJsonContents.includes(noticeFragment)) {
+    process.stderr.write(`Split @honua/sdk PROJJSON validator is missing required license text: ${noticeFragment}\n`);
+    process.exit(1);
+  }
+}
+
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-split-verify-"));
 
 try {
@@ -90,6 +109,7 @@ import { HonuaGeocodingClient, nominatimGeocodingProvider } from "@honua/sdk/geo
 import { osrmRoutingProvider, valhallaRoutingProvider } from "@honua/sdk/routing";
 import { oauth2, clientCredentials, apiKeyAuth, InMemoryCredentialStore } from "@honua/sdk/auth";
 import { HONUA_PLUGIN_MANIFEST_VERSION, validateHonuaPluginManifest } from "@honua/sdk/plugin";
+import { createSourceSchemaV2 } from "@honua/sdk/source-schema";
 import {
   HONUA_CONTROL_PLANE_BASE_PATH,
   createHonuaControlPlane,
@@ -319,6 +339,8 @@ if (typeof InMemoryCredentialStore !== "function")
   throw new Error("InMemoryCredentialStore export missing from @honua/sdk/auth");
 if (HONUA_PLUGIN_MANIFEST_VERSION !== 1 || typeof validateHonuaPluginManifest !== "function")
   throw new Error("plugin certification exports missing from @honua/sdk/plugin");
+if (typeof createSourceSchemaV2 !== "function")
+  throw new Error("createSourceSchemaV2 export missing from @honua/sdk/source-schema");
 {
   const staticProvider = apiKeyAuth("k");
   const provided = staticProvider.getCredentials({ reason: "initial", forceRefresh: false });

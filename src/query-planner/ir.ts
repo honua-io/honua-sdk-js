@@ -178,15 +178,25 @@ function asJsonObject(value: unknown, path: string): { readonly [key: string]: J
 }
 
 function credentialFreeEndpoint(rawUrl: string): string {
+  const invalidEndpoint = "[invalid-endpoint]";
+  const opaqueUserInfo = /^[A-Za-z][A-Za-z0-9+.-]*:[^/?#\s]*@/;
   try {
     const parsed = new URL(rawUrl);
+    if (!parsed.username && !parsed.password && opaqueUserInfo.test(rawUrl)) return invalidEndpoint;
     parsed.username = "";
     parsed.password = "";
     parsed.search = "";
     parsed.hash = "";
     return parsed.toString().replace(/\/$/, "");
   } catch {
-    return rawUrl.split(/[?#]/, 1)[0] ?? rawUrl;
+    const path = rawUrl.split(/[?#]/, 1)[0] ?? rawUrl;
+    const malformedAuthority = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(rawUrl) || /^\/\//.test(rawUrl);
+    const bareUserInfo = /^[^/?#\\\s]+:[^/?#\\\s]*@/.test(rawUrl);
+    const unsafeCharacters = [...rawUrl].some((character) => {
+      const codePoint = character.codePointAt(0)!;
+      return codePoint <= 0x1f || codePoint === 0x7f;
+    });
+    return malformedAuthority || bareUserInfo || unsafeCharacters ? invalidEndpoint : path;
   }
 }
 

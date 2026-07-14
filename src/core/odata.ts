@@ -31,6 +31,8 @@ import type { HonuaClient } from "./client.js";
 import { trimTrailingSlashes } from "./path-utils.js";
 import type { HonuaFieldInfo } from "./types.js";
 
+const ODATA_IEEE754_JSON = "application/json;IEEE754Compatible=true";
+
 // ── Locator + options ─────────────────────────────────────────
 
 /**
@@ -130,9 +132,35 @@ export interface HonuaOdataMetadata {
   keys: Readonly<Record<string, readonly string[]>>;
   /** Entity-type name → field metadata, including spatial typing hints. */
   fields: Readonly<Record<string, readonly HonuaOdataFieldInfo[]>>;
+  /** Complex-type name → nested property metadata. */
+  complexTypes?: Readonly<Record<string, readonly HonuaOdataFieldInfo[]>>;
+  /** Enum-type name → underlying scalar and declared members. */
+  enumTypes?: Readonly<Record<string, HonuaOdataEnumTypeInfo>>;
+  /** Entity types explicitly declared with CSDL `OpenType="true"`. */
+  openTypes?: Readonly<Record<string, true>>;
   /** Entity-set name → coarse capability flags advertised by `Capabilities.*` annotations. */
   capabilities: Readonly<Record<string, HonuaOdataAdvertisedCapabilities>>;
   cache?: HonuaCacheState;
+}
+
+/** @internal Parser evidence used only by the opt-in SourceSchemaV2 projector. */
+export interface HonuaOdataSourceSchemaProjectionSafety {
+  readonly ambiguousTypeNames: readonly string[];
+  readonly inheritedTypeNames: readonly string[];
+  readonly unqualifiedTypeNames: readonly string[];
+}
+
+const ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY = Symbol("honua.odata.source-schema-projection-safety");
+
+/** @internal Read parser evidence without changing the legacy string-keyed metadata shape. */
+export function getOdataSourceSchemaProjectionSafety(
+  metadata: HonuaOdataMetadata,
+): HonuaOdataSourceSchemaProjectionSafety | undefined {
+  return (
+    metadata as HonuaOdataMetadata & {
+      readonly [ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY]?: HonuaOdataSourceSchemaProjectionSafety;
+    }
+  )[ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY];
 }
 
 /** Per-field metadata carried by {@link HonuaOdataMetadata.fields}. */
@@ -140,10 +168,41 @@ export interface HonuaOdataFieldInfo {
   name: string;
   type: string;
   nullable?: boolean;
+  maxLength?: number | "max";
+  precision?: number;
+  scale?: number | "variable";
   /** True when the field is an `Edm.Geography` / `Edm.Geometry` column. */
   isSpatial?: boolean;
   /** Optional SRID hint declared in the type or annotation. */
-  srid?: number;
+  srid?: number | "variable";
+}
+
+export interface HonuaOdataEnumMemberInfo {
+  readonly name: string;
+  readonly value: string | number;
+}
+
+export type HonuaOdataEnumDeclaration =
+  | { readonly state: "valid"; readonly valueMode: "explicit" | "implicit" | "mixed" }
+  | {
+      readonly state: "invalid";
+      readonly reason:
+        | "invalid-underlying-type"
+        | "empty-declaration"
+        | "flags-require-explicit-values"
+        | "invalid-member-name"
+        | "duplicate-member-name"
+        | "invalid-member-value"
+        | "out-of-range"
+        | "negative-flags-value";
+    };
+
+export interface HonuaOdataEnumTypeInfo {
+  readonly underlyingType: string;
+  readonly isFlags: boolean;
+  readonly members: readonly HonuaOdataEnumMemberInfo[];
+  /** CSDL declaration validation; absent on metadata assembled by older callers. */
+  readonly declaration?: HonuaOdataEnumDeclaration;
 }
 
 /**
@@ -353,7 +412,7 @@ export class HonuaOdataEntitySet {
   ): Promise<T> {
     const path = this.entitySetPath();
     return this.requestJson<T>("POST", path, undefined, options.signal, JSON.stringify(body), {
-      "Content-Type": "application/json",
+      "Content-Type": ODATA_IEEE754_JSON,
     });
   }
 
@@ -371,7 +430,7 @@ export class HonuaOdataEntitySet {
   ): Promise<T | undefined> {
     const path = `${this.entitySetPath()}(${encodeOdataKey(key)})`;
     return this.requestJson<T | undefined>("PATCH", path, undefined, options.signal, JSON.stringify(body), {
-      "Content-Type": "application/json",
+      "Content-Type": ODATA_IEEE754_JSON,
     });
   }
 
@@ -405,9 +464,9 @@ export class HonuaOdataEntitySet {
       method: op.method,
       url: stripLeadingSlash(op.url),
       ...(op.headers
-        ? { headers: { "Content-Type": "application/json", ...op.headers } }
+        ? { headers: odataIeee754Headers(op.headers, true) }
         : {
-            headers: { "Content-Type": "application/json" },
+            headers: odataIeee754Headers(undefined, true),
           }),
       ...(op.body !== undefined ? { body: op.body } : {}),
       ...(groupId !== undefined ? { atomicityGroup: groupId } : {}),
@@ -418,7 +477,7 @@ export class HonuaOdataEntitySet {
       undefined,
       options.signal,
       JSON.stringify({ requests }),
-      { "Content-Type": "application/json" },
+      { "Content-Type": ODATA_IEEE754_JSON },
     );
     return { responses: response.responses ?? [] };
   }
@@ -560,7 +619,9 @@ export class HonuaOdataEntitySet {
    * does **not** go through `HonuaClient.request` — that helper injects
    * `f=json`, which Honua Server's OData validators reject as
    * `InvalidQueryOption`. The OData server defaults to JSON when the
-   * request advertises `Accept: application/json` (the pipeline default).
+   * request advertises `Accept: application/json;IEEE754Compatible=true` so
+   * Edm.Int64 and Edm.Decimal values match the schema's lossless string
+   * encoding instead of depending on a server default.
    */
   private async requestJson<T>(
     method: "GET" | "POST" | "PATCH" | "DELETE",
@@ -581,7 +642,7 @@ export class HonuaOdataEntitySet {
       method,
       pathWithQuery,
       {
-        ...(headers ? { headers } : {}),
+        headers: odataIeee754Headers(headers),
         ...(body !== undefined ? { body } : {}),
       },
       signal,
@@ -590,6 +651,22 @@ export class HonuaOdataEntitySet {
 }
 
 // ── Helpers ───────────────────────────────────────────────────
+
+function odataIeee754Headers(
+  headers: Readonly<Record<string, string>> | undefined,
+  contentType = false,
+): Record<string, string> {
+  const normalized = Object.fromEntries(
+    Object.entries(headers ?? {}).filter(
+      ([name]) => name.toLowerCase() !== "accept" && (!contentType || name.toLowerCase() !== "content-type"),
+    ),
+  );
+  return {
+    ...normalized,
+    Accept: ODATA_IEEE754_JSON,
+    ...(contentType ? { "Content-Type": ODATA_IEEE754_JSON } : {}),
+  };
+}
 
 function withOdataMetadataCacheState(
   entry: OdataMetadataCacheEntry,
@@ -757,6 +834,9 @@ export function parseOdataMetadata(xml: string): HonuaOdataMetadata {
   const entitySets: Record<string, string> = {};
   const keys: Record<string, string[]> = {};
   const fields: Record<string, HonuaOdataFieldInfo[]> = {};
+  const complexTypes: Record<string, HonuaOdataFieldInfo[]> = {};
+  const enumTypes: Record<string, HonuaOdataEnumTypeInfo> = {};
+  const openTypes: Record<string, true> = {};
   const capabilities: Record<string, HonuaOdataAdvertisedCapabilities> = {};
 
   // Sibling annotations: <Annotations Target="<schema>.<container>/<entitySet>">
@@ -805,6 +885,7 @@ export function parseOdataMetadata(xml: string): HonuaOdataMetadata {
     const body = match[2] ?? "";
     const name = readAttr(attrs, "Name");
     if (!name) continue;
+    if (readAttr(attrs, "OpenType")?.toLowerCase() === "true") openTypes[name] = true;
     const keyNames: string[] = [];
     const keyBlock = /<Key>([\s\S]*?)<\/Key>/.exec(body);
     if (keyBlock) {
@@ -814,28 +895,182 @@ export function parseOdataMetadata(xml: string): HonuaOdataMetadata {
       }
     }
     keys[name] = keyNames;
-    const props: HonuaOdataFieldInfo[] = [];
-    for (const propMatch of body.matchAll(/<Property\s+([^>]*?)\/>|<Property\s+([^>]*?)>/g)) {
-      const propAttrs = propMatch[1] ?? propMatch[2] ?? "";
-      const propName = readAttr(propAttrs, "Name");
-      const propType = readAttr(propAttrs, "Type");
-      if (!propName || !propType) continue;
-      const nullable = readAttr(propAttrs, "Nullable");
-      const sridAttr = readAttr(propAttrs, "SRID");
-      const isSpatial = propType.startsWith("Edm.Geography") || propType.startsWith("Edm.Geometry");
-      const info: HonuaOdataFieldInfo = { name: propName, type: propType };
-      if (nullable !== undefined) info.nullable = nullable !== "false";
-      if (isSpatial) info.isSpatial = true;
-      if (sridAttr !== undefined) {
-        const srid = Number(sridAttr);
-        if (Number.isFinite(srid)) info.srid = srid;
-      }
-      props.push(info);
-    }
-    fields[name] = props;
+    fields[name] = parseOdataProperties(body);
   }
 
-  return { entitySets, keys, fields, capabilities };
+  for (const match of xml.matchAll(/<ComplexType\s+([^>]*?)>([\s\S]*?)<\/ComplexType>/g)) {
+    const name = readAttr(match[1] ?? "", "Name");
+    if (name) complexTypes[name] = parseOdataProperties(match[2] ?? "");
+  }
+
+  for (const match of xml.matchAll(/<EnumType\s+([^>]*?)>([\s\S]*?)<\/EnumType>/g)) {
+    const attrs = match[1] ?? "";
+    const name = readAttr(attrs, "Name");
+    if (!name) continue;
+    const underlyingType = readAttr(attrs, "UnderlyingType") ?? "Edm.Int32";
+    const isFlags = readAttr(attrs, "IsFlags")?.toLowerCase() === "true";
+    const declarations = [...(match[2] ?? "").matchAll(/<Member(?:\s+([^>]*?))?\s*(?:\/>|>)/g)].map((memberMatch) => {
+      const memberAttrs = memberMatch[1] ?? "";
+      return { name: readAttr(memberAttrs, "Name"), rawValue: readAttr(memberAttrs, "Value") };
+    });
+    const hasExplicit = declarations.some((member) => member.rawValue !== undefined);
+    const hasImplicit = declarations.some((member) => member.rawValue === undefined);
+    const valueMode = hasExplicit ? (hasImplicit ? "mixed" : "explicit") : "implicit";
+    let declarationReason: Extract<HonuaOdataEnumDeclaration, { state: "invalid" }>["reason"] | undefined;
+    const invalidate = (reason: NonNullable<typeof declarationReason>): void => {
+      declarationReason ??= reason;
+    };
+    const bounds = odataEnumBounds(underlyingType);
+    if (declarations.length === 0) invalidate("empty-declaration");
+    if (!bounds) invalidate("invalid-underlying-type");
+    if (isFlags && hasImplicit) invalidate("flags-require-explicit-values");
+
+    const members: HonuaOdataEnumMemberInfo[] = [];
+    const names = new Set<string>();
+    let previousValue: bigint | undefined;
+    for (const [index, declaration] of declarations.entries()) {
+      let parsed: bigint | undefined;
+      if (declaration.rawValue === undefined) {
+        if (!isFlags) {
+          parsed = index === 0 ? 0n : previousValue === undefined ? undefined : previousValue + 1n;
+        }
+      } else if (/^[+-]?\d+$/.test(declaration.rawValue)) {
+        try {
+          parsed = BigInt(declaration.rawValue);
+        } catch {
+          parsed = undefined;
+        }
+      }
+      if (parsed === undefined) invalidate("invalid-member-value");
+      else if (isFlags && parsed < 0n) invalidate("negative-flags-value");
+      else if (bounds && (parsed < bounds.minimum || parsed > bounds.maximum)) invalidate("out-of-range");
+      previousValue = parsed;
+      if (!declaration.name || !odataSimpleIdentifier(declaration.name)) {
+        invalidate("invalid-member-name");
+        continue;
+      }
+      if (names.has(declaration.name)) invalidate("duplicate-member-name");
+      names.add(declaration.name);
+      if (parsed === undefined) continue;
+      const value =
+        underlyingType === "Edm.Int64" || !Number.isSafeInteger(Number(parsed)) ? parsed.toString() : Number(parsed);
+      members.push({ name: declaration.name, value });
+    }
+    enumTypes[name] = {
+      underlyingType,
+      isFlags,
+      members,
+      declaration: declarationReason ? { state: "invalid", reason: declarationReason } : { state: "valid", valueMode },
+    };
+  }
+
+  const metadata: HonuaOdataMetadata = {
+    entitySets,
+    keys,
+    fields,
+    ...(Object.keys(complexTypes).length > 0 ? { complexTypes } : {}),
+    ...(Object.keys(enumTypes).length > 0 ? { enumTypes } : {}),
+    ...(Object.keys(openTypes).length > 0 ? { openTypes } : {}),
+    capabilities,
+  };
+  Object.defineProperty(metadata, ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY, {
+    value: inspectOdataSourceSchemaProjectionSafety(xml),
+    enumerable: true,
+  });
+  return metadata;
+}
+
+function inspectOdataSourceSchemaProjectionSafety(xml: string): HonuaOdataSourceSchemaProjectionSafety {
+  const declarations = new Map<string, Map<string, number>>();
+  const inheritedTypeNames = new Set<string>();
+  const unqualifiedTypeNames = new Set<string>();
+  for (const schemaMatch of xml.matchAll(/<Schema\b([^>]*)>([\s\S]*?)<\/Schema>/g)) {
+    const schemaAttributes = schemaMatch[1] ?? "";
+    const namespace = readAttr(schemaAttributes, "Namespace");
+    const body = schemaMatch[2] ?? "";
+    for (const declarationMatch of body.matchAll(/<(EntityType|ComplexType|EnumType)\b([^>]*?)(?:\/>|>)/g)) {
+      const kind = declarationMatch[1]!;
+      const attributes = declarationMatch[2] ?? "";
+      const name = readAttr(attributes, "Name");
+      if (!name) continue;
+      const qualifiedIdentity = `${kind}:${namespace ? `${namespace}.${name}` : name}`;
+      const identities = declarations.get(name) ?? new Map<string, number>();
+      identities.set(qualifiedIdentity, (identities.get(qualifiedIdentity) ?? 0) + 1);
+      declarations.set(name, identities);
+      if (!namespace) unqualifiedTypeNames.add(name);
+      if (kind !== "EnumType" && readAttr(attributes, "BaseType")) inheritedTypeNames.add(name);
+    }
+  }
+  const ambiguousTypeNames = [...declarations]
+    .filter(([, identities]) => identities.size > 1 || [...identities.values()].some((count) => count > 1))
+    .map(([name]) => name)
+    .sort();
+  return Object.freeze({
+    ambiguousTypeNames: Object.freeze(ambiguousTypeNames),
+    inheritedTypeNames: Object.freeze([...inheritedTypeNames].sort()),
+    unqualifiedTypeNames: Object.freeze([...unqualifiedTypeNames].sort()),
+  });
+}
+
+function odataEnumBounds(underlyingType: string): { readonly minimum: bigint; readonly maximum: bigint } | undefined {
+  switch (underlyingType) {
+    case "Edm.Byte":
+      return { minimum: 0n, maximum: 255n };
+    case "Edm.SByte":
+      return { minimum: -128n, maximum: 127n };
+    case "Edm.Int16":
+      return { minimum: -32_768n, maximum: 32_767n };
+    case "Edm.Int32":
+      return { minimum: -2_147_483_648n, maximum: 2_147_483_647n };
+    case "Edm.Int64":
+      return { minimum: -(1n << 63n), maximum: (1n << 63n) - 1n };
+    default:
+      return undefined;
+  }
+}
+
+function odataSimpleIdentifier(value: string): boolean {
+  return [...value].length <= 128 && /^[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]*$/u.test(value);
+}
+
+function parseOdataProperties(body: string): HonuaOdataFieldInfo[] {
+  const props: HonuaOdataFieldInfo[] = [];
+  for (const propMatch of body.matchAll(/<Property\s+([^>]*?)\/>|<Property\s+([^>]*?)>/g)) {
+    const propAttrs = propMatch[1] ?? propMatch[2] ?? "";
+    const propName = readAttr(propAttrs, "Name");
+    const propType = readAttr(propAttrs, "Type");
+    if (!propName || !propType) continue;
+    const nullable = readAttr(propAttrs, "Nullable");
+    const maxLengthAttr = readAttr(propAttrs, "MaxLength");
+    const precisionAttr = readAttr(propAttrs, "Precision");
+    const scaleAttr = readAttr(propAttrs, "Scale");
+    const sridAttr = readAttr(propAttrs, "SRID");
+    const isSpatial = propType.startsWith("Edm.Geography") || propType.startsWith("Edm.Geometry");
+    const info: HonuaOdataFieldInfo = { name: propName, type: propType };
+    if (nullable !== undefined) info.nullable = nullable !== "false";
+    if (maxLengthAttr?.toLowerCase() === "max") info.maxLength = "max";
+    else if (maxLengthAttr !== undefined) {
+      const maxLength = Number(maxLengthAttr);
+      if (Number.isSafeInteger(maxLength) && maxLength >= 0) info.maxLength = maxLength;
+    }
+    if (precisionAttr !== undefined) {
+      const precision = Number(precisionAttr);
+      if (Number.isSafeInteger(precision) && precision > 0) info.precision = precision;
+    }
+    if (scaleAttr?.toLowerCase() === "variable") info.scale = "variable";
+    else if (scaleAttr !== undefined) {
+      const scale = Number(scaleAttr);
+      if (Number.isSafeInteger(scale) && scale >= 0) info.scale = scale;
+    }
+    if (isSpatial) info.isSpatial = true;
+    if (sridAttr?.toLowerCase() === "variable") info.srid = "variable";
+    else if (sridAttr !== undefined) {
+      const srid = Number(sridAttr);
+      if (Number.isSafeInteger(srid) && srid >= 0) info.srid = srid;
+    }
+    props.push(info);
+  }
+  return props;
 }
 
 /**

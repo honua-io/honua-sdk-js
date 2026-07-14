@@ -18,6 +18,7 @@
 import type { HonuaClient } from "../core/client.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { HonuaExtent, HonuaFieldInfo, HonuaServerCompatibilityFeature, HonuaTypedFeature } from "../core/types.js";
+import type { SourceSchemaV2 } from "./schema.js";
 
 // ── Protocol identifiers ──────────────────────────────────────
 
@@ -418,6 +419,8 @@ export interface SourceDescriptor {
   locator: SourceLocator;
   capabilities: Capabilities;
   schema?: SourceSchema;
+  /** Experimental vendor-neutral schema, dual-read alongside legacy `schema`. */
+  schemaV2?: SourceSchemaV2;
   analytics?: SourceAnalyticsCapabilities;
   attribution?: string;
 }

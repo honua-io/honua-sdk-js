@@ -80,14 +80,14 @@ describe("geoparquet Source — real DuckDB-WASM against fixtures", () => {
         }
       });
 
-      it("describe() surfaces schema, geometry column, CRS, and a row estimate", async () => {
+      it("describe() surfaces schema and geometry and only defaults CRS from GeoParquet metadata", async () => {
         const source = geoparquetSource(descriptor(`d-${url}`, url), { runtime });
         const handle = source.protocol("geoparquet");
         expect(handle).toBeDefined();
         const description = await handle!.describe();
         expect(description.geometryColumns).toEqual(["geometry"]);
         expect(description.rowEstimate).toBe(8);
-        expect(description.crs).toBeTruthy();
+        expect(description.crs).toBe(url === GEOPARQUET_URL ? "OGC:CRS84" : undefined);
         expect(description.schema.map((f) => f.name)).toEqual(
           expect.arrayContaining(["id", "name", "category", "population"]),
         );

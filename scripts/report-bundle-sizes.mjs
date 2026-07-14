@@ -74,6 +74,12 @@ const TARGETS = [
   { key: ".", kind: "bundle", entry: "dist/src/index.js", label: "`.` (root)" },
   { key: "/honua", kind: "bundle", entry: "dist/src/honua.js", label: "`/honua`" },
   { key: "/contract", kind: "bundle", entry: "dist/src/contract/index.js", label: "`/contract`" },
+  {
+    key: "/source-schema",
+    kind: "bundle",
+    entry: "dist/src/source-schema.js",
+    label: "`/source-schema` (focused schema + pinned PROJJSON validator)",
+  },
   { key: "/plugin", kind: "bundle", entry: "dist/src/plugin/index.js", label: "`/plugin` (registry + certification, no heavy peers)" },
   { key: "/agent-tools", kind: "bundle", entry: "dist/src/agent-tools/index.js", label: "`/agent-tools`" },
   { key: "/agent-safety", kind: "bundle", entry: "dist/src/agent-safety/index.js", label: "`/agent-safety`" },
@@ -138,6 +144,12 @@ const TARGETS = [
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-honua-client.mjs",
     label: "tree-shake guard (`{ HonuaClient }` only)",
+  },
+  {
+    key: "tree-shake:root-connect",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-root-connect.mjs",
+    label: "tree-shake guard (`{ connect }` from root, source-schema runtime excluded)",
   },
   {
     key: "tree-shake:esri-compat-FeatureLayerCompat",

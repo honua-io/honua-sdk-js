@@ -1,6 +1,6 @@
 /** Internal GeoParquet / static-file metadata projection for connect(). */
 
-import type { ConnectDiscoverySourceSnapshot, ConnectOptions } from "./connect.js";
+import type { ConnectDiscoverySourceSnapshot, ConnectOptions, ConnectSourceSchemaProjection } from "./connect.js";
 import type { DiscoveryCacheIdentity, DiscoveryCapabilityEvidence, DiscoveryProvenance } from "./contract/discovery.js";
 import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES, type SourceLocator } from "./contract/types.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
@@ -23,6 +23,27 @@ export interface GeoParquetGeometryPlan {
   readonly encoding: GeoParquetGeometryEncoding;
   /** Optional GeoParquet 1.1 bbox-covering struct column used for row-group pruning. */
   readonly bboxColumn?: string;
+  /**
+   * Whether the containing GeoParquet document passed the supported 1.0/1.1
+   * structural checks. This is metadata conformance evidence only; it does not
+   * assert that the current SQL runtime can execute the declared encoding.
+   */
+  readonly metadataState?: "valid" | "invalid" | "missing";
+  /** GeoParquet `geometry_types`; an empty array explicitly means unknown. */
+  readonly geometryTypes?: readonly string[];
+  readonly geometryTypesState?: "valid" | "missing" | "invalid" | "conflicting";
+  /** Distinguishes absent (CRS84 default), explicit null, and a declared CRS. */
+  readonly crsState?: "absent" | "null" | "value" | "missing-metadata" | "invalid-metadata";
+  readonly crsValue?: unknown;
+  readonly coordinateEpoch?: number;
+  readonly epochState?: "absent" | "valid" | "invalid";
+  readonly epochValue?: unknown;
+}
+
+export interface GeoParquetFieldProfile {
+  readonly name: string;
+  readonly type: string;
+  readonly nullable?: boolean;
 }
 
 /**
@@ -37,8 +58,12 @@ export interface GeoParquetGeometryPlan {
 export interface GeoParquetSourceProfile {
   /** Non-geometry columns, in file order. */
   readonly columns: readonly string[];
+  /** Typed footer/DESCRIBE fields. Optional for compatibility with existing injected profilers. */
+  readonly fields?: readonly GeoParquetFieldProfile[];
   /** Geometry column plan, or `undefined` for a purely tabular file. */
   readonly geometry?: GeoParquetGeometryPlan;
+  /** All GeoParquet geometry columns; `geometry` selects the primary runtime column. */
+  readonly geometries?: readonly GeoParquetGeometryPlan[];
   /** CRS identifier, best-effort (`OGC:CRS84`, an `EPSG:####`, or a name). */
   readonly crs?: string;
   /** Footer-derived row estimate, when available. */
@@ -85,6 +110,7 @@ export async function discoverGeoParquetSources(
   profiler: GeoParquetSourceProfiler,
   identity: DiscoveryCacheIdentity,
   options: ConnectOptions,
+  sourceSchemaProjection?: ConnectSourceSchemaProjection,
 ): Promise<GeoParquetDiscoveryResult> {
   const endpoint = identity.endpoint;
   const geometryColumnOverride = options.geoparquet?.geometryColumn;
@@ -124,11 +150,16 @@ export async function discoverGeoParquetSources(
     url: endpoint,
     ...(Object.keys(geoparquetLocator).length > 0 ? { geoparquet: Object.freeze(geoparquetLocator) } : {}),
   });
+  const schemaV2 = sourceSchemaProjection?.geoParquet(profile, {
+    source: `${endpoint} (parquet footer)`,
+    observedAt: retrievedAt,
+  });
 
   const source: ConnectDiscoverySourceSnapshot = Object.freeze({
     id: geoParquetSourceId(endpoint),
     locator,
     ...(profile.crs ? { crs: Object.freeze([profile.crs]) } : {}),
+    ...(schemaV2 ? { schemaV2 } : {}),
     evidence,
   });
 

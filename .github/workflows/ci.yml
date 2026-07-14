@@ -182,6 +182,9 @@ jobs:
       - name: Verify contract v2 design fixtures
         run: npm run verify:contract-v2-design
 
+      - name: Verify pinned PROJJSON validator
+        run: npm run verify:projjson-validator
+
       - name: Verify sample publication contract
         run: |
           npm run samples:verify

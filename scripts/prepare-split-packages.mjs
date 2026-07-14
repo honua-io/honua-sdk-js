@@ -120,6 +120,8 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "runtime"), path.join(packageRoot, "runtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
+  copyFile(path.join(DIST_SRC_ROOT, "connect-schema.js"), path.join(packageRoot, "connect-schema.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "connect-schema.d.ts"), path.join(packageRoot, "connect-schema.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-geoservices.js"), path.join(packageRoot, "connect-geoservices.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-geoservices.d.ts"), path.join(packageRoot, "connect-geoservices.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-wfs.js"), path.join(packageRoot, "connect-wfs.js"));
@@ -132,6 +134,8 @@ function createSdkPackage() {
   copyFile(path.join(DIST_SRC_ROOT, "connect-ogc.d.ts"), path.join(packageRoot, "connect-ogc.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect.js"), path.join(packageRoot, "connect.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect.d.ts"), path.join(packageRoot, "connect.d.ts"));
+  copyFile(path.join(DIST_SRC_ROOT, "source-schema.js"), path.join(packageRoot, "source-schema.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "source-schema.d.ts"), path.join(packageRoot, "source-schema.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.d.ts"), path.join(packageRoot, "index.d.ts"));
 
@@ -154,6 +158,10 @@ function createSdkPackage() {
       "./contract": {
         types: "./contract/index.d.ts",
         default: "./contract/index.js",
+      },
+      "./source-schema": {
+        types: "./source-schema.d.ts",
+        default: "./source-schema.js",
       },
       "./deckgl": {
         types: "./deckgl/index.d.ts",
