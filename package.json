@@ -279,6 +279,7 @@
     "verify:llms": "node scripts/generate-llms-txt.mjs --check",
     "verify:skills": "node scripts/verify-skills.mjs",
     "verify:north-star-api": "tsc -p test/design/north-star-api/tsconfig.json --noEmit",
+    "verify:contract-v2-design": "node scripts/verify-contract-v2-design.mjs",
     "samples:generate": "node scripts/sample-contract.mjs write",
     "samples:migrate:v1": "node scripts/sample-contract.mjs migrate-v1",
     "samples:verify": "node scripts/sample-contract.mjs check",
