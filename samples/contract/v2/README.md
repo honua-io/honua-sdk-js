@@ -37,7 +37,8 @@ requires supported and active lifecycle state, executed fixture evidence, and
 current executed live evidence whenever its quality profile requires it.
 All seven candidates are currently planned; the catalog makes no golden claim
 until #541 supplies verifiable gate, screenshot, performance, fixture, and live
-evidence.
+evidence. Validation fails closed on every attempted golden promotion until
+those versioned per-gate receipts exist; profile booleans alone are never proof.
 
 CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence
@@ -95,7 +96,9 @@ before content digest; a different repository file or another reviewed
 generator cannot satisfy the command. The benchmark generator additionally
 proves that it names the sample and journey. The reported revision is metadata,
 not a claim that the current bytes were read from or attested by that Git
-commit. Non-executed evidence may report a null revision.
+commit. Non-executed evidence may report a null revision and may omit a producer
+claim, but any producer artifact it does publish is subject to the same exact
+command, path, digest, sample, and journey binding.
 
 Lifecycle states other than `active` have a target release. `merge`, `replace`,
 and `retire` also identify a non-self sample, golden journey, or typed external

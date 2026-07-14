@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
@@ -631,6 +631,38 @@ describe("sample publication contract", () => {
     await expect(validateCatalog(prematurePromotion, packageJson, validationTime)).rejects.toThrow(
       "incident-operations: planned journey candidate cannot use the golden track",
     );
+
+    const metadataOnly = await promoteIncident();
+    const evidencePath = "test-results/metadata-only-golden-evidence.json";
+    const executedEvidence = await readJson("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
+    executedEvidence.status = "executed";
+    executedEvidence.reason = null;
+    executedEvidence.provenance = {
+      sourceId: "honua-demo:incident-realtime",
+      observedAt: executedEvidence.observedAt,
+      validAt: null,
+      state: "live",
+      attribution: "Honua demo synthetic incident data",
+    };
+    executedEvidence.semantics.outcome = "connected";
+    executedEvidence.timing.totalMs = 1;
+    executedEvidence.degradation = { state: "none", reasons: [] };
+    metadataOnly.sample.evidence.live = {
+      mode: "demo-live",
+      status: "executed",
+      commands: ["npm run bench:live"],
+      evidencePath,
+      expiresAt: "2026-07-26T02:18:02.730Z",
+    };
+    try {
+      await mkdir("test-results", { recursive: true });
+      await writeFile(evidencePath, `${JSON.stringify(executedEvidence, null, 2)}\n`);
+      await expect(validateCatalog(metadataOnly.catalog, packageJson, validationTime)).rejects.toThrow(
+        "golden promotion requires verifiable per-gate evidence receipts from #541",
+      );
+    } finally {
+      await rm(evidencePath, { force: true });
+    }
   });
 
   it("uses one credential-safe evidence envelope for fixture, live, and unavailable lanes", async () => {
@@ -732,6 +764,32 @@ describe("sample publication contract", () => {
         .digest("hex"),
     };
     await expect(validateLiveEvidenceProducer(nonBenchEvidence, nonBenchSample)).resolves.toBeUndefined();
+
+    const skippedCatalog = await readJson("samples/catalog.v2.json");
+    const skippedSample = skippedCatalog.samples.find(
+      (candidate: { id: string }) => candidate.id === "realtime-incident-dashboard",
+    );
+    const skippedEvidence = await readJson(skippedSample.evidence.live.evidencePath);
+    await expect(validateLiveEvidenceProducer(skippedEvidence, skippedSample)).resolves.toBeUndefined();
+
+    const staleSkippedProducer = structuredClone(skippedEvidence);
+    staleSkippedProducer.artifacts[0].sha256 = "0".repeat(64);
+    await expect(validateLiveEvidenceProducer(staleSkippedProducer, skippedSample)).rejects.toThrow(
+      "producer generator digest drift",
+    );
+
+    const misplacedSkippedProducer = structuredClone(skippedEvidence);
+    misplacedSkippedProducer.artifacts[0].path = "package.json";
+    misplacedSkippedProducer.artifacts[0].sha256 = createHash("sha256")
+      .update(await readFile("package.json"))
+      .digest("hex");
+    await expect(validateLiveEvidenceProducer(misplacedSkippedProducer, skippedSample)).rejects.toThrow(
+      "producer generator path for npm run bench:live must be scripts/live-benchmark-evidence.mjs",
+    );
+
+    const unclaimedSkippedProducer = structuredClone(skippedEvidence);
+    unclaimedSkippedProducer.artifacts = [];
+    await expect(validateLiveEvidenceProducer(unclaimedSkippedProducer, skippedSample)).resolves.toBeUndefined();
 
     const arbitraryFile = structuredClone(nonBenchEvidence);
     arbitraryFile.artifacts[0].path = "package.json";

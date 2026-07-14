@@ -1458,6 +1458,10 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     invariant(journey?.status === "qualified", `${sample.id}: golden sample journey must be qualified`);
     invariant(journey.candidateSampleId === sample.id, `${sample.id}: golden sample must be its journey candidate`);
   }
+  invariant(
+    goldenSamples.length === 0 && qualifiedJourneys.length === 0,
+    "golden promotion requires verifiable per-gate evidence receipts from #541",
+  );
 
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
@@ -1504,17 +1508,18 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
 }
 
 export async function validateLiveEvidenceProducer(evidence, sample) {
-  if (evidence.status !== "executed") return;
+  const producers = (evidence.artifacts ?? []).filter((artifact) => artifact.kind === "producer-generator");
+  if (evidence.status !== "executed" && producers.length === 0) return;
+  const claimLabel = evidence.status === "executed" ? "executed live evidence" : "non-executed live producer claim";
   const commands = sample.evidence?.live?.commands;
   invariant(
     Array.isArray(commands) && commands.length === 1,
-    `${sample.id}: executed live evidence requires exactly one reviewed producer command`,
+    `${sample.id}: ${claimLabel} requires exactly one reviewed producer command`,
   );
   const [command] = commands;
   const parsed = parseCatalogCommand(command);
   const binding = parsed.runner === "npm" ? REVIEWED_LIVE_PRODUCERS.get(parsed.script) : undefined;
-  invariant(binding, `${sample.id}: executed live evidence command is not in the reviewed producer registry: ${command}`);
-  const producers = (evidence.artifacts ?? []).filter((artifact) => artifact.kind === "producer-generator");
+  invariant(binding, `${sample.id}: ${claimLabel} command is not in the reviewed producer registry: ${command}`);
   invariant(producers.length === 1, `${sample.id}: live evidence requires exactly one producer-generator artifact`);
   const [producer] = producers;
   assertRelativePath(producer.path, `${sample.id}.producer.path`);
