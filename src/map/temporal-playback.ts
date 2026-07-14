@@ -15,6 +15,8 @@
  * @module
  */
 
+import { HonuaSdkError } from "../core/error-envelope.js";
+
 // ── Public contracts ─────────────────────────────────────────────
 
 /** A half-open time window `[start, end)` in epoch milliseconds. @experimental */
@@ -118,9 +120,9 @@ export interface TemporalPlayback {
 }
 
 /** Raised for invalid playback options. @experimental */
-export class HonuaTemporalPlaybackError extends Error {
+export class HonuaTemporalPlaybackError extends HonuaSdkError {
   public constructor(message: string) {
-    super(message);
+    super("map.temporal-playback.invalid-option", message);
     this.name = "HonuaTemporalPlaybackError";
   }
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createExplorationContext, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
+import { isHonuaError } from "../src/index.js";
 import {
+  HonuaRealtimeResumeError,
   createRealtimeFeatureStore,
   createRealtimeServerSentEventsTransport,
   decodeRealtimeServerSentEvent,
@@ -65,6 +67,11 @@ class MockRealtimeEventSource implements RealtimeServerSentEventSource {
   public namedMessage(type: string, payload: unknown): void {
     const event = new MessageEvent(type, { data: JSON.stringify(payload) });
     for (const listener of this.listeners.get(type) ?? []) listener(event);
+  }
+
+  public fail(closed = false): void {
+    this.readyState = closed ? 2 : 0;
+    this.onerror?.(new Event("error"));
   }
 }
 
@@ -352,7 +359,165 @@ describe("realtime feature state", () => {
       type: "heartbeat",
       cursor: "c9",
     });
-    expect(() => decodeRealtimeServerSentEvent({ event: "missing-type" })).toThrow(/missing an event type/);
+    let malformed: unknown;
+    try {
+      decodeRealtimeServerSentEvent({ event: "missing-type" });
+    } catch (error) {
+      malformed = error;
+    }
+    expect(malformed).toBeInstanceOf(HonuaRealtimeResumeError);
+    expect(isHonuaError(malformed)).toBe(true);
+    expect(malformed).toMatchObject({
+      code: "invalid-event",
+      sdkCode: "realtime.protocol.terminal",
+      retryable: false,
+    });
+
+    const terminal = decodeRealtimeServerSentEvent({
+      type: "error",
+      terminal: true,
+      code: "AUTH",
+      error: {
+        kind: "honua.sdk.error.v1",
+        name: "HonuaRealtimeResumeError",
+        domain: "realtime",
+        sdkCode: "realtime.protocol.terminal",
+        category: "protocol",
+        retryable: false,
+        context: { payload: "spoofed-context-secret" },
+        authorization: "Bearer server-header-secret",
+        resumeToken: "server-resume-secret",
+        payload: { feature: "server-payload-secret" },
+        filter: "owner = 'server-filter-secret'",
+      },
+    });
+    expect(terminal.type).toBe("error");
+    if (terminal.type !== "error") throw new Error("expected a realtime error event");
+    expect(terminal.error).toBeInstanceOf(HonuaRealtimeResumeError);
+    expect(terminal.error).toMatchObject({ sdkCode: "realtime.protocol.terminal", retryable: false });
+    const serialized = JSON.stringify(terminal.error);
+    for (const secret of [
+      "server-header-secret",
+      "spoofed-context-secret",
+      "server-resume-secret",
+      "server-payload-secret",
+      "server-filter-secret",
+    ]) {
+      expect(serialized).not.toContain(secret);
+    }
+  });
+
+  it("keeps SSE reconnect and abort policy while tagging terminal transport failures", () => {
+    let source: MockRealtimeEventSource | undefined;
+    const next = vi.fn();
+    const errors: unknown[] = [];
+    const complete = vi.fn();
+    const controller = new AbortController();
+    const transport = createRealtimeServerSentEventsTransport({
+      url: "https://honua.example/api/v1/realtime/events",
+      eventSourceFactory(url) {
+        source = new MockRealtimeEventSource(url);
+        return source;
+      },
+    });
+    transport.subscribe(
+      { sourceId: "incidents", signal: controller.signal },
+      { next, error: (error) => errors.push(error), complete },
+    );
+
+    source?.fail(false);
+    expect(next).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: "status", status: "reconnecting", reason: "sse-error" }),
+    );
+    expect(errors).toEqual([]);
+
+    source?.fail(true);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(HonuaRealtimeResumeError);
+    expect(errors[0]).toMatchObject({
+      code: "transport-gap",
+      sdkCode: "realtime.transport.reconnectable",
+      retryable: true,
+    });
+
+    controller.abort("caller stopped");
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(errors).toHaveLength(1);
+  });
+
+  it("completes a pre-aborted SSE subscription without constructing a transport or emitting an error", () => {
+    const controller = new AbortController();
+    controller.abort("already stopped");
+    const factory = vi.fn();
+    const observer = { next: vi.fn(), error: vi.fn(), complete: vi.fn() };
+    const transport = createRealtimeServerSentEventsTransport({
+      url: "https://honua.example/api/v1/realtime/events",
+      eventSourceFactory: factory,
+    });
+
+    transport.subscribe({ sourceId: "incidents", signal: controller.signal }, observer);
+
+    expect(factory).not.toHaveBeenCalled();
+    expect(observer.next).not.toHaveBeenCalled();
+    expect(observer.error).not.toHaveBeenCalled();
+    expect(observer.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it("tags synchronous SSE initialization failures and preserves their local cause", () => {
+    const cause = new Error("factory-local-secret");
+    const transport = createRealtimeServerSentEventsTransport({
+      url: "https://honua.example/api/v1/realtime/events",
+      eventSourceFactory() {
+        throw cause;
+      },
+    });
+
+    let failure: unknown;
+    try {
+      transport.subscribe({ sourceId: "incidents" }, { next: vi.fn(), error: vi.fn(), complete: vi.fn() });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(HonuaRealtimeResumeError);
+    expect(failure).toMatchObject({ sdkCode: "realtime.protocol.terminal", cause });
+    expect(JSON.stringify(failure)).not.toContain("factory-local-secret");
+  });
+
+  it("classifies observer callback failures as consumer failures without serializing their cause", () => {
+    let source: MockRealtimeEventSource | undefined;
+    const cause = new Error("observer-callback-secret");
+    const errors: unknown[] = [];
+    const transport = createRealtimeServerSentEventsTransport({
+      url: "https://honua.example/api/v1/realtime/events",
+      eventSourceFactory(url) {
+        source = new MockRealtimeEventSource(url);
+        return source;
+      },
+    });
+    transport.subscribe(
+      { sourceId: "incidents" },
+      {
+        next() {
+          throw cause;
+        },
+        error(error) {
+          errors.push(error);
+        },
+        complete: vi.fn(),
+      },
+    );
+
+    source?.message({ type: "heartbeat", receivedAt: 1 });
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(HonuaRealtimeResumeError);
+    expect(errors[0]).toMatchObject({
+      code: "consumer-failed",
+      sdkCode: "realtime.protocol.terminal",
+      retryable: false,
+      cause,
+    });
+    expect(JSON.stringify(errors[0])).not.toContain("observer-callback-secret");
   });
 
   it("bridges server-sent events into the realtime store without live cloud calls", () => {

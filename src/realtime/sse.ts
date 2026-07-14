@@ -1,3 +1,5 @@
+import { isHonuaSdkError } from "../core/error-envelope.js";
+import { HonuaRealtimeResumeError } from "./resumable.js";
 import type {
   RealtimeFeatureEvent,
   RealtimeFeatureObserver,
@@ -53,19 +55,38 @@ export function createRealtimeServerSentEventsTransport<TFeature = unknown>(
         observer.complete();
         return { close: () => {} };
       }
-      const url = new URL(options.url, "http://honua.local");
-      encodeDefaultRealtimeRequest(url, request);
-      options.encodeRequest?.(url, request);
-      const source = createEventSource(resolveEventSourceUrl(options.url, url), options);
+      let source: RealtimeServerSentEventSource;
+      try {
+        const url = new URL(options.url, "http://honua.local");
+        encodeDefaultRealtimeRequest(url, request);
+        options.encodeRequest?.(url, request);
+        source = createEventSource(resolveEventSourceUrl(options.url, url), options);
+      } catch (cause) {
+        throw realtimeFailure(
+          "delivery-failed",
+          "Unable to initialize the realtime Server-Sent Events transport.",
+          cause,
+        );
+      }
       let closed = false;
       const listeners: Array<readonly [string, (event: MessageEvent<string>) => void]> = [];
 
       const emitPayload = (payload: string): void => {
         if (closed || payload.trim() === "") return;
+        let event: RealtimeFeatureEvent<TFeature>;
         try {
-          observer.next((options.decodeEvent ?? decodeRealtimeServerSentEvent<TFeature>)(JSON.parse(payload)));
-        } catch (error) {
-          observer.error(error);
+          const decoded = (options.decodeEvent ?? decodeRealtimeServerSentEvent<TFeature>)(JSON.parse(payload));
+          event = normalizeRealtimeErrorEvent(decoded);
+        } catch (cause) {
+          observer.error(
+            realtimeFailure("invalid-event", "Realtime Server-Sent Events payload decoding failed.", cause),
+          );
+          return;
+        }
+        try {
+          observer.next(event);
+        } catch (cause) {
+          observer.error(realtimeFailure("consumer-failed", "Realtime event observer rejected delivery.", cause));
         }
       };
       const messageListener = (event: MessageEvent<string>) => emitPayload(event.data);
@@ -77,7 +98,11 @@ export function createRealtimeServerSentEventsTransport<TFeature = unknown>(
       source.onerror = (event) => {
         if (!closed)
           observer.next({ type: "status", status: "reconnecting", reason: "sse-error", receivedAt: Date.now() });
-        if (isEventSourceClosed(source)) observer.error(event);
+        if (isEventSourceClosed(source)) {
+          observer.error(
+            realtimeFailure("transport-gap", "Realtime Server-Sent Events transport closed unexpectedly.", event),
+          );
+        }
       };
 
       for (const type of options.eventTypes ?? DEFAULT_EVENT_TYPES) {
@@ -134,15 +159,49 @@ export function encodeDefaultRealtimeRequest(url: URL, request: RealtimeSubscrip
 }
 
 export function decodeRealtimeServerSentEvent<TFeature = unknown>(payload: unknown): RealtimeFeatureEvent<TFeature> {
-  if (!isRecord(payload)) throw new Error("Realtime SSE payload must be a JSON object.");
-  if (typeof payload.type === "string") return payload as unknown as RealtimeFeatureEvent<TFeature>;
+  if (!isRecord(payload)) {
+    throw new HonuaRealtimeResumeError("invalid-event", "Realtime SSE payload must be a JSON object.");
+  }
+  if (typeof payload.type === "string") {
+    return normalizeRealtimeErrorEvent(payload as unknown as RealtimeFeatureEvent<TFeature>);
+  }
   if (isRecord(payload.event) && typeof payload.event.type === "string") {
-    return payload.event as unknown as RealtimeFeatureEvent<TFeature>;
+    return normalizeRealtimeErrorEvent(payload.event as unknown as RealtimeFeatureEvent<TFeature>);
   }
   if (typeof payload.kind === "string") {
-    return { ...payload, type: payload.kind } as unknown as RealtimeFeatureEvent<TFeature>;
+    return normalizeRealtimeErrorEvent({ ...payload, type: payload.kind } as unknown as RealtimeFeatureEvent<TFeature>);
   }
-  throw new Error("Realtime SSE payload is missing an event type.");
+  throw new HonuaRealtimeResumeError("invalid-event", "Realtime SSE payload is missing an event type.");
+}
+
+function normalizeRealtimeErrorEvent<TFeature>(event: RealtimeFeatureEvent<TFeature>): RealtimeFeatureEvent<TFeature> {
+  // Never trust a structural tag received over the wire. A server could spoof
+  // the common envelope while retaining unsanitized context and no `toJSON`.
+  // Only a locally constructed realtime error is already inside the boundary.
+  if (event.type !== "error") return event;
+  const code = event.terminal ? "invalid-event" : "transport-gap";
+  if (event.error instanceof HonuaRealtimeResumeError && isHonuaSdkError(event.error) && event.error.code === code)
+    return event;
+  return {
+    ...event,
+    error: realtimeFailure(
+      code,
+      event.terminal
+        ? "Realtime stream reported a terminal protocol failure."
+        : "Realtime stream reported a reconnectable transport failure.",
+      event.error,
+    ),
+  };
+}
+
+function realtimeFailure(
+  code: "consumer-failed" | "delivery-failed" | "invalid-event" | "transport-gap",
+  message: string,
+  cause: unknown,
+): HonuaRealtimeResumeError {
+  return cause instanceof HonuaRealtimeResumeError && isHonuaSdkError(cause) && cause.code === code
+    ? cause
+    : new HonuaRealtimeResumeError(code, message, { cause });
 }
 
 function createEventSource<TFeature>(

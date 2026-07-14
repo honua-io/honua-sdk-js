@@ -1,3 +1,5 @@
+import { type HonuaErrorCode, HonuaSdkError, isRetryableNetworkOrTimeoutHonuaError } from "../core/error-envelope.js";
+
 /** First version of the downloadable-region manifest contract. */
 export const HONUA_OFFLINE_REGION_VERSION = "1.0" as const;
 
@@ -235,13 +237,21 @@ export type OfflineRegionErrorCode =
   | "inventory-changed"
   | "store-failed";
 
-export class HonuaOfflineRegionError extends Error {
+/**
+ * Public offline region failure. The detailed legacy reason remains on
+ * `.code`; `.sdkCode` provides a stable common-envelope recovery class.
+ */
+export class HonuaOfflineRegionError extends HonuaSdkError {
   public constructor(
     public readonly code: OfflineRegionErrorCode,
     message: string,
     options: { readonly cause?: unknown; readonly resourceId?: string; readonly path?: string } = {},
   ) {
-    super(message, options.cause === undefined ? undefined : { cause: options.cause });
+    const cause = options.cause;
+    super(offlineRegionSdkCode(code, cause), message, {
+      ...(cause === undefined ? {} : { cause }),
+      context: { reasonCode: offlineRegionContextReason(code) },
+    });
     this.name = "HonuaOfflineRegionError";
     this.resourceId = options.resourceId;
     this.path = options.path;
@@ -249,4 +259,32 @@ export class HonuaOfflineRegionError extends Error {
 
   public readonly resourceId?: string;
   public readonly path?: string;
+}
+
+const OFFLINE_REGION_ERROR_CODES = {
+  "invalid-manifest": "offline.region.validation",
+  "resource-limit-exceeded": "offline.region.validation",
+  "quota-exceeded": "offline.region.quota",
+  expired: "offline.region.validation",
+  "integrity-mismatch": "offline.region.integrity",
+  aborted: "offline.cancelled",
+  "resource-load-failed": "offline.transport.failure",
+  "inventory-changed": "offline.storage.concurrent",
+  "store-failed": "offline.storage.failure",
+} as const satisfies Record<OfflineRegionErrorCode, HonuaErrorCode>;
+
+function offlineRegionSdkCode(code: unknown, cause: unknown): HonuaErrorCode {
+  if (!isOfflineRegionErrorCode(code)) return "offline.region.validation";
+  if (code === "resource-load-failed" && isRetryableNetworkOrTimeoutHonuaError(cause)) {
+    return "offline.transport.transient";
+  }
+  return OFFLINE_REGION_ERROR_CODES[code];
+}
+
+function offlineRegionContextReason(code: unknown): OfflineRegionErrorCode | "invalid-error-code" {
+  return isOfflineRegionErrorCode(code) ? code : "invalid-error-code";
+}
+
+function isOfflineRegionErrorCode(code: unknown): code is OfflineRegionErrorCode {
+  return typeof code === "string" && Object.hasOwn(OFFLINE_REGION_ERROR_CODES, code);
 }

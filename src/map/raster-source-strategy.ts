@@ -1,4 +1,5 @@
 import type { SourceDescriptor } from "../contract/types.js";
+import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
 import {
   type MapLibreRasterSourceSpec,
   buildWmsRasterSourceSpec,
@@ -28,17 +29,30 @@ export interface MapLibreRasterDiagnostic {
   readonly detail?: Readonly<Record<string, unknown>>;
 }
 
-export class HonuaMapLibreRasterStrategyError extends Error {
+export class HonuaMapLibreRasterStrategyError extends HonuaSdkError {
   public constructor(
     public readonly code: MapLibreRasterStrategyErrorCode,
     message: string,
     public readonly detail?: Readonly<Record<string, unknown>>,
-    options?: ErrorOptions,
+    options: HonuaErrorOptions = {},
   ) {
-    super(message, options);
+    super(MAPLIBRE_RASTER_ERROR_CODES[code], message, {
+      ...options,
+      context: mergeHonuaErrorContext(detail, options.context),
+    });
     this.name = "HonuaMapLibreRasterStrategyError";
   }
 }
+
+const MAPLIBRE_RASTER_ERROR_CODES = {
+  "unsupported-strategy": "map.raster-strategy.unsupported-strategy",
+  "capability-mismatch": "map.raster-strategy.capability-mismatch",
+  "missing-metadata": "map.raster-strategy.missing-metadata",
+  "invalid-option": "map.raster-strategy.invalid-option",
+  "source-conflict": "map.raster-strategy.source-conflict",
+  "layer-conflict": "map.raster-strategy.layer-conflict",
+  "map-mutation-failed": "map.raster-strategy.map-mutation-failed",
+} as const satisfies Record<MapLibreRasterStrategyErrorCode, `map.raster-strategy.${string}`>;
 
 export interface ProjectRasterSourceToMapLibreOptions {
   readonly sourceId?: string;
