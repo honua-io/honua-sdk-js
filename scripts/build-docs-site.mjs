@@ -366,8 +366,8 @@ async function loadGalleryModel() {
   const projection = parseJsonDocument(projectionBytes, SITE_PROJECTION_PATH);
   const consumerFixture = parseJsonDocument(consumerBytes, SITE_CONSUMER_FIXTURE_PATH);
   await validateSiteProjection(projection);
-  const integrity = verifyGalleryProjectionIntegrity({ projection, projectionBytes, consumerFixture });
-  return createGalleryModel(projection, integrity);
+  const integrity = verifyGalleryProjectionIntegrity({ projectionBytes, consumerFixture });
+  return createGalleryModel(integrity);
 }
 
 function demoSourceUrl(docsPath) {

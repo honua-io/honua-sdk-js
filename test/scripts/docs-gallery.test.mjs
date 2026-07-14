@@ -58,11 +58,10 @@ function fixtureForProjection(value) {
 
 function verifiedGallery(value, { bytes = stableBytes(value), fixture = fixtureForProjection(value) } = {}) {
   const integrity = verifyGalleryProjectionIntegrity({
-    projection: value,
     projectionBytes: bytes,
     consumerFixture: fixture,
   });
-  return createGalleryModel(value, integrity);
+  return createGalleryModel(integrity);
 }
 
 function canonicalGallery() {
@@ -89,6 +88,16 @@ function occurrenceCount(value, pattern) {
   return [...value.matchAll(pattern)].length;
 }
 
+function assertDeepFrozen(root) {
+  const pending = [root];
+  while (pending.length > 0) {
+    const value = pending.pop();
+    if (value === null || typeof value !== "object") continue;
+    assert.equal(Object.isFrozen(value), true);
+    pending.push(...Object.values(value));
+  }
+}
+
 test("binds the canonical schema-valid projection to its v2 consumer fixture", async () => {
   await assert.doesNotReject(validateSiteProjection(projection));
   const gallery = canonicalGallery();
@@ -99,9 +108,37 @@ test("binds the canonical schema-valid projection to its v2 consumer fixture", a
     publicationQualificationGate: "npm run samples:verify",
   });
   assert.throws(
-    () => createGalleryModel(projection, {}),
-    /gallery model requires integrity verified for this projection object/,
+    () => createGalleryModel({}),
+    /gallery model requires a verified integrity token/,
   );
+});
+
+test("owns a deeply frozen projection snapshot across the verification and render boundary", () => {
+  const callerProjection = projectionWithSamples("endpoint-to-map");
+  const verifiedTitle = callerProjection.samples[0].title;
+  const integrity = verifyGalleryProjectionIntegrity({
+    projectionBytes: stableBytes(callerProjection),
+    consumerFixture: fixtureForProjection(callerProjection),
+  });
+
+  assert.equal(Object.isFrozen(integrity), true);
+  assert.notStrictEqual(integrity.projection, callerProjection);
+  assertDeepFrozen(integrity.projection);
+  assert.throws(() => {
+    integrity.projection.samples[0].title = "Forged frozen title";
+  }, TypeError);
+
+  callerProjection.samples[0].title = "Forged caller title";
+  callerProjection.samples.push({
+    ...structuredClone(callerProjection.samples[0]),
+    id: "forged-after-verification",
+  });
+
+  const gallery = createGalleryModel(integrity);
+  const html = renderGallery(gallery);
+  assert.equal(gallery.cardCount, 1);
+  assert.equal(galleryCards(gallery)[0].sample.title, verifiedTitle);
+  assert.doesNotMatch(html, /Forged caller title|forged-after-verification/);
 });
 
 test("rejects consumer digest, format, assertion, and stable-byte tampering", () => {
@@ -110,7 +147,6 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", ()
   assert.throws(
     () =>
       verifyGalleryProjectionIntegrity({
-        projection,
         projectionBytes,
         consumerFixture: digestMismatch,
       }),
@@ -122,7 +158,6 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", ()
   assert.throws(
     () =>
       verifyGalleryProjectionIntegrity({
-        projection,
         projectionBytes,
         consumerFixture: formatMismatch,
       }),
@@ -134,7 +169,6 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", ()
   assert.throws(
     () =>
       verifyGalleryProjectionIntegrity({
-        projection,
         projectionBytes,
         consumerFixture: fixtureFormatMismatch,
       }),
@@ -146,7 +180,6 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", ()
   assert.throws(
     () =>
       verifyGalleryProjectionIntegrity({
-        projection,
         projectionBytes,
         consumerFixture: assertionMismatch,
       }),
@@ -156,7 +189,6 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", ()
   assert.throws(
     () =>
       verifyGalleryProjectionIntegrity({
-        projection,
         projectionBytes: JSON.stringify(projection),
         consumerFixture,
       }),

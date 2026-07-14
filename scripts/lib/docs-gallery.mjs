@@ -55,15 +55,34 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function deepFreezeJson(value) {
+  const objects = [];
+  const pending = [value];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === null || typeof current !== "object" || Object.isFrozen(current)) continue;
+    objects.push(current);
+    pending.push(...Object.values(current));
+  }
+  for (let index = objects.length - 1; index >= 0; index -= 1) Object.freeze(objects[index]);
+  return value;
+}
+
 /**
- * Bind a parsed site projection to the committed consumer fixture and its exact
- * canonical bytes. The returned token is intentionally accepted only by this
- * module's model builder, so callers cannot accidentally render an unverified
- * in-memory projection.
+ * Parse and bind canonical site-projection bytes to the committed consumer
+ * fixture. The returned token owns a deeply frozen snapshot and is intentionally
+ * accepted only by this module's model builder, so callers cannot mutate or
+ * substitute projection state after verification.
  */
-export function verifyGalleryProjectionIntegrity({ projection, projectionBytes, consumerFixture }) {
-  assertPlainObject(projection, "projection");
+export function verifyGalleryProjectionIntegrity({ projectionBytes, consumerFixture }) {
   invariant(typeof projectionBytes === "string", "projection bytes must be supplied as UTF-8 text");
+  let projection;
+  try {
+    projection = JSON.parse(projectionBytes);
+  } catch {
+    throw new Error("Gallery projection integrity: projection bytes must be valid JSON");
+  }
+  assertPlainObject(projection, "projection");
   invariant(
     projection.format === SITE_PROJECTION_FORMAT && projection.schemaVersion === 2,
     "projection format is not the supported v2 contract",
@@ -74,6 +93,7 @@ export function verifyGalleryProjectionIntegrity({ projection, projectionBytes, 
   );
   const stableBytes = stableProjectionBytes(projection);
   invariant(projectionBytes === stableBytes, "projection bytes are not canonical stable JSON");
+  deepFreezeJson(projection);
 
   assertExactKeys(
     consumerFixture,
@@ -339,11 +359,12 @@ function gallerySearchText(card) {
  * catalog-v2 site projection. Internal fixture entries remain available to
  * validation but are intentionally not promoted as public applications.
  */
-export function createGalleryModel(siteProjection, integrity) {
+export function createGalleryModel(integrity) {
   invariant(
-    integrity && VERIFIED_INTEGRITIES.has(integrity) && integrity.projection === siteProjection,
-    "gallery model requires integrity verified for this projection object",
+    integrity && VERIFIED_INTEGRITIES.has(integrity),
+    "gallery model requires a verified integrity token",
   );
+  const siteProjection = integrity.projection;
   if (!siteProjection || !Array.isArray(siteProjection.samples)) {
     throw new TypeError("Gallery projection must contain a samples array.");
   }
