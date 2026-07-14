@@ -241,17 +241,9 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
     "sql",
     "stream",
   ]),
-  "geoservices-image-service": capabilities([
-    "query",
-    "queryExtent",
-    "queryObjectIds",
-    "image",
-    "render",
-    "tiles",
-    "connect",
-  ]),
-  "geoservices-geometry-service": capabilities(["geometry", "connect"]),
-  "geoservices-gp-service": capabilities(["geoprocess", "connect"]),
+  "geoservices-image-service": capabilities(["query", "queryExtent", "queryObjectIds", "image", "render", "tiles"]),
+  "geoservices-geometry-service": capabilities(["geometry"]),
+  "geoservices-gp-service": capabilities(["geoprocess"]),
   "ogc-features": capabilities(["query", "queryObjectIds", "applyEdits", "stream"]),
   "ogc-tiles": capabilities(["render", "tiles"]),
   "ogc-maps": capabilities(["render"]),
@@ -269,7 +261,9 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   geoparquet: capabilities(["query", "queryAggregate", "stream"]),
   "maplibre-vector": capabilities(["render", "tiles"]),
   "maplibre-raster": capabilities(["render", "tiles"]),
-  "maplibre-geojson": capabilities(["render"]),
+  // Reserved/recognized protocol token only: inline MapPackage GeoJSON is supported,
+  // but descriptor-to-runtime support for maplibre-geojson is not implemented.
+  "maplibre-geojson": capabilities([]),
 };
 
 // ── Source identity ───────────────────────────────────────────

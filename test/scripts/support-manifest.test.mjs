@@ -15,6 +15,7 @@ import {
   checkOutputs,
   generateOutputs,
   loadSupportManifest,
+  renderProtocolSection,
   validateSupportManifest,
 } from "../../scripts/support-manifest.mjs";
 
@@ -25,21 +26,26 @@ function clone(value) {
   return structuredClone(value);
 }
 
-test("the support manifest and generic projection satisfy their versioned schemas", () => {
+test("the support manifest satisfies its versioned schema", () => {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   const manifestSchema = JSON.parse(
     fs.readFileSync(path.join(PROJECT_ROOT, "config/support-manifest.schema.json"), "utf8"),
   );
+  const validateManifestSchema = ajv.compile(manifestSchema);
+  assert.equal(validateManifestSchema(manifest), true, JSON.stringify(validateManifestSchema.errors));
+});
+
+test("the generic projection schema compiles and validates in an isolated offline Ajv", () => {
   const projectionSchema = JSON.parse(
     fs.readFileSync(
       path.join(PROJECT_ROOT, "support/contract/v1/schemas/support-projection.schema.json"),
       "utf8",
     ),
   );
-  const validateManifestSchema = ajv.compile(manifestSchema);
-  assert.equal(validateManifestSchema(manifest), true, JSON.stringify(validateManifestSchema.errors));
+  assert.doesNotMatch(JSON.stringify(projectionSchema), /support-manifest\.v1\.schema\.json/);
+  const isolatedAjv = new Ajv2020({ allErrors: true, strict: false });
+  const validateProjection = isolatedAjv.compile(projectionSchema);
   const projection = buildSupportProjection(manifest, packageJson);
-  const validateProjection = ajv.compile(projectionSchema);
   assert.equal(validateProjection(projection), true, JSON.stringify(validateProjection.errors));
 });
 
@@ -48,6 +54,12 @@ test("all support statuses are explicit and the repository evidence exists", () 
   assert.deepEqual(manifest.environmentVocabulary, ENVIRONMENT_VOCABULARY);
   assert.deepEqual(manifest.executionModeVocabulary, EXECUTION_MODE_VOCABULARY);
   assert.deepEqual(validateSupportManifest(manifest), []);
+});
+
+test("the protocol matrix distinguishes native defaults from opt-in client fallbacks", () => {
+  const section = renderProtocolSection(manifest);
+  assert.match(section, /Native \(`✓`\) claims mirror the default capability set/);
+  assert.match(section, /Client-fallback \(`◐`\) claims are explicit\s+opt-in paths and are not protocol defaults/);
 });
 
 test("unknown environments and execution modes fail closed", () => {
@@ -114,6 +126,15 @@ test("support claims cannot reference an undeclared protocol family", () => {
   const changed = clone(manifest);
   changed.supportClaims[0].protocol = "invented-protocol";
   assert.match(validateSupportManifest(changed).join("\n"), /references unknown protocol invented-protocol/);
+});
+
+test("protocol-bound support claims cannot promote unsupported protocol operations", () => {
+  const changed = clone(manifest);
+  changed.supportClaims.find((claim) => claim.id === "geoservices-image-standalone").operations.push("applyEdits");
+  assert.match(
+    validateSupportManifest(changed).join("\n"),
+    /geoservices-image-standalone positively claims applyEdits for geoservices-image-service/,
+  );
 });
 
 test("the generic projection contracts every sample catalog status and protocol token", () => {
