@@ -14,6 +14,21 @@ export const STATUS_VOCABULARY = [
   "unsupported",
   "facade-required",
 ];
+export const ENVIRONMENT_VOCABULARY = [
+  "build-time",
+  "client-only",
+  "honua-facade",
+  "protocol-adapter",
+  "standalone",
+];
+export const EXECUTION_MODE_VOCABULARY = [
+  "client-fallback",
+  "discovery",
+  "facade",
+  "native",
+  "static",
+  "transport",
+];
 
 const GENERATED_PATHS = {
   publicSurface: "config/public-surface.json",
@@ -45,6 +60,12 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
   }
   if (JSON.stringify(manifest.statusVocabulary) !== JSON.stringify(STATUS_VOCABULARY)) {
     fail(`statusVocabulary must be exactly: ${STATUS_VOCABULARY.join(", ")}`);
+  }
+  if (JSON.stringify(manifest.environmentVocabulary) !== JSON.stringify(ENVIRONMENT_VOCABULARY)) {
+    fail(`environmentVocabulary must be exactly: ${ENVIRONMENT_VOCABULARY.join(", ")}`);
+  }
+  if (JSON.stringify(manifest.executionModeVocabulary) !== JSON.stringify(EXECUTION_MODE_VOCABULARY)) {
+    fail(`executionModeVocabulary must be exactly: ${EXECUTION_MODE_VOCABULARY.join(", ")}`);
   }
   if (!STATUS_VOCABULARY.includes(manifest.sdk?.releaseStatus)) {
     fail(`SDK release status is invalid: ${manifest.sdk?.releaseStatus ?? "missing"}`);
@@ -92,7 +113,12 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
     for (const claim of protocol.operationClaims ?? []) {
       usedStatuses.add(claim.status);
       if (!STATUS_VOCABULARY.includes(claim.status)) fail(`${protocol.id} has invalid status ${claim.status}`);
-      if (!claim.environment || !claim.executionMode) fail(`${protocol.id} claim must name environment and executionMode`);
+      if (!ENVIRONMENT_VOCABULARY.includes(claim.environment)) {
+        fail(`${protocol.id} has invalid environment ${claim.environment ?? "missing"}`);
+      }
+      if (!EXECUTION_MODE_VOCABULARY.includes(claim.executionMode)) {
+        fail(`${protocol.id} has invalid executionMode ${claim.executionMode ?? "missing"}`);
+      }
       if (positiveStatus(claim.status) && (claim.evidence ?? []).length === 0) {
         fail(`${protocol.id} ${claim.status} operation claim must link evidence`);
       }
@@ -116,7 +142,12 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
     if (claim.protocol && !knownProtocolReferences.has(claim.protocol)) {
       fail(`${claim.id} references unknown protocol ${claim.protocol}`);
     }
-    if (!claim.environment || !claim.executionMode) fail(`${claim.id} must name environment and executionMode`);
+    if (!ENVIRONMENT_VOCABULARY.includes(claim.environment)) {
+      fail(`${claim.id} has invalid environment ${claim.environment ?? "missing"}`);
+    }
+    if (!EXECUTION_MODE_VOCABULARY.includes(claim.executionMode)) {
+      fail(`${claim.id} has invalid executionMode ${claim.executionMode ?? "missing"}`);
+    }
     for (const operation of claim.operations ?? []) {
       if (!claimCapabilitySet.has(operation)) fail(`${claim.id} references unknown claim capability ${operation}`);
     }
@@ -323,9 +354,9 @@ function lifecycleCounts(manifest) {
   return counts;
 }
 
-export function renderReadmeReleaseSection(manifest) {
+export function renderReadmeReleaseSection(manifest, packageJson) {
   const counts = lifecycleCounts(manifest);
-  return `**Release status: ${manifest.sdk.releaseStatus}** (\`0.1.0-beta\`). The ${counts.supported}-entrypoint stable tier is frozen and guarded
+  return `**Release status: ${manifest.sdk.releaseStatus}** (\`${packageJson.version}\`). The ${counts.supported}-entrypoint stable tier is frozen and guarded
 by an API-surface gate; ${counts.experimental} experimental subpaths may change before 1.0, and
 ${counts.deprecated} deprecated compatibility subpaths have explicit removal versions. See
 [\`config/support-manifest.v1.json\`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -388,6 +419,8 @@ export function buildSupportProjection(manifest, packageJson) {
       releaseStatus: manifest.sdk.releaseStatus,
     },
     statusVocabulary: manifest.statusVocabulary,
+    environmentVocabulary: manifest.environmentVocabulary,
+    executionModeVocabulary: manifest.executionModeVocabulary,
     protocolOperations: manifest.protocolOperations,
     claimCapabilities: manifest.claimCapabilities,
     claimOnlyProtocols: manifest.claimOnlyProtocols,
@@ -427,7 +460,7 @@ export function generateOutputs({ manifest, packageJson, projectRoot = PROJECT_R
       "docs/standalone-capability-matrix.md",
       replaceManagedSection(standaloneDoc, "standalone-matrix", renderStandaloneSection(manifest)),
     ],
-    ["README.md", replaceManagedSection(replaceManagedSection(readme, "release", renderReadmeReleaseSection(manifest)), "standalone", renderReadmeStandaloneSection(manifest))],
+    ["README.md", replaceManagedSection(replaceManagedSection(readme, "release", renderReadmeReleaseSection(manifest, packageJson)), "standalone", renderReadmeStandaloneSection(manifest))],
     ["INSTALL.md", replaceManagedSection(install, "install-status", renderInstallSupportSection(manifest))],
     [GENERATED_PATHS.supportProjection, json(buildSupportProjection(manifest, packageJson))],
   ]);

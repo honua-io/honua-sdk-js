@@ -16,6 +16,21 @@
     "unsupported",
     "facade-required"
   ],
+  "environmentVocabulary": [
+    "build-time",
+    "client-only",
+    "honua-facade",
+    "protocol-adapter",
+    "standalone"
+  ],
+  "executionModeVocabulary": [
+    "client-fallback",
+    "discovery",
+    "facade",
+    "native",
+    "static",
+    "transport"
+  ],
   "protocolOperations": [
     "query",
     "queryAggregate",
@@ -211,6 +226,8 @@
       "projectionFields": [
         "sdk",
         "statusVocabulary",
+        "environmentVocabulary",
+        "executionModeVocabulary",
         "protocols",
         "supportClaims",
         "packageLifecycle",
@@ -229,7 +246,7 @@
       "maxAgeDays": null
     },
     "nightly": {
-      "cadence": "Nightly when integration credentials are available",
+      "cadence": "Nightly self-contained integration workflow",
       "maxAgeDays": 2
     },
     "scheduled-live": {
@@ -246,6 +263,48 @@
       "id": "contract-conformance",
       "kind": "fixture",
       "path": "test/contract/conformance.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "honua-surface-fixtures",
+      "kind": "fixture",
+      "path": "test/honua-surface.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "connect-fixtures",
+      "kind": "fixture",
+      "path": "test/connect.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "core-client-fixtures",
+      "kind": "fixture",
+      "path": "test/core-client.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "tile-layer-fixtures",
+      "kind": "fixture",
+      "path": "test/tile-layer-compat.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "query-tiles-fixtures",
+      "kind": "fixture",
+      "path": "test/contract/query-tiles.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "geoprocessing-job-run-fixtures",
+      "kind": "fixture",
+      "path": "test/contract/geoprocessing-job-run.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "process-runner-fixtures",
+      "kind": "fixture",
+      "path": "test/process-runner.test.ts",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -451,15 +510,21 @@
           "operations": [
             "query",
             "queryAggregate",
-            "queryExtent",
+            "queryExtent"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "contract-conformance"
+          ]
+        },
+        {
+          "operations": [
             "queryObjectIds",
             "queryRelated",
             "applyEdits",
-            "attachments",
-            "sql",
-            "stream",
-            "pbf",
-            "connect"
+            "attachments"
           ],
           "environment": "protocol-adapter",
           "executionMode": "native",
@@ -470,13 +535,48 @@
         },
         {
           "operations": [
+            "sql",
+            "stream"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "contract-conformance",
+            "honua-surface-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "pbf"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "core-client-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "connect"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "connect-fixtures"
+          ]
+        },
+        {
+          "operations": [
             "tiles"
           ],
           "environment": "protocol-adapter",
           "executionMode": "client-fallback",
           "status": "supported",
           "evidence": [
-            "contract-conformance"
+            "query-tiles-fixtures"
           ]
         }
       ]
@@ -492,9 +592,42 @@
             "queryAggregate",
             "queryExtent",
             "queryObjectIds",
-            "queryRelated",
-            "render",
-            "tiles",
+            "queryRelated"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "contract-conformance",
+            "geoservices-conformance",
+            "honua-surface-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "render"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "honua-surface-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "tiles"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "connect-fixtures",
+            "tile-layer-fixtures"
+          ]
+        },
+        {
+          "operations": [
             "sql",
             "stream"
           ],
@@ -502,7 +635,8 @@
           "executionMode": "native",
           "status": "supported",
           "evidence": [
-            "map-service-integration"
+            "contract-conformance",
+            "honua-surface-fixtures"
           ]
         }
       ]
@@ -516,7 +650,17 @@
           "operations": [
             "query",
             "queryExtent",
-            "queryObjectIds",
+            "queryObjectIds"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance"
+          ]
+        },
+        {
+          "operations": [
             "image",
             "render",
             "tiles",
@@ -526,7 +670,7 @@
           "executionMode": "native",
           "status": "supported",
           "evidence": [
-            "image-service-integration"
+            "geoservices-conformance"
           ]
         }
       ]
@@ -545,7 +689,7 @@
           "executionMode": "native",
           "status": "supported",
           "evidence": [
-            "geometry-service-integration"
+            "geoservices-conformance"
           ]
         }
       ]
@@ -557,14 +701,26 @@
       "operationClaims": [
         {
           "operations": [
-            "geoprocess",
+            "geoprocess"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance",
+            "geoprocessing-job-run-fixtures",
+            "process-runner-fixtures"
+          ]
+        },
+        {
+          "operations": [
             "connect"
           ],
           "environment": "protocol-adapter",
           "executionMode": "native",
           "status": "supported",
           "evidence": [
-            "gp-service-integration"
+            "geoservices-conformance"
           ]
         }
       ]
@@ -895,6 +1051,8 @@
       "api": "HonuaClient.mapService, HonuaClient.imageService",
       "notes": "Uses raw GeoServices paths for query, export, identify, legend, and find.",
       "evidence": [
+        "honua-surface-fixtures",
+        "geoservices-conformance",
         "map-service-integration",
         "image-service-integration",
         "standalone-live"

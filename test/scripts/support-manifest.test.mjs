@@ -5,6 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import {
+  ENVIRONMENT_VOCABULARY,
+  EXECUTION_MODE_VOCABULARY,
   MANIFEST_PATH,
   PROJECT_ROOT,
   STATUS_VOCABULARY,
@@ -43,13 +45,53 @@ test("the support manifest and generic projection satisfy their versioned schema
 
 test("all support statuses are explicit and the repository evidence exists", () => {
   assert.deepEqual(manifest.statusVocabulary, STATUS_VOCABULARY);
+  assert.deepEqual(manifest.environmentVocabulary, ENVIRONMENT_VOCABULARY);
+  assert.deepEqual(manifest.executionModeVocabulary, EXECUTION_MODE_VOCABULARY);
   assert.deepEqual(validateSupportManifest(manifest), []);
+});
+
+test("unknown environments and execution modes fail closed", () => {
+  const environmentDrift = clone(manifest);
+  environmentDrift.protocols[0].operationClaims[0].environment = "standlone";
+  assert.match(validateSupportManifest(environmentDrift).join("\n"), /invalid environment standlone/);
+
+  const modeDrift = clone(manifest);
+  modeDrift.supportClaims[0].executionMode = "nativ";
+  assert.match(validateSupportManifest(modeDrift).join("\n"), /invalid executionMode nativ/);
+
+  const vocabularyDrift = clone(manifest);
+  vocabularyDrift.environmentVocabulary.reverse();
+  assert.match(validateSupportManifest(vocabularyDrift).join("\n"), /environmentVocabulary must be exactly/);
 });
 
 test("positive support claims cannot lose their evidence", () => {
   const changed = clone(manifest);
   changed.supportClaims.find((claim) => claim.id === "ogc-tiles-standalone").evidence = [];
   assert.match(validateSupportManifest(changed).join("\n"), /beta support claim must link evidence/);
+});
+
+test("every GeoServices operation group has non-skipping fixture or conformance evidence", () => {
+  const evidenceById = new Map(manifest.evidence.map((evidence) => [evidence.id, evidence]));
+  for (const protocol of manifest.protocols.filter((candidate) => candidate.id.startsWith("geoservices-"))) {
+    for (const claim of protocol.operationClaims) {
+      assert.ok(
+        claim.evidence.some((id) => {
+          const evidence = evidenceById.get(id);
+          return (
+            evidence &&
+            ["fixture", "conformance"].includes(evidence.kind) &&
+            !evidence.path.startsWith("test/integration/")
+          );
+        }),
+        `${protocol.id} ${claim.operations.join(",")} lacks non-skipping fixture/conformance evidence`,
+      );
+    }
+  }
+  const broadReadClaim = manifest.supportClaims.find((claim) => claim.id === "geoservices-map-image-standalone");
+  assert.ok(
+    broadReadClaim.evidence.some((id) => evidenceById.get(id)?.kind === "fixture"),
+    "GeoServices MapServer/ImageServer standalone claim needs fixture evidence",
+  );
 });
 
 test("unknown protocol operations and product capabilities fail validation", () => {
@@ -156,6 +198,14 @@ test("generated output is deterministic and drift identifies the changed project
   }
 });
 
+test("README release display is derived from package.json", () => {
+  const fixturePackage = { ...packageJson, version: "9.8.7-rc.3" };
+  const outputs = generateOutputs({ manifest, packageJson: fixturePackage });
+  const fixtureReadme = outputs.get("README.md");
+  assert.match(fixtureReadme, /\*\*Release status: beta\*\* \(`9\.8\.7-rc\.3`\)/);
+  assert.doesNotMatch(fixtureReadme, /\(`0\.1\.0-beta(?:\.0)?`\)/);
+});
+
 test("the published generic projection identifies its source and consumers", () => {
   const projection = buildSupportProjection(manifest, packageJson);
   assert.equal(projection.format, "honua.sdk.support-projection.v1");
@@ -164,5 +214,7 @@ test("the published generic projection identifies its source and consumers", () 
   assert.deepEqual(projection.protocolOperations, manifest.protocolOperations);
   assert.deepEqual(projection.claimCapabilities, manifest.claimCapabilities);
   assert.deepEqual(projection.claimOnlyProtocols, manifest.claimOnlyProtocols);
+  assert.deepEqual(projection.environmentVocabulary, manifest.environmentVocabulary);
+  assert.deepEqual(projection.executionModeVocabulary, manifest.executionModeVocabulary);
   assert.deepEqual(projection.consumerContracts, manifest.consumerContracts);
 });

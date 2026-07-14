@@ -39,6 +39,7 @@ import {
   geoservicesApplyEditsResponse,
   geoservicesAttachmentInfosResponse,
   geoservicesDeleteAttachmentsResponse,
+  geoservicesExtentResponse,
   geoservicesObjectIdsResponse,
   geoservicesQueryAttachmentsResponse,
   geoservicesRelatedRecordsResponse,
@@ -421,6 +422,23 @@ describe("contract / GeoServices ImageServer parity", () => {
     const ids = await source.queryObjectIds({ where: "Name LIKE 'tile_%'" });
     expect(observedReturnIdsOnly).toBe(true);
     expect(ids).toEqual([101, 102]);
+  });
+
+  it("queryExtent routes through the ImageServer catalog with returnExtentOnly", async () => {
+    let observedReturnExtentOnly = false;
+    const dataset = buildImageDataset([
+      [
+        "/rest/services/Imagery/ImageServer/query",
+        (url) => {
+          observedReturnExtentOnly = url.searchParams.get("returnExtentOnly") === "true";
+          return jsonResponse(geoservicesExtentResponse());
+        },
+      ],
+    ]);
+    const source = dataset.source("tiles-img")!;
+    const result = await source.queryExtent({ where: "Name LIKE 'tile_%'" });
+    expect(observedReturnExtentOnly).toBe(true);
+    expect(result).toEqual({ extent: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 }, count: 3 });
   });
 
   it("queryAll drains the ImageServer catalog using resultOffset/resultRecordCount until a short page", async () => {

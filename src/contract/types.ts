@@ -94,8 +94,7 @@ export const PROTOCOLS: readonly Protocol[] = [
  * `queryObjectIds` stay in the shared registry so downstream adapter
  * tickets can reuse one vocabulary without widening the top-level API.
  *
- * Keep this list aligned with `config/support-manifest.v1.json`; the support
- * manifest contract test generates and verifies the documentation projection.
+ * Keep this list aligned with `docs/protocol-capability-matrix.md`.
  */
 export type Capability =
   | "query"
@@ -213,8 +212,8 @@ export function unionCapabilities(participants: ReadonlyArray<{ readonly capabil
  * and pass the result on `SourceDescriptor.capabilities`; the built-in
  * adapter constructors do not read service metadata today.
  *
- * The matrix here is verified against `config/support-manifest.v1.json`, which
- * generates `docs/protocol-capability-matrix.md` and downstream support claims.
+ * The matrix here mirrors the one in `docs/protocol-capability-matrix.md`.
+ * Update both together.
  */
 export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabilities>> = {
   grpc: capabilities(["query", "queryAggregate", "queryExtent", "queryObjectIds", "applyEdits", "stream"]),
