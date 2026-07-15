@@ -8,7 +8,7 @@ import {
   parseSemanticQuery,
   temporalLiteral,
 } from "../src/query-planner/index.js";
-import type { SemanticFeatureQuery, TemporalValue } from "../src/query-planner/index.js";
+import type { SemanticFeatureQuery, TemporalLiteralNode, TemporalValue } from "../src/query-planner/index.js";
 import { createSourceSchemaV2 } from "../src/source-schema.js";
 import type {
   ExecutableCrsBinding,
@@ -280,6 +280,43 @@ describe("semantic query AST", () => {
         distance: { value: 0, unit: "metre", mode: "planar" },
       }),
     ).toThrow(/greater than zero/);
+  });
+
+  it("validates temporal predicate values against timestamp precision and timezone truth", () => {
+    const temporalQuery = (operator: "after" | "during", value: TemporalLiteralNode) => ({
+      kind: "features",
+      filter: {
+        kind: "temporal",
+        operator,
+        operand: { kind: "property", name: "observedAt" },
+        value,
+      },
+    });
+
+    expect(() =>
+      parseSemanticQuery(temporalQuery("after", temporalLiteral("instant", "2026-07-13T00:00:00.123456789Z")), {
+        schema: incidentSchema(),
+      }),
+    ).toThrow(/incompatible with observedAt:timestamp/);
+    expect(() =>
+      parseSemanticQuery(temporalQuery("after", temporalLiteral("instant", "2026-07-13T00:00:00.123+01:00")), {
+        schema: incidentSchema(),
+      }),
+    ).toThrow(/incompatible with observedAt:timestamp/);
+    expect(() =>
+      parseSemanticQuery(
+        temporalQuery(
+          "during",
+          temporalLiteral("interval", ["2026-07-13T00:00:00.123Z", "2026-07-13T00:00:01.123456789Z"]),
+        ),
+        { schema: incidentSchema() },
+      ),
+    ).toThrow(/incompatible with observedAt:timestamp/);
+    expect(() =>
+      parseSemanticQuery(temporalQuery("after", temporalLiteral("instant", "2026-07-13T00:00:00.123Z")), {
+        schema: incidentSchema(),
+      }),
+    ).not.toThrow();
   });
 
   it("fails closed for unknown fields, incompatible literals, domains, ranges, and query fields", () => {
@@ -654,6 +691,22 @@ describe("semantic query AST", () => {
         },
       }),
     ).toThrow(/requires json/);
+  });
+
+  it.each([
+    {
+      kind: "boolean",
+      operator: "and",
+      args: [{ kind: "native", dialect: "cql2-text", payload: { format: "text", text: "1=1" } }],
+    },
+    {
+      kind: "not",
+      arg: { kind: "native", dialect: "cql2-text", payload: { format: "text", text: "1=1" } },
+    },
+  ] as const)("rejects nested native filters before dialect compilation", (filter) => {
+    expect(() => parseSemanticQuery({ kind: "features", filter }, { protocol: "ogc-features" })).toThrow(
+      /native filters must be the complete top-level filter/,
+    );
   });
 
   it("bounds untrusted values and rejects cycles, accessors, and unexpected members", () => {

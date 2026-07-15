@@ -432,6 +432,7 @@ function parseFilter(value: JsonValue, path: string, depth: number): RuntimeFilt
       } as RuntimeFilter;
     }
     case "native":
+      if (depth !== 0) throw invalid(path, "native filters must be the complete top-level filter");
       return parseNativeFilter(object, path) as RuntimeFilter;
     default:
       throw invalid(`${path}.kind`, `has unsupported value ${JSON.stringify(kind)}`);
@@ -1003,6 +1004,9 @@ function validateTemporalFilter(filter: RuntimeTemporalFilter, schema: SourceSch
     if (field.type.kind === "timestamp" && endpointKind !== "instant") {
       throw invalid(`${path}.value.value`, "timestamp fields require instant interval endpoints");
     }
+    value.value.forEach((endpoint, index) => validateLiteralForField(endpoint, field, `${path}.value.value[${index}]`));
+  } else {
+    validateLiteralForField(value.value, field, `${path}.value.value`);
   }
   if ((filter.operator === "during" || filter.operator === "time-intersects") && value.valueType !== "interval") {
     throw invalid(`${path}.value.valueType`, `${filter.operator} requires an interval`);
