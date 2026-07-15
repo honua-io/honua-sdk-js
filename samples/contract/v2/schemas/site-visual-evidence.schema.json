@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/site-sample-visual-evidence.v1.schema.json",
+  "title": "Honua site SDK sample visual evidence v1",
+  "type": "object",
+  "required": ["format", "schemaVersion", "projection", "policy", "qualifiedGoldenJourneys"],
+  "properties": {
+    "format": { "const": "honua.site.sdk-sample-visual-evidence.v1" },
+    "schemaVersion": { "const": 1 },
+    "projection": {
+      "type": "object",
+      "required": ["path", "format", "schemaVersion", "sha256"],
+      "properties": {
+        "path": { "const": "samples/dist/honua-site-samples.v2.json" },
+        "format": { "const": "honua.site.sdk-sample-projection.v2" },
+        "schemaVersion": { "const": 2 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "requiredScreenshotVariants",
+        "requiredSemanticGates",
+        "executableSourceOwner",
+        "presentationOwner"
+      ],
+      "properties": {
+        "requiredScreenshotVariants": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "object",
+              "required": ["id", "viewport"],
+              "properties": {
+                "id": { "const": "desktop" },
+                "viewport": { "$ref": "#/$defs/desktopViewport" }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": ["id", "viewport"],
+              "properties": {
+                "id": { "const": "mobile" },
+                "viewport": { "$ref": "#/$defs/mobileViewport" }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "requiredSemanticGates": {
+          "const": [
+            "packed-build",
+            "browser",
+            "accessibility",
+            "console",
+            "responsive",
+            "screenshot",
+            "performance",
+            "fixture",
+            "live"
+          ]
+        },
+        "executableSourceOwner": { "const": "honua-io/honua-sdk-js" },
+        "presentationOwner": { "const": "honua-io/honua-site" }
+      },
+      "additionalProperties": false
+    },
+    "qualifiedGoldenJourneys": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/qualifiedJourney" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "desktopViewport": {
+      "type": "object",
+      "required": ["width", "height"],
+      "properties": { "width": { "const": 1280 }, "height": { "const": 720 } },
+      "additionalProperties": false
+    },
+    "mobileViewport": {
+      "type": "object",
+      "required": ["width", "height"],
+      "properties": { "width": { "const": 390 }, "height": { "const": 844 } },
+      "additionalProperties": false
+    },
+    "desktopScreenshot": {
+      "allOf": [
+        { "$ref": "#/$defs/screenshot" },
+        {
+          "properties": {
+            "variant": { "const": "desktop" },
+            "viewport": { "$ref": "#/$defs/desktopViewport" }
+          }
+        }
+      ]
+    },
+    "mobileScreenshot": {
+      "allOf": [
+        { "$ref": "#/$defs/screenshot" },
+        {
+          "properties": {
+            "variant": { "const": "mobile" },
+            "viewport": { "$ref": "#/$defs/mobileViewport" }
+          }
+        }
+      ]
+    },
+    "screenshot": {
+      "type": "object",
+      "required": [
+        "variant",
+        "sourcePath",
+        "publicationPath",
+        "mediaType",
+        "viewport",
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "variant": { "enum": ["desktop", "mobile"] },
+        "sourcePath": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/artifacts/screenshot-(?:desktop|mobile)\\.png$"
+        },
+        "publicationPath": {
+          "type": "string",
+          "pattern": "^assets/gallery-evidence/[a-z0-9]+(?:-[a-z0-9]+)*/(?:desktop|mobile)-[a-f0-9]{16}\\.png$"
+        },
+        "mediaType": { "const": "image/png" },
+        "viewport": {
+          "type": "object",
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "semanticEvidence": {
+      "type": "object",
+      "required": ["gate", "receiptPath", "reportPath", "observedAt", "expiresAt", "sha256"],
+      "properties": {
+        "gate": {
+          "enum": [
+            "packed-build",
+            "browser",
+            "accessibility",
+            "console",
+            "responsive",
+            "screenshot",
+            "performance",
+            "fixture",
+            "live"
+          ]
+        },
+        "receiptPath": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/receipts/[a-z-]+\\.v1\\.json$"
+        },
+        "reportPath": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/artifacts/[a-z-]+\\.json$"
+        },
+        "observedAt": { "$ref": "#/$defs/dateTime" },
+        "expiresAt": { "$ref": "#/$defs/dateTime" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "liveEvidence": {
+      "type": "object",
+      "required": [
+        "mode",
+        "status",
+        "observedAt",
+        "expiresAt",
+        "evidencePath",
+        "provenance",
+        "semantics",
+        "timing",
+        "degradation"
+      ],
+      "properties": {
+        "mode": { "enum": ["public-live", "demo-live", "authenticated"] },
+        "status": { "const": "executed" },
+        "observedAt": { "$ref": "#/$defs/dateTime" },
+        "expiresAt": { "$ref": "#/$defs/dateTime" },
+        "evidencePath": { "type": "string" },
+        "provenance": {
+          "type": "object",
+          "required": ["state", "observedAt", "attribution"],
+          "properties": {
+            "state": { "const": "live" },
+            "observedAt": { "$ref": "#/$defs/dateTime" },
+            "attribution": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "semantics": {
+          "type": "object",
+          "required": ["operation", "outcome", "itemCount", "assertions"],
+          "properties": {
+            "operation": { "type": "string", "minLength": 1 },
+            "outcome": { "type": "string", "minLength": 1 },
+            "itemCount": { "type": "integer", "minimum": 1 },
+            "assertions": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        },
+        "timing": {
+          "type": "object",
+          "required": ["totalMs"],
+          "properties": { "totalMs": { "type": "number", "minimum": 0 } },
+          "additionalProperties": false
+        },
+        "degradation": {
+          "type": "object",
+          "required": ["state", "reasons"],
+          "properties": {
+            "state": { "enum": ["none", "expected"] },
+            "reasons": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        },
+        "realtime": {
+          "type": "object",
+          "required": ["observationWindowMs", "snapshotAt", "cursor", "lagMs"],
+          "properties": {
+            "observationWindowMs": { "type": "number", "exclusiveMinimum": 0 },
+            "snapshotAt": { "type": ["string", "null"] },
+            "cursor": { "type": ["string", "null"] },
+            "lagMs": { "type": ["number", "null"], "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "qualifiedJourney": {
+      "type": "object",
+      "required": [
+        "journeyId",
+        "sampleId",
+        "sourceRevision",
+        "sourceDigest",
+        "observedAt",
+        "expiresAt",
+        "screenshots",
+        "semanticEvidence",
+        "liveEvidence"
+      ],
+      "properties": {
+        "journeyId": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "sampleId": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "sourceRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "sourceDigest": { "$ref": "#/$defs/sha256" },
+        "observedAt": { "$ref": "#/$defs/dateTime" },
+        "expiresAt": { "$ref": "#/$defs/dateTime" },
+        "screenshots": {
+          "type": "array",
+          "prefixItems": [
+            { "$ref": "#/$defs/desktopScreenshot" },
+            { "$ref": "#/$defs/mobileScreenshot" }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "semanticEvidence": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "items": { "$ref": "#/$defs/semanticEvidence" }
+        },
+        "liveEvidence": { "$ref": "#/$defs/liveEvidence" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

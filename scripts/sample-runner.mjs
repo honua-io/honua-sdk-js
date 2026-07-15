@@ -984,11 +984,11 @@ async function writeGateReport({
       sourceSnapshot.capturedAtMs,
     );
     report = {
-      format: "honua.sdk.sample-screenshot-gate.v1",
+      format: "honua.sdk.sample-screenshot-gate.v2",
       sampleId: sample.id,
       sourceRevision: revision,
       command,
-      screenshot: producer.value,
+      screenshots: producer.value.screenshots,
     };
   } else if (gate === "performance") {
     kind = "performance-report";

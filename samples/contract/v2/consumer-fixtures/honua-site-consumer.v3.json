@@ -1,0 +1,48 @@
+{
+  "format": "honua.site.sdk-sample-consumer-fixture.v3",
+  "schemaVersion": 3,
+  "accepts": {
+    "projectionFormat": "honua.site.sdk-sample-projection.v2",
+    "projectionSchemaVersion": 2,
+    "catalogFormat": "honua.sdk.sample-catalog.v2",
+    "catalogSchemaVersion": 2,
+    "visualEvidenceFormat": "honua.site.sdk-sample-visual-evidence.v1",
+    "visualEvidenceSchemaVersion": 1
+  },
+  "inputs": {
+    "projection": {
+      "path": "samples/dist/honua-site-samples.v2.json",
+      "schemaPath": "samples/contract/v2/schemas/site-projection.schema.json",
+      "sha256": "30fdb501189717d36b28ad715063ec9ce05e908c0fd65062af6712df7913f72c"
+    },
+    "visualEvidence": {
+      "path": "samples/dist/honua-site-visual-evidence.v1.json",
+      "schemaPath": "samples/contract/v2/schemas/site-visual-evidence.schema.json",
+      "sha256": "a6473636fa7f60104bb1567195c3b39d025f3e5e903799bba13418465af29ed4"
+    }
+  },
+  "assertions": {
+    "sampleCount": 34,
+    "rootExampleCount": 31,
+    "docsExampleCount": 3,
+    "goldenJourneyCount": 7,
+    "qualifiedGoldenCount": 0,
+    "visualEvidenceCount": 0,
+    "routeCount": 21,
+    "sampleIdsUnique": true,
+    "routeIdsUnique": true,
+    "routesEndInHtml": true,
+    "visualEvidenceMatchesQualifiedGolden": true,
+    "desktopMobileEvidenceRequired": true,
+    "semanticGateSetRequired": true,
+    "executableSourceOwner": "honua-io/honua-sdk-js",
+    "presentationOwner": "honua-io/honua-site",
+    "sourceImplementationDuplicated": false,
+    "credentialValuesForbidden": true
+  },
+  "representativeRoutes": [
+    "quickstart-map",
+    "public-safety",
+    "two-protocols"
+  ]
+}

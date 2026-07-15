@@ -20,10 +20,13 @@ const sources = [
 ];
 
 const result = spawnSync(
-  "npx",
+  "npm",
   [
+    "exec",
     "--yes",
-    "typedoc@^0.26",
+    "--package=typedoc@^0.26",
+    "--",
+    "typedoc",
     "--tsconfig",
     "tsconfig.docs.json",
     "--out",

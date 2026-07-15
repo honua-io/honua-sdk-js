@@ -12,6 +12,7 @@ import {
   extractSampleConfiguration,
   generateCiSelection,
   generateSiteProjection,
+  generateSiteVisualEvidence,
   generatedOutputDrift,
   generatedOutputs,
   inspectSampleConfiguration,
@@ -24,7 +25,9 @@ import {
   validateFixtureBuildHarnessSource,
   validateFixtureBuildHarnesses,
   validateLiveEvidenceProducer,
+  validateSiteConsumerFixture,
   validateSiteProjection,
+  validateSiteVisualEvidence,
   verifyBrowserArtifactManifest,
 } from "../scripts/sample-contract.mjs";
 
@@ -111,9 +114,11 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
     const projection = generateSiteProjection(catalog, packageJson);
     const ciSelection = generateCiSelection(catalog);
+    const visualEvidence = await generateSiteVisualEvidence(catalog, projection, validationTime);
 
     await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
     await expect(validateCiSelection(ciSelection)).resolves.toBeUndefined();
+    await expect(validateSiteVisualEvidence(visualEvidence, projection, validationTime)).resolves.toBeUndefined();
 
     expect(projection.samples).toHaveLength(34);
     expect(projection.routes).toHaveLength(21);
@@ -124,6 +129,18 @@ describe("sample publication contract", () => {
     expect(ciSelection.samples).toHaveLength(34);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
+    expect(visualEvidence).toMatchObject({
+      format: "honua.site.sdk-sample-visual-evidence.v1",
+      schemaVersion: 1,
+      projection: { format: projection.format, schemaVersion: projection.schemaVersion },
+      policy: {
+        requiredScreenshotVariants: [
+          { id: "desktop", viewport: { width: 1280, height: 720 } },
+          { id: "mobile", viewport: { width: 390, height: 844 } },
+        ],
+      },
+      qualifiedGoldenJourneys: [],
+    });
     expect(JSON.stringify(projection)).not.toContain('"commands"');
     expect(JSON.stringify(projection)).not.toContain("VITE_");
     for (const sample of catalog.samples) {
@@ -187,7 +204,9 @@ describe("sample publication contract", () => {
     expect(bumpedProjection.samples[0].sdk.version).toBe("0.1.1-beta.0");
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
+      "samples/dist/honua-site-visual-evidence.v1.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
 
     const semanticDrift = new Map(currentOutputs);
@@ -205,8 +224,23 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
+      "samples/dist/honua-site-visual-evidence.v1.json",
       fixturePath,
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
+
+    const handoffPath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
+    const handoff = JSON.parse(currentOutputs.get(handoffPath)!);
+    const currentProjection = JSON.parse(currentOutputs.get("samples/dist/honua-site-samples.v2.json")!);
+    const visualPath = "samples/dist/honua-site-visual-evidence.v1.json";
+    const currentVisualEvidence = JSON.parse(currentOutputs.get(visualPath)!);
+    await expect(
+      validateSiteConsumerFixture(handoff, currentProjection, currentVisualEvidence),
+    ).resolves.toBeUndefined();
+    handoff.inputs.visualEvidence.sha256 = "0".repeat(64);
+    await expect(validateSiteConsumerFixture(handoff, currentProjection, currentVisualEvidence)).rejects.toThrow(
+      "does not exactly match its generated inputs",
+    );
   });
 
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {

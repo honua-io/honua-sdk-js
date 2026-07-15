@@ -27,15 +27,19 @@ import {
   createGalleryModel,
   renderGalleryContent,
   verifyGalleryProjectionIntegrity,
+  verifyGalleryVisualAssets,
 } from "./lib/docs-gallery.mjs";
 import { parseJsonDocument } from "./sample-contract.mjs";
+import { readCanonicalBoundedFile } from "./sample-gate-receipt.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "dist", "docs-site");
 const API_SRC = path.join(ROOT, "dist", "docs-api");
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_PROJECTION = path.join(ROOT, SITE_PROJECTION_PATH);
-const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+const SITE_VISUAL_EVIDENCE_PATH = "samples/dist/honua-site-visual-evidence.v1.json";
+const SITE_VISUAL_EVIDENCE = path.join(ROOT, SITE_VISUAL_EVIDENCE_PATH);
+const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
 const SITE_CONSUMER_FIXTURE = path.join(ROOT, SITE_CONSUMER_FIXTURE_PATH);
 
 const SITE_TITLE = "@honua/sdk-js";
@@ -362,10 +366,22 @@ ${scripts}
 
 async function loadGalleryModel() {
   const projectionBytes = fs.readFileSync(SITE_PROJECTION, "utf8");
+  const visualEvidenceBytes = fs.readFileSync(SITE_VISUAL_EVIDENCE, "utf8");
   const consumerBytes = fs.readFileSync(SITE_CONSUMER_FIXTURE, "utf8");
   const consumerFixture = parseJsonDocument(consumerBytes, SITE_CONSUMER_FIXTURE_PATH);
-  const integrity = await verifyGalleryProjectionIntegrity({ projectionBytes, consumerFixture });
+  const integrity = await verifyGalleryProjectionIntegrity({
+    projectionBytes,
+    visualEvidenceBytes,
+    consumerFixture,
+  });
   return createGalleryModel(integrity);
+}
+
+async function readCanonicalGalleryAsset(relativePath) {
+  return readCanonicalBoundedFile(ROOT, relativePath, {
+    label: `gallery visual asset ${relativePath}`,
+    maxBytes: 32 * 1024 * 1024,
+  });
 }
 
 function demoSourceUrl(docsPath) {
@@ -456,6 +472,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .demo-card p{color:var(--muted);margin:0 0 .8rem}
 .demo-card .demo-id{flex:0 0 auto}
 .demo-card .demo-summary{color:var(--fg)}
+.demo-visual-evidence{display:grid;grid-template-columns:minmax(0,2fr) minmax(100px,1fr);gap:1px;margin:.15rem 0 .85rem;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--border)}
+.demo-visual-evidence figure{margin:0;background:var(--bg)}
+.demo-visual-evidence img{display:block;width:100%;height:auto}
+.demo-visual-evidence figcaption{padding:.45rem .6rem;color:var(--muted);font-size:.75rem}
+.demo-visual-evidence>p{grid-column:1/-1;margin:0!important;padding:.45rem .6rem;background:var(--bg);font-size:.75rem}
 .demo-facts{display:grid;grid-template-columns:minmax(7.5rem,auto) 1fr;gap:.5rem .75rem;margin:.25rem 0 1rem;font-size:.86rem}
 .demo-facts--essential{gap:.35rem .65rem;margin-bottom:.7rem}
 .demo-facts dt{font-weight:700;color:var(--muted)}
@@ -502,6 +523,9 @@ async function main() {
   const gallery = await loadGalleryModel();
   rmrf(OUT);
   fs.mkdirSync(OUT, { recursive: true });
+  for (const asset of await verifyGalleryVisualAssets(gallery, readCanonicalGalleryAsset)) {
+    writeFile(asset.publicationPath, asset.bytes);
+  }
 
   const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
   const install = fs.readFileSync(path.join(ROOT, "INSTALL.md"), "utf8");

@@ -10,7 +10,7 @@ import {
   isSampleEvidenceRunId,
   SAMPLE_PERFORMANCE_BUDGET_MS,
   SAMPLE_PERFORMANCE_METRIC,
-  SAMPLE_SCREENSHOT_VIEWPORT,
+  SAMPLE_SCREENSHOT_VARIANTS,
 } from "../../scripts/lib/sample-gates.mjs";
 
 const FORMAT = "honua.sdk.sample-gate-assertion.v1";
@@ -62,18 +62,28 @@ async function writeBrowserEvidenceArtifacts({
 
   if (screenshotOutput) {
     await mkdir(path.dirname(screenshotOutput.absolute), { recursive: true });
-    await page.setViewportSize(SAMPLE_SCREENSHOT_VIEWPORT);
-    const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), "screenshot.png");
-    await page.screenshot({ path: screenshotPath, animations: "disabled", fullPage: false });
-    const bytes = await readFile(screenshotPath);
-    const report = {
-      projectName,
-      browserName,
-      viewport: SAMPLE_SCREENSHOT_VIEWPORT,
-      path: path.relative(process.cwd(), screenshotPath).replaceAll(path.sep, "/"),
-      bytes: bytes.byteLength,
-      sha256: createHash("sha256").update(bytes).digest("hex"),
-    };
+    const screenshots = [];
+    for (const variant of SAMPLE_SCREENSHOT_VARIANTS) {
+      await page.setViewportSize(variant.viewport);
+      await page.evaluate(async () => {
+        await document.fonts?.ready;
+        scrollTo(0, 0);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      });
+      const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), `screenshot-${variant.id}.png`);
+      await page.screenshot({ path: screenshotPath, animations: "disabled", fullPage: false });
+      const bytes = await readFile(screenshotPath);
+      screenshots.push({
+        variant: variant.id,
+        projectName,
+        browserName,
+        viewport: variant.viewport,
+        path: path.relative(process.cwd(), screenshotPath).replaceAll(path.sep, "/"),
+        bytes: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      });
+    }
+    const report = { screenshots };
     await writeFile(screenshotOutput.absolute, `${JSON.stringify(report, null, 2)}\n`);
   }
 

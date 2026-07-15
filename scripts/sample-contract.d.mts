@@ -36,6 +36,28 @@ export interface CiSelectedSample {
   };
 }
 
+export interface SiteProjection {
+  format: "honua.site.sdk-sample-projection.v2";
+  schemaVersion: 2;
+  catalog: {
+    format: "honua.sdk.sample-catalog.v2";
+    schemaVersion: 2;
+    package: string;
+    version: string;
+  };
+  contract: {
+    producer: string;
+    consumer: string;
+    executableSourceOwner: string;
+    presentationOwner: string;
+  };
+  samples: ProjectedSample[];
+  routes: Array<Record<string, unknown>>;
+  goldenJourneys: GoldenJourney[];
+  externalReplacements: Array<{ id: string; title: string; url: string }>;
+  qualityProfiles: Array<Record<string, unknown>>;
+}
+
 export interface BrowserArtifactManifest {
   format: "honua.sdk.browser-artifacts.v1";
   schemaVersion: 1;
@@ -77,21 +99,32 @@ export function effectiveCatalog(
 export function generateSiteProjection(
   catalog: SampleCatalog,
   packageJson: { name: string; version: string },
-): {
-  samples: ProjectedSample[];
-  routes: Array<Record<string, unknown>>;
-  goldenJourneys: GoldenJourney[];
-  externalReplacements: Array<{ id: string; title: string; url: string }>;
-};
+): SiteProjection;
 export function generateCiSelection(catalog: SampleCatalog): {
   profiles: Array<Record<string, unknown>>;
   samples: CiSelectedSample[];
 };
 export function validateSiteProjection(projection: unknown): Promise<void>;
+export function generateSiteVisualEvidence(
+  catalog: SampleCatalog,
+  projection: SiteProjection,
+  options?: { now?: string; verifyCheckout?: boolean },
+): Promise<Record<string, unknown>>;
+export function validateSiteVisualEvidence(
+  evidence: unknown,
+  projection?: unknown,
+  options?: { now?: string },
+): Promise<void>;
+export function validateSiteConsumerFixture(
+  fixture: unknown,
+  projection?: unknown,
+  visualEvidence?: unknown,
+): Promise<void>;
 export function validateCiSelection(selection: unknown): Promise<void>;
 export function generatedOutputs(
   catalog: SampleCatalog,
   packageJson: { name: string; version: string },
+  options?: { now?: string; verifyCheckout?: boolean },
 ): Promise<Map<string, string>>;
 export function generatedOutputDrift(
   expectedOutputs: Map<string, string>,
