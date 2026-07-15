@@ -14,6 +14,7 @@ import {
   isPlaywrightCommand,
   parseSampleCommand,
 } from "./lib/sample-command.mjs";
+import { verifyPreparedSdkArtifact } from "./lib/prepared-sdk-artifact.mjs";
 import { expectedGateCommand, isSampleEvidenceRunId } from "./lib/sample-gates.mjs";
 import {
   captureGateSourceSnapshot,
@@ -584,11 +585,14 @@ async function fileSha256(file) {
 
 async function preparePackedSdk(supervisor, root) {
   if (!root) fail("packed SDK preparation requires an isolated tooling root");
+  // Packing is a consumer of the run-scoped SDK artifact, never a build
+  // owner. Standalone callers get the same actionable preparation error as
+  // Vitest; composed CI prepares once before entering packed mode.
+  verifyPreparedSdkArtifact({ projectRoot: PROJECT_ROOT });
   const pack = path.join(root, "pack");
   const extract = path.join(root, "extract");
   await rm(root, { recursive: true, force: true });
   await mkdir(pack, { recursive: true });
-  await supervisor.run(["npm", "run", "build", "--silent"]);
   const result = await supervisor.run(
     ["npm", "pack", "--json", "--ignore-scripts", "--pack-destination", pack, PROJECT_ROOT],
     { echoOutput: false },

@@ -164,10 +164,14 @@ appear for any constructor outside that set, and gating flags like
 renderers, or non-2D-core surfaces.
 
 For contributor validation, use `npm run test:migration:cli`. Its
-prerequisite builds the SDK once before Vitest starts, and every CLI spec
-executes that same prepared `dist/src/migration/cli.js` artifact. A direct
-Vitest invocation requires `npm run build` first and fails with an actionable
-prerequisite error when the artifact is missing or older than `src/`.
+prerequisite prepares the SDK once before Vitest starts, and every CLI spec
+executes the same manifest-owned `dist/src/migration/cli.js` artifact. The
+atomic preparation manifest hashes every compiler/control input and the
+complete `dist/` tree, binds workers to one run ID, and revalidates both trees
+at teardown. A direct Vitest invocation may run source-only tests without a
+manifest; a test that consumes built output fails with an actionable
+`npm run prepare:test-sdk` prerequisite error. Composed CI and publish lanes
+use their `:prepared` variants after the single root build.
 
 ## Migration report fields
 

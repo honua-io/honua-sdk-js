@@ -153,6 +153,7 @@ export default defineConfig({
   test: {
     include: ["test/**/*.test.ts", "test/react/**/*.test.tsx"],
     exclude: ["dist/**", "node_modules/**"],
+    globalSetup: ["test/prepared-sdk-artifacts.global-setup.mjs"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
