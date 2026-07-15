@@ -47,7 +47,10 @@ export class KernelLifecycle implements AsyncDisposable {
     this.policy = Object.freeze({
       capabilities: normalizeCapabilityPolicy(options.capabilityPolicy),
     });
-    const cache = new KernelDiscoveryCache(normalizeCacheBound(options.discoveryCacheMaxEntries));
+    const cache = new KernelDiscoveryCache(
+      normalizeCacheBound(options.discoveryCacheMaxEntries),
+      this.#abortController.signal,
+    );
     this.discoveryCache = cache;
     this.#resources.own(cache);
   }
@@ -82,17 +85,34 @@ export class KernelLifecycle implements AsyncDisposable {
   public dispose(): Promise<void> {
     if (this.#disposePromise) return this.#disposePromise;
     this.#state = "disposing";
-    this.#abortController.abort(new HonuaAbortError("Honua kernel was disposed"));
-    this.#disposePromise = this.#resources.dispose().then(
-      () => {
-        this.#state = "disposed";
-      },
-      (error: unknown) => {
-        this.#state = "disposed";
-        throw error;
-      },
-    );
-    return this.#disposePromise;
+
+    let beginResourceDisposal: () => void = () => undefined;
+    const resourceDisposalGate = new Promise<void>((resolve) => {
+      beginResourceDisposal = resolve;
+    });
+    const completion = resourceDisposalGate
+      .then(() => {
+        const ownerCompletion = this.#disposePromise;
+        if (!ownerCompletion) throw new Error("Honua kernel disposal completion was not published.");
+        return this.#resources.dispose(ownerCompletion);
+      })
+      .then(
+        () => {
+          this.#state = "disposed";
+        },
+        (error: unknown) => {
+          this.#state = "disposed";
+          throw error;
+        },
+      );
+    this.#disposePromise = completion;
+
+    try {
+      this.#abortController.abort(new HonuaAbortError("Honua kernel was disposed"));
+    } finally {
+      beginResourceDisposal();
+    }
+    return completion;
   }
 
   public [Symbol.asyncDispose](): Promise<void> {
@@ -129,16 +149,20 @@ class KernelResourceRegistry {
     return this.#owned.delete(resource);
   }
 
-  public dispose(): Promise<void> {
+  public dispose(ownerCompletion: Promise<void>): Promise<void> {
     if (this.#disposePromise) return this.#disposePromise;
     this.#state = "disposing";
     const cleanups = [...this.#owned.values()].reverse();
     this.#owned.clear();
-    this.#disposePromise = (async () => {
+    const completion = Promise.resolve().then(async () => {
       const failures: unknown[] = [];
       for (const cleanup of cleanups) {
         try {
-          await cleanup();
+          const result = cleanup();
+          // A synchronous cleanup may report reentrant owner disposal by
+          // returning that owner's canonical completion. Awaiting the owner
+          // from inside its own drain would create a self-dependency.
+          if (result !== ownerCompletion) await result;
         } catch (error) {
           failures.push(error);
         }
@@ -147,8 +171,9 @@ class KernelResourceRegistry {
       if (failures.length > 0) {
         throw new AggregateError(failures, "Honua kernel resource disposal failed");
       }
-    })();
-    return this.#disposePromise;
+    });
+    this.#disposePromise = completion;
+    return completion;
   }
 }
 
@@ -156,7 +181,10 @@ class KernelDiscoveryCache implements ConnectDiscoveryCache, Disposable {
   readonly #entries = new Map<string, ConnectDiscoverySnapshot>();
   #disposed = false;
 
-  public constructor(private readonly maxEntries: number) {}
+  public constructor(
+    private readonly maxEntries: number,
+    private readonly ownerSignal: AbortSignal,
+  ) {}
 
   public get(
     identity: DiscoveryCacheIdentity,
@@ -194,10 +222,10 @@ class KernelDiscoveryCache implements ConnectDiscoveryCache, Disposable {
   }
 
   #assertUsable(context: ConnectDiscoveryCacheContext, operation: "read" | "write"): void {
-    if (context.signal?.aborted) throw new HonuaAbortError();
     if (this.#disposed) {
       throw new Error(`Honua kernel discovery cache cannot ${operation} after disposal.`);
     }
+    if (this.ownerSignal.aborted || context.signal?.aborted) throw new HonuaAbortError();
   }
 }
 

@@ -27,6 +27,14 @@ function snapshot(cacheIdentity: DiscoveryCacheIdentity): ConnectDiscoverySnapsh
   });
 }
 
+function deferred(): { readonly promise: Promise<void>; readonly resolve: () => void } {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
 describe("kernel lifecycle substrate", () => {
   it("isolates policy, discovery cache, cancellation, and resources between kernels", async () => {
     const allow: Capability[] = ["query"];
@@ -103,6 +111,90 @@ describe("kernel lifecycle substrate", () => {
     expect(() => lifecycle.own(() => undefined)).toThrow("after disposal has started");
   });
 
+  it("publishes one completion before a synchronous abort listener can reenter disposal", async () => {
+    const lifecycle = createKernelLifecycle();
+    const cleanupStarted = deferred();
+    const cleanupGate = deferred();
+    const cleanup = vi.fn(async () => {
+      cleanupStarted.resolve();
+      await cleanupGate.promise;
+    });
+    lifecycle.own(cleanup);
+    let reentrantCompletion: Promise<void> | undefined;
+    lifecycle.signal.addEventListener(
+      "abort",
+      () => {
+        reentrantCompletion = lifecycle.dispose();
+      },
+      { once: true },
+    );
+
+    const completion = lifecycle.dispose();
+    let settled = false;
+    void completion.then(() => {
+      settled = true;
+    });
+
+    expect(reentrantCompletion).toBe(completion);
+    expect(lifecycle.signal.aborted).toBe(true);
+    expect(lifecycle.state).toBe("disposing");
+    await cleanupStarted.promise;
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(settled).toBe(false);
+
+    cleanupGate.resolve();
+    await completion;
+    expect(settled).toBe(true);
+    expect(lifecycle.dispose()).toBe(completion);
+  });
+
+  it("shares the canonical completion with cleanup reentry and drains every resource once in reverse order", async () => {
+    const lifecycle = createKernelLifecycle();
+    const pendingCleanupStarted = deferred();
+    const pendingCleanupGate = deferred();
+    const calls: string[] = [];
+    const oldestCleanup = vi.fn(() => {
+      calls.push("oldest");
+    });
+    const pendingCleanup = vi.fn(async () => {
+      calls.push("pending:start");
+      pendingCleanupStarted.resolve();
+      await pendingCleanupGate.promise;
+      calls.push("pending:end");
+    });
+    let reentrantCompletion: Promise<void> | undefined;
+    const reentrantCleanup = vi.fn(() => {
+      calls.push("reentrant");
+      reentrantCompletion = lifecycle.dispose();
+      return reentrantCompletion;
+    });
+    lifecycle.own(oldestCleanup);
+    lifecycle.own(pendingCleanup);
+    lifecycle.own(reentrantCleanup);
+
+    const completion = lifecycle.dispose();
+    let settled = false;
+    void completion.then(() => {
+      settled = true;
+    });
+    await pendingCleanupStarted.promise;
+
+    expect(reentrantCompletion).toBe(completion);
+    expect(calls).toEqual(["reentrant", "pending:start"]);
+    expect(reentrantCleanup).toHaveBeenCalledOnce();
+    expect(pendingCleanup).toHaveBeenCalledOnce();
+    expect(oldestCleanup).not.toHaveBeenCalled();
+    expect(settled).toBe(false);
+
+    pendingCleanupGate.resolve();
+    await completion;
+
+    expect(calls).toEqual(["reentrant", "pending:start", "pending:end", "oldest"]);
+    expect(oldestCleanup).toHaveBeenCalledOnce();
+    expect(settled).toBe(true);
+    expect(lifecycle.dispose()).toBe(completion);
+  });
+
   it("continues after cleanup failures and preserves one aggregate completion", async () => {
     const lifecycle = createKernelLifecycle();
     const survivor = vi.fn();
@@ -167,5 +259,31 @@ describe("kernel lifecycle substrate", () => {
     ).toThrow(HonuaAbortError);
 
     await lifecycle.dispose();
+  });
+
+  it("rejects empty-context cache access as soon as owner disposal begins", async () => {
+    const lifecycle = createKernelLifecycle();
+    const cacheIdentity = identity("owner-disposal");
+    const cacheSnapshot = snapshot(cacheIdentity);
+    const pendingCleanupStarted = deferred();
+    const pendingCleanupGate = deferred();
+    lifecycle.discoveryCache.set(cacheIdentity, cacheSnapshot, {});
+    lifecycle.own(async () => {
+      pendingCleanupStarted.resolve();
+      await pendingCleanupGate.promise;
+    });
+
+    const completion = lifecycle.dispose();
+    expect(() => lifecycle.discoveryCache.get(cacheIdentity, {})).toThrow(HonuaAbortError);
+    expect(() => lifecycle.discoveryCache.set(cacheIdentity, cacheSnapshot, {})).toThrow(HonuaAbortError);
+
+    await pendingCleanupStarted.promise;
+    expect(lifecycle.state).toBe("disposing");
+    expect(() => lifecycle.discoveryCache.get(cacheIdentity, {})).toThrow(HonuaAbortError);
+    expect(() => lifecycle.discoveryCache.set(cacheIdentity, cacheSnapshot, {})).toThrow(HonuaAbortError);
+
+    pendingCleanupGate.resolve();
+    await completion;
+    expect(() => lifecycle.discoveryCache.get(cacheIdentity, {})).toThrow("after disposal");
   });
 });
