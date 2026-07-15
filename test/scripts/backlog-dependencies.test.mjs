@@ -102,7 +102,7 @@ describe("backlog dependency grammar", () => {
     }
   });
 
-  it("uses valid Markdown fence semantics and ignores headings in HTML comments", () => {
+  it("uses valid Markdown container semantics and ignores hidden headings", () => {
     const fenced =
       "   ````md\n## Backlog Dependencies\n\nMode: automatic\nDependencies:\n- #999\n" +
       "```\n~~~\n````suffix\n`````\n\n";
@@ -134,6 +134,73 @@ describe("backlog dependency grammar", () => {
     expectDependencyError("missing-dependency-section", () =>
       parseBacklogDependencies(
         "## Specifica\n\nType: Feature\n\n<!-- unclosed\n" +
+          "## Backlog Dependencies\n\nMode: automatic\nDependencies: none",
+        { repository, issueNumber: 2 },
+      ),
+    );
+
+    for (const hiddenHtml of [
+      "<pre>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n## End\n</pre>",
+      "<script>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</script>",
+      "<style>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</style>",
+      "<textarea>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</textarea>",
+      "<table>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</table>\n",
+      "<div>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</div>\n",
+      "<details>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</details>\n",
+      '<custom-element data-value=">">\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</custom-element>\n',
+      "<?processing\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n?>",
+      "<!DECLARATION\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n>",
+      "<![CDATA[\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n]]>",
+    ]) {
+      expectDependencyError("missing-dependency-section", () =>
+        parseBacklogDependencies(`## Specifica\n\nType: Feature\n\n${hiddenHtml}`, {
+          repository,
+          issueNumber: 2,
+        }),
+      );
+    }
+  });
+
+  it("requires whitespace-obfuscated epics to use the manual opt-out", () => {
+    for (const epicType of ["Type: Epic ", "Type:\tEpic", "\tType: Epic\t", "type: epic"]) {
+      expectDependencyError("epic-requires-manual", () =>
+        parseBacklogDependencies(`## Specifica\n\n${epicType}\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies: none`, {
+          repository,
+          issueNumber: 2,
+        }),
+      );
+    }
+  });
+
+  it("fails closed on missing, ambiguous, or noncanonical automatic Specifica types", () => {
+    for (const declaration of [
+      null,
+      "Type: Feature ",
+      "type: feature",
+      "Type: **Epic**",
+      "Type: Epic <!-- noncanonical -->",
+      "Type: Epic\u00a0",
+      "Type: Feature\nType: Feature",
+    ]) {
+      const specifica = declaration === null ? "## Specifica\n\nFixture." : `## Specifica\n\n${declaration}`;
+      expectDependencyError("invalid-specifica-type", () =>
+        parseBacklogDependencies(
+          `${specifica}\n\n## Context\n\nFixture.\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies: none`,
+          { repository, issueNumber: 2 },
+        ),
+      );
+    }
+
+    expectDependencyError("invalid-specifica-type", () =>
+      parseBacklogDependencies(
+        "## Specifica\n\nType: Feature\n\n## Specifica\n\nType: Feature\n\n" +
+          "## Backlog Dependencies\n\nMode: automatic\nDependencies: none",
+        { repository, issueNumber: 2 },
+      ),
+    );
+    expectDependencyError("epic-requires-manual", () =>
+      parseBacklogDependencies(
+        "## Specifica\n\nType: Feature\nType: Epic\n\n" +
           "## Backlog Dependencies\n\nMode: automatic\nDependencies: none",
         { repository, issueNumber: 2 },
       ),
@@ -222,6 +289,32 @@ describe("pure backlog reconciliation planner", () => {
       remove: ["blocked"],
       add: ["ready-to-start"],
     });
+  });
+
+  it("never promotes hidden dependency metadata or invalid Specifica types", () => {
+    const hiddenDependency =
+      "## Specifica\n\nType: Feature\n\n<pre>\n## Backlog Dependencies\n" +
+      "Mode: automatic\nDependencies: none\n</pre>";
+    const noncanonicalFeature =
+      "## Specifica\n\nType: Feature \n\n## Backlog Dependencies\n\nMode: automatic\nDependencies: none";
+    const obfuscatedEpic =
+      "## Specifica\n\nType:\tEpic\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies: none";
+    const plan = planBacklogReconciliation({
+      repository,
+      issues: [
+        issue(21, { body: hiddenDependency }),
+        issue(22, { body: noncanonicalFeature }),
+        issue(23, { body: obfuscatedEpic }),
+      ],
+    });
+    assert.deepEqual(
+      plan.dispositions.map(({ number, kind, proposedLabels }) => [number, kind, proposedLabels]),
+      [
+        [21, "missing", null],
+        [22, "malformed", null],
+        [23, "malformed", null],
+      ],
+    );
   });
 
   it("detects dependency cycles, self-cycles, and duplicate declarations", () => {
