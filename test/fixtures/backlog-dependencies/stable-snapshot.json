@@ -1,0 +1,86 @@
+{
+  "repository": "honua-io/honua-sdk-js",
+  "issues": [
+    {
+      "repository": "honua-io/honua-sdk-js",
+      "number": 1,
+      "state": "closed",
+      "body": "",
+      "labels": [],
+      "target": false
+    },
+    {
+      "repository": "honua-io/honua-sdk-js",
+      "number": 2,
+      "state": "open",
+      "body": "## Specifica\n\nType: Feature\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies: none",
+      "labels": ["ready-to-start"],
+      "target": false
+    },
+    {
+      "repository": "honua-io/honua-sdk-js",
+      "number": 10,
+      "state": "open",
+      "body": "## Specifica\n\nType: Feature\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies:\n- #1",
+      "labels": ["blocked", "priority/P1"],
+      "target": true
+    },
+    {
+      "repository": "honua-io/honua-sdk-js",
+      "number": 11,
+      "state": "open",
+      "body": "## Specifica\n\nType: Feature\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies:\n- #2",
+      "labels": ["blocked"],
+      "target": true
+    },
+    {
+      "repository": "honua-io/honua-sdk-js",
+      "number": 12,
+      "state": "open",
+      "body": "## Specifica\n\nType: Feature\n\n## Backlog Dependencies\n\nMode: manual\nReason: Ordered manually after the release boundary.",
+      "labels": [],
+      "target": true
+    },
+    {
+      "repository": "honua-io/honua-sdk-js",
+      "number": 13,
+      "state": "open",
+      "body": "## Specifica\n\nType: Feature",
+      "labels": ["blocked"],
+      "target": true
+    },
+    {
+      "repository": "honua-io/honua-sdk-js",
+      "number": 14,
+      "state": "open",
+      "body": "## Specifica\n\nType: Feature\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies: none",
+      "labels": ["ready-to-start"],
+      "target": true
+    },
+    {
+      "repository": "honua-io/honua-sdk-js",
+      "number": 15,
+      "state": "open",
+      "body": "## Specifica\n\nType: Feature\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies:\n- #2",
+      "labels": ["ready-to-start"],
+      "target": true
+    },
+    {
+      "repository": "honua-io/honua-sdk-js",
+      "number": 16,
+      "state": "open",
+      "body": "## Specifica\n\nType: Feature\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies:\n- honua-io/honua-site#120",
+      "labels": ["blocked"],
+      "target": true
+    },
+    {
+      "repository": "honua-io/honua-site",
+      "number": 120,
+      "state": "closed",
+      "body": "",
+      "labels": [],
+      "target": false
+    }
+  ],
+  "unavailable": []
+}

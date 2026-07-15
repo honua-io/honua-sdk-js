@@ -1,0 +1,101 @@
+{
+  "repository": "honua-io/honua-sdk-js",
+  "valid": [
+    {
+      "name": "same and cross repository references",
+      "issueNumber": 10,
+      "section": "Mode: automatic\nDependencies:\n- #2\n- honua-io/honua-site#120",
+      "mode": "automatic",
+      "dependencies": ["honua-io/honua-sdk-js#2", "honua-io/honua-site#120"]
+    },
+    {
+      "name": "explicitly no dependencies",
+      "issueNumber": 11,
+      "section": "Mode: automatic\nDependencies: none",
+      "mode": "automatic",
+      "dependencies": []
+    },
+    {
+      "name": "manual opt out",
+      "issueNumber": 12,
+      "section": "Mode: manual\nReason: Ordered manually after the release boundary.",
+      "mode": "manual",
+      "dependencies": []
+    }
+  ],
+  "invalid": [
+    {
+      "name": "missing section",
+      "issueNumber": 20,
+      "section": null,
+      "code": "missing-dependency-section"
+    },
+    {
+      "name": "full URL",
+      "issueNumber": 21,
+      "section": "Mode: automatic\nDependencies:\n- https://github.com/honua-io/honua-sdk-js/issues/2",
+      "code": "malformed-dependency"
+    },
+    {
+      "name": "issue range",
+      "issueNumber": 22,
+      "section": "Mode: automatic\nDependencies:\n- #2-#4",
+      "code": "malformed-dependency"
+    },
+    {
+      "name": "prose qualifier",
+      "issueNumber": 23,
+      "section": "Mode: automatic\nDependencies:\n- #2 after S2",
+      "code": "malformed-dependency"
+    },
+    {
+      "name": "duplicate normalized reference",
+      "issueNumber": 24,
+      "section": "Mode: automatic\nDependencies:\n- #2\n- honua-io/honua-sdk-js#2",
+      "code": "duplicate-dependency"
+    },
+    {
+      "name": "self cycle",
+      "issueNumber": 25,
+      "section": "Mode: automatic\nDependencies:\n- #25",
+      "code": "self-cycle"
+    },
+    {
+      "name": "manual without reason",
+      "issueNumber": 26,
+      "section": "Mode: manual",
+      "code": "malformed-manual-opt-out"
+    },
+    {
+      "name": "manual reason control character",
+      "issueNumber": 260,
+      "section": "Mode: manual\nReason: Unsafe\treason.",
+      "code": "malformed-manual-reason"
+    },
+    {
+      "name": "automatic epic",
+      "issueNumber": 27,
+      "type": "Epic",
+      "section": "Mode: automatic\nDependencies: none",
+      "code": "epic-requires-manual"
+    },
+    {
+      "name": "duplicate section",
+      "issueNumber": 28,
+      "section": "Mode: automatic\nDependencies: none\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies: none",
+      "code": "duplicate-dependency-section"
+    },
+    {
+      "name": "leading zero",
+      "issueNumber": 29,
+      "section": "Mode: automatic\nDependencies:\n- #02",
+      "code": "malformed-dependency"
+    },
+    {
+      "name": "path-navigation repository",
+      "issueNumber": 30,
+      "section": "Mode: automatic\nDependencies:\n- ../private#2",
+      "code": "invalid-repository"
+    }
+  ]
+}
