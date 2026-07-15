@@ -4,12 +4,29 @@ import fs from "node:fs";
 import process from "node:process";
 
 import {
+  BacklogDependencyError,
   DEFAULT_MAX_DEPENDENCIES_PER_ISSUE,
   RECONCILIATION_KINDS,
   normalizeRepository,
   planBacklogReconciliation,
 } from "./lib/backlog-dependencies.mjs";
-import { loadGitHubBacklogSnapshot } from "./lib/github-backlog-dependencies.mjs";
+import { GitHubBacklogMetadataError, loadGitHubBacklogSnapshot } from "./lib/github-backlog-dependencies.mjs";
+
+const CLI_ERROR_MESSAGES = Object.freeze({
+  "invalid-argument": "Command arguments are invalid.",
+  "invalid-positive-integer": "A numeric option requires a positive safe integer.",
+  "invalid-snapshot": "Metadata snapshot could not be read safely.",
+  "snapshot-repository-mismatch": "Metadata snapshot repository does not match the requested repository.",
+});
+
+class BacklogDependencyCliError extends Error {
+  constructor(code) {
+    const knownCode = Object.hasOwn(CLI_ERROR_MESSAGES, code) ? code : "cli-error";
+    super(CLI_ERROR_MESSAGES[knownCode] ?? "Backlog dependency command failed.");
+    this.name = "BacklogDependencyCliError";
+    this.code = knownCode;
+  }
+}
 
 function usage() {
   return (
@@ -19,10 +36,10 @@ function usage() {
   );
 }
 
-function positiveInteger(value, option) {
-  if (!/^[1-9][0-9]*$/u.test(value)) throw new Error(`${option} requires a positive integer.\n${usage()}`);
+function positiveInteger(value) {
+  if (!/^[1-9][0-9]*(?![\s\S])/u.test(value)) throw new BacklogDependencyCliError("invalid-positive-integer");
   const result = Number.parseInt(value, 10);
-  if (!Number.isSafeInteger(result)) throw new Error(`${option} exceeds the safe integer range.\n${usage()}`);
+  if (!Number.isSafeInteger(result)) throw new BacklogDependencyCliError("invalid-positive-integer");
   return result;
 }
 
@@ -47,22 +64,17 @@ function parseArguments(argv) {
       ["--concurrency", "concurrency"],
     ]);
     const name = names.get(argument);
-    if (!name) throw new Error(usage());
+    if (!name) throw new BacklogDependencyCliError("invalid-argument");
     const value = argv[index + 1];
-    if (!value || value.startsWith("--")) throw new Error(usage());
+    if (!value || value.startsWith("--")) throw new BacklogDependencyCliError("invalid-argument");
     options[name] = value;
     index += 1;
   }
 
   if (options.help) return options;
   options.repository = normalizeRepository(options.repository ?? process.env.GITHUB_REPOSITORY);
-  for (const [name, flag] of [
-    ["maxPages", "--max-pages"],
-    ["maxIssues", "--max-issues"],
-    ["maxDependencies", "--max-dependencies"],
-    ["concurrency", "--concurrency"],
-  ]) {
-    if (options[name] !== undefined) options[name] = positiveInteger(options[name], flag);
+  for (const name of ["maxPages", "maxIssues", "maxDependencies", "concurrency"]) {
+    if (options[name] !== undefined) options[name] = positiveInteger(options[name]);
   }
   return options;
 }
@@ -71,13 +83,16 @@ function readSnapshot(filePath, repository) {
   let snapshot;
   try {
     snapshot = JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch (error) {
-    throw new Error(
-      `Metadata snapshot could not be read as JSON: ${error instanceof Error ? error.message : String(error)}`,
-    );
+  } catch {
+    throw new BacklogDependencyCliError("invalid-snapshot");
   }
-  if (normalizeRepository(snapshot?.repository) !== repository) {
-    throw new Error(`Metadata snapshot repository does not match ${repository}.`);
+  try {
+    if (normalizeRepository(snapshot?.repository) !== repository) {
+      throw new BacklogDependencyCliError("snapshot-repository-mismatch");
+    }
+  } catch (error) {
+    if (error instanceof BacklogDependencyCliError) throw error;
+    throw new BacklogDependencyCliError("invalid-snapshot");
   }
   return snapshot;
 }
@@ -122,8 +137,11 @@ async function main() {
 try {
   await main();
 } catch (error) {
-  process.stderr.write(
-    `Backlog dependency dry run failed: ${error instanceof Error ? error.message : String(error)}\n`,
-  );
+  const knownError =
+    error instanceof BacklogDependencyCliError ||
+    error instanceof BacklogDependencyError ||
+    error instanceof GitHubBacklogMetadataError;
+  const detail = knownError ? `${error.code}: ${error.message}` : "unexpected-error: Dry run failed safely.";
+  process.stderr.write(`Backlog dependency dry run failed: ${detail}\n`);
   process.exitCode = 1;
 }

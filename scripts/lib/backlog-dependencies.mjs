@@ -1,11 +1,39 @@
 const DEPENDENCY_HEADING = "## Backlog Dependencies";
-const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/u;
-const SAME_REPOSITORY_REFERENCE_PATTERN = /^#([1-9][0-9]*)$/u;
-const CROSS_REPOSITORY_REFERENCE_PATTERN = /^([A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100})#([1-9][0-9]*)$/u;
+const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}(?![\s\S])/u;
+const SAME_REPOSITORY_REFERENCE_PATTERN = /^#([1-9][0-9]*)(?![\s\S])/u;
+const CROSS_REPOSITORY_REFERENCE_PATTERN = /^([A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100})#([1-9][0-9]*)(?![\s\S])/u;
 const MAX_MANUAL_REASON_LENGTH = 240;
 const MAX_ISSUE_BODY_LENGTH = 100_000;
 const MAX_SUPPORTED_DEPENDENCIES = 100;
 const UNSAFE_MANUAL_REASON_PATTERN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+const FIXED_DRIFT_REASON = "Issue metadata changed during the required double-read.";
+
+const BACKLOG_ERROR_MESSAGES = Object.freeze({
+  "body-bound-exceeded": "Issue body exceeds the parser bound.",
+  "duplicate-dependency": "A dependency is declared more than once.",
+  "duplicate-dependency-section": "Issue body contains more than one dependency section.",
+  "duplicate-issue-metadata": "Issue metadata contains a duplicate issue.",
+  "duplicate-unavailable-metadata": "Unavailable metadata contains a duplicate issue.",
+  "empty-dependency-section": "The dependency section must not be empty.",
+  "epic-requires-manual": "Specifica epics must use the validated manual opt-out.",
+  "invalid-dependency-bound": "The dependency bound is invalid.",
+  "invalid-dependency-mode": "Dependency mode must be exactly automatic or manual.",
+  "invalid-issue-labels": "Issue label metadata is invalid.",
+  "invalid-issue-metadata": "Issue metadata must be an array.",
+  "invalid-issue-number": "Issue number must be a positive safe integer.",
+  "invalid-issue-state": "Issue state metadata is invalid.",
+  "invalid-repository": "Repository must be a valid owner/name pair.",
+  "invalid-unavailable-metadata": "Unavailable metadata must be an array.",
+  "malformed-dependency": "A dependency must be exactly #N or owner/repo#N.",
+  "malformed-dependency-list": "Automatic mode requires an exact bounded dependency list.",
+  "malformed-dependency-section": "The dependency section contains invalid blank lines.",
+  "malformed-manual-opt-out": "Manual mode requires exactly one validated reason line.",
+  "malformed-manual-reason": "Manual reason is invalid.",
+  "missing-body": "Issue body is required.",
+  "missing-dependency-section": "Issue body does not contain the exact dependency section.",
+  "self-cycle": "An issue cannot depend on itself.",
+  "too-many-dependencies": "Issue declares too many dependencies.",
+});
 
 export const DEFAULT_MAX_DEPENDENCIES_PER_ISSUE = 20;
 export const RECONCILIATION_KINDS = Object.freeze([
@@ -22,24 +50,25 @@ export const RECONCILIATION_KINDS = Object.freeze([
 ]);
 
 export class BacklogDependencyError extends Error {
-  constructor(code, message) {
-    super(message);
+  constructor(code) {
+    const knownCode = Object.hasOwn(BACKLOG_ERROR_MESSAGES, code) ? code : "backlog-error";
+    super(BACKLOG_ERROR_MESSAGES[knownCode] ?? "Backlog dependency metadata is invalid.");
     this.name = "BacklogDependencyError";
-    this.code = code;
+    this.code = knownCode;
   }
 }
 
-function fail(code, message) {
-  throw new BacklogDependencyError(code, message);
+function fail(code) {
+  throw new BacklogDependencyError(code);
 }
 
 export function normalizeRepository(value) {
   const repository = String(value ?? "");
   if (!REPOSITORY_PATTERN.test(repository)) {
-    fail("invalid-repository", "Repository must be an owner/name pair.");
+    fail("invalid-repository");
   }
   if (repository.split("/").some((segment) => segment === "." || segment === "..")) {
-    fail("invalid-repository", "Repository owner and name may not be path-navigation segments.");
+    fail("invalid-repository");
   }
   return repository.toLowerCase();
 }
@@ -51,15 +80,15 @@ function compareText(left, right) {
 export function backlogIssueKey(repository, number) {
   const normalizedRepository = normalizeRepository(repository);
   if (!Number.isSafeInteger(number) || number <= 0) {
-    fail("invalid-issue-number", "Issue number must be a positive safe integer.");
+    fail("invalid-issue-number");
   }
   return `${normalizedRepository}#${number}`;
 }
 
-function parseIssueNumber(value, reference) {
+function parseIssueNumber(value) {
   const number = Number.parseInt(value, 10);
   if (!Number.isSafeInteger(number) || number <= 0) {
-    fail("malformed-dependency", `Dependency ${JSON.stringify(reference)} has an invalid issue number.`);
+    fail("malformed-dependency");
   }
   return number;
 }
@@ -67,7 +96,7 @@ function parseIssueNumber(value, reference) {
 function dependencyReference(value, repository) {
   const sameRepository = SAME_REPOSITORY_REFERENCE_PATTERN.exec(value);
   if (sameRepository) {
-    const number = parseIssueNumber(sameRepository[1], value);
+    const number = parseIssueNumber(sameRepository[1]);
     return {
       repository,
       number,
@@ -78,10 +107,10 @@ function dependencyReference(value, repository) {
 
   const crossRepository = CROSS_REPOSITORY_REFERENCE_PATTERN.exec(value);
   if (!crossRepository) {
-    fail("malformed-dependency", `Dependency ${JSON.stringify(value)} must be exactly #N or owner/repo#N.`);
+    fail("malformed-dependency");
   }
   const dependencyRepository = normalizeRepository(crossRepository[1]);
-  const number = parseIssueNumber(crossRepository[2], value);
+  const number = parseIssueNumber(crossRepository[2]);
   return {
     repository: dependencyRepository,
     number,
@@ -90,35 +119,79 @@ function dependencyReference(value, repository) {
   };
 }
 
-function secondLevelHeadingIndexes(lines) {
-  const indexes = [];
-  let fence = null;
-  for (let index = 0; index < lines.length; index += 1) {
-    const fenceMatch = /^\s*(`{3,}|~{3,})/u.exec(lines[index]);
-    if (fenceMatch) {
-      const marker = fenceMatch[1][0];
-      if (fence === null) fence = marker;
-      else if (fence === marker) fence = null;
+function openingFence(line) {
+  const match = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
+  if (!match || (match[1][0] === "`" && match[2].includes("`"))) return null;
+  return { marker: match[1][0], length: match[1].length };
+}
+
+function isClosingFence(line, fence) {
+  const match = /^ {0,3}(`+|~+)[\t ]*$/u.exec(line);
+  return Boolean(match && match[1][0] === fence.marker && match[1].length >= fence.length);
+}
+
+function updateHtmlCommentState(line, initialState) {
+  let inComment = initialState;
+  let offset = 0;
+  while (offset < line.length) {
+    if (inComment) {
+      const end = line.indexOf("-->", offset);
+      if (end < 0) return true;
+      inComment = false;
+      offset = end + 3;
       continue;
     }
-    if (fence === null && /^##(?:\s|$)/u.test(lines[index])) indexes.push(index);
+    const start = line.indexOf("<!--", offset);
+    if (start < 0) return false;
+    inComment = true;
+    offset = start + 4;
+  }
+  return inComment;
+}
+
+/** Return lines whose first character is visible Markdown, outside bounded lexical containers. */
+function visibleMarkdownLineIndexes(lines) {
+  const indexes = [];
+  let fence = null;
+  let inHtmlComment = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (fence) {
+      if (isClosingFence(line, fence)) fence = null;
+      continue;
+    }
+    if (inHtmlComment) {
+      inHtmlComment = updateHtmlCommentState(line, true);
+      continue;
+    }
+    const nextFence = openingFence(line);
+    if (nextFence) {
+      fence = nextFence;
+      continue;
+    }
+    indexes.push(index);
+    inHtmlComment = updateHtmlCommentState(line, false);
   }
   return indexes;
 }
 
+function secondLevelHeadingIndexes(lines) {
+  return visibleMarkdownLineIndexes(lines).filter((index) => /^##(?:[\t ]|$)/u.test(lines[index]));
+}
+
 function dependencySectionLines(body) {
-  if (typeof body !== "string") fail("missing-body", "Issue body is required.");
+  if (typeof body !== "string") fail("missing-body");
   if (body.length > MAX_ISSUE_BODY_LENGTH) {
-    fail("body-bound-exceeded", `Issue body exceeds the ${MAX_ISSUE_BODY_LENGTH}-character parser bound.`);
+    fail("body-bound-exceeded");
   }
   const lines = body.replace(/\r\n?/gu, "\n").split("\n");
   const headings = secondLevelHeadingIndexes(lines);
   const matches = headings.filter((index) => lines[index] === DEPENDENCY_HEADING);
   if (matches.length === 0) {
-    fail("missing-dependency-section", `Issue body must contain an exact ${DEPENDENCY_HEADING} section.`);
+    fail("missing-dependency-section");
   }
   if (matches.length > 1) {
-    fail("duplicate-dependency-section", `Issue body contains more than one ${DEPENDENCY_HEADING} section.`);
+    fail("duplicate-dependency-section");
   }
 
   const start = matches[0];
@@ -126,15 +199,16 @@ function dependencySectionLines(body) {
   const section = lines.slice(start + 1, end);
   while (section.length > 0 && section[0] === "") section.shift();
   while (section.length > 0 && section.at(-1) === "") section.pop();
-  if (section.length === 0) fail("empty-dependency-section", `${DEPENDENCY_HEADING} must not be empty.`);
+  if (section.length === 0) fail("empty-dependency-section");
   if (section.some((line) => line === "")) {
-    fail("malformed-dependency-section", `${DEPENDENCY_HEADING} may not contain internal blank lines.`);
+    fail("malformed-dependency-section");
   }
   return section;
 }
 
 function issueIsEpic(body) {
-  return /^Type: Epic$/mu.test(body);
+  const lines = body.replace(/\r\n?/gu, "\n").split("\n");
+  return visibleMarkdownLineIndexes(lines).some((index) => lines[index] === "Type: Epic");
 }
 
 /** Parse the exact, bounded dependency section from an issue body. */
@@ -144,20 +218,17 @@ export function parseBacklogDependencies(
 ) {
   const normalizedRepository = normalizeRepository(repository);
   if (!Number.isSafeInteger(issueNumber) || issueNumber <= 0) {
-    fail("invalid-issue-number", "The owning issue number must be a positive safe integer.");
+    fail("invalid-issue-number");
   }
   if (!Number.isSafeInteger(maxDependencies) || maxDependencies <= 0 || maxDependencies > MAX_SUPPORTED_DEPENDENCIES) {
-    fail("invalid-dependency-bound", `maxDependencies must be between 1 and ${MAX_SUPPORTED_DEPENDENCIES}.`);
+    fail("invalid-dependency-bound");
   }
 
   const lines = dependencySectionLines(body);
   const mode = lines[0];
   if (mode === "Mode: manual") {
     if (lines.length !== 2 || !lines[1].startsWith("Reason: ")) {
-      fail(
-        "malformed-manual-opt-out",
-        "Manual dependency reconciliation requires exactly `Mode: manual` and one `Reason: ...` line.",
-      );
+      fail("malformed-manual-opt-out");
     }
     const reason = lines[1].slice("Reason: ".length);
     if (
@@ -166,44 +237,41 @@ export function parseBacklogDependencies(
       reason.length > MAX_MANUAL_REASON_LENGTH ||
       UNSAFE_MANUAL_REASON_PATTERN.test(reason)
     ) {
-      fail("malformed-manual-reason", `Manual reason must contain 1-${MAX_MANUAL_REASON_LENGTH} trimmed characters.`);
+      fail("malformed-manual-reason");
     }
-    return { mode: "manual", reason, dependencies: [] };
+    return { mode: "manual", dependencies: [] };
   }
 
   if (mode !== "Mode: automatic") {
-    fail("invalid-dependency-mode", "Dependency mode must be exactly `Mode: automatic` or `Mode: manual`.");
+    fail("invalid-dependency-mode");
   }
   if (issueIsEpic(body)) {
-    fail("epic-requires-manual", "Specifica epics must use the validated manual opt-out.");
+    fail("epic-requires-manual");
   }
 
   if (lines.length === 2 && lines[1] === "Dependencies: none") {
     return { mode: "automatic", dependencies: [] };
   }
   if (lines[1] !== "Dependencies:" || lines.length < 3) {
-    fail(
-      "malformed-dependency-list",
-      "Automatic mode requires `Dependencies: none` or `Dependencies:` followed by exact `- #N` entries.",
-    );
+    fail("malformed-dependency-list");
   }
   const dependencyLines = lines.slice(2);
   if (dependencyLines.length > maxDependencies) {
-    fail("too-many-dependencies", `Issue declares more than ${maxDependencies} dependencies.`);
+    fail("too-many-dependencies");
   }
 
   const ownerKey = backlogIssueKey(normalizedRepository, issueNumber);
   const seen = new Set();
   const dependencies = dependencyLines.map((line) => {
     if (!line.startsWith("- ")) {
-      fail("malformed-dependency", `Dependency line ${JSON.stringify(line)} must start with exactly \`- \`.`);
+      fail("malformed-dependency");
     }
     const dependency = dependencyReference(line.slice(2), normalizedRepository);
     if (dependency.key === ownerKey) {
-      fail("self-cycle", `Issue ${ownerKey} cannot depend on itself.`);
+      fail("self-cycle");
     }
     if (seen.has(dependency.key)) {
-      fail("duplicate-dependency", `Dependency ${dependency.reference} is declared more than once.`);
+      fail("duplicate-dependency");
     }
     seen.add(dependency.key);
     return dependency;
@@ -219,10 +287,10 @@ function normalizeIssueSnapshot(issue) {
   const key = backlogIssueKey(repository, number);
   const state = String(issue?.state ?? "").toLowerCase();
   if (state !== "open" && state !== "closed") {
-    fail("invalid-issue-state", `Issue ${key} has invalid state ${JSON.stringify(issue?.state)}.`);
+    fail("invalid-issue-state");
   }
   if (!Array.isArray(issue?.labels) || issue.labels.some((label) => typeof label !== "string")) {
-    fail("invalid-issue-labels", `Issue ${key} has invalid label metadata.`);
+    fail("invalid-issue-labels");
   }
   return {
     repository,
@@ -233,19 +301,19 @@ function normalizeIssueSnapshot(issue) {
     labels: [...new Set(issue.labels)].sort(),
     isPullRequest: issue.isPullRequest === true,
     stable: issue.stable !== false,
-    driftReason: String(issue.driftReason ?? "metadata changed during the double-read"),
+    driftReason: FIXED_DRIFT_REASON,
     target: issue.target === true,
   };
 }
 
 function normalizeUnavailable(unavailable) {
   if (unavailable === undefined) return new Map();
-  if (!Array.isArray(unavailable)) fail("invalid-unavailable-metadata", "Unavailable metadata must be an array.");
+  if (!Array.isArray(unavailable)) fail("invalid-unavailable-metadata");
   const result = new Map();
   for (const entry of unavailable) {
     const key = backlogIssueKey(entry?.repository, entry?.number);
-    if (result.has(key)) fail("duplicate-unavailable-metadata", `Unavailable metadata duplicates ${key}.`);
-    result.set(key, String(entry?.reason ?? "issue metadata is inaccessible"));
+    if (result.has(key)) fail("duplicate-unavailable-metadata");
+    result.set(key, true);
   }
   return result;
 }
@@ -330,26 +398,32 @@ function disposition(issue, kind, reason, dependencies = [], proposedLabels = nu
 
 function dependencyStates(specification, issues, unavailable, repository) {
   return specification.dependencies.map((dependency) => {
-    const inaccessibleReason = unavailable.get(dependency.key);
-    if (inaccessibleReason) {
-      return { reference: dependency.reference, state: "inaccessible", reason: inaccessibleReason };
+    if (unavailable.has(dependency.key)) {
+      return { reference: dependency.reference, state: "inaccessible" };
     }
     const issue = issues.get(dependency.key);
     if (!issue) {
-      return { reference: dependency.reference, state: "inaccessible", reason: "issue metadata was not returned" };
+      return { reference: dependency.reference, state: "inaccessible" };
     }
     if (!issue.stable) {
-      return { reference: dependency.reference, state: "drift", reason: issue.driftReason };
+      return { reference: dependency.reference, state: "drift" };
     }
     if (issue.isPullRequest) {
-      return { reference: dependency.reference, state: "pull-request", reason: "reference resolves to a pull request" };
+      return { reference: dependency.reference, state: "pull-request" };
     }
     return { reference: displayReference(issue, repository), state: issue.state };
   });
 }
 
+function blockReadyIssue(issue) {
+  const blocked = issue.labels.includes("blocked");
+  const ready = issue.labels.includes("ready-to-start");
+  if (blocked || !ready) return null;
+  return { remove: ["ready-to-start"], add: ["blocked"] };
+}
+
 function planTarget(issue, issues, parsed, unavailable) {
-  if (!issue.stable) return disposition(issue, "drift", issue.driftReason);
+  if (!issue.stable) return disposition(issue, "drift", FIXED_DRIFT_REASON);
   if (issue.state !== "open" || issue.isPullRequest) {
     return disposition(issue, "malformed", "Reconciliation targets must be open issues, not pull requests.");
   }
@@ -359,12 +433,14 @@ function planTarget(issue, issues, parsed, unavailable) {
     if (specification.code === "missing-dependency-section") {
       return disposition(issue, "missing", specification.message);
     }
-    if (specification.code === "self-cycle") return disposition(issue, "cycle", specification.message);
+    if (specification.code === "self-cycle") {
+      return disposition(issue, "cycle", specification.message, [], blockReadyIssue(issue));
+    }
     return disposition(issue, "malformed", `${specification.code}: ${specification.message}`);
   }
   if (!specification) return disposition(issue, "missing", "Dependency metadata was not parsed.");
   if (specification.mode === "manual") {
-    return disposition(issue, "manual", specification.reason);
+    return disposition(issue, "manual", "Manual dependency reconciliation is enabled.");
   }
 
   const blocked = issue.labels.includes("blocked");
@@ -374,37 +450,39 @@ function planTarget(issue, issues, parsed, unavailable) {
   }
 
   const dependencies = dependencyStates(specification, issues, unavailable, issue.repository);
+  const drift = dependencies.find(({ state }) => state === "drift");
+  if (drift) {
+    return disposition(issue, "drift", FIXED_DRIFT_REASON, dependencies);
+  }
   const inaccessible = dependencies.find(({ state }) => state === "inaccessible");
   if (inaccessible) {
     return disposition(
       issue,
       "inaccessible",
-      `${inaccessible.reference} is inaccessible: ${inaccessible.reason}`,
+      "At least one exact dependency is inaccessible.",
       dependencies,
+      blockReadyIssue(issue),
     );
-  }
-  const drift = dependencies.find(({ state }) => state === "drift");
-  if (drift) {
-    return disposition(issue, "drift", `${drift.reference} changed during the double-read.`, dependencies);
   }
   const pullRequest = dependencies.find(({ state }) => state === "pull-request");
   if (pullRequest) {
     return disposition(
       issue,
       "malformed",
-      `${pullRequest.reference} resolves to a pull request, not an issue.`,
+      "An exact dependency resolves to a pull request, not an issue.",
       dependencies,
+      blockReadyIssue(issue),
     );
   }
 
   const cycle = findReachableCycle(issue.key, issues, parsed);
   if (cycle) {
-    return disposition(issue, "cycle", `Dependency cycle: ${cycle.join(" -> ")}.`, dependencies);
+    return disposition(issue, "cycle", "A dependency cycle was detected.", dependencies, blockReadyIssue(issue));
   }
 
   const openDependencies = dependencies.filter(({ state }) => state === "open");
   if (openDependencies.length > 0) {
-    const reason = `Open dependencies: ${openDependencies.map(({ reference }) => reference).join(", ")}.`;
+    const reason = "At least one exact dependency remains open.";
     if (blocked) return disposition(issue, "unchanged-blocked", reason, dependencies);
     return disposition(issue, "ready-to-blocked", reason, dependencies, {
       remove: ["ready-to-start"],
@@ -427,11 +505,11 @@ export function planBacklogReconciliation(
   { maxDependencies = DEFAULT_MAX_DEPENDENCIES_PER_ISSUE } = {},
 ) {
   const normalizedRepository = normalizeRepository(repository);
-  if (!Array.isArray(rawIssues)) fail("invalid-issue-metadata", "Issue metadata must be an array.");
+  if (!Array.isArray(rawIssues)) fail("invalid-issue-metadata");
   const issues = new Map();
   for (const rawIssue of rawIssues) {
     const issue = normalizeIssueSnapshot(rawIssue);
-    if (issues.has(issue.key)) fail("duplicate-issue-metadata", `Issue metadata duplicates ${issue.key}.`);
+    if (issues.has(issue.key)) fail("duplicate-issue-metadata");
     issues.set(issue.key, issue);
   }
   const unavailable = normalizeUnavailable(rawUnavailable);
