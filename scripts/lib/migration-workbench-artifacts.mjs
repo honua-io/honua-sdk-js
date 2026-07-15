@@ -20,6 +20,7 @@ const EXECUTION_RUNNER_REPOSITORY_PATH = "scripts/lib/migration-workbench-execut
 const NETWORK_GUARD_REPOSITORY_PATH = "scripts/lib/migration-workbench-network-guard.mjs";
 const FIXED_TIMESTAMP = "1970-01-01T00:00:00.000Z";
 const PREPARED_DIST_SRC_DIGEST_DOMAIN = "honua.migration-workbench.prepared-dist-src.v1";
+const EXECUTION_HARNESS_DIGEST_DOMAIN = "honua.migration-workbench.execution-harness.v1";
 const BUILD_TEMPORARY_TOP_LEVEL_ALLOWLIST = new Set([
   "cli-home",
   "demo-output",
@@ -87,7 +88,7 @@ const EXPECTED_PUBLIC_ARTIFACT_NAMES = new Set(
   ),
 );
 const EXPECTED_GENERATED_TARGET_NAMES = new Set([path.posix.basename(GENERATED_TARGET_REPOSITORY_PATH)]);
-const RETIREMENT_ROOTS = Object.freeze([
+const ARTIFACT_ROOTS = Object.freeze([
   {
     repositoryPath: PUBLIC_ARTIFACT_ROOT,
     expectedNames: EXPECTED_PUBLIC_ARTIFACT_NAMES,
@@ -115,6 +116,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
   );
   const preparedSdk = capturePreparedSdkIdentity(repositoryRoot);
   const requiredInputs = assertRequiredInputs(repositoryRoot);
+  const executionHarnessIdentity = captureExecutionHarnessIdentity(requiredInputs);
   const temporaryParent = canonicalizeExistingDirectory(
     path.resolve(options.temporaryRoot ?? os.tmpdir()),
     "artifact temporary root",
@@ -247,7 +249,12 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
     assertExpectedBehaviorFixture(expectedBehaviorFixture);
 
     const generatedTargetBytes = readRegularFile(generatedScenarioPath, "generated migration scenario");
+    assertExecutionHarnessIdentity(requiredInputs, executionHarnessIdentity);
     const execution = executeIsolatedGeneratedModule({ repositoryRoot, generatedTargetBytes });
+    assertExecutionHarnessIdentity(requiredInputs, executionHarnessIdentity);
+    if (execution.evidence.executionHarness.combinedSha256 !== executionHarnessIdentity.combinedSha256) {
+      throw new Error("Generated-target execution used an unexpected runner or network guard identity.");
+    }
     const observedBehavior = execution.value;
     if (!isDeepStrictEqual(observedBehavior, expectedBehaviorFixture.expected)) {
       throw new Error(
@@ -272,6 +279,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
     refreshBuildTemporaryEntries(temporaryRoot, temporaryRootIdentity, buildTemporaryEntries);
     assertLiveSourceIdentity(requiredInputs, liveSourceIdentity);
     verifyPreparedSdkIdentity(repositoryRoot, preparedSdk);
+    assertExecutionHarnessIdentity(requiredInputs, executionHarnessIdentity);
 
     const normalizedDemoReport = normalizeArtifactValue(rawDemoReport, normalization);
     const normalizedWidgetReport = normalizeArtifactValue(rawWidgetReport, normalization);
@@ -336,6 +344,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
 
     assertLiveSourceIdentity(requiredInputs, liveSourceIdentity);
     verifyPreparedSdkIdentity(repositoryRoot, preparedSdk);
+    assertExecutionHarnessIdentity(requiredInputs, executionHarnessIdentity);
     assertSourceSnapshotIdentity(fixturePath, expectedBehaviorPath, liveSourceIdentity);
     refreshBuildTemporaryEntries(temporaryRoot, temporaryRootIdentity, buildTemporaryEntries);
     assertBuildTemporaryEntries(temporaryRoot, temporaryRootIdentity, buildTemporaryEntries);
@@ -347,6 +356,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       guards: {
         preparedSdk,
         liveSourceIdentity,
+        executionHarnessIdentity,
       },
       workspace: {
         temporaryRoot,
@@ -376,8 +386,10 @@ export async function materializeMigrationWorkbenchArtifacts(options = {}) {
   preflightArtifactDestinations(repositoryRoot);
   const result = await buildMigrationWorkbenchArtifacts({ repositoryRoot, testHooks: options.testHooks });
   const verifyPublicationInputs = () => {
+    const requiredInputs = assertRequiredInputs(repositoryRoot);
     verifyPreparedSdkIdentity(repositoryRoot, result.guards.preparedSdk);
-    assertLiveSourceIdentity(assertRequiredInputs(repositoryRoot), result.guards.liveSourceIdentity);
+    assertLiveSourceIdentity(requiredInputs, result.guards.liveSourceIdentity);
+    assertExecutionHarnessIdentity(requiredInputs, result.guards.executionHarnessIdentity);
   };
   return materializeArtifactSet({
     mode,
@@ -401,6 +413,13 @@ export function materializeArtifactSet({
   const repositoryRoot = canonicalizeExistingDirectory(path.resolve(repositoryRootOption), "repository root");
   assertArtifactAllowlist(artifacts);
   const state = preflightArtifactDestinations(repositoryRoot);
+
+  if (mode === "write" && state.unexpectedEntries.length > 0) {
+    throw new Error(
+      `Migration artifact roots contain non-owned entries that will not be deleted automatically: ` +
+        state.unexpectedEntries.map((entry) => entry.repositoryPath).join(", "),
+    );
+  }
 
   if (mode === "check") {
     testHooks?.beforePublication?.(repositoryRoot);
@@ -578,28 +597,52 @@ export function executeIsolatedGeneratedModule({
     expectedType: "file",
     label: "isolated execution runner",
   });
-  resolveRepositoryPath(repositoryRoot, NETWORK_GUARD_REPOSITORY_PATH, {
+  const networkGuardPath = resolveRepositoryPath(repositoryRoot, NETWORK_GUARD_REPOSITORY_PATH, {
     expectedType: "file",
     label: "isolated network guard",
   });
+  const executionHarnessIdentity = captureExecutionHarnessIdentity({
+    executionRunnerPath: runnerPath,
+    networkGuardPath,
+  });
+  const runnerFile = executionHarnessIdentity.files.find(
+    (file) => file.repositoryPath === EXECUTION_RUNNER_REPOSITORY_PATH,
+  );
+  const networkGuardFile = executionHarnessIdentity.files.find(
+    (file) => file.repositoryPath === NETWORK_GUARD_REPOSITORY_PATH,
+  );
+  if (!runnerFile || !networkGuardFile) {
+    throw new Error("Migration execution harness identity is incomplete.");
+  }
   const executionParent = ensureRepositoryDirectory(repositoryRoot, ".tmp");
   const executionRoot = fs.mkdtempSync(path.join(executionParent, "migration-workbench-execution-"));
   const executionRootIdentity = captureRootIdentity(fs.lstatSync(executionRoot));
   const executionPath = path.join(executionRoot, "migrated-main.js");
+  const stagedRunnerPath = path.join(executionRoot, path.posix.basename(EXECUTION_RUNNER_REPOSITORY_PATH));
+  const stagedNetworkGuardPath = path.join(executionRoot, path.posix.basename(NETWORK_GUARD_REPOSITORY_PATH));
   const executionHomePath = path.join(executionRoot, "home");
   let executionPathIdentity;
+  let stagedRunnerIdentity;
+  let stagedNetworkGuardIdentity;
   let executionHomeIdentity;
 
   try {
+    writeNewRegularFile(stagedRunnerPath, runnerFile.bytes);
+    writeNewRegularFile(stagedNetworkGuardPath, networkGuardFile.bytes);
     writeNewRegularFile(executionPath, generatedTargetBytes);
+    stagedRunnerIdentity = captureOriginalEntryIdentity(stagedRunnerPath, "staged isolated execution runner");
+    stagedNetworkGuardIdentity = captureOriginalEntryIdentity(
+      stagedNetworkGuardPath,
+      "staged isolated network guard",
+    );
     executionPathIdentity = captureOriginalEntryIdentity(executionPath, "isolated generated migration target");
     const runnerNonce = randomBytes(32).toString("hex");
     const permissionReadRoots = [repositoryRoot, executionRoot, ...findAncestorNodeModules(repositoryRoot)];
-    const args = ["--no-warnings", "--experimental-permission"];
+    const args = ["--no-warnings", "--max-old-space-size=128", "--experimental-permission"];
     for (const readRoot of uniqueSortedPaths(permissionReadRoots)) {
       args.push(`--allow-fs-read=${readRoot}`);
     }
-    args.push(`--allow-fs-write=${executionRoot}`, runnerPath, executionPath);
+    args.push(stagedRunnerPath, executionPath);
 
     const executionEnvironment = createHermeticEnvironment(executionHomePath, { temporaryRoot: executionRoot });
     executionHomeIdentity = captureOriginalEntryIdentity(executionHomePath, "isolated execution home");
@@ -640,23 +683,44 @@ export function executeIsolatedGeneratedModule({
         processBoundary: "separate Node.js process",
         permissionModel: "Node.js experimental permission model",
         readableScope: "repository runtime, isolated target, and resolved dependency roots",
-        writableScope: "isolated execution workspace only",
+        writableScope: "no filesystem writes granted to the generated-target process",
         inheritedEnvironment: "fixed non-secret allowlist",
         childProcesses: "denied by the Node.js permission model",
         workerThreads: "denied by the Node.js permission model",
-        processControl: "denied by locked process signal, debug, and priority guards",
-        networkGuardScope: "standard Node.js HTTP, HTTPS, fetch, WebSocket, net, TLS, DNS, and datagram APIs",
-        externalNetworkAttemptsObserved: 0,
-        externalProcessControlAttemptsObserved: 0,
+        processControl: "denied by locked process signal, debug, priority, native-addon, and binding guards",
+        networkGuardScope:
+          "standard Node.js HTTP, HTTPS, fetch, WebSocket, net, TLS, DNS, and datagram APIs plus exposed low-level binding entry points",
+        trustBoundary: "repository-controlled generated target; this guard is not an arbitrary-code security sandbox",
+        protocolNoncePurpose: "parent/runner response correlation, not same-process code authentication",
+        memoryBound: "128 MiB V8 old-space cap plus bounded JSON traversal and subprocess buffers",
+        executionHarness: executionHarnessEvidence(executionHarnessIdentity),
+        guardedNetworkApiAttemptsObserved: 0,
+        guardedProcessControlAttemptsObserved: 0,
         timeoutMs,
       },
     };
   } finally {
+    assertExecutionHarnessIdentity(
+      { executionRunnerPath: runnerPath, networkGuardPath },
+      executionHarnessIdentity,
+    );
     assertRootEntryIdentity(executionRoot, executionRootIdentity, "isolated execution root before cleanup");
     const executionNames = fs.readdirSync(executionRoot).sort(compareUtf8);
-    if (!isDeepStrictEqual(executionNames, ["home", "migrated-main.js"])) {
+    const expectedExecutionNames = [
+      "home",
+      "migrated-main.js",
+      path.posix.basename(EXECUTION_RUNNER_REPOSITORY_PATH),
+      path.posix.basename(NETWORK_GUARD_REPOSITORY_PATH),
+    ].sort(compareUtf8);
+    if (!isDeepStrictEqual(executionNames, expectedExecutionNames)) {
       throw new Error("Isolated execution root contains unexpected entries and cannot be cleaned safely.");
     }
+    assertOriginalEntryIdentity(stagedRunnerPath, stagedRunnerIdentity, "staged execution runner before cleanup");
+    assertOriginalEntryIdentity(
+      stagedNetworkGuardPath,
+      stagedNetworkGuardIdentity,
+      "staged network guard before cleanup",
+    );
     assertOriginalEntryIdentity(executionPath, executionPathIdentity, "isolated generated target before cleanup");
     assertOriginalEntryIdentity(executionHomePath, executionHomeIdentity, "isolated execution home before cleanup");
     fs.rmSync(executionRoot, { recursive: true, force: true });
@@ -754,6 +818,75 @@ function capturePreparedDistSrcIdentity(distEntries) {
   });
 }
 
+function captureExecutionHarnessIdentity(requiredInputs) {
+  const files = [
+    {
+      repositoryPath: EXECUTION_RUNNER_REPOSITORY_PATH,
+      absolutePath: requiredInputs.executionRunnerPath,
+      label: "isolated execution runner",
+    },
+    {
+      repositoryPath: NETWORK_GUARD_REPOSITORY_PATH,
+      absolutePath: requiredInputs.networkGuardPath,
+      label: "isolated network guard",
+    },
+  ].map(({ repositoryPath, absolutePath, label }) => {
+    const entryIdentity = captureOriginalEntryIdentity(absolutePath, label);
+    if (entryIdentity.type !== "file") {
+      throw new Error(`${label} must be a regular file.`);
+    }
+    const bytes = readRegularFile(absolutePath, label);
+    if (bytes.length !== entryIdentity.byteLength || sha256(bytes) !== entryIdentity.contentSha256) {
+      throw new Error(`${label} changed while its executable bytes were captured.`);
+    }
+    assertOriginalEntryIdentity(absolutePath, entryIdentity, label);
+    return Object.freeze({
+      repositoryPath,
+      byteLength: entryIdentity.byteLength,
+      sha256: entryIdentity.contentSha256,
+      entryIdentity,
+      bytes,
+    });
+  });
+  const digest = createHash("sha256");
+  updateLengthFramed(digest, Buffer.from(EXECUTION_HARNESS_DIGEST_DOMAIN, "utf8"));
+  for (const file of files) {
+    updateLengthFramed(digest, Buffer.from(file.repositoryPath, "utf8"));
+    updateLengthFramed(digest, Buffer.from(String(file.byteLength), "ascii"));
+    updateLengthFramed(digest, Buffer.from(file.sha256, "ascii"));
+  }
+  return Object.freeze({
+    combinedSha256: digest.digest("hex"),
+    files: Object.freeze(files),
+  });
+}
+
+function assertExecutionHarnessIdentity(requiredInputs, expected) {
+  const observed = captureExecutionHarnessIdentity(requiredInputs);
+  if (!isDeepStrictEqual(observed, expected)) {
+    throw new Error("Migration execution runner or network guard changed during deterministic artifact generation.");
+  }
+}
+
+function executionHarnessEvidence(identity) {
+  const byPath = new Map(identity.files.map((file) => [file.repositoryPath, file]));
+  const runner = byPath.get(EXECUTION_RUNNER_REPOSITORY_PATH);
+  const networkGuard = byPath.get(NETWORK_GUARD_REPOSITORY_PATH);
+  return Object.freeze({
+    combinedSha256: identity.combinedSha256,
+    runner: Object.freeze({
+      repositoryPath: runner.repositoryPath,
+      byteLength: runner.byteLength,
+      sha256: runner.sha256,
+    }),
+    networkGuard: Object.freeze({
+      repositoryPath: networkGuard.repositoryPath,
+      byteLength: networkGuard.byteLength,
+      sha256: networkGuard.sha256,
+    }),
+  });
+}
+
 function captureLiveSourceIdentity(requiredInputs) {
   const fixtureEntries = captureRegularTree(requiredInputs.fixturePath);
   const expectedBehaviorBytes = readRegularFile(
@@ -819,11 +952,11 @@ function assertRequiredInputs(repositoryRoot) {
     expectedType: "file",
     label: EXPECTED_BEHAVIOR_REPOSITORY_PATH,
   });
-  resolveRepositoryPath(repositoryRoot, EXECUTION_RUNNER_REPOSITORY_PATH, {
+  const executionRunnerPath = resolveRepositoryPath(repositoryRoot, EXECUTION_RUNNER_REPOSITORY_PATH, {
     expectedType: "file",
     label: EXECUTION_RUNNER_REPOSITORY_PATH,
   });
-  resolveRepositoryPath(repositoryRoot, NETWORK_GUARD_REPOSITORY_PATH, {
+  const networkGuardPath = resolveRepositoryPath(repositoryRoot, NETWORK_GUARD_REPOSITORY_PATH, {
     expectedType: "file",
     label: NETWORK_GUARD_REPOSITORY_PATH,
   });
@@ -832,6 +965,8 @@ function assertRequiredInputs(repositoryRoot) {
     fixturePath,
     scenarioPath,
     expectedBehaviorPath,
+    executionRunnerPath,
+    networkGuardPath,
   };
 }
 
@@ -1078,27 +1213,27 @@ function preflightArtifactDestinations(repositoryRoot) {
     });
   }
 
-  const retiredEntries = [];
-  for (const retirementRoot of RETIREMENT_ROOTS) {
-    const absoluteRoot = resolveRepositoryPath(repositoryRoot, retirementRoot.repositoryPath, {
+  const unexpectedEntries = [];
+  for (const artifactRoot of ARTIFACT_ROOTS) {
+    const absoluteRoot = resolveRepositoryPath(repositoryRoot, artifactRoot.repositoryPath, {
       allowMissing: true,
       expectedType: "directory",
-      label: retirementRoot.label,
+      label: artifactRoot.label,
     });
     if (lstatOrUndefined(absoluteRoot)) {
       captureRegularTree(absoluteRoot);
       for (const name of fs.readdirSync(absoluteRoot).sort(compareUtf8)) {
-        if (!retirementRoot.expectedNames.has(name)) {
-          retiredEntries.push({
+        if (!artifactRoot.expectedNames.has(name)) {
+          unexpectedEntries.push({
             absolutePath: path.join(absoluteRoot, name),
-            repositoryPath: path.posix.join(retirementRoot.repositoryPath, name),
+            repositoryPath: path.posix.join(artifactRoot.repositoryPath, name),
           });
         }
       }
     }
   }
-  retiredEntries.sort((left, right) => compareUtf8(left.repositoryPath, right.repositoryPath));
-  return { retiredEntries };
+  unexpectedEntries.sort((left, right) => compareUtf8(left.repositoryPath, right.repositoryPath));
+  return { unexpectedEntries };
 }
 
 function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, publicationGuard }) {
@@ -1137,8 +1272,8 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, public
     const refreshedState = preflightArtifactDestinations(repositoryRoot);
     if (
       !isDeepStrictEqual(
-        refreshedState.retiredEntries.map((entry) => entry.repositoryPath),
-        state.retiredEntries.map((entry) => entry.repositoryPath),
+        refreshedState.unexpectedEntries.map((entry) => entry.repositoryPath),
+        state.unexpectedEntries.map((entry) => entry.repositoryPath),
       )
     ) {
       throw new Error("Artifact destinations changed after transactional staging and must be retried.");
@@ -1193,35 +1328,6 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, public
       testHooks?.afterReplacement?.(replacementCount, repositoryPath);
     }
 
-    for (const [index, retired] of state.retiredEntries.entries()) {
-      const current = resolveRepositoryPath(repositoryRoot, retired.repositoryPath, {
-        expectedType: "entry",
-        label: `retired artifact ${retired.repositoryPath}`,
-      });
-      const backupPath = path.join(backupRoot, `retired-${String(index).padStart(3, "0")}`);
-      const originalIdentity = captureOriginalEntryIdentity(
-        current,
-        `retired artifact ${retired.repositoryPath}`,
-      );
-      const entry = {
-        kind: "retired",
-        repositoryPath: retired.repositoryPath,
-        destinationPath: current,
-        backupPath,
-        installedRecoveryPath: undefined,
-        hadOriginal: true,
-        installed: false,
-        originalIdentity,
-        installedIdentity: undefined,
-        installedQuarantined: false,
-        backupRestored: false,
-      };
-      fs.renameSync(current, backupPath);
-      journal.push(entry);
-      assertOriginalEntryIdentity(backupPath, originalIdentity, `retired artifact backup ${retired.repositoryPath}`);
-      replacementCount += 1;
-      testHooks?.afterReplacement?.(replacementCount, retired.repositoryPath);
-    }
     assertMaterializationJournalIdentity(journal);
     publicationGuard?.();
     assertMaterializationJournalIdentity(journal);
@@ -1230,7 +1336,7 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, public
       throw new Error(`Artifact materialization final-state verification failed: ${finalMismatches.join("; ")}`);
     }
     assertMaterializationJournalIdentity(journal);
-    // From this point onward, every intended artifact replacement and retirement is committed.
+    // From this point onward, every intended artifact replacement is committed.
     // Transaction cleanup is bookkeeping and must never trigger destructive rollback.
     committed = true;
   } catch (error) {
@@ -1274,6 +1380,14 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, public
   }
   try {
     testHooks?.beforeCleanup?.(transactionRoot, repositoryRoot);
+    assertMaterializationJournalIdentity(journal);
+    publicationGuard?.();
+    const cleanupMismatches = collectArtifactMismatches(repositoryRoot, artifacts);
+    if (cleanupMismatches.length > 0) {
+      throw new Error(
+        `Artifact materialization changed after its commit point: ${cleanupMismatches.join("; ")}`,
+      );
+    }
     assertMaterializationCleanupState({
       transactionRoot,
       transactionRootIdentity,
@@ -1285,6 +1399,7 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, public
       stagedIdentities,
       journal,
     });
+    assertMaterializationJournalIdentity(journal);
     fs.rmSync(transactionRoot, { recursive: true, force: true });
   } catch (error) {
     throw new Error(
@@ -1581,8 +1696,8 @@ function collectArtifactMismatches(repositoryRoot, artifacts) {
       mismatches.push(`${repositoryPath} differs from deterministic CLI output`);
     }
   }
-  for (const retired of preflightArtifactDestinations(repositoryRoot).retiredEntries) {
-    mismatches.push(`${retired.repositoryPath} is an unexpected retired artifact entry`);
+  for (const unexpected of preflightArtifactDestinations(repositoryRoot).unexpectedEntries) {
+    mismatches.push(`${unexpected.repositoryPath} is an unexpected non-owned artifact entry`);
   }
   return mismatches;
 }

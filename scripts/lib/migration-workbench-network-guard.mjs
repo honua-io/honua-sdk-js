@@ -3,10 +3,14 @@ import dns from "node:dns";
 import dnsPromises from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
-import { syncBuiltinESMExports } from "node:module";
+import { createRequire, syncBuiltinESMExports } from "node:module";
 import net from "node:net";
 import os from "node:os";
 import tls from "node:tls";
+
+const require = createRequire(import.meta.url);
+const httpClient = require("node:_http_client");
+const tlsWrap = require("node:_tls_wrap");
 
 const TrustedArray = Array;
 const TrustedError = Error;
@@ -17,11 +21,21 @@ const trustedGetPrototypeOf = Object.getPrototypeOf.bind(Object);
 const trustedOwnKeys = Reflect.ownKeys.bind(Reflect);
 const trustedString = String;
 const objectPrototype = Object.prototype;
+const MAX_RECORDED_ATTEMPTS = 128;
 const networkAttempts = new TrustedArray();
 const processControlAttempts = new TrustedArray();
 const patchedNetworkPrototypes = new WeakSet();
+const dgramSocketConstructor = dgram.Socket;
+const dnsResolverConstructor = dns.Resolver;
+const dnsPromisesResolverConstructor = dnsPromises.Resolver;
+const httpAgentConstructor = http.Agent;
+const httpsAgentConstructor = https.Agent;
+const tlsSocketConstructor = tls.TLSSocket;
 
 function appendNetworkAttempt(api) {
+  if (networkAttempts.length >= MAX_RECORDED_ATTEMPTS) {
+    throw new TrustedError("Generated migration target exceeded the denied network-attempt bound.");
+  }
   trustedDefineProperty(networkAttempts, networkAttempts.length, {
     value: api,
     enumerable: true,
@@ -43,6 +57,9 @@ function deniedNetworkError(api) {
 }
 
 function deniedProcessControlError(api) {
+  if (processControlAttempts.length >= MAX_RECORDED_ATTEMPTS) {
+    throw new TrustedError("Generated migration target exceeded the denied process-control-attempt bound.");
+  }
   trustedDefineProperty(processControlAttempts, processControlAttempts.length, {
     value: api,
     enumerable: true,
@@ -135,70 +152,46 @@ function replaceAllPrototypeMethods(constructor, namespace, includeInherited = t
   }
 }
 
+function ownCallableNames(target, exclusions = new Set()) {
+  return trustedOwnKeys(target).filter((name) => {
+    if (exclusions.has(name)) return false;
+    const descriptor = trustedGetOwnPropertyDescriptor(target, name);
+    return Boolean(descriptor && typeof descriptor.value === "function");
+  });
+}
+
 for (const [target, methods, namespace] of [
   [http, ["get", "request"], "http"],
   [https, ["get", "request"], "https"],
-  [net, ["connect", "createConnection"], "net"],
-  [tls, ["connect"], "tls"],
-  [dgram, ["createSocket"], "dgram"],
-  [
-    dns,
-    [
-      "lookup",
-      "lookupService",
-      "resolve",
-      "resolve4",
-      "resolve6",
-      "resolveAny",
-      "resolveCaa",
-      "resolveCname",
-      "resolveMx",
-      "resolveNaptr",
-      "resolveNs",
-      "resolvePtr",
-      "resolveSoa",
-      "resolveSrv",
-      "resolveTxt",
-      "reverse",
-    ],
-    "dns",
-  ],
-  [
-    dnsPromises,
-    [
-      "lookup",
-      "lookupService",
-      "resolve",
-      "resolve4",
-      "resolve6",
-      "resolveAny",
-      "resolveCaa",
-      "resolveCname",
-      "resolveMx",
-      "resolveNaptr",
-      "resolveNs",
-      "resolvePtr",
-      "resolveSoa",
-      "resolveSrv",
-      "resolveTxt",
-      "reverse",
-    ],
-    "dns/promises",
-  ],
+  [net, ["connect", "createConnection", "_createServerHandle"], "net"],
+  [tls, ["connect", "createSecurePair"], "tls"],
+  [tlsWrap, ["connect", "TLSSocket"], "_tls_wrap"],
+  [httpClient, ["ClientRequest"], "_http_client"],
+  [dgram, ["createSocket", "_createSocketHandle"], "dgram"],
+  [dns, ownCallableNames(dns, new Set(["Resolver"])), "dns"],
+  [dnsPromises, ownCallableNames(dnsPromises, new Set(["Resolver"])), "dns/promises"],
 ]) {
   for (const method of methods) {
-    replaceMethod(target, method, `${namespace}.${method}`);
+    replaceMethod(target, method, `${namespace}.${trustedString(method)}`);
   }
 }
 
-replaceAllPrototypeMethods(dns.Resolver, "dns.Resolver");
-replaceAllPrototypeMethods(dnsPromises.Resolver, "dns.promises.Resolver");
-replaceAllPrototypeMethods(dgram.Socket, "dgram.Socket", false);
+replaceAllPrototypeMethods(dnsResolverConstructor, "dns.Resolver");
+replaceAllPrototypeMethods(dnsPromisesResolverConstructor, "dns.promises.Resolver");
+replaceAllPrototypeMethods(dgramSocketConstructor, "dgram.Socket", false);
 replaceAllPrototypeMethods(net.Server, "net.Server", false);
+replaceAllPrototypeMethods(httpAgentConstructor, "http.Agent", false);
+replaceAllPrototypeMethods(httpsAgentConstructor, "https.Agent", false);
 replaceMethod(net.Socket?.prototype, "connect", "net.Socket.connect");
-replaceMethod(tls.TLSSocket?.prototype, "connect", "tls.TLSSocket.connect");
+replaceMethod(tlsSocketConstructor?.prototype, "connect", "tls.TLSSocket.connect");
+replaceMethod(dgram, "Socket", "dgram.Socket");
+replaceMethod(dns, "Resolver", "dns.Resolver");
+replaceMethod(dnsPromises, "Resolver", "dns.promises.Resolver");
+replaceMethod(http, "ClientRequest", "http.ClientRequest");
+replaceMethod(http, "WebSocket", "http.WebSocket");
+replaceMethod(tls, "TLSSocket", "tls.TLSSocket");
 
-for (const name of ["kill", "_kill", "_debugProcess", "_debugEnd"]) {
+for (const name of ["kill", "_kill", "_debugProcess", "_debugEnd", "binding", "_linkedBinding", "dlopen"]) {
   replaceProcessControlMethod(process, name, `process.${name}`);
 }
 replaceProcessControlMethod(os, "setPriority", "os.setPriority");
