@@ -5,6 +5,7 @@ import http from "node:http";
 import https from "node:https";
 import { syncBuiltinESMExports } from "node:module";
 import net from "node:net";
+import os from "node:os";
 import tls from "node:tls";
 
 const TrustedArray = Array;
@@ -17,6 +18,7 @@ const trustedOwnKeys = Reflect.ownKeys.bind(Reflect);
 const trustedString = String;
 const objectPrototype = Object.prototype;
 const networkAttempts = new TrustedArray();
+const processControlAttempts = new TrustedArray();
 const patchedNetworkPrototypes = new WeakSet();
 
 function appendNetworkAttempt(api) {
@@ -40,10 +42,45 @@ function deniedNetworkError(api) {
   return error;
 }
 
+function deniedProcessControlError(api) {
+  trustedDefineProperty(processControlAttempts, processControlAttempts.length, {
+    value: api,
+    enumerable: true,
+    configurable: false,
+    writable: false,
+  });
+  const error = new TrustedError(`Generated migration target attempted a denied process control operation (${api}).`);
+  trustedDefineProperty(error, "code", {
+    value: "HONUA_PROCESS_CONTROL_DENIED",
+    enumerable: true,
+    configurable: false,
+    writable: false,
+  });
+  return error;
+}
+
 function denyNetwork(api) {
   return function deniedNetworkOperation() {
     throw deniedNetworkError(api);
   };
+}
+
+function denyProcessControl(api) {
+  return function deniedProcessControlOperation() {
+    throw deniedProcessControlError(api);
+  };
+}
+
+function replaceProcessControlMethod(target, name, api) {
+  const descriptor = trustedGetOwnPropertyDescriptor(target, name);
+  if (descriptor && typeof descriptor.value === "function") {
+    trustedDefineProperty(target, name, {
+      ...descriptor,
+      value: denyProcessControl(api),
+      configurable: false,
+      writable: false,
+    });
+  }
 }
 
 function replaceMethod(target, name, api) {
@@ -104,8 +141,50 @@ for (const [target, methods, namespace] of [
   [net, ["connect", "createConnection"], "net"],
   [tls, ["connect"], "tls"],
   [dgram, ["createSocket"], "dgram"],
-  [dns, ["lookup", "lookupService", "resolve", "resolve4", "resolve6", "resolveAny", "reverse"], "dns"],
-  [dnsPromises, ["lookup", "lookupService", "resolve", "resolve4", "resolve6", "resolveAny", "reverse"], "dns/promises"],
+  [
+    dns,
+    [
+      "lookup",
+      "lookupService",
+      "resolve",
+      "resolve4",
+      "resolve6",
+      "resolveAny",
+      "resolveCaa",
+      "resolveCname",
+      "resolveMx",
+      "resolveNaptr",
+      "resolveNs",
+      "resolvePtr",
+      "resolveSoa",
+      "resolveSrv",
+      "resolveTxt",
+      "reverse",
+    ],
+    "dns",
+  ],
+  [
+    dnsPromises,
+    [
+      "lookup",
+      "lookupService",
+      "resolve",
+      "resolve4",
+      "resolve6",
+      "resolveAny",
+      "resolveCaa",
+      "resolveCname",
+      "resolveMx",
+      "resolveNaptr",
+      "resolveNs",
+      "resolvePtr",
+      "resolveSoa",
+      "resolveSrv",
+      "resolveTxt",
+      "reverse",
+    ],
+    "dns/promises",
+  ],
 ]) {
   for (const method of methods) {
     replaceMethod(target, method, `${namespace}.${method}`);
@@ -115,8 +194,14 @@ for (const [target, methods, namespace] of [
 replaceAllPrototypeMethods(dns.Resolver, "dns.Resolver");
 replaceAllPrototypeMethods(dnsPromises.Resolver, "dns.promises.Resolver");
 replaceAllPrototypeMethods(dgram.Socket, "dgram.Socket", false);
+replaceAllPrototypeMethods(net.Server, "net.Server", false);
 replaceMethod(net.Socket?.prototype, "connect", "net.Socket.connect");
 replaceMethod(tls.TLSSocket?.prototype, "connect", "tls.TLSSocket.connect");
+
+for (const name of ["kill", "_kill", "_debugProcess", "_debugEnd"]) {
+  replaceProcessControlMethod(process, name, `process.${name}`);
+}
+replaceProcessControlMethod(os, "setPriority", "os.setPriority");
 
 if (typeof globalThis.fetch === "function") {
   trustedDefineProperty(globalThis, "fetch", {
@@ -159,6 +244,19 @@ export function snapshotDeniedNetworkAttempts() {
   for (let index = 0; index < networkAttempts.length; index += 1) {
     trustedDefineProperty(copy, index, {
       value: networkAttempts[index],
+      enumerable: true,
+      configurable: false,
+      writable: false,
+    });
+  }
+  return trustedFreeze(copy);
+}
+
+export function snapshotDeniedProcessControlAttempts() {
+  const copy = new TrustedArray(processControlAttempts.length);
+  for (let index = 0; index < processControlAttempts.length; index += 1) {
+    trustedDefineProperty(copy, index, {
+      value: processControlAttempts[index],
       enumerable: true,
       configurable: false,
       writable: false,

@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { snapshotDeniedNetworkAttempts } from "./migration-workbench-network-guard.mjs";
+import {
+  snapshotDeniedNetworkAttempts,
+  snapshotDeniedProcessControlAttempts,
+} from "./migration-workbench-network-guard.mjs";
 
 const TrustedArray = Array;
 const TrustedError = Error;
@@ -103,10 +106,19 @@ if (!/^[0-9a-f]{64}$/.test(runnerNonce)) {
 const generatedModule = await import(targetUrl);
 const safeValue = sanitizeJsonValue(generatedModule.default);
 const networkAttempts = snapshotDeniedNetworkAttempts();
+const processControlAttempts = snapshotDeniedProcessControlAttempts();
 if (networkAttempts.length > 0) {
   throw runnerError(
     `Generated migration target attempted ${networkAttempts.length} denied network operation(s): ${trustedIntrinsics.arrayJoin(
       networkAttempts,
+      ", ",
+    )}.`,
+  );
+}
+if (processControlAttempts.length > 0) {
+  throw runnerError(
+    `Generated migration target attempted ${processControlAttempts.length} denied process control operation(s): ${trustedIntrinsics.arrayJoin(
+      processControlAttempts,
       ", ",
     )}.`,
   );
@@ -117,5 +129,6 @@ defineFrozenValue(envelope, "protocol", "honua.migration-workbench.runner.v1");
 defineFrozenValue(envelope, "nonce", runnerNonce);
 defineFrozenValue(envelope, "value", safeValue);
 defineFrozenValue(envelope, "networkAttempts", sanitizeJsonValue(networkAttempts));
+defineFrozenValue(envelope, "processControlAttempts", sanitizeJsonValue(processControlAttempts));
 const serializedEnvelope = trustedIntrinsics.jsonStringify(trustedIntrinsics.freeze(envelope));
 trustedIntrinsics.writeSync(1, `${serializedEnvelope}\n`);
