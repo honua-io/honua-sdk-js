@@ -1319,9 +1319,8 @@
       "journeyId": "arcgis-migration",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Make this the canonical file-by-file ArcGIS migration journey.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Canonical deterministic ArcGIS migration evidence workbench."
       },
       "sourcePath": "examples/migration-workbench",
       "docsPath": "docs/migration-honua-maplibre.md",
@@ -1339,88 +1338,24 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "config": [
-          "VITE_ARCGIS_SOURCE_LAYER_ID",
-          "VITE_ARCGIS_SOURCE_SERVICE_URL",
-          "VITE_HONUA_CLOUD_ADMIN_API_KEY",
-          "VITE_HONUA_CLOUD_ADMIN_BASE_URL",
-          "VITE_HONUA_IMPORT_POLL_INTERVAL_MS",
-          "VITE_HONUA_IMPORT_TABLE_NAME",
-          "VITE_HONUA_IMPORT_TIMEOUT_MS",
-          "VITE_HONUA_MIGRATION_WORKBENCH_FIXTURE",
-          "VITE_HONUA_MIGRATION_WORKBENCH_GENERATED_AT",
-          "VITE_HONUA_MIGRATION_WORKBENCH_LIVE_IMPORT"
-        ],
+        "config": [],
         "provenance": "Committed ArcGIS source fixtures and migration reports.",
         "attribution": "Fixture source attribution is preserved in output.",
         "freshness": "Versioned with the migration corpus.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads a cloud-admin API-key variable.",
-        "configClassifications": [
-          {
-            "name": "VITE_ARCGIS_SOURCE_LAYER_ID",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_ARCGIS_SOURCE_SERVICE_URL",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_CLOUD_ADMIN_API_KEY",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_CLOUD_ADMIN_BASE_URL",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_IMPORT_POLL_INTERVAL_MS",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_IMPORT_TABLE_NAME",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_IMPORT_TIMEOUT_MS",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_MIGRATION_WORKBENCH_FIXTURE",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_MIGRATION_WORKBENCH_GENERATED_AT",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_MIGRATION_WORKBENCH_LIVE_IMPORT",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          }
-        ]
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
           "mode": "fixture",
           "status": "executed",
           "commands": [
-            "npm run demo:migration:featuretable"
+            "npm run demo:migration-workbench:mock"
           ]
         },
         "live": {
-          "mode": "public-live",
-          "status": "planned",
+          "mode": "unavailable",
+          "status": "not-applicable",
           "commands": []
         }
       },
@@ -1428,7 +1363,8 @@
       "validationProfile": "browser-lab",
       "validation": [
         "npm run demo:migration-workbench:typecheck",
-        "npm run demo:migration-workbench:build"
+        "npm run demo:migration-workbench:build",
+        "npm run test:playwright:migration-workbench"
       ]
     },
     {

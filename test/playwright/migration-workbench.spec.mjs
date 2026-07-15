@@ -11,23 +11,50 @@ const VIEWPORTS = [
 ];
 const WORKFLOW_SELECTORS = ["#compat-metrics", "#assertion-matrix", "#maplibre-residuals", "#artifact-files"];
 const ARTIFACT_DECODED_BYTES_BUDGET = 512 * 1024;
+const CAPTURE_DIAGNOSTIC_ATTACHMENTS = process.env.HONUA_SAMPLE_PLAYWRIGHT_OUTPUT_DIR === undefined;
 
 test.setTimeout(90_000);
 
 test(
   "migration workbench proves artifact truth and generated behavior in source or packed mode",
   async ({ browser, browserName }, testInfo) => {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ serviceWorkers: "block" });
     const page = await context.newPage();
     const pageErrors = [];
     const consoleErrors = [];
     const externalRequests = [];
     const allRequests = [];
+    const failedRequests = [];
+    const errorResponses = [];
+    const webSockets = [];
+    const credentialBearingRequests = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
-    page.on("request", (request) => allRequests.push(request.url()));
+    page.on("request", (request) => {
+      const href = request.url();
+      const url = new URL(href);
+      const headers = request.headers();
+      allRequests.push(href);
+      if (
+        url.username ||
+        url.password ||
+        url.search ||
+        headers.authorization ||
+        headers.cookie ||
+        headers["proxy-authorization"]
+      ) {
+        credentialBearingRequests.push({ href, headers: Object.keys(headers).sort() });
+      }
+    });
+    page.on("requestfailed", (request) => {
+      failedRequests.push({ href: request.url(), error: request.failure()?.errorText ?? "unknown" });
+    });
+    page.on("response", (response) => {
+      if (response.status() >= 400) errorResponses.push({ href: response.url(), status: response.status() });
+    });
+    page.on("websocket", (socket) => webSockets.push(socket.url()));
 
     const fixtureServer = await startMigrationWorkbenchFixtureServer();
     const fixtureOrigin = new URL(fixtureServer.url).origin;
@@ -187,16 +214,18 @@ test(
       expect(performanceEvidence.completedByMs).toBeLessThanOrEqual(performanceEvidence.readyMs);
       expect(performanceEvidence.decodedBodyBytes).toBeGreaterThan(0);
       expect(performanceEvidence.decodedBodyBytes).toBeLessThanOrEqual(ARTIFACT_DECODED_BYTES_BUDGET);
-      await testInfo.attach("migration-workbench-performance-budget", {
-        body: Buffer.from(
-          JSON.stringify({
-            sampleReadyBudgetMs: SAMPLE_PERFORMANCE_BUDGET_MS,
-            artifactDecodedBytesBudget: ARTIFACT_DECODED_BYTES_BUDGET,
-            observations: performanceEvidence,
-          }),
-        ),
-        contentType: "application/json",
-      });
+      if (CAPTURE_DIAGNOSTIC_ATTACHMENTS) {
+        await testInfo.attach("migration-workbench-performance-budget", {
+          body: Buffer.from(
+            JSON.stringify({
+              sampleReadyBudgetMs: SAMPLE_PERFORMANCE_BUDGET_MS,
+              artifactDecodedBytesBudget: ARTIFACT_DECODED_BYTES_BUDGET,
+              observations: performanceEvidence,
+            }),
+          ),
+          contentType: "application/json",
+        });
+      }
 
       await attestBrowserQuality({
         page,
@@ -224,10 +253,12 @@ test(
       for (const viewport of VIEWPORTS) {
         await page.setViewportSize(viewport);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-        await testInfo.attach(`migration-workbench-${viewport.width}x${viewport.height}`, {
-          body: await page.screenshot({ animations: "disabled", fullPage: true }),
-          contentType: "image/png",
-        });
+        if (CAPTURE_DIAGNOSTIC_ATTACHMENTS) {
+          await testInfo.attach(`migration-workbench-${viewport.width}x${viewport.height}`, {
+            body: await page.screenshot({ animations: "disabled", fullPage: true }),
+            contentType: "image/png",
+          });
+        }
       }
 
       const requestsBeforeDispose = allRequests.length;
@@ -252,6 +283,10 @@ test(
       expect(pageErrors).toHaveLength(pageErrorsBeforeDispose);
       expect(consoleErrors).toHaveLength(consoleErrorsBeforeDispose);
       expect(externalRequests).toEqual([]);
+      expect(failedRequests).toEqual([]);
+      expect(errorResponses).toEqual([]);
+      expect(webSockets).toEqual([]);
+      expect(credentialBearingRequests).toEqual([]);
     } finally {
       try {
         const closure = await fixtureServer.close();

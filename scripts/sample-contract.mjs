@@ -42,6 +42,7 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/imagery-cog-quickstart/mock-server.mjs", "demo:imagery-cog:build"],
   ["examples/maplibre-quickstart/mock-server.mjs", "demo:quickstart:build"],
   ["examples/mcp-gis-assistant/mock-server.mjs", "demo:mcp-gis-assistant:build"],
+  ["examples/migration-workbench/mock-server.mjs", "demo:migration-workbench:build"],
   ["examples/oauth-signin/mock-server.mjs", "demo:oauth-signin:build"],
   ["examples/overture-geoparquet/mock-server.mjs", "demo:overture:build"],
   ["examples/planning-permitting-workbench/mock-server.mjs", "demo:planning-workbench:build"],
@@ -217,6 +218,7 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:migration:real-samples",
   "test:playwright:ai-spatial-builder",
   "test:playwright:incident",
+  "test:playwright:migration-workbench",
   "test:playwright:overture",
   "test:playwright:quickstart",
   "test:playwright:service-explorer",
@@ -2415,6 +2417,8 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
         ? { replacement: override.lifecycle?.replacement ?? override.replacement }
         : {}),
     };
+    const originalFixture = sample.lanes.fixture;
+    const fixtureOverride = override.fixture ?? {};
     const originalLive = sample.lanes.live;
     const liveOverride = override.live ?? {};
     const live = {
@@ -2457,9 +2461,11 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
       evidence: {
         fixture: {
           mode: "fixture",
-          status: sample.lanes.fixture.status,
-          commands: [...sample.lanes.fixture.commands],
-          ...(sample.lanes.fixture.evidencePath ? { evidencePath: sample.lanes.fixture.evidencePath } : {}),
+          status: fixtureOverride.status ?? originalFixture.status,
+          commands: [...(fixtureOverride.commands ?? originalFixture.commands)],
+          ...(fixtureOverride.evidencePath || originalFixture.evidencePath
+            ? { evidencePath: fixtureOverride.evidencePath ?? originalFixture.evidencePath }
+            : {}),
         },
         live,
       },
