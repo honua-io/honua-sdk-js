@@ -13,10 +13,20 @@ import {
   snapshotCapabilityJson,
 } from "./source-capability-json.js";
 import {
+  CAPABILITY_EVIDENCE_ENTRIES_JSON_LIMITS,
+  CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS,
+} from "./source-capability-limits.js";
+import {
   type CapabilityEvidenceRuntimeEntry,
   capabilityEvidenceRuntimeIndex as capabilityProfileRuntimeIndex,
   registerCapabilityEvidenceProfile,
 } from "./source-capability-registry.js";
+import {
+  assertNoSensitiveCapabilityExtension,
+  validateCapabilityEvidenceReference,
+  validateCapabilityPeerIdentifier,
+  validateCapabilityScopeIdentifier,
+} from "./source-capability-security.js";
 import {
   type BuiltInFilterOperator,
   CAPABILITY_EVIDENCE_FINGERPRINT_DOMAIN,
@@ -30,6 +40,7 @@ import {
   type CapabilityId,
   type CapabilityRequirements,
   type CapabilityRuntimeEnvironment,
+  type CapabilitySourceVerificationOptions,
   type CapabilityTruth,
   type ExtensionIdentifier,
   type ExtensionMap,
@@ -40,12 +51,6 @@ import {
   type SpatialPredicate,
   type TemporalPredicate,
 } from "./source-capability-types.js";
-
-export const CAPABILITY_PROFILE_JSON_LIMITS = {
-  depth: 48,
-  nodes: 65_536,
-  bytes: 2 * 1_024 * 1_024,
-} as const;
 
 const CAPABILITY_OPTIONS_JSON_LIMITS = { depth: 2, nodes: 8, bytes: 512 } as const;
 const EXTENSION_JSON_LIMITS = { depth: 16, nodes: 4_096, bytes: 256 * 1_024 } as const;
@@ -109,6 +114,7 @@ const MAX_CAPABILITY_ENTRIES = 256;
 const MAX_EVIDENCE_PER_ENTRY = 64;
 const MAX_SET_VALUES = 1_024;
 const MAX_SUPPORTED_CRS = 64;
+const MAX_EXTENSION_KEYS = 64;
 
 /** Validate and fingerprint static evidence once before caching or evaluation. */
 export function createCapabilityEvidenceProfile(
@@ -118,7 +124,7 @@ export function createCapabilityEvidenceProfile(
   const safeEntries = snapshotCapabilityJson(
     entries,
     "Capability evidence entries",
-    CAPABILITY_PROFILE_JSON_LIMITS,
+    CAPABILITY_EVIDENCE_ENTRIES_JSON_LIMITS,
   ) as readonly CapabilityEvidenceEntry[];
   const safeOptions = snapshotCapabilityJson(
     options,
@@ -162,17 +168,23 @@ export function createCapabilityEvidenceProfile(
       `Capability evidence sourceFingerprint ${soleEvidenceFingerprint} does not match expected ${sourceFingerprint}`,
     );
   }
+  if (sourceFingerprint === undefined) {
+    throw new TypeError(
+      "Capability evidence profile requires one SourceSchemaV2 sourceFingerprint, supplied explicitly or consistently by evidence",
+    );
+  }
 
   const envelope = {
     kind: CAPABILITY_EVIDENCE_PROFILE_KIND,
     version: CAPABILITY_EVIDENCE_PROFILE_VERSION,
-    ...(sourceFingerprint === undefined ? {} : { sourceFingerprint }),
+    sourceFingerprint,
     entries: normalizedEntries,
   };
   const fingerprint = sha256(
     `${CAPABILITY_EVIDENCE_FINGERPRINT_DOMAIN}\n${canonicalStringify(toJsonValue(envelope))}`,
   ) as Sha256;
   const profile = deepFreezeCapability({ ...envelope, fingerprint }) as CapabilityEvidenceProfile;
+  snapshotCapabilityJson(profile, "Capability evidence profile", CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS);
   const runtimeEntries: CapabilityEvidenceRuntimeEntry[] = profile.entries.map((entry) => ({
     observations: entry.evidence.flatMap((evidence) =>
       isObservedEvidence(evidence)
@@ -193,8 +205,20 @@ export function createCapabilityEvidenceProfile(
 }
 
 /** Parse a strict, content-addressed static evidence envelope. */
-export function parseCapabilityEvidenceProfile(value: string | unknown): CapabilityEvidenceProfile {
-  const parsed = parseCapabilityJson(value, "Capability evidence profile", CAPABILITY_PROFILE_JSON_LIMITS);
+export function parseCapabilityEvidenceProfile(
+  value: string | unknown,
+  options: CapabilitySourceVerificationOptions = {},
+): CapabilityEvidenceProfile {
+  const safeOptions = snapshotCapabilityJson(
+    options,
+    "Capability source verification options",
+    CAPABILITY_OPTIONS_JSON_LIMITS,
+  ) as CapabilitySourceVerificationOptions;
+  assertPlainCapabilityObject(safeOptions, "Capability source verification options", ["expectedSourceFingerprint"]);
+  if (safeOptions.expectedSourceFingerprint !== undefined) {
+    validateSha256(safeOptions.expectedSourceFingerprint, "expectedSourceFingerprint");
+  }
+  const parsed = parseCapabilityJson(value, "Capability evidence profile", CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS);
   assertPlainCapabilityObject(parsed, "Capability evidence profile", [
     "kind",
     "version",
@@ -210,23 +234,26 @@ export function parseCapabilityEvidenceProfile(value: string | unknown): Capabil
     throw new TypeError(`Capability evidence profile.version must be ${CAPABILITY_EVIDENCE_PROFILE_VERSION}`);
   }
   validateSha256(record.fingerprint, "Capability evidence profile.fingerprint");
-  if (record.sourceFingerprint !== undefined) {
-    validateSha256(record.sourceFingerprint, "Capability evidence profile.sourceFingerprint");
+  if (!Object.hasOwn(record, "sourceFingerprint")) {
+    throw new TypeError("Capability evidence profile.sourceFingerprint is required");
   }
-  const hasSourceFingerprint = Object.hasOwn(record, "sourceFingerprint");
+  validateSha256(record.sourceFingerprint, "Capability evidence profile.sourceFingerprint");
   const profile = createCapabilityEvidenceProfile(record.entries as readonly CapabilityEvidenceEntry[], {
-    ...(hasSourceFingerprint ? { sourceFingerprint: record.sourceFingerprint as Sha256 } : {}),
+    sourceFingerprint: record.sourceFingerprint,
   });
-  if (Object.hasOwn(profile, "sourceFingerprint") !== hasSourceFingerprint) {
-    throw new TypeError("Capability evidence profile.sourceFingerprint must declare the derived source identity");
-  }
   if (profile.fingerprint !== record.fingerprint) {
     throw new TypeError("Capability evidence profile fingerprint does not match its normalized static envelope");
   }
-  return profile;
+  return safeOptions.expectedSourceFingerprint === undefined
+    ? profile
+    : verifyCapabilityEvidenceProfileSource(profile, safeOptions.expectedSourceFingerprint);
 }
 
-/** Serialize only validated evidence profiles using canonical JSON. */
+/**
+ * Serialize a validated evidence profile using canonical JSON. This function
+ * validates common credential-shaped forms but does not sanitize caller data;
+ * its output must be handled as potentially sensitive.
+ */
 export function serializeCapabilityEvidenceProfile(profile: CapabilityEvidenceProfile): string {
   // The runtime index is the unforgeable brand shared with the lightweight evaluator.
   // Importing the registry does not retain the CRS validator in evaluator-only bundles.
@@ -234,7 +261,29 @@ export function serializeCapabilityEvidenceProfile(profile: CapabilityEvidencePr
   if (!isValidatedEvidenceProfile(profile)) {
     throw new TypeError("Capability evidence profile must be created or parsed by this SDK instance");
   }
-  return canonicalStringify(toJsonValue(profile));
+  const safeProfile = snapshotCapabilityJson(
+    profile,
+    "Capability evidence profile",
+    CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS,
+  ) as CapabilityEvidenceProfile;
+  return canonicalStringify(toJsonValue(safeProfile));
+}
+
+/** Verify that a validated in-memory/cache profile belongs to the current source schema. */
+export function verifyCapabilityEvidenceProfileSource(
+  profile: CapabilityEvidenceProfile,
+  expectedSourceFingerprint: Sha256,
+): CapabilityEvidenceProfile {
+  if (!isValidatedEvidenceProfile(profile)) {
+    throw new TypeError("Capability evidence profile must be created or parsed by this SDK instance");
+  }
+  validateSha256(expectedSourceFingerprint, "expectedSourceFingerprint");
+  if (profile.sourceFingerprint !== expectedSourceFingerprint) {
+    throw new TypeError(
+      `Capability evidence profile sourceFingerprint ${profile.sourceFingerprint} does not match current source ${expectedSourceFingerprint}`,
+    );
+  }
+  return profile;
 }
 
 function isValidatedEvidenceProfile(profile: CapabilityEvidenceProfile): boolean {
@@ -273,9 +322,10 @@ function normalizeEntry(entry: CapabilityEvidenceEntry, path: string): Capabilit
   const authorizationScopes =
     record.authorizationScopes === undefined
       ? undefined
-      : normalizeRequiredOpaqueIdentifiers(
+      : normalizeRequiredIdentifiers(
           record.authorizationScopes as readonly string[],
           `${path}.authorizationScopes`,
+          validateCapabilityScopeIdentifier,
         );
   const constraints =
     record.constraints === undefined
@@ -314,7 +364,7 @@ function normalizeEvidence(values: readonly CapabilityEvidence[], path: string):
     if (!EVIDENCE_KINDS.includes(record.kind as never)) throw new TypeError(`${itemPath}.kind is not supported`);
     if (!CAPABILITY_TRUTHS.includes(record.truth as CapabilityTruth))
       throw new TypeError(`${itemPath}.truth is invalid`);
-    validateBoundedText(record.reference, `${itemPath}.reference`, MAX_REFERENCE_LENGTH);
+    validateCapabilityEvidenceReference(record.reference, `${itemPath}.reference`);
     if (record.sourceFingerprint !== undefined)
       validateSha256(record.sourceFingerprint, `${itemPath}.sourceFingerprint`);
     const observed = OBSERVED_EVIDENCE_KINDS.includes(record.kind as never);
@@ -342,7 +392,7 @@ function normalizeEvidence(values: readonly CapabilityEvidence[], path: string):
       ...(record.sourceFingerprint === undefined ? {} : { sourceFingerprint: record.sourceFingerprint }),
     }) as CapabilityEvidence;
     const identity = canonicalStringify(toJsonValue(evidence));
-    if (identities.has(identity)) throw new TypeError(`${path} contains duplicate evidence identity ${identity}`);
+    if (identities.has(identity)) throw new TypeError(`${path} contains a duplicate evidence identity`);
     identities.add(identity);
     return evidence;
   });
@@ -449,7 +499,9 @@ function normalizeRequirements(value: CapabilityRequirements, path: string): Cap
       ? undefined
       : normalizeRequiredIdentifiers(value.environments, `${path}.environments`, validateEnvironment);
   const peers =
-    value.peers === undefined ? undefined : normalizeRequiredOpaqueIdentifiers(value.peers, `${path}.peers`);
+    value.peers === undefined
+      ? undefined
+      : normalizeRequiredIdentifiers(value.peers, `${path}.peers`, validateCapabilityPeerIdentifier);
   if (environments === undefined && peers === undefined)
     throw new TypeError(`${path} must name an environment or peer`);
   return deepFreezeCapability({
@@ -505,8 +557,11 @@ function normalizeCrs(values: readonly ResolvedCrsDefinition[], path: string): r
 function normalizeExtensions(value: ExtensionMap, path: string): ExtensionMap {
   const safeValue = snapshotCapabilityJson(value, path, EXTENSION_JSON_LIMITS);
   assertPlainCapabilityObject(safeValue, path);
-  for (const key of Object.keys(safeValue as object)) {
-    if (!isExtensionIdentifier(key)) throw new TypeError(`${path}.${key} must use a reverse-DNS extension id`);
+  assertNoSensitiveCapabilityExtension(safeValue, path);
+  const keys = Object.keys(safeValue as object);
+  assertMaximumCount(keys.length, MAX_EXTENSION_KEYS, path);
+  for (const key of keys) {
+    if (!isExtensionIdentifier(key)) throw new TypeError(`${path} keys must use reverse-DNS extension ids`);
   }
   const json = toJsonValue(safeValue, path);
   if (json === null || Array.isArray(json) || typeof json !== "object")
@@ -552,15 +607,6 @@ function normalizeSetIdentifiers<T extends string>(
   });
   rejectDuplicateKeys(normalized, path);
   return Object.freeze(normalized.sort(compareCapabilityStrings));
-}
-
-function normalizeRequiredOpaqueIdentifiers(values: readonly string[], path: string): readonly string[] {
-  if (!Array.isArray(values) || values.length === 0) throw new TypeError(`${path} must be a non-empty array`);
-  return Object.freeze(
-    normalizeSetIdentifiers(values, path, (value, itemPath) =>
-      validateBoundedText(value, itemPath, MAX_IDENTIFIER_LENGTH),
-    ),
-  );
 }
 
 function validateCapabilityId(value: unknown, path: string): asserts value is CapabilityId {
@@ -619,7 +665,7 @@ function evidenceSortKey(value: CapabilityEvidence): string {
 function rejectDuplicateKeys(values: readonly string[], path: string): void {
   const seen = new Set<string>();
   for (const value of values) {
-    if (seen.has(value)) throw new TypeError(`${path} contains duplicate value ${value}`);
+    if (seen.has(value)) throw new TypeError(`${path} contains a duplicate value`);
     seen.add(value);
   }
 }

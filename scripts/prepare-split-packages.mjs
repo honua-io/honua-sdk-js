@@ -141,7 +141,9 @@ function createSdkPackage() {
   for (const moduleName of [
     "source-capability-types",
     "source-capability-json",
+    "source-capability-limits",
     "source-capability-registry",
+    "source-capability-security",
     "source-capability-evidence",
     "source-capability-evaluation",
     "source-capability-transport",

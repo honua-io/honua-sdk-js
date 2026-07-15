@@ -1,7 +1,13 @@
 import { canonicalStringify, toJsonValue } from "./query-planner/canonical.js";
 import { evaluateCapabilityProfile } from "./source-capability-evaluation.js";
-import { CAPABILITY_PROFILE_JSON_LIMITS, parseCapabilityEvidenceProfile } from "./source-capability-evidence.js";
-import { assertPlainCapabilityObject, isCapabilityIsoInstant, parseCapabilityJson } from "./source-capability-json.js";
+import { parseCapabilityEvidenceProfile } from "./source-capability-evidence.js";
+import {
+  assertPlainCapabilityObject,
+  isCapabilityIsoInstant,
+  parseCapabilityJson,
+  snapshotCapabilityJson,
+} from "./source-capability-json.js";
+import { CAPABILITY_EVALUATED_PROFILE_JSON_LIMITS } from "./source-capability-limits.js";
 import { isRegisteredCapabilityProfile } from "./source-capability-registry.js";
 import {
   CAPABILITY_EVIDENCE_PROFILE_KIND,
@@ -12,26 +18,39 @@ import {
   type CapabilityEvaluationContext,
   type CapabilityEvidenceEntry,
   type CapabilityProfile,
+  type CapabilitySourceVerificationOptions,
   type Sha256,
 } from "./source-capability-types.js";
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
-/** Serialize only an evaluated profile produced or verified by this SDK instance. */
+/**
+ * Serialize an evaluated profile produced or verified by this SDK instance.
+ * Serialization is canonical, not sanitizing; output remains potentially sensitive.
+ */
 export function serializeCapabilityProfile(profile: CapabilityProfile): string {
   if (profile === null || typeof profile !== "object" || !isRegisteredCapabilityProfile(profile)) {
     throw new TypeError("Capability profile must be evaluated or parsed by this SDK instance");
   }
-  return canonicalStringify(toJsonValue(profile));
+  const safeProfile = snapshotCapabilityJson(
+    profile,
+    "Capability profile",
+    CAPABILITY_EVALUATED_PROFILE_JSON_LIMITS,
+  ) as CapabilityProfile;
+  return canonicalStringify(toJsonValue(safeProfile));
 }
 
 /**
  * Parse and verify a transported evaluated profile by reconstructing its static
- * evidence profile and reproducing every dynamic decision from the retained,
- * credential-free evaluation context.
+ * evidence profile and reproducing every dynamic decision from the retained
+ * caller-controlled evaluation context. This verifies internal consistency;
+ * pass expectedSourceFingerprint to also bind use to the current SourceSchemaV2.
  */
-export function parseCapabilityProfile(value: string | unknown): CapabilityProfile {
-  const parsed = parseCapabilityJson(value, "Capability profile", CAPABILITY_PROFILE_JSON_LIMITS);
+export function parseCapabilityProfile(
+  value: string | unknown,
+  options: CapabilitySourceVerificationOptions = {},
+): CapabilityProfile {
+  const parsed = parseCapabilityJson(value, "Capability profile", CAPABILITY_EVALUATED_PROFILE_JSON_LIMITS);
   assertPlainCapabilityObject(parsed, "Capability profile", [
     "kind",
     "version",
@@ -52,9 +71,10 @@ export function parseCapabilityProfile(value: string | unknown): CapabilityProfi
   }
   validateSha256(record.fingerprint, "Capability profile.fingerprint");
   validateSha256(record.evidenceFingerprint, "Capability profile.evidenceFingerprint");
-  if (record.sourceFingerprint !== undefined) {
-    validateSha256(record.sourceFingerprint, "Capability profile.sourceFingerprint");
+  if (!Object.hasOwn(record, "sourceFingerprint")) {
+    throw new TypeError("Capability profile.sourceFingerprint is required");
   }
+  validateSha256(record.sourceFingerprint, "Capability profile.sourceFingerprint");
   validateNullableInstant(record.evaluatedAt, "Capability profile.evaluatedAt");
   validateNullableInstant(record.validUntil, "Capability profile.validUntil");
   assertPlainCapabilityObject(record.context, "Capability profile.context", [
@@ -66,15 +86,14 @@ export function parseCapabilityProfile(value: string | unknown): CapabilityProfi
   if (!Array.isArray(record.entries)) throw new TypeError("Capability profile.entries must be an array");
 
   const staticEntries = record.entries.map((entry, index) => projectStaticEntry(entry, index));
-  const hasSourceFingerprint = Object.hasOwn(record, "sourceFingerprint");
   const evidenceEnvelope = {
     kind: CAPABILITY_EVIDENCE_PROFILE_KIND,
     version: CAPABILITY_EVIDENCE_PROFILE_VERSION,
     fingerprint: record.evidenceFingerprint,
-    ...(hasSourceFingerprint ? { sourceFingerprint: record.sourceFingerprint } : {}),
+    sourceFingerprint: record.sourceFingerprint,
     entries: staticEntries,
   };
-  const evidenceProfile = parseCapabilityEvidenceProfile(evidenceEnvelope);
+  const evidenceProfile = parseCapabilityEvidenceProfile(evidenceEnvelope, options);
   const context = {
     ...(record.context as CapabilityEvaluationContext),
     ...(record.evaluatedAt === null ? {} : { evaluatedAt: record.evaluatedAt }),

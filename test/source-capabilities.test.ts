@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,14 +14,25 @@ import {
   parseCapabilityProfile,
   serializeCapabilityEvidenceProfile,
   serializeCapabilityProfile,
+  verifyCapabilityEvidenceProfileSource,
 } from "../src/source-capabilities.js";
+import {
+  CAPABILITY_EVALUATED_PROFILE_JSON_LIMITS,
+  CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS,
+} from "../src/source-capability-limits.js";
 
 const SCHEMA_FINGERPRINT = `sha256:${"a".repeat(64)}` as const;
 const EVALUATED_AT = "2026-07-14T12:00:00Z";
 const EXPIRES_AT = "2026-07-20T12:00:00Z";
 
 function evaluate(entries: readonly CapabilityEvaluationEntry[], context: CapabilityEvaluationContext = {}) {
-  return evaluateCapabilityProfile(createCapabilityEvidenceProfile(entries), { evaluatedAt: EVALUATED_AT, ...context });
+  const sourceFingerprint = entries
+    .flatMap((entry) => entry.evidence)
+    .find((item) => item.sourceFingerprint !== undefined)?.sourceFingerprint;
+  return evaluateCapabilityProfile(
+    createCapabilityEvidenceProfile(entries, { sourceFingerprint: sourceFingerprint ?? SCHEMA_FINGERPRINT }),
+    { evaluatedAt: EVALUATED_AT, ...context },
+  );
 }
 
 function evidenceEntry(
@@ -625,6 +637,17 @@ describe("source capability profile", () => {
         }),
       ]),
     ).toThrow(/maximum count 1024/);
+    expect(() =>
+      evaluate([
+        evidenceEntry("query", "supported", "supported", {
+          constraints: {
+            extensions: Object.fromEntries(
+              Array.from({ length: 65 }, (_, index) => [`com.example.key${index}`, index]),
+            ),
+          },
+        }),
+      ]),
+    ).toThrow(/maximum count 64/);
   });
 
   it("rejects hostile graph depth and total bytes with TypeError rather than RangeError", () => {
@@ -668,7 +691,7 @@ describe("source capability profile", () => {
             constraints: { outputFormats: ["application/json", "application/json"] },
           }),
         ]),
-      message: /duplicate value application\/json/,
+      message: /duplicate value/,
     },
     {
       label: "non-positive limits",
@@ -825,6 +848,12 @@ describe("source capability profile", () => {
       },
     },
     {
+      label: "required source identity",
+      mutate: (profile: Record<string, unknown>) => {
+        delete profile.sourceFingerprint;
+      },
+    },
+    {
       label: "unknown root field",
       mutate: (profile: Record<string, unknown>) => {
         profile.verified = true;
@@ -907,5 +936,189 @@ describe("source capability profile", () => {
       expect(evaluated.entries[0]?.constraints).toBe(staticProfile.entries[0]?.constraints);
     }
     expect(() => evaluateCapabilityProfile(staticProfile.entries as never)).toThrow(/must be created or parsed/);
+  });
+
+  it("requires and verifies the current SourceSchemaV2 identity at cache boundaries", () => {
+    const unboundEntry = evidenceEntry("query", "supported", "supported", {
+      evidence: evidenceEntry("query").evidence.map(({ sourceFingerprint: _sourceFingerprint, ...item }) => item),
+    });
+    expect(() => createCapabilityEvidenceProfile([unboundEntry])).toThrow(/requires one SourceSchemaV2/);
+
+    const current = createCapabilityEvidenceProfile([evidenceEntry("query")]);
+    const wire = serializeCapabilityEvidenceProfile(current);
+    const unboundWire = JSON.parse(wire) as Record<string, unknown>;
+    delete unboundWire.sourceFingerprint;
+    expect(() => parseCapabilityEvidenceProfile(unboundWire)).toThrow(/sourceFingerprint is required/);
+    const staleFingerprint = `sha256:${"c".repeat(64)}` as const;
+    expect(parseCapabilityEvidenceProfile(wire, { expectedSourceFingerprint: SCHEMA_FINGERPRINT })).toEqual(current);
+    expect(verifyCapabilityEvidenceProfileSource(current, SCHEMA_FINGERPRINT)).toBe(current);
+    expect(() => parseCapabilityEvidenceProfile(wire, { expectedSourceFingerprint: staleFingerprint })).toThrow(
+      /does not match current source/,
+    );
+    expect(() => verifyCapabilityEvidenceProfileSource(current, staleFingerprint)).toThrow(
+      /does not match current source/,
+    );
+
+    const evaluatedWire = serializeCapabilityProfile(evaluateCapabilityProfile(current, { evaluatedAt: EVALUATED_AT }));
+    expect(parseCapabilityProfile(evaluatedWire, { expectedSourceFingerprint: SCHEMA_FINGERPRINT })).toMatchObject({
+      sourceFingerprint: SCHEMA_FINGERPRINT,
+    });
+    expect(() => parseCapabilityProfile(evaluatedWire, { expectedSourceFingerprint: staleFingerprint })).toThrow(
+      /does not match current source/,
+    );
+  });
+
+  it.each([
+    {
+      label: "credential-bearing evidence URL",
+      entry: evidenceEntry("query", "supported", "supported", {
+        evidence: [
+          {
+            kind: "protocol-default",
+            truth: "supported",
+            reference: "https://user:password@example.test/defaults?access_token=REFERENCE_SECRET",
+            sourceFingerprint: SCHEMA_FINGERPRINT,
+          },
+          evidenceEntry("query").evidence[1]!,
+        ],
+      }),
+      secret: "REFERENCE_SECRET",
+    },
+    {
+      label: "authorization-shaped peer",
+      entry: evidenceEntry("query", "supported", "supported", {
+        requirements: { peers: ["Bearer PEER_SECRET"] },
+      }),
+      secret: "PEER_SECRET",
+    },
+    {
+      label: "secret-shaped scope",
+      entry: evidenceEntry("query", "supported", "supported", {
+        authorizationScopes: ["scope:TOKEN_SECRET"],
+      }),
+      secret: "TOKEN_SECRET",
+    },
+    {
+      label: "nested credential extension",
+      entry: evidenceEntry("query", "supported", "supported", {
+        constraints: {
+          extensions: {
+            "com.example.metadata": { accessToken: "EXTENSION_SECRET" },
+          },
+        },
+      }),
+      secret: "EXTENSION_SECRET",
+    },
+    {
+      label: "prototype-shaped extension key",
+      entry: evidenceEntry("query", "supported", "supported", {
+        constraints: {
+          extensions: JSON.parse('{"com.example.metadata":{"__proto__":{"sentinel":"PROTOTYPE_SENTINEL"}}}') as never,
+        },
+      }),
+      secret: "PROTOTYPE_SENTINEL",
+    },
+    {
+      label: "caller-sensitive invalid extension key",
+      entry: evidenceEntry("query", "supported", "supported", {
+        constraints: {
+          extensions: { EXTENSION_KEY_SECRET: "ordinary-metadata" } as never,
+        },
+      }),
+      secret: "EXTENSION_KEY_SECRET",
+    },
+  ])("rejects $label without echoing its value", ({ entry, secret }) => {
+    let error: unknown;
+    try {
+      createCapabilityEvidenceProfile([entry]);
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toBeInstanceOf(TypeError);
+    expect(String(error)).not.toContain(secret);
+  });
+
+  it("applies structural peer and scope validation to dynamic context", () => {
+    const profile = createCapabilityEvidenceProfile([evidenceEntry("query")]);
+    expect(() =>
+      evaluateCapabilityProfile(profile, {
+        availablePeers: ["Bearer PEER_SECRET"],
+      }),
+    ).toThrow(/structural package or runtime peer identifier/);
+    expect(() =>
+      evaluateCapabilityProfile(profile, {
+        authorization: { grantedScopes: ["scope:TOKEN_SECRET"] },
+      }),
+    ).toThrow(/credential-shaped data/);
+  });
+
+  it("preserves accepted caller data exactly and documents that serialization is not sanitization", () => {
+    const profile = createCapabilityEvidenceProfile([
+      evidenceEntry("query", "supported", "supported", {
+        evidence: [
+          {
+            kind: "protocol-default",
+            truth: "supported",
+            reference: "tenant-metadata:internal-record-123",
+            sourceFingerprint: SCHEMA_FINGERPRINT,
+          },
+          evidenceEntry("query").evidence[1]!,
+        ],
+      }),
+    ]);
+    expect(serializeCapabilityEvidenceProfile(profile)).toContain("tenant-metadata:internal-record-123");
+
+    const guide = readFileSync(new URL("../docs/source-capabilities.md", import.meta.url), "utf8");
+    expect(guide).toMatch(/potentially sensitive/i);
+    expect(guide).toMatch(/does not sanitize/i);
+  });
+
+  it("round-trips a near-maximum static profile after evaluated transport grows beyond 2 MiB", () => {
+    const entries = Array.from(
+      { length: 256 },
+      (_, index): CapabilityEvaluationEntry => ({
+        id: `com.example.cap${index}`,
+        claimed: "supported",
+        observed: "not-observed",
+        evidence: [{ kind: "protocol-default", truth: "supported", reference: `adapter:cap${index}` }],
+        constraints: { extensions: { "com.example.payload": "x".repeat(7_920) } },
+      }),
+    );
+    const evidenceProfile = createCapabilityEvidenceProfile(entries, { sourceFingerprint: SCHEMA_FINGERPRINT });
+    const evidenceWire = serializeCapabilityEvidenceProfile(evidenceProfile);
+    const evidenceWireBytes = new TextEncoder().encode(evidenceWire).byteLength;
+    expect(evidenceWireBytes).toBeGreaterThan(2_000_000);
+    expect(evidenceWireBytes).toBeLessThanOrEqual(CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS.bytes);
+    expect(parseCapabilityEvidenceProfile(evidenceWire, { expectedSourceFingerprint: SCHEMA_FINGERPRINT })).toEqual(
+      evidenceProfile,
+    );
+
+    const evaluatedWire = serializeCapabilityProfile(evaluateCapabilityProfile(evidenceProfile));
+    expect(new TextEncoder().encode(evaluatedWire).byteLength).toBeGreaterThan(2 * 1_024 * 1_024);
+    expect(parseCapabilityProfile(evaluatedWire, { expectedSourceFingerprint: SCHEMA_FINGERPRINT })).toEqual(
+      evaluateCapabilityProfile(evidenceProfile),
+    );
+  });
+
+  it("keeps static and evaluated transport limits distinct and rejects just-over-limit inputs", () => {
+    expect(() => parseCapabilityEvidenceProfile(" ".repeat(CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS.bytes + 1))).toThrow(
+      new RegExp(`${CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS.bytes} byte limit`),
+    );
+    const staticNodeOverflow = JSON.stringify(
+      Array.from({ length: CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS.nodes }, () => null),
+    );
+    expect(() => parseCapabilityEvidenceProfile(staticNodeOverflow)).toThrow(
+      new RegExp(`${CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS.nodes} node limit`),
+    );
+
+    expect(() => parseCapabilityProfile(" ".repeat(CAPABILITY_EVALUATED_PROFILE_JSON_LIMITS.bytes + 1))).toThrow(
+      new RegExp(`${CAPABILITY_EVALUATED_PROFILE_JSON_LIMITS.bytes} byte limit`),
+    );
+    const nodeOverflow = JSON.stringify(
+      Array.from({ length: CAPABILITY_EVALUATED_PROFILE_JSON_LIMITS.nodes }, () => null),
+    );
+    expect(() => parseCapabilityProfile(nodeOverflow)).toThrow(
+      new RegExp(`${CAPABILITY_EVALUATED_PROFILE_JSON_LIMITS.nodes} node limit`),
+    );
   });
 });

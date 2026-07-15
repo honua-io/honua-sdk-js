@@ -8,11 +8,13 @@ import {
   isCapabilityIsoInstant,
   snapshotCapabilityJson,
 } from "./source-capability-json.js";
+import { CAPABILITY_EVALUATION_CONTEXT_JSON_LIMITS } from "./source-capability-limits.js";
 import {
   type CapabilityEvidenceRuntimeEntry,
   capabilityEvidenceRuntimeIndex,
   registerCapabilityProfile,
 } from "./source-capability-registry.js";
+import { validateCapabilityPeerIdentifier, validateCapabilityScopeIdentifier } from "./source-capability-security.js";
 import {
   CAPABILITY_PROFILE_FINGERPRINT_DOMAIN,
   CAPABILITY_PROFILE_KIND,
@@ -31,7 +33,6 @@ import {
   type Sha256,
 } from "./source-capability-types.js";
 
-const CONTEXT_JSON_LIMITS = Object.freeze({ depth: 8, nodes: 8_192, bytes: 512 * 1_024 });
 const MAX_SET_VALUES = 1_024;
 const MAX_IDENTIFIER_LENGTH = 256;
 const BUILT_IN_CAPABILITIES = new Set<string>(CAPABILITIES);
@@ -71,7 +72,7 @@ export function evaluateCapabilityProfile(
   const safeContext = snapshotCapabilityJson(
     context,
     "Capability evaluation context",
-    CONTEXT_JSON_LIMITS,
+    CAPABILITY_EVALUATION_CONTEXT_JSON_LIMITS,
   ) as CapabilityEvaluationContext;
   const normalizedContext = normalizeContext(safeContext);
   let validUntil: { readonly instant: bigint; readonly text: IsoInstant } | undefined;
@@ -89,7 +90,7 @@ export function evaluateCapabilityProfile(
     kind: CAPABILITY_PROFILE_KIND,
     version: CAPABILITY_PROFILE_VERSION,
     evidenceFingerprint: profile.fingerprint,
-    ...(profile.sourceFingerprint === undefined ? {} : { sourceFingerprint: profile.sourceFingerprint }),
+    sourceFingerprint: profile.sourceFingerprint,
     evaluatedAt,
     validUntil: validUntilText,
     context: normalizedContext.snapshot,
@@ -102,7 +103,7 @@ export function evaluateCapabilityProfile(
     kind: envelope.kind,
     version: envelope.version,
     evidenceFingerprint: envelope.evidenceFingerprint,
-    ...(profile.sourceFingerprint === undefined ? {} : { sourceFingerprint: profile.sourceFingerprint }),
+    sourceFingerprint: profile.sourceFingerprint,
     evaluatedAt,
     validUntil: validUntilText,
     context: normalizedContext.snapshot,
@@ -246,17 +247,25 @@ function normalizeContext(context: CapabilityEvaluationContext): NormalizedConte
     context.policy?.allow === undefined ? undefined : normalizeCapabilityIds(context.policy.allow, "policy.allow");
   const deny = normalizeCapabilityIds(context.policy?.deny ?? [], "policy.deny");
   if (context.environment !== undefined) validateEnvironment(context.environment, "environment");
-  const availablePeers = normalizeOpaqueIdentifiers(context.availablePeers ?? [], "availablePeers");
-  const grantedScopes = normalizeOpaqueIdentifiers(
+  const availablePeers = normalizeStructuralIdentifiers(
+    context.availablePeers ?? [],
+    "availablePeers",
+    validateCapabilityPeerIdentifier,
+  );
+  const grantedScopes = normalizeStructuralIdentifiers(
     context.authorization?.grantedScopes ?? [],
     "authorization.grantedScopes",
+    validateCapabilityScopeIdentifier,
   );
-  const deniedScopes = normalizeOpaqueIdentifiers(
+  const deniedScopes = normalizeStructuralIdentifiers(
     context.authorization?.deniedScopes ?? [],
     "authorization.deniedScopes",
+    validateCapabilityScopeIdentifier,
   );
   for (const scope of grantedScopes) {
-    if (deniedScopes.has(scope)) throw new TypeError(`Authorization scope ${scope} cannot be both granted and denied`);
+    if (deniedScopes.has(scope)) {
+      throw new TypeError("An authorization scope cannot be both granted and denied");
+    }
   }
   const allowValues = allow === undefined ? undefined : Object.freeze([...allow].sort(compareCapabilityStrings));
   const denyValues = Object.freeze([...deny].sort(compareCapabilityStrings));
@@ -296,10 +305,14 @@ function normalizeCapabilityIds(values: readonly CapabilityId[], path: string): 
   return new Set(values);
 }
 
-function normalizeOpaqueIdentifiers(values: readonly string[], path: string): ReadonlySet<string> {
+function normalizeStructuralIdentifiers(
+  values: readonly string[],
+  path: string,
+  validate: (value: string, path: string) => void,
+): ReadonlySet<string> {
   if (!Array.isArray(values)) throw new TypeError(`${path} must be an array`);
   assertMaximumCount(values.length, MAX_SET_VALUES, path);
-  values.forEach((value, index) => validateBoundedText(value, `${path}[${index}]`));
+  values.forEach((value, index) => validate(value, `${path}[${index}]`));
   rejectDuplicateKeys(values, path);
   return new Set(values);
 }
@@ -322,20 +335,10 @@ function validateEnvironment(value: string, path: string): void {
   }
 }
 
-function validateBoundedText(value: unknown, path: string): asserts value is string {
-  if (typeof value !== "string" || value.length === 0 || value.length > MAX_IDENTIFIER_LENGTH) {
-    throw new TypeError(`${path} must be non-empty bounded text`);
-  }
-  for (let index = 0; index < value.length; index++) {
-    const code = value.charCodeAt(index);
-    if (code <= 0x1f || code === 0x7f) throw new TypeError(`${path} must not contain control characters`);
-  }
-}
-
 function rejectDuplicateKeys(values: readonly string[], path: string): void {
   const seen = new Set<string>();
   for (const value of values) {
-    if (seen.has(value)) throw new TypeError(`${path} contains duplicate value ${value}`);
+    if (seen.has(value)) throw new TypeError(`${path} contains a duplicate value`);
     seen.add(value);
   }
 }
