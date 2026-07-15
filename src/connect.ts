@@ -43,9 +43,9 @@ import {
 import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
 import { createDataset } from "./contract/source.js";
 import type {
+  CapabilityAwareSource,
   Dataset,
   Protocol,
-  Source,
   SourceDescriptor,
   SourceId,
   SourceLocator,
@@ -229,7 +229,7 @@ export interface HonuaConnection {
   readonly id: string;
   readonly dataset: Dataset;
   readonly inspection: HonuaConnectionInspection;
-  source<T = Record<string, unknown>>(id?: SourceId): Source<T>;
+  source<T = Record<string, unknown>>(id?: SourceId): CapabilityAwareSource<T>;
 }
 
 /** Source-backed protocols with a reviewed top-level {@link connect} discovery adapter. */
@@ -422,7 +422,7 @@ export async function connectWithSourceSchemaProjection(
     id,
     dataset,
     inspection,
-    source<T = Record<string, unknown>>(sourceId?: SourceId): Source<T> {
+    source<T = Record<string, unknown>>(sourceId?: SourceId): CapabilityAwareSource<T> {
       const resolvedId = sourceId ?? defaultSourceId;
       if (!resolvedId) {
         throw new HonuaDiscoveryError(

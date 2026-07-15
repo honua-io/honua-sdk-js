@@ -20,3 +20,4 @@ export { createCapabilitySourceEndpointFingerprint } from "./source-capability-e
 export { evaluateCapabilityProfile } from "./source-capability-evaluation.js";
 export { parseCapabilityProfile, serializeCapabilityProfile } from "./source-capability-transport.js";
 export * from "./source-capability-types.js";
+export type { CapabilityAwareSource, SourceWithCapability } from "./contract/types.js";

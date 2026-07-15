@@ -18,6 +18,7 @@
 import type { HonuaClient } from "../core/client.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { HonuaExtent, HonuaFieldInfo, HonuaServerCompatibilityFeature, HonuaTypedFeature } from "../core/types.js";
+import type { CapabilityId, CapabilityProfile } from "../source-capability-types.js";
 import type { SourceSchemaV2Envelope } from "./schema-envelope.js";
 
 // ── Protocol identifiers ──────────────────────────────────────
@@ -416,6 +417,17 @@ export interface SourceDescriptor {
    * and inspect the complete schema value.
    */
   schemaV2?: SourceSchemaV2Envelope;
+  /**
+   * Evaluated, immutable capability truth for this source. When present it is
+   * authoritative over the legacy `capabilities` set; the set is retained as
+   * a derived compatibility view for built-in capability identifiers.
+   *
+   * Profiles must be produced or parsed by
+   * `@honua/sdk-js/source-capabilities` and match this descriptor's `schemaV2`
+   * fingerprint. Protocol discovery attaches them in the focused
+   * capability-aware connection path.
+   */
+  capabilityProfile?: CapabilityProfile;
   analytics?: SourceAnalyticsCapabilities;
   attribution?: string;
 }
@@ -889,6 +901,42 @@ export interface Source<T = Record<string, unknown>> {
   adapter<K extends AdapterKind>(kind: K): AdapterFor<K> | undefined;
 }
 
+declare const supportedSourceCapability: unique symbol;
+
+/**
+ * Nominal proof carried only after a successful literal `source.supports()`
+ * check. The invariant marker prevents a check of a dynamic capability union
+ * from being mistaken for proof of any one member while allowing independent
+ * literal checks to accumulate safely.
+ */
+interface SupportedSourceCapability<C extends CapabilityId> {
+  readonly [supportedSourceCapability]: {
+    readonly accepts: (capability: C) => void;
+    readonly capability: C;
+  };
+}
+
+/**
+ * Runtime `Source` returned by `Dataset.source()` and `connect().source()`.
+ *
+ * A v2 profile, when attached, is the authoritative truth. Legacy sources
+ * without a profile continue to answer built-in checks from their existing
+ * `ReadonlySet` and return `false` for extension identifiers.
+ */
+export interface CapabilityAwareSource<T = Record<string, unknown>> extends Source<T> {
+  readonly capabilityProfile?: CapabilityProfile;
+
+  /**
+   * Test effective support and narrow this source for a literal capability.
+   * Only the exact `"supported"` effective state passes; unknown, disabled,
+   * unavailable, and authorization states all fail closed.
+   */
+  supports<const C extends CapabilityId>(capability: C): this is this & SupportedSourceCapability<C>;
+}
+
+/** A source proven to support `C` by a successful `source.supports(C)` check. */
+export type SourceWithCapability<T, C extends CapabilityId> = CapabilityAwareSource<T> & SupportedSourceCapability<C>;
+
 // ── Dataset ───────────────────────────────────────────────────
 
 /**
@@ -911,7 +959,7 @@ export interface Dataset {
   readonly sourceDescriptors: ReadonlyArray<SourceDescriptor>;
 
   /** Get a `Source` handle by id. Returns `undefined` if not registered. */
-  source<T = Record<string, unknown>>(id: SourceId): Source<T> | undefined;
+  source<T = Record<string, unknown>>(id: SourceId): CapabilityAwareSource<T> | undefined;
   /** Iterate registered source ids, in registration order. */
   sourceIds(): readonly SourceId[];
   /**

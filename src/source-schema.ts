@@ -15,7 +15,7 @@ import type { ConnectOptions, HonuaConnection, HonuaConnectionInspection } from 
 import type { SourceDiscoveryInspection } from "./contract/discovery.js";
 import { parseSourceSchemaV2 } from "./contract/schema.js";
 import type { SourceSchemaV2 } from "./contract/schema.js";
-import type { Dataset, Source, SourceDescriptor, SourceId } from "./contract/types.js";
+import type { CapabilityAwareSource, Dataset, SourceDescriptor, SourceId } from "./contract/types.js";
 
 export {
   geoParquetSourceSchemaV2,
@@ -50,7 +50,7 @@ export type SourceDescriptorWithSchemaV2 = Omit<SourceDescriptor, "schemaV2"> & 
 };
 
 /** Source refinement whose descriptor exposes the complete validated schema. */
-export type SourceWithSchemaV2<T = Record<string, unknown>> = Omit<Source<T>, "descriptor"> & {
+export type SourceWithSchemaV2<T = Record<string, unknown>> = Omit<CapabilityAwareSource<T>, "descriptor"> & {
   readonly descriptor: SourceDescriptorWithSchemaV2;
 };
 
