@@ -16,6 +16,7 @@ const BACKLOG_ERROR_MESSAGES = Object.freeze({
   "duplicate-unavailable-metadata": "Unavailable metadata contains a duplicate issue.",
   "empty-dependency-section": "The dependency section must not be empty.",
   "epic-requires-manual": "Specifica epics must use the validated manual opt-out.",
+  "invalid-specifica-type": "Automatic mode requires exactly one canonical Type: Feature Specifica declaration.",
   "invalid-dependency-bound": "The dependency bound is invalid.",
   "invalid-dependency-mode": "Dependency mode must be exactly automatic or manual.",
   "invalid-issue-labels": "Issue label metadata is invalid.",
@@ -149,15 +150,45 @@ function updateHtmlCommentState(line, initialState) {
   return inComment;
 }
 
+function openingRawHtmlBlock(line) {
+  const prefix = /^ {0,3}<(.*)$/u.exec(line)?.[1];
+  if (!prefix) return null;
+
+  const rawText = /^(pre|script|style|textarea)(?:[\t />]|$)/iu.exec(prefix);
+  if (rawText) {
+    return { kind: "terminator", terminator: new RegExp(`</${rawText[1]}[\\t >]`, "iu") };
+  }
+  if (prefix.startsWith("?")) return { kind: "terminator", terminator: /\?>/u };
+  if (/^![A-Z]/u.test(prefix)) return { kind: "terminator", terminator: />/u };
+  if (prefix.startsWith("![CDATA[")) return { kind: "terminator", terminator: /\]\]>/u };
+
+  // Be conservative for standard and custom HTML tags, including malformed or
+  // attribute-heavy candidates: an uncertain container must never admit work.
+  if (/^\/?[A-Za-z][A-Za-z0-9-]*(?:[\t />]|$)/u.test(prefix)) {
+    return { kind: "blank-line" };
+  }
+  return null;
+}
+
+function advanceRawHtmlBlock(line, block) {
+  if (block.kind === "blank-line") return line.trim() === "" ? null : block;
+  return block.terminator.test(line) ? null : block;
+}
+
 /** Return lines whose first character is visible Markdown, outside bounded lexical containers. */
 function visibleMarkdownLineIndexes(lines) {
   const indexes = [];
   let fence = null;
   let inHtmlComment = false;
+  let rawHtmlBlock = null;
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     if (fence) {
       if (isClosingFence(line, fence)) fence = null;
+      continue;
+    }
+    if (rawHtmlBlock) {
+      rawHtmlBlock = advanceRawHtmlBlock(line, rawHtmlBlock);
       continue;
     }
     if (inHtmlComment) {
@@ -167,6 +198,11 @@ function visibleMarkdownLineIndexes(lines) {
     const nextFence = openingFence(line);
     if (nextFence) {
       fence = nextFence;
+      continue;
+    }
+    const nextRawHtmlBlock = openingRawHtmlBlock(line);
+    if (nextRawHtmlBlock) {
+      rawHtmlBlock = advanceRawHtmlBlock(line, nextRawHtmlBlock);
       continue;
     }
     indexes.push(index);
@@ -208,7 +244,22 @@ function dependencySectionLines(body) {
 
 function issueIsEpic(body) {
   const lines = body.replace(/\r\n?/gu, "\n").split("\n");
-  return visibleMarkdownLineIndexes(lines).some((index) => lines[index] === "Type: Epic");
+  return visibleMarkdownLineIndexes(lines).some((index) => /^[\t ]*Type:[\t ]*Epic[\t ]*$/iu.test(lines[index]));
+}
+
+function issueHasCanonicalFeatureType(body) {
+  const lines = body.replace(/\r\n?/gu, "\n").split("\n");
+  const headings = secondLevelHeadingIndexes(lines);
+  const specificaHeadings = headings.filter((index) => lines[index] === "## Specifica");
+  if (specificaHeadings.length !== 1) return false;
+
+  const start = specificaHeadings[0];
+  const end = headings.find((index) => index > start) ?? lines.length;
+  const visible = new Set(visibleMarkdownLineIndexes(lines));
+  const typeLines = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line, index }) => index > start && index < end && visible.has(index) && /^[\t ]*Type:/iu.test(line));
+  return typeLines.length === 1 && typeLines[0].line === "Type: Feature";
 }
 
 /** Parse the exact, bounded dependency section from an issue body. */
@@ -247,6 +298,9 @@ export function parseBacklogDependencies(
   }
   if (issueIsEpic(body)) {
     fail("epic-requires-manual");
+  }
+  if (!issueHasCanonicalFeatureType(body)) {
+    fail("invalid-specifica-type");
   }
 
   if (lines.length === 2 && lines[1] === "Dependencies: none") {
