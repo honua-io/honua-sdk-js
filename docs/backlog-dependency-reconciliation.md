@@ -40,7 +40,9 @@ Reason: Umbrella epic; executable child issues own readiness.
 ```
 
 The section allows no extra or blank lines. A manual reason is required and is limited to 240 characters. Specifica
-issues with `Type: Epic` are rejected in automatic mode.
+issues with `Type: Epic` are rejected in automatic mode. Dependency headings inside valid Markdown fences or HTML
+comments are ignored, including multiline and unclosed comments. Manual reasons are validated but never emitted in
+human reports, JSON reports, or errors.
 
 ## Dry run
 
@@ -64,8 +66,10 @@ npm run backlog:dependencies:dry-run -- \
 
 The reader loads a bounded open-issue inventory, follows only exact dependencies, and then re-reads every accessible
 issue before planning. Body, labels, state, `updated_at`, or accessibility drift produces a fail-closed `drift`
-disposition. Missing, malformed, inaccessible, duplicate, self-cyclic, and cyclic dependency metadata never proposes
-an admission change.
+disposition. Drift, missing sections, malformed bodies, and manual opt-outs never propose a label change. A valid
+automatic issue that is marked `ready-to-start` is proposed for demotion to `blocked` when an exact dependency is
+inaccessible, resolves to a pull request, or participates in a dependency cycle. Those unsafe dispositions never
+propose promotion to `ready-to-start`.
 
 For deterministic offline inspection, pass a stabilized JSON snapshot:
 
