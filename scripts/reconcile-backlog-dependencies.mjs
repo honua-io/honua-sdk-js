@@ -5,6 +5,7 @@ import process from "node:process";
 
 import {
   BacklogDependencyError,
+  DEFAULT_MAX_BACKLOG_ISSUES,
   DEFAULT_MAX_DEPENDENCIES_PER_ISSUE,
   RECONCILIATION_KINDS,
   normalizeRepository,
@@ -18,6 +19,16 @@ const CLI_ERROR_MESSAGES = Object.freeze({
   "invalid-snapshot": "Metadata snapshot could not be read safely.",
   "snapshot-repository-mismatch": "Metadata snapshot repository does not match the requested repository.",
 });
+const MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024;
+const MAX_PATH_LENGTH = 4_096;
+const VALUE_ARGUMENTS = new Map([
+  ["--repository", "repository"],
+  ["--metadata", "metadata"],
+  ["--max-pages", "maxPages"],
+  ["--max-issues", "maxIssues"],
+  ["--max-dependencies", "maxDependencies"],
+  ["--concurrency", "concurrency"],
+]);
 
 class BacklogDependencyCliError extends Error {
   constructor(code) {
@@ -45,26 +56,24 @@ function positiveInteger(value) {
 
 function parseArguments(argv) {
   const options = { json: false };
+  const seen = new Set();
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--json") {
+      if (seen.has(argument)) throw new BacklogDependencyCliError("invalid-argument");
+      seen.add(argument);
       options.json = true;
       continue;
     }
     if (argument === "--help") {
+      if (seen.has(argument)) throw new BacklogDependencyCliError("invalid-argument");
+      seen.add(argument);
       options.help = true;
       continue;
     }
-    const names = new Map([
-      ["--repository", "repository"],
-      ["--metadata", "metadata"],
-      ["--max-pages", "maxPages"],
-      ["--max-issues", "maxIssues"],
-      ["--max-dependencies", "maxDependencies"],
-      ["--concurrency", "concurrency"],
-    ]);
-    const name = names.get(argument);
-    if (!name) throw new BacklogDependencyCliError("invalid-argument");
+    const name = VALUE_ARGUMENTS.get(argument);
+    if (!name || seen.has(argument)) throw new BacklogDependencyCliError("invalid-argument");
+    seen.add(argument);
     const value = argv[index + 1];
     if (!value || value.startsWith("--")) throw new BacklogDependencyCliError("invalid-argument");
     options[name] = value;
@@ -79,10 +88,57 @@ function parseArguments(argv) {
   return options;
 }
 
+function readBoundedSnapshot(filePath) {
+  if (
+    typeof filePath !== "string" ||
+    filePath.length === 0 ||
+    filePath.length > MAX_PATH_LENGTH ||
+    filePath.includes("\0")
+  ) {
+    throw new BacklogDependencyCliError("invalid-snapshot");
+  }
+  let descriptor;
+  try {
+    descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+    const before = fs.fstatSync(descriptor, { bigint: true });
+    if (!before.isFile() || before.size > BigInt(MAX_SNAPSHOT_BYTES)) {
+      throw new BacklogDependencyCliError("invalid-snapshot");
+    }
+    const size = Number(before.size);
+    const bytes = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) {
+      const read = fs.readSync(descriptor, bytes, offset, size - offset, offset);
+      if (read <= 0) throw new BacklogDependencyCliError("invalid-snapshot");
+      offset += read;
+    }
+    const extra = Buffer.alloc(1);
+    if (fs.readSync(descriptor, extra, 0, 1, size) !== 0) {
+      throw new BacklogDependencyCliError("invalid-snapshot");
+    }
+    const after = fs.fstatSync(descriptor, { bigint: true });
+    for (const key of ["dev", "ino", "size", "mtimeNs", "ctimeNs"]) {
+      if (before[key] !== after[key]) throw new BacklogDependencyCliError("invalid-snapshot");
+    }
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (error) {
+    if (error instanceof BacklogDependencyCliError) throw error;
+    throw new BacklogDependencyCliError("invalid-snapshot");
+  } finally {
+    if (descriptor !== undefined) {
+      try {
+        fs.closeSync(descriptor);
+      } catch {
+        // The fixed snapshot error boundary must not expose filesystem details.
+      }
+    }
+  }
+}
+
 function readSnapshot(filePath, repository) {
   let snapshot;
   try {
-    snapshot = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    snapshot = JSON.parse(readBoundedSnapshot(filePath));
   } catch {
     throw new BacklogDependencyCliError("invalid-snapshot");
   }
@@ -130,6 +186,7 @@ async function main() {
       });
   const plan = planBacklogReconciliation(snapshot, {
     maxDependencies: options.maxDependencies ?? DEFAULT_MAX_DEPENDENCIES_PER_ISSUE,
+    maxIssues: options.maxIssues ?? DEFAULT_MAX_BACKLOG_ISSUES,
   });
   process.stdout.write(options.json ? `${JSON.stringify(plan, null, 2)}\n` : formatHuman(plan));
 }

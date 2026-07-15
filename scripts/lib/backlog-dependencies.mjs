@@ -3,9 +3,14 @@ const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}(?![\s\
 const SAME_REPOSITORY_REFERENCE_PATTERN = /^#([1-9][0-9]*)(?![\s\S])/u;
 const CROSS_REPOSITORY_REFERENCE_PATTERN = /^([A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100})#([1-9][0-9]*)(?![\s\S])/u;
 const MAX_MANUAL_REASON_LENGTH = 240;
-const MAX_ISSUE_BODY_LENGTH = 100_000;
+export const MAX_BACKLOG_ISSUE_BODY_LENGTH = 100_000;
+export const DEFAULT_MAX_BACKLOG_ISSUES = 200;
+export const MAX_SUPPORTED_BACKLOG_ISSUES = 1_000;
 const MAX_SUPPORTED_DEPENDENCIES = 100;
+const MAX_ISSUE_LABELS = 100;
+const MAX_ISSUE_LABEL_LENGTH = 100;
 const UNSAFE_MANUAL_REASON_PATTERN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+const UNSAFE_LABEL_PATTERN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const FIXED_DRIFT_REASON = "Issue metadata changed during the required double-read.";
 
 const BACKLOG_ERROR_MESSAGES = Object.freeze({
@@ -20,11 +25,17 @@ const BACKLOG_ERROR_MESSAGES = Object.freeze({
   "invalid-dependency-bound": "The dependency bound is invalid.",
   "invalid-dependency-mode": "Dependency mode must be exactly automatic or manual.",
   "invalid-issue-labels": "Issue label metadata is invalid.",
-  "invalid-issue-metadata": "Issue metadata must be an array.",
+  "invalid-issue-body": "Issue body metadata is invalid.",
+  "invalid-issue-bound": "The issue metadata bound is invalid.",
+  "invalid-issue-flags": "Issue boolean metadata is invalid.",
+  "invalid-issue-metadata": "Issue metadata is invalid.",
   "invalid-issue-number": "Issue number must be a positive safe integer.",
   "invalid-issue-state": "Issue state metadata is invalid.",
+  "invalid-planner-input": "Planner input metadata is invalid.",
+  "invalid-planner-options": "Planner options are invalid.",
   "invalid-repository": "Repository must be a valid owner/name pair.",
   "invalid-unavailable-metadata": "Unavailable metadata must be an array.",
+  "issue-bound-exceeded": "Issue metadata exceeds the configured bound.",
   "malformed-dependency": "A dependency must be exactly #N or owner/repo#N.",
   "malformed-dependency-list": "Automatic mode requires an exact bounded dependency list.",
   "malformed-dependency-section": "The dependency section contains invalid blank lines.",
@@ -34,6 +45,7 @@ const BACKLOG_ERROR_MESSAGES = Object.freeze({
   "missing-dependency-section": "Issue body does not contain the exact dependency section.",
   "self-cycle": "An issue cannot depend on itself.",
   "too-many-dependencies": "Issue declares too many dependencies.",
+  "unavailable-overlaps-issue": "Unavailable metadata overlaps readable issue metadata.",
 });
 
 export const DEFAULT_MAX_DEPENDENCIES_PER_ISSUE = 20;
@@ -64,7 +76,8 @@ function fail(code) {
 }
 
 export function normalizeRepository(value) {
-  const repository = String(value ?? "");
+  if (typeof value !== "string") fail("invalid-repository");
+  const repository = value;
   if (!REPOSITORY_PATTERN.test(repository)) {
     fail("invalid-repository");
   }
@@ -217,7 +230,7 @@ function secondLevelHeadingIndexes(lines) {
 
 function dependencySectionLines(body) {
   if (typeof body !== "string") fail("missing-body");
-  if (body.length > MAX_ISSUE_BODY_LENGTH) {
+  if (body.length > MAX_BACKLOG_ISSUE_BODY_LENGTH) {
     fail("body-bound-exceeded");
   }
   const lines = body.replace(/\r\n?/gu, "\n").split("\n");
@@ -335,37 +348,91 @@ export function parseBacklogDependencies(
   return { mode: "automatic", dependencies };
 }
 
-function normalizeIssueSnapshot(issue) {
-  const repository = normalizeRepository(issue?.repository);
-  const number = issue?.number;
+function ownDataProperty(value, key, errorCode = "invalid-issue-metadata") {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (descriptor && !("value" in descriptor)) fail(errorCode);
+  return descriptor?.value;
+}
+
+function optionalBoolean(value, fallback) {
+  if (value === undefined) return fallback;
+  if (typeof value !== "boolean") fail("invalid-issue-flags");
+  return value;
+}
+
+function normalizedIssueLabels(value) {
+  if (!Array.isArray(value) || value.length > MAX_ISSUE_LABELS) fail("invalid-issue-labels");
+  const labels = [];
+  const seen = new Set();
+  for (let index = 0; index < value.length; index += 1) {
+    const label = ownDataProperty(value, String(index));
+    if (
+      typeof label !== "string" ||
+      label.length === 0 ||
+      label.length > MAX_ISSUE_LABEL_LENGTH ||
+      UNSAFE_LABEL_PATTERN.test(label) ||
+      seen.has(label)
+    ) {
+      fail("invalid-issue-labels");
+    }
+    seen.add(label);
+    labels.push(label);
+  }
+  return labels.sort(compareText);
+}
+
+function normalizeIssueSnapshotUnsafe(issue) {
+  if (issue === null || typeof issue !== "object" || Array.isArray(issue)) fail("invalid-issue-metadata");
+  const repository = normalizeRepository(ownDataProperty(issue, "repository"));
+  const number = ownDataProperty(issue, "number");
   const key = backlogIssueKey(repository, number);
-  const state = String(issue?.state ?? "").toLowerCase();
+  const state = ownDataProperty(issue, "state");
   if (state !== "open" && state !== "closed") {
     fail("invalid-issue-state");
   }
-  if (!Array.isArray(issue?.labels) || issue.labels.some((label) => typeof label !== "string")) {
-    fail("invalid-issue-labels");
-  }
+  const bodyValue = ownDataProperty(issue, "body");
+  const body = bodyValue === undefined || bodyValue === null ? "" : bodyValue;
+  if (typeof body !== "string") fail("invalid-issue-body");
   return {
     repository,
     number,
     key,
     state,
-    body: typeof issue.body === "string" ? issue.body : "",
-    labels: [...new Set(issue.labels)].sort(),
-    isPullRequest: issue.isPullRequest === true,
-    stable: issue.stable !== false,
+    body,
+    labels: normalizedIssueLabels(ownDataProperty(issue, "labels")),
+    isPullRequest: optionalBoolean(ownDataProperty(issue, "isPullRequest"), false),
+    stable: optionalBoolean(ownDataProperty(issue, "stable"), true),
     driftReason: FIXED_DRIFT_REASON,
-    target: issue.target === true,
+    target: optionalBoolean(ownDataProperty(issue, "target"), false),
   };
 }
 
-function normalizeUnavailable(unavailable) {
+function normalizeIssueSnapshot(issue) {
+  try {
+    return normalizeIssueSnapshotUnsafe(issue);
+  } catch (error) {
+    if (error instanceof BacklogDependencyError) throw error;
+    fail("invalid-issue-metadata");
+  }
+}
+
+function normalizeUnavailable(unavailable, maxIssues) {
   if (unavailable === undefined) return new Map();
   if (!Array.isArray(unavailable)) fail("invalid-unavailable-metadata");
+  if (unavailable.length > maxIssues) fail("issue-bound-exceeded");
   const result = new Map();
-  for (const entry of unavailable) {
-    const key = backlogIssueKey(entry?.repository, entry?.number);
+  for (let index = 0; index < unavailable.length; index += 1) {
+    const entry = ownDataProperty(unavailable, String(index), "invalid-unavailable-metadata");
+    let key;
+    try {
+      if (entry === null || typeof entry !== "object" || Array.isArray(entry)) fail("invalid-unavailable-metadata");
+      key = backlogIssueKey(
+        ownDataProperty(entry, "repository", "invalid-unavailable-metadata"),
+        ownDataProperty(entry, "number", "invalid-unavailable-metadata"),
+      );
+    } catch {
+      fail("invalid-unavailable-metadata");
+    }
     if (result.has(key)) fail("duplicate-unavailable-metadata");
     result.set(key, true);
   }
@@ -554,19 +621,38 @@ function planTarget(issue, issues, parsed, unavailable) {
 }
 
 /** Build a deterministic, side-effect-free label reconciliation plan. */
-export function planBacklogReconciliation(
-  { repository, issues: rawIssues, unavailable: rawUnavailable },
-  { maxDependencies = DEFAULT_MAX_DEPENDENCIES_PER_ISSUE } = {},
-) {
+export function planBacklogReconciliation(input, options = {}) {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) fail("invalid-planner-input");
+  if (options === null || typeof options !== "object" || Array.isArray(options)) fail("invalid-planner-options");
+  const repository = ownDataProperty(input, "repository", "invalid-planner-input");
+  const rawIssues = ownDataProperty(input, "issues", "invalid-planner-input");
+  const rawUnavailable = ownDataProperty(input, "unavailable", "invalid-planner-input");
+  const maxDependenciesValue = ownDataProperty(options, "maxDependencies", "invalid-planner-options");
+  const maxDependencies =
+    maxDependenciesValue === undefined ? DEFAULT_MAX_DEPENDENCIES_PER_ISSUE : maxDependenciesValue;
+  const maxIssuesValue = ownDataProperty(options, "maxIssues", "invalid-planner-options");
+  const maxIssues = maxIssuesValue === undefined ? DEFAULT_MAX_BACKLOG_ISSUES : maxIssuesValue;
   const normalizedRepository = normalizeRepository(repository);
   if (!Array.isArray(rawIssues)) fail("invalid-issue-metadata");
+  if (!Number.isSafeInteger(maxDependencies) || maxDependencies <= 0 || maxDependencies > MAX_SUPPORTED_DEPENDENCIES) {
+    fail("invalid-dependency-bound");
+  }
+  if (!Number.isSafeInteger(maxIssues) || maxIssues <= 0 || maxIssues > MAX_SUPPORTED_BACKLOG_ISSUES) {
+    fail("invalid-issue-bound");
+  }
+  if (rawIssues.length > maxIssues) fail("issue-bound-exceeded");
   const issues = new Map();
-  for (const rawIssue of rawIssues) {
+  for (let index = 0; index < rawIssues.length; index += 1) {
+    const rawIssue = ownDataProperty(rawIssues, String(index));
     const issue = normalizeIssueSnapshot(rawIssue);
     if (issues.has(issue.key)) fail("duplicate-issue-metadata");
     issues.set(issue.key, issue);
   }
-  const unavailable = normalizeUnavailable(rawUnavailable);
+  const unavailable = normalizeUnavailable(rawUnavailable, maxIssues);
+  if (issues.size + unavailable.size > maxIssues) fail("issue-bound-exceeded");
+  for (const key of unavailable.keys()) {
+    if (issues.has(key)) fail("unavailable-overlaps-issue");
+  }
   const parsed = parseAllOpenIssues(issues, maxDependencies);
   const targets = [...issues.values()]
     .filter((issue) => issue.target && issue.repository === normalizedRepository)
