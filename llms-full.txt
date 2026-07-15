@@ -6243,8 +6243,11 @@ try {
 The exported `HONUA_ERROR_CODE_REGISTRY` is the canonical, typed inventory. Its
 object keys are globally unique at compile time, the common base accepts only
 registered codes, and domain constructors either reject unknown runtime reasons
-or project them to a fixed registered fallback. `npm run check:error-codes`
-verifies registry shape plus this class/family documentation.
+or project them to a fixed registered fallback. Focused entrypoints retain only
+the code/domain/category/retryability classifications needed by the error base;
+human-readable registry summaries remain in the explicit public registry.
+`npm run check:error-codes` verifies exact classification parity, registry shape,
+and this class/family documentation.
 
 | Public class | Registered `sdkCode` family |
 |--------------|-----------------------------|
