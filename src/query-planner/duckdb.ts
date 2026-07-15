@@ -20,8 +20,16 @@ import {
   compileQuery,
 } from "../core/geoparquet-sql.js";
 import { queryFromCanonical } from "./ir.js";
-import type { CanonicalQuery, DuckDbCompiledQueryV1, QueryIrSourceIdentity } from "./types.js";
+import type {
+  CanonicalQuery,
+  DuckDbCompiledQueryV1,
+  DuckDbCompiledQueryV2,
+  QueryIrSourceIdentity,
+  QueryIrSourceIdentityV2,
+} from "./types.js";
 import { HonuaQueryPlanningError } from "./types.js";
+
+const RESOURCE_SQL_PLACEHOLDER = "honua-resource://resolve-at-execution";
 
 /**
  * Compile canonical query IR to a deterministic DuckDB `SELECT`. Reuses the
@@ -85,6 +93,54 @@ export function compileDuckDbQuery(source: QueryIrSourceIdentity, query: Canonic
     throw new HonuaQueryPlanningError(
       "unsupported-query",
       `DuckDB query cannot be compiled deterministically: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+/** Compile a credential-free template; execution recompiles with ephemeral resolved sources. */
+export function compileDuckDbQueryV2(source: QueryIrSourceIdentityV2, query: CanonicalQuery): DuckDbCompiledQueryV2 {
+  const geoparquet = source.geoparquet;
+  if (query.outSr !== undefined) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "DuckDB/GeoParquet has no portable output-CRS query option; omit outSr and reproject downstream",
+    );
+  }
+  if (query.spatialFilter && !geoparquet.geometryColumn) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      `Source "${source.id}" has a spatialFilter but no geometry column; set locator.geoparquet.geometryColumn or a geometry schema field`,
+    );
+  }
+
+  const geometry: GeometryColumnPlan | undefined = geoparquet.geometryColumn
+    ? {
+        column: geoparquet.geometryColumn,
+        encoding: geoparquet.geometryEncoding ?? "wkb",
+        ...(geoparquet.bboxColumn ? { bboxColumn: geoparquet.bboxColumn } : {}),
+      }
+    : undefined;
+  const options: CompileOptions = {
+    sources: [RESOURCE_SQL_PLACEHOLDER],
+    geometryAlias: "geometry",
+    ...(geometry ? { geometry } : {}),
+  };
+  const request = queryFromCanonical(query);
+  try {
+    const compiled = query.aggregation
+      ? compileAggregate({ ...request, aggregation: query.aggregation as AggregationSpec }, options)
+      : compileQuery(request, options);
+    return {
+      compiler: "duckdb-sql-v2",
+      sqlTemplate: compiled.sql,
+      resource: geoparquet.resource,
+      ...(geometry ? { geometryColumn: geometry.column, geometryEncoding: geometry.encoding } : {}),
+      ...(compiled.bboxApproximated ? { bboxApproximated: true } : {}),
+    };
+  } catch {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "DuckDB query cannot be compiled safely for an opaque GeoParquet resource",
     );
   }
 }

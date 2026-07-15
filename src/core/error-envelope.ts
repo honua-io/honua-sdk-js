@@ -187,6 +187,12 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Query resource resolution failed",
   ),
+  "query.execution.resource-execution-failed": classification(
+    "query",
+    "internal",
+    false,
+    "Resolved query resource execution failed",
+  ),
   "map.source-adapter.disposed": classification("map", "validation", false, "Map source adapter is disposed"),
   "map.source-adapter.source-conflict": classification(
     "map",

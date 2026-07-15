@@ -7,6 +7,7 @@ import {
   evaluateReport,
   summarizeSamples,
 } from "../bench/lab.js";
+import { runQueryResourceHandleBenchmark } from "../bench/query-resource-bench.js";
 
 const stableMetric = (median = 100): MetricSummary => ({
   min: median,
@@ -135,6 +136,31 @@ describe("benchmark lab statistics", () => {
       level: "warning",
       regressionPercent: 16,
     });
+  });
+});
+
+describe("opaque query resource benchmark", () => {
+  it("keeps repeated plan, cache, and resolver work deterministic and credential-free", async () => {
+    const report = await runQueryResourceHandleBenchmark({
+      operationCount: 8,
+      warmupRuns: 1,
+      measurementRuns: 3,
+    });
+
+    expect(report.samples).toHaveLength(3);
+    expect(report.samples.every((sample) => sample.totalDurationMs >= 0 && sample.operationsPerSecond > 0)).toBe(true);
+    expect(report.invariants).toEqual({
+      passed: true,
+      checks: {
+        exactOperationCount: true,
+        planSurfacesRedacted: true,
+        cacheStableAcrossRotation: true,
+        scopePartitioned: true,
+        resolverRoundTrip: true,
+      },
+    });
+    expect(JSON.stringify(report)).not.toContain("first-private-value");
+    expect(JSON.stringify(report)).not.toContain("rotated-private-value");
   });
 });
 

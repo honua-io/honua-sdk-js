@@ -34,8 +34,12 @@ one without it. A skipped comparison is reported as `not-compared`; it is never
 presented as a pass. Review the complete baseline diff before committing or
 publishing a replacement.
 
-The current corpus measures SDK stream/decode overhead plus deterministic
-offline-region reload and resumable realtime reconnect semantics. The offline
+The current corpus measures SDK stream/decode overhead, opaque GeoParquet
+planning/resolution, deterministic offline-region reload, and resumable realtime
+reconnect semantics. The opaque-resource scenario repeatedly plans, serializes,
+keys, rotates, and resolves an execution-time locator entirely in process. It
+checks that rotation preserves cache identity, authorization partitions do not,
+and no private locator marker reaches the report. The offline
 scenario downloads verified fixture resources through the supported storage
 boundary, serializes the credential-free manifest, reloads it repeatedly, and
 checks integrity and a fixed freshness window. The realtime scenario restores a

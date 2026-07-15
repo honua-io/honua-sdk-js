@@ -11,13 +11,25 @@ function captureStdout(): { text: () => string; restore: () => void } {
   return { text: () => lines.join(""), restore: () => spy.mockRestore() };
 }
 
+function captureStderr(): { text: () => string; restore: () => void } {
+  const lines: string[] = [];
+  const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+    lines.push(String(chunk));
+    return true;
+  });
+  return { text: () => lines.join(""), restore: () => spy.mockRestore() };
+}
+
 describe("honua explain (plan consumer)", () => {
   let cap: ReturnType<typeof captureStdout>;
+  let errCap: ReturnType<typeof captureStderr>;
   beforeEach(() => {
     cap = captureStdout();
+    errCap = captureStderr();
   });
   afterEach(() => {
     cap.restore();
+    errCap.restore();
   });
 
   it("explains a GeoServices query into a full-pushdown plan without contacting a server", async () => {
@@ -33,12 +45,18 @@ describe("honua explain (plan consumer)", () => {
     expect(plan.fingerprint).toMatch(/^sha256:/);
   });
 
-  it("explains a DuckDB/GeoParquet plan and prints the compiled SQL", async () => {
+  it("explains an opaque DuckDB/GeoParquet plan without printing a locator", async () => {
     const code = await run([
       "explain",
-      "https://data.example.test/parcels.parquet",
+      "parcels:current",
       "--protocol",
       "geoparquet",
+      "--resolver",
+      "io.honua.cli-test",
+      "--authorization-context",
+      "tenant:alpha/role:analyst",
+      "--resource-version",
+      "snapshot:42",
       "--capabilities",
       "query",
       "--where",
@@ -47,8 +65,23 @@ describe("honua explain (plan consumer)", () => {
     ]);
     expect(code).toBe(0);
     const plan = JSON.parse(cap.text());
-    expect(plan.steps[0].compiled.compiler).toBe("duckdb-sql-v1");
-    expect(plan.steps[0].compiled.sql).toContain("read_parquet('https://data.example.test/parcels.parquet'");
+    expect(plan.version).toBe("2.0");
+    expect(plan.ir.source).toMatchObject({ id: "parcels:current", endpoint: "[opaque-resource]" });
+    expect(plan.steps[0].compiled.compiler).toBe("duckdb-sql-v2");
+    expect(plan.steps[0].compiled.sqlTemplate).toContain("honua-resource://resolve-at-execution");
+  });
+
+  it("rejects credential-shaped GeoParquet positional ids without echoing them", async () => {
+    const marker = "cli-signature-secret";
+    const code = await run([
+      "explain",
+      `https://data.example.test/parcels.parquet?X-Amz-Signature=${marker}`,
+      "--protocol",
+      "geoparquet",
+      "--json",
+    ]);
+    expect(code).toBe(2);
+    expect(`${cap.text()}${errCap.text()}`).not.toContain(marker);
   });
 
   it("renders a human summary with stages and fingerprint by default", async () => {

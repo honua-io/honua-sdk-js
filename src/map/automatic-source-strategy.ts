@@ -10,7 +10,7 @@ import type { Source } from "../contract/types.js";
 import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryIrSourceIdentity } from "../query-planner/ir.js";
-import { hashQueryPlan } from "../query-planner/planner.js";
+import { hashQueryPlanV1 } from "../query-planner/planner.js";
 import type { ExecuteQueryPlanOptions, QueryExecutionPlanV1 } from "../query-planner/types.js";
 import {
   type MapLibreRasterStrategy,
@@ -605,7 +605,7 @@ function isRasterStrategy(strategy: AutomaticMapLibreStrategy): strategy is MapL
 
 function queryPlanMatchesSource<T>(source: Source<T>, plan: QueryExecutionPlanV1): boolean {
   try {
-    if (hashQueryPlan(plan) !== plan.fingerprint) return false;
+    if (hashQueryPlanV1(plan) !== plan.fingerprint) return false;
     const identity = queryIrSourceIdentity(source.descriptor, {
       schemaVersion: plan.ir.source.schemaVersion,
       sourceVersion: plan.ir.source.sourceVersion,

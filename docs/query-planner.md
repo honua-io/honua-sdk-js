@@ -116,23 +116,27 @@ ignored protocol behavior. A descriptor WFS `srsName` remains transaction
 metadata and is not invented as a GetFeature response CRS.
 
 `Query.signal` never enters the IR or fingerprint. Supply cancellation only to
-`executeQueryPlan`. Source URLs in plan identity are stripped of credentials,
-query strings, and fragments; pass stable authorization scope identifiers, not
-tokens.
+`executeQueryPlan`. Network-protocol source URLs in plan identity are stripped
+of credentials, query strings, and fragments. GeoParquet v1 planning rejects a
+credential-bearing locator entirely; use the opaque v2 path below. Pass stable
+authorization scope identifiers, not tokens.
 
 ## Opaque GeoParquet resource identity
 
-The experimental subpath also exposes the first execution-time resource
-identity slice. `GeoParquetResourceHandleV1` is a versioned JSON value containing
-only a resolver namespace, logical resource id, stable non-secret authorization
-partition, and optional data revision. Raw paths, globs, signed URLs, and expiry
-remain private to a lifecycle-scoped resolver registry:
+`GeoParquetResourceHandleV1` is a versioned JSON value containing only a
+resolver namespace, logical resource id, stable non-secret authorization
+partition, and optional data revision. `explainQuery()` emits a `2.0` IR/plan
+and `duckdb-sql-v2` template when `geoparquetResource` is present. Raw paths,
+globs, signed URLs, and expiry remain private to a lifecycle-scoped resolver
+registry and are injected only while the accepted plan executes:
 
 ```ts doc-test=skip reason="partial excerpt requires application private locator and execution host"
 import {
   createGeoParquetResourceRegistry,
-  hashGeoParquetResourceHandle,
-  resolveGeoParquetResource,
+  executeQueryPlan,
+  explainQuery,
+  queryPlanCacheKey,
+  serializeQueryPlan,
 } from "@honua/sdk-js/query-planner";
 
 const resources = createGeoParquetResourceRegistry({ resolver: "io.honua.app-assets" });
@@ -144,15 +148,27 @@ const handle = resources.register({
   expiresAt: privateSignedGeoParquetExpiryMs,
 });
 
-// Safe to fingerprint or persist: the private locator and deadline are absent.
-const resourceFingerprint = hashGeoParquetResourceHandle(handle);
+const plan = explainQuery({
+  descriptor: source.descriptor,
+  geoparquetResource: handle,
+  authorizationScope: ["data:read"],
+  sourceVersion: "source:9",
+  query: { where: "population > 10", pagination: { limit: 100 } },
+});
 
-// Resolve only at the trusted execution boundary and consume immediately.
-const resolved = await resolveGeoParquetResource(handle, resources.resolver, {
+// Both projections contain only the stable handle and placeholder SQL.
+const persistedPlan = serializeQueryPlan(plan);
+const cacheKey = queryPlanCacheKey(plan);
+
+// The resolver's private source crosses directly into the GeoParquet adapter.
+// Repeat the planning context so execution can reject drift.
+const execution = await executeQueryPlan(plan, source, {
   authorizationContextId: "tenant:alpha/role:analyst",
+  geoParquetResourceResolver: resources.resolver,
+  authorizationScope: ["data:read"],
+  sourceVersion: "source:9",
   signal,
 });
-await executeDuckDbWithPrivateSources(resolved.sources);
 
 // Clears all private locator material when the owning client/session ends.
 resources.dispose();
@@ -166,6 +182,9 @@ in-flight cancellation, and copies resolver output through fixed source-count
 and UTF-8 size ceilings. Unknown, revoked, closed, or cross-context resources
 fail closed. Foreign resolver failures are rebuilt as fixed-message SDK errors;
 their messages, causes, contexts, and raw locators are never retained.
+GeoParquet adapter failures are likewise rebuilt as
+`query.execution.resource-execution-failed`. Cancellation remains an
+`HonuaAbortError` before, during, and after resolution.
 
 `resource.id`, `resourceVersion`, and `authorizationContextId` are
 identity-bearing. Derive them only from stable, non-secret facts such as dataset
@@ -176,20 +195,35 @@ boundary. The registry is ephemeral in-memory isolation, not encrypted storage.
 Resolved `sources` cross the redaction boundary and must never be logged,
 persisted, fingerprinted, placed in telemetry, or sent over a network API.
 
-This slice intentionally does not rewrite v1 plans. Existing `1.0` GeoParquet
-IR and `duckdb-sql-v1` artifacts continue to parse as ordinary JSON and execute
-for credential-free locators. Until the follow-on compiler/executor cutover,
-callers must not pass signed or credential-bearing GeoParquet locators to
-`explainQuery`; opaque handles are created and resolved explicitly as shown
-above.
+`serializeQueryPlan()`, `parseQueryPlan()`, `hashQueryPlan()`, and
+`queryPlanCacheKey()` validate the persistence boundary before returning. A v2
+cache identity binds the resolver/id, authorization partition, data revision,
+scope, schema/source versions, query, and planner policy. Credential rotation
+does not change it, and no secret value is hashed. Serialization is synchronous
+and performs no resolver, filesystem, network, or DuckDB I/O. Validation does
+not treat the public SHA-256 fingerprint as authentication: it reconstructs the
+complete canonical v2 plan through the pure planner and compares every field,
+including the derived id, IR, steps, compiled template, warnings, and exact
+nested keys. A re-signed non-canonical projection is rejected with the same
+fixed redacted `invalid-plan` error.
+
+Existing `1.0` GeoParquet IR and `duckdb-sql-v1` artifacts remain supported only
+when every locator is credential-free. Query strings, fragments, user-info, and
+credential-bearing legacy addresses are rejected before planning, hashing,
+parsing, or migration. Upgrade an accepted v1 plan explicitly with
+`migrateGeoParquetQueryPlanV1(legacyPlan, handle)`; migration reconstructs a v2
+plan and does not copy the old locator. There is no implicit v1 rewrite.
 
 ## DuckDB SQL and gRPC compilers
 
-`geoparquet` sources compile to deterministic DuckDB SQL over `read_parquet(...)`
-via `compileDuckDbQuery`. The compiler reuses the same dependency-free,
-injection-safe SQL builder as the live GeoParquet `Source`, so the plan's
-`duckdb-sql-v1` `sql` text is byte-identical to what the adapter executes for the
-same descriptor and query. Envelope spatial filters push down as
+Opaque `geoparquet` sources compile through `compileDuckDbQueryV2` to a
+deterministic `duckdb-sql-v2` template over the fixed
+`honua-resource://resolve-at-execution` placeholder. The trusted GeoParquet
+adapter recompiles the same canonical query against the ephemeral resolved
+sources and consumes them without placing them in its metadata/profile cache.
+Credential-free legacy sources continue to use `compileDuckDbQuery` and
+`duckdb-sql-v1`. Both compilers reuse the same dependency-free, injection-safe
+SQL builder. Envelope spatial filters push down as
 `ST_Intersects(..., ST_MakeEnvelope(...))` (or a GeoParquet 1.1 `bbox`-covering
 column when declared); non-envelope geometries are reduced to their bounding box
 and reported with `bboxApproximated: true`. Geometry is projected as GeoJSON via
@@ -226,6 +260,16 @@ with no server call, since planning is side-effect free. `executeQueryPlan`
 consumes the accepted plan for execution after verifying its fingerprint and
 source context.
 
+For GeoParquet, the positional CLI value is an opaque resource id, never a
+locator:
+
+```sh
+honua explain parcels:current --protocol geoparquet \
+  --resolver io.honua.app-assets \
+  --authorization-context tenant:alpha/role:analyst \
+  --resource-version snapshot:42 --json
+```
+
 ## Bounded degraded execution
 
 Fallback is disabled by default. When a source can query features but cannot
@@ -256,15 +300,19 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
 
 ## Determinism and plan validity
 
-- `QUERY_IR_VERSION` and `QUERY_PLAN_VERSION` are both `1.0` for this slice.
+- `QUERY_IR_VERSION` / `QUERY_PLAN_VERSION` remain `1.0` for compatible plans;
+  `QUERY_IR_V2_VERSION` / `QUERY_PLAN_V2_VERSION` are `2.0` for opaque
+  GeoParquet resources.
 - Objects serialize with sorted keys; array order remains semantically
   significant. SHA-256 fingerprints are identical in browsers, workers, and
   Node for the same descriptor, query, policy, versions, scope, and estimates.
 - Capabilities, authorization scopes, source/schema versions, CRS/query
   fields, and fallback budgets participate in the fingerprint.
-- `executeQueryPlan` verifies the fingerprint and the current source context.
-  A changed plan, locator, version, capability set, or scope is rejected; the
-  executor does not re-plan.
+- `executeQueryPlan` verifies the complete canonical v2 projection, its
+  fingerprint, and the current source context. A changed plan, stable source
+  identity, version, capability set, or scope is rejected; the executor does
+  not re-plan. Opaque GeoParquet credential rotation is intentionally outside
+  that identity.
 - Feature/query/result caching remains bypassed. Opt-in materialization is a
   separate workflow.
 
@@ -276,8 +324,6 @@ OGC filter negotiation, spatial-binning aggregation (grid/hex) in the IR,
 joins/composition, cache/freshness decisions, cost models, realtime
 snapshot/delta plans, receipts, and richer renderer/MCP consumption. Histogram
 and time-series aggregation are rejected by this compiler rather than silently
-ignored. The GeoServices, OGC API Features, WFS, OData, DuckDB SQL, gRPC, and
-bounded columnar/worker paths, spatial-aggregation pushdown, and a CLI plan
-consumer (`honua explain`) are now delivered. Opaque GeoParquet handle creation
-and lifecycle resolution are delivered separately; routing those handles through
-planner, compiler, CLI, and executor boundaries remains follow-on work.
+ignored. The GeoServices, OGC API Features, WFS, OData, credential-free and
+opaque DuckDB SQL, gRPC, bounded columnar/worker paths, spatial-aggregation
+pushdown, and CLI plan consumer are now delivered.

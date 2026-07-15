@@ -9,6 +9,11 @@ import process from "node:process";
 import { validateCrossSdkReferenceFiles } from "./cross-sdk/validate.js";
 
 import {
+  type QueryResourceHandleBenchmarkOptions,
+  type QueryResourceHandleBenchmarkResult,
+  runQueryResourceHandleBenchmark,
+} from "./query-resource-bench.js";
+import {
   type OfflineReloadBenchmarkOptions,
   type RealtimeReconnectBenchmarkOptions,
   type ResilienceBenchmarkResult,
@@ -41,7 +46,16 @@ interface RealtimeReconnectCorpusScenario extends Omit<RealtimeReconnectBenchmar
   kind: "realtime-reconnect";
 }
 
-type CorpusScenario = StreamCorpusScenario | OfflineReloadCorpusScenario | RealtimeReconnectCorpusScenario;
+interface QueryResourceHandleCorpusScenario extends QueryResourceHandleBenchmarkOptions {
+  id: string;
+  kind: "query-resource-handle";
+}
+
+type CorpusScenario =
+  | StreamCorpusScenario
+  | OfflineReloadCorpusScenario
+  | RealtimeReconnectCorpusScenario
+  | QueryResourceHandleCorpusScenario;
 
 interface Corpus {
   schemaVersion: 2;
@@ -263,6 +277,9 @@ function validateCorpus(value: unknown): Corpus {
       ) {
         throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
       }
+    } else if (scenario.kind === "query-resource-handle") {
+      allowedKeys = new Set([...commonKeys, "operationCount"]);
+      if (!positive(scenario.operationCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
     } else {
       throw new Error(`Invalid benchmark scenario kind: ${String((scenario as { kind?: unknown }).kind)}`);
     }
@@ -382,10 +399,34 @@ function resilienceResult(
   };
 }
 
+function queryResourceResult(
+  scenario: QueryResourceHandleCorpusScenario,
+  result: QueryResourceHandleBenchmarkResult,
+): ScenarioResult {
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters: {
+      operationCount: scenario.operationCount,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    },
+    samples: result.samples,
+    summary: {
+      totalDurationMs: summarizeSamples(result.samples.map((sample) => sample.totalDurationMs)),
+      operationsPerSecond: summarizeSamples(result.samples.map((sample) => sample.operationsPerSecond)),
+    },
+    invariants: result.invariants,
+  };
+}
+
 async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   if (scenario.kind === "stream-pagination") return runStreamScenario(scenario);
   if (scenario.kind === "offline-reload") return resilienceResult(scenario, await runOfflineReloadBenchmark(scenario));
-  return resilienceResult(scenario, await runRealtimeReconnectBenchmark(scenario));
+  if (scenario.kind === "realtime-reconnect") {
+    return resilienceResult(scenario, await runRealtimeReconnectBenchmark(scenario));
+  }
+  return queryResourceResult(scenario, await runQueryResourceHandleBenchmark(scenario));
 }
 
 const CREDENTIAL_VALUE =

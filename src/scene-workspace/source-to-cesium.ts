@@ -13,7 +13,7 @@ import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import type { HonuaTypedFeature } from "../core/types.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryFromCanonical, queryIrSourceIdentity } from "../query-planner/ir.js";
-import { hashQueryPlan } from "../query-planner/planner.js";
+import { hashQueryPlanV1 } from "../query-planner/planner.js";
 import {
   type ExecuteQueryPlanOptions,
   HonuaQueryPlanExecutionError,
@@ -870,7 +870,7 @@ function executeAcceptedPlan<T>(
 }
 
 function assertProjectionPlanContext<T>(source: Source<T>, plan: QueryExecutionPlanV1): void {
-  if (hashQueryPlan(plan) !== plan.fingerprint) {
+  if (hashQueryPlanV1(plan) !== plan.fingerprint) {
     throw new HonuaQueryPlanExecutionError("invalid-plan", "Plan content does not match its fingerprint.");
   }
   const identity = queryIrSourceIdentity(source.descriptor, {
