@@ -1,6 +1,15 @@
-import type { ConnectDiscoveryCache, ConnectDiscoveryCacheContext, ConnectDiscoverySnapshot } from "../connect.js";
+import {
+  type ConnectDiscoveryCache,
+  type ConnectDiscoveryCacheContext,
+  type ConnectDiscoverySnapshot,
+  type ConnectOptions,
+  type ConnectProtocolHint,
+  type HonuaConnection,
+  connect as discoverConnection,
+  validateConnectEndpoint,
+} from "../connect.js";
 import type { DiscoveryCacheIdentity, DiscoveryCapabilityPolicy } from "../contract/discovery.js";
-import { HonuaAbortError } from "../core/errors.js";
+import { HonuaAbortError, HonuaDiscoveryError } from "../core/errors.js";
 
 const DEFAULT_DISCOVERY_CACHE_MAX_ENTRIES = 256;
 
@@ -26,10 +35,27 @@ export interface KernelPolicySnapshot {
   readonly capabilities: Readonly<DiscoveryCapabilityPolicy>;
 }
 
+/** @internal Kernel-owned projection over the standalone discovery options. */
+export type KernelConnectOptions = Omit<
+  ConnectOptions,
+  "endpoint" | "protocol" | "authorizationScopeFingerprint" | "capabilityPolicy" | "cache" | "signal"
+> & {
+  /** Forwarded unchanged; omission delegates structural recognition as `auto`. */
+  readonly protocol?: ConnectProtocolHint;
+  /** Stable ACL/audience partition. Omit only for structurally anonymous discovery. */
+  readonly authorizationScopeFingerprint?: string;
+  readonly signal?: AbortSignal;
+};
+
+/** @internal Existing discovery seam used by the kernel without reimplementing protocol recognition. */
+export type KernelConnectDelegate = (options: ConnectOptions) => Promise<HonuaConnection>;
+
 /** @internal Construction options for the lifecycle substrate used by `createHonua()`. */
 export interface KernelLifecycleOptions {
   readonly capabilityPolicy?: DiscoveryCapabilityPolicy;
   readonly discoveryCacheMaxEntries?: number;
+  /** Test/adapter seam; the production default is the standalone `connect()` path. */
+  readonly connectDelegate?: KernelConnectDelegate;
 }
 
 /**
@@ -45,12 +71,14 @@ export interface KernelLifecycleOptions {
 export class KernelLifecycle implements AsyncDisposable {
   readonly #abortController = new AbortController();
   readonly #resources = new KernelResourceRegistry();
+  readonly #connectDelegate: KernelConnectDelegate;
   readonly policy: KernelPolicySnapshot;
   readonly discoveryCache: ConnectDiscoveryCache;
   #state: "active" | "disposing" | "disposed" = "active";
   #disposePromise: Promise<void> | undefined;
 
   public constructor(options: KernelLifecycleOptions = {}) {
+    this.#connectDelegate = options.connectDelegate ?? discoverConnection;
     this.policy = Object.freeze({
       capabilities: normalizeCapabilityPolicy(options.capabilityPolicy),
     });
@@ -69,6 +97,28 @@ export class KernelLifecycle implements AsyncDisposable {
 
   public get state(): "active" | "disposing" | "disposed" {
     return this.#state;
+  }
+
+  /**
+   * Delegate discovery through the standalone connect path while binding the
+   * kernel's cache, policy, and cancellation root. Protocol classification is
+   * deliberately left to that path so new reviewed adapters flow through
+   * without a second detector or lifecycle change.
+   */
+  public async connect(locator: string | URL, options: KernelConnectOptions = {}): Promise<HonuaConnection> {
+    this.#assertActive("connect");
+    validateConnectEndpoint(locator);
+    const authorizationScopeFingerprint = resolveKernelAuthorizationScope(options);
+    const signal = combineAbortSignals(this.signal, options.signal);
+    return this.#connectDelegate({
+      ...options,
+      endpoint: locator,
+      protocol: options.protocol ?? "auto",
+      authorizationScopeFingerprint,
+      capabilityPolicy: this.policy.capabilities,
+      cache: this.discoveryCache,
+      signal,
+    });
   }
 
   /** Register a resource as owned by this kernel and return it unchanged. */
@@ -282,4 +332,46 @@ function normalizeCacheBound(value: number | undefined): number {
     throw new RangeError("discoveryCacheMaxEntries must be a positive safe integer.");
   }
   return value;
+}
+
+function resolveKernelAuthorizationScope(options: KernelConnectOptions): string {
+  const explicit = options.authorizationScopeFingerprint;
+  let scope: string | undefined;
+  if (explicit !== undefined) {
+    if (typeof explicit !== "string" || explicit.trim().length === 0) {
+      throw new HonuaDiscoveryError(
+        "invalid-cache-identity",
+        "authorizationScopeFingerprint must be a non-empty opaque fingerprint.",
+        { name: "authorizationScopeFingerprint" },
+      );
+    }
+    scope = explicit.trim();
+  }
+  if (hasScopeSensitiveDiscoveryConfiguration(options)) {
+    if (scope === undefined || scope === "anonymous") {
+      throw new HonuaDiscoveryError(
+        "invalid-cache-identity",
+        "kernel.connect() requires a non-anonymous authorizationScopeFingerprint when credentials or caller-controlled discovery transport hooks are configured.",
+        { name: "authorizationScopeFingerprint", required: true },
+      );
+    }
+    return scope;
+  }
+  return scope ?? "anonymous";
+}
+
+function hasScopeSensitiveDiscoveryConfiguration(options: KernelConnectOptions): boolean {
+  const clientOptions = options.clientOptions;
+  return (
+    options.client !== undefined ||
+    clientOptions?.apiKey !== undefined ||
+    clientOptions?.bearerToken !== undefined ||
+    clientOptions?.auth !== undefined ||
+    clientOptions?.fetchFn !== undefined ||
+    (clientOptions?.interceptors !== undefined && clientOptions.interceptors.length > 0)
+  );
+}
+
+function combineAbortSignals(owner: AbortSignal, caller: AbortSignal | undefined): AbortSignal {
+  return caller && caller !== owner ? AbortSignal.any([owner, caller]) : owner;
 }
