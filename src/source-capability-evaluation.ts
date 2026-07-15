@@ -91,6 +91,7 @@ export function evaluateCapabilityProfile(
     version: CAPABILITY_PROFILE_VERSION,
     evidenceFingerprint: profile.fingerprint,
     sourceFingerprint: profile.sourceFingerprint,
+    sourceEndpointFingerprint: profile.sourceEndpointFingerprint,
     evaluatedAt,
     validUntil: validUntilText,
     context: normalizedContext.snapshot,
@@ -98,14 +99,14 @@ export function evaluateCapabilityProfile(
   };
   // Static detail is already content-addressed by evidenceFingerprint. Keeping
   // only dynamic decisions in this projection prevents repeat evaluation from
-  // walking complete PROJJSON definitions.
+  // walking complete PROJJSON definitions. Clock-only evaluatedAt/validUntil
+  // values remain in transport but do not churn semantic descriptor identity.
   const fingerprintProjection = {
     kind: envelope.kind,
     version: envelope.version,
     evidenceFingerprint: envelope.evidenceFingerprint,
     sourceFingerprint: profile.sourceFingerprint,
-    evaluatedAt,
-    validUntil: validUntilText,
+    sourceEndpointFingerprint: profile.sourceEndpointFingerprint,
     context: normalizedContext.snapshot,
     entries: decisions.map(({ id, effective, reasons }) => ({ id, effective, reasons })),
   };

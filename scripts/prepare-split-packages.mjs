@@ -144,6 +144,7 @@ function createSdkPackage() {
     "source-capability-limits",
     "source-capability-registry",
     "source-capability-security",
+    "source-capability-endpoint",
     "source-capability-evidence",
     "source-capability-evaluation",
     "source-capability-transport",

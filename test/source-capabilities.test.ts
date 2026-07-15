@@ -9,9 +9,13 @@ import {
   CAPABILITY_PROFILE_FINGERPRINT_DOMAIN,
   CAPABILITY_PROFILE_KIND,
   CAPABILITY_PROFILE_VERSION,
+  CAPABILITY_SOURCE_ENDPOINT_FINGERPRINT_DOMAIN,
   type CapabilityEvaluationContext,
   type CapabilityEvaluationEntry,
-  createCapabilityEvidenceProfile,
+  type CapabilityEvidenceProfileOptions,
+  type CapabilitySourceEndpointIdentity,
+  createCapabilityEvidenceProfile as createCapabilityEvidenceProfileRaw,
+  createCapabilitySourceEndpointFingerprint,
   evaluateCapabilityProfile,
   parseCapabilityEvidenceProfile,
   parseCapabilityProfile,
@@ -25,8 +29,22 @@ import {
 } from "../src/source-capability-limits.js";
 
 const SCHEMA_FINGERPRINT = `sha256:${"a".repeat(64)}` as const;
+const SOURCE_ENDPOINT = {
+  endpoint: "https://example.test/ogc/features/collections/parcels",
+  protocol: "ogc-features",
+  sourceId: "parcels",
+} as const satisfies CapabilitySourceEndpointIdentity;
 const EVALUATED_AT = "2026-07-14T12:00:00Z";
 const EXPIRES_AT = "2026-07-20T12:00:00Z";
+
+function createCapabilityEvidenceProfile(
+  entries: readonly CapabilityEvaluationEntry[],
+  options: Omit<CapabilityEvidenceProfileOptions, "sourceEndpoint"> & {
+    readonly sourceEndpoint?: CapabilitySourceEndpointIdentity;
+  } = {},
+) {
+  return createCapabilityEvidenceProfileRaw(entries, { sourceEndpoint: SOURCE_ENDPOINT, ...options });
+}
 
 function evaluate(entries: readonly CapabilityEvaluationEntry[], context: CapabilityEvaluationContext = {}) {
   const sourceFingerprint = entries
@@ -205,7 +223,7 @@ describe("source capability profile", () => {
     );
   });
 
-  it("content-addresses observation windows and schema evidence identity", () => {
+  it("keeps freshness refreshes out of semantic identity while binding schema changes", () => {
     const base = evidenceEntry("query", "supported", "supported", {
       evidence: [
         {
@@ -248,8 +266,14 @@ describe("source capability profile", () => {
     const first = evaluate([base]);
     const refreshed = evaluate([later]);
     const changed = evaluate([differentSchema]);
+    const reevaluated = evaluateCapabilityProfile(createCapabilityEvidenceProfile([base]), {
+      evaluatedAt: "2026-07-15T00:00:00Z",
+    });
 
-    expect(first.fingerprint).not.toBe(refreshed.fingerprint);
+    expect(first.fingerprint).toBe(refreshed.fingerprint);
+    expect(first.evidenceFingerprint).toBe(refreshed.evidenceFingerprint);
+    expect(first.fingerprint).toBe(reevaluated.fingerprint);
+    expect(first.evaluatedAt).not.toBe(reevaluated.evaluatedAt);
     expect(serializeCapabilityProfile(first)).not.toBe(serializeCapabilityProfile(refreshed));
     expect(first.fingerprint).not.toBe(changed.fingerprint);
   });
@@ -762,6 +786,7 @@ describe("source capability profile", () => {
       kind: CAPABILITY_EVIDENCE_PROFILE_KIND,
       version: CAPABILITY_EVIDENCE_PROFILE_VERSION,
       sourceFingerprint: SCHEMA_FINGERPRINT,
+      sourceEndpointFingerprint: createCapabilitySourceEndpointFingerprint(SOURCE_ENDPOINT),
       entries: [{ id: "query" }, { id: "tiles" }],
     });
     expect(first.fingerprint).toMatch(/^sha256:[0-9a-f]{64}$/);
@@ -788,14 +813,15 @@ describe("source capability profile", () => {
     expect(serializeCapabilityEvidenceProfile(reordered)).toBe(serializeCapabilityEvidenceProfile(evidenceProfile));
     expect(serializeCapabilityProfile(reorderedEvaluated)).toBe(serializeCapabilityProfile(evaluated));
     expect(CAPABILITY_EVIDENCE_FINGERPRINT_DOMAIN).toBe("honua:capability-evidence:1.0");
+    expect(CAPABILITY_SOURCE_ENDPOINT_FINGERPRINT_DOMAIN).toBe("honua:capability-source-endpoint:1.0");
     expect(CAPABILITY_PROFILE_FINGERPRINT_DOMAIN).toBe("honua:capabilities:1.0");
     expect({ evidence: evidenceProfile.fingerprint, evaluated: evaluated.fingerprint }).toEqual({
-      evidence: "sha256:d36339a1ec7566e636a25b620afe942cbcd627b22e8f72e3641999db9914b70c",
-      evaluated: "sha256:4df3fd2da1f08056c0095b3d1e431be34d0c6e011419c42ff37f69da2f0cfe86",
+      evidence: "sha256:25a04940c1f7bfeff22544b49fc062c49bcff7b4ea1d04bf5d12e76a4e4e970d",
+      evaluated: "sha256:e5e5b473d1def190c7b91db91950060164e3c08e17dcacb06592d002f4432eb9",
     });
   });
 
-  it("pins the four cross-SDK fingerprint domain vectors", () => {
+  it("pins the five cross-SDK fingerprint domain vectors", () => {
     const projection = canonicalStringify(toJsonValue({ set: ["\u{e000}", "\u{10000}"] }));
     expect(projection).toBe('{"set":["","𐀀"]}');
     expect(
@@ -804,12 +830,14 @@ describe("source capability profile", () => {
     expect(
       [
         "honua:schema:2.0",
+        CAPABILITY_SOURCE_ENDPOINT_FINGERPRINT_DOMAIN,
         CAPABILITY_EVIDENCE_FINGERPRINT_DOMAIN,
         CAPABILITY_PROFILE_FINGERPRINT_DOMAIN,
         "honua:descriptor:2.0",
       ].map((domain) => sha256(`${domain}\n${projection}`)),
     ).toEqual([
       "sha256:b3a928e3b41ca6a272bcc8febdfa79b1a72fdd0f13ac776306bd0689eefc6ce2",
+      "sha256:92cbdfa824a6a5a59f9523ff23910c127195604537cd1d360335d091c9409f45",
       "sha256:00a7a0bd21d15452d2420ad57174212ba486d0bf9928cc8dc25cc0193c4fe531",
       "sha256:764a6298073ad7251fad80285cb277f804cef5c7f48dfb5f838eb161e5d5f17d",
       "sha256:58c0e5e9c0ee7477d8e7ef9b9e4035da9dfcebfce55738f247dd3da456b69d58",
@@ -851,8 +879,11 @@ describe("source capability profile", () => {
     const evaluated = evaluateCapabilityProfile(evidence, { evaluatedAt: EVALUATED_AT });
 
     expect(evidence.entries[0]?.evidence.map((item) => item.kind)).toEqual(["conformance", "protocol-default"]);
-    expect(evidence.fingerprint).toBe("sha256:cb28fc8e6b40d4e7bbfbb6ddb8edec80494b1cb7e90bc0c926aab67dfbce576e");
-    expect(evaluated.fingerprint).toBe("sha256:f275c0c5a98432a7683e9db7ab37cea1ffb6423ce23edcd99ad20a5e3c818aa4");
+    expect(evidence.sourceEndpointFingerprint).toBe(
+      "sha256:4387aab98b418ae7332c05ce480c880f798f1b9e39d7a185c258b448bd99f2ff",
+    );
+    expect(evidence.fingerprint).toBe("sha256:239e833ecaa68009bd0b83b741965dcb23505461badb3431da91d3d26223fef4");
+    expect(evaluated.fingerprint).toBe("sha256:6c2db7216f86eb9adf8f952041887ec6702d356f506895a7f68cb5e847e168c8");
   });
 
   it("enforces one coherent source identity across an evidence profile", () => {
@@ -873,6 +904,114 @@ describe("source capability profile", () => {
     const forged = JSON.parse(serializeCapabilityEvidenceProfile(valid)) as Record<string, unknown>;
     forged.sourceFingerprint = otherFingerprint;
     expect(() => parseCapabilityEvidenceProfile(forged)).toThrow(/does not match expected/);
+    const endpointForged = JSON.parse(serializeCapabilityEvidenceProfile(valid)) as Record<string, unknown>;
+    endpointForged.sourceEndpointFingerprint = otherFingerprint;
+    expect(() => parseCapabilityEvidenceProfile(endpointForged)).toThrow(/fingerprint does not match/);
+  });
+
+  it("derives a normalized credential-free endpoint digest and never transports raw endpoint coordinates", () => {
+    const normalized = createCapabilitySourceEndpointFingerprint(SOURCE_ENDPOINT);
+    const equivalent = createCapabilitySourceEndpointFingerprint({
+      endpoint: "HTTPS://EXAMPLE.TEST/ogc/features/collections/%70arcels/",
+      protocol: "ogc-features",
+      sourceId: "parcels",
+    });
+    const differentProtocol = createCapabilitySourceEndpointFingerprint({
+      ...SOURCE_ENDPOINT,
+      protocol: "wfs",
+    });
+    const profile = createCapabilityEvidenceProfile([evidenceEntry("query")]);
+    const wire = serializeCapabilityEvidenceProfile(profile);
+
+    expect(normalized).toBe(equivalent);
+    expect(normalized).not.toBe(differentProtocol);
+    expect(profile.sourceEndpointFingerprint).toBe(normalized);
+    expect(wire).not.toContain(SOURCE_ENDPOINT.endpoint);
+    expect(wire).not.toContain(SOURCE_ENDPOINT.sourceId);
+  });
+
+  it.each([
+    {
+      label: "URL user-info",
+      identity: { ...SOURCE_ENDPOINT, endpoint: "https://user:ENDPOINT_SECRET@example.test/collections/parcels" },
+      secret: "ENDPOINT_SECRET",
+    },
+    {
+      label: "signed or credential query",
+      identity: { ...SOURCE_ENDPOINT, endpoint: "https://example.test/collections/parcels?access_token=QUERY_SECRET" },
+      secret: "QUERY_SECRET",
+    },
+    {
+      label: "fragment data",
+      identity: { ...SOURCE_ENDPOINT, endpoint: "https://example.test/collections/parcels#FRAGMENT_SECRET" },
+      secret: "FRAGMENT_SECRET",
+    },
+    {
+      label: "encoded credential-shaped path",
+      identity: {
+        ...SOURCE_ENDPOINT,
+        endpoint: "https://example.test/collections/access_token%3DPATH_SECRET",
+      },
+      secret: "PATH_SECRET",
+    },
+    {
+      label: "credential-shaped source discriminator",
+      identity: { ...SOURCE_ENDPOINT, sourceId: "Bearer SOURCE_ID_SECRET" },
+      secret: "SOURCE_ID_SECRET",
+    },
+    {
+      label: "invalid protocol discriminator",
+      identity: { ...SOURCE_ENDPOINT, protocol: "PROTOCOL_SECRET" },
+      secret: "PROTOCOL_SECRET",
+    },
+    {
+      label: "caller-sensitive unknown endpoint key",
+      identity: { ...SOURCE_ENDPOINT, ENDPOINT_KEY_SECRET: true },
+      secret: "ENDPOINT_KEY_SECRET",
+    },
+  ])("rejects $label before endpoint hashing without echoing caller data", ({ identity, secret }) => {
+    let error: unknown;
+    try {
+      createCapabilitySourceEndpointFingerprint(identity as CapabilitySourceEndpointIdentity);
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toBeInstanceOf(TypeError);
+    expect(String(error)).not.toContain(secret);
+  });
+
+  it("requires endpoint coordinates at evidence creation", () => {
+    expect(() =>
+      createCapabilityEvidenceProfileRaw([evidenceEntry("query")], {
+        sourceFingerprint: SCHEMA_FINGERPRINT,
+      } as CapabilityEvidenceProfileOptions),
+    ).toThrow(/sourceEndpoint is required/);
+  });
+
+  it("rejects same-schema capability replay across endpoints", () => {
+    const otherEndpoint = {
+      ...SOURCE_ENDPOINT,
+      endpoint: "https://other.example.test/ogc/features/collections/parcels",
+    } as const;
+    const current = createCapabilityEvidenceProfile([evidenceEntry("query")]);
+    const other = createCapabilityEvidenceProfile([evidenceEntry("query")], { sourceEndpoint: otherEndpoint });
+    const wire = serializeCapabilityEvidenceProfile(current);
+
+    expect(other.sourceFingerprint).toBe(current.sourceFingerprint);
+    expect(other.sourceEndpointFingerprint).not.toBe(current.sourceEndpointFingerprint);
+    expect(other.fingerprint).not.toBe(current.fingerprint);
+    expect(() =>
+      parseCapabilityEvidenceProfile(wire, {
+        expectedSourceFingerprint: SCHEMA_FINGERPRINT,
+        expectedSourceEndpoint: otherEndpoint,
+      }),
+    ).toThrow(/does not match current source endpoint/);
+    expect(() => parseCapabilityEvidenceProfile(wire, { expectedSourceFingerprint: SCHEMA_FINGERPRINT })).toThrow(
+      /requires both expectedSourceFingerprint and expectedSourceEndpoint/,
+    );
+    expect(() => parseCapabilityEvidenceProfile(wire, { expectedSourceEndpoint: SOURCE_ENDPOINT })).toThrow(
+      /requires both expectedSourceFingerprint and expectedSourceEndpoint/,
+    );
   });
 
   it("round-trips evaluated transport only after replaying its retained context", () => {
@@ -893,6 +1032,7 @@ describe("source capability profile", () => {
     expect(parsed).toEqual(evaluated);
     expect(parsed.evidenceFingerprint).toBe(staticProfile.fingerprint);
     expect(parsed.sourceFingerprint).toBe(SCHEMA_FINGERPRINT);
+    expect(parsed.sourceEndpointFingerprint).toBe(createCapabilitySourceEndpointFingerprint(SOURCE_ENDPOINT));
     expect(parsed.evaluatedAt).toBe(EVALUATED_AT);
     expect(parsed.validUntil).toBe(EXPIRES_AT);
     expect(parsed.context).toEqual({
@@ -949,6 +1089,18 @@ describe("source capability profile", () => {
       label: "required source identity",
       mutate: (profile: Record<string, unknown>) => {
         delete profile.sourceFingerprint;
+      },
+    },
+    {
+      label: "required source endpoint identity",
+      mutate: (profile: Record<string, unknown>) => {
+        delete profile.sourceEndpointFingerprint;
+      },
+    },
+    {
+      label: "source endpoint fingerprint",
+      mutate: (profile: Record<string, unknown>) => {
+        profile.sourceEndpointFingerprint = `sha256:${"d".repeat(64)}`;
       },
     },
     {
@@ -1053,23 +1205,42 @@ describe("source capability profile", () => {
     const unboundWire = JSON.parse(wire) as Record<string, unknown>;
     delete unboundWire.sourceFingerprint;
     expect(() => parseCapabilityEvidenceProfile(unboundWire)).toThrow(/sourceFingerprint is required/);
+    const endpointUnboundWire = JSON.parse(wire) as Record<string, unknown>;
+    delete endpointUnboundWire.sourceEndpointFingerprint;
+    expect(() => parseCapabilityEvidenceProfile(endpointUnboundWire)).toThrow(/sourceEndpointFingerprint is required/);
     const staleFingerprint = `sha256:${"c".repeat(64)}` as const;
-    expect(parseCapabilityEvidenceProfile(wire, { expectedSourceFingerprint: SCHEMA_FINGERPRINT })).toEqual(current);
-    expect(verifyCapabilityEvidenceProfileSource(current, SCHEMA_FINGERPRINT)).toBe(current);
-    expect(() => parseCapabilityEvidenceProfile(wire, { expectedSourceFingerprint: staleFingerprint })).toThrow(
-      /does not match current source/,
-    );
-    expect(() => verifyCapabilityEvidenceProfileSource(current, staleFingerprint)).toThrow(
+    expect(
+      parseCapabilityEvidenceProfile(wire, {
+        expectedSourceFingerprint: SCHEMA_FINGERPRINT,
+        expectedSourceEndpoint: SOURCE_ENDPOINT,
+      }),
+    ).toEqual(current);
+    expect(verifyCapabilityEvidenceProfileSource(current, SCHEMA_FINGERPRINT, SOURCE_ENDPOINT)).toBe(current);
+    expect(() =>
+      parseCapabilityEvidenceProfile(wire, {
+        expectedSourceFingerprint: staleFingerprint,
+        expectedSourceEndpoint: SOURCE_ENDPOINT,
+      }),
+    ).toThrow(/does not match current source/);
+    expect(() => verifyCapabilityEvidenceProfileSource(current, staleFingerprint, SOURCE_ENDPOINT)).toThrow(
       /does not match current source/,
     );
 
     const evaluatedWire = serializeCapabilityProfile(evaluateCapabilityProfile(current, { evaluatedAt: EVALUATED_AT }));
-    expect(parseCapabilityProfile(evaluatedWire, { expectedSourceFingerprint: SCHEMA_FINGERPRINT })).toMatchObject({
+    expect(
+      parseCapabilityProfile(evaluatedWire, {
+        expectedSourceFingerprint: SCHEMA_FINGERPRINT,
+        expectedSourceEndpoint: SOURCE_ENDPOINT,
+      }),
+    ).toMatchObject({
       sourceFingerprint: SCHEMA_FINGERPRINT,
     });
-    expect(() => parseCapabilityProfile(evaluatedWire, { expectedSourceFingerprint: staleFingerprint })).toThrow(
-      /does not match current source/,
-    );
+    expect(() =>
+      parseCapabilityProfile(evaluatedWire, {
+        expectedSourceFingerprint: staleFingerprint,
+        expectedSourceEndpoint: SOURCE_ENDPOINT,
+      }),
+    ).toThrow(/does not match current source/);
   });
 
   it.each([
@@ -1164,6 +1335,63 @@ describe("source capability profile", () => {
     expect(String(error)).not.toContain(secret);
   });
 
+  it.each([
+    "authorizationHeader",
+    "authorization_header",
+    "accessTokenValue",
+    "access-token-value",
+    "signedUrlValue",
+    "signed_URL_value",
+    "privateKeyPem",
+    "private-key-pem",
+    "authToken",
+    "auth_token",
+    "apiKeyValue",
+    "api_key_value",
+    "clientSecretValue",
+    "refreshTokenValue",
+    "proxyAuthorizationHeader",
+  ])("rejects credential key tokenization variant %s without key/value echo", (key) => {
+    const sentinel = `CREDENTIAL_VALUE_${key}`;
+    const entry = evidenceEntry("query", "supported", "supported", {
+      constraints: {
+        extensions: {
+          "com.example.metadata": { [key]: sentinel },
+        },
+      },
+    });
+    let error: unknown;
+    try {
+      createCapabilityEvidenceProfile([entry]);
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toBeInstanceOf(TypeError);
+    expect(String(error)).toMatch(/credential-sensitive extension key/);
+    expect(String(error)).not.toContain(key);
+    expect(String(error)).not.toContain(sentinel);
+  });
+
+  it("keeps non-credential camel-case extension metadata available", () => {
+    const profile = createCapabilityEvidenceProfile([
+      evidenceEntry("query", "supported", "supported", {
+        constraints: {
+          extensions: {
+            "com.example.metadata": {
+              accessibilityMode: "enhanced",
+              apiVersionValue: 2,
+              privateMetadataEnabled: false,
+              signedCount: 3,
+            },
+          },
+        },
+      }),
+    ]);
+    expect(profile.entries[0]?.constraints?.extensions).toMatchObject({
+      "com.example.metadata": { accessibilityMode: "enhanced", apiVersionValue: 2 },
+    });
+  });
+
   it("rejects credential-named extension keys at the transport boundary without echoing caller content", () => {
     const valid = createCapabilityEvidenceProfile([
       evidenceEntry("query", "supported", "supported", {
@@ -1240,15 +1468,21 @@ describe("source capability profile", () => {
     const evidenceWireBytes = new TextEncoder().encode(evidenceWire).byteLength;
     expect(evidenceWireBytes).toBeGreaterThan(2_000_000);
     expect(evidenceWireBytes).toBeLessThanOrEqual(CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS.bytes);
-    expect(parseCapabilityEvidenceProfile(evidenceWire, { expectedSourceFingerprint: SCHEMA_FINGERPRINT })).toEqual(
-      evidenceProfile,
-    );
+    expect(
+      parseCapabilityEvidenceProfile(evidenceWire, {
+        expectedSourceFingerprint: SCHEMA_FINGERPRINT,
+        expectedSourceEndpoint: SOURCE_ENDPOINT,
+      }),
+    ).toEqual(evidenceProfile);
 
     const evaluatedWire = serializeCapabilityProfile(evaluateCapabilityProfile(evidenceProfile));
     expect(new TextEncoder().encode(evaluatedWire).byteLength).toBeGreaterThan(2 * 1_024 * 1_024);
-    expect(parseCapabilityProfile(evaluatedWire, { expectedSourceFingerprint: SCHEMA_FINGERPRINT })).toEqual(
-      evaluateCapabilityProfile(evidenceProfile),
-    );
+    expect(
+      parseCapabilityProfile(evaluatedWire, {
+        expectedSourceFingerprint: SCHEMA_FINGERPRINT,
+        expectedSourceEndpoint: SOURCE_ENDPOINT,
+      }),
+    ).toEqual(evaluateCapabilityProfile(evidenceProfile));
   });
 
   it("keeps static and evaluated transport limits distinct and rejects just-over-limit inputs", () => {

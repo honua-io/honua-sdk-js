@@ -2,6 +2,7 @@ import { type ResolvedCrsDefinition, validateSourceCrsDefinition } from "./contr
 import { CAPABILITIES } from "./contract/types.js";
 import { canonicalStringify, sha256, toJsonValue } from "./query-planner/canonical.js";
 import type { JsonValue } from "./query-planner/types.js";
+import { createCapabilitySourceEndpointFingerprint } from "./source-capability-endpoint.js";
 import {
   assertExactCapabilityKeys,
   assertPlainCapabilityObject,
@@ -41,6 +42,7 @@ import {
   type CapabilityId,
   type CapabilityRequirements,
   type CapabilityRuntimeEnvironment,
+  type CapabilitySourceEndpointIdentity,
   type CapabilitySourceVerificationOptions,
   type CapabilityTruth,
   type ExtensionIdentifier,
@@ -53,7 +55,7 @@ import {
   type TemporalPredicate,
 } from "./source-capability-types.js";
 
-const CAPABILITY_OPTIONS_JSON_LIMITS = { depth: 2, nodes: 8, bytes: 512 } as const;
+const CAPABILITY_OPTIONS_JSON_LIMITS = { depth: 3, nodes: 16, bytes: 4_096 } as const;
 const EXTENSION_JSON_LIMITS = { depth: 16, nodes: 4_096, bytes: 256 * 1_024 } as const;
 const CRS_JSON_LIMITS = { depth: 36, nodes: 8_192, bytes: 128 * 1_024 } as const;
 const CAPABILITY_TRUTHS: readonly CapabilityTruth[] = ["supported", "unsupported", "unknown"];
@@ -120,24 +122,41 @@ const MAX_EXTENSION_KEYS = 64;
 /** Validate and fingerprint static evidence once before caching or evaluation. */
 export function createCapabilityEvidenceProfile(
   entries: readonly CapabilityEvidenceEntry[],
-  options: CapabilityEvidenceProfileOptions = {},
+  options: CapabilityEvidenceProfileOptions,
+): CapabilityEvidenceProfile {
+  const safeOptions = snapshotCapabilityJson(
+    options,
+    "Capability evidence profile options",
+    CAPABILITY_OPTIONS_JSON_LIMITS,
+  ) as CapabilityEvidenceProfileOptions;
+  assertPlainCapabilityObject(safeOptions, "Capability evidence profile options", [
+    "sourceFingerprint",
+    "sourceEndpoint",
+  ]);
+  if (!Object.hasOwn(safeOptions, "sourceEndpoint")) {
+    throw new TypeError("Capability evidence profile options.sourceEndpoint is required");
+  }
+  if (safeOptions.sourceFingerprint !== undefined) {
+    validateSha256(safeOptions.sourceFingerprint, "Capability evidence profile options.sourceFingerprint");
+  }
+  return createBoundCapabilityEvidenceProfile(entries, {
+    sourceFingerprint: safeOptions.sourceFingerprint,
+    sourceEndpointFingerprint: createCapabilitySourceEndpointFingerprint(safeOptions.sourceEndpoint),
+  });
+}
+
+function createBoundCapabilityEvidenceProfile(
+  entries: readonly CapabilityEvidenceEntry[],
+  binding: { readonly sourceFingerprint?: Sha256; readonly sourceEndpointFingerprint: Sha256 },
 ): CapabilityEvidenceProfile {
   const safeEntries = snapshotCapabilityJson(
     entries,
     "Capability evidence entries",
     CAPABILITY_EVIDENCE_ENTRIES_JSON_LIMITS,
   ) as readonly CapabilityEvidenceEntry[];
-  const safeOptions = snapshotCapabilityJson(
-    options,
-    "Capability evidence profile options",
-    CAPABILITY_OPTIONS_JSON_LIMITS,
-  ) as CapabilityEvidenceProfileOptions;
   if (!Array.isArray(safeEntries)) throw new TypeError("Capability evidence entries must be an array");
   assertMaximumCount(safeEntries.length, MAX_CAPABILITY_ENTRIES, "Capability evidence entries");
-  assertPlainCapabilityObject(safeOptions, "Capability evidence profile options", ["sourceFingerprint"]);
-  if (safeOptions.sourceFingerprint !== undefined) {
-    validateSha256(safeOptions.sourceFingerprint, "Capability evidence profile options.sourceFingerprint");
-  }
+  validateSha256(binding.sourceEndpointFingerprint, "Capability source endpoint fingerprint");
 
   const ids = new Set<string>();
   const normalizedEntries = safeEntries.map((entry, index) => {
@@ -159,7 +178,7 @@ export function createCapabilityEvidenceProfile(
     throw new TypeError("Capability evidence profile combines evidence from multiple source fingerprints");
   }
   const soleEvidenceFingerprint = evidenceFingerprints.values().next().value as Sha256 | undefined;
-  const sourceFingerprint = safeOptions.sourceFingerprint ?? soleEvidenceFingerprint;
+  const sourceFingerprint = binding.sourceFingerprint ?? soleEvidenceFingerprint;
   if (
     sourceFingerprint !== undefined &&
     soleEvidenceFingerprint !== undefined &&
@@ -179,10 +198,18 @@ export function createCapabilityEvidenceProfile(
     kind: CAPABILITY_EVIDENCE_PROFILE_KIND,
     version: CAPABILITY_EVIDENCE_PROFILE_VERSION,
     sourceFingerprint,
+    sourceEndpointFingerprint: binding.sourceEndpointFingerprint,
     entries: normalizedEntries,
   };
+  const fingerprintProjection = {
+    kind: envelope.kind,
+    version: envelope.version,
+    sourceFingerprint: envelope.sourceFingerprint,
+    sourceEndpointFingerprint: envelope.sourceEndpointFingerprint,
+    entries: envelope.entries.map(projectSemanticEvidenceEntry),
+  };
   const fingerprint = sha256(
-    `${CAPABILITY_EVIDENCE_FINGERPRINT_DOMAIN}\n${canonicalStringify(toJsonValue(envelope))}`,
+    `${CAPABILITY_EVIDENCE_FINGERPRINT_DOMAIN}\n${canonicalStringify(toJsonValue(fingerprintProjection))}`,
   ) as Sha256;
   const profile = deepFreezeCapability({ ...envelope, fingerprint }) as CapabilityEvidenceProfile;
   snapshotCapabilityJson(profile, "Capability evidence profile", CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS);
@@ -215,16 +242,14 @@ export function parseCapabilityEvidenceProfile(
     "Capability source verification options",
     CAPABILITY_OPTIONS_JSON_LIMITS,
   ) as CapabilitySourceVerificationOptions;
-  assertPlainCapabilityObject(safeOptions, "Capability source verification options", ["expectedSourceFingerprint"]);
-  if (safeOptions.expectedSourceFingerprint !== undefined) {
-    validateSha256(safeOptions.expectedSourceFingerprint, "expectedSourceFingerprint");
-  }
+  const expectedBinding = normalizeSourceVerificationOptions(safeOptions);
   const parsed = parseCapabilityJson(value, "Capability evidence profile", CAPABILITY_EVIDENCE_PROFILE_JSON_LIMITS);
   assertPlainCapabilityObject(parsed, "Capability evidence profile", [
     "kind",
     "version",
     "fingerprint",
     "sourceFingerprint",
+    "sourceEndpointFingerprint",
     "entries",
   ]);
   const record = parsed as Record<string, unknown>;
@@ -239,15 +264,20 @@ export function parseCapabilityEvidenceProfile(
     throw new TypeError("Capability evidence profile.sourceFingerprint is required");
   }
   validateSha256(record.sourceFingerprint, "Capability evidence profile.sourceFingerprint");
-  const profile = createCapabilityEvidenceProfile(record.entries as readonly CapabilityEvidenceEntry[], {
+  if (!Object.hasOwn(record, "sourceEndpointFingerprint")) {
+    throw new TypeError("Capability evidence profile.sourceEndpointFingerprint is required");
+  }
+  validateSha256(record.sourceEndpointFingerprint, "Capability evidence profile.sourceEndpointFingerprint");
+  const profile = createBoundCapabilityEvidenceProfile(record.entries as readonly CapabilityEvidenceEntry[], {
     sourceFingerprint: record.sourceFingerprint,
+    sourceEndpointFingerprint: record.sourceEndpointFingerprint,
   });
   if (profile.fingerprint !== record.fingerprint) {
     throw new TypeError("Capability evidence profile fingerprint does not match its normalized static envelope");
   }
-  return safeOptions.expectedSourceFingerprint === undefined
+  return expectedBinding === undefined
     ? profile
-    : verifyCapabilityEvidenceProfileSource(profile, safeOptions.expectedSourceFingerprint);
+    : verifyCapabilityEvidenceProfileSource(profile, expectedBinding.sourceFingerprint, expectedBinding.sourceEndpoint);
 }
 
 /**
@@ -274,17 +304,79 @@ export function serializeCapabilityEvidenceProfile(profile: CapabilityEvidencePr
 export function verifyCapabilityEvidenceProfileSource(
   profile: CapabilityEvidenceProfile,
   expectedSourceFingerprint: Sha256,
+  expectedSourceEndpoint: CapabilitySourceEndpointIdentity,
 ): CapabilityEvidenceProfile {
   if (!isValidatedEvidenceProfile(profile)) {
     throw new TypeError("Capability evidence profile must be created or parsed by this SDK instance");
   }
   validateSha256(expectedSourceFingerprint, "expectedSourceFingerprint");
   if (profile.sourceFingerprint !== expectedSourceFingerprint) {
-    throw new TypeError(
-      `Capability evidence profile sourceFingerprint ${profile.sourceFingerprint} does not match current source ${expectedSourceFingerprint}`,
-    );
+    throw new TypeError("Capability evidence profile sourceFingerprint does not match current source schema");
+  }
+  const expectedEndpointFingerprint = createCapabilitySourceEndpointFingerprint(expectedSourceEndpoint);
+  if (profile.sourceEndpointFingerprint !== expectedEndpointFingerprint) {
+    throw new TypeError("Capability evidence profile sourceEndpointFingerprint does not match current source endpoint");
   }
   return profile;
+}
+
+function normalizeSourceVerificationOptions(
+  options: CapabilitySourceVerificationOptions,
+): { readonly sourceFingerprint: Sha256; readonly sourceEndpoint: CapabilitySourceEndpointIdentity } | undefined {
+  assertPlainCapabilityObject(options, "Capability source verification options", [
+    "expectedSourceFingerprint",
+    "expectedSourceEndpoint",
+  ]);
+  const hasFingerprint = options.expectedSourceFingerprint !== undefined;
+  const hasEndpoint = options.expectedSourceEndpoint !== undefined;
+  if (hasFingerprint !== hasEndpoint) {
+    throw new TypeError(
+      "Capability source verification requires both expectedSourceFingerprint and expectedSourceEndpoint",
+    );
+  }
+  if (
+    !hasFingerprint ||
+    options.expectedSourceFingerprint === undefined ||
+    options.expectedSourceEndpoint === undefined
+  ) {
+    return undefined;
+  }
+  validateSha256(options.expectedSourceFingerprint, "expectedSourceFingerprint");
+  // Validate now so malformed or credential-bearing endpoint coordinates fail
+  // before transported capability content is considered.
+  createCapabilitySourceEndpointFingerprint(options.expectedSourceEndpoint);
+  return {
+    sourceFingerprint: options.expectedSourceFingerprint,
+    sourceEndpoint: options.expectedSourceEndpoint,
+  };
+}
+
+function projectSemanticEvidenceEntry(entry: CapabilityEvidenceEntry): JsonValue {
+  // Freshness windows remain validated transport state. Collapse otherwise
+  // identical clock refreshes so endpoint capability identity stays stable.
+  const evidenceByIdentity = new Map<string, JsonValue>();
+  for (const evidence of entry.evidence) {
+    const projection = {
+      kind: evidence.kind,
+      truth: evidence.truth,
+      reference: evidence.reference,
+      ...(evidence.sourceFingerprint === undefined ? {} : { sourceFingerprint: evidence.sourceFingerprint }),
+    };
+    const canonical = canonicalStringify(toJsonValue(projection));
+    evidenceByIdentity.set(canonical, toJsonValue(projection));
+  }
+  const evidence = [...evidenceByIdentity.entries()]
+    .sort(([left], [right]) => compareCapabilityCanonicalJson(left, right))
+    .map(([, projection]) => projection);
+  return toJsonValue({
+    id: entry.id,
+    claimed: entry.claimed,
+    observed: entry.observed,
+    evidence,
+    ...(entry.authorizationScopes === undefined ? {} : { authorizationScopes: entry.authorizationScopes }),
+    ...(entry.constraints === undefined ? {} : { constraints: entry.constraints }),
+    ...(entry.requirements === undefined ? {} : { requirements: entry.requirements }),
+  });
 }
 
 function isValidatedEvidenceProfile(profile: CapabilityEvidenceProfile): boolean {

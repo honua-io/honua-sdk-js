@@ -884,6 +884,19 @@ export interface CapabilityDecision extends CapabilityEvidenceEntry {
   readonly reasons: readonly string[];
 }
 
+export interface CapabilityEvaluationContextSnapshot {
+  readonly policy?: {
+    readonly allow?: readonly CapabilityId[];
+    readonly deny: readonly CapabilityId[];
+  };
+  readonly environment?: "browser" | "worker" | "node" | "edge" | ExtensionIdentifier;
+  readonly availablePeers: readonly string[];
+  readonly authorization: {
+    readonly grantedScopes: readonly string[];
+    readonly deniedScopes: readonly string[];
+  };
+}
+
 export interface CapabilityConstraints {
   readonly inputFormats?: readonly string[];
   readonly outputFormats?: readonly string[];
@@ -909,15 +922,10 @@ export interface CapabilityProfile {
   readonly fingerprint: Sha256;
   readonly evidenceFingerprint: Sha256;
   readonly sourceFingerprint: Sha256;
+  readonly sourceEndpointFingerprint: Sha256;
   readonly evaluatedAt: IsoInstant | null;
   readonly validUntil: IsoInstant | null;
-  readonly context: {
-    readonly availablePeers: readonly string[];
-    readonly authorization: {
-      readonly grantedScopes: readonly string[];
-      readonly deniedScopes: readonly string[];
-    };
-  };
+  readonly context: CapabilityEvaluationContextSnapshot;
   /** Sorted by id with no duplicates; arrays replace the current Set. */
   readonly entries: readonly CapabilityDecision[];
 }
@@ -927,7 +935,24 @@ export interface CapabilityEvidenceProfile {
   readonly version: "1.0";
   readonly fingerprint: Sha256;
   readonly sourceFingerprint: Sha256;
+  readonly sourceEndpointFingerprint: Sha256;
   readonly entries: readonly CapabilityEvidenceEntry[];
+}
+
+export interface CapabilitySourceEndpointIdentity {
+  readonly endpoint: string;
+  readonly protocol: SourceProtocol;
+  readonly sourceId?: string;
+}
+
+export interface CapabilityEvidenceProfileOptions {
+  readonly sourceFingerprint?: Sha256;
+  readonly sourceEndpoint: CapabilitySourceEndpointIdentity;
+}
+
+export interface CapabilitySourceVerificationOptions {
+  readonly expectedSourceFingerprint?: Sha256;
+  readonly expectedSourceEndpoint?: CapabilitySourceEndpointIdentity;
 }
 
 // ── Serializable descriptor and invalidation identity ─────────────────────

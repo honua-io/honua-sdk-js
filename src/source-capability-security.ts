@@ -5,33 +5,51 @@ const PEER_IDENTIFIER_PATTERN = /^(?:[a-z0-9][a-z0-9._-]*|@[a-z0-9][a-z0-9._-]*\
 const SCOPE_IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:(?::|\/)[A-Za-z0-9][A-Za-z0-9._-]*)*$/;
 const OBVIOUS_AUTHORIZATION_PATTERN = /\b(?:bearer|basic)\s+[A-Za-z0-9+/_.=-]+/i;
 const SENSITIVE_ASSIGNMENT_PATTERN =
-  /(?:^|[\s?&#;,])(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|client[_-]?secret|password|passwd|credential|signature|sig)=/i;
+  /(?:^|[\s?&#;,/])(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|client[_-]?secret|password|passwd|credential|signature|sig)[:=]/i;
 const SENSITIVE_WORD_PATTERN = /(?:^|[^a-z0-9])(?:secret|password|passwd|credential|private[_-]?key)(?:$|[^a-z0-9])/i;
 const PRIVATE_KEY_PATTERN = /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/;
 const AWS_ACCESS_KEY_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/;
-const SENSITIVE_EXTENSION_KEYS = [
+const SENSITIVE_EXTENSION_KEY_TOKENS = new Set([
   "authorization",
-  "proxyauthorization",
   "cookie",
-  "setcookie",
   "token",
-  "accesstoken",
-  "refreshtoken",
-  "idtoken",
-  "apikey",
-  "clientsecret",
   "password",
   "passwd",
   "secret",
   "credential",
   "credentials",
-  "privatekey",
   "signature",
-  "signedurl",
   "sas",
   "prototype",
   "constructor",
+]);
+const SENSITIVE_EXTENSION_KEY_SEQUENCES = new Set([
+  "proxy authorization",
+  "set cookie",
+  "access token",
+  "refresh token",
+  "id token",
+  "auth token",
+  "bearer token",
+  "api key",
+  "client secret",
+  "private key",
+  "signed url",
+]);
+const SENSITIVE_COMPACT_KEY_PREFIXES = [
+  "authorization",
+  "proxyauthorization",
+  "setcookie",
+  "accesstoken",
+  "refreshtoken",
+  "idtoken",
+  "authtoken",
+  "bearertoken",
+  "apikey",
+  "clientsecret",
+  "privatekey",
+  "signedurl",
 ] as const;
 
 /** Validate an evidence locator/label and reject common credential-bearing forms. */
@@ -91,17 +109,24 @@ export function assertNoSensitiveCapabilityExtension(value: unknown, path: strin
 }
 
 function hasSensitiveExtensionKeyName(key: string): boolean {
-  const segments = key.split(/[.:/]+/);
-  for (let start = 0; start < segments.length; start++) {
-    let combined = "";
-    for (let end = start; end < Math.min(segments.length, start + 3); end++) {
-      const segment = segments[end]!;
-      if (segment === "__proto__") return true;
-      combined += segment.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
-      if (SENSITIVE_EXTENSION_KEYS.includes(combined as never)) return true;
-    }
+  if (key.split(/[.:/]+/).includes("__proto__")) return true;
+  const tokens = tokenizeExtensionKey(key);
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index]!;
+    if (SENSITIVE_EXTENSION_KEY_TOKENS.has(token)) return true;
+    if (SENSITIVE_EXTENSION_KEY_SEQUENCES.has(`${token} ${tokens[index + 1] ?? ""}`.trim())) return true;
+    if (SENSITIVE_COMPACT_KEY_PREFIXES.some((prefix) => token.startsWith(prefix))) return true;
   }
   return false;
+}
+
+function tokenizeExtensionKey(key: string): readonly string[] {
+  return key
+    .replaceAll(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replaceAll(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^A-Za-z0-9]+/)
+    .filter((token) => token.length > 0)
+    .map((token) => token.toLowerCase());
 }
 
 function assertNoObviousCredential(value: string, path: string): void {
@@ -115,6 +140,11 @@ function assertNoObviousCredential(value: string, path: string): void {
   ) {
     throw new TypeError(`${path} must not contain credential-shaped data`);
   }
+}
+
+/** Reject common credential shapes without reflecting caller content. */
+export function assertNoObviousCapabilityCredential(value: string, path: string): void {
+  assertNoObviousCredential(value, path);
 }
 
 function validateBoundedText(value: unknown, path: string, maximum: number): asserts value is string {
