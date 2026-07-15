@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-14 at commit `549a7b8`._
+_Generated 2026-07-15 at commit `07a0650`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -16,7 +16,7 @@ _Generated 2026-07-14 at commit `549a7b8`._
 | `/honua` | 513.2 KiB | 566.2 KiB | 135.4 KiB | 149.6 KiB |
 | `/contract` | 260.0 KiB | 287.3 KiB | 68.4 KiB | 72.9 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 631.5 KiB | 663.7 KiB | 129.5 KiB | 134.0 KiB |
-| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 241.8 KiB | 257.5 KiB | 28.3 KiB | 29.3 KiB |
+| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 245.2 KiB | 257.5 KiB | 29.2 KiB | 29.3 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 57.1 KiB | 62.6 KiB | 17.6 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 50.1 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
@@ -42,7 +42,7 @@ _Generated 2026-07-14 at commit `549a7b8`._
 | browser ESM (`./browser`) | 399.1 KiB | 424.6 KiB | 105.0 KiB | 112.5 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 214.4 KiB | 229.7 KiB | 54.3 KiB | 57.6 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 346.5 KiB | 359.2 KiB | 89.2 KiB | 92.8 KiB |
-| tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 14.7 KiB | 16.1 KiB | 5.0 KiB | 5.5 KiB |
+| tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.1 KiB | 17.7 KiB | 5.6 KiB | 6.2 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 229.1 KiB | 245.9 KiB | 57.7 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 35.6 KiB | 37.7 KiB | 11.3 KiB | 12.0 KiB |
