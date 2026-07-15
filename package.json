@@ -544,6 +544,7 @@
     "bench:references": "npm run build --silent && node dist/bench/cross-sdk/validate.js bench/cross-sdk/corpus.json test-results/cross-sdk-reference-corpus.json",
     "bench:references:refresh-terms": "npm run build --silent && node dist/bench/cross-sdk/validate.js bench/cross-sdk/corpus.json test-results/cross-sdk-terms-refresh.json --refresh-terms",
     "bench:references:source-tree": "npm run build --silent && node dist/bench/cross-sdk/validate.js --print-source-tree",
+    "bench:references:source-tree:write": "npm run build --silent && node dist/bench/cross-sdk/validate.js --write-source-tree",
     "bench:browser": "node bench/browser/run.mjs --check --output test-results/browser-benchmark/report.json",
     "bench:live": "node scripts/live-benchmark-evidence.mjs --output test-results/live-benchmark-evidence.json",
     "evidence:overture:live": "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",

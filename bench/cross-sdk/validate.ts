@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -86,6 +86,13 @@ export interface CrossSdkReferenceValidationReport {
   }[];
 }
 
+export interface CrossSdkSourceTreeRefreshReport {
+  readonly schemaVersion: 1;
+  readonly outcome: "updated" | "unchanged";
+  readonly previousGitTree: string;
+  readonly gitTree: string;
+}
+
 const REFERENCE_IDS = [
   "honua-sdk-js",
   "maplibre-gl-js",
@@ -103,6 +110,77 @@ const MAX_INPUT_NODES = 20_000;
 const MAX_INPUT_DEPTH = 32;
 const MAX_INPUT_STRING = 8_192;
 const MAX_INPUT_STRING_TOTAL = 524_288;
+const DEFAULT_CORPUS_PATH = "bench/cross-sdk/corpus.json";
+
+/**
+ * Inspect the committed Honua source tree without validating the corpus pin.
+ *
+ * This deliberately does not read the corpus or legal-review evidence. A stale
+ * pin is the reason this maintenance path exists, and inspection must remain
+ * offline and usable while the normal validator fails closed.
+ */
+export function inspectCrossSdkSourceTree(corpusPath = DEFAULT_CORPUS_PATH): string {
+  const root = path.resolve(path.dirname(corpusPath), "../..");
+  const gitTree = execFileSync("git", ["rev-parse", "HEAD:src"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+  if (!/^[a-f0-9]{40}$/.test(gitTree)) fail("HEAD:src did not resolve to a 40-character Git tree");
+  return gitTree;
+}
+
+/**
+ * Replace only the Honua source-tree pin while preserving every other byte in
+ * the corpus. Full fixture, package, license, and terms validation remains a
+ * separate fail-closed step after this bounded recovery action.
+ */
+export async function refreshCrossSdkSourceTree(
+  corpusPath = DEFAULT_CORPUS_PATH,
+): Promise<CrossSdkSourceTreeRefreshReport> {
+  const bytes = await readFile(corpusPath);
+  if (bytes.byteLength > MAX_CORPUS_BYTES) fail("corpus file exceeds the byte limit");
+  const source = bytes.toString("utf8");
+  let foreign: unknown;
+  try {
+    foreign = JSON.parse(source);
+  } catch {
+    fail("corpus JSON could not be parsed");
+  }
+  const corpus = validateCrossSdkReferenceCorpus(foreign, new Date().toISOString().slice(0, 10));
+  const honua = corpus.references.find(({ id }) => id === "honua-sdk-js");
+  const previousGitTree = honua?.package?.sourceTree?.gitTree;
+  if (!previousGitTree) fail("Honua source tree binding is missing");
+
+  const gitTree = inspectCrossSdkSourceTree(corpusPath);
+  if (gitTree === previousGitTree) {
+    return Object.freeze({ schemaVersion: 1, outcome: "unchanged", previousGitTree, gitTree });
+  }
+
+  const quotedPrevious = JSON.stringify(previousGitTree);
+  const valueOffset = source.indexOf(quotedPrevious);
+  if (valueOffset < 0 || source.indexOf(quotedPrevious, valueOffset + quotedPrevious.length) >= 0)
+    fail("Honua source tree pin is not uniquely addressable");
+  const updated = `${source.slice(0, valueOffset)}${JSON.stringify(gitTree)}${source.slice(
+    valueOffset + quotedPrevious.length,
+  )}`;
+
+  const expected = foreign as {
+    references: Array<{ id: string; package: null | { sourceTree?: { gitTree: string } } }>;
+  };
+  const expectedHonua = expected.references.find(({ id }) => id === "honua-sdk-js");
+  if (!expectedHonua?.package?.sourceTree) fail("Honua source tree binding is missing");
+  expectedHonua.package.sourceTree.gitTree = gitTree;
+  let reparsed: unknown;
+  try {
+    reparsed = JSON.parse(updated);
+  } catch {
+    fail("updated corpus JSON could not be parsed");
+  }
+  if (JSON.stringify(reparsed) !== JSON.stringify(expected)) fail("source-tree refresh changed unrelated corpus data");
+
+  await writeFile(corpusPath, updated, "utf8");
+  return Object.freeze({ schemaVersion: 1, outcome: "updated", previousGitTree, gitTree });
+}
 
 export function validateCrossSdkReferenceCorpus(foreign: unknown, now = "2026-07-12"): CrossSdkReferenceCorpus {
   try {
@@ -518,18 +596,35 @@ function fail(message: string): never {
   throw new Error(`Invalid cross-SDK reference corpus: ${message}`);
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
+export async function runCrossSdkReferenceCli(
+  args: readonly string[],
+  writeOutput: (value: string) => void = (value) => {
+    process.stdout.write(value);
+  },
+): Promise<void> {
   const refreshTerms = args.includes("--refresh-terms");
   const printSourceTree = args.includes("--print-source-tree");
+  const writeSourceTree = args.includes("--write-source-tree");
+  const unknown = args.filter(
+    (argument) =>
+      argument.startsWith("--") &&
+      !["--refresh-terms", "--print-source-tree", "--write-source-tree"].includes(argument),
+  );
+  if (unknown.length > 0) throw new Error(`Unknown cross-SDK reference option: ${unknown.join(", ")}`);
+  if ([refreshTerms, printSourceTree, writeSourceTree].filter(Boolean).length > 1)
+    throw new Error("Cross-SDK reference maintenance modes are mutually exclusive");
   const positional = args.filter((argument) => !argument.startsWith("--"));
-  const corpus = positional[0] ?? "bench/cross-sdk/corpus.json";
+  const corpus = positional[0] ?? DEFAULT_CORPUS_PATH;
   const output = positional[1];
-  const report = await validateCrossSdkReferenceFiles(corpus, new Date().toISOString().slice(0, 10));
   if (printSourceTree) {
-    process.stdout.write(`${execFileSync("git", ["rev-parse", "HEAD:src"], { encoding: "utf8" }).trim()}\n`);
+    writeOutput(`${inspectCrossSdkSourceTree(corpus)}\n`);
     return;
   }
+  if (writeSourceTree) {
+    writeOutput(`${JSON.stringify(await refreshCrossSdkSourceTree(corpus))}\n`);
+    return;
+  }
+  const report = await validateCrossSdkReferenceFiles(corpus, new Date().toISOString().slice(0, 10));
   const termsRefresh = refreshTerms ? await refreshRestrictedTerms(corpus) : undefined;
   if (output) {
     const { mkdir, writeFile } = await import("node:fs/promises");
@@ -540,9 +635,13 @@ async function main(): Promise<void> {
       "utf8",
     );
   }
-  process.stdout.write(
+  writeOutput(
     `Cross-SDK reference corpus valid: ${report.eligibleReferences.length} eligible, ${report.unavailableReferences.length} unavailable/not-comparable; rankings forbidden.\n`,
   );
+}
+
+async function main(): Promise<void> {
+  await runCrossSdkReferenceCli(process.argv.slice(2));
 }
 
 async function refreshRestrictedTerms(corpusPath: string): Promise<unknown> {
