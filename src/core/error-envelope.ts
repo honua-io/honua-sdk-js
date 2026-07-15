@@ -163,6 +163,30 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Query execution exceeded its materialization bound",
   ),
+  "query.execution.invalid-resource-handle": classification(
+    "query",
+    "validation",
+    false,
+    "Query resource handle is invalid",
+  ),
+  "query.execution.resource-unavailable": classification(
+    "query",
+    "authentication",
+    false,
+    "Query resource is unavailable in the authorization context",
+  ),
+  "query.execution.resource-expired": classification(
+    "query",
+    "authentication",
+    false,
+    "Query resource authorization has expired",
+  ),
+  "query.execution.resource-resolution-failed": classification(
+    "query",
+    "internal",
+    false,
+    "Query resource resolution failed",
+  ),
   "map.source-adapter.disposed": classification("map", "validation", false, "Map source adapter is disposed"),
   "map.source-adapter.source-conflict": classification(
     "map",

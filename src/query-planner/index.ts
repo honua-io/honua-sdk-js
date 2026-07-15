@@ -22,6 +22,14 @@ export { compileWfsQuery } from "./wfs.js";
 export { canonicalizeQuery, createQueryIr, hashQueryIr, queryFromCanonical } from "./ir.js";
 export { explainQuery, hashQueryPlan } from "./planner.js";
 export {
+  QUERY_RESOURCE_HANDLE_KIND,
+  QUERY_RESOURCE_HANDLE_VERSION,
+  createGeoParquetResourceRegistry,
+  hashGeoParquetResourceHandle,
+  parseGeoParquetResourceHandle,
+  resolveGeoParquetResource,
+} from "./resource.js";
+export {
   COLUMNAR_WORKER_CANCEL_KIND,
   COLUMNAR_WORKER_ERROR_KIND,
   COLUMNAR_WORKER_PROGRESS_KIND,
@@ -125,3 +133,13 @@ export type {
   RemoteQueryPlanStep,
   WfsCompiledQueryV1,
 } from "./types.js";
+export type {
+  GeoParquetResolverResourceReferenceV1,
+  GeoParquetResourceHandleV1,
+  GeoParquetResourceRegistry,
+  GeoParquetResourceRegistryOptions,
+  GeoParquetResourceResolutionContext,
+  GeoParquetResourceResolver,
+  RegisterGeoParquetResourceInput,
+  ResolvedGeoParquetResource,
+} from "./resource.js";
