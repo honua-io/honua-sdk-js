@@ -348,23 +348,26 @@ if (HONUA_PLUGIN_MANIFEST_VERSION !== 1 || typeof validateHonuaPluginManifest !=
 if (typeof createSourceSchemaV2 !== "function")
   throw new Error("createSourceSchemaV2 export missing from @honua/sdk/source-schema");
 const capabilityProfile = evaluateCapabilityProfile(
-  createCapabilityEvidenceProfile([
-    {
-      id: "query",
-      claimed: "supported",
-      observed: "supported",
-      evidence: [
-        { kind: "protocol-default", truth: "supported", reference: "split-package-smoke" },
-        {
-          kind: "metadata",
-          truth: "supported",
-          reference: "split-package-smoke",
-          observedAt: "2026-07-14T12:00:00Z",
-          expiresAt: "2026-07-15T12:00:00Z",
-        },
-      ],
-    },
-  ]),
+  createCapabilityEvidenceProfile(
+    [
+      {
+        id: "query",
+        claimed: "supported",
+        observed: "supported",
+        evidence: [
+          { kind: "protocol-default", truth: "supported", reference: "split-package-smoke" },
+          {
+            kind: "metadata",
+            truth: "supported",
+            reference: "split-package-smoke",
+            observedAt: "2026-07-14T12:00:00Z",
+            expiresAt: "2026-07-15T12:00:00Z",
+          },
+        ],
+      },
+    ],
+    { sourceFingerprint: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+  ),
   { evaluatedAt: "2026-07-14T12:00:01Z" },
 );
 if (capabilityProfile.entries[0]?.effective !== "supported")

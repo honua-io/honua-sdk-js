@@ -14,6 +14,7 @@ export {
   createCapabilityEvidenceProfile,
   parseCapabilityEvidenceProfile,
   serializeCapabilityEvidenceProfile,
+  verifyCapabilityEvidenceProfileSource,
 } from "./source-capability-evidence.js";
 export { evaluateCapabilityProfile } from "./source-capability-evaluation.js";
 export { parseCapabilityProfile, serializeCapabilityProfile } from "./source-capability-transport.js";

@@ -22,7 +22,11 @@ export type CapabilityEvidenceKind = CapabilityClaimEvidenceKind | CapabilityObs
 
 interface CapabilityEvidenceBase {
   readonly truth: CapabilityTruth;
-  /** Stable metadata/conformance/declaration identity; never credentials. */
+  /**
+   * Stable evidence identity. Common credential-shaped forms are rejected, but
+   * callers must still treat accepted values as potentially sensitive and must
+   * not supply credentials, signed URLs, or secrets.
+   */
   readonly reference: string;
   /** Evidence identity only; when present it must match the enclosing source profile. */
   readonly sourceFingerprint?: Sha256;
@@ -93,6 +97,7 @@ export interface CapabilityConstraints {
     readonly maxRequestBytes?: number;
     readonly maxResponseBytes?: number;
   };
+  /** Caller metadata. Sensitive keys/forms are rejected; credentials remain prohibited. */
   readonly extensions?: ExtensionMap;
 }
 
@@ -101,6 +106,7 @@ export type CapabilityRuntimeEnvironment = "browser" | "worker" | "node" | "edge
 /** Static execution requirements retained in evidence and evaluated decisions. */
 export interface CapabilityRequirements {
   readonly environments?: readonly CapabilityRuntimeEnvironment[];
+  /** Structural package/runtime identifiers; credential values are prohibited. */
   readonly peers?: readonly string[];
 }
 
@@ -110,7 +116,7 @@ export interface CapabilityEvidenceEntry {
   readonly claimed: CapabilityTruth;
   readonly observed: ObservedCapabilityTruth;
   readonly evidence: readonly CapabilityEvidence[];
-  /** Stable scope identifiers only; never credentials or tokens. */
+  /** Structural scope identifiers only. Tokens and credentials are prohibited. */
   readonly authorizationScopes?: readonly string[];
   readonly constraints?: CapabilityConstraints;
   readonly requirements?: CapabilityRequirements;
@@ -120,8 +126,13 @@ export interface CapabilityEvidenceEntry {
 export type CapabilityEvaluationEntry = CapabilityEvidenceEntry;
 
 export interface CapabilityEvidenceProfileOptions {
-  /** Expected source/schema identity. A sole evidence fingerprint is derived when omitted. */
+  /** SourceSchemaV2 SHA-256 identity. May be derived only from consistent evidence. */
   readonly sourceFingerprint?: Sha256;
+}
+
+export interface CapabilitySourceVerificationOptions {
+  /** Current SourceSchemaV2 SHA-256 identity required by this cache/use site. */
+  readonly expectedSourceFingerprint?: Sha256;
 }
 
 /** Heavy, one-time validated transport/cache envelope for one source. */
@@ -129,7 +140,8 @@ export interface CapabilityEvidenceProfile {
   readonly kind: typeof CAPABILITY_EVIDENCE_PROFILE_KIND;
   readonly version: typeof CAPABILITY_EVIDENCE_PROFILE_VERSION;
   readonly fingerprint: Sha256;
-  readonly sourceFingerprint?: Sha256;
+  /** Required SourceSchemaV2 identity for cache invalidation and source binding. */
+  readonly sourceFingerprint: Sha256;
   readonly entries: readonly CapabilityEvidenceEntry[];
 }
 
@@ -142,6 +154,7 @@ export interface CapabilityEvaluationPolicy {
 }
 
 export interface CapabilityAuthorizationContext {
+  /** Structural scope identifiers; credential/token values are prohibited. */
   readonly grantedScopes?: readonly string[];
   /** Scopes the current principal is known not to be allowed to acquire. */
   readonly deniedScopes?: readonly string[];
@@ -153,11 +166,15 @@ export interface CapabilityEvaluationContext {
   readonly evaluatedAt?: IsoInstant;
   readonly policy?: CapabilityEvaluationPolicy;
   readonly environment?: CapabilityRuntimeEnvironment;
+  /** Structural package/runtime identifiers; credential values are prohibited. */
   readonly availablePeers?: readonly string[];
   readonly authorization?: CapabilityAuthorizationContext;
 }
 
-/** Normalized, credential-free context retained so transported decisions can be reverified. */
+/**
+ * Normalized caller-controlled context retained so transported decisions can
+ * be reverified. It is not a sanitizer; profiles remain potentially sensitive.
+ */
 export interface CapabilityEvaluationContextSnapshot {
   readonly policy?: {
     readonly allow?: readonly CapabilityId[];
@@ -202,13 +219,16 @@ export interface CapabilityDecision extends CapabilityEvidenceEntry {
   readonly reasons: readonly CapabilityDecisionReason[];
 }
 
-/** Auditable evaluated truth derived from one evidence envelope and one dynamic context. */
+/**
+ * Auditable evaluated truth derived from one evidence envelope and one dynamic
+ * context. Caller-controlled values make serialized profiles potentially sensitive.
+ */
 export interface CapabilityProfile {
   readonly kind: typeof CAPABILITY_PROFILE_KIND;
   readonly version: typeof CAPABILITY_PROFILE_VERSION;
   readonly fingerprint: Sha256;
   readonly evidenceFingerprint: Sha256;
-  readonly sourceFingerprint?: Sha256;
+  readonly sourceFingerprint: Sha256;
   readonly evaluatedAt: IsoInstant | null;
   /** Exclusive conservative boundary; null means no freshness window was established. */
   readonly validUntil: IsoInstant | null;

@@ -897,7 +897,7 @@ interface CapabilityEvidenceEntry {
 
 interface CapabilityEvidenceProfile {
   readonly kind: "honua.capability-evidence"; readonly version: "1.0";
-  readonly fingerprint: Sha256; readonly sourceFingerprint?: Sha256;
+  readonly fingerprint: Sha256; readonly sourceFingerprint: Sha256;
   readonly entries: readonly CapabilityEvidenceEntry[];
 }
 
@@ -908,7 +908,7 @@ interface CapabilityDecision extends CapabilityEvidenceEntry {
 interface CapabilityProfile {
   readonly kind: "honua.capabilities"; readonly version: "1.0";
   readonly fingerprint: Sha256; readonly evidenceFingerprint: Sha256;
-  readonly sourceFingerprint?: Sha256; readonly context: CapabilityEvaluationContextSnapshot;
+  readonly sourceFingerprint: Sha256; readonly context: CapabilityEvaluationContextSnapshot;
   readonly evaluatedAt: string | null; readonly validUntil: string | null;
   readonly entries: readonly CapabilityDecision[];
 }
@@ -937,9 +937,11 @@ versioned, fingerprinted, deeply immutable `CapabilityEvidenceProfile` owns
 one source and performs heavy CRS/PROJJSON and I-JSON validation once. Repeat
 evaluation consumes only that validated profile, reuses its static values, and
 fingerprints the evidence identity plus dynamic decisions rather than walking
-the full static envelope. Mixed evidence `sourceFingerprint` values and an
-expected source mismatch are rejected. Explicit empty constraint sets remain
-distinct from omitted/unknown sets; `supportedCrs` is capped at 64 definitions.
+the full static envelope. Every profile requires one SourceSchemaV2
+`sourceFingerprint`, explicit or consistently derived from evidence. Mixed or
+expected-current source mismatches are rejected. Explicit empty constraint sets
+remain distinct from omitted/unknown sets; `supportedCrs` is capped at 64
+definitions.
 
 Metadata, conformance and probe evidence carries an observation instant and an
 exclusive expiry instant. Effective evaluation receives `evaluatedAt`
@@ -951,14 +953,29 @@ effective decision because environment and peer eligibility are semantic
 inputs, not transient diagnostics.
 
 Evaluated transport retains `evaluatedAt`, a conservative exclusive
-`validUntil`, and normalized credential-free policy/environment/peer/scope
+`validUntil`, and normalized caller-controlled policy/environment/peer/scope
 context. Strict parsing reconstructs the evidence profile and re-evaluates the
-decision; it never treats caller-authored `effective` state as evidence.
+decision; it never treats caller-authored `effective` state as evidence. Replay
+proves internal consistency, not authorization against the current source; a
+cache/use site supplies the current SourceSchemaV2 fingerprint explicitly.
 Undefined object members, duplicate JSON names and unpaired UTF-16 surrogates
 are rejected before RFC 8785 canonicalization. `CapabilityEvaluationPolicy` is
 the canonical v2 allow/deny policy; stable `DiscoveryCapabilityPolicy` and the
 stable `"strict" | "degraded"` `CapabilityPolicy` are compatibility adapters,
 not alternative v2 policy vocabularies.
+
+Profiles remain potentially sensitive. Stable evidence references and structural
+peer/scope identifiers reject common credential shapes, and extension metadata
+rejects credential-named or credential-shaped content. These checks cannot
+prove arbitrary caller strings are non-secret. Credentials, signed URLs and
+confidential metadata are prohibited inputs; canonical serialization does not
+sanitize, redact or authorize accepted data.
+
+Static evidence transport is bounded to 2 MiB/65,536 nodes; dynamic context is
+bounded to 512 KiB/8,192 nodes. Evaluated transport has a separate derived
+8 MiB/196,608-node ceiling for the static projection, repeated identifiers and
+reason prefixes, normalized context and headroom. Creation/serialization and
+parsing enforce their matching full-envelope limits symmetrically.
 
 Example JSON:
 
@@ -966,8 +983,9 @@ Example JSON:
 {
   "kind": "honua.capabilities",
   "version": "1.0",
-  "fingerprint": "sha256:5c72...",
-  "evidenceFingerprint": "sha256:923a...",
+  "fingerprint": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "evidenceFingerprint": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "sourceFingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "evaluatedAt": "2026-07-14T12:00:00Z",
   "validUntil": "2026-07-20T12:00:00Z",
   "context": {
@@ -982,14 +1000,21 @@ Example JSON:
       "effective": "supported",
       "evidence": [
         {
+          "kind": "protocol-default",
+          "truth": "supported",
+          "reference": "ogcapi-features:core",
+          "sourceFingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
           "kind": "conformance",
           "truth": "supported",
-          "reference": "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
+          "reference": "ogcapi-features:conf/core",
           "observedAt": "2026-07-13T12:00:00Z",
-          "expiresAt": "2026-07-20T12:00:00Z"
+          "expiresAt": "2026-07-20T12:00:00Z",
+          "sourceFingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         }
       ],
-      "reasons": [],
+      "reasons": ["supported-by-claim-and-observation"],
       "constraints": {
         "outputFormats": ["application/geo+json"],
         "filterOperators": ["eq", "in", "intersects"],
@@ -2336,16 +2361,24 @@ presence of bounded native evidence are included. Native protocol payloads are
 still excluded: for unknown/partial states the projection retains only each
 native reference's protocol/name/namespace/path identity, not its `definition`.
 
-The `capabilityFingerprint` projection contains exactly `kind`, `version`, and
-entries sorted by capability id. Each entry contains id, claimed/observed/
-effective truth, sorted/deduplicated reason codes and authorization-scope ids,
-constraints, requirements, and evidence. Constraint formats/operators/predicates/CRS values/
-pagination modes are sets and sorted; numeric limits and property presence are
-preserved; extensions are included. Evidence is sorted by canonical
-`[kind,truth,reference,sourceFingerprint]` and excludes `observedAt` and
-`expiresAt`. The
-projection excludes only the profile's `fingerprint` field and observation/
-expiry timestamps.
+Capability identity is a pair. The static evidence fingerprint contains the
+evidence-envelope `kind`, `version`, required SourceSchemaV2
+`sourceFingerprint`, and entries sorted by capability id. Each static entry
+contains id, claimed/observed truth, authorization-scope ids, constraints,
+requirements, and complete evidence. Constraint formats/operators/predicates/
+CRS values/pagination modes are sorted sets; numeric limits and property
+presence are preserved; extensions are included. Evidence is canonically
+sorted and includes `kind`, truth, reference, source identity, `observedAt`, and
+`expiresAt`. Refreshing an observation window therefore changes the static
+evidence fingerprint. Only the evidence envelope's own `fingerprint` is excluded.
+
+The evaluated capability fingerprint binds that evidence fingerprint and
+source fingerprint to `evaluatedAt`, conservative `validUntil`, normalized
+dynamic context, and entries projected as id/effective/reason codes. Static
+entry detail is not duplicated into that projection because the evidence
+fingerprint already binds it. The descriptor `capabilityFingerprint` uses this
+evaluated profile fingerprint; consumers retain the paired evidence fingerprint
+for static cache identity and audit explanation.
 
 The `descriptorFingerprint` projection contains exactly:
 
