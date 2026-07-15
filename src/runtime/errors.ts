@@ -7,7 +7,12 @@
  * @module
  */
 
-import { type HonuaErrorMetadata, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorMetadata,
+  HonuaSdkError,
+  mergeHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 
 /**
  * Stage of the runtime pipeline a failure occurred in. Keeping this as a
@@ -53,12 +58,25 @@ export class HonuaMapPackageError extends HonuaSdkError {
       cause?: unknown;
     } & HonuaErrorMetadata,
   ) {
-    super(MAP_PACKAGE_ERROR_CODES[options.stage], message, {
-      cause: options.cause,
-      operationId: options.operationId,
-      requestId: options.requestId,
-      context: mergeHonuaErrorContext(options.context, { packageId: options.packageId, stage: options.stage }),
-    });
+    super(
+      MAP_PACKAGE_ERROR_CODES[options.stage],
+      message,
+      withHonuaErrorClassification(
+        {
+          cause: options.cause,
+          operationId: options.operationId,
+          requestId: options.requestId,
+          context: mergeHonuaErrorContext(options.context, { packageId: options.packageId, stage: options.stage }),
+        },
+        "runtime",
+        options.stage === "fetch"
+          ? "network"
+          : options.stage === "validate" || options.stage === "style-compose" || options.stage === "popup"
+            ? "validation"
+            : "internal",
+        options.stage === "fetch" || options.stage === "dispose",
+      ),
+    );
     this.name = "HonuaMapPackageError";
     this.packageId = options.packageId;
     this.stage = options.stage;

@@ -11,7 +11,12 @@
  */
 
 import type { FeatureId } from "../contract/types.js";
-import { type HonuaErrorMetadata, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorMetadata,
+  HonuaSdkError,
+  mergeHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 import { sourceFeatureSelectionTarget } from "../exploration/selection.js";
 import type { SourceQualifiedFeatureSelectionTarget } from "../exploration/types.js";
 import { Expr } from "../expr/index.js";
@@ -54,14 +59,23 @@ export class HonuaRuntimeDiagnosticError extends HonuaSdkError {
     cause?: unknown,
     metadata: HonuaErrorMetadata = {},
   ) {
-    super("runtime.diagnostic", message, {
-      ...metadata,
-      cause,
-      context: mergeHonuaErrorContext(metadata.context, {
-        diagnosticCount: diagnostics.length,
-        diagnosticCodes: diagnostics.map(({ code }) => code),
-      }),
-    });
+    super(
+      "runtime.diagnostic",
+      message,
+      withHonuaErrorClassification(
+        {
+          ...metadata,
+          cause,
+          context: mergeHonuaErrorContext(metadata.context, {
+            diagnosticCount: diagnostics.length,
+            diagnosticCodes: diagnostics.map(({ code }) => code),
+          }),
+        },
+        "runtime",
+        "validation",
+        false,
+      ),
+    );
     this.name = "HonuaRuntimeDiagnosticError";
     this.diagnostics = diagnostics;
     this.cause = cause;

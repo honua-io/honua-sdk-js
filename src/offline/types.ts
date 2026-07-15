@@ -1,4 +1,10 @@
-import { type HonuaErrorCode, HonuaSdkError, isRetryableNetworkOrTimeoutHonuaError } from "../core/error-envelope.js";
+import {
+  type HonuaErrorCategory,
+  type HonuaErrorCode,
+  HonuaSdkError,
+  isRetryableNetworkOrTimeoutHonuaError,
+  withHonuaErrorReasonClassification,
+} from "../core/error-base.js";
 
 /** First version of the downloadable-region manifest contract. */
 export const HONUA_OFFLINE_REGION_VERSION = "1.0" as const;
@@ -248,10 +254,19 @@ export class HonuaOfflineRegionError extends HonuaSdkError {
     options: { readonly cause?: unknown; readonly resourceId?: string; readonly path?: string } = {},
   ) {
     const cause = options.cause;
-    super(offlineRegionSdkCode(code, cause), message, {
-      ...(cause === undefined ? {} : { cause }),
-      context: { reasonCode: offlineRegionContextReason(code) },
-    });
+    const sdkCode = offlineRegionSdkCode(code, cause);
+    const [category, retryable] = offlineRegionClassification(sdkCode);
+    super(
+      sdkCode,
+      message,
+      withHonuaErrorReasonClassification(
+        cause === undefined ? {} : { cause },
+        "offline",
+        category,
+        retryable,
+        offlineRegionContextReason(code),
+      ),
+    );
     this.name = "HonuaOfflineRegionError";
     this.resourceId = options.resourceId;
     this.path = options.path;
@@ -279,6 +294,18 @@ function offlineRegionSdkCode(code: unknown, cause: unknown): HonuaErrorCode {
     return "offline.transport.transient";
   }
   return OFFLINE_REGION_ERROR_CODES[code];
+}
+
+function offlineRegionClassification(code: HonuaErrorCode): readonly [HonuaErrorCategory, boolean] {
+  if (code === "offline.region.integrity") return ["protocol", false];
+  if (code === "offline.cancelled") return ["cancellation", false];
+  if (code === "offline.transport.failure" || code === "offline.transport.transient") {
+    return ["network", code === "offline.transport.transient"];
+  }
+  if (code === "offline.storage.concurrent" || code === "offline.storage.failure") {
+    return ["internal", code === "offline.storage.concurrent"];
+  }
+  return ["validation", false];
 }
 
 function offlineRegionContextReason(code: unknown): OfflineRegionErrorCode | "invalid-error-code" {

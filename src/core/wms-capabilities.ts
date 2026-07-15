@@ -14,7 +14,7 @@
  * @module
  */
 
-import { HonuaSdkError } from "./error-envelope.js";
+import { HonuaSdkError, withHonuaErrorClassification } from "./error-base.js";
 import { decodeXmlText as decodeXmlEntities } from "./xml-text.js";
 
 /**
@@ -98,7 +98,7 @@ export interface WmsCapabilityDimension {
  */
 export class HonuaWmsCapabilitiesParseError extends HonuaSdkError {
   public constructor(message: string) {
-    super("core.wms-capabilities-parse", message);
+    super("core.wms-capabilities-parse", message, withHonuaErrorClassification({}, "core", "protocol", false));
     this.name = "HonuaWmsCapabilitiesParseError";
   }
 }

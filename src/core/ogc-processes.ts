@@ -19,7 +19,7 @@ import type {
 } from "../contract/jobs.js";
 import { HonuaJobPollTimeoutError, isJobTerminal } from "../contract/jobs.js";
 import type { HonuaClient } from "./client.js";
-import { HonuaSdkError } from "./error-envelope.js";
+import { HonuaSdkError, withHonuaErrorClassification } from "./error-base.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
   HonuaOgcConformanceResponse,
@@ -378,7 +378,11 @@ export class HonuaJobFailedError extends HonuaSdkError {
   public readonly details: unknown;
 
   public constructor(message: string, status: JobStatus, errorCode?: string, details?: unknown) {
-    super("core.job-failed", message, { context: { status, errorCode } });
+    super(
+      "core.job-failed",
+      message,
+      withHonuaErrorClassification({ context: { status, errorCode } }, "core", "protocol", false),
+    );
     this.name = "HonuaJobFailedError";
     this.status = status;
     this.errorCode = errorCode;

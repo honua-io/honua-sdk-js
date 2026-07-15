@@ -45,7 +45,8 @@
     "The exceeded /honua, /contract, /runtime, and /geoparquet metrics were reset for the merged SourceSchemaV2 contract foundation (#523). /geoparquet carries bounded GeoParquet metadata consistency and native-geometry support validation while preserving v1 query-result normalization; the other entrypoints expose or consume the stable schema envelope. Only exceeded metrics were reset to measured actual plus 10% headroom.",
     "/query-planner was reset for versioned opaque GeoParquet resource handles and the lifecycle-scoped resolver registry (#587): strict scope/expiry/cancellation checks, bounded private locator resolution, and fixed redacted errors measure 101,266 minified / 29,409 gzip bytes. Both ceilings are measured actual plus 10% headroom. /geoparquet's exceeded minified ceiling was likewise reset after the shared resource-resolution error codes added 9 bytes to that entrypoint; its gzip ceiling remained unchanged.",
     "/query-planner was reset for the typed semantic-query S1 runtime (#526): bounded untrusted parsing, complete SourceSchemaV2 field/type/domain validation, exact decimal and temporal admission, immutable typed builders, and native-dialect checks measure 380,453 minified / 66,427 gzip bytes. The opt-in subpath ceiling is the measured exact-head size plus 10% headroom; root, /honua, browser, and protocol-specific entrypoints remain unchanged.",
-    "/query-planner was reset at the completed semantic-query S2 boundary (#526): deterministic canonical identity, strict lossless CQL2 JSON 1.0 interchange with prototype-pollution resistance, and the explicit raw-where compatibility bridge measure 408,678 minified / 73,290 gzip bytes. Both ceilings are the measured exact-head size plus 10% headroom; the codec remains opt-in, and root, /honua, browser, and protocol-specific budget ceilings remain unchanged."
+    "/query-planner was reset at the completed semantic-query S2 boundary (#526): deterministic canonical identity, strict lossless CQL2 JSON 1.0 interchange with prototype-pollution resistance, and the explicit raw-where compatibility bridge measure 408,678 minified / 73,290 gzip bytes. Both ceilings are the measured exact-head size plus 10% headroom; the codec remains opt-in, and root, /honua, browser, and protocol-specific budget ceilings remain unchanged.",
+    "The six #583 error-envelope targets were reset downward after leaf-owned classifications removed the complete runtime table, descriptive registry, and serializer from focused imports. Minified ceilings use measured actual plus ~10%; gzip ceilings use the lower of normal 10% headroom and the contractual 25%-reduction cap. Dedicated leaf, registry, and serializer fixtures prove intentional retained-module boundaries."
   ],
   "entrypoints": {
     ".": {
@@ -85,12 +86,12 @@
       "gzip": 134911
     },
     "/realtime": {
-      "min": 50483,
-      "gzip": 13858
+      "min": 34847,
+      "gzip": 9448
     },
     "/offline": {
-      "min": 45404,
-      "gzip": 13532
+      "min": 27645,
+      "gzip": 9194
     },
     "/query-planner": {
       "min": 449546,
@@ -113,16 +114,16 @@
       "gzip": 8476
     },
     "/geocoding": {
-      "min": 32362,
-      "gzip": 9337
+      "min": 17572,
+      "gzip": 5736
     },
     "/routing": {
-      "min": 25201,
-      "gzip": 7820
+      "min": 10411,
+      "gzip": 4165
     },
     "/auth": {
-      "min": 31305,
-      "gzip": 8953
+      "min": 16437,
+      "gzip": 5304
     },
     "/style": {
       "min": 70674,
@@ -173,12 +174,24 @@
       "gzip": 62870
     },
     "tree-shake:map-source-workflow": {
-      "min": 38631,
-      "gzip": 12278
+      "min": 25047,
+      "gzip": 8370
     },
     "tree-shake:runtime-terra-draw-sketch": {
       "min": 3386,
       "gzip": 1533
+    },
+    "tree-shake:error-leaf": {
+      "min": 4331,
+      "gzip": 1630
+    },
+    "tree-shake:error-registry": {
+      "min": 11327,
+      "gzip": 2533
+    },
+    "tree-shake:error-serializer": {
+      "min": 12646,
+      "gzip": 3771
     }
   }
 }

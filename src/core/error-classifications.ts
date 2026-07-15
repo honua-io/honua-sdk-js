@@ -16,7 +16,7 @@ export type HonuaErrorRuntimeClassification = readonly [
 ];
 
 /** @internal */
-export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = Object.freeze({
+export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = /* @__PURE__ */ Object.freeze({
   "core.http.transient": runtimeClassification("core", "protocol", true),
   "core.http.rejected": runtimeClassification("core", "protocol", false),
   "core.timeout": runtimeClassification("core", "timeout", true),

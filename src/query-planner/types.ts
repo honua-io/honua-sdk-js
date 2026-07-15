@@ -8,7 +8,7 @@ import type {
   Source,
   SourceDescriptor,
 } from "../contract/types.js";
-import { type HonuaErrorOptions, HonuaSdkError } from "../core/error-envelope.js";
+import { type HonuaErrorOptions, HonuaSdkError, withHonuaErrorClassification } from "../core/error-base.js";
 import type { EsriGeometryType, EsriSpatialRel } from "../core/types.js";
 import type { GeoParquetResourceHandleV1, GeoParquetResourceResolver } from "./resource.js";
 
@@ -394,7 +394,16 @@ export class HonuaQueryPlanningError extends HonuaSdkError {
     message: string,
     options: HonuaErrorOptions = {},
   ) {
-    super(QUERY_PLANNING_CODES[code], message, options);
+    super(
+      QUERY_PLANNING_CODES[code],
+      message,
+      withHonuaErrorClassification(
+        options,
+        "query",
+        code === "invalid-query" || code === "unsafe-materialization" ? "validation" : "capability",
+        false,
+      ),
+    );
     this.name = "HonuaQueryPlanningError";
   }
 }
@@ -415,7 +424,11 @@ export class HonuaQueryPlanExecutionError extends HonuaSdkError {
     message: string,
     options: HonuaErrorOptions = {},
   ) {
-    super(QUERY_EXECUTION_CODES[code], message, options);
+    super(
+      QUERY_EXECUTION_CODES[code],
+      message,
+      withHonuaErrorClassification(options, "query", queryExecutionErrorCategory(code), false),
+    );
     this.name = "HonuaQueryPlanExecutionError";
   }
 }
@@ -439,6 +452,16 @@ const QUERY_EXECUTION_CODES = {
   "resource-resolution-failed": "query.execution.resource-resolution-failed",
   "resource-execution-failed": "query.execution.resource-execution-failed",
 } as const satisfies Record<QueryPlanExecutionErrorCode, `query.execution.${string}`>;
+
+function queryExecutionErrorCategory(code: QueryPlanExecutionErrorCode) {
+  if (code === "resource-resolution-failed" || code === "resource-execution-failed") {
+    return "internal" as const;
+  }
+  if (code === "resource-unavailable" || code === "resource-expired") {
+    return "authentication" as const;
+  }
+  return "validation" as const;
+}
 
 export interface ExecuteQueryPlanOptions {
   readonly signal?: AbortSignal;

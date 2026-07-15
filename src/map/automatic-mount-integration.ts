@@ -13,7 +13,7 @@
  */
 
 import type { FeatureId } from "../contract/types.js";
-import { HonuaSdkError } from "../core/error-envelope.js";
+import { HonuaSdkError, withHonuaErrorClassification } from "../core/error-base.js";
 import {
   type FilterClause,
   type FilterRegistry,
@@ -42,7 +42,11 @@ export class HonuaAutomaticMapLibreIntegrationError extends HonuaSdkError {
     message: string,
     public readonly detail?: Readonly<Record<string, unknown>>,
   ) {
-    super(AUTOMATIC_MAPLIBRE_INTEGRATION_ERROR_CODES[code], message, { context: detail });
+    super(
+      AUTOMATIC_MAPLIBRE_INTEGRATION_ERROR_CODES[code],
+      message,
+      withHonuaErrorClassification({ context: detail }, "map", "validation", false),
+    );
     this.name = "HonuaAutomaticMapLibreIntegrationError";
   }
 }
