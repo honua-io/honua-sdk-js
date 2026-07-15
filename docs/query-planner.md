@@ -11,6 +11,65 @@ renderer, or execute the query.
 The subpath is experimental while the remaining compiler and columnar slices
 land. It is intentionally not exported from the root barrel.
 
+## Typed semantic query AST
+
+The experimental planner subpath also exposes the first typed semantic-query
+surface. It is additive: existing v1 plans and protocol compilers continue to
+consume the compatibility `Query.where` path until the compiler migration
+lands. New code can build immutable property/literal, comparison, boolean,
+null, list, range, pattern, spatial, and temporal nodes without choosing a
+wire dialect:
+
+```ts doc-test=compile
+import { createSemanticQueryBuilder, defineSemanticQuery } from "@honua/sdk-js/query-planner";
+
+interface Incident {
+  id: number;
+  status: string;
+  score: number;
+}
+
+const q = createSemanticQueryBuilder<Incident, "ogc-features", "non-spatial">();
+const semanticQuery = defineSemanticQuery(
+  q.features({
+    select: ["id", "status"] as const,
+    filter: q.and(
+      q.comparison("eq", q.property("status"), q.literal("active")),
+      q.between(q.property("score"), 50, 100),
+    ),
+    sort: [{ field: "score", direction: "desc" }],
+    page: { kind: "first", limit: 100 },
+  }),
+);
+
+console.log(semanticQuery.filter);
+```
+
+`parseSemanticQuery(untrusted, { schema, protocol })` is the JavaScript and JSON
+boundary. It reparses the supplied `SourceSchemaV2`, validates field existence,
+operator/type compatibility, closed domains, declared ranges, geometry and
+temporal eligibility, safe length and `multiple-of` constraints,
+projection/sort/group/metric fields, native payload form, and native dialect
+compatibility. Literal type admission reuses the canonical `SourceSchemaV2`
+value semantics, including binary encodings, numeric precision, and temporal
+precision. Source-provided ECMA-262 field patterns remain metadata and are not
+executed at this untrusted boundary. Parsed queries are deeply frozen, with
+equivalent omitted defaults (case-sensitive patterns and native null ordering)
+normalized before hashing or interchange. Parsing is bounded by byte, node,
+depth, collection, and text limits; cyclic values, accessors, non-JSON
+prototypes, unknown members, blank identifiers or native text/XML payloads,
+invalid protocol options, and non-finite numbers fail closed.
+
+Protocol-native filters remain explicit and dialect tagged. For example, an
+OGC source may carry `cql2-json` or `cql2-text`; it cannot carry
+`geoservices-sql92`. A native expression is an escape hatch, not a claim that
+the expression is protocol neutral.
+
+This first slice does not change compilation or execution. Deterministic
+semantic bytes/hash, CQL2 JSON interchange, and the deprecated raw-`where`
+migration are follow-up work in issue #526; protocol compiler adoption remains
+in #527-#529.
+
 ## Remote pushdown
 
 The remote compilers target existing GeoServices FeatureServer, OGC API
