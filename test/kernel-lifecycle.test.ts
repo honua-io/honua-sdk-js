@@ -35,6 +35,20 @@ function deferred(): { readonly promise: Promise<void>; readonly resolve: () => 
   return { promise, resolve };
 }
 
+async function within<T>(promise: Promise<T>, timeoutMs = 250): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+}
+
 describe("kernel lifecycle substrate", () => {
   it("isolates policy, discovery cache, cancellation, and resources between kernels", async () => {
     const allow: Capability[] = ["query"];
@@ -192,6 +206,24 @@ describe("kernel lifecycle substrate", () => {
     expect(calls).toEqual(["reentrant", "pending:start", "pending:end", "oldest"]);
     expect(oldestCleanup).toHaveBeenCalledOnce();
     expect(settled).toBe(true);
+    expect(lifecycle.dispose()).toBe(completion);
+  });
+
+  it("does not deadlock when an async cleanup adopts the canonical owner completion", async () => {
+    const lifecycle = createKernelLifecycle();
+    let reentrantCompletion: Promise<void> | undefined;
+    const cleanup = vi.fn(async () => {
+      reentrantCompletion = lifecycle.dispose();
+      return reentrantCompletion;
+    });
+    lifecycle.own(cleanup);
+
+    const completion = lifecycle.dispose();
+    await within(completion);
+
+    expect(reentrantCompletion).toBe(completion);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(lifecycle.state).toBe("disposed");
     expect(lifecycle.dispose()).toBe(completion);
   });
 
