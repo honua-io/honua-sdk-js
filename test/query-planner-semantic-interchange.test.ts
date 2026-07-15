@@ -25,6 +25,8 @@ import { createSourceSchemaV2 } from "../src/source-schema.js";
 
 interface Incident {
   readonly id: number;
+  readonly amount: number;
+  readonly preciseAmount: string;
   readonly status: string;
   readonly score: number;
   readonly note: string;
@@ -96,6 +98,8 @@ function schemaInput(openContent: SourceSchemaV2Input["openContent"] = "closed")
           roles: ["primary-key"],
         },
       ),
+      field("amount", { kind: "decimal", precision: 8, scale: 2, jsonEncoding: "number" }),
+      field("preciseAmount", { kind: "decimal", precision: 18, scale: 2, jsonEncoding: "string" }),
       field("status", { kind: "string" }),
       field("score", { kind: "float", bits: 64 }),
       field("note", { kind: "string" }),
@@ -192,6 +196,30 @@ describe("semantic canonical identity", () => {
     mutableCopy[0] = 0;
     expect(canonicalSemanticQueryBytes(first, options)[0]).not.toBe(0);
   });
+
+  it("normalizes equivalent optional defaults before canonical bytes and hashing", () => {
+    const implicit = {
+      kind: "features",
+      filter: {
+        kind: "pattern",
+        operator: "like",
+        operand: { kind: "property", name: "status" },
+        pattern: "act%",
+      },
+      sort: [{ field: "score", direction: "desc" }],
+    } as const;
+    const explicit = {
+      ...implicit,
+      filter: { ...implicit.filter, caseSensitive: true },
+      sort: [{ ...implicit.sort[0], nulls: "native" }],
+    } as const;
+    const options = { schema: schema(), protocol: "ogc-features" as const };
+
+    expect(Array.from(canonicalSemanticQueryBytes(implicit, options))).toEqual(
+      Array.from(canonicalSemanticQueryBytes(explicit, options)),
+    );
+    expect(hashSemanticQuery(implicit, options)).toBe(hashSemanticQuery(explicit, options));
+  });
 });
 
 describe("CQL2 JSON semantic interchange", () => {
@@ -236,6 +264,19 @@ describe("CQL2 JSON semantic interchange", () => {
     const decoded = semanticFilterFromCql2Json(JSON.stringify(encoded), options);
     expect(Object.isFrozen(decoded)).toBe(true);
     expect(semanticFilterToCql2Json(decoded, options)).toEqual(encoded);
+  });
+
+  it("round-trips number-encoded decimals and rejects only precision-losing string encodings", () => {
+    const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
+    const options = { schema: schema(), protocol: "ogc-features" as const };
+    const numberEncoded = builder.comparison("eq", builder.property("amount"), 12.34);
+    const encoded = semanticFilterToCql2Json(numberEncoded, options);
+
+    expect(encoded).toEqual({ op: "=", args: [{ property: "amount" }, 12.34] });
+    expect(semanticFilterToCql2Json(semanticFilterFromCql2Json(encoded, options), options)).toEqual(encoded);
+
+    const stringEncoded = builder.comparison("eq", builder.property("preciseAmount"), "9007199254740993.00");
+    expect(() => semanticFilterToCql2Json(stringEncoded, options)).toThrow(/cannot preserve string-encoded/);
   });
 
   it("round-trips spatial literals only with explicit matching CRS context", () => {
@@ -284,6 +325,36 @@ describe("CQL2 JSON semantic interchange", () => {
       distance: { value: 5, unit: "kilometre", mode: "geodesic" },
     });
     expect(() => semanticFilterToCql2Json(distance, options)).toThrow(/outside standard CQL2/);
+  });
+
+  it("enforces the normative two-member CQL2 JSON GeometryCollection cardinality symmetrically", () => {
+    const options = { schema: schema(), protocol: "ogc-features" as const, filterCrs: crs84 };
+    const spatial = (geometries: ExecutableGeometryValue["geometry"][]) =>
+      defineSpatialNode<Incident, "primary-geometry">({
+        kind: "spatial",
+        operator: "intersects",
+        property: { kind: "property", name: "shape" },
+        geometry: {
+          state: "present",
+          geometry: { type: "GeometryCollection", geometries },
+          crs: crs84,
+          layout: "xy",
+        } as unknown as ExecutableGeometryValue,
+      });
+    const oneMember = { type: "GeometryCollection", geometries: [point.geometry] } as const;
+
+    expect(() => semanticFilterToCql2Json(spatial([...oneMember.geometries]), options)).toThrow(/at least two/);
+    expect(() =>
+      semanticFilterFromCql2Json({ op: "s_intersects", args: [{ property: "shape" }, oneMember] }, options),
+    ).toThrow(/at least two/);
+
+    const twoMembers = {
+      type: "GeometryCollection",
+      geometries: [point.geometry, { type: "Point", coordinates: [-157.8, 21.4] }],
+    } as const;
+    const encoded = semanticFilterToCql2Json(spatial([...twoMembers.geometries]), options);
+    expect(encoded).toEqual({ op: "s_intersects", args: [{ property: "shape" }, twoMembers] });
+    expect(semanticFilterToCql2Json(semanticFilterFromCql2Json(encoded, options), options)).toEqual(encoded);
   });
 
   it("fails closed for ambiguous, unsupported, and malformed CQL2 JSON", () => {

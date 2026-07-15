@@ -144,10 +144,13 @@ null tests, lists, numeric ranges, case-sensitive and `casei` patterns,
 standard topological/non-wrapping-bbox predicates, and the four semantic
 temporal predicates. CQL2 carries spatial CRS outside its JSON expression, so
 spatial import/export requires an explicit executable `filterCrs` binding and
-verifies every operand against it. Distance extensions, native expressions,
-property-property comparisons, arithmetic/custom functions, measured geometry
-layouts, wrapping bounding boxes, and string-encoded high-precision numbers
-fail closed rather than being weakened.
+verifies every operand against it. JSON-number-encoded decimal fields preserve
+their supported CQL2 scalar representation; string-encoded high-precision
+numbers remain unsupported. Both import and export enforce the normative CQL2
+JSON schema's two-member minimum for `GeometryCollection`. Distance extensions,
+native expressions, property-property comparisons, arithmetic/custom
+functions, measured geometry layouts, and wrapping bounding boxes fail closed
+rather than being weakened.
 
 ### Deprecated raw `where` compatibility
 
