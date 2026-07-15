@@ -163,6 +163,12 @@ appear for any constructor outside that set, and gating flags like
 `--fail-on-manual` will fail closed against apps with widgets,
 renderers, or non-2D-core surfaces.
 
+For contributor validation, use `npm run test:migration:cli`. Its
+prerequisite builds the SDK once before Vitest starts, and every CLI spec
+executes that same prepared `dist/src/migration/cli.js` artifact. A direct
+Vitest invocation requires `npm run build` first and fails with an actionable
+prerequisite error when the artifact is missing or older than `src/`.
+
 ## Migration report fields
 
 The report writer is `buildJsMigrationReport`

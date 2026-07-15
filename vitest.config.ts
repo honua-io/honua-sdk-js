@@ -178,9 +178,9 @@ export default defineConfig({
         statements: 75,
       },
     },
-    // Several migration CLI tests rebuild and execute the shared dist CLI.
-    // Keep file execution serialized locally as well as in CI so those tests
-    // do not contend for the same generated artifacts.
+    // Migration CLI tests execute one prepared dist tree and serialize their
+    // child processes through the shared CLI lock. Keep file execution
+    // serialized so the run-scoped SDK artifact remains immutable.
     fileParallelism: false,
     maxWorkers: ci ? 1 : undefined,
   },

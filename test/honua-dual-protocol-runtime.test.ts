@@ -1,22 +1,17 @@
-import { execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { getPreparedHonuaEntryPath } from "./prepared-sdk-artifacts.js";
 
 const tempDirs: string[] = [];
-let builtOnce = false;
 
 function makeTempDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "honua-dual-protocol-"));
   tempDirs.push(dir);
   return dir;
-}
-
-function projectRoot(): string {
-  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 }
 
 function fixturePath(...parts: string[]): string {
@@ -25,19 +20,11 @@ function fixturePath(...parts: string[]): string {
 }
 
 function honuaDistEntry(): string {
-  return path.join(projectRoot(), "dist", "src", "honua.js");
+  return getPreparedHonuaEntryPath();
 }
 
 function ensureBuiltHonuaArtifacts(): void {
-  if (builtOnce && fs.existsSync(honuaDistEntry())) {
-    return;
-  }
-
-  execSync("npm run build --silent", {
-    cwd: projectRoot(),
-    stdio: "pipe",
-  });
-  builtOnce = true;
+  getPreparedHonuaEntryPath();
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
