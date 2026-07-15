@@ -18,11 +18,35 @@ export interface MigrationWorkbenchArtifactBuildResult {
 }
 
 export interface MigrationWorkbenchPatchVerification {
+  applyCheckCommand: {
+    executable: "git";
+    argv: string[];
+    exitCode: 0;
+  };
+  applyCommand: {
+    executable: "git";
+    argv: string[];
+    exitCode: 0;
+  };
   applyCheckPassed: true;
   targetTreeEqual: true;
+  directEntryComparisonPassed: true;
   sourceTreeSha256: string;
   targetTreeSha256: string;
   appliedTreeSha256: string;
+}
+
+export interface MigrationWorkbenchTreeEntry {
+  relativePath: string;
+  type: "file" | "directory";
+  executable: boolean;
+  byteLength: number;
+  contentSha256: string;
+  bytes: Buffer;
+}
+
+export interface MigrationWorkbenchMaterializationTestHooks {
+  afterReplacement?(replacementCount: number, repositoryPath: string): void;
 }
 
 export const MIGRATION_WORKBENCH_ARTIFACT_PATHS: readonly string[];
@@ -36,11 +60,23 @@ export function buildMigrationWorkbenchArtifacts(
 export function materializeMigrationWorkbenchArtifacts(options: {
   mode: "write" | "check";
   repositoryRoot?: string;
+  testHooks?: MigrationWorkbenchMaterializationTestHooks;
 }): Promise<{
   mode: "write" | "check";
   artifactCount: number;
   paths: string[];
 }>;
+
+export function materializeArtifactSet(options: {
+  mode: "write" | "check";
+  repositoryRoot: string;
+  artifacts: Map<string, Buffer>;
+  testHooks?: MigrationWorkbenchMaterializationTestHooks;
+}): {
+  mode: "write" | "check";
+  artifactCount: number;
+  paths: string[];
+};
 
 export function verifyMigrationPatch(options: {
   sourceTreePath: string;
@@ -48,3 +84,45 @@ export function verifyMigrationPatch(options: {
   patchBytes: Buffer;
   temporaryRoot: string;
 }): MigrationWorkbenchPatchVerification;
+
+export function compareUtf8(left: string, right: string): number;
+
+export function captureRegularTree(rootPath: string): readonly MigrationWorkbenchTreeEntry[];
+
+export function digestTreeSnapshot(entries: readonly MigrationWorkbenchTreeEntry[]): string;
+
+export function hashRegularTree(rootPath: string): string;
+
+export function regularTreeSnapshotsEqual(
+  left: readonly MigrationWorkbenchTreeEntry[],
+  right: readonly MigrationWorkbenchTreeEntry[],
+): boolean;
+
+export function executeIsolatedGeneratedModule(options: {
+  repositoryRoot: string;
+  generatedTargetBytes: Buffer;
+  timeoutMs?: number;
+}): {
+  value: unknown;
+  evidence: Record<string, unknown>;
+};
+
+export function runBoundedCommand(
+  command: string,
+  args: readonly string[],
+  options: {
+    cwd: string;
+    env?: NodeJS.ProcessEnv;
+    encoding?: "utf8" | "buffer";
+    label: string;
+    timeoutMs: number;
+    maxBuffer?: number;
+    acceptedStatuses?: readonly number[];
+    input?: string | Buffer;
+  },
+): {
+  status: number;
+  signal: NodeJS.Signals | null;
+  stdout: string | Buffer;
+  stderr: string | Buffer;
+};

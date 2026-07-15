@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { fileURLToPath, pathToFileURL } from "node:url";
 
 const FIXTURE_NAME = "arcgis-source-app";
 const FIXTURE_REPOSITORY_PATH = `examples/${FIXTURE_NAME}`;
@@ -13,7 +13,14 @@ const EXPECTED_BEHAVIOR_REPOSITORY_PATH = "examples/migration-workbench/fixtures
 const PUBLIC_ARTIFACT_ROOT = "examples/migration-workbench/public/artifacts/v1";
 const GENERATED_TARGET_REPOSITORY_PATH = "examples/migration-workbench/src/generated/migrated-main.js";
 const CLI_REPOSITORY_PATH = "dist/src/migration/cli.js";
+const EXECUTION_RUNNER_REPOSITORY_PATH = "scripts/lib/migration-workbench-execution-runner.mjs";
+const NETWORK_GUARD_REPOSITORY_PATH = "scripts/lib/migration-workbench-network-guard.mjs";
 const FIXED_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+
+const CLI_TIMEOUT_MS = 60_000;
+const GIT_TIMEOUT_MS = 20_000;
+const GENERATED_EXECUTION_TIMEOUT_MS = 10_000;
+const MAX_SUBPROCESS_BUFFER = 16 * 1024 * 1024;
 
 const MIGRATION_REPORT_REPOSITORY_PATH = `${PUBLIC_ARTIFACT_ROOT}/migration-report.v1.json`;
 const WIDGET_REPORT_REPOSITORY_PATH = `${PUBLIC_ARTIFACT_ROOT}/widget-readiness.v1.json`;
@@ -29,6 +36,27 @@ const ARTIFACT_MEDIA_TYPES = new Map([
   [GENERATED_TARGET_REPOSITORY_PATH, "text/javascript"],
 ]);
 
+const GIT_CONFIG_ARGUMENTS = Object.freeze([
+  "-c",
+  "color.ui=false",
+  "-c",
+  "core.quotePath=true",
+  "-c",
+  "core.autocrlf=false",
+  "-c",
+  "core.safecrlf=false",
+  "-c",
+  "core.fileMode=true",
+  "-c",
+  "core.attributesFile=/dev/null",
+  "-c",
+  "diff.algorithm=myers",
+  "-c",
+  "diff.indentHeuristic=false",
+  "-c",
+  "apply.whitespace=nowarn",
+]);
+
 export const MIGRATION_WORKBENCH_ARTIFACT_PATHS = Object.freeze([
   MANIFEST_REPOSITORY_PATH,
   MIGRATION_REPORT_REPOSITORY_PATH,
@@ -38,15 +66,31 @@ export const MIGRATION_WORKBENCH_ARTIFACT_PATHS = Object.freeze([
   GENERATED_TARGET_REPOSITORY_PATH,
 ]);
 
+const EXPECTED_ARTIFACT_PATHS = new Set(MIGRATION_WORKBENCH_ARTIFACT_PATHS);
+const EXPECTED_PUBLIC_ARTIFACT_NAMES = new Set(
+  MIGRATION_WORKBENCH_ARTIFACT_PATHS.filter((repositoryPath) => repositoryPath.startsWith(`${PUBLIC_ARTIFACT_ROOT}/`)).map(
+    (repositoryPath) => path.posix.basename(repositoryPath),
+  ),
+);
+
 export function defaultRepositoryRoot() {
-  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+  return canonicalizeExistingDirectory(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.."), "repository root");
+}
+
+export function compareUtf8(left, right) {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 export async function buildMigrationWorkbenchArtifacts(options = {}) {
-  const repositoryRoot = path.resolve(options.repositoryRoot ?? defaultRepositoryRoot());
-  assertRequiredInputs(repositoryRoot);
-  const temporaryParent = options.temporaryRoot ? path.resolve(options.temporaryRoot) : os.tmpdir();
-  fs.mkdirSync(temporaryParent, { recursive: true });
+  const repositoryRoot = canonicalizeExistingDirectory(
+    path.resolve(options.repositoryRoot ?? defaultRepositoryRoot()),
+    "repository root",
+  );
+  const requiredInputs = assertRequiredInputs(repositoryRoot);
+  const temporaryParent = canonicalizeExistingDirectory(
+    path.resolve(options.temporaryRoot ?? os.tmpdir()),
+    "artifact temporary root",
+  );
   const temporaryRoot = fs.mkdtempSync(path.join(temporaryParent, "honua-migration-workbench-"));
   const keepWorkspace = options.keepWorkspace === true;
 
@@ -54,18 +98,15 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
   const demoReportPath = path.join(temporaryRoot, "demo-report.raw.json");
   const widgetReportPath = path.join(temporaryRoot, "widget-readiness.raw.json");
   const maplibreReportPath = path.join(temporaryRoot, "maplibre-assessment.raw.json");
-  const fixturePath = path.join(repositoryRoot, FIXTURE_REPOSITORY_PATH);
-  const cliPath = path.join(repositoryRoot, CLI_REPOSITORY_PATH);
-
-  for (const disposablePath of [demoOutputRoot, demoReportPath, widgetReportPath, maplibreReportPath]) {
-    fs.rmSync(disposablePath, { recursive: true, force: true });
-  }
+  const fixturePath = requiredInputs.fixturePath;
+  const cliPath = requiredInputs.cliPath;
 
   try {
     const normalization = { repositoryRoot, temporaryRoot };
     const demoCommand = runCliCommand({
       id: "honua-compat-demo",
       repositoryRoot,
+      temporaryRoot,
       cliPath,
       args: [
         "demo",
@@ -89,6 +130,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
     const widgetCommand = runCliCommand({
       id: "widget-readiness",
       repositoryRoot,
+      temporaryRoot,
       cliPath,
       args: ["widgets", fixturePath, "--json", "--report", widgetReportPath],
       normalization,
@@ -96,25 +138,54 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
     const maplibreCommand = runCliCommand({
       id: "honua-maplibre-dry-run",
       repositoryRoot,
+      temporaryRoot,
       cliPath,
       args: ["codemod", fixturePath, "--target", "honua-maplibre", "--annotate-todos", "--report", maplibreReportPath],
       normalization,
     });
 
-    const targetTreePath = path.join(demoOutputRoot, FIXTURE_NAME);
-    const generatedScenarioPath = path.join(targetTreePath, "src", "workbench-scenario.js");
-    if (!fs.existsSync(generatedScenarioPath)) {
-      throw new Error(`Migration CLI did not generate ${generatedScenarioPath}.`);
-    }
+    const targetTreePath = resolveAbsoluteInsideRoot(
+      temporaryRoot,
+      path.join(demoOutputRoot, FIXTURE_NAME),
+      "generated migration target tree",
+      "directory",
+    );
+    // Capture the whole CLI output before consuming any file. This rejects links and special files anywhere in the tree.
+    captureRegularTree(targetTreePath);
+    const generatedScenarioPath = resolveAbsoluteInsideRoot(
+      temporaryRoot,
+      path.join(targetTreePath, "src", "workbench-scenario.js"),
+      "generated migration scenario",
+      "file",
+    );
+    const validatedDemoReportPath = resolveAbsoluteInsideRoot(
+      temporaryRoot,
+      demoReportPath,
+      "migration demo report",
+      "file",
+    );
+    const validatedWidgetReportPath = resolveAbsoluteInsideRoot(
+      temporaryRoot,
+      widgetReportPath,
+      "widget report",
+      "file",
+    );
+    const validatedMaplibreReportPath = resolveAbsoluteInsideRoot(
+      temporaryRoot,
+      maplibreReportPath,
+      "MapLibre report",
+      "file",
+    );
 
-    const rawDemoReport = readJson(demoReportPath);
-    const rawWidgetReport = readJson(widgetReportPath);
-    const rawMaplibreReport = readJson(maplibreReportPath);
-    const expectedBehaviorFixture = readJson(path.join(repositoryRoot, EXPECTED_BEHAVIOR_REPOSITORY_PATH));
+    const rawDemoReport = readJson(validatedDemoReportPath);
+    const rawWidgetReport = readJson(validatedWidgetReportPath);
+    const rawMaplibreReport = readJson(validatedMaplibreReportPath);
+    const expectedBehaviorFixture = readJson(requiredInputs.expectedBehaviorPath);
     assertExpectedBehaviorFixture(expectedBehaviorFixture);
 
-    const generatedTargetBytes = fs.readFileSync(generatedScenarioPath);
-    const observedBehavior = await executeGeneratedBehavior(repositoryRoot, generatedTargetBytes);
+    const generatedTargetBytes = readRegularFile(generatedScenarioPath, "generated migration scenario");
+    const execution = executeIsolatedGeneratedModule({ repositoryRoot, generatedTargetBytes });
+    const observedBehavior = execution.value;
     if (!isDeepStrictEqual(observedBehavior, expectedBehaviorFixture.expected)) {
       throw new Error(
         `Generated target behavior did not match ${EXPECTED_BEHAVIOR_REPOSITORY_PATH}.\n` +
@@ -141,7 +212,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
     const normalizedExpectedBehavior = normalizeArtifactValue(expectedBehaviorFixture, normalization);
     const normalizedObservedBehavior = normalizeArtifactValue(observedBehavior, normalization);
     const commands = [demoCommand, widgetCommand, maplibreCommand];
-    const provenance = buildProvenance();
+    const provenance = buildProvenance(sha256(requiredInputs.cliBytes), execution.evidence);
 
     const migrationReport = {
       schemaVersion: "honua.migration-workbench.report.v1",
@@ -158,8 +229,11 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       },
       patchProof: {
         command: patchResult.command,
+        applyCheckCommand: patchVerification.applyCheckCommand,
+        applyCommand: patchVerification.applyCommand,
         applyCheckPassed: patchVerification.applyCheckPassed,
         targetTreeEqual: patchVerification.targetTreeEqual,
+        directEntryComparisonPassed: patchVerification.directEntryComparisonPassed,
         sourceTreeSha256: patchVerification.sourceTreeSha256,
         targetTreeSha256: patchVerification.targetTreeSha256,
         appliedTreeSha256: patchVerification.appliedTreeSha256,
@@ -216,119 +290,359 @@ export async function materializeMigrationWorkbenchArtifacts(options = {}) {
     throw new Error('Artifact mode must be exactly "write" or "check".');
   }
 
-  const repositoryRoot = path.resolve(options.repositoryRoot ?? defaultRepositoryRoot());
+  const repositoryRoot = canonicalizeExistingDirectory(
+    path.resolve(options.repositoryRoot ?? defaultRepositoryRoot()),
+    "repository root",
+  );
+  // Reject unsafe output paths before running the migration CLI, then repeat the preflight immediately before commit.
+  preflightArtifactDestinations(repositoryRoot);
   const result = await buildMigrationWorkbenchArtifacts({ repositoryRoot });
-  const mismatches = [];
+  return materializeArtifactSet({
+    mode,
+    repositoryRoot,
+    artifacts: result.artifacts,
+    testHooks: options.testHooks,
+  });
+}
 
-  for (const [repositoryPath, bytes] of result.artifacts) {
-    const outputPath = path.join(repositoryRoot, repositoryPath);
-    if (mode === "write") {
-      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-      fs.writeFileSync(outputPath, bytes);
-      continue;
-    }
-
-    if (!fs.existsSync(outputPath)) {
-      mismatches.push(`${repositoryPath} is missing`);
-      continue;
-    }
-    if (!fs.readFileSync(outputPath).equals(bytes)) {
-      mismatches.push(`${repositoryPath} differs from deterministic CLI output`);
-    }
+export function materializeArtifactSet({ mode, repositoryRoot: repositoryRootOption, artifacts, testHooks }) {
+  if (mode !== "write" && mode !== "check") {
+    throw new Error('Artifact mode must be exactly "write" or "check".');
   }
+  const repositoryRoot = canonicalizeExistingDirectory(path.resolve(repositoryRootOption), "repository root");
+  assertArtifactAllowlist(artifacts);
+  const state = preflightArtifactDestinations(repositoryRoot);
 
-  if (mismatches.length > 0) {
-    throw new Error(
-      `Migration workbench artifacts are stale:\n- ${mismatches.join("\n- ")}\n` +
-        "Run npm run demo:migration-workbench:artifacts:write and commit the results.",
-    );
+  if (mode === "check") {
+    const mismatches = [];
+    for (const repositoryPath of sortedArtifactPaths()) {
+      const expectedBytes = artifacts.get(repositoryPath);
+      const outputPath = resolveRepositoryPath(repositoryRoot, repositoryPath, {
+        allowMissing: true,
+        expectedType: "file",
+        label: `artifact output ${repositoryPath}`,
+      });
+      const outputStat = lstatOrUndefined(outputPath);
+      if (!outputStat) {
+        mismatches.push(`${repositoryPath} is missing`);
+      } else if (!readRegularFile(outputPath, `artifact output ${repositoryPath}`).equals(expectedBytes)) {
+        mismatches.push(`${repositoryPath} differs from deterministic CLI output`);
+      }
+    }
+    for (const retired of state.retiredEntries) {
+      mismatches.push(`${retired.repositoryPath} is an unexpected retired artifact entry`);
+    }
+    if (mismatches.length > 0) {
+      throw staleArtifactsError(mismatches);
+    }
+  } else {
+    commitArtifactSet({ repositoryRoot, artifacts, state, testHooks });
   }
 
   return {
     mode,
-    artifactCount: result.artifacts.size,
-    paths: [...result.artifacts.keys()].sort(),
+    artifactCount: artifacts.size,
+    paths: sortedArtifactPaths(),
   };
 }
 
 export function verifyMigrationPatch({ sourceTreePath, targetTreePath, patchBytes, temporaryRoot }) {
-  const verificationRoot = path.join(temporaryRoot, "patch-verification");
+  const canonicalTemporaryRoot = canonicalizeExistingDirectory(temporaryRoot, "patch verification temporary root");
+  const verificationRoot = path.join(canonicalTemporaryRoot, "patch-verification");
   const appliedTreePath = path.join(verificationRoot, "applied");
   const patchPath = path.join(verificationRoot, "migration.patch");
-  fs.rmSync(verificationRoot, { recursive: true, force: true });
-  fs.mkdirSync(verificationRoot, { recursive: true });
-  fs.cpSync(sourceTreePath, appliedTreePath, { recursive: true });
-  fs.writeFileSync(patchPath, patchBytes);
+  if (lstatOrUndefined(verificationRoot)) {
+    assertSafePathChain(verificationRoot, { expectedType: "directory", label: "patch verification root" });
+    fs.rmSync(verificationRoot, { recursive: true, force: true });
+  }
+  fs.mkdirSync(verificationRoot);
+  copyRegularTree(sourceTreePath, appliedTreePath);
+  writeNewRegularFile(patchPath, patchBytes);
 
-  runRequiredCommand("git", ["apply", "--check", "--binary", "--whitespace=nowarn", patchPath], {
+  const patchArgument = path.relative(appliedTreePath, patchPath).split(path.sep).join("/");
+  const applyCheckArgs = gitArgs("apply", "--check", "--binary", "--whitespace=nowarn", patchArgument);
+  const applyArgs = gitArgs("apply", "--binary", "--whitespace=nowarn", patchArgument);
+  const gitEnvironment = createHermeticEnvironment(path.join(verificationRoot, "git-home"), {
+    gitCeilingDirectory: verificationRoot,
+  });
+  runBoundedCommand("git", applyCheckArgs, {
     cwd: appliedTreePath,
+    env: gitEnvironment,
     label: "git apply --check",
+    timeoutMs: GIT_TIMEOUT_MS,
   });
-  runRequiredCommand("git", ["apply", "--binary", "--whitespace=nowarn", patchPath], {
+  runBoundedCommand("git", applyArgs, {
     cwd: appliedTreePath,
+    env: gitEnvironment,
     label: "git apply",
+    timeoutMs: GIT_TIMEOUT_MS,
   });
 
-  const sourceTreeSha256 = hashTree(sourceTreePath);
-  const targetTreeSha256 = hashTree(targetTreePath);
-  const appliedTreeSha256 = hashTree(appliedTreePath);
-  if (targetTreeSha256 !== appliedTreeSha256) {
+  const sourceTree = captureRegularTree(sourceTreePath);
+  const targetTree = captureRegularTree(targetTreePath);
+  const appliedTree = captureRegularTree(appliedTreePath);
+  const sourceTreeSha256 = digestTreeSnapshot(sourceTree);
+  const targetTreeSha256 = digestTreeSnapshot(targetTree);
+  const appliedTreeSha256 = digestTreeSnapshot(appliedTree);
+  const directEntryComparisonPassed = regularTreeSnapshotsEqual(targetTree, appliedTree);
+  if (!directEntryComparisonPassed || targetTreeSha256 !== appliedTreeSha256) {
     throw new Error(
       `Applied patch tree ${appliedTreeSha256} does not match generated target tree ${targetTreeSha256}.`,
     );
   }
 
   return {
+    applyCheckCommand: {
+      executable: "git",
+      argv: applyCheckArgs,
+      exitCode: 0,
+    },
+    applyCommand: {
+      executable: "git",
+      argv: applyArgs,
+      exitCode: 0,
+    },
     applyCheckPassed: true,
     targetTreeEqual: true,
+    directEntryComparisonPassed: true,
     sourceTreeSha256,
     targetTreeSha256,
     appliedTreeSha256,
   };
 }
 
-function assertRequiredInputs(repositoryRoot) {
-  const requiredPaths = [
-    CLI_REPOSITORY_PATH,
-    FIXTURE_REPOSITORY_PATH,
-    SCENARIO_REPOSITORY_PATH,
-    EXPECTED_BEHAVIOR_REPOSITORY_PATH,
-  ];
-  for (const repositoryPath of requiredPaths) {
-    const absolutePath = path.join(repositoryRoot, repositoryPath);
-    if (!fs.existsSync(absolutePath)) {
+export function captureRegularTree(rootPath) {
+  const canonicalRoot = canonicalizeExistingDirectory(rootPath, "tree root");
+  const entries = [];
+
+  const visit = (currentPath, relativeParent) => {
+    const names = fs.readdirSync(currentPath).sort(compareUtf8);
+    for (const name of names) {
+      const absolutePath = path.join(currentPath, name);
+      const relativePath = path.posix.join(relativeParent, name);
+      const stat = fs.lstatSync(absolutePath);
+      if (stat.isSymbolicLink()) {
+        throw new Error(`Unsafe symbolic link in deterministic tree: ${absolutePath}`);
+      }
+      if (stat.isDirectory()) {
+        entries.push({
+          relativePath,
+          type: "directory",
+          executable: (stat.mode & 0o111) !== 0,
+          byteLength: 0,
+          contentSha256: sha256(Buffer.alloc(0)),
+          bytes: Buffer.alloc(0),
+        });
+        visit(absolutePath, relativePath);
+      } else if (stat.isFile()) {
+        const bytes = readRegularFile(absolutePath, `tree entry ${relativePath}`);
+        entries.push({
+          relativePath,
+          type: "file",
+          executable: (stat.mode & 0o111) !== 0,
+          byteLength: bytes.length,
+          contentSha256: sha256(bytes),
+          bytes,
+        });
+      } else {
+        throw new Error(`Unsupported special file in deterministic tree: ${absolutePath}`);
+      }
+    }
+  };
+
+  visit(canonicalRoot, "");
+  entries.sort((left, right) => compareUtf8(left.relativePath, right.relativePath));
+  return Object.freeze(entries);
+}
+
+export function digestTreeSnapshot(entries) {
+  const digest = createHash("sha256");
+  updateLengthFramed(digest, Buffer.from("honua.regular-tree.v2", "utf8"));
+  updateLengthFramed(digest, Buffer.from(String(entries.length), "ascii"));
+  for (const entry of entries) {
+    updateLengthFramed(digest, Buffer.from(entry.relativePath, "utf8"));
+    updateLengthFramed(digest, Buffer.from(entry.type, "ascii"));
+    updateLengthFramed(digest, Buffer.from(entry.executable ? "1" : "0", "ascii"));
+    updateLengthFramed(digest, Buffer.from(String(entry.byteLength), "ascii"));
+    updateLengthFramed(digest, Buffer.from(entry.contentSha256, "ascii"));
+  }
+  return digest.digest("hex");
+}
+
+export function hashRegularTree(rootPath) {
+  return digestTreeSnapshot(captureRegularTree(rootPath));
+}
+
+export function regularTreeSnapshotsEqual(left, right) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((entry, index) => {
+    const other = right[index];
+    return (
+      entry.relativePath === other.relativePath &&
+      entry.type === other.type &&
+      entry.executable === other.executable &&
+      entry.byteLength === other.byteLength &&
+      entry.contentSha256 === other.contentSha256 &&
+      entry.bytes.equals(other.bytes)
+    );
+  });
+}
+
+export function executeIsolatedGeneratedModule({
+  repositoryRoot: repositoryRootOption,
+  generatedTargetBytes,
+  timeoutMs = GENERATED_EXECUTION_TIMEOUT_MS,
+}) {
+  const repositoryRoot = canonicalizeExistingDirectory(repositoryRootOption, "repository root");
+  const runnerPath = resolveRepositoryPath(repositoryRoot, EXECUTION_RUNNER_REPOSITORY_PATH, {
+    expectedType: "file",
+    label: "isolated execution runner",
+  });
+  resolveRepositoryPath(repositoryRoot, NETWORK_GUARD_REPOSITORY_PATH, {
+    expectedType: "file",
+    label: "isolated network guard",
+  });
+  const executionParent = ensureRepositoryDirectory(repositoryRoot, ".tmp");
+  const executionRoot = fs.mkdtempSync(path.join(executionParent, "migration-workbench-execution-"));
+  const executionPath = path.join(executionRoot, "migrated-main.js");
+
+  try {
+    writeNewRegularFile(executionPath, generatedTargetBytes);
+    const runnerNonce = randomBytes(32).toString("hex");
+    const permissionReadRoots = [repositoryRoot, executionRoot, ...findAncestorNodeModules(repositoryRoot)];
+    const args = ["--no-warnings", "--experimental-permission"];
+    for (const readRoot of uniqueSortedPaths(permissionReadRoots)) {
+      args.push(`--allow-fs-read=${readRoot}`);
+    }
+    args.push(`--allow-fs-write=${executionRoot}`, runnerPath, executionPath);
+
+    const result = runBoundedCommand(process.execPath, args, {
+      cwd: executionRoot,
+      env: createHermeticEnvironment(path.join(executionRoot, "home"), { temporaryRoot: executionRoot }),
+      label: "isolated generated migration target",
+      timeoutMs,
+      input: `${runnerNonce}\n`,
+    });
+    let payload;
+    try {
+      payload = JSON.parse(result.stdout.trim());
+    } catch (error) {
       throw new Error(
-        `${repositoryPath} is required to generate migration workbench artifacts. ` +
-          (repositoryPath === CLI_REPOSITORY_PATH ? "Run npm run build first." : ""),
+        `Isolated generated migration target returned invalid runner output: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+    if (
+      !isRecord(payload) ||
+      payload.protocol !== "honua.migration-workbench.runner.v1" ||
+      payload.nonce !== runnerNonce ||
+      !Array.isArray(payload.networkAttempts) ||
+      !("value" in payload)
+    ) {
+      throw new Error("Isolated generated migration target returned an invalid result envelope.");
+    }
+    if (payload.networkAttempts.length !== 0) {
+      throw new Error("Isolated generated migration target reported denied network attempts.");
+    }
+    return {
+      value: cloneJsonValue(payload.value),
+      evidence: {
+        processBoundary: "separate Node.js process",
+        permissionModel: "Node.js experimental permission model",
+        readableScope: "repository runtime, isolated target, and resolved dependency roots",
+        writableScope: "isolated execution workspace only",
+        inheritedEnvironment: "fixed non-secret allowlist",
+        childProcesses: "denied by the Node.js permission model",
+        workerThreads: "denied by the Node.js permission model",
+        networkGuardScope: "standard Node.js HTTP, HTTPS, fetch, WebSocket, net, TLS, DNS, and datagram APIs",
+        externalNetworkAttemptsObserved: 0,
+        timeoutMs,
+      },
+    };
+  } finally {
+    fs.rmSync(executionRoot, { recursive: true, force: true });
   }
 }
 
-function runCliCommand({ id, repositoryRoot, cliPath, args, normalization }) {
-  const environment = { TZ: "UTC", LANG: "C", LC_ALL: "C" };
-  for (const key of ["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "TMPDIR"]) {
-    if (process.env[key]) {
-      environment[key] = process.env[key];
-    }
+export function runBoundedCommand(command, args, options) {
+  const timeoutMs = options.timeoutMs;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(`A positive subprocess timeout is required for ${options.label}.`);
   }
-
-  const result = spawnSync(process.execPath, [cliPath, ...args], {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-    env: environment,
+  const result = spawnSync(command, args, {
+    cwd: options.cwd,
+    encoding: options.encoding ?? "utf8",
+    env: options.env,
     shell: false,
-    maxBuffer: 16 * 1024 * 1024,
+    maxBuffer: options.maxBuffer ?? MAX_SUBPROCESS_BUFFER,
+    timeout: timeoutMs,
+    killSignal: "SIGTERM",
+    input: options.input,
   });
   if (result.error) {
-    throw result.error;
+    if (result.error.code === "ETIMEDOUT") {
+      throw new Error(`${options.label} timed out after ${timeoutMs}ms and was terminated.`);
+    }
+    throw new Error(`${options.label} could not start: ${result.error.message}`);
   }
-  if (result.status !== 0) {
+  if (result.status === null) {
+    throw new Error(`${options.label} terminated without an exit code${result.signal ? ` (signal ${result.signal})` : ""}.`);
+  }
+  const acceptedStatuses = options.acceptedStatuses ?? [0];
+  if (!acceptedStatuses.includes(result.status)) {
     throw new Error(
-      `${id} failed with exit code ${result.status}.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+      `${options.label} failed with exit code ${result.status}${result.signal ? ` (signal ${result.signal})` : ""}.\n` +
+        `stdout:\n${subprocessText(result.stdout)}\nstderr:\n${subprocessText(result.stderr)}`,
     );
   }
+  return result;
+}
 
+function assertRequiredInputs(repositoryRoot) {
+  const cliPath = resolveRepositoryPath(repositoryRoot, CLI_REPOSITORY_PATH, {
+    expectedType: "file",
+    label: CLI_REPOSITORY_PATH,
+    missingHint: "Run npm run build first.",
+  });
+  const fixturePath = resolveRepositoryPath(repositoryRoot, FIXTURE_REPOSITORY_PATH, {
+    expectedType: "directory",
+    label: FIXTURE_REPOSITORY_PATH,
+  });
+  const scenarioPath = resolveRepositoryPath(repositoryRoot, SCENARIO_REPOSITORY_PATH, {
+    expectedType: "file",
+    label: SCENARIO_REPOSITORY_PATH,
+  });
+  const expectedBehaviorPath = resolveRepositoryPath(repositoryRoot, EXPECTED_BEHAVIOR_REPOSITORY_PATH, {
+    expectedType: "file",
+    label: EXPECTED_BEHAVIOR_REPOSITORY_PATH,
+  });
+  resolveRepositoryPath(repositoryRoot, EXECUTION_RUNNER_REPOSITORY_PATH, {
+    expectedType: "file",
+    label: EXECUTION_RUNNER_REPOSITORY_PATH,
+  });
+  resolveRepositoryPath(repositoryRoot, NETWORK_GUARD_REPOSITORY_PATH, {
+    expectedType: "file",
+    label: NETWORK_GUARD_REPOSITORY_PATH,
+  });
+  captureRegularTree(fixturePath);
+  return {
+    cliPath,
+    cliBytes: readRegularFile(cliPath, CLI_REPOSITORY_PATH),
+    fixturePath,
+    scenarioPath,
+    expectedBehaviorPath,
+  };
+}
+
+function runCliCommand({ id, repositoryRoot, temporaryRoot, cliPath, args, normalization }) {
+  const result = runBoundedCommand(process.execPath, [cliPath, ...args], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    env: createHermeticEnvironment(path.join(temporaryRoot, "cli-home"), { temporaryRoot }),
+    label: `migration CLI command ${id}`,
+    timeoutMs: CLI_TIMEOUT_MS,
+  });
   return {
     id,
     executable: "node",
@@ -343,35 +657,34 @@ function createMigrationPatch({ sourceTreePath, targetTreePath, temporaryRoot })
   const diffRoot = path.join(temporaryRoot, "diff-input");
   const sourceCopyPath = path.join(diffRoot, "source");
   const targetCopyPath = path.join(diffRoot, "target");
-  fs.rmSync(diffRoot, { recursive: true, force: true });
-  fs.mkdirSync(diffRoot, { recursive: true });
-  fs.cpSync(sourceTreePath, sourceCopyPath, { recursive: true });
-  fs.cpSync(targetTreePath, targetCopyPath, { recursive: true });
+  fs.mkdirSync(diffRoot);
+  copyRegularTree(sourceTreePath, sourceCopyPath);
+  copyRegularTree(targetTreePath, targetCopyPath);
 
-  const args = [
+  const args = gitArgs(
     "diff",
     "--no-index",
     "--binary",
     "--no-renames",
     "--no-ext-diff",
     "--no-textconv",
+    "--unified=3",
+    "--inter-hunk-context=0",
+    "--diff-algorithm=myers",
+    "--no-color",
     "--src-prefix=a/",
     "--dst-prefix=b/",
     "source",
     "target",
-  ];
-  const result = spawnSync("git", args, {
+  );
+  const result = runBoundedCommand("git", args, {
     cwd: diffRoot,
     encoding: "buffer",
-    shell: false,
-    maxBuffer: 16 * 1024 * 1024,
+    env: createHermeticEnvironment(path.join(diffRoot, "git-home"), { gitCeilingDirectory: diffRoot }),
+    label: "git diff --no-index",
+    timeoutMs: GIT_TIMEOUT_MS,
+    acceptedStatuses: [0, 1],
   });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0 && result.status !== 1) {
-    throw new Error(`git diff --no-index failed with exit code ${result.status}: ${result.stderr.toString()}`);
-  }
   if (result.stdout.length === 0) {
     throw new Error("Migration CLI produced no source-to-target patch.");
   }
@@ -412,22 +725,7 @@ function normalizeNoIndexPatch(patchText) {
     .join("\n");
 }
 
-async function executeGeneratedBehavior(repositoryRoot, generatedTargetBytes) {
-  const executionParent = path.join(repositoryRoot, ".tmp");
-  fs.mkdirSync(executionParent, { recursive: true });
-  const executionRoot = fs.mkdtempSync(path.join(executionParent, "migration-workbench-execution-"));
-  const executionPath = path.join(executionRoot, "migrated-main.js");
-  try {
-    fs.writeFileSync(executionPath, generatedTargetBytes);
-    const moduleUrl = `${pathToFileURL(executionPath).href}?artifact=${Date.now()}`;
-    const generatedModule = await import(moduleUrl);
-    return cloneJsonValue(generatedModule.default);
-  } finally {
-    fs.rmSync(executionRoot, { recursive: true, force: true });
-  }
-}
-
-function buildProvenance() {
+function buildProvenance(cliSha256, executionEvidence) {
   return {
     fixture: FIXTURE_REPOSITORY_PATH,
     scenario: SCENARIO_REPOSITORY_PATH,
@@ -439,9 +737,13 @@ function buildProvenance() {
         "Not used because publishable license evidence for that adapted fixture was not established " +
         "for this public artifact supply chain.",
     },
-    transformationEngine: CLI_REPOSITORY_PATH,
+    transformationEngine: {
+      path: CLI_REPOSITORY_PATH,
+      sha256: cliSha256,
+      digestScope: "Entry module bytes only; transitive imports are not covered by this digest.",
+    },
+    generatedTargetExecution: executionEvidence,
     sourceUpload: false,
-    externalNetworkRequests: false,
     credentialsRequired: false,
   };
 }
@@ -454,7 +756,7 @@ function buildManifest(artifacts, provenance, commands) {
       bytes: bytes.length,
       sha256: sha256(bytes),
     }))
-    .sort((a, b) => a.repositoryPath.localeCompare(b.repositoryPath));
+    .sort((left, right) => compareUtf8(left.repositoryPath, right.repositoryPath));
 
   return {
     schemaVersion: "honua.migration-workbench.manifest.v1",
@@ -481,7 +783,7 @@ function flattenJsonLeaves(value, prefix = "$") {
   }
   if (isRecord(value)) {
     return Object.keys(value)
-      .sort()
+      .sort(compareUtf8)
       .flatMap((key) => flattenJsonLeaves(value[key], `${prefix}.${key}`));
   }
   return [[prefix, value]];
@@ -518,7 +820,7 @@ function normalizeArtifactValue(value, normalization, key = "") {
   if (isRecord(value)) {
     return Object.fromEntries(
       Object.keys(value)
-        .sort()
+        .sort(compareUtf8)
         .map((entryKey) => [entryKey, normalizeArtifactValue(value[entryKey], normalization, entryKey)]),
     );
   }
@@ -543,7 +845,7 @@ function normalizeString(value, { repositoryRoot, temporaryRoot }) {
   const replacements = [
     [path.resolve(temporaryRoot), "<workspace>"],
     [path.resolve(repositoryRoot), "<repo>"],
-  ].sort((a, b) => b[0].length - a[0].length);
+  ].sort((left, right) => right[0].length - left[0].length);
   let normalized = value;
   for (const [absolutePath, placeholder] of replacements) {
     normalized = normalized.split(absolutePath).join(placeholder);
@@ -552,64 +854,459 @@ function normalizeString(value, { repositoryRoot, temporaryRoot }) {
   return normalized.split(path.sep).join("/");
 }
 
-function hashTree(rootPath) {
-  const digest = createHash("sha256");
-  for (const item of listTree(rootPath)) {
-    digest.update(item.relativePath);
-    digest.update("\0");
-    digest.update(item.type);
-    digest.update("\0");
-    digest.update(String(item.executable));
-    digest.update("\0");
-    if (item.type === "file") {
-      digest.update(fs.readFileSync(path.join(rootPath, item.relativePath)));
-    } else if (item.type === "symlink") {
-      digest.update(fs.readlinkSync(path.join(rootPath, item.relativePath)));
-    }
-    digest.update("\0");
+function preflightArtifactDestinations(repositoryRoot) {
+  for (const repositoryPath of sortedArtifactPaths()) {
+    resolveRepositoryPath(repositoryRoot, repositoryPath, {
+      allowMissing: true,
+      expectedType: "file",
+      label: `artifact output ${repositoryPath}`,
+    });
   }
-  return digest.digest("hex");
-}
 
-function listTree(rootPath) {
-  const items = [];
-  const visit = (currentPath, relativeParent) => {
-    const entries = fs.readdirSync(currentPath, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
-    for (const entry of entries) {
-      const absolutePath = path.join(currentPath, entry.name);
-      const relativePath = path.posix.join(relativeParent, entry.name);
-      const stat = fs.lstatSync(absolutePath);
-      const type = entry.isDirectory() ? "directory" : entry.isSymbolicLink() ? "symlink" : "file";
-      items.push({ relativePath, type, executable: (stat.mode & 0o111) !== 0 });
-      if (entry.isDirectory()) {
-        visit(absolutePath, relativePath);
+  const publicRoot = resolveRepositoryPath(repositoryRoot, PUBLIC_ARTIFACT_ROOT, {
+    allowMissing: true,
+    expectedType: "directory",
+    label: "public migration artifact root",
+  });
+  const retiredEntries = [];
+  if (lstatOrUndefined(publicRoot)) {
+    captureRegularTree(publicRoot);
+    for (const name of fs.readdirSync(publicRoot).sort(compareUtf8)) {
+      if (!EXPECTED_PUBLIC_ARTIFACT_NAMES.has(name)) {
+        retiredEntries.push({
+          absolutePath: path.join(publicRoot, name),
+          repositoryPath: path.posix.join(PUBLIC_ARTIFACT_ROOT, name),
+        });
       }
     }
-  };
-  visit(rootPath, "");
-  return items;
+  }
+  return { retiredEntries };
 }
 
-function runRequiredCommand(command, args, options) {
-  const result = spawnSync(command, args, {
-    cwd: options.cwd,
-    encoding: "utf8",
-    shell: false,
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
+function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks }) {
+  const transactionParent = ensureRepositoryDirectory(repositoryRoot, ".tmp");
+  const transactionRoot = fs.mkdtempSync(path.join(transactionParent, "migration-workbench-materialize-"));
+  const stagedRoot = path.join(transactionRoot, "staged");
+  const backupRoot = path.join(transactionRoot, "backups");
+  fs.mkdirSync(stagedRoot);
+  fs.mkdirSync(backupRoot);
+  const stagedFiles = new Map();
+  const createdDirectories = [];
+  const journal = [];
+  let replacementCount = 0;
+
+  try {
+    for (const [index, repositoryPath] of sortedArtifactPaths().entries()) {
+      const stagedPath = path.join(stagedRoot, String(index).padStart(3, "0"));
+      const bytes = artifacts.get(repositoryPath);
+      writeNewRegularFile(stagedPath, bytes);
+      if (!readRegularFile(stagedPath, `staged artifact ${repositoryPath}`).equals(bytes)) {
+        throw new Error(`Staged artifact verification failed for ${repositoryPath}.`);
+      }
+      stagedFiles.set(repositoryPath, stagedPath);
+    }
+
+    // Every byte is staged and verified before the first destination is replaced.
+    for (const repositoryPath of sortedArtifactPaths()) {
+      ensureRepositoryDirectory(repositoryRoot, path.posix.dirname(repositoryPath), createdDirectories);
+    }
+    const refreshedState = preflightArtifactDestinations(repositoryRoot);
+    if (
+      !isDeepStrictEqual(
+        refreshedState.retiredEntries.map((entry) => entry.repositoryPath),
+        state.retiredEntries.map((entry) => entry.repositoryPath),
+      )
+    ) {
+      throw new Error("Artifact destinations changed after transactional staging and must be retried.");
+    }
+
+    for (const [index, repositoryPath] of sortedArtifactPaths().entries()) {
+      const destinationPath = resolveRepositoryPath(repositoryRoot, repositoryPath, {
+        allowMissing: true,
+        expectedType: "file",
+        label: `artifact output ${repositoryPath}`,
+      });
+      const backupPath = path.join(backupRoot, `artifact-${String(index).padStart(3, "0")}`);
+      const entry = { kind: "artifact", destinationPath, backupPath, hadOriginal: false, installed: false };
+      const existing = lstatOrUndefined(destinationPath);
+      if (existing) {
+        assertRegularStat(existing, destinationPath, `artifact output ${repositoryPath}`);
+        fs.renameSync(destinationPath, backupPath);
+        entry.hadOriginal = true;
+      }
+      journal.push(entry);
+      fs.renameSync(stagedFiles.get(repositoryPath), destinationPath);
+      entry.installed = true;
+      if (!readRegularFile(destinationPath, `materialized artifact ${repositoryPath}`).equals(artifacts.get(repositoryPath))) {
+        throw new Error(`Materialized artifact verification failed for ${repositoryPath}.`);
+      }
+      replacementCount += 1;
+      testHooks?.afterReplacement?.(replacementCount, repositoryPath);
+    }
+
+    for (const [index, retired] of state.retiredEntries.entries()) {
+      const current = resolveRepositoryPath(repositoryRoot, retired.repositoryPath, {
+        expectedType: "entry",
+        label: `retired artifact ${retired.repositoryPath}`,
+      });
+      const backupPath = path.join(backupRoot, `retired-${String(index).padStart(3, "0")}`);
+      const stat = fs.lstatSync(current);
+      assertSupportedEntry(stat, current, `retired artifact ${retired.repositoryPath}`);
+      const entry = { kind: "retired", destinationPath: current, backupPath, hadOriginal: true, installed: false };
+      fs.renameSync(current, backupPath);
+      journal.push(entry);
+      replacementCount += 1;
+      testHooks?.afterReplacement?.(replacementCount, retired.repositoryPath);
+    }
+
+    // Removing the transaction directory retires prior files only after every replacement has succeeded.
+    fs.rmSync(transactionRoot, { recursive: true, force: true });
+  } catch (error) {
+    const rollbackErrors = rollbackMaterialization(journal, createdDirectories);
+    if (rollbackErrors.length > 0) {
+      throw new Error(
+        `Artifact materialization failed and rollback was incomplete; recovery files remain at ${transactionRoot}: ` +
+          `${rollbackErrors.join("; ")}. ` +
+          `Original failure: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    fs.rmSync(transactionRoot, { recursive: true, force: true });
     throw new Error(
-      `${options.label} failed with exit code ${result.status}.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+      `Artifact materialization failed; all handled replacements were rolled back. ` +
+        `${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  return result;
+}
+
+function rollbackMaterialization(journal, createdDirectories) {
+  const errors = [];
+  for (const entry of [...journal].reverse()) {
+    try {
+      if (entry.installed) {
+        const installed = lstatOrUndefined(entry.destinationPath);
+        if (installed) {
+          assertRegularStat(installed, entry.destinationPath, "installed artifact during rollback");
+          fs.unlinkSync(entry.destinationPath);
+        }
+      }
+      if (entry.hadOriginal && lstatOrUndefined(entry.backupPath)) {
+        if (lstatOrUndefined(entry.destinationPath)) {
+          throw new Error(`Rollback destination is unexpectedly occupied: ${entry.destinationPath}`);
+        }
+        fs.renameSync(entry.backupPath, entry.destinationPath);
+      }
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  for (const directoryPath of [...createdDirectories].reverse()) {
+    try {
+      const stat = lstatOrUndefined(directoryPath);
+      if (stat) {
+        if (!stat.isDirectory() || stat.isSymbolicLink()) {
+          throw new Error(`Created artifact directory became unsafe during rollback: ${directoryPath}`);
+        }
+        fs.rmdirSync(directoryPath);
+      }
+    } catch (error) {
+      if (error?.code !== "ENOTEMPTY") {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+  return errors;
+}
+
+function assertArtifactAllowlist(artifacts) {
+  if (!(artifacts instanceof Map)) {
+    throw new Error("Migration artifact materialization requires a Map of deterministic bytes.");
+  }
+  const actualPaths = [...artifacts.keys()].sort(compareUtf8);
+  const expectedPaths = sortedArtifactPaths();
+  if (!isDeepStrictEqual(actualPaths, expectedPaths)) {
+    throw new Error("Migration artifact set does not match the fixed repository-path allowlist.");
+  }
+  for (const [repositoryPath, bytes] of artifacts) {
+    if (!EXPECTED_ARTIFACT_PATHS.has(repositoryPath) || !Buffer.isBuffer(bytes)) {
+      throw new Error(`Migration artifact ${repositoryPath} is not an allowlisted byte buffer.`);
+    }
+  }
+}
+
+function sortedArtifactPaths() {
+  return [...MIGRATION_WORKBENCH_ARTIFACT_PATHS].sort(compareUtf8);
+}
+
+function staleArtifactsError(mismatches) {
+  return new Error(
+    `Migration workbench artifacts are stale:\n- ${mismatches.join("\n- ")}\n` +
+      "Run npm run demo:migration-workbench:artifacts:write and commit the results.",
+  );
+}
+
+function canonicalizeExistingDirectory(directoryPath, label) {
+  const absolutePath = path.resolve(directoryPath);
+  assertSafePathChain(absolutePath, { expectedType: "directory", label });
+  return fs.realpathSync.native(absolutePath);
+}
+
+function resolveRepositoryPath(repositoryRoot, repositoryPath, options = {}) {
+  if (
+    typeof repositoryPath !== "string" ||
+    repositoryPath.length === 0 ||
+    repositoryPath.includes("\0") ||
+    repositoryPath.includes("\\") ||
+    path.posix.isAbsolute(repositoryPath) ||
+    path.win32.isAbsolute(repositoryPath)
+  ) {
+    throw new Error(`Unsafe repository-relative path: ${String(repositoryPath)}`);
+  }
+  const segments = repositoryPath.split("/");
+  if (segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
+    throw new Error(`Repository path traversal is not allowed: ${repositoryPath}`);
+  }
+  const candidate = path.join(repositoryRoot, ...segments);
+  if (!isPathInside(repositoryRoot, candidate)) {
+    throw new Error(`Repository path escapes the canonical root: ${repositoryPath}`);
+  }
+  const chain = assertSafePathChain(candidate, {
+    allowMissing: options.allowMissing === true,
+    expectedType: options.expectedType,
+    label: options.label ?? repositoryPath,
+    missingHint: options.missingHint,
+  });
+  if (chain.exists) {
+    const real = fs.realpathSync.native(candidate);
+    if (!isPathInside(repositoryRoot, real)) {
+      throw new Error(`Resolved repository path escapes the canonical root: ${repositoryPath}`);
+    }
+  }
+  return candidate;
+}
+
+function resolveAbsoluteInsideRoot(root, absolutePath, label, expectedType) {
+  const resolved = path.resolve(absolutePath);
+  if (!isPathInside(root, resolved)) {
+    throw new Error(`${label} escapes its allowed root: ${resolved}`);
+  }
+  const chain = assertSafePathChain(resolved, { expectedType, label });
+  if (chain.exists && !isPathInside(root, fs.realpathSync.native(resolved))) {
+    throw new Error(`${label} resolves outside its allowed root: ${resolved}`);
+  }
+  return resolved;
+}
+
+function assertSafePathChain(absolutePath, options = {}) {
+  const resolved = path.resolve(absolutePath);
+  const parsed = path.parse(resolved);
+  const components = resolved.slice(parsed.root.length).split(path.sep).filter(Boolean);
+  let current = parsed.root;
+  for (const [index, component] of components.entries()) {
+    current = path.join(current, component);
+    const stat = lstatOrUndefined(current);
+    if (!stat) {
+      if (options.allowMissing) {
+        return { exists: false, missingPath: current };
+      }
+      throw new Error(
+        `${options.label ?? resolved} is required but missing at ${current}.` +
+          (options.missingHint ? ` ${options.missingHint}` : ""),
+      );
+    }
+    if (stat.isSymbolicLink()) {
+      throw new Error(`Unsafe symbolic link in ${options.label ?? resolved}: ${current}`);
+    }
+    const final = index === components.length - 1;
+    if (!final && !stat.isDirectory()) {
+      throw new Error(`Non-directory path component in ${options.label ?? resolved}: ${current}`);
+    }
+    if (final && options.expectedType) {
+      assertExpectedStatType(stat, current, options.expectedType, options.label ?? resolved);
+    }
+  }
+  return { exists: true };
+}
+
+function assertExpectedStatType(stat, absolutePath, expectedType, label) {
+  if (expectedType === "file") {
+    assertRegularStat(stat, absolutePath, label);
+  } else if (expectedType === "directory") {
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} must be a regular directory: ${absolutePath}`);
+    }
+  } else if (expectedType === "entry") {
+    assertSupportedEntry(stat, absolutePath, label);
+  }
+}
+
+function assertRegularStat(stat, absolutePath, label) {
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    throw new Error(`${label} must be a regular file and cannot be a link or special file: ${absolutePath}`);
+  }
+}
+
+function assertSupportedEntry(stat, absolutePath, label) {
+  if (stat.isSymbolicLink() || (!stat.isFile() && !stat.isDirectory())) {
+    throw new Error(`${label} must be a regular file or directory and cannot be a link or special file: ${absolutePath}`);
+  }
+}
+
+function isPathInside(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
+}
+
+function readRegularFile(filePath, label) {
+  const before = fs.lstatSync(filePath);
+  assertRegularStat(before, filePath, label);
+  const noFollow = fs.constants.O_NOFOLLOW ?? 0;
+  const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | noFollow);
+  try {
+    const after = fs.fstatSync(descriptor);
+    assertRegularStat(after, filePath, label);
+    if (before.dev !== after.dev || before.ino !== after.ino) {
+      throw new Error(`${label} changed while it was being opened: ${filePath}`);
+    }
+    return fs.readFileSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function writeNewRegularFile(filePath, bytes, mode = 0o644) {
+  const noFollow = fs.constants.O_NOFOLLOW ?? 0;
+  const descriptor = fs.openSync(
+    filePath,
+    fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | noFollow,
+    mode,
+  );
+  try {
+    fs.writeFileSync(descriptor, bytes);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function copyRegularTree(sourceTreePath, destinationTreePath) {
+  const source = captureRegularTree(sourceTreePath);
+  assertSafePathChain(destinationTreePath, { allowMissing: true, label: "tree copy destination" });
+  if (lstatOrUndefined(destinationTreePath)) {
+    throw new Error(`Tree copy destination already exists: ${destinationTreePath}`);
+  }
+  fs.mkdirSync(destinationTreePath);
+  for (const entry of source) {
+    const outputPath = path.join(destinationTreePath, ...entry.relativePath.split("/"));
+    if (entry.type === "directory") {
+      fs.mkdirSync(outputPath, { mode: entry.executable ? 0o755 : 0o644 });
+    } else {
+      writeNewRegularFile(outputPath, entry.bytes, entry.executable ? 0o755 : 0o644);
+    }
+  }
+  const copied = captureRegularTree(destinationTreePath);
+  if (!regularTreeSnapshotsEqual(source, copied)) {
+    throw new Error(`Strict tree copy verification failed for ${destinationTreePath}.`);
+  }
+}
+
+function ensureRepositoryDirectory(repositoryRoot, repositoryPath, createdDirectories = []) {
+  if (repositoryPath === "." || repositoryPath === "") {
+    return repositoryRoot;
+  }
+  const segments = repositoryPath.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === ".." || segment.includes("\\"))) {
+    throw new Error(`Unsafe repository directory path: ${repositoryPath}`);
+  }
+  let current = repositoryRoot;
+  for (const segment of segments) {
+    current = path.join(current, segment);
+    const stat = lstatOrUndefined(current);
+    if (stat) {
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        throw new Error(`Artifact parent must be a regular directory: ${current}`);
+      }
+    } else {
+      fs.mkdirSync(current);
+      createdDirectories.push(current);
+    }
+  }
+  if (!isPathInside(repositoryRoot, current)) {
+    throw new Error(`Artifact parent escapes repository root: ${current}`);
+  }
+  return current;
+}
+
+function createHermeticEnvironment(homePath, options = {}) {
+  if (!lstatOrUndefined(homePath)) {
+    assertSafePathChain(homePath, { allowMissing: true, label: "subprocess home" });
+    assertSafePathChain(path.dirname(homePath), { expectedType: "directory", label: "subprocess home parent" });
+    fs.mkdirSync(homePath);
+  } else {
+    assertSafePathChain(homePath, { expectedType: "directory", label: "subprocess home" });
+  }
+  const environment = {
+    TZ: "UTC",
+    LANG: "C",
+    LC_ALL: "C",
+    HOME: homePath,
+    XDG_CONFIG_HOME: homePath,
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0",
+  };
+  for (const key of ["PATH", "SystemRoot", "WINDIR"]) {
+    if (process.env[key]) {
+      environment[key] = process.env[key];
+    }
+  }
+  const temporaryRoot = options.temporaryRoot;
+  if (temporaryRoot) {
+    environment.TEMP = temporaryRoot;
+    environment.TMP = temporaryRoot;
+    environment.TMPDIR = temporaryRoot;
+  }
+  if (options.gitCeilingDirectory) {
+    environment.GIT_CEILING_DIRECTORIES = options.gitCeilingDirectory;
+  }
+  return environment;
+}
+
+function gitArgs(...args) {
+  return [...GIT_CONFIG_ARGUMENTS, ...args];
+}
+
+function findAncestorNodeModules(startPath) {
+  const roots = [];
+  let current = path.resolve(startPath);
+  while (true) {
+    const candidate = path.join(current, "node_modules");
+    const stat = lstatOrUndefined(candidate);
+    if (stat) {
+      assertSafePathChain(candidate, { expectedType: "directory", label: "dependency root" });
+      roots.push(fs.realpathSync.native(candidate));
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return roots;
+}
+
+function uniqueSortedPaths(paths) {
+  return [...new Set(paths.map((value) => path.resolve(value)))].sort(compareUtf8);
+}
+
+function updateLengthFramed(digest, value) {
+  const length = Buffer.alloc(8);
+  length.writeBigUInt64BE(BigInt(value.length));
+  digest.update(length);
+  digest.update(value);
 }
 
 function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  return JSON.parse(readRegularFile(filePath, `JSON input ${filePath}`).toString("utf8"));
 }
 
 function toJsonBytes(value) {
@@ -622,6 +1319,21 @@ function sha256(bytes) {
 
 function cloneJsonValue(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function subprocessText(value) {
+  return Buffer.isBuffer(value) ? value.toString("utf8") : String(value ?? "");
+}
+
+function lstatOrUndefined(filePath) {
+  try {
+    return fs.lstatSync(filePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 function isRecord(value) {
