@@ -658,6 +658,15 @@ describe("semantic query AST", () => {
 
   it("defers schema patterns without narrowing or executing ECMA-262", () => {
     const patternedInput = schemaInput();
+    const comparison = (name: string, value: unknown) => ({
+      kind: "features",
+      filter: {
+        kind: "comparison",
+        operator: "eq",
+        left: { kind: "property", name },
+        right: { kind: "literal", value },
+      },
+    });
     const patternSchema = (expression: string) =>
       createSourceSchemaV2({
         ...patternedInput,

@@ -1,6 +1,7 @@
 import type {
   CrsDefinition,
   ExecutableBoundingBox,
+  ExecutableCrsBinding,
   ExecutableGeometryValue,
   ExtensionIdentifier,
   JsonPrimitive,
@@ -409,3 +410,47 @@ export interface ParseSemanticQueryOptions {
   /** When present, a native expression must match this source protocol. */
   readonly protocol?: SourceProtocol;
 }
+
+/** Identity inputs carried into canonical semantic-query bytes and hashes. */
+export interface CanonicalSemanticQueryOptions extends ParseSemanticQueryOptions {
+  /** Version/fingerprint of the CRS registry or transform policy used by the caller. */
+  readonly crsVersion?: string;
+  /** Version/fingerprint of the authorization/capability policy used by the caller. */
+  readonly policyVersion?: string;
+}
+
+/** External CQL2 filter context that cannot be encoded inside CQL2 JSON itself. */
+export interface Cql2JsonInterchangeOptions extends ParseSemanticQueryOptions {
+  /**
+   * CRS and coordinate order represented by spatial literals. Required when a
+   * supported expression contains a geometry or bounding box.
+   */
+  readonly filterCrs?: ExecutableCrsBinding;
+}
+
+/** Strict, supported CQL2 JSON filter expression. */
+export type Cql2JsonExpression = Readonly<{
+  op: string;
+  args: readonly JsonValue[];
+}>;
+
+export type LegacyWhereProtocol =
+  | "geoservices-feature-service"
+  | "geoservices-map-service"
+  | "geoservices-image-service"
+  | "ogc-features"
+  | "ogc-records"
+  | "stac"
+  | "odata"
+  | "geoparquet";
+
+export type LegacyWhereDialectFor<TProtocol extends LegacyWhereProtocol> = TProtocol extends
+  | "geoservices-feature-service"
+  | "geoservices-map-service"
+  | "geoservices-image-service"
+  ? "geoservices-sql92"
+  : TProtocol extends "ogc-features" | "ogc-records" | "stac"
+    ? "cql2-text"
+    : TProtocol extends "odata"
+      ? "odata-4.0"
+      : "duckdb-sql";

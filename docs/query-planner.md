@@ -65,10 +65,112 @@ OGC source may carry `cql2-json` or `cql2-text`; it cannot carry
 `geoservices-sql92`. A native expression is an escape hatch, not a claim that
 the expression is protocol neutral.
 
-This first slice does not change compilation or execution. Deterministic
-semantic bytes/hash, CQL2 JSON interchange, and the deprecated raw-`where`
-migration are follow-up work in issue #526; protocol compiler adoption remains
-in #527-#529.
+This semantic surface does not change compilation or execution. Protocol
+compiler adoption remains in #527-#529.
+
+### Canonical bytes and query identity
+
+`canonicalSemanticQueryBytes()` and `hashSemanticQuery()` first run the same
+bounded runtime/schema validation, then encode a versioned envelope with sorted
+object keys. Array order remains significant. The identity envelope always
+contains schema fingerprint, protocol, CRS-registry version, and policy version
+slots; unavailable values are explicit `null`, not omitted. Cancellation,
+realtime cursors, observation timestamps, and other volatile execution state
+are not members of the semantic AST.
+
+```ts doc-test=compile
+import {
+  canonicalSemanticQueryBytes,
+  createSemanticQueryBuilder,
+  hashSemanticQuery,
+} from "@honua/sdk-js/query-planner";
+
+interface Parcel {
+  id: number;
+  status: string;
+}
+
+const query = createSemanticQueryBuilder<Parcel, "ogc-features", "non-spatial">();
+const request = query.features({
+  select: ["id"] as const,
+  filter: query.comparison("eq", query.property("status"), "active"),
+});
+const identity = {
+  protocol: "ogc-features" as const,
+  crsVersion: "epsg-db:2026.1",
+  policyVersion: "query-policy:7",
+};
+
+console.log(canonicalSemanticQueryBytes(request, identity).byteLength);
+console.log(hashSemanticQuery(request, identity));
+```
+
+Equivalent validated inputs produce identical UTF-8 bytes and a
+domain-separated SHA-256 hash. Changing schema, CRS, policy, protocol, field
+order, sort precedence, or another semantic member changes identity.
+
+### CQL2 JSON interchange
+
+`semanticFilterToCql2Json()` and `semanticFilterFromCql2Json()` implement a
+strict, lossless supported subset of the
+[OGC CQL2 JSON encoding](https://docs.ogc.org/is/21-065r2/21-065r2.html).
+Import uses the same byte/node/depth/collection bounds and duplicate-name
+rejection as `parseSemanticQuery`; imported filters are runtime validated and
+deeply frozen.
+
+```ts doc-test=compile
+import {
+  createSemanticQueryBuilder,
+  semanticFilterFromCql2Json,
+  semanticFilterToCql2Json,
+} from "@honua/sdk-js/query-planner";
+
+interface Road {
+  roadClass: string;
+}
+
+const query = createSemanticQueryBuilder<Road, "ogc-features", "non-spatial">();
+const filter = query.like(query.property("roadClass"), "primary%", {
+  caseSensitive: false,
+});
+const cql2 = semanticFilterToCql2Json(filter, { protocol: "ogc-features" });
+const restored = semanticFilterFromCql2Json(cql2, { protocol: "ogc-features" });
+
+console.log(cql2, restored);
+```
+
+The supported subset includes property/literal comparisons, `and`/`or`/`not`,
+null tests, lists, numeric ranges, case-sensitive and `casei` patterns,
+standard topological/non-wrapping-bbox predicates, and the four semantic
+temporal predicates. CQL2 carries spatial CRS outside its JSON expression, so
+spatial import/export requires an explicit executable `filterCrs` binding and
+verifies every operand against it. Distance extensions, native expressions,
+property-property comparisons, arithmetic/custom functions, measured geometry
+layouts, wrapping bounding boxes, and string-encoded high-precision numbers
+fail closed rather than being weakened.
+
+### Deprecated raw `where` compatibility
+
+The v1 `Query.where` member remains operational but is deprecated and explicitly
+source-native. `legacyWhereToNativeFilter()` is the migration bridge for text
+whose dialect is losslessly known: GeoServices SQL-92, CQL2 text, OData 4.0, or
+DuckDB SQL. WFS's parsed legacy grammar and Honua gRPC's JSON dialect are not
+mislabelled as raw text.
+
+```ts doc-test=compile
+import { legacyWhereToNativeFilter } from "@honua/sdk-js/query-planner";
+
+const compatibilityFilter = legacyWhereToNativeFilter(
+  "geoservices-feature-service",
+  "STATUS = 'OPEN'",
+);
+
+console.log(compatibilityFilter.dialect); // geoservices-sql92
+```
+
+Existing v1 planning still serializes `where` as `{ kind: "source-native",
+expression }`, preserving compatibility until #527-#529 adopt semantic nodes.
+New code should use typed builders instead of the bridge.
 
 ## Remote pushdown
 
@@ -266,12 +368,14 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
 
 ## Deliberate first-slice boundaries
 
-This foundation does not close the full planner workstream. Follow-on slices
-must add typed semantic predicates and temporal windows, CQL2 JSON and richer
-OGC filter negotiation, spatial-binning aggregation (grid/hex) in the IR,
+This foundation does not close the full planner workstream. The typed semantic
+AST, temporal values, canonical identity, and CQL2 JSON interchange are now
+available, while the existing v1 compilers remain on their compatibility path.
+Follow-on slices must adopt the AST in those compilers, negotiate richer OGC
+filter support, and add spatial-binning aggregation (grid/hex),
 joins/composition, cache/freshness decisions, cost models, realtime
 snapshot/delta plans, receipts, and richer renderer/MCP consumption. Histogram
-and time-series aggregation are rejected by this compiler rather than silently
-ignored. The GeoServices, OGC API Features, WFS, OData, DuckDB SQL, gRPC, and
-bounded columnar/worker paths, spatial-aggregation pushdown, and a CLI plan
-consumer (`honua explain`) are now delivered.
+and time-series aggregation are rejected by the current compiler rather than
+silently ignored. The GeoServices, OGC API Features, WFS, OData, DuckDB SQL,
+gRPC, bounded columnar/worker paths, spatial-aggregation pushdown, and a CLI plan
+consumer (`honua explain`) are delivered.
