@@ -2372,6 +2372,25 @@ export function isLogicalDomainValueCompatible(value: JsonValue, type: LogicalTy
   return domainValueCompatible(value, type);
 }
 
+/**
+ * Compare two canonical scalar values with the exact ordering used by
+ * SourceSchemaV2 range domains. Timestamp offsets, leap seconds, and up to
+ * nanosecond precision are preserved; no comparison is routed through
+ * millisecond-limited `Date` arithmetic.
+ *
+ * `undefined` means that the values are invalid for the logical type or do
+ * not share a deterministic timeline (for example, a local timestamp and an
+ * offset timestamp under `timezone: "unknown"`).
+ *
+ * @internal
+ */
+export function compareLogicalDomainValues(left: JsonValue, right: JsonValue, type: LogicalType): number | undefined {
+  if (!isLogicalDomainValueCompatible(left, type) || !isLogicalDomainValueCompatible(right, type)) {
+    return undefined;
+  }
+  return compareDomainValues(left as OrderedDomainValue, right as OrderedDomainValue, type);
+}
+
 function canonicalGeometryValue(value: JsonValue): boolean {
   return canonicalGeometrySummary(value) !== undefined;
 }
@@ -2526,7 +2545,20 @@ function compareDomainValues(
     if (leftTime.leapSecond !== rightTime.leapSecond) return leftTime.leapSecond ? -1 : 1;
     return leftTime.fraction === rightTime.fraction ? 0 : leftTime.fraction < rightTime.fraction ? -1 : 1;
   }
+  if (type.kind === "time") {
+    const leftTime = exactTimeKey(left);
+    const rightTime = exactTimeKey(right);
+    if (leftTime === undefined || rightTime === undefined) return undefined;
+    return leftTime === rightTime ? 0 : leftTime < rightTime ? -1 : 1;
+  }
   return left === right ? 0 : left < right ? -1 : 1;
+}
+
+function exactTimeKey(value: string): bigint | undefined {
+  const match = /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,9}))?$/.exec(value);
+  if (!match) return undefined;
+  const seconds = Number(match[1]) * 3_600 + Number(match[2]) * 60 + Number(match[3]);
+  return BigInt(seconds) * 1_000_000_000n + BigInt((match[4] ?? "").padEnd(9, "0") || "0");
 }
 
 function exactTimestampKey(value: string):
