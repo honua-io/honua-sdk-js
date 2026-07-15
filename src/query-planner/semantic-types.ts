@@ -25,9 +25,11 @@ export type ScalarFieldName<TRecord> = {
 export type StringFieldName<TRecord> = {
   [TKey in FieldName<TRecord>]-?: IsUntyped<NonNullish<TRecord[TKey]>> extends true
     ? TKey
-    : NonNullish<TRecord[TKey]> extends string
-      ? TKey
-      : never;
+    : NonNullish<TRecord[TKey]> extends TemporalValue
+      ? never
+      : NonNullish<TRecord[TKey]> extends string
+        ? TKey
+        : never;
 }[FieldName<TRecord>];
 
 export type OrderableFieldName<TRecord> = {
