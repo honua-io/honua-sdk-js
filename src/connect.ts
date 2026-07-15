@@ -520,7 +520,8 @@ function geoParquetAssetVariant(
   return JSON.stringify({ urls, geometryColumn });
 }
 
-function validateConnectEndpoint(input: string | URL): string {
+/** @internal Shared by the kernel authorization gate; not exported from public barrels. */
+export function validateConnectEndpoint(input: string | URL): string {
   let endpoint: URL;
   try {
     endpoint = new URL(input.toString());
