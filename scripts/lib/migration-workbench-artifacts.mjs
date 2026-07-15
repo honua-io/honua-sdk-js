@@ -19,6 +19,7 @@ const CLI_REPOSITORY_PATH = "dist/src/migration/cli.js";
 const EXECUTION_RUNNER_REPOSITORY_PATH = "scripts/lib/migration-workbench-execution-runner.mjs";
 const NETWORK_GUARD_REPOSITORY_PATH = "scripts/lib/migration-workbench-network-guard.mjs";
 const FIXED_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+const PREPARED_DIST_SRC_DIGEST_DOMAIN = "honua.migration-workbench.prepared-dist-src.v1";
 
 const CLI_TIMEOUT_MS = 60_000;
 const GIT_TIMEOUT_MS = 20_000;
@@ -124,6 +125,11 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
   writeNewRegularFile(expectedBehaviorPath, liveSourceIdentity.expectedBehaviorBytes);
   assertSourceSnapshotIdentity(fixturePath, expectedBehaviorPath, liveSourceIdentity);
   assertLiveSourceIdentity(requiredInputs, liveSourceIdentity);
+  const sourceSnapshotHookContext = Object.freeze({
+    sourceSnapshotRoot,
+    fixturePath,
+    expectedBehaviorPath,
+  });
   const cliPath = requiredInputs.cliPath;
 
   try {
@@ -159,7 +165,8 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       ],
       normalization,
     });
-    options.testHooks?.afterCommand?.("honua-compat-demo", repositoryRoot);
+    options.testHooks?.afterCommand?.("honua-compat-demo", repositoryRoot, sourceSnapshotHookContext);
+    assertSourceSnapshotIdentity(fixturePath, expectedBehaviorPath, liveSourceIdentity);
     const widgetCommand = runCliCommand({
       id: "widget-readiness",
       repositoryRoot,
@@ -168,7 +175,8 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       args: ["widgets", fixturePath, "--json", "--report", widgetReportPath],
       normalization,
     });
-    options.testHooks?.afterCommand?.("widget-readiness", repositoryRoot);
+    options.testHooks?.afterCommand?.("widget-readiness", repositoryRoot, sourceSnapshotHookContext);
+    assertSourceSnapshotIdentity(fixturePath, expectedBehaviorPath, liveSourceIdentity);
     const maplibreCommand = runCliCommand({
       id: "honua-maplibre-dry-run",
       repositoryRoot,
@@ -177,7 +185,8 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       args: ["codemod", fixturePath, "--target", "honua-maplibre", "--annotate-todos", "--report", maplibreReportPath],
       normalization,
     });
-    options.testHooks?.afterCommand?.("honua-maplibre-dry-run", repositoryRoot);
+    options.testHooks?.afterCommand?.("honua-maplibre-dry-run", repositoryRoot, sourceSnapshotHookContext);
+    assertSourceSnapshotIdentity(fixturePath, expectedBehaviorPath, liveSourceIdentity);
 
     const targetTreePath = resolveAbsoluteInsideRoot(
       temporaryRoot,
@@ -303,6 +312,10 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
     ]);
     const manifest = buildManifest(artifacts, provenance, commands);
     artifacts.set(MANIFEST_REPOSITORY_PATH, toJsonBytes(manifest));
+
+    assertLiveSourceIdentity(requiredInputs, liveSourceIdentity);
+    verifyPreparedSdkIdentity(repositoryRoot, preparedSdk);
+    assertSourceSnapshotIdentity(fixturePath, expectedBehaviorPath, liveSourceIdentity);
 
     return {
       artifacts,
@@ -667,6 +680,7 @@ function capturePreparedSdkIdentity(repositoryRoot) {
       sha256: manifest.dist.sha256,
       fileCount: manifest.dist.fileCount,
     },
+    distSrc: capturePreparedDistSrcIdentity(manifest.dist.entries),
   };
 }
 
@@ -680,10 +694,32 @@ function verifyPreparedSdkIdentity(repositoryRoot, expected) {
   if (
     observed.format !== expected.format ||
     observed.inputs.fileCount !== expected.inputs.fileCount ||
-    observed.dist.fileCount !== expected.dist.fileCount
+    observed.dist.fileCount !== expected.dist.fileCount ||
+    !isDeepStrictEqual(capturePreparedDistSrcIdentity(observed.dist.entries), expected.distSrc)
   ) {
     throw new Error("Prepared SDK manifest identity changed during migration artifact generation.");
   }
+}
+
+function capturePreparedDistSrcIdentity(distEntries) {
+  const entries = distEntries
+    .filter((entry) => entry.path.startsWith("dist/src/"))
+    .sort((left, right) => compareUtf8(left.path, right.path));
+  if (entries.length === 0) {
+    throw new Error("Prepared SDK manifest contains no canonical dist/src transformation entries.");
+  }
+  const digest = createHash("sha256");
+  updateLengthFramed(digest, Buffer.from(PREPARED_DIST_SRC_DIGEST_DOMAIN, "utf8"));
+  updateLengthFramed(digest, Buffer.from(String(entries.length), "ascii"));
+  for (const entry of entries) {
+    updateLengthFramed(digest, Buffer.from(entry.path, "utf8"));
+    updateLengthFramed(digest, Buffer.from(String(entry.bytes), "ascii"));
+    updateLengthFramed(digest, Buffer.from(entry.sha256, "ascii"));
+  }
+  return Object.freeze({
+    sha256: digest.digest("hex"),
+    fileCount: entries.length,
+  });
 }
 
 function captureLiveSourceIdentity(requiredInputs) {
@@ -880,9 +916,11 @@ function buildProvenance(preparedSdk, liveSourceIdentity, executionEvidence) {
       preparedArtifactFormat: preparedSdk.format,
       buildInputsSha256: preparedSdk.inputs.sha256,
       buildInputFileCount: preparedSdk.inputs.fileCount,
-      distSha256: preparedSdk.dist.sha256,
-      distFileCount: preparedSdk.dist.fileCount,
-      digestScope: "Complete prepared SDK build-input and dist snapshots, including all CLI transitive modules.",
+      distSrcSha256: preparedSdk.distSrc.sha256,
+      distSrcFileCount: preparedSdk.distSrc.fileCount,
+      digestScope:
+        "Complete prepared SDK build inputs plus verified canonical dist/src transformation entries; " +
+        "adopted outputs outside dist/src are excluded.",
     },
     generatedTargetExecution: executionEvidence,
     sourceUpload: false,
@@ -1078,14 +1116,28 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, public
         label: `artifact output ${repositoryPath}`,
       });
       const backupPath = path.join(backupRoot, `artifact-${String(index).padStart(3, "0")}`);
-      const entry = { kind: "artifact", destinationPath, backupPath, hadOriginal: false, installed: false };
+      const entry = {
+        kind: "artifact",
+        destinationPath,
+        backupPath,
+        hadOriginal: false,
+        installed: false,
+        originalIdentity: undefined,
+      };
       const existing = lstatOrUndefined(destinationPath);
       if (existing) {
         assertRegularStat(existing, destinationPath, `artifact output ${repositoryPath}`);
+        entry.originalIdentity = captureOriginalEntryIdentity(
+          destinationPath,
+          `artifact output ${repositoryPath}`,
+        );
         fs.renameSync(destinationPath, backupPath);
         entry.hadOriginal = true;
+        journal.push(entry);
+        assertOriginalEntryIdentity(backupPath, entry.originalIdentity, `artifact backup ${repositoryPath}`);
+      } else {
+        journal.push(entry);
       }
-      journal.push(entry);
       fs.renameSync(stagedFiles.get(repositoryPath), destinationPath);
       entry.installed = true;
       if (!readRegularFile(destinationPath, `materialized artifact ${repositoryPath}`).equals(artifacts.get(repositoryPath))) {
@@ -1101,11 +1153,21 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, public
         label: `retired artifact ${retired.repositoryPath}`,
       });
       const backupPath = path.join(backupRoot, `retired-${String(index).padStart(3, "0")}`);
-      const stat = fs.lstatSync(current);
-      assertSupportedEntry(stat, current, `retired artifact ${retired.repositoryPath}`);
-      const entry = { kind: "retired", destinationPath: current, backupPath, hadOriginal: true, installed: false };
+      const originalIdentity = captureOriginalEntryIdentity(
+        current,
+        `retired artifact ${retired.repositoryPath}`,
+      );
+      const entry = {
+        kind: "retired",
+        destinationPath: current,
+        backupPath,
+        hadOriginal: true,
+        installed: false,
+        originalIdentity,
+      };
       fs.renameSync(current, backupPath);
       journal.push(entry);
+      assertOriginalEntryIdentity(backupPath, originalIdentity, `retired artifact backup ${retired.repositoryPath}`);
       replacementCount += 1;
       testHooks?.afterReplacement?.(replacementCount, retired.repositoryPath);
     }
@@ -1153,6 +1215,66 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, public
   }
 }
 
+function captureOriginalEntryIdentity(entryPath, label) {
+  const before = fs.lstatSync(entryPath);
+  assertSupportedEntry(before, entryPath, label);
+  const root = captureRootIdentity(before);
+  let identity;
+  if (before.isFile()) {
+    const bytes = readRegularFile(entryPath, label);
+    identity = {
+      type: "file",
+      root,
+      byteLength: bytes.length,
+      contentSha256: sha256(bytes),
+    };
+  } else {
+    const entries = captureRegularTree(entryPath);
+    identity = {
+      type: "directory",
+      root,
+      treeSha256: digestTreeSnapshot(entries),
+      entryCount: entries.length,
+      fileCount: entries.filter((entry) => entry.type === "file").length,
+      directoryCount: entries.filter((entry) => entry.type === "directory").length,
+      byteLength: entries.reduce((total, entry) => total + entry.byteLength, 0),
+    };
+  }
+  const after = fs.lstatSync(entryPath);
+  assertSupportedEntry(after, entryPath, label);
+  if (!isDeepStrictEqual(captureRootIdentity(after), root)) {
+    throw new Error(`${label} changed while its immutable original identity was captured: ${entryPath}`);
+  }
+  return Object.freeze({ ...identity, root: Object.freeze(root) });
+}
+
+function captureRootIdentity(stat) {
+  return {
+    type: stat.isFile() ? "file" : "directory",
+    device: stat.dev,
+    inode: stat.ino,
+    mode: stat.mode & 0o7777,
+  };
+}
+
+function assertOriginalEntryIdentity(entryPath, expected, label) {
+  if (!expected) {
+    throw new Error(`${label} has no immutable original identity: ${entryPath}`);
+  }
+  let observed;
+  try {
+    observed = captureOriginalEntryIdentity(entryPath, label);
+  } catch (error) {
+    throw new Error(
+      `${label} could not be verified against its immutable original identity at ${entryPath}: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (!isDeepStrictEqual(observed, expected)) {
+    throw new Error(`${label} does not match its immutable original identity: ${entryPath}`);
+  }
+}
+
 function rollbackMaterialization(journal, createdDirectories) {
   const errors = [];
   for (const entry of [...journal].reverse()) {
@@ -1163,11 +1285,7 @@ function rollbackMaterialization(journal, createdDirectories) {
         if (!backup) {
           throw new Error(`Required rollback backup is missing: ${entry.backupPath}`);
         }
-        if (entry.kind === "artifact") {
-          assertRegularStat(backup, entry.backupPath, "artifact backup during rollback");
-        } else {
-          assertSupportedEntry(backup, entry.backupPath, "retired artifact backup during rollback");
-        }
+        assertOriginalEntryIdentity(entry.backupPath, entry.originalIdentity, "rollback backup");
       }
       if (entry.installed) {
         const installed = lstatOrUndefined(entry.destinationPath);
@@ -1181,6 +1299,7 @@ function rollbackMaterialization(journal, createdDirectories) {
           throw new Error(`Rollback destination is unexpectedly occupied: ${entry.destinationPath}`);
         }
         fs.renameSync(entry.backupPath, entry.destinationPath);
+        assertOriginalEntryIdentity(entry.destinationPath, entry.originalIdentity, "restored rollback entry");
       }
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));

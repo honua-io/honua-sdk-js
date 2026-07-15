@@ -33,6 +33,10 @@ export interface MigrationWorkbenchPreparedSdkIdentity {
     sha256: string;
     fileCount: number;
   };
+  distSrc: {
+    sha256: string;
+    fileCount: number;
+  };
 }
 
 export interface MigrationWorkbenchLiveSourceIdentity {
@@ -72,7 +76,15 @@ export interface MigrationWorkbenchTreeEntry {
 }
 
 export interface MigrationWorkbenchMaterializationTestHooks {
-  afterCommand?(commandId: string, repositoryRoot: string): void;
+  afterCommand?(
+    commandId: string,
+    repositoryRoot: string,
+    sourceSnapshot: Readonly<{
+      sourceSnapshotRoot: string;
+      fixturePath: string;
+      expectedBehaviorPath: string;
+    }>,
+  ): void;
   afterReplacement?(replacementCount: number, repositoryPath: string): void;
   beforePublication?(repositoryRoot: string, transactionRoot?: string): void;
   beforeCleanup?(transactionRoot: string, repositoryRoot: string): void;
