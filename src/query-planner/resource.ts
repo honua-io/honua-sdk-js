@@ -222,6 +222,17 @@ export function createGeoParquetResourceRegistry(
   const now = configuredNow ?? Date.now;
   const entries = new Map<string, ResourceEntry>();
   let disposed = false;
+  let readingClock = false;
+
+  const readCurrentTime = (): number => {
+    if (readingClock) throw resolutionFailed();
+    readingClock = true;
+    try {
+      return readClock(now);
+    } finally {
+      readingClock = false;
+    }
+  };
 
   const resolver: GeoParquetResourceResolver = (handleValue, contextValue) => {
     const handle = parseGeoParquetResourceHandle(handleValue);
@@ -239,7 +250,7 @@ export function createGeoParquetResourceRegistry(
     if (!entry) throw resourceUnavailable();
     if (entry.state === "expired") throw resourceExpired();
     if (entry.expiresAt !== undefined) {
-      const currentTime = readClock(now);
+      const currentTime = readCurrentTime();
       if (disposed || entries.get(key) !== entry) throw resourceUnavailable();
       if (currentTime >= entry.expiresAt) {
         entries.set(key, EXPIRED_ENTRY);
@@ -260,6 +271,12 @@ export function createGeoParquetResourceRegistry(
       });
       const key = resourceKey(handle);
       if (!entries.has(key) && entries.size >= maxEntries) reclaimExpiredEntries(entries, maxEntries);
+      if (!entries.has(key) && entries.size >= maxEntries && hasExpiringEntries(entries)) {
+        const snapshot = [...entries.entries()];
+        const currentTime = readCurrentTime();
+        if (disposed || !entriesMatchSnapshot(entries, snapshot)) throw resourceUnavailable();
+        reclaimExpiredEntries(entries, maxEntries, currentTime);
+      }
       if (!entries.has(key) && entries.size >= maxEntries) throw resourceUnavailable();
       entries.set(
         key,
@@ -365,11 +382,30 @@ function resourceKey(handle: GeoParquetResourceHandleV1): string {
   );
 }
 
-function reclaimExpiredEntries(entries: Map<string, ResourceEntry>, maxEntries: number): void {
+function reclaimExpiredEntries(entries: Map<string, ResourceEntry>, maxEntries: number, currentTime?: number): void {
   for (const [key, entry] of entries) {
-    if (entry.state === "expired") entries.delete(key);
+    if (
+      entry.state === "expired" ||
+      (currentTime !== undefined && entry.expiresAt !== undefined && currentTime >= entry.expiresAt)
+    ) {
+      entries.delete(key);
+    }
     if (entries.size < maxEntries) return;
   }
+}
+
+function hasExpiringEntries(entries: ReadonlyMap<string, ResourceEntry>): boolean {
+  for (const entry of entries.values()) {
+    if (entry.state === "active" && entry.expiresAt !== undefined) return true;
+  }
+  return false;
+}
+
+function entriesMatchSnapshot(
+  entries: ReadonlyMap<string, ResourceEntry>,
+  snapshot: readonly (readonly [string, ResourceEntry])[],
+): boolean {
+  return entries.size === snapshot.length && snapshot.every(([key, entry]) => entries.get(key) === entry);
 }
 
 function inspectRecord(

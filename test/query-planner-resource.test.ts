@@ -5,6 +5,8 @@ import { capabilities } from "../src/contract/types.js";
 import { isHonuaSdkError, serializeHonuaError } from "../src/core/error-envelope.js";
 import { HonuaAbortError } from "../src/core/errors.js";
 import {
+  type GeoParquetResourceHandleV1,
+  type GeoParquetResourceRegistry,
   HonuaQueryPlanExecutionError,
   type QueryExecutionPlanV1,
   createGeoParquetResourceRegistry,
@@ -434,6 +436,62 @@ describe("GeoParquet resource handles", () => {
     expect(() =>
       expiring.register({ id: "replacement", authorizationContextId: CONTEXT, sources: ["replacement.parquet"] }),
     ).not.toThrow();
+
+    let currentTime = 0;
+    const unreadExpiry = createGeoParquetResourceRegistry({
+      resolver: "io.honua.unread-expiry-capacity",
+      maxEntries: 1,
+      now: () => currentTime,
+    });
+    const unreadExpiredHandle = unreadExpiry.register({
+      id: "expired-without-resolution",
+      authorizationContextId: CONTEXT,
+      sources: ["expired-without-resolution.parquet"],
+      expiresAt: 1,
+    });
+    currentTime = 1;
+    const replacement = unreadExpiry.register({
+      id: "replacement",
+      authorizationContextId: CONTEXT,
+      sources: ["replacement.parquet"],
+    });
+    await expect(
+      resolveGeoParquetResource(unreadExpiredHandle, unreadExpiry.resolver, { authorizationContextId: CONTEXT }),
+    ).rejects.toMatchObject({ code: "resource-unavailable" });
+    await expect(
+      resolveGeoParquetResource(replacement, unreadExpiry.resolver, { authorizationContextId: CONTEXT }),
+    ).resolves.toEqual({ sources: ["replacement.parquet"] });
+
+    let mutateDuringClock = false;
+    const reentrantState: {
+      handle?: GeoParquetResourceHandleV1;
+      registry?: GeoParquetResourceRegistry;
+    } = {};
+    const reentrantRegistry = createGeoParquetResourceRegistry({
+      resolver: "io.honua.reentrant-expiry-capacity",
+      maxEntries: 1,
+      now: () => {
+        if (mutateDuringClock && reentrantState.handle && reentrantState.registry) {
+          reentrantState.registry.revoke(reentrantState.handle);
+        }
+        return 2;
+      },
+    });
+    reentrantState.registry = reentrantRegistry;
+    reentrantState.handle = reentrantRegistry.register({
+      id: "reentrant-expiry",
+      authorizationContextId: CONTEXT,
+      sources: ["reentrant-expiry.parquet"],
+      expiresAt: 1,
+    });
+    mutateDuringClock = true;
+    expect(() =>
+      reentrantRegistry.register({
+        id: "reentrant-replacement",
+        authorizationContextId: CONTEXT,
+        sources: ["reentrant-replacement.parquet"],
+      }),
+    ).toThrowError(expect.objectContaining({ code: "resource-unavailable" }));
   });
 
   it("preserves credential-free v1 GeoParquet plan JSON and execution compatibility", async () => {
