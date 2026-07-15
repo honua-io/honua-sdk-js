@@ -72,6 +72,24 @@ function expectFailure(code, action) {
 }
 
 describe("pull request issue disposition policy", () => {
+  it("keeps the required workflow pinned, least-privilege, and bound to trusted base code", () => {
+    const workflow = fs.readFileSync(
+      path.join(root, ".github/workflows/pr-issue-disposition.yml"),
+      "utf8",
+    );
+    assert.match(workflow, /^  pull_request:\n/mu);
+    assert.doesNotMatch(workflow, /pull_request_target/u);
+    assert.match(workflow, /^  contents: read\n  issues: read\n  pull-requests: read$/mu);
+    assert.doesNotMatch(workflow, /(?:write|secrets:)/u);
+    assert.match(workflow, /actions\/checkout@[0-9a-f]{40}/u);
+    assert.match(workflow, /actions\/setup-node@[0-9a-f]{40}/u);
+    assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u);
+    assert.match(workflow, /path: trusted-policy/u);
+    assert.match(workflow, /persist-credentials: false/u);
+    assert.match(workflow, /working-directory: trusted-policy/u);
+    assert.match(workflow, /name: PR Issue Disposition/u);
+  });
+
   it("accepts exact completion and partial-slice footer blocks", () => {
     assert.deepEqual(validate(), { status: "valid", exemption: null, closes: [594], refs: [] });
     assert.deepEqual(
