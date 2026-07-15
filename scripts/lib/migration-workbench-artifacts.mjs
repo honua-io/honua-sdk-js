@@ -6,6 +6,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
+import { verifyPreparedSdkArtifact } from "./prepared-sdk-artifact.mjs";
+
 const FIXTURE_NAME = "arcgis-source-app";
 const FIXTURE_REPOSITORY_PATH = `examples/${FIXTURE_NAME}`;
 const SCENARIO_REPOSITORY_PATH = `${FIXTURE_REPOSITORY_PATH}/src/workbench-scenario.js`;
@@ -100,6 +102,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
     path.resolve(options.repositoryRoot ?? defaultRepositoryRoot()),
     "repository root",
   );
+  const preparedSdk = capturePreparedSdkIdentity(repositoryRoot);
   const requiredInputs = assertRequiredInputs(repositoryRoot);
   const temporaryParent = canonicalizeExistingDirectory(
     path.resolve(options.temporaryRoot ?? os.tmpdir()),
@@ -112,11 +115,26 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
   const demoReportPath = path.join(temporaryRoot, "demo-report.raw.json");
   const widgetReportPath = path.join(temporaryRoot, "widget-readiness.raw.json");
   const maplibreReportPath = path.join(temporaryRoot, "maplibre-assessment.raw.json");
-  const fixturePath = requiredInputs.fixturePath;
+  const liveSourceIdentity = captureLiveSourceIdentity(requiredInputs);
+  const sourceSnapshotRoot = path.join(temporaryRoot, "source-snapshot");
+  const fixturePath = path.join(sourceSnapshotRoot, FIXTURE_NAME);
+  fs.mkdirSync(sourceSnapshotRoot);
+  writeRegularTreeSnapshot(liveSourceIdentity.fixtureEntries, fixturePath);
+  const expectedBehaviorPath = path.join(sourceSnapshotRoot, "expected-behavior.v1.json");
+  writeNewRegularFile(expectedBehaviorPath, liveSourceIdentity.expectedBehaviorBytes);
+  assertSourceSnapshotIdentity(fixturePath, expectedBehaviorPath, liveSourceIdentity);
+  assertLiveSourceIdentity(requiredInputs, liveSourceIdentity);
   const cliPath = requiredInputs.cliPath;
 
   try {
-    const normalization = { repositoryRoot, temporaryRoot };
+    const normalization = {
+      repositoryRoot,
+      temporaryRoot,
+      aliases: [
+        [fixturePath, path.join(repositoryRoot, ...FIXTURE_REPOSITORY_PATH.split("/"))],
+        [sourceSnapshotRoot, path.join(repositoryRoot, "examples")],
+      ],
+    };
     const demoCommand = runCliCommand({
       id: "honua-compat-demo",
       repositoryRoot,
@@ -125,7 +143,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       args: [
         "demo",
         "--fixtures-root",
-        path.join(repositoryRoot, "examples"),
+        sourceSnapshotRoot,
         "--fixture",
         FIXTURE_NAME,
         "--output-dir",
@@ -141,6 +159,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       ],
       normalization,
     });
+    options.testHooks?.afterCommand?.("honua-compat-demo", repositoryRoot);
     const widgetCommand = runCliCommand({
       id: "widget-readiness",
       repositoryRoot,
@@ -149,6 +168,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       args: ["widgets", fixturePath, "--json", "--report", widgetReportPath],
       normalization,
     });
+    options.testHooks?.afterCommand?.("widget-readiness", repositoryRoot);
     const maplibreCommand = runCliCommand({
       id: "honua-maplibre-dry-run",
       repositoryRoot,
@@ -157,6 +177,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       args: ["codemod", fixturePath, "--target", "honua-maplibre", "--annotate-todos", "--report", maplibreReportPath],
       normalization,
     });
+    options.testHooks?.afterCommand?.("honua-maplibre-dry-run", repositoryRoot);
 
     const targetTreePath = resolveAbsoluteInsideRoot(
       temporaryRoot,
@@ -194,7 +215,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
     const rawDemoReport = readJson(validatedDemoReportPath);
     const rawWidgetReport = readJson(validatedWidgetReportPath);
     const rawMaplibreReport = readJson(validatedMaplibreReportPath);
-    const expectedBehaviorFixture = readJson(requiredInputs.expectedBehaviorPath);
+    const expectedBehaviorFixture = readJson(expectedBehaviorPath);
     assertExpectedBehaviorFixture(expectedBehaviorFixture);
 
     const generatedTargetBytes = readRegularFile(generatedScenarioPath, "generated migration scenario");
@@ -219,6 +240,8 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       patchBytes: patchResult.bytes,
       temporaryRoot,
     });
+    assertLiveSourceIdentity(requiredInputs, liveSourceIdentity);
+    verifyPreparedSdkIdentity(repositoryRoot, preparedSdk);
 
     const normalizedDemoReport = normalizeArtifactValue(rawDemoReport, normalization);
     const normalizedWidgetReport = normalizeArtifactValue(rawWidgetReport, normalization);
@@ -226,7 +249,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
     const normalizedExpectedBehavior = normalizeArtifactValue(expectedBehaviorFixture, normalization);
     const normalizedObservedBehavior = normalizeArtifactValue(observedBehavior, normalization);
     const commands = [demoCommand, widgetCommand, maplibreCommand];
-    const provenance = buildProvenance(sha256(requiredInputs.cliBytes), execution.evidence);
+    const provenance = buildProvenance(preparedSdk, liveSourceIdentity, execution.evidence);
 
     const migrationReport = {
       schemaVersion: "honua.migration-workbench.report.v1",
@@ -285,6 +308,10 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       artifacts,
       manifest,
       commands,
+      guards: {
+        preparedSdk,
+        liveSourceIdentity,
+      },
       workspace: {
         temporaryRoot,
         sourceTreePath: fixturePath,
@@ -310,16 +337,27 @@ export async function materializeMigrationWorkbenchArtifacts(options = {}) {
   );
   // Reject unsafe output paths before running the migration CLI, then repeat the preflight immediately before commit.
   preflightArtifactDestinations(repositoryRoot);
-  const result = await buildMigrationWorkbenchArtifacts({ repositoryRoot });
+  const result = await buildMigrationWorkbenchArtifacts({ repositoryRoot, testHooks: options.testHooks });
+  const verifyPublicationInputs = () => {
+    verifyPreparedSdkIdentity(repositoryRoot, result.guards.preparedSdk);
+    assertLiveSourceIdentity(assertRequiredInputs(repositoryRoot), result.guards.liveSourceIdentity);
+  };
   return materializeArtifactSet({
     mode,
     repositoryRoot,
     artifacts: result.artifacts,
     testHooks: options.testHooks,
+    publicationGuard: verifyPublicationInputs,
   });
 }
 
-export function materializeArtifactSet({ mode, repositoryRoot: repositoryRootOption, artifacts, testHooks }) {
+export function materializeArtifactSet({
+  mode,
+  repositoryRoot: repositoryRootOption,
+  artifacts,
+  testHooks,
+  publicationGuard,
+}) {
   if (mode !== "write" && mode !== "check") {
     throw new Error('Artifact mode must be exactly "write" or "check".');
   }
@@ -328,6 +366,8 @@ export function materializeArtifactSet({ mode, repositoryRoot: repositoryRootOpt
   const state = preflightArtifactDestinations(repositoryRoot);
 
   if (mode === "check") {
+    testHooks?.beforePublication?.(repositoryRoot);
+    publicationGuard?.();
     const mismatches = [];
     for (const repositoryPath of sortedArtifactPaths()) {
       const expectedBytes = artifacts.get(repositoryPath);
@@ -349,8 +389,9 @@ export function materializeArtifactSet({ mode, repositoryRoot: repositoryRootOpt
     if (mismatches.length > 0) {
       throw staleArtifactsError(mismatches);
     }
+    publicationGuard?.();
   } else {
-    commitArtifactSet({ repositoryRoot, artifacts, state, testHooks });
+    commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, publicationGuard });
   }
 
   return {
@@ -613,6 +654,85 @@ export function runBoundedCommand(command, args, options) {
   return result;
 }
 
+function capturePreparedSdkIdentity(repositoryRoot) {
+  const manifest = verifyPreparedSdkArtifact({ projectRoot: repositoryRoot });
+  return {
+    format: manifest.format,
+    runId: manifest.runId,
+    inputs: {
+      sha256: manifest.inputs.sha256,
+      fileCount: manifest.inputs.fileCount,
+    },
+    dist: {
+      sha256: manifest.dist.sha256,
+      fileCount: manifest.dist.fileCount,
+    },
+  };
+}
+
+function verifyPreparedSdkIdentity(repositoryRoot, expected) {
+  const observed = verifyPreparedSdkArtifact({
+    projectRoot: repositoryRoot,
+    expectedRunId: expected.runId,
+    expectedInputSha256: expected.inputs.sha256,
+    expectedDistSha256: expected.dist.sha256,
+  });
+  if (
+    observed.format !== expected.format ||
+    observed.inputs.fileCount !== expected.inputs.fileCount ||
+    observed.dist.fileCount !== expected.dist.fileCount
+  ) {
+    throw new Error("Prepared SDK manifest identity changed during migration artifact generation.");
+  }
+}
+
+function captureLiveSourceIdentity(requiredInputs) {
+  const fixtureEntries = captureRegularTree(requiredInputs.fixturePath);
+  const expectedBehaviorBytes = readRegularFile(
+    requiredInputs.expectedBehaviorPath,
+    EXPECTED_BEHAVIOR_REPOSITORY_PATH,
+  );
+  const fixtureTreeSha256 = digestTreeSnapshot(fixtureEntries);
+  const expectedBehaviorSha256 = sha256(expectedBehaviorBytes);
+  const digest = createHash("sha256");
+  updateLengthFramed(digest, Buffer.from("honua.migration-workbench.source-snapshot.v1", "utf8"));
+  updateLengthFramed(digest, Buffer.from(fixtureTreeSha256, "ascii"));
+  updateLengthFramed(digest, Buffer.from(expectedBehaviorSha256, "ascii"));
+  return {
+    fixtureEntries,
+    fixtureTreeSha256,
+    expectedBehaviorBytes,
+    expectedBehaviorSha256,
+    combinedSha256: digest.digest("hex"),
+  };
+}
+
+function assertLiveSourceIdentity(requiredInputs, expected) {
+  const observed = captureLiveSourceIdentity(requiredInputs);
+  if (
+    observed.fixtureTreeSha256 !== expected.fixtureTreeSha256 ||
+    observed.expectedBehaviorSha256 !== expected.expectedBehaviorSha256 ||
+    observed.combinedSha256 !== expected.combinedSha256 ||
+    !regularTreeSnapshotsEqual(observed.fixtureEntries, expected.fixtureEntries) ||
+    !observed.expectedBehaviorBytes.equals(expected.expectedBehaviorBytes)
+  ) {
+    throw new Error("Live migration workbench source inputs changed during deterministic artifact generation.");
+  }
+}
+
+function assertSourceSnapshotIdentity(fixturePath, expectedBehaviorPath, expected) {
+  const snapshot = captureLiveSourceIdentity({ fixturePath, expectedBehaviorPath });
+  if (
+    snapshot.fixtureTreeSha256 !== expected.fixtureTreeSha256 ||
+    snapshot.expectedBehaviorSha256 !== expected.expectedBehaviorSha256 ||
+    snapshot.combinedSha256 !== expected.combinedSha256 ||
+    !regularTreeSnapshotsEqual(snapshot.fixtureEntries, expected.fixtureEntries) ||
+    !snapshot.expectedBehaviorBytes.equals(expected.expectedBehaviorBytes)
+  ) {
+    throw new Error("Immutable migration workbench source snapshot did not match its captured repository inputs.");
+  }
+}
+
 function assertRequiredInputs(repositoryRoot) {
   const cliPath = resolveRepositoryPath(repositoryRoot, CLI_REPOSITORY_PATH, {
     expectedType: "file",
@@ -639,10 +759,8 @@ function assertRequiredInputs(repositoryRoot) {
     expectedType: "file",
     label: NETWORK_GUARD_REPOSITORY_PATH,
   });
-  captureRegularTree(fixturePath);
   return {
     cliPath,
-    cliBytes: readRegularFile(cliPath, CLI_REPOSITORY_PATH),
     fixturePath,
     scenarioPath,
     expectedBehaviorPath,
@@ -739,10 +857,16 @@ function normalizeNoIndexPatch(patchText) {
     .join("\n");
 }
 
-function buildProvenance(cliSha256, executionEvidence) {
+function buildProvenance(preparedSdk, liveSourceIdentity, executionEvidence) {
   return {
     fixture: FIXTURE_REPOSITORY_PATH,
     scenario: SCENARIO_REPOSITORY_PATH,
+    sourceSnapshot: {
+      fixtureTreeSha256: liveSourceIdentity.fixtureTreeSha256,
+      expectedBehaviorPath: EXPECTED_BEHAVIOR_REPOSITORY_PATH,
+      expectedBehaviorSha256: liveSourceIdentity.expectedBehaviorSha256,
+      combinedSha256: liveSourceIdentity.combinedSha256,
+    },
     authorship: "Original Honua-authored repository fixture",
     licenseScope: "Apache-2.0 repository license; no third-party sample source is reproduced in these artifacts",
     excludedFixture: {
@@ -753,8 +877,12 @@ function buildProvenance(cliSha256, executionEvidence) {
     },
     transformationEngine: {
       path: CLI_REPOSITORY_PATH,
-      sha256: cliSha256,
-      digestScope: "Entry module bytes only; transitive imports are not covered by this digest.",
+      preparedArtifactFormat: preparedSdk.format,
+      buildInputsSha256: preparedSdk.inputs.sha256,
+      buildInputFileCount: preparedSdk.inputs.fileCount,
+      distSha256: preparedSdk.dist.sha256,
+      distFileCount: preparedSdk.dist.fileCount,
+      digestScope: "Complete prepared SDK build-input and dist snapshots, including all CLI transitive modules.",
     },
     generatedTargetExecution: executionEvidence,
     sourceUpload: false,
@@ -855,11 +983,14 @@ function normalizeCliText(value, normalization) {
     .replace(/("elapsedMs"\s*:\s*)\d+/g, "$10");
 }
 
-function normalizeString(value, { repositoryRoot, temporaryRoot }) {
+function normalizeString(value, { repositoryRoot, temporaryRoot, aliases = [] }) {
   const replacements = [
+    ...aliases,
     [path.resolve(temporaryRoot), "<workspace>"],
     [path.resolve(repositoryRoot), "<repo>"],
-  ].sort((left, right) => right[0].length - left[0].length);
+  ]
+    .map(([absolutePath, replacement]) => [path.resolve(absolutePath), replacement])
+    .sort((left, right) => right[0].length - left[0].length);
   let normalized = value;
   for (const [absolutePath, placeholder] of replacements) {
     normalized = normalized.split(absolutePath).join(placeholder);
@@ -900,7 +1031,7 @@ function preflightArtifactDestinations(repositoryRoot) {
   return { retiredEntries };
 }
 
-function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks }) {
+function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks, publicationGuard }) {
   const transactionParent = ensureRepositoryDirectory(repositoryRoot, ".tmp");
   const transactionRoot = fs.mkdtempSync(path.join(transactionParent, "migration-workbench-materialize-"));
   const stagedRoot = path.join(transactionRoot, "staged");
@@ -911,6 +1042,7 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks }) {
   const createdDirectories = [];
   const journal = [];
   let replacementCount = 0;
+  let committed = false;
 
   try {
     for (const [index, repositoryPath] of sortedArtifactPaths().entries()) {
@@ -936,6 +1068,8 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks }) {
     ) {
       throw new Error("Artifact destinations changed after transactional staging and must be retried.");
     }
+    testHooks?.beforePublication?.(repositoryRoot, transactionRoot);
+    publicationGuard?.();
 
     for (const [index, repositoryPath] of sortedArtifactPaths().entries()) {
       const destinationPath = resolveRepositoryPath(repositoryRoot, repositoryPath, {
@@ -975,9 +1109,10 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks }) {
       replacementCount += 1;
       testHooks?.afterReplacement?.(replacementCount, retired.repositoryPath);
     }
-
-    // Removing the transaction directory retires prior files only after every replacement has succeeded.
-    fs.rmSync(transactionRoot, { recursive: true, force: true });
+    publicationGuard?.();
+    // From this point onward, every intended artifact replacement and retirement is committed.
+    // Transaction cleanup is bookkeeping and must never trigger destructive rollback.
+    committed = true;
   } catch (error) {
     const rollbackErrors = rollbackMaterialization(journal, createdDirectories);
     if (rollbackErrors.length > 0) {
@@ -987,9 +1122,32 @@ function commitArtifactSet({ repositoryRoot, artifacts, state, testHooks }) {
           `Original failure: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    fs.rmSync(transactionRoot, { recursive: true, force: true });
+    try {
+      fs.rmSync(transactionRoot, { recursive: true, force: true });
+    } catch (cleanupError) {
+      throw new Error(
+        `Artifact materialization failed and rollback completed, but transaction cleanup failed; ` +
+          `recovery files remain at ${transactionRoot}. ` +
+          `Cleanup failure: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}. ` +
+          `Original failure: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     throw new Error(
       `Artifact materialization failed; all handled replacements were rolled back. ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  if (!committed) {
+    throw new Error("Artifact materialization exited its transaction without an explicit commit point.");
+  }
+  try {
+    testHooks?.beforeCleanup?.(transactionRoot, repositoryRoot);
+    fs.rmSync(transactionRoot, { recursive: true, force: true });
+  } catch (error) {
+    throw new Error(
+      `Artifact materialization committed, but transaction cleanup failed; installed artifacts were preserved and ` +
+        `were not rolled back. Cleanup path: ${transactionRoot}. ` +
         `${error instanceof Error ? error.message : String(error)}`,
     );
   }
@@ -999,6 +1157,18 @@ function rollbackMaterialization(journal, createdDirectories) {
   const errors = [];
   for (const entry of [...journal].reverse()) {
     try {
+      let backup;
+      if (entry.hadOriginal) {
+        backup = lstatOrUndefined(entry.backupPath);
+        if (!backup) {
+          throw new Error(`Required rollback backup is missing: ${entry.backupPath}`);
+        }
+        if (entry.kind === "artifact") {
+          assertRegularStat(backup, entry.backupPath, "artifact backup during rollback");
+        } else {
+          assertSupportedEntry(backup, entry.backupPath, "retired artifact backup during rollback");
+        }
+      }
       if (entry.installed) {
         const installed = lstatOrUndefined(entry.destinationPath);
         if (installed) {
@@ -1006,7 +1176,7 @@ function rollbackMaterialization(journal, createdDirectories) {
           fs.unlinkSync(entry.destinationPath);
         }
       }
-      if (entry.hadOriginal && lstatOrUndefined(entry.backupPath)) {
+      if (backup) {
         if (lstatOrUndefined(entry.destinationPath)) {
           throw new Error(`Rollback destination is unexpectedly occupied: ${entry.destinationPath}`);
         }
@@ -1206,6 +1376,10 @@ function writeNewRegularFile(filePath, bytes, mode = 0o644) {
 
 function copyRegularTree(sourceTreePath, destinationTreePath) {
   const source = captureRegularTree(sourceTreePath);
+  writeRegularTreeSnapshot(source, destinationTreePath);
+}
+
+function writeRegularTreeSnapshot(source, destinationTreePath) {
   assertSafePathChain(destinationTreePath, { allowMissing: true, label: "tree copy destination" });
   if (lstatOrUndefined(destinationTreePath)) {
     throw new Error(`Tree copy destination already exists: ${destinationTreePath}`);

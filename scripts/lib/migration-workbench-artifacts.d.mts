@@ -2,6 +2,7 @@ export interface MigrationWorkbenchArtifactBuildOptions {
   repositoryRoot?: string;
   temporaryRoot?: string;
   keepWorkspace?: boolean;
+  testHooks?: MigrationWorkbenchMaterializationTestHooks;
 }
 
 export interface MigrationWorkbenchArtifactWorkspace {
@@ -14,7 +15,32 @@ export interface MigrationWorkbenchArtifactBuildResult {
   artifacts: Map<string, Buffer>;
   manifest: Record<string, unknown>;
   commands: readonly Record<string, unknown>[];
+  guards: {
+    preparedSdk: MigrationWorkbenchPreparedSdkIdentity;
+    liveSourceIdentity: MigrationWorkbenchLiveSourceIdentity;
+  };
   workspace: MigrationWorkbenchArtifactWorkspace;
+}
+
+export interface MigrationWorkbenchPreparedSdkIdentity {
+  format: string;
+  runId: string;
+  inputs: {
+    sha256: string;
+    fileCount: number;
+  };
+  dist: {
+    sha256: string;
+    fileCount: number;
+  };
+}
+
+export interface MigrationWorkbenchLiveSourceIdentity {
+  fixtureEntries: readonly MigrationWorkbenchTreeEntry[];
+  fixtureTreeSha256: string;
+  expectedBehaviorBytes: Buffer;
+  expectedBehaviorSha256: string;
+  combinedSha256: string;
 }
 
 export interface MigrationWorkbenchPatchVerification {
@@ -46,7 +72,10 @@ export interface MigrationWorkbenchTreeEntry {
 }
 
 export interface MigrationWorkbenchMaterializationTestHooks {
+  afterCommand?(commandId: string, repositoryRoot: string): void;
   afterReplacement?(replacementCount: number, repositoryPath: string): void;
+  beforePublication?(repositoryRoot: string, transactionRoot?: string): void;
+  beforeCleanup?(transactionRoot: string, repositoryRoot: string): void;
 }
 
 export const MIGRATION_WORKBENCH_ARTIFACT_PATHS: readonly string[];
@@ -72,6 +101,7 @@ export function materializeArtifactSet(options: {
   repositoryRoot: string;
   artifacts: Map<string, Buffer>;
   testHooks?: MigrationWorkbenchMaterializationTestHooks;
+  publicationGuard?: () => void;
 }): {
   mode: "write" | "check";
   artifactCount: number;
