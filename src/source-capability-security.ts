@@ -81,14 +81,27 @@ export function assertNoSensitiveCapabilityExtension(value: unknown, path: strin
       continue;
     }
     for (const [key, child] of Object.entries(current.value)) {
-      const normalizedKey = key.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
-      if (key === "__proto__" || SENSITIVE_EXTENSION_KEYS.includes(normalizedKey as never)) {
+      if (hasSensitiveExtensionKeyName(key)) {
         throw new TypeError(`${current.path} contains a credential-sensitive extension key`);
       }
       // Do not echo caller-controlled metadata keys if a descendant is rejected.
       stack.push({ value: child, path: `${current.path} member` });
     }
   }
+}
+
+function hasSensitiveExtensionKeyName(key: string): boolean {
+  const segments = key.split(/[.:/]+/);
+  for (let start = 0; start < segments.length; start++) {
+    let combined = "";
+    for (let end = start; end < Math.min(segments.length, start + 3); end++) {
+      const segment = segments[end]!;
+      if (segment === "__proto__") return true;
+      combined += segment.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
+      if (SENSITIVE_EXTENSION_KEYS.includes(combined as never)) return true;
+    }
+  }
+  return false;
 }
 
 function assertNoObviousCredential(value: string, path: string): void {

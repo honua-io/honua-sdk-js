@@ -983,9 +983,9 @@ Example JSON:
 {
   "kind": "honua.capabilities",
   "version": "1.0",
-  "fingerprint": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-  "evidenceFingerprint": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-  "sourceFingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "fingerprint": "sha256:f275c0c5a98432a7683e9db7ab37cea1ffb6423ce23edcd99ad20a5e3c818aa4",
+  "evidenceFingerprint": "sha256:cb28fc8e6b40d4e7bbfbb6ddb8edec80494b1cb7e90bc0c926aab67dfbce576e",
+  "sourceFingerprint": "sha256:a2c9cb525692cf2e224b088147f1b23ae99bce3c974ba023ab4898f28bc79aa8",
   "evaluatedAt": "2026-07-14T12:00:00Z",
   "validUntil": "2026-07-20T12:00:00Z",
   "context": {
@@ -1000,18 +1000,18 @@ Example JSON:
       "effective": "supported",
       "evidence": [
         {
-          "kind": "protocol-default",
-          "truth": "supported",
-          "reference": "ogcapi-features:core",
-          "sourceFingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        },
-        {
           "kind": "conformance",
           "truth": "supported",
           "reference": "ogcapi-features:conf/core",
           "observedAt": "2026-07-13T12:00:00Z",
           "expiresAt": "2026-07-20T12:00:00Z",
-          "sourceFingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          "sourceFingerprint": "sha256:a2c9cb525692cf2e224b088147f1b23ae99bce3c974ba023ab4898f28bc79aa8"
+        },
+        {
+          "kind": "protocol-default",
+          "truth": "supported",
+          "reference": "ogcapi-features:core",
+          "sourceFingerprint": "sha256:a2c9cb525692cf2e224b088147f1b23ae99bce3c974ba023ab4898f28bc79aa8"
         }
       ],
       "reasons": ["supported-by-claim-and-observation"],
@@ -1026,6 +1026,11 @@ Example JSON:
   ]
 }
 ```
+
+The three hashes above are exact executable vectors. The source digest is the
+SourceSchemaV2 golden fixture, and the evidence/evaluated digests are computed
+from the normalized static and dynamic projections shown here; evidence order
+is canonical rather than author order.
 
 ### Descriptor
 
@@ -2320,14 +2325,35 @@ error domains, codes or serialization.
 ## Cache, plan and realtime invalidation
 
 Every fingerprint is SHA-256 over UTF-8 bytes consisting of a domain separator,
-a newline, and RFC 8785 canonical JSON of the projection below. The separators
-are respectively `honua:schema:2.0`, `honua:capabilities:1.0`, and
-`honua:descriptor:2.0`; the stored form is lowercase
-`sha256:<64-hex-digits>`. Implementations must not hash the serialized public
-object wholesale. Property presence is significant: an omitted constraint
-means unknown/unbounded, while an explicit empty array means observed none.
-Before hashing, set-like arrays are deduplicated and sorted by their canonical
-JSON bytes; order-bearing arrays remain in declared order.
+a newline, and RFC 8785 canonical JSON of the projection below. The four
+separators are `honua:schema:2.0`, `honua:capability-evidence:1.0`,
+`honua:capabilities:1.0`, and `honua:descriptor:2.0` for schema, static
+capability evidence, evaluated capabilities, and descriptors respectively; the
+stored form is lowercase `sha256:<64-hex-digits>`. Implementations must not hash
+the serialized public object wholesale. Property presence is significant: an
+omitted constraint means unknown/unbounded, while an explicit empty array means
+observed none. Before hashing, every set-like array is deduplicated and sorted
+lexicographically by the unsigned UTF-8 bytes of each element's RFC 8785
+canonical JSON; order-bearing arrays remain in declared order. This byte order
+is not locale order or JavaScript's UTF-16 default `.sort()`. RFC 8785's own
+object-member ordering remains unchanged; this rule orders complete serialized
+array elements after canonicalization.
+
+The normative ordering/domain-separation vector uses a `set` whose first
+element is the literal U+E000 scalar and whose second is the literal U+10000
+scalar: `{"set":["","𐀀"]}`. The characters are encoded as scalars, not
+six-character `\u` escape text. Its authoritative canonical-JSON UTF-8 hex is
+`7b22736574223a5b22ee8080222c22f0908080225d7d`:
+
+| Projection | Domain separator | SHA-256 |
+| --- | --- | --- |
+| Schema | `honua:schema:2.0` | `sha256:b3a928e3b41ca6a272bcc8febdfa79b1a72fdd0f13ac776306bd0689eefc6ce2` |
+| Static evidence | `honua:capability-evidence:1.0` | `sha256:00a7a0bd21d15452d2420ad57174212ba486d0bf9928cc8dc25cc0193c4fe531` |
+| Evaluated capabilities | `honua:capabilities:1.0` | `sha256:764a6298073ad7251fad80285cb277f804cef5c7f48dfb5f838eb161e5d5f17d` |
+| Descriptor | `honua:descriptor:2.0` | `sha256:58c0e5e9c0ee7477d8e7ef9b9e4035da9dfcebfce55738f247dd3da456b69d58` |
+
+These hashes cover `domain separator + U+000A + canonical projection`; they are
+executable cross-SDK golden vectors, not abbreviated or illustrative digests.
 
 The `schemaFingerprint` projection contains exactly:
 

@@ -6,6 +6,7 @@ import {
   assertExactCapabilityKeys,
   assertPlainCapabilityObject,
   capabilityInstantNanoseconds,
+  compareCapabilityCanonicalJson,
   compareCapabilityStrings,
   deepFreezeCapability,
   isCapabilityIsoInstant,
@@ -396,7 +397,7 @@ function normalizeEvidence(values: readonly CapabilityEvidence[], path: string):
     identities.add(identity);
     return evidence;
   });
-  normalized.sort((left, right) => compareCapabilityStrings(evidenceSortKey(left), evidenceSortKey(right)));
+  normalized.sort((left, right) => compareCapabilityCanonicalJson(evidenceSortKey(left), evidenceSortKey(right)));
   return Object.freeze(normalized);
 }
 
@@ -550,7 +551,7 @@ function normalizeCrs(values: readonly ResolvedCrsDefinition[], path: string): r
     canonical.map((entry) => entry.key),
     path,
   );
-  canonical.sort((left, right) => compareCapabilityStrings(left.key, right.key));
+  canonical.sort((left, right) => compareCapabilityCanonicalJson(left.key, right.key));
   return deepFreezeCapability(canonical.map((entry) => entry.value));
 }
 

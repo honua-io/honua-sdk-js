@@ -1,9 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { canonicalStringify, sha256, toJsonValue } from "../src/query-planner/canonical.js";
 import {
+  CAPABILITY_EVIDENCE_FINGERPRINT_DOMAIN,
   CAPABILITY_EVIDENCE_PROFILE_KIND,
   CAPABILITY_EVIDENCE_PROFILE_VERSION,
+  CAPABILITY_PROFILE_FINGERPRINT_DOMAIN,
   CAPABILITY_PROFILE_KIND,
   CAPABILITY_PROFILE_VERSION,
   type CapabilityEvaluationContext,
@@ -470,10 +473,12 @@ describe("source capability profile", () => {
 
   it.each([
     {
-      label: "entry",
-      key: "cliamed",
+      label: "entry sentinel",
+      key: "UNKNOWN_KEY_SENTINEL",
       run: () =>
-        evaluate([{ ...evidenceEntry("query"), cliamed: "supported" } as unknown as CapabilityEvaluationEntry]),
+        evaluate([
+          { ...evidenceEntry("query"), UNKNOWN_KEY_SENTINEL: "supported" } as unknown as CapabilityEvaluationEntry,
+        ]),
     },
     {
       label: "authorization scope entry",
@@ -578,7 +583,15 @@ describe("source capability profile", () => {
         ]),
     },
   ])("rejects unknown keys on $label objects", ({ key, run }) => {
-    expect(run).toThrowError(new RegExp(`unknown key ${key}`));
+    let error: unknown;
+    try {
+      run();
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toBeInstanceOf(TypeError);
+    expect(String(error)).toMatch(/contains 1 unknown key/);
+    expect(String(error)).not.toContain(key);
   });
 
   it("ignores inherited Object.prototype fields and restores the prototype", () => {
@@ -757,6 +770,91 @@ describe("source capability profile", () => {
     expect(parseCapabilityEvidenceProfile(serializeCapabilityEvidenceProfile(first))).toEqual(first);
   });
 
+  it("sorts set values by canonical JSON UTF-8 bytes and pins both capability digests", () => {
+    const supplementary = "application/\u{10000}";
+    const privateUseBmp = "application/\u{e000}";
+    const input = evidenceEntry("query", "supported", "not-observed", {
+      constraints: { inputFormats: [supplementary, privateUseBmp] },
+    });
+    const evidenceProfile = createCapabilityEvidenceProfile([input]);
+    const reordered = createCapabilityEvidenceProfile([
+      { ...input, constraints: { inputFormats: [privateUseBmp, supplementary] } },
+    ]);
+    const evaluated = evaluateCapabilityProfile(evidenceProfile, { evaluatedAt: EVALUATED_AT });
+    const reorderedEvaluated = evaluateCapabilityProfile(reordered, { evaluatedAt: EVALUATED_AT });
+
+    expect(evidenceProfile.entries[0]?.constraints?.inputFormats).toEqual([privateUseBmp, supplementary]);
+    expect(reordered.fingerprint).toBe(evidenceProfile.fingerprint);
+    expect(serializeCapabilityEvidenceProfile(reordered)).toBe(serializeCapabilityEvidenceProfile(evidenceProfile));
+    expect(serializeCapabilityProfile(reorderedEvaluated)).toBe(serializeCapabilityProfile(evaluated));
+    expect(CAPABILITY_EVIDENCE_FINGERPRINT_DOMAIN).toBe("honua:capability-evidence:1.0");
+    expect(CAPABILITY_PROFILE_FINGERPRINT_DOMAIN).toBe("honua:capabilities:1.0");
+    expect({ evidence: evidenceProfile.fingerprint, evaluated: evaluated.fingerprint }).toEqual({
+      evidence: "sha256:d36339a1ec7566e636a25b620afe942cbcd627b22e8f72e3641999db9914b70c",
+      evaluated: "sha256:4df3fd2da1f08056c0095b3d1e431be34d0c6e011419c42ff37f69da2f0cfe86",
+    });
+  });
+
+  it("pins the four cross-SDK fingerprint domain vectors", () => {
+    const projection = canonicalStringify(toJsonValue({ set: ["\u{e000}", "\u{10000}"] }));
+    expect(projection).toBe('{"set":["","𐀀"]}');
+    expect(
+      Array.from(new TextEncoder().encode(projection), (value) => value.toString(16).padStart(2, "0")).join(""),
+    ).toBe("7b22736574223a5b22ee8080222c22f0908080225d7d");
+    expect(
+      [
+        "honua:schema:2.0",
+        CAPABILITY_EVIDENCE_FINGERPRINT_DOMAIN,
+        CAPABILITY_PROFILE_FINGERPRINT_DOMAIN,
+        "honua:descriptor:2.0",
+      ].map((domain) => sha256(`${domain}\n${projection}`)),
+    ).toEqual([
+      "sha256:b3a928e3b41ca6a272bcc8febdfa79b1a72fdd0f13ac776306bd0689eefc6ce2",
+      "sha256:00a7a0bd21d15452d2420ad57174212ba486d0bf9928cc8dc25cc0193c4fe531",
+      "sha256:764a6298073ad7251fad80285cb277f804cef5c7f48dfb5f838eb161e5d5f17d",
+      "sha256:58c0e5e9c0ee7477d8e7ef9b9e4035da9dfcebfce55738f247dd3da456b69d58",
+    ]);
+  });
+
+  it("pins the exact ADR capability example fingerprints", () => {
+    const sourceFingerprint = "sha256:a2c9cb525692cf2e224b088147f1b23ae99bce3c974ba023ab4898f28bc79aa8" as const;
+    const evidence = createCapabilityEvidenceProfile([
+      {
+        id: "query",
+        claimed: "supported",
+        observed: "supported",
+        evidence: [
+          {
+            kind: "protocol-default",
+            truth: "supported",
+            reference: "ogcapi-features:core",
+            sourceFingerprint,
+          },
+          {
+            kind: "conformance",
+            truth: "supported",
+            reference: "ogcapi-features:conf/core",
+            observedAt: "2026-07-13T12:00:00Z",
+            expiresAt: "2026-07-20T12:00:00Z",
+            sourceFingerprint,
+          },
+        ],
+        constraints: {
+          outputFormats: ["application/geo+json"],
+          filterOperators: ["eq", "in", "intersects"],
+          spatialPredicates: ["intersects"],
+          pagination: { modes: ["offset"], maxPageSize: 10_000 },
+          limits: { maxRecords: 100_000 },
+        },
+      },
+    ]);
+    const evaluated = evaluateCapabilityProfile(evidence, { evaluatedAt: EVALUATED_AT });
+
+    expect(evidence.entries[0]?.evidence.map((item) => item.kind)).toEqual(["conformance", "protocol-default"]);
+    expect(evidence.fingerprint).toBe("sha256:cb28fc8e6b40d4e7bbfbb6ddb8edec80494b1cb7e90bc0c926aab67dfbce576e");
+    expect(evaluated.fingerprint).toBe("sha256:f275c0c5a98432a7683e9db7ab37cea1ffb6423ce23edcd99ad20a5e3c818aa4");
+  });
+
   it("enforces one coherent source identity across an evidence profile", () => {
     const otherFingerprint = `sha256:${"b".repeat(64)}` as const;
     const mixed = evidenceEntry("query", "supported", "supported", {
@@ -903,11 +1001,17 @@ describe("source capability profile", () => {
       /unpaired high Unicode surrogate/,
     );
     const serialized = serializeCapabilityEvidenceProfile(createCapabilityEvidenceProfile([evidenceEntry("query")]));
-    const duplicateName = serialized.replace(
-      "{",
-      '{"kind":"honua.capability-evidence","kind":"honua.capability-evidence",',
-    );
-    expect(() => parseCapabilityEvidenceProfile(duplicateName)).toThrow(/duplicate object name kind/);
+    const duplicateKeySentinel = "DUPLICATE_OBJECT_KEY_SENTINEL";
+    const duplicateName = serialized.replace("{", `{"${duplicateKeySentinel}":true,"${duplicateKeySentinel}":false,`);
+    let duplicateError: unknown;
+    try {
+      parseCapabilityEvidenceProfile(duplicateName);
+    } catch (cause) {
+      duplicateError = cause;
+    }
+    expect(duplicateError).toBeInstanceOf(TypeError);
+    expect(String(duplicateError)).toMatch(/duplicate object name/);
+    expect(String(duplicateError)).not.toContain(duplicateKeySentinel);
   });
 
   it("caps supported CRS definitions at 64 before heavy validation", () => {
@@ -1010,6 +1114,28 @@ describe("source capability profile", () => {
       secret: "EXTENSION_SECRET",
     },
     {
+      label: "namespaced credential extension key",
+      entry: evidenceEntry("query", "supported", "supported", {
+        constraints: {
+          extensions: {
+            "com.example.apiKey": "NAMESPACED_EXTENSION_SENTINEL",
+          },
+        },
+      }),
+      secret: "NAMESPACED_EXTENSION_SENTINEL",
+    },
+    {
+      label: "credential extension key segment",
+      entry: evidenceEntry("query", "supported", "supported", {
+        constraints: {
+          extensions: {
+            "com.authorization.metadata": "SEGMENT_EXTENSION_SENTINEL",
+          },
+        },
+      }),
+      secret: "SEGMENT_EXTENSION_SENTINEL",
+    },
+    {
       label: "prototype-shaped extension key",
       entry: evidenceEntry("query", "supported", "supported", {
         constraints: {
@@ -1036,6 +1162,31 @@ describe("source capability profile", () => {
     }
     expect(error).toBeInstanceOf(TypeError);
     expect(String(error)).not.toContain(secret);
+  });
+
+  it("rejects credential-named extension keys at the transport boundary without echoing caller content", () => {
+    const valid = createCapabilityEvidenceProfile([
+      evidenceEntry("query", "supported", "supported", {
+        constraints: { extensions: { "com.example.metadata": { enabled: true } } },
+      }),
+    ]);
+    const transported = JSON.parse(serializeCapabilityEvidenceProfile(valid)) as {
+      entries: Array<{ constraints: { extensions: Record<string, unknown> } }>;
+    };
+    transported.entries[0]!.constraints.extensions = {
+      "com.example.apiKey": { "metadata.authorization": "TRANSPORT_EXTENSION_SENTINEL" },
+    };
+
+    let error: unknown;
+    try {
+      parseCapabilityEvidenceProfile(transported);
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toBeInstanceOf(TypeError);
+    expect(String(error)).toMatch(/credential-sensitive extension key/);
+    expect(String(error)).not.toContain("apiKey");
+    expect(String(error)).not.toContain("TRANSPORT_EXTENSION_SENTINEL");
   });
 
   it("applies structural peer and scope validation to dynamic context", () => {
