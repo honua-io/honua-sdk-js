@@ -13,7 +13,9 @@ import { createSourceSchemaV2 } from "../src/source-schema.js";
 import type {
   ExecutableCrsBinding,
   ExecutableGeometryValue,
+  JsonValue,
   LogicalField,
+  LogicalType,
   SourceSchemaV2,
   SourceSchemaV2Input,
 } from "../src/source-schema.js";
@@ -151,6 +153,47 @@ function schemaInput(): SourceSchemaV2Input {
 
 function incidentSchema(): SourceSchemaV2 {
   return createSourceSchemaV2(schemaInput());
+}
+
+function scalarSchema(type: LogicalType, overrides: Partial<LogicalField> = {}): SourceSchemaV2 {
+  return createSourceSchemaV2({
+    fields: [field("value", type, overrides)],
+    key: { state: "none" },
+    geometry: { state: "none", reason: "no-geometry-fields" },
+    temporal: { state: "none" },
+    openContent: "closed",
+    provenance: [provenance],
+  });
+}
+
+function equalityQuery(value: JsonValue, name = "value") {
+  return {
+    kind: "features",
+    filter: {
+      kind: "comparison",
+      operator: "eq",
+      left: { kind: "property", name },
+      right: { kind: "literal", value },
+    },
+  } as const;
+}
+
+function schemaDefaultAccepts(type: LogicalType, value: JsonValue): boolean {
+  try {
+    scalarSchema(type, { defaultValue: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function semanticLiteralAccepts(type: LogicalType, value: JsonValue, overrides: Partial<LogicalField> = {}): boolean {
+  try {
+    parseSemanticQuery(equalityQuery(value), { schema: scalarSchema(type, overrides) });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function assertCompileTimeRelationships(): void {
@@ -291,6 +334,180 @@ describe("semantic query AST", () => {
         { schema },
       ),
     ).toThrow(/duplicate metric alias/);
+  });
+
+  it.each([
+    {
+      name: "valid padded base64",
+      type: { kind: "binary", encoding: "base64" },
+      value: "QQ==",
+      accepted: true,
+    },
+    {
+      name: "invalid base64 alphabet",
+      type: { kind: "binary", encoding: "base64" },
+      value: "%%%==",
+      accepted: false,
+    },
+    {
+      name: "non-absolute binary URL",
+      type: { kind: "binary", encoding: "url" },
+      value: "relative/blob.bin",
+      accepted: false,
+    },
+    {
+      name: "millisecond time precision",
+      type: { kind: "time", unit: "millisecond" },
+      value: "12:34:56.123",
+      accepted: true,
+    },
+    {
+      name: "excess time precision",
+      type: { kind: "time", unit: "millisecond" },
+      value: "12:34:56.1234",
+      accepted: false,
+    },
+    {
+      name: "zoned time-of-day",
+      type: { kind: "time", unit: "second" },
+      value: "12:34:56Z",
+      accepted: false,
+    },
+    {
+      name: "excess timestamp precision",
+      type: { kind: "timestamp", unit: "millisecond", timezone: "utc" },
+      value: "2026-07-15T12:34:56.1234Z",
+      accepted: false,
+    },
+    {
+      name: "local timestamp for unknown timezone",
+      type: { kind: "timestamp", unit: "second", timezone: "unknown" },
+      value: "2026-07-15T12:34:56",
+      accepted: true,
+    },
+    {
+      name: "negative-zero integer string",
+      type: { kind: "integer", bits: 64, signed: true, jsonEncoding: "string" },
+      value: "-0",
+      accepted: false,
+    },
+    {
+      name: "exponential decimal number",
+      type: { kind: "decimal", precision: 8, scale: 7, jsonEncoding: "number" },
+      value: 1e-7,
+      accepted: true,
+    },
+    {
+      name: "decimal integer digits exceed precision minus scale",
+      type: { kind: "decimal", precision: 3, scale: 2, jsonEncoding: "number" },
+      value: 12.3,
+      accepted: false,
+    },
+  ] as const)("matches canonical SourceSchemaV2 value semantics for $name", ({ type, value, accepted }) => {
+    expect(schemaDefaultAccepts(type, value)).toBe(accepted);
+    expect(semanticLiteralAccepts(type, value)).toBe(accepted);
+  });
+
+  it.each([
+    {
+      name: "large string integer",
+      type: { kind: "integer", bits: 64, signed: true, jsonEncoding: "string" },
+      step: 3,
+      accepted: "9007199254740993",
+      rejected: "9007199254740992",
+    },
+    {
+      name: "string decimal",
+      type: { kind: "decimal", precision: 8, scale: 7, jsonEncoding: "string" },
+      step: 3e-7,
+      accepted: "0.0000009",
+      rejected: "0.0000010",
+    },
+  ] as const)("enforces multiple-of exactly for $name", ({ type, step, accepted, rejected }) => {
+    const overrides = {
+      constraints: { state: "known", values: [{ kind: "multiple-of", value: step }] },
+    } as const;
+    expect(semanticLiteralAccepts(type, accepted, overrides)).toBe(true);
+    expect(semanticLiteralAccepts(type, rejected, overrides)).toBe(false);
+  });
+
+  it("does not execute source-provided ECMA-262 field patterns during semantic admission", () => {
+    const schema = scalarSchema(
+      { kind: "string" },
+      {
+        constraints: {
+          state: "known",
+          values: [{ kind: "pattern", syntax: "ecma-262", expression: "^(a+)+$" }],
+        },
+      },
+    );
+    expect(() => parseSemanticQuery(equalityQuery(`${"a".repeat(64)}!`), { schema })).not.toThrow();
+  });
+
+  it("validates protocol options even when the query contains no native filter", () => {
+    expect(() => parseSemanticQuery({ kind: "features" }, { protocol: "not-a-protocol" as never })).toThrow(
+      /options\.protocol.*built-in or namespaced/,
+    );
+    expect(() => parseSemanticQuery({ kind: "features" }, { protocol: " \t" as never })).toThrow(
+      /options\.protocol.*non-empty/,
+    );
+    expect(() => parseSemanticQuery({ kind: "features" }, { protocol: 7 as never })).toThrow(
+      /options\.protocol.*string/,
+    );
+    expect(() => parseSemanticQuery({ kind: "features" }, { protocol: "com.example.features" })).not.toThrow();
+  });
+
+  it.each([
+    ["property", equalityQuery(1, " \t")],
+    ["projection", { kind: "features", select: [" \n"] }],
+    ["sort", { kind: "features", sort: [{ field: " ", direction: "asc" }] }],
+    ["group", { kind: "aggregate", groupBy: ["\t"], metrics: [{ fn: "count", as: "count" }] }],
+    ["metric field", { kind: "aggregate", groupBy: [], metrics: [{ fn: "sum", field: " ", as: "sum" }] }],
+    ["metric alias", { kind: "aggregate", groupBy: [], metrics: [{ fn: "count", as: "\n" }] }],
+    ["geometry field", { kind: "features", geometry: { field: " " } }],
+    [
+      "native text payload",
+      {
+        kind: "features",
+        filter: { kind: "native", dialect: "cql2-text", payload: { format: "text", text: " \t" } },
+      },
+    ],
+    [
+      "native XML payload",
+      {
+        kind: "features",
+        filter: { kind: "native", dialect: "fes-2.0", payload: { format: "xml", text: "\n" } },
+      },
+    ],
+  ] as const)("rejects blank %s text", (_name, query) => {
+    expect(() => parseSemanticQuery(query)).toThrow(/non-empty string/);
+  });
+
+  it("normalizes semantically equivalent optional defaults before freezing", () => {
+    const pattern = {
+      kind: "pattern",
+      operator: "like",
+      operand: { kind: "property", name: "status" },
+      pattern: "act%",
+    } as const;
+    const implicitPattern = parseSemanticQuery({ kind: "features", filter: pattern });
+    const explicitPattern = parseSemanticQuery({
+      kind: "features",
+      filter: { ...pattern, caseSensitive: true },
+    });
+    expect(implicitPattern).toEqual(explicitPattern);
+    expect(implicitPattern.filter).toMatchObject({ caseSensitive: true });
+
+    const implicitNulls = parseSemanticQuery({
+      kind: "features",
+      sort: [{ field: "score", direction: "desc" }],
+    });
+    const explicitNulls = parseSemanticQuery({
+      kind: "features",
+      sort: [{ field: "score", direction: "desc", nulls: "native" }],
+    });
+    expect(implicitNulls).toEqual(explicitNulls);
+    expect(implicitNulls.sort).toEqual([{ field: "score", direction: "desc", nulls: "native" }]);
   });
 
   it("binds native payload form and dialect to the source protocol", () => {

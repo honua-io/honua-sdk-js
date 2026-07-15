@@ -48,11 +48,17 @@ console.log(semanticQuery.filter);
 `parseSemanticQuery(untrusted, { schema, protocol })` is the JavaScript and JSON
 boundary. It reparses the supplied `SourceSchemaV2`, validates field existence,
 operator/type compatibility, closed domains, declared ranges, geometry and
-temporal eligibility, projection/sort/group/metric fields, native payload form,
-and native dialect compatibility. Parsed queries are deeply frozen. Parsing is
-bounded by byte, node, depth, collection, and text limits; cyclic values,
-accessors, non-JSON prototypes, unknown members, and non-finite numbers fail
-closed.
+temporal eligibility, safe length and `multiple-of` constraints,
+projection/sort/group/metric fields, native payload form, and native dialect
+compatibility. Literal type admission reuses the canonical `SourceSchemaV2`
+value semantics, including binary encodings, numeric precision, and temporal
+precision. Source-provided ECMA-262 field patterns remain metadata and are not
+executed at this untrusted boundary. Parsed queries are deeply frozen, with
+equivalent omitted defaults (case-sensitive patterns and native null ordering)
+normalized before hashing or interchange. Parsing is bounded by byte, node,
+depth, collection, and text limits; cyclic values, accessors, non-JSON
+prototypes, unknown members, blank identifiers or native text/XML payloads,
+invalid protocol options, and non-finite numbers fail closed.
 
 Protocol-native filters remain explicit and dialect tagged. For example, an
 OGC source may carry `cql2-json` or `cql2-text`; it cannot carry

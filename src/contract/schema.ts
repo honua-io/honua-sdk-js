@@ -2360,6 +2360,18 @@ function logicalValueCompatible(value: JsonValue, type: LogicalType): boolean {
   return domainValueCompatible(value, type);
 }
 
+/**
+ * Test a JSON scalar against the canonical SourceSchemaV2 logical-type value
+ * semantics. Query admission imports this internal seam so binary encodings,
+ * numeric precision, and temporal precision cannot drift from schema truth.
+ *
+ * @internal
+ */
+export function isLogicalDomainValueCompatible(value: JsonValue, type: LogicalType): boolean {
+  if (value === null || Array.isArray(value) || typeof value === "object") return false;
+  return domainValueCompatible(value, type);
+}
+
 function canonicalGeometryValue(value: JsonValue): boolean {
   return canonicalGeometrySummary(value) !== undefined;
 }
