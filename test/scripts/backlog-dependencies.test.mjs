@@ -75,6 +75,13 @@ function restIssue(number, overrides = {}) {
   };
 }
 
+function jsonResponse(payload, headers = {}) {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { "content-type": "application/json; charset=utf-8", ...headers },
+  });
+}
+
 describe("backlog dependency grammar", () => {
   it("accepts exact same-repository, cross-repository, empty, and manual fixtures", () => {
     for (const fixture of parserCases.valid) {
@@ -164,10 +171,13 @@ describe("backlog dependency grammar", () => {
   it("requires whitespace-obfuscated epics to use the manual opt-out", () => {
     for (const epicType of ["Type: Epic ", "Type:\tEpic", "\tType: Epic\t", "type: epic"]) {
       expectDependencyError("epic-requires-manual", () =>
-        parseBacklogDependencies(`## Specifica\n\n${epicType}\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies: none`, {
-          repository,
-          issueNumber: 2,
-        }),
+        parseBacklogDependencies(
+          `## Specifica\n\n${epicType}\n\n## Backlog Dependencies\n\nMode: automatic\nDependencies: none`,
+          {
+            repository,
+            issueNumber: 2,
+          },
+        ),
       );
     }
   });
@@ -272,6 +282,84 @@ describe("pure backlog reconciliation planner", () => {
     });
     assert.equal(first.dispositions.find(({ kind }) => kind === "manual")?.proposedLabels, null);
     assert.equal(first.dispositions.find(({ kind }) => kind === "missing")?.proposedLabels, null);
+  });
+
+  it("is input-order independent and rejects bounded or ambiguous snapshot metadata", () => {
+    const expected = planBacklogReconciliation(stableSnapshot);
+    const reordered = planBacklogReconciliation({
+      ...stableSnapshot,
+      issues: [...stableSnapshot.issues].reverse(),
+      unavailable: [...stableSnapshot.unavailable].reverse(),
+    });
+    assert.deepEqual(reordered, expected);
+
+    expectDependencyError("invalid-dependency-bound", () =>
+      planBacklogReconciliation({ repository, issues: [] }, { maxDependencies: 0 }),
+    );
+    expectDependencyError("invalid-issue-bound", () =>
+      planBacklogReconciliation({ repository, issues: [] }, { maxIssues: 0 }),
+    );
+    expectDependencyError("invalid-issue-bound", () =>
+      planBacklogReconciliation({ repository, issues: [] }, { maxIssues: null }),
+    );
+    expectDependencyError("issue-bound-exceeded", () =>
+      planBacklogReconciliation({ repository, issues: [issue(1), issue(2)] }, { maxIssues: 1 }),
+    );
+    expectDependencyError("unavailable-overlaps-issue", () =>
+      planBacklogReconciliation({
+        repository,
+        issues: [issue(1)],
+        unavailable: [{ repository, number: 1 }],
+      }),
+    );
+    expectDependencyError("invalid-issue-labels", () =>
+      planBacklogReconciliation({ repository, issues: [issue(1, { labels: ["blocked", "blocked"] })] }),
+    );
+    expectDependencyError("invalid-issue-flags", () =>
+      planBacklogReconciliation({ repository, issues: [issue(1, { target: "true" })] }),
+    );
+
+    let getterCalled = false;
+    const accessorIssue = issue(1);
+    Object.defineProperty(accessorIssue, "repository", {
+      enumerable: true,
+      get() {
+        getterCalled = true;
+        throw new Error("private-accessor-taint");
+      },
+    });
+    expectDependencyError("invalid-issue-metadata", () =>
+      planBacklogReconciliation({ repository, issues: [accessorIssue] }),
+    );
+    assert.equal(getterCalled, false);
+
+    let stableGetterCalled = false;
+    const accessorStable = issue(2);
+    Object.defineProperty(accessorStable, "stable", {
+      enumerable: true,
+      get() {
+        stableGetterCalled = true;
+        return true;
+      },
+    });
+    expectDependencyError("invalid-issue-metadata", () =>
+      planBacklogReconciliation({ repository, issues: [accessorStable] }),
+    );
+    assert.equal(stableGetterCalled, false);
+
+    let optionsGetterCalled = false;
+    const accessorOptions = {};
+    Object.defineProperty(accessorOptions, "maxIssues", {
+      enumerable: true,
+      get() {
+        optionsGetterCalled = true;
+        return 1;
+      },
+    });
+    expectDependencyError("invalid-planner-options", () =>
+      planBacklogReconciliation({ repository, issues: [] }, accessorOptions),
+    );
+    assert.equal(optionsGetterCalled, false);
   });
 
   it("plans blocked-to-ready when adversarial dependency sections are hidden Markdown", () => {
@@ -511,8 +599,24 @@ describe("bounded GitHub metadata reader", () => {
       loadGitHubBacklogSnapshot({ repository, concurrency: 11 }, async () => []),
     );
     await expectMetadataError(
+      "invalid-bound",
+      loadGitHubBacklogSnapshot({ repository, maxIssues: null }, async () => []),
+    );
+    await expectMetadataError(
       "invalid-api-root",
       loadGitHubBacklogSnapshot({ repository, apiRoot: "https://secret@api.github.com" }, async () => []),
+    );
+    await expectMetadataError(
+      "invalid-api-root",
+      loadGitHubBacklogSnapshot({ repository, apiRoot: null }, async () => []),
+    );
+    await expectMetadataError(
+      "invalid-api-root",
+      loadGitHubBacklogSnapshot({ repository, apiRoot: "ftp://localhost/api/v3" }, async () => []),
+    );
+    await expectMetadataError(
+      "invalid-api-root",
+      loadGitHubBacklogSnapshot({ repository, apiRoot: "http://api.github.com" }, async () => []),
     );
     await expectMetadataError(
       "degraded-api",
@@ -520,6 +624,120 @@ describe("bounded GitHub metadata reader", () => {
         throw new GitHubBacklogMetadataError("degraded-api", 429);
       }),
     );
+
+    const twoMissing = restIssue(64, { body: automatic(["honua-io/private#9", "honua-io/private#10"]) });
+    await expectMetadataError(
+      "issue-bound-exceeded",
+      loadGitHubBacklogSnapshot({ repository, maxIssues: 2 }, async (url) => {
+        if (url.includes("/issues?")) return [twoMissing];
+        throw new GitHubBacklogMetadataError("not-found", 404);
+      }),
+    );
+  });
+
+  it("rejects malformed API fields before planning or graph expansion", async () => {
+    for (const malformed of [
+      restIssue(65, { repository_url: `https://attacker.invalid/repos/${repository}` }),
+      restIssue(65, { body: "x".repeat(100_001) }),
+      restIssue(65, { labels: Array.from({ length: 101 }, (_, index) => ({ name: `label-${index}` })) }),
+      restIssue(65, { pull_request: false }),
+      restIssue(65, { updated_at: "not-a-timestamp" }),
+      restIssue(65, { updated_at: "2026-02-30T03:00:00Z" }),
+    ]) {
+      await expectMetadataError(
+        "malformed-metadata",
+        loadGitHubBacklogSnapshot({ repository }, async (url) => (url.includes("/issues?") ? [malformed] : malformed)),
+      );
+    }
+  });
+
+  it("origin-locks token-bearing requests and bounds streamed JSON responses", async () => {
+    const originalToken = process.env.GITHUB_TOKEN;
+    const originalGhToken = process.env.GH_TOKEN;
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+    try {
+      process.env.GH_TOKEN = "";
+      process.env.GITHUB_TOKEN = `ghp_${"a".repeat(40)}`;
+      globalThis.fetch = async () => {
+        fetchCalls += 1;
+        return jsonResponse({ ok: true });
+      };
+
+      await expectMetadataError(
+        "invalid-request-url",
+        githubBacklogRequest("https://attacker.invalid/repos/o/r/issues/1"),
+      );
+      await expectMetadataError("invalid-request-url", githubBacklogRequest("https://api.github.com/user"));
+      await expectMetadataError(
+        "invalid-request-url",
+        githubBacklogRequest("https://api.github.com/repos/o/r/issues/9007199254740992"),
+      );
+      await expectMetadataError(
+        "invalid-request-url",
+        githubBacklogRequest(
+          "https://api.github.com/repos/o/r/issues?state=open&sort=created&direction=asc&per_page=100&page=11",
+        ),
+      );
+      await expectMetadataError(
+        "invalid-bound",
+        githubBacklogRequest("https://api.github.com/repos/o/r/issues/1", { maxResponseBytes: null }),
+      );
+      assert.equal(fetchCalls, 0);
+
+      const valid = await githubBacklogRequest("https://api.github.com/repos/o/r/issues/1", {
+        maxResponseBytes: 64,
+      });
+      assert.deepEqual(valid, { ok: true });
+      assert.equal(fetchCalls, 1);
+
+      globalThis.fetch = async () => jsonResponse({ oversized: "x".repeat(32) });
+      await expectMetadataError(
+        "response-bound-exceeded",
+        githubBacklogRequest("https://api.github.com/repos/o/r/issues/1", { maxResponseBytes: 8 }),
+      );
+
+      globalThis.fetch = async () => jsonResponse({ mismatch: true }, { "content-length": "1" });
+      await expectMetadataError(
+        "degraded-api",
+        githubBacklogRequest("https://api.github.com/repos/o/r/issues/1", { maxResponseBytes: 64 }),
+      );
+
+      globalThis.fetch = async () => new Response("{}", { status: 200, headers: { "content-type": "text/plain" } });
+      await expectMetadataError(
+        "degraded-api",
+        githubBacklogRequest("https://api.github.com/repos/o/r/issues/1", { maxResponseBytes: 64 }),
+      );
+
+      let chunk = 0;
+      globalThis.fetch = async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        body: {
+          getReader() {
+            return {
+              async read() {
+                chunk += 1;
+                return { done: false, value: Uint8Array.of(0x20) };
+              },
+              async cancel() {},
+            };
+          },
+        },
+      });
+      await expectMetadataError(
+        "response-bound-exceeded",
+        githubBacklogRequest("https://api.github.com/repos/o/r/issues/1"),
+      );
+      assert.equal(chunk, 16_385);
+    } finally {
+      if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+      else process.env.GITHUB_TOKEN = originalToken;
+      if (originalGhToken === undefined) delete process.env.GH_TOKEN;
+      else process.env.GH_TOKEN = originalGhToken;
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("sanitizes token, header, fetch, body, and injected-reader failures", async () => {
@@ -689,15 +907,39 @@ describe("read-only dry-run CLI", () => {
     }
   });
 
-  it("locks the dependency and disposition policy tests into both SDK CI tiers", () => {
-    const workflow = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
-    const prFast = workflow.slice(workflow.indexOf("  pr-fast:\n"), workflow.indexOf("  benchmark-lab:\n"));
-    const jsSdk = workflow.slice(workflow.indexOf("  js-sdk:\n"), workflow.indexOf("  mcp-sdk:\n"));
-    for (const job of [prFast, jsSdk]) {
-      assert.match(job, /node --test test\/scripts\/pr-issue-disposition\.test\.mjs/u);
-      assert.match(job, /node --test test\/scripts\/backlog-dependencies\.test\.mjs/u);
+  it("rejects duplicate arguments and unsafe or oversized snapshot files", () => {
+    const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "honua-backlog-bounds-"));
+    const oversizedPath = path.join(tempDirectory, "oversized.json");
+    const invalidUtf8Path = path.join(tempDirectory, "invalid-utf8.json");
+    const symlinkPath = path.join(tempDirectory, "snapshot-link.json");
+    try {
+      fs.closeSync(fs.openSync(oversizedPath, "w"));
+      fs.truncateSync(oversizedPath, 16 * 1024 * 1024 + 1);
+      fs.writeFileSync(invalidUtf8Path, Buffer.from([0xff]));
+      fs.symlinkSync(path.join(fixtureRoot, "stable-snapshot.json"), symlinkPath);
+
+      for (const args of [
+        ["--repository", repository, "--repository", repository],
+        ["--repository", repository, "--json", "--json"],
+        ["--repository", repository, "--metadata", oversizedPath],
+        ["--repository", repository, "--metadata", invalidUtf8Path],
+        ["--repository", repository, "--metadata", symlinkPath],
+        ["--repository", repository, "--metadata", tempDirectory],
+        ["--repository", repository, "--metadata", path.join(fixtureRoot, "stable-snapshot.json"), "--max-issues", "1"],
+      ]) {
+        const result = spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: "utf8" });
+        assert.equal(result.status, 1, `${args.join(" ")}\n${result.stdout}\n${result.stderr}`);
+        assert.equal(result.stdout, "");
+        assert.match(result.stderr, /Backlog dependency dry run failed:/u);
+      }
+    } finally {
+      fs.rmSync(tempDirectory, { recursive: true, force: true });
     }
-    assert.equal(workflow.match(/node --test test\/scripts\/backlog-dependencies\.test\.mjs/gu)?.length, 2);
+  });
+
+  it("keeps the S1 dry run out of GitHub workflow execution", () => {
+    const workflow = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
+    assert.doesNotMatch(workflow, /backlog:dependencies|backlog-dependencies/u);
   });
 
   it("rejects an apply flag and contains no GitHub mutation verbs", () => {

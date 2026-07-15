@@ -73,6 +73,13 @@ automatic issue that is marked `ready-to-start` is proposed for demotion to `blo
 inaccessible, resolves to a pull request, or participates in a dependency cycle. Those unsafe dispositions never
 propose promotion to `ready-to-start`.
 
+Token-bearing requests are origin- and path-locked to the configured HTTPS GitHub API root, use `GET` with redirect
+refusal and a 15-second request timeout, require JSON, and apply fixed byte and chunk-count bounds while streaming at
+most 16 MiB per response. Plain HTTP is accepted only for a loopback test server. The total readable plus inaccessible
+graph is bounded by `--max-issues`; labels, bodies, pages, dependency fan-out, and concurrency have hard ceilings.
+Response bodies, request failures, manual reasons, unavailable reasons, labels, tokens, and filesystem paths are never
+copied into reports or errors.
+
 For deterministic offline inspection, pass a stabilized JSON snapshot:
 
 ```bash
@@ -83,4 +90,7 @@ npm run backlog:dependencies:dry-run -- \
 ```
 
 The report always says `mutationsPerformed: false`. Workflow wiring and the label-only apply path belong to issue
-#600 S2 and must consume the reviewed planner without adding a second parser.
+#600 S2 and must consume the reviewed planner without adding a second parser. S1 does not add a GitHub workflow or
+mutation entrypoint. Its offline snapshot input must be a non-symlink regular UTF-8 file no larger than 16 MiB, and
+the reader rejects size/identity drift while reading it. The S1 read-only stabilization pass is not a substitute for
+S2's immediate pre-mutation double-read.

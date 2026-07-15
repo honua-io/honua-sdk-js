@@ -96,6 +96,30 @@
       "issueNumber": 30,
       "section": "Mode: automatic\nDependencies:\n- ../private#2",
       "code": "invalid-repository"
+    },
+    {
+      "name": "percent-encoded repository separator",
+      "issueNumber": 31,
+      "section": "Mode: automatic\nDependencies:\n- honua%2fio/private#2",
+      "code": "malformed-dependency"
+    },
+    {
+      "name": "unsafe issue integer",
+      "issueNumber": 32,
+      "section": "Mode: automatic\nDependencies:\n- #9007199254740992",
+      "code": "malformed-dependency"
+    },
+    {
+      "name": "automatic none with hidden extra line",
+      "issueNumber": 33,
+      "section": "Mode: automatic\nDependencies: none\nReason: trust me",
+      "code": "malformed-dependency-list"
+    },
+    {
+      "name": "manual reason bidi control",
+      "issueNumber": 34,
+      "section": "Mode: manual\nReason: release \u202egate",
+      "code": "malformed-manual-reason"
     }
   ]
 }
