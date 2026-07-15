@@ -40,8 +40,10 @@ Reason: Umbrella epic; executable child issues own readiness.
 ```
 
 The section allows no extra or blank lines. A manual reason is required and is limited to 240 characters. Specifica
-issues with `Type: Epic` are rejected in automatic mode. Dependency headings inside valid Markdown fences or HTML
-comments are ignored, including multiline and unclosed comments. Manual reasons are validated but never emitted in
+issues in automatic mode must contain exactly one visible `## Specifica` section with exactly one canonical
+`Type: Feature` declaration. Epics, missing or ambiguous types, and noncanonical type declarations must use manual
+sequencing or be corrected before automation. Dependency headings and type declarations inside valid Markdown
+fences, CommonMark raw HTML blocks, or HTML comments are ignored. Manual reasons are validated but never emitted in
 human reports, JSON reports, or errors.
 
 ## Dry run
