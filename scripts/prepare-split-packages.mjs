@@ -98,6 +98,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copyDirectory(path.join(DIST_SRC_ROOT, "columnar"), path.join(packageRoot, "columnar"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "kernel"), path.join(packageRoot, "kernel"));
   copyDirectory(path.join(DIST_SRC_ROOT, "deckgl"), path.join(packageRoot, "deckgl"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-safety"), path.join(packageRoot, "agent-safety"));

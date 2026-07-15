@@ -171,6 +171,12 @@ const TARGETS = [
     forbiddenInputs: ["dist/src/contract/schema.js", "dist/src/gen/projjson/"],
   },
   {
+    key: "tree-shake:root-createHonua",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-root-create-honua.mjs",
+    label: "tree-shake guard (`{ createHonua }` managed discovery facade only)",
+  },
+  {
     key: "tree-shake:esri-compat-FeatureLayerCompat",
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-esri-compat-feature-layer.mjs",

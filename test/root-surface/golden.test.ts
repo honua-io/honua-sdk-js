@@ -7,6 +7,7 @@ import {
   type SourceDescriptor,
   type SourceToMapLibreMap,
   capabilities,
+  createHonua,
   explainQuery,
   mountSourceToMapLibre,
 } from "../../src/index.js";
@@ -17,6 +18,13 @@ interface Incident {
 }
 
 describe("final root golden workflow", () => {
+  it("creates and idempotently disposes an isolated application kernel", async () => {
+    const honua = createHonua();
+    const first = honua.dispose();
+    expect(honua.dispose()).toBe(first);
+    await first;
+  });
+
   it("executes the accepted query exactly once on the canonical explain-to-mount path", async () => {
     const descriptor: SourceDescriptor = {
       id: "incidents",

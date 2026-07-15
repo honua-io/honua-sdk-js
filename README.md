@@ -53,6 +53,31 @@ Run it locally with `npm run demo:endpoint-to-map`
 ([`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md)); the full cookbook
 is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
+For an application that opens more than one source or needs deterministic
+refresh and shutdown, put discovery under one instance-scoped owner:
+
+```ts doc-test=compile
+import { createHonua } from "@honua/sdk-js";
+
+const honua = createHonua({ discoveryCacheMaxEntries: 128 });
+try {
+  const data = await honua.connect(
+    "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
+  );
+  const inspection = await data.inspect();
+  const source = data.source<{ NAME: string; Seats_2020: number }>();
+
+  console.log(inspection.cacheStatus, source.descriptor.id);
+} finally {
+  await honua.dispose();
+}
+```
+
+`inspect()` reuses the immutable snapshot established by `connect()`;
+`inspect({ refresh: true, signal })` revalidates it. Service roots with more
+than one source require an explicit `sourceId` in the locator/options or in
+`source(id)`—the kernel never chooses the first advertised source silently.
+
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.0-beta.0`). The 22-entrypoint stable tier is frozen and guarded
 by an API-surface gate; 11 experimental subpaths may change before 1.0, and

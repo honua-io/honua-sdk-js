@@ -36,6 +36,16 @@ export type {
   HonuaConnection,
   HonuaConnectionInspection,
 } from "./connect.js";
+export { createHonua } from "./kernel/index.js";
+export type {
+  ConnectLocator,
+  ConnectionInspection,
+  HonuaKernel,
+  HonuaKernelConnectOptions,
+  HonuaKernelConnection,
+  HonuaKernelOptions,
+  InspectOptions,
+} from "./kernel/index.js";
 
 export {
   HonuaAbortError,

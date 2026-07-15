@@ -63,6 +63,31 @@ Run it locally with `npm run demo:endpoint-to-map`
 ([`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md)); the full cookbook
 is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
+For an application that opens more than one source or needs deterministic
+refresh and shutdown, put discovery under one instance-scoped owner:
+
+```ts doc-test=compile
+import { createHonua } from "@honua/sdk-js";
+
+const honua = createHonua({ discoveryCacheMaxEntries: 128 });
+try {
+  const data = await honua.connect(
+    "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
+  );
+  const inspection = await data.inspect();
+  const source = data.source<{ NAME: string; Seats_2020: number }>();
+
+  console.log(inspection.cacheStatus, source.descriptor.id);
+} finally {
+  await honua.dispose();
+}
+```
+
+`inspect()` reuses the immutable snapshot established by `connect()`;
+`inspect({ refresh: true, signal })` revalidates it. Service roots with more
+than one source require an explicit `sourceId` in the locator/options or in
+`source(id)`—the kernel never chooses the first advertised source silently.
+
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.0-beta.0`). The 22-entrypoint stable tier is frozen and guarded
 by an API-surface gate; 11 experimental subpaths may change before 1.0, and
@@ -4567,6 +4592,15 @@ Status: **accepted for review** on 2026-07-10 for
 Merging this decision accepts the product boundary and TypeScript direction;
 it does not claim that the proposed facade is implemented.
 
+Implementation note (issue #532): the reviewed root now ships the first
+additive slice: `createHonua()` owns instance-local discovery policy, cache,
+cancellation, and managed connections; `connect()`, immutable `inspect()` /
+`inspect({ refresh: true })`, explicit `source()` selection, and async disposal
+are implemented. The pre-existing standalone `connect()` keeps its lower-level
+`HonuaConnection` type, so the owned additive handle is named
+`HonuaKernelConnection`. Diagnostics channels, plugins, planning, querying, and
+renderer mounting remain future slices and are not claimed by this note.
+
 ## Decision summary
 
 Honua will be a **universal geospatial application kernel**, not a proprietary
@@ -7617,6 +7651,7 @@ _Generated 2026-07-16 at commit `e074710`._
 | tree-shake guard (`{ HonuaClient }` only) | 210.5 KiB | 229.7 KiB | 53.2 KiB | 57.6 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 345.9 KiB | 359.2 KiB | 89.0 KiB | 92.8 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery facade only) | 361.6 KiB | 397.7 KiB | 93.3 KiB | 102.6 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 225.3 KiB | 245.9 KiB | 56.6 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 33.3 KiB | 37.7 KiB | 10.8 KiB | 12.0 KiB |

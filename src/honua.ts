@@ -43,6 +43,16 @@ export type {
   OgcProcessesDiscoveryOptions,
   OgcProcessesDiscoveryResult,
 } from "./connect.js";
+export { createHonua } from "./kernel/index.js";
+export type {
+  ConnectLocator,
+  ConnectionInspection,
+  HonuaKernel,
+  HonuaKernelConnectOptions,
+  HonuaKernelConnection,
+  HonuaKernelOptions,
+  InspectOptions,
+} from "./kernel/index.js";
 export {
   MIGRATION_EVIDENCE_STATES,
   MIGRATION_MANIFEST_ARTIFACT_KIND,

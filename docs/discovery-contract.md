@@ -365,8 +365,9 @@ falling through to heuristic detection.
   recognition) and an explicit ambiguity-recovery contract; today GeoParquet
   requires an explicit `protocol: "geoparquet"` hint plus a metadata reader.
 - GeoServices ImageServer, GeometryServer, and GPServer metadata projections.
-- Remaining protocol adapters, normalized schema/queryables, partial metadata
-  diagnostics, and the owning `createHonua()` disposal lifecycle.
+- Remaining protocol adapters, normalized schema/queryables, and partial
+  metadata diagnostics. The instance-scoped `createHonua()` owner now consumes
+  this contract without changing its lower-level discovery semantics.
 - Cross-language semantic descriptor fixtures and scheduled third-party smoke.
 
 Those layers should consume this contract rather than publish capabilities or
