@@ -112,6 +112,9 @@ describe("prepared SDK artifact contract", () => {
     expect(jsSdkJob).toContain("npm run test:coverage:prepared");
     expect(jsSdkJob).toContain("npm run test:playwright:prepared");
     expect(jsSdkJob).toContain("npm run demo:examples:build:prepared");
+    expect(jsSdkJob).toMatch(
+      /node scripts\/sample-contract\.mjs artifacts\n\s+npm run prepare:test-sdk:adopt --silent/,
+    );
     expect(jsSdkJob).not.toMatch(/run: npm run (?:test:coverage|test:playwright|demo:examples:build)\s*$/m);
 
     const publish = fs.readFileSync(path.join(getProjectRoot(), ".github", "workflows", "publish-js-sdk.yml"), "utf8");

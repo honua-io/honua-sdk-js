@@ -245,7 +245,9 @@ jobs:
         run: npm run support:check
 
       - name: Verify browser artifact publication manifest
-        run: node scripts/sample-contract.mjs artifacts
+        run: |
+          node scripts/sample-contract.mjs artifacts
+          npm run prepare:test-sdk:adopt --silent
 
       - name: Verify task-oriented learning paths
         run: npm run docs:learning:check
@@ -265,6 +267,7 @@ jobs:
         run: |
           npm run build:browser --silent
           node scripts/sample-contract.mjs artifacts
+          npm run prepare:test-sdk:adopt --silent
           npm run verify:publish-surface
 
       - name: Installed packed-SDK smoke
