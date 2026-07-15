@@ -535,6 +535,8 @@
     "pretest:pr-fast": "npm run check:test-build-ownership --silent",
     "test:pr-fast": "vitest run --config vitest.pr-fast.config.ts",
     "test:pr-issue-disposition": "node --test test/scripts/pr-issue-disposition.test.mjs",
+    "test:backlog-dependencies": "node --test test/scripts/backlog-dependencies.test.mjs",
+    "backlog:dependencies:dry-run": "node scripts/reconcile-backlog-dependencies.mjs",
     "validate:pr-fast": "node scripts/run-pr-fast.mjs",
     "bench:ttfm": "node scripts/benchmark-time-to-first-map.mjs",
     "bench:stream": "npm run build --silent && node dist/bench/run.js",
