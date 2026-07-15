@@ -112,6 +112,8 @@ When a `docs.honua.io` (or `honua.io/sdk-js`) subdomain/subpath is provisioned:
 `samples:verify` plus the non-empty gallery regression → `docs:api` (TypeDoc) →
 `docs:site` (assemble) → `docs:site:linkcheck` → `upload-pages-artifact` →
 `deploy-pages`. Catalog verification schema-checks the public projection and
-its generated consumer digest before publication. `node_modules` is cached and
-the full SDK test suite is intentionally skipped to hold the ≤ 5 min budget
-(NFR-001).
+its generated consumer digest before publication. Gallery recipe/lab profile
+gates remain declarations rather than receipt claims; `samples:verify`
+receipt-validates any qualified golden journey before the docs build may
+publish it. `node_modules` is cached and the full SDK test suite is intentionally
+skipped to hold the ≤ 5 min budget (NFR-001).

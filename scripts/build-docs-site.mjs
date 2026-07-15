@@ -23,14 +23,20 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 import { currentDocsVersions, expandDocsVersionTokens, serializeDocsVersions } from "./docs-versions.mjs";
-import { createGalleryModel } from "./lib/docs-gallery.mjs";
-import { parseJsonDocument, validateSiteProjection } from "./sample-contract.mjs";
+import {
+  createGalleryModel,
+  renderGalleryContent,
+  verifyGalleryProjectionIntegrity,
+} from "./lib/docs-gallery.mjs";
+import { parseJsonDocument } from "./sample-contract.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "dist", "docs-site");
 const API_SRC = path.join(ROOT, "dist", "docs-api");
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_PROJECTION = path.join(ROOT, SITE_PROJECTION_PATH);
+const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+const SITE_CONSUMER_FIXTURE = path.join(ROOT, SITE_CONSUMER_FIXTURE_PATH);
 
 const SITE_TITLE = "@honua/sdk-js";
 const SITE_URL = "https://honua-io.github.io/honua-sdk-js/";
@@ -318,8 +324,11 @@ function sidebar(sitePath, navGroups, titles, activeDoc) {
   return parts.join("\n");
 }
 
-function page({ sitePath, sourcePath = "README.md", title, bodyClass, main, sidebarHtml }) {
+function page({ sitePath, sourcePath = "README.md", title, bodyClass, main, sidebarHtml, moduleScripts = [] }) {
   const cssHref = relativeUrl(sitePath, "assets/style.css");
+  const scripts = moduleScripts
+    .map((script) => `<script type="module" src="${escapeHtml(relativeUrl(sitePath, script))}"></script>`)
+    .join("\n");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -341,6 +350,7 @@ ${main}
 <footer class="site-footer">
   <span>${escapeHtml(SITE_TITLE)} documentation · built from <a href="https://github.com/${REPO}">github.com/${REPO}</a></span>
 </footer>
+${scripts}
 </body>
 </html>
 `;
@@ -351,10 +361,11 @@ ${main}
 // ---------------------------------------------------------------------------
 
 async function loadGalleryModel() {
-  const source = fs.readFileSync(SITE_PROJECTION, "utf8");
-  const projection = parseJsonDocument(source, SITE_PROJECTION_PATH);
-  await validateSiteProjection(projection);
-  return createGalleryModel(projection);
+  const projectionBytes = fs.readFileSync(SITE_PROJECTION, "utf8");
+  const consumerBytes = fs.readFileSync(SITE_CONSUMER_FIXTURE, "utf8");
+  const consumerFixture = parseJsonDocument(consumerBytes, SITE_CONSUMER_FIXTURE_PATH);
+  const integrity = await verifyGalleryProjectionIntegrity({ projectionBytes, consumerFixture });
+  return createGalleryModel(integrity);
 }
 
 function demoSourceUrl(docsPath) {
@@ -365,34 +376,13 @@ function demoSourceUrl(docsPath) {
 }
 
 function galleryPage(gallery) {
-  const card = (sample) => {
-    const src = demoSourceUrl(sample.source.docsPath);
-    const label = src.kind === "guide" ? "Read the walkthrough" : "View source";
-    return `<article class="demo-card" data-gallery-card data-sample-id="${escapeHtml(sample.id)}" data-track="${escapeHtml(sample.track)}">
-  <h3>${escapeHtml(sample.title)}</h3>
-  <p class="demo-id"><code>${escapeHtml(sample.id)}</code></p>
-  <p class="demo-summary">${escapeHtml(sample.summary)}</p>
-  <a class="demo-link" href="${escapeHtml(src.href)}">${label} →</a>
-</article>`;
-  };
-
-  const groups = gallery.groups
-    .map(
-      (group) => `<section aria-labelledby="gallery-${escapeHtml(group.track)}">
-  <h2 id="gallery-${escapeHtml(group.track)}">${escapeHtml(group.title)}</h2>
-  <div class="demo-grid">
-${group.samples.map((sample) => card(sample)).join("\n")}
-  </div>
-</section>`,
-    )
-    .join("\n");
-
-  const main = `<h1>Demo gallery</h1>
-<p>Runnable examples projected from the versioned SDK sample catalog. Public recipes
-and labs appear here now; qualified golden journeys join automatically as their
-evidence gates pass. Each card links to SDK-owned source or its walkthrough.</p>
-${groups}`;
-  return page({ sitePath: "gallery.html", title: `Demo gallery · ${SITE_TITLE}`, bodyClass: "page-gallery", main });
+  return page({
+    sitePath: "gallery.html",
+    title: `Demo gallery · ${SITE_TITLE}`,
+    bodyClass: "page-gallery",
+    main: renderGalleryContent(gallery, { resolveSourceLink: (sample) => demoSourceUrl(sample.source.docsPath) }),
+    moduleScripts: ["assets/gallery.js"],
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -402,10 +392,12 @@ ${groups}`;
 const STYLE_CSS = `:root{--bg:#ffffff;--fg:#1a202c;--muted:#5a6572;--border:#e2e8f0;--accent:#2b6cb0;--accent-soft:#ebf2fb;--code-bg:#f5f7fa;--sidebar-bg:#fafbfc;color-scheme:light dark}
 @media (prefers-color-scheme:dark){:root{--bg:#0f141a;--fg:#e6edf3;--muted:#9aa7b4;--border:#232c36;--accent:#6ba5e0;--accent-soft:#16202c;--code-bg:#161c23;--sidebar-bg:#111820}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{scroll-behavior:smooth}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:var(--bg);line-height:1.6}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .topbar{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
 .topbar .brand{font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--fg)}
 .topbar-links{display:flex;flex-wrap:wrap;gap:1rem;margin-left:auto;font-size:.92rem}
@@ -415,6 +407,7 @@ a:hover{text-decoration:underline}
 .version-menu li{padding:.1rem .25rem;white-space:nowrap}
 .version-menu p{margin:.35rem 0 0;font-size:.8rem}
 .layout{display:flex;gap:2rem;max-width:1200px;margin:0 auto;padding:0 1.5rem;align-items:flex-start}
+.page-gallery .layout{max-width:1400px}
 .sidebar{flex:0 0 250px;position:sticky;top:64px;max-height:calc(100vh - 64px);overflow-y:auto;padding:1.5rem 0;font-size:.9rem}
 .sidebar .nav-group{font-weight:700;text-transform:uppercase;letter-spacing:.03em;font-size:.72rem;color:var(--muted);margin:1.2rem 0 .35rem}
 .sidebar ul{list-style:none;margin:0;padding:0}
@@ -440,15 +433,44 @@ a:hover{text-decoration:underline}
 .cta{display:inline-block;margin:.4rem .6rem .4rem 0;padding:.55rem 1.1rem;border-radius:8px;background:var(--accent);color:#fff;font-weight:600}
 .cta:hover{text-decoration:none;opacity:.92}
 .cta.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent)}
-.demo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin:1rem 0}
+.gallery-provenance{margin:1rem 0;border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;background:var(--sidebar-bg)}
+.gallery-provenance summary,.demo-card-details summary{cursor:pointer;font-weight:700;color:var(--accent)}
+.gallery-provenance .demo-facts{margin:.75rem 0 .25rem}
+.gallery-qualification-note{color:var(--muted);font-size:.9rem}
+.gallery-controls{display:flex;flex-wrap:wrap;align-items:end;gap:.8rem;margin:1.25rem 0;padding:1rem;border:1px solid var(--border);border-radius:10px;background:var(--sidebar-bg)}
+.gallery-control{display:flex;flex:1 1 200px;flex-direction:column;gap:.25rem}
+.gallery-control label{font-size:.82rem;font-weight:700}
+.gallery-control input,.gallery-control select,.gallery-controls button{min-height:2.6rem;border:1px solid var(--border);border-radius:6px;padding:.45rem .65rem;color:var(--fg);background:var(--bg);font:inherit}
+.gallery-controls button{cursor:pointer;color:var(--accent);font-weight:600}
+.gallery-controls button:disabled{cursor:default;color:var(--muted);opacity:.65}
+.gallery-results{color:var(--muted)}
+.gallery-empty{padding:1rem;border:1px dashed var(--border);border-radius:8px;color:var(--muted)}
+.demo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:1rem;margin:1rem 0}
 .demo-card{border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.2rem;background:var(--sidebar-bg);display:flex;flex-direction:column}
-.demo-card h3{margin:.1rem 0 .5rem}
+.demo-card--merge,.demo-card--replace,.demo-card--retire{border-inline-start:4px solid var(--accent)}
+.demo-card-header{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:.5rem}
+.demo-card h3{margin:.1rem 0 .25rem}
+.demo-badges{display:flex;flex-wrap:wrap;gap:.35rem}
+.demo-badge{border:1px solid var(--border);border-radius:999px;padding:.1rem .5rem;background:var(--accent-soft);font-size:.75rem;font-weight:700}
+.demo-badge--lifecycle{text-transform:uppercase;letter-spacing:.02em}
 .demo-card p{color:var(--muted);margin:0 0 .8rem}
 .demo-card .demo-id{flex:0 0 auto}
-.demo-card .demo-summary{flex:1 1 auto}
-.demo-link{font-weight:600}
+.demo-card .demo-summary{color:var(--fg)}
+.demo-facts{display:grid;grid-template-columns:minmax(7.5rem,auto) 1fr;gap:.5rem .75rem;margin:.25rem 0 1rem;font-size:.86rem}
+.demo-facts--essential{gap:.35rem .65rem;margin-bottom:.7rem}
+.demo-facts dt{font-weight:700;color:var(--muted)}
+.demo-facts dd{min-width:0;margin:0;overflow-wrap:anywhere}
+.demo-evidence-line{display:block}
+.demo-evidence-expiry{white-space:normal}
+.demo-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin:0;padding:0;list-style:none}
+.demo-tags code{white-space:nowrap}
+.demo-none{color:var(--muted)}
+.demo-link{margin:.1rem 0 .75rem;font-weight:600}
+.demo-card-details{border-top:1px solid var(--border);padding-top:.55rem}
+.demo-card-details .demo-facts{margin:.75rem 0 .2rem}
 .site-footer{border-top:1px solid var(--border);margin-top:2rem;padding:1.5rem;text-align:center;color:var(--muted);font-size:.85rem}
 @media (max-width:820px){.layout{flex-direction:column;padding:0 1rem}.sidebar{position:static;flex-basis:auto;max-height:none;width:100%;border-bottom:1px solid var(--border)}}
+@media (max-width:520px){.demo-facts{grid-template-columns:1fr}.demo-facts dd{margin-bottom:.35rem}}
 `;
 
 // ---------------------------------------------------------------------------
@@ -559,6 +581,7 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
 
   // Assets.
   writeFile("assets/style.css", STYLE_CSS);
+  writeFile("assets/gallery.js", fs.readFileSync(path.join(ROOT, "scripts/lib/docs-gallery-client.mjs"), "utf8"));
   // Disable Jekyll so paths beginning with `_` (if any) survive Pages.
   writeFile(".nojekyll", "");
 
