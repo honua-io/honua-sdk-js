@@ -140,6 +140,10 @@ export function regularTreeSnapshotsEqual(
   right: readonly MigrationWorkbenchTreeEntry[],
 ): boolean;
 
+export function selectNodePermissionModelFlag(
+  allowedFlags?: ReadonlySet<string>,
+): "--permission" | "--experimental-permission";
+
 export function executeIsolatedGeneratedModule(options: {
   repositoryRoot: string;
   generatedTargetBytes: Buffer;

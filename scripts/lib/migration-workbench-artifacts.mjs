@@ -587,6 +587,16 @@ export function regularTreeSnapshotsEqual(left, right) {
   });
 }
 
+export function selectNodePermissionModelFlag(allowedFlags = process.allowedNodeEnvironmentFlags) {
+  if (allowedFlags?.has("--permission")) {
+    return "--permission";
+  }
+  if (allowedFlags?.has("--experimental-permission")) {
+    return "--experimental-permission";
+  }
+  throw new Error("The active Node.js runtime does not expose a supported permission-model flag.");
+}
+
 export function executeIsolatedGeneratedModule({
   repositoryRoot: repositoryRootOption,
   generatedTargetBytes,
@@ -638,7 +648,7 @@ export function executeIsolatedGeneratedModule({
     executionPathIdentity = captureOriginalEntryIdentity(executionPath, "isolated generated migration target");
     const runnerNonce = randomBytes(32).toString("hex");
     const permissionReadRoots = [repositoryRoot, executionRoot, ...findAncestorNodeModules(repositoryRoot)];
-    const args = ["--no-warnings", "--max-old-space-size=128", "--experimental-permission"];
+    const args = ["--no-warnings", "--max-old-space-size=128", selectNodePermissionModelFlag()];
     for (const readRoot of uniqueSortedPaths(permissionReadRoots)) {
       args.push(`--allow-fs-read=${readRoot}`);
     }
