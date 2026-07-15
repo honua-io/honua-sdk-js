@@ -90,6 +90,22 @@ describe("prepared SDK artifact contract", () => {
       expect(scripts[prepared], prepared).not.toContain("npm run build ");
     }
 
+    for (const gated of [
+      "pretest",
+      "pretest:prepared",
+      "pretest:coverage",
+      "pretest:coverage:prepared",
+      "pretest:migration:cli",
+      "pretest:migration:cli:prepared",
+      "pretest:migration:real-samples",
+      "pretest:migration:real-samples:prepared",
+      "pretest:pr-fast",
+      "test:playwright",
+      "test:playwright:prepared",
+    ]) {
+      expect(scripts[gated], gated).toMatch(/^npm run check:test-build-ownership --silent(?: &&|$)/);
+    }
+
     const ci = fs.readFileSync(path.join(getProjectRoot(), ".github", "workflows", "ci.yml"), "utf8");
     const jsSdkJob = ci.slice(ci.indexOf("  js-sdk:"), ci.indexOf("  mcp-sdk:"));
     expect(jsSdkJob.match(/run: npm run build\s*$/gm)).toHaveLength(1);
@@ -480,6 +496,40 @@ describe("test build ownership analyzer", () => {
     );
   });
 
+  it("fails closed for dynamic argv and shell/owner bypasses without flagging inert arrays", () => {
+    const root = createOwnershipProject({
+      "test/dynamic-argv.test.ts": `
+        import { spawnSync } from "node:child_process";
+        const getArgs = () => ["run", "build"];
+        spawnSync("npm", getArgs());
+      `,
+      "test/direct-owner.test.ts": `
+        import { spawnSync } from "node:child_process";
+        spawnSync(process.execPath, ["scripts/prepare-sdk-test-artifacts.mjs", "--force-build"]);
+      `,
+      "test/shell-owner.test.ts": `
+        import { spawnSync } from "node:child_process";
+        spawnSync("sh", ["-c", "npm run build"]);
+      `,
+      "test/command-wrapper.test.ts": `
+        const supervisor = { run: (_command: string[]) => undefined };
+        supervisor.run(["npm", "run", "build"]);
+      `,
+      "test/inert-array.test.ts": `
+        const expect = (_value: unknown) => undefined;
+        expect(["npm", "run", "build"]);
+      `,
+    });
+
+    const violations = analyzeTestBuildOwnership({ projectRoot: root });
+    expect(violations.map((violation) => violation.file)).toEqual([
+      "test/command-wrapper.test.ts",
+      "test/direct-owner.test.ts",
+      "test/dynamic-argv.test.ts",
+      "test/shell-owner.test.ts",
+    ]);
+  });
+
   it("allows fixture-local package and TypeScript compiles", () => {
     const root = createOwnershipProject({
       "test/fixture.test.ts": `
@@ -546,6 +596,7 @@ function createOwnershipProject(files: Record<string, string>): string {
     "package.json",
     `${JSON.stringify({
       scripts: {
+        build: "npm run compile",
         compile: "tsc -p tsconfig.json",
         nested: "npm run compile",
         alias: "npm run nested",

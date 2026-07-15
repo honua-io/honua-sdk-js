@@ -12,7 +12,11 @@ const LAUNCH_METHODS = new Set(["exec", "execFile", "execFileSync", "execSync", 
 const PACKAGE_MANAGER_PATTERN = /^(?:npm(?:\.cmd)?|pnpm(?:\.cmd)?|yarn(?:\.cmd)?|bun(?:\.exe)?)$/i;
 const RUN_SCRIPT_NAME_PATTERN = /^(?:runScript|runNpmScript|npmRun|runPackageScript|run-script)$/i;
 const PACKAGE_WRAPPER_PATTERN = /^(?:run|exec)(Npm|Pnpm|Yarn|Bun)$/i;
+const COMMAND_WRAPPER_NAME_PATTERN = /^(?:command|exec|execute|launch|run|spawn|runCommand|runProcess)$/i;
+const SHELL_EXECUTABLE_PATTERN = /^(?:ba|c|da|k|z)?sh(?:\.exe)?$|^(?:cmd|powershell|pwsh)(?:\.exe)?$/i;
+const NODE_EXECUTABLE_PATTERN = /^node(?:\.exe)?$/i;
 const PREPARATION_SCRIPT_PATTERN = /^prepare:test-sdk(?::(?:force|already|capture|adopt))?$/;
+const PREPARATION_OWNER_PATH_PATTERN = /(?:^|[/\\])scripts[/\\]prepare-sdk-test-artifacts\.mjs$/i;
 const OWNED_BUILD_FILE = "scripts/prepare-sdk-test-artifacts.mjs";
 const NON_SCRIPT_PACKAGE_COMMANDS = new Set([
   "add",
@@ -221,7 +225,11 @@ function launchForCall(call, context) {
       };
     }
   }
-  if (call.arguments.length > 0 && ts.isArrayLiteralExpression(unwrap(call.arguments[0]))) {
+  if (
+    call.arguments.length > 0 &&
+    isCommandWrapperExpression(expression) &&
+    ts.isArrayLiteralExpression(unwrap(call.arguments[0]))
+  ) {
     const elements = unwrap(call.arguments[0]).elements;
     if (elements.length > 0 && looksLikePackageManager(elements[0], context)) {
       return {
@@ -231,6 +239,28 @@ function launchForCall(call, context) {
         argvElements: elements.slice(1),
       };
     }
+  }
+  return undefined;
+}
+
+function isCommandWrapperExpression(expression) {
+  if (ts.isIdentifier(expression)) return COMMAND_WRAPPER_NAME_PATTERN.test(expression.text);
+  return ts.isPropertyAccessExpression(expression) && COMMAND_WRAPPER_NAME_PATTERN.test(expression.name.text);
+}
+
+function enclosingFunctionName(node) {
+  let current = node.parent;
+  while (current) {
+    if (ts.isFunctionDeclaration(current) && current.name) return current.name.text;
+    if (
+      (ts.isFunctionExpression(current) || ts.isArrowFunction(current)) &&
+      ts.isVariableDeclaration(current.parent) &&
+      ts.isIdentifier(current.parent.name)
+    ) {
+      return current.parent.name.text;
+    }
+    if (ts.isMethodDeclaration(current) && current.name && ts.isIdentifier(current.name)) return current.name.text;
+    current = current.parent;
   }
   return undefined;
 }
@@ -261,6 +291,21 @@ function rootBuildReason(launch, context, relativeFile) {
   const commandValues = stringValues(launch.command, context);
   const commandText = launch.command?.getText(context.sourceFile) ?? "";
   let argvElements = launch.argvElements ?? arrayElements(launch.argv, context);
+
+  if (isPreparedArtifactOwnerLaunch(commandValues, commandText, argvElements, context)) {
+    return "direct prepared-artifact owner launch crosses the owner boundary from a test";
+  }
+
+  const shellLaunch = shellCommandsForLaunch(commandValues, commandText, argvElements, context);
+  if (shellLaunch?.dynamic) return "dynamic shell command is not fixture-bounded";
+  if (shellLaunch) {
+    for (const command of shellLaunch.commands) {
+      const reason = shellRootBuildReason(command, context);
+      if (reason) return reason;
+    }
+    return undefined;
+  }
+
   let manager = launch.manager ?? packageManagerFrom(commandValues, commandText);
   if (!manager && argvElements && /(?:^|\.)execPath$/.test(commandText)) {
     const npmCli = argvElements[0];
@@ -273,11 +318,11 @@ function rootBuildReason(launch, context, relativeFile) {
   }
 
   if (manager) {
-    // A dynamic low-level launcher is not itself evidence of a root build.
-    // Named package-manager wrappers and their static call sites are analyzed
-    // separately above, so helpers such as runNpm(args) do not become false
-    // positives while runNpm(["run", "build"]) remains visible.
-    if (!argvElements) return undefined;
+    if (!argvElements) {
+      const wrapperName = enclosingFunctionName(launch.call);
+      if (wrapperName && PACKAGE_WRAPPER_PATTERN.test(wrapperName)) return undefined;
+      return "package-manager argv is dynamic and not fixture-scoped";
+    }
     if (isFixtureScopedPackageLaunch(argvElements, context)) return undefined;
     const tscReason = packageManagerTscReason(manager, argvElements, context);
     if (tscReason) return tscReason;
@@ -303,6 +348,9 @@ function rootBuildReason(launch, context, relativeFile) {
 }
 
 function shellRootBuildReason(command, context) {
+  if (/\bnode(?:\.exe)?\s+[^;&|]*scripts[/\\]prepare-sdk-test-artifacts\.mjs(?:\s|$)/i.test(command)) {
+    return "shell command crosses the prepared-artifact owner boundary from a test";
+  }
   if (/(?:^|[;&|]\s*)(?:npx\s+)?tsc(?:\s|$)/i.test(command)) {
     if (!/(?:--project|-p)\s+(?:examples|test\/fixtures|\/tmp|\$\{?TMP)/i.test(command)) {
       return "shell command launches the root TypeScript compiler";
@@ -320,6 +368,36 @@ function shellRootBuildReason(command, context) {
     }
   }
   return undefined;
+}
+
+function isPreparedArtifactOwnerLaunch(commandValues, commandText, argvElements, context) {
+  if (!isExecutable(commandValues, commandText, NODE_EXECUTABLE_PATTERN) || !argvElements) return false;
+  return argvElements.some((element) => {
+    const values = stringValues(element, context);
+    if (values && [...values].some((value) => PREPARATION_OWNER_PATH_PATTERN.test(value))) return true;
+    return PREPARATION_OWNER_PATH_PATTERN.test(element.getText(context.sourceFile).replaceAll('"', ""));
+  });
+}
+
+function shellCommandsForLaunch(commandValues, commandText, argvElements, context) {
+  if (!isExecutable(commandValues, commandText, SHELL_EXECUTABLE_PATTERN)) return undefined;
+  if (!argvElements) return { dynamic: true, commands: [] };
+  const valueAt = (index) => {
+    const values = stringValues(argvElements[index], context);
+    return values?.size === 1 ? [...values][0] : undefined;
+  };
+  const commandFlagIndex = argvElements.findIndex((_, index) =>
+    ["-c", "--command", "/c", "-command"].includes(valueAt(index)?.toLowerCase()),
+  );
+  if (commandFlagIndex < 0) return undefined;
+  const commands = stringValues(argvElements[commandFlagIndex + 1], context);
+  return commands ? { dynamic: false, commands: [...commands] } : { dynamic: true, commands: [] };
+}
+
+function isExecutable(values, expressionText, pattern) {
+  if (values && [...values].some((value) => pattern.test(path.basename(value)))) return true;
+  const normalizedText = expressionText.replaceAll(/["']/g, "");
+  return pattern.test(path.basename(normalizedText));
 }
 
 function scriptRequiresRootCompile(scriptName, context, visiting = new Set()) {

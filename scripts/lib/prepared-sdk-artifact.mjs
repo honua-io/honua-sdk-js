@@ -148,8 +148,8 @@ export function prepareSdkArtifact(options) {
   if (mode === "adopt-additions") {
     const current = readPreparedSdkManifest(projectRoot);
     assertSnapshotEqual("SDK build inputs", current.inputs, snapshotBuildInputs(projectRoot));
-    verifyOwnedDistEntries(projectRoot, current.dist);
     const nextDist = snapshotDistTree(projectRoot);
+    assertOwnedDistEntriesUnchanged(current.dist, nextDist);
     return publishVerifiedManifest(projectRoot, current.inputs, nextDist);
   }
 
@@ -225,18 +225,11 @@ export function removePreparedSdkManifest(projectRoot) {
   fs.rmSync(manifestPathFor(projectRoot), { force: true });
 }
 
-function verifyOwnedDistEntries(projectRoot, snapshot) {
-  for (const entry of snapshot.entries) {
-    let observed;
-    try {
-      observed = snapshotFiles(projectRoot, [entry.path], `owned dist entry ${entry.path}`).entries[0];
-    } catch (error) {
-      if (isMissingOrInvalidFileError(error)) {
-        throw new Error(`Prepared SDK dist entry was removed or mutated: ${entry.path}`);
-      }
-      throw error;
-    }
-    if (!observed || observed.bytes !== entry.bytes || observed.sha256 !== entry.sha256) {
+function assertOwnedDistEntriesUnchanged(previous, observed) {
+  const observedByPath = new Map(observed.entries.map((entry) => [entry.path, entry]));
+  for (const entry of previous.entries) {
+    const observedEntry = observedByPath.get(entry.path);
+    if (!observedEntry || observedEntry.bytes !== entry.bytes || observedEntry.sha256 !== entry.sha256) {
       throw new Error(`Prepared SDK dist entry was removed or mutated: ${entry.path}`);
     }
   }
