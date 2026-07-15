@@ -78,7 +78,27 @@ describe("sample publication contract", () => {
     const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
     const canonical = await readJson("samples/catalog.v2.json");
 
-    await expect(migrateCatalogV1ToV2(v1, migration)).resolves.toEqual(canonical);
+    const migrated = await migrateCatalogV1ToV2(v1, migration);
+    expect(migrated).toEqual(canonical);
+    expect(migrated.samples.find((sample) => sample.id === "migration-workbench")).toMatchObject({
+      track: "lab",
+      journeyId: "arcgis-migration",
+      supportTier: "supported",
+      lifecycle: { state: "active" },
+      data: { configurationStatus: "not-required", config: [] },
+      validation: [
+        "npm run demo:migration-workbench:typecheck",
+        "npm run demo:migration-workbench:build",
+        "npm run test:playwright:migration-workbench",
+      ],
+      evidence: {
+        fixture: {
+          status: "executed",
+          commands: ["npm run demo:migration-workbench:mock"],
+        },
+        live: { mode: "unavailable", status: "not-applicable", commands: [] },
+      },
+    });
 
     delete migration.sampleOverrides[Object.keys(migration.sampleOverrides)[0]];
     await expect(migrateCatalogV1ToV2(v1, migration)).rejects.toThrow(
@@ -920,7 +940,7 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
         "demo:fixture:build",
       ),
     ).toThrow("expected exactly one demo:fixture:build fixture build");
-    await expect(validateFixtureBuildHarnesses()).resolves.toBe(25);
+    await expect(validateFixtureBuildHarnesses()).resolves.toBe(26);
   });
 
   it("accepts only bounded, whole catalog commands", async () => {

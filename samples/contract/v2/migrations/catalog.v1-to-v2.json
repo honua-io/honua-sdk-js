@@ -256,11 +256,20 @@
       "track": "lab",
       "journeyId": "arcgis-migration",
       "validationProfile": "browser-lab",
-      "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The browser bundle currently reads a cloud-admin API-key variable."
+      "validation": [
+        "npm run demo:migration-workbench:typecheck",
+        "npm run demo:migration-workbench:build",
+        "npm run test:playwright:migration-workbench"
+      ],
+      "lifecycle": {
+        "state": "active",
+        "reason": "Canonical deterministic ArcGIS migration evidence workbench."
       },
-      "live": { "mode": "public-live", "status": "planned", "commands": [] }
+      "fixture": {
+        "status": "executed",
+        "commands": ["npm run demo:migration-workbench:mock"]
+      },
+      "live": { "mode": "unavailable", "status": "not-applicable", "commands": [] }
     },
     "nl-map-control": {
       "track": "lab",

@@ -11,6 +11,7 @@ const VIEWPORTS = [
 ];
 const WORKFLOW_SELECTORS = ["#compat-metrics", "#assertion-matrix", "#maplibre-residuals", "#artifact-files"];
 const ARTIFACT_DECODED_BYTES_BUDGET = 512 * 1024;
+const CAPTURE_DIAGNOSTIC_ATTACHMENTS = process.env.HONUA_SAMPLE_PLAYWRIGHT_OUTPUT_DIR === undefined;
 
 test.setTimeout(90_000);
 
@@ -187,16 +188,18 @@ test(
       expect(performanceEvidence.completedByMs).toBeLessThanOrEqual(performanceEvidence.readyMs);
       expect(performanceEvidence.decodedBodyBytes).toBeGreaterThan(0);
       expect(performanceEvidence.decodedBodyBytes).toBeLessThanOrEqual(ARTIFACT_DECODED_BYTES_BUDGET);
-      await testInfo.attach("migration-workbench-performance-budget", {
-        body: Buffer.from(
-          JSON.stringify({
-            sampleReadyBudgetMs: SAMPLE_PERFORMANCE_BUDGET_MS,
-            artifactDecodedBytesBudget: ARTIFACT_DECODED_BYTES_BUDGET,
-            observations: performanceEvidence,
-          }),
-        ),
-        contentType: "application/json",
-      });
+      if (CAPTURE_DIAGNOSTIC_ATTACHMENTS) {
+        await testInfo.attach("migration-workbench-performance-budget", {
+          body: Buffer.from(
+            JSON.stringify({
+              sampleReadyBudgetMs: SAMPLE_PERFORMANCE_BUDGET_MS,
+              artifactDecodedBytesBudget: ARTIFACT_DECODED_BYTES_BUDGET,
+              observations: performanceEvidence,
+            }),
+          ),
+          contentType: "application/json",
+        });
+      }
 
       await attestBrowserQuality({
         page,
@@ -224,10 +227,12 @@ test(
       for (const viewport of VIEWPORTS) {
         await page.setViewportSize(viewport);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-        await testInfo.attach(`migration-workbench-${viewport.width}x${viewport.height}`, {
-          body: await page.screenshot({ animations: "disabled", fullPage: true }),
-          contentType: "image/png",
-        });
+        if (CAPTURE_DIAGNOSTIC_ATTACHMENTS) {
+          await testInfo.attach(`migration-workbench-${viewport.width}x${viewport.height}`, {
+            body: await page.screenshot({ animations: "disabled", fullPage: true }),
+            contentType: "image/png",
+          });
+        }
       }
 
       const requestsBeforeDispose = allRequests.length;

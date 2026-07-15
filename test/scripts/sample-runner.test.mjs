@@ -425,7 +425,11 @@ test("child environment strips host secrets and undefined overrides", () => {
 });
 
 test("fixture mock CLIs reject unknown arguments before binding a server", () => {
-  for (const file of ["examples/service-explorer/mock-server.mjs", "examples/standalone-quickstart/mock-server.mjs"]) {
+  for (const file of [
+    "examples/migration-workbench/mock-server.mjs",
+    "examples/service-explorer/mock-server.mjs",
+    "examples/standalone-quickstart/mock-server.mjs",
+  ]) {
     const result = spawnSync(process.execPath, [file, "--not-a-real-mode"], {
       cwd: process.cwd(),
       encoding: "utf8",

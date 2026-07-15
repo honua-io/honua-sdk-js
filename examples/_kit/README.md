@@ -6,14 +6,15 @@ to the exact Vite and TypeScript configs, Playwright test, responsive
 viewports, required workflow selectors, and SDK entrypoints that qualification
 evidence must exercise.
 
-The first pilots are `standalone-quickstart` and `service-explorer`.
+The kit-managed pilots are `migration-workbench`, `service-explorer`, and
+`standalone-quickstart`.
 
 ## Run the pilots
 
 From the repository root:
 
 ```bash
-# Inspect the two kit-managed samples without executing them.
+# Inspect the kit-managed samples without executing them.
 npm run samples:list -- --kit
 
 # Run typecheck, build, browser, accessibility, console, responsive, and
@@ -30,6 +31,7 @@ Select one pilot for a shorter loop:
 ```bash
 npm run samples:run -- typecheck --sample standalone-quickstart
 npm run samples:run -- build --sample service-explorer --sdk-mode packed
+npm run samples:run -- verify --sample migration-workbench --sdk-mode source
 npm run samples:run -- test --sample standalone-quickstart
 npm run samples:run -- dev --sample service-explorer
 ```
