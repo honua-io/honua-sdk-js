@@ -18,6 +18,8 @@ const GENERATED_TARGET_ROOT = path.posix.dirname(GENERATED_TARGET_REPOSITORY_PAT
 const CLI_REPOSITORY_PATH = "dist/src/migration/cli.js";
 const EXECUTION_RUNNER_REPOSITORY_PATH = "scripts/lib/migration-workbench-execution-runner.mjs";
 const NETWORK_GUARD_REPOSITORY_PATH = "scripts/lib/migration-workbench-network-guard.mjs";
+const EXECUTION_HOME_SENTINEL_NAME = ".honua-owned-home";
+const EXECUTION_HOME_SENTINEL_CONTENT = "honua.migration-workbench.execution-home.v1\n";
 const FIXED_TIMESTAMP = "1970-01-01T00:00:00.000Z";
 const PREPARED_DIST_SRC_DIGEST_DOMAIN = "honua.migration-workbench.prepared-dist-src.v1";
 const EXECUTION_HARNESS_DIGEST_DOMAIN = "honua.migration-workbench.execution-harness.v1";
@@ -152,8 +154,8 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       repositoryRoot,
       temporaryRoot,
       aliases: [
-        [fixturePath, path.join(repositoryRoot, ...FIXTURE_REPOSITORY_PATH.split("/"))],
-        [sourceSnapshotRoot, path.join(repositoryRoot, "examples")],
+        [fixturePath, `<repo>/${FIXTURE_REPOSITORY_PATH}`],
+        [sourceSnapshotRoot, "<repo>/examples"],
       ],
     };
     const demoCommand = runCliCommand({
@@ -631,10 +633,12 @@ export function executeIsolatedGeneratedModule({
   const stagedRunnerPath = path.join(executionRoot, path.posix.basename(EXECUTION_RUNNER_REPOSITORY_PATH));
   const stagedNetworkGuardPath = path.join(executionRoot, path.posix.basename(NETWORK_GUARD_REPOSITORY_PATH));
   const executionHomePath = path.join(executionRoot, "home");
+  const executionHomeSentinelPath = path.join(executionHomePath, EXECUTION_HOME_SENTINEL_NAME);
   let executionPathIdentity;
   let stagedRunnerIdentity;
   let stagedNetworkGuardIdentity;
   let executionHomeIdentity;
+  let executionHomeSentinelIdentity;
 
   try {
     writeNewRegularFile(stagedRunnerPath, runnerFile.bytes);
@@ -655,6 +659,14 @@ export function executeIsolatedGeneratedModule({
     args.push(stagedRunnerPath, executionPath);
 
     const executionEnvironment = createHermeticEnvironment(executionHomePath, { temporaryRoot: executionRoot });
+    // Keep the owned home non-empty. Empty-directory reclamation is allowed to
+    // remove an otherwise untouched HOME on some hosts before this parent can
+    // verify its immutable cleanup identity.
+    writeNewRegularFile(executionHomeSentinelPath, EXECUTION_HOME_SENTINEL_CONTENT);
+    executionHomeSentinelIdentity = captureOriginalEntryIdentity(
+      executionHomeSentinelPath,
+      "isolated execution home sentinel",
+    );
     executionHomeIdentity = captureOriginalEntryIdentity(executionHomePath, "isolated execution home");
     const result = runBoundedCommand(process.execPath, args, {
       cwd: executionRoot,
@@ -732,6 +744,11 @@ export function executeIsolatedGeneratedModule({
       "staged network guard before cleanup",
     );
     assertOriginalEntryIdentity(executionPath, executionPathIdentity, "isolated generated target before cleanup");
+    assertOriginalEntryIdentity(
+      executionHomeSentinelPath,
+      executionHomeSentinelIdentity,
+      "isolated execution home sentinel before cleanup",
+    );
     assertOriginalEntryIdentity(executionHomePath, executionHomeIdentity, "isolated execution home before cleanup");
     fs.rmSync(executionRoot, { recursive: true, force: true });
   }
