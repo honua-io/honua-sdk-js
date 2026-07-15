@@ -83,6 +83,11 @@ const CQL2_TO_TEMPORAL = {
   t_intersects: "time-intersects",
 } as const;
 
+// Annex C's normative CQL2 JSON schema declares GeometryCollection
+// `geometries` with minItems: 2. Enforce that in both directions even though
+// the broader semantic/GeoJSON model also admits a single member.
+const MIN_CQL2_GEOMETRY_COLLECTION_ITEMS = 2;
+
 /**
  * Export the CQL2-representable semantic-filter subset. CQL2 carries spatial
  * CRS outside the expression, so every spatial export requires `filterCrs`
@@ -213,6 +218,7 @@ function exportSpatial(
     throw cql2Unsupported(path, "CQL2 GeoJSON literals cannot preserve measured coordinate layouts");
   }
   assertFilterCrs(filter.geometry.crs, context, path);
+  assertCql2GeometryCollectionCardinality(filter.geometry.geometry as unknown as JsonObject, `${path}.args[1]`);
   return {
     op: SPATIAL_TO_CQL2[filter.operator],
     args: [propertyRef, toJsonValue(filter.geometry.geometry)],
@@ -228,7 +234,10 @@ function exportLiteral(value: JsonValue, field: LogicalField | undefined, path: 
     if (typeof value !== "string") throw cql2Unsupported(path, "timestamp values require their string encoding");
     return { timestamp: value };
   }
-  if (field?.type.kind === "decimal" || (field?.type.kind === "integer" && field.type.jsonEncoding === "string")) {
+  if (
+    (field?.type.kind === "decimal" && field.type.jsonEncoding === "string") ||
+    (field?.type.kind === "integer" && field.type.jsonEncoding === "string")
+  ) {
     throw cql2Unsupported(path, "CQL2 JSON numbers cannot preserve string-encoded numeric precision");
   }
   if (value === null || Array.isArray(value) || typeof value === "object") {
@@ -463,7 +472,7 @@ function geometryLayout(geometry: JsonObject, path: string): "xy" | "xyz" {
   if (type === "GeometryCollection") {
     exactKeys(geometry, ["type", "geometries"], path);
     const geometries = array(geometry.geometries as JsonValue, `${path}.geometries`);
-    if (geometries.length < 2) {
+    if (geometries.length < MIN_CQL2_GEOMETRY_COLLECTION_ITEMS) {
       throw cql2Invalid(`${path}.geometries`, "must contain at least two geometries in CQL2 JSON");
     }
     return geometryLayout(object(geometries[0] as JsonValue, `${path}.geometries[0]`), `${path}.geometries[0]`);
@@ -480,6 +489,19 @@ function geometryLayout(geometry: JsonObject, path: string): "xy" | "xyz" {
   if (position.length === 2) return "xy";
   if (position.length === 3) return "xyz";
   throw cql2Unsupported(`${path}.coordinates`, "positions must contain two or three ordinates");
+}
+
+function assertCql2GeometryCollectionCardinality(geometry: JsonObject, path: string): void {
+  if (geometry.type !== "GeometryCollection") return;
+  const geometries = geometry.geometries;
+  if (!Array.isArray(geometries) || geometries.length < MIN_CQL2_GEOMETRY_COLLECTION_ITEMS) {
+    throw cql2Unsupported(`${path}.geometries`, "must contain at least two geometries in CQL2 JSON");
+  }
+  geometries.forEach((entry, index) => {
+    if (entry !== null && !Array.isArray(entry) && typeof entry === "object") {
+      assertCql2GeometryCollectionCardinality(entry as JsonObject, `${path}.geometries[${index}]`);
+    }
+  });
 }
 
 function assertFilterCrs(value: ExecutableCrsBinding, context: Cql2Context, path: string): void {
