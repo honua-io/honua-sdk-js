@@ -4,6 +4,7 @@ import {
   type LogicalType,
   type SourceProtocol,
   type SourceSchemaV2,
+  compareLogicalDomainValues,
   isLogicalDomainValueCompatible,
   parseSourceSchemaV2,
   validateSourceCrsDefinition,
@@ -101,6 +102,12 @@ const DISTANCE_UNITS = new Set([
 ]);
 const NATIVE_TEXT_DIALECTS = new Set(["geoservices-sql92", "cql2-text", "odata-4.0", "duckdb-sql"]);
 const NATIVE_JSON_DIALECTS = new Set(["honua-grpc", "cql2-json"]);
+const RFC3339_DATE_TYPE = { kind: "date" } as const satisfies LogicalType;
+const RFC3339_INSTANT_TYPE = {
+  kind: "timestamp",
+  unit: "nanosecond",
+  timezone: "offset",
+} as const satisfies LogicalType;
 
 type RuntimeQuery = SemanticQuery<Record<string, unknown>, SourceProtocol, SourceSpatiality>;
 type RuntimeFilter = QueryFilter<Record<string, unknown>, SourceProtocol, SourceSpatiality>;
@@ -681,7 +688,13 @@ function parseTemporalLiteral(value: JsonValue | undefined, path: string): Tempo
     if (!startKind) throw invalid(`${path}.value[0]`, "must be an RFC 3339 full-date or instant");
     if (!endKind) throw invalid(`${path}.value[1]`, "must be an RFC 3339 full-date or instant");
     if (startKind !== endKind) throw invalid(`${path}.value`, "endpoints must use the same temporal representation");
-    if (Date.parse(start) > Date.parse(end)) throw invalid(`${path}.value`, "start must not be after end");
+    const comparison = compareLogicalDomainValues(
+      start,
+      end,
+      startKind === "date" ? RFC3339_DATE_TYPE : RFC3339_INSTANT_TYPE,
+    );
+    if (comparison === undefined) throw invalid(`${path}.value`, "endpoints cannot be ordered deterministically");
+    if (comparison > 0) throw invalid(`${path}.value`, "start must not be after end");
     return { kind: "temporal-literal", valueType, value: [start, end] };
   }
   const text = expectBoundedText(object.value, `${path}.value`);
@@ -904,7 +917,9 @@ function validateFilter(filter: RuntimeFilter, schema: SourceSchemaV2, path: str
       assertTypeKind(field, ORDERED_TYPE_KINDS, `${path}.operand.name`, "orderable");
       validateLiteralForField(filter.lower.value, field, `${path}.lower.value`);
       validateLiteralForField(filter.upper.value, field, `${path}.upper.value`);
-      if (compareLiteral(filter.lower.value, filter.upper.value, field.type) > 0) {
+      const comparison = compareLiteral(filter.lower.value, filter.upper.value, field.type);
+      if (comparison === undefined) throw invalid(path, "range bounds cannot be ordered deterministically");
+      if (comparison > 0) {
         throw invalid(path, "range lower bound must not exceed its upper bound");
       }
       return;
@@ -1086,17 +1101,19 @@ function validateLiteralForField(value: JsonValue, field: LogicalField, path: st
     }
   }
   if (field.domain.state === "range") {
-    if (
-      field.domain.minimum &&
-      compareLiteral(value, field.domain.minimum.value, type) < (field.domain.minimum.inclusive ? 0 : 1)
-    ) {
-      throw invalid(path, `is below ${field.name}'s declared minimum`);
+    if (field.domain.minimum) {
+      const comparison = compareLiteral(value, field.domain.minimum.value, type);
+      if (comparison === undefined) throw invalid(path, `cannot be ordered against ${field.name}'s declared minimum`);
+      if (comparison < (field.domain.minimum.inclusive ? 0 : 1)) {
+        throw invalid(path, `is below ${field.name}'s declared minimum`);
+      }
     }
-    if (
-      field.domain.maximum &&
-      compareLiteral(value, field.domain.maximum.value, type) > (field.domain.maximum.inclusive ? 0 : -1)
-    ) {
-      throw invalid(path, `is above ${field.name}'s declared maximum`);
+    if (field.domain.maximum) {
+      const comparison = compareLiteral(value, field.domain.maximum.value, type);
+      if (comparison === undefined) throw invalid(path, `cannot be ordered against ${field.name}'s declared maximum`);
+      if (comparison > (field.domain.maximum.inclusive ? 0 : -1)) {
+        throw invalid(path, `is above ${field.name}'s declared maximum`);
+      }
     }
   }
   if (field.constraints.state === "known" || field.constraints.state === "partial") {
@@ -1165,55 +1182,8 @@ function decimalIntegerRatio(value: string): { readonly coefficient: bigint; rea
   return { coefficient, scale };
 }
 
-function compareLiteral(left: JsonValue, right: JsonValue, type: LogicalType): number {
-  if (typeof left === "number" && typeof right === "number") return left - right;
-  if (typeof left === "string" && typeof right === "string") {
-    if ((type.kind === "integer" || type.kind === "decimal") && type.jsonEncoding === "string") {
-      return compareDecimalText(left, right);
-    }
-    if (type.kind === "timestamp") return Date.parse(left) - Date.parse(right);
-    if (type.kind === "time") return comparableTime(left) - comparableTime(right);
-    return left < right ? -1 : left > right ? 1 : 0;
-  }
-  return 0;
-}
-
-function comparableTime(value: string): number {
-  const hasOffset = /(?:Z|[+-]\d{2}:\d{2})$/.test(value);
-  return Date.parse(`1970-01-01T${value}${hasOffset ? "" : "Z"}`);
-}
-
-function compareDecimalText(left: string, right: string): number {
-  const normalizedLeft = decimalParts(left);
-  const normalizedRight = decimalParts(right);
-  if (normalizedLeft.negative !== normalizedRight.negative) return normalizedLeft.negative ? -1 : 1;
-  let comparison = normalizedLeft.integer.length - normalizedRight.integer.length;
-  if (comparison === 0) {
-    comparison =
-      normalizedLeft.integer < normalizedRight.integer ? -1 : normalizedLeft.integer > normalizedRight.integer ? 1 : 0;
-  }
-  if (comparison === 0) {
-    const width = Math.max(normalizedLeft.fraction.length, normalizedRight.fraction.length);
-    const leftFraction = normalizedLeft.fraction.padEnd(width, "0");
-    const rightFraction = normalizedRight.fraction.padEnd(width, "0");
-    comparison = leftFraction < rightFraction ? -1 : leftFraction > rightFraction ? 1 : 0;
-  }
-  return normalizedLeft.negative ? -comparison : comparison;
-}
-
-function decimalParts(value: string): {
-  readonly negative: boolean;
-  readonly integer: string;
-  readonly fraction: string;
-} {
-  const negative = value.startsWith("-");
-  const unsigned = negative ? value.slice(1) : value;
-  const [rawInteger = "0", rawFraction = ""] = unsigned.split(".", 2);
-  return {
-    negative: negative && !/^0(?:\.0*)?$/.test(unsigned),
-    integer: rawInteger.replace(/^0+(?=\d)/, ""),
-    fraction: rawFraction.replace(/0+$/, ""),
-  };
+function compareLiteral(left: JsonValue, right: JsonValue, type: LogicalType): number | undefined {
+  return compareLogicalDomainValues(left, right, type);
 }
 
 function parseBoundedJson(value: string | unknown): JsonValue {
@@ -1411,27 +1381,11 @@ function temporalEndpointKind(value: string): "date" | "instant" | undefined {
 }
 
 function isIsoDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().startsWith(value);
+  return isLogicalDomainValueCompatible(value, RFC3339_DATE_TYPE);
 }
 
 function isIsoInstant(value: string): boolean {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(value);
-  if (!match || !isIsoDate(match[1] as string)) return false;
-  const hour = Number(match[2]);
-  const minute = Number(match[3]);
-  const second = Number(match[4]);
-  const offsetHour = match[6] === undefined ? 0 : Number(match[6]);
-  const offsetMinute = match[7] === undefined ? 0 : Number(match[7]);
-  return (
-    hour <= 23 &&
-    minute <= 59 &&
-    second <= 59 &&
-    offsetHour <= 23 &&
-    offsetMinute <= 59 &&
-    !Number.isNaN(Date.parse(value))
-  );
+  return isLogicalDomainValueCompatible(value, RFC3339_INSTANT_TYPE);
 }
 
 function isBuiltInDialect(value: string): value is BuiltInNativeDialect {

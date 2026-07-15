@@ -408,6 +408,112 @@ describe("semantic query AST", () => {
     expect(semanticLiteralAccepts(type, value)).toBe(accepted);
   });
 
+  it("orders temporal literals, range bounds, and schema domains without millisecond truncation", () => {
+    const intervalQuery = (start: string, end: string) => ({
+      kind: "features",
+      filter: {
+        kind: "temporal",
+        operator: "during",
+        operand: { kind: "property", name: "observedAt" },
+        value: { kind: "temporal-literal", valueType: "interval", value: [start, end] },
+      },
+    });
+
+    for (const [start, end] of [
+      ["2026-07-15T00:00:00.000002Z", "2026-07-15T00:00:00.000001Z"],
+      ["2026-07-15T00:00:00.000000002Z", "2026-07-15T00:00:00.000000001Z"],
+    ] as const) {
+      expect(() => parseSemanticQuery(intervalQuery(start, end))).toThrow(/start must not be after end/);
+    }
+
+    const timestampType = { kind: "timestamp", unit: "nanosecond", timezone: "utc" } as const;
+    const timestampSchema = scalarSchema(timestampType);
+    expect(() =>
+      parseSemanticQuery(
+        {
+          kind: "features",
+          filter: {
+            kind: "range",
+            operator: "between",
+            operand: { kind: "property", name: "value" },
+            lower: { kind: "literal", value: "2026-07-15T00:00:00.000000002Z" },
+            upper: { kind: "literal", value: "2026-07-15T00:00:00.000000001Z" },
+          },
+        },
+        { schema: timestampSchema },
+      ),
+    ).toThrow(/range lower bound must not exceed its upper bound/);
+
+    const timeSchema = scalarSchema({ kind: "time", unit: "microsecond" });
+    expect(() =>
+      parseSemanticQuery(
+        {
+          kind: "features",
+          filter: {
+            kind: "range",
+            operator: "between",
+            operand: { kind: "property", name: "value" },
+            lower: { kind: "literal", value: "12:00:00.000002" },
+            upper: { kind: "literal", value: "12:00:00.000001" },
+          },
+        },
+        { schema: timeSchema },
+      ),
+    ).toThrow(/range lower bound must not exceed its upper bound/);
+
+    const unknownTimezoneSchema = scalarSchema({ kind: "timestamp", unit: "nanosecond", timezone: "unknown" });
+    expect(() =>
+      parseSemanticQuery(
+        {
+          kind: "features",
+          filter: {
+            kind: "range",
+            operator: "between",
+            operand: { kind: "property", name: "value" },
+            lower: { kind: "literal", value: "2026-07-15T00:00:00.000000001" },
+            upper: { kind: "literal", value: "2026-07-15T00:00:00.000000002Z" },
+          },
+        },
+        { schema: unknownTimezoneSchema },
+      ),
+    ).toThrow(/cannot be ordered deterministically/);
+
+    const domain = {
+      state: "range",
+      minimum: { value: "2026-07-15T00:00:00.000000002Z", inclusive: true },
+      maximum: { value: "2026-07-15T00:00:00.000000010Z", inclusive: true },
+    } as const;
+    expect(semanticLiteralAccepts(timestampType, "2026-07-15T00:00:00.000000001Z", { domain })).toBe(false);
+    expect(semanticLiteralAccepts(timestampType, "2026-07-15T00:00:00.000000002Z", { domain })).toBe(true);
+  });
+
+  it("accepts valid offset-normalized RFC 3339 leap seconds and orders them exactly", () => {
+    const intervalQuery = (start: string, end: string) => ({
+      kind: "features",
+      filter: {
+        kind: "temporal",
+        operator: "during",
+        operand: { kind: "property", name: "observedAt" },
+        value: { kind: "temporal-literal", valueType: "interval", value: [start, end] },
+      },
+    });
+
+    for (const [start, end] of [
+      ["2016-12-31T23:59:59.999999999Z", "2016-12-31T23:59:60Z"],
+      ["2016-12-31T23:59:60.999999999Z", "2017-01-01T00:00:00Z"],
+      ["2017-01-01T00:59:60+01:00", "2017-01-01T00:00:00Z"],
+    ] as const) {
+      expect(() => parseSemanticQuery(intervalQuery(start, end))).not.toThrow();
+    }
+
+    expect(() => parseSemanticQuery(intervalQuery("2017-01-01T00:00:00Z", "2016-12-31T23:59:60.999999999Z"))).toThrow(
+      /start must not be after end/,
+    );
+    expect(() => parseSemanticQuery(intervalQuery("2016-12-30T23:59:60Z", "2017-01-01T00:00:00Z"))).toThrow(
+      /RFC 3339 full-date or instant/,
+    );
+  });
+
   it.each([
     {
       name: "large string integer",

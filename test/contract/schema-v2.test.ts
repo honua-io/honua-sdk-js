@@ -794,6 +794,26 @@ describe("SourceSchemaV2 canonical contract", () => {
     ).toThrow(/cannot be ordered deterministically/);
   });
 
+  it("orders time-of-day ranges exactly through nanoseconds", () => {
+    const field = (minimum: string, maximum: string) =>
+      integerField({
+        type: { kind: "time", unit: "nanosecond" },
+        domain: {
+          state: "range",
+          minimum: { value: minimum, inclusive: true },
+          maximum: { value: maximum, inclusive: true },
+        },
+      });
+
+    expect(() =>
+      createSourceSchemaV2(tabularInput({ fields: [field("12:00:00.000000002", "12:00:00.000000001")] })),
+    ).toThrow(/minimum must not exceed maximum/);
+
+    expect(
+      createSourceSchemaV2(tabularInput({ fields: [field("12:00:00.1", "12:00:00.100000000")] })).fields[0]?.domain,
+    ).toMatchObject({ state: "range" });
+  });
+
   it("orders RFC 3339 leap seconds between the prior second and next UTC minute", () => {
     const field = (minimum: string, maximum: string) =>
       integerField({
