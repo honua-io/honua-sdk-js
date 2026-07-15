@@ -83,7 +83,8 @@ describe("pull request issue disposition policy", () => {
     assert.doesNotMatch(workflow, /(?:write|secrets:)/u);
     assert.match(workflow, /actions\/checkout@[0-9a-f]{40}/u);
     assert.match(workflow, /actions\/setup-node@[0-9a-f]{40}/u);
-    assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u);
+    assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.base\.ref \}\}/u);
+    assert.doesNotMatch(workflow, /pull_request\.base\.sha/u);
     assert.match(workflow, /path: trusted-policy/u);
     assert.match(workflow, /persist-credentials: false/u);
     assert.match(workflow, /working-directory: trusted-policy/u);
