@@ -74,12 +74,28 @@ require authentication; standalone deck.gl is represented separately and is
 never mislabeled as a CARTO result. No third-party implementation or hosted
 data is copied into the corpus.
 
-The Honua entry binds the exact `HEAD:src` Git tree, not an npm release with the
-same version string. Any source change intentionally invalidates the preflight;
-run `npm run bench:references:source-tree`, review the source delta, then update
-the corpus tree only in the same reviewed change. Eligible license files are
-bound by local SHA-256 and contained to `LICENSE` or locked `node_modules`
-package roots (realpath containment also rejects symlink escapes).
+The Honua entry binds the exact committed `HEAD:src` Git tree, not an npm
+release with the same version string. Any source change intentionally
+invalidates the normal preflight. After reviewing and committing the `src/`
+delta, use this offline recovery workflow exactly as written:
+
+```sh
+npm run bench:references:source-tree
+npm run bench:references:source-tree:write
+git diff -- bench/cross-sdk/corpus.json
+npm run bench:references
+npm run bench:lab
+```
+
+The inspection command prints the current 40-character tree even when the
+checked-in pin is stale. The explicit write command preserves every other byte
+and changes only `honua-sdk-js.package.sourceTree.gitTree`; stop if the review
+diff shows anything else. Neither command refreshes terms or contacts a third
+party. The subsequent reference and lab commands remain the fail-closed gates
+for source-tree drift, fixture digests, package identities, license evidence,
+and terms decisions. Eligible license files are bound by local SHA-256 and
+contained to `LICENSE` or locked `node_modules` package roots (realpath
+containment also rejects symlink escapes).
 
 Terms reachability is refreshed explicitly, never during deterministic PR
 gates. `npm run bench:references:refresh-terms` performs bounded eight-second

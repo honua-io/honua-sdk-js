@@ -199,11 +199,26 @@ console/page/network evidence, bundle and memory evidence, and reviewed output
 equivalence. A skipped or incompatible reference remains visible and cannot be
 averaged away or used to promote an unrelated scenario.
 
-Honua provenance is intentionally bound to the exact `HEAD:src` Git tree. Use
-`npm run bench:references:source-tree` after a reviewed source change; updating
-the committed tree value is an explicit review action, not an automatic claim
-that a beta npm version and current trunk are identical. Restricted terms are
-refreshed separately with `npm run bench:references:refresh-terms`. That bounded
-network command records URL reachability/status/final redirects but does not
+Honua provenance is intentionally bound to the exact committed `HEAD:src` Git
+tree. After reviewing and committing a source change, the recovery and review
+sequence is:
+
+```sh
+npm run bench:references:source-tree
+npm run bench:references:source-tree:write
+git diff -- bench/cross-sdk/corpus.json
+npm run bench:references
+npm run bench:lab
+```
+
+Inspection bypasses only the stale pin check and prints the current
+40-character tree offline. The explicit write mode updates only
+`honua-sdk-js.package.sourceTree.gitTree` while preserving the rest of the
+corpus byte-for-byte. The normal reference and lab gates still fail closed on
+source, fixture, package, license, or terms drift. Updating the committed tree
+value is an explicit review action, not an automatic claim that a beta npm
+version and current trunk are identical. Restricted terms are refreshed
+separately with `npm run bench:references:refresh-terms`. That bounded network
+command records URL reachability/status/final redirects but does not
 redistribute terms text or alter a legal decision; deterministic PR validation
 remains offline.
