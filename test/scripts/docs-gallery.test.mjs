@@ -469,7 +469,7 @@ test("renders accessible controls, compact essentials, and disclosed catalog tru
   assert.match(html, /role="status" aria-live="polite" aria-atomic="true"/);
   assert.match(html, /data-gallery-empty hidden/);
   assert.match(html, /@honua\/sdk-js/);
-  assert.match(html, /0\.1\.0-beta\.0/);
+  assert.ok(html.includes(gallery.provenance.catalog.version));
   assert.match(html, /honua\.sdk\.sample-catalog\.v2/);
   assert.match(html, /honua\.site\.sdk-sample-projection\.v2/);
   assert.match(html, /honua-io\/honua-sdk-js#540/);
