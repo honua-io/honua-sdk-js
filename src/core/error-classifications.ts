@@ -56,6 +56,7 @@ export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = Object.freeze({
   "query.execution.resource-unavailable": runtimeClassification("query", "authentication", false),
   "query.execution.resource-expired": runtimeClassification("query", "authentication", false),
   "query.execution.resource-resolution-failed": runtimeClassification("query", "internal", false),
+  "query.execution.resource-execution-failed": runtimeClassification("query", "internal", false),
   "map.source-adapter.disposed": runtimeClassification("map", "validation", false),
   "map.source-adapter.source-conflict": runtimeClassification("map", "validation", false),
   "map.source-adapter.layer-conflict": runtimeClassification("map", "validation", false),

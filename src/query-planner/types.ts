@@ -10,9 +10,12 @@ import type {
 } from "../contract/types.js";
 import { type HonuaErrorOptions, HonuaSdkError } from "../core/error-envelope.js";
 import type { EsriGeometryType, EsriSpatialRel } from "../core/types.js";
+import type { GeoParquetResourceHandleV1, GeoParquetResourceResolver } from "./resource.js";
 
 export const QUERY_IR_VERSION = "1.0" as const;
 export const QUERY_PLAN_VERSION = "1.0" as const;
+export const QUERY_IR_V2_VERSION = "2.0" as const;
+export const QUERY_PLAN_V2_VERSION = "2.0" as const;
 export const QUERY_IR_KIND = "honua.query-ir" as const;
 export const QUERY_PLAN_KIND = "honua.query-plan" as const;
 
@@ -85,10 +88,41 @@ export interface QueryIrGeoparquetIdentity {
   readonly bboxColumn?: string;
 }
 
+/** Credential-free GeoParquet identity used by v2 plans. */
+export interface QueryIrGeoparquetResourceIdentity {
+  readonly resource: GeoParquetResourceHandleV1;
+  /** Geometry metadata is safe planner input and never requires locator resolution. */
+  readonly geometryColumn?: string;
+  readonly geometryEncoding?: DuckDbGeometryEncoding;
+  readonly bboxColumn?: string;
+}
+
+/** GeoParquet-only v2 source identity. Raw locators are deliberately absent. */
+export interface QueryIrSourceIdentityV2 {
+  /** Stable logical id copied from the validated opaque handle. */
+  readonly id: string;
+  readonly protocol: "geoparquet";
+  readonly endpoint: "[opaque-resource]";
+  /** Safe descriptor metadata needed to reconstruct bounded-local plans exactly. */
+  readonly primaryKey?: string;
+  readonly schemaVersion?: string;
+  readonly sourceVersion?: string;
+  readonly geoparquet: QueryIrGeoparquetResourceIdentity;
+  readonly authorizationScope: readonly string[];
+  readonly capabilities: readonly Capability[];
+}
+
 export interface QueryIrV1 {
   readonly kind: typeof QUERY_IR_KIND;
   readonly version: typeof QUERY_IR_VERSION;
   readonly source: QueryIrSourceIdentity;
+  readonly query: CanonicalQuery;
+}
+
+export interface QueryIrV2 {
+  readonly kind: typeof QUERY_IR_KIND;
+  readonly version: typeof QUERY_IR_V2_VERSION;
+  readonly source: QueryIrSourceIdentityV2;
   readonly query: CanonicalQuery;
 }
 
@@ -119,6 +153,12 @@ export interface ExplainQueryOptions<T = Record<string, unknown>> {
   readonly authorizationScope?: readonly string[];
   /** Caller-supplied metadata estimates; explaining never reads result data. */
   readonly estimates?: QueryPlanningEstimates;
+}
+
+/** Opt-in GeoParquet v2 planning options. */
+export interface ExplainGeoParquetQueryOptions<T = Record<string, unknown>> extends ExplainQueryOptions<T> {
+  /** Opaque stable identity; the locator remains private to the injected resolver. */
+  readonly geoparquetResource: GeoParquetResourceHandleV1;
 }
 
 export interface GeoServicesCompiledQueryV1 {
@@ -191,6 +231,17 @@ export interface DuckDbCompiledQueryV1 {
   readonly geometryColumn?: string;
   readonly geometryEncoding?: DuckDbGeometryEncoding;
   /** True when a non-envelope spatial filter was reduced to its bounding box. */
+  readonly bboxApproximated?: boolean;
+}
+
+/** Credential-free DuckDB template compiled for execution-time resource binding. */
+export interface DuckDbCompiledQueryV2 {
+  readonly compiler: "duckdb-sql-v2";
+  /** Inspectable SQL over a fixed non-runnable placeholder, never a raw locator. */
+  readonly sqlTemplate: string;
+  readonly resource: GeoParquetResourceHandleV1;
+  readonly geometryColumn?: string;
+  readonly geometryEncoding?: DuckDbGeometryEncoding;
   readonly bboxApproximated?: boolean;
 }
 
@@ -267,6 +318,18 @@ export interface RemoteQueryPlanStep {
   readonly compiled: RemoteCompiledQueryV1;
 }
 
+export interface GeoParquetRemoteQueryPlanStepV2 {
+  readonly id: string;
+  readonly engine: "remote";
+  readonly operation: "query" | "queryAll" | "queryAggregate";
+  readonly pushdown: "full" | "partial";
+  readonly fidelity: "exact";
+  readonly reason: string;
+  readonly requests: number;
+  readonly query: CanonicalQuery;
+  readonly compiled: DuckDbCompiledQueryV2;
+}
+
 export interface LocalAggregatePlanStep {
   readonly id: string;
   readonly engine: "client";
@@ -281,6 +344,7 @@ export interface LocalAggregatePlanStep {
 }
 
 export type QueryPlanStep = RemoteQueryPlanStep | LocalAggregatePlanStep;
+export type QueryPlanStepV2 = GeoParquetRemoteQueryPlanStepV2 | LocalAggregatePlanStep;
 
 export interface QueryExecutionPlanV1 {
   readonly kind: typeof QUERY_PLAN_KIND;
@@ -297,6 +361,24 @@ export interface QueryExecutionPlanV1 {
   readonly steps: readonly QueryPlanStep[];
   readonly warnings: readonly string[];
 }
+
+export interface QueryExecutionPlanV2 {
+  readonly kind: typeof QUERY_PLAN_KIND;
+  readonly version: typeof QUERY_PLAN_V2_VERSION;
+  readonly id: string;
+  readonly fingerprint: `sha256:${string}`;
+  readonly ir: QueryIrV2;
+  readonly capabilityPolicy: CapabilityPolicy;
+  readonly fallback: QueryFallbackPolicy;
+  readonly pushdown: "full" | "partial";
+  readonly fidelity: "exact";
+  readonly cache: "bypass";
+  readonly estimates: QueryPlanningEstimates;
+  readonly steps: readonly QueryPlanStepV2[];
+  readonly warnings: readonly string[];
+}
+
+export type QueryExecutionPlan = QueryExecutionPlanV1 | QueryExecutionPlanV2;
 
 export type QueryPlanningErrorCode =
   | "invalid-query"
@@ -324,7 +406,8 @@ export type QueryPlanExecutionErrorCode =
   | "invalid-resource-handle"
   | "resource-unavailable"
   | "resource-expired"
-  | "resource-resolution-failed";
+  | "resource-resolution-failed"
+  | "resource-execution-failed";
 
 export class HonuaQueryPlanExecutionError extends HonuaSdkError {
   public constructor(
@@ -354,6 +437,7 @@ const QUERY_EXECUTION_CODES = {
   "resource-unavailable": "query.execution.resource-unavailable",
   "resource-expired": "query.execution.resource-expired",
   "resource-resolution-failed": "query.execution.resource-resolution-failed",
+  "resource-execution-failed": "query.execution.resource-execution-failed",
 } as const satisfies Record<QueryPlanExecutionErrorCode, `query.execution.${string}`>;
 
 export interface ExecuteQueryPlanOptions {
@@ -361,6 +445,10 @@ export interface ExecuteQueryPlanOptions {
   readonly schemaVersion?: string;
   readonly sourceVersion?: string;
   readonly authorizationScope?: readonly string[];
+  /** Exact non-secret partition id required by a GeoParquet v2 resource handle. */
+  readonly authorizationContextId?: string;
+  /** Lifecycle-scoped resolver used only at the trusted v2 execution boundary. */
+  readonly geoParquetResourceResolver?: GeoParquetResourceResolver;
 }
 
 export interface QueryPlanExecution<T = Record<string, unknown>> {
@@ -371,7 +459,7 @@ export interface QueryPlanExecution<T = Record<string, unknown>> {
 
 /** Executor signature exported for dependency injection and test doubles. */
 export type QueryPlanExecutor = <T>(
-  plan: QueryExecutionPlanV1,
+  plan: QueryExecutionPlan,
   source: Source<T>,
   options?: ExecuteQueryPlanOptions,
 ) => Promise<QueryPlanExecution<T>>;

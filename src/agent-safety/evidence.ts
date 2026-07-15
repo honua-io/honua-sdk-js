@@ -1,12 +1,7 @@
 import { type ConnectDiscoverySnapshot, HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION } from "../connect.js";
 import { CAPABILITIES, type Capability, PROTOCOLS } from "../contract/index.js";
-import {
-  type JsonValue,
-  type QueryExecutionPlanV1,
-  canonicalStringify,
-  hashQueryPlan,
-  sha256,
-} from "../query-planner/index.js";
+import { type JsonValue, type QueryExecutionPlanV1, canonicalStringify, sha256 } from "../query-planner/index.js";
+import { hashQueryPlanV1 } from "../query-planner/planner.js";
 import {
   AGENT_SAFETY_EVIDENCE_KIND,
   AGENT_SAFETY_VERSION,
@@ -39,7 +34,7 @@ export function deriveAgentSafetyEvidence(
   const discovery = snapshotJson(acceptedDiscovery, "$discovery") as unknown as ConnectDiscoverySnapshot;
   const capturedOptions = snapshotJson(options, "$options") as unknown as DeriveAgentSafetyEvidenceOptions;
   if (plan.kind !== "honua.query-plan" || plan.version !== "1.0") invalid("$plan is not a supported query plan");
-  if (hashQueryPlan(plan) !== plan.fingerprint) integrity("$plan fingerprint does not match its accepted contents");
+  if (hashQueryPlanV1(plan) !== plan.fingerprint) integrity("$plan fingerprint does not match its accepted contents");
   if (discovery.version !== HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION) invalid("$discovery version is unsupported");
   if (!PROTOCOLS.includes(plan.ir.source.protocol)) invalid("$plan source protocol is unsupported");
   if (discovery.protocol !== plan.ir.source.protocol) integrity("discovery protocol differs from the accepted plan");

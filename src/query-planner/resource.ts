@@ -85,6 +85,14 @@ export interface RegisterGeoParquetResourceInput {
   readonly expiresAt?: number;
 }
 
+/** Stable identity input for a handle whose private locator is registered elsewhere. */
+export interface CreateGeoParquetResourceHandleInput {
+  readonly resolver: string;
+  readonly id: string;
+  readonly authorizationContextId: string;
+  readonly resourceVersion?: string;
+}
+
 /** Options for an ephemeral, in-memory resolver registry. */
 export interface GeoParquetResourceRegistryOptions {
   /** Canonical lowercase reverse-DNS resolver identifier embedded in handles. */
@@ -121,6 +129,24 @@ interface ExpiredResourceEntry {
 type ResourceEntry = ActiveResourceEntry | ExpiredResourceEntry;
 
 const EXPIRED_ENTRY: ExpiredResourceEntry = Object.freeze({ state: "expired" });
+
+/** Create a credential-free handle without registering or resolving a locator. */
+export function createGeoParquetResourceHandle(input: CreateGeoParquetResourceHandleInput): GeoParquetResourceHandleV1 {
+  const parsed = inspectRecord(input, ["resolver", "id", "authorizationContextId"], ["resourceVersion"]);
+  if (!parsed) throw invalidHandle();
+  return parseGeoParquetResourceHandle({
+    kind: QUERY_RESOURCE_HANDLE_KIND,
+    version: QUERY_RESOURCE_HANDLE_VERSION,
+    protocol: "geoparquet",
+    resource: {
+      kind: "resolver",
+      resolver: parsed.get("resolver"),
+      id: parsed.get("id"),
+    },
+    authorizationContextId: parsed.get("authorizationContextId"),
+    ...(parsed.has("resourceVersion") ? { resourceVersion: parsed.get("resourceVersion") } : {}),
+  });
+}
 
 /** Parse an exact v1 handle without invoking accessors or retaining rejected input. */
 export function parseGeoParquetResourceHandle(value: unknown): GeoParquetResourceHandleV1 {

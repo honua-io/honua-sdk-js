@@ -12,18 +12,32 @@
  */
 
 export { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
-export { compileDuckDbQuery } from "./duckdb.js";
+export { compileDuckDbQuery, compileDuckDbQueryV2 } from "./duckdb.js";
 export { executeQueryPlan } from "./executor.js";
 export { compileGeoServicesQuery } from "./geoservices.js";
 export { compileGrpcQuery } from "./grpc.js";
 export { compileOgcApiFeaturesQuery } from "./ogc-features.js";
 export { compileOdataQuery } from "./odata.js";
 export { compileWfsQuery } from "./wfs.js";
-export { canonicalizeQuery, createQueryIr, hashQueryIr, queryFromCanonical } from "./ir.js";
-export { explainQuery, hashQueryPlan } from "./planner.js";
+export {
+  canonicalizeQuery,
+  createGeoParquetQueryIr,
+  createQueryIr,
+  hashQueryIr,
+  queryFromCanonical,
+} from "./ir.js";
+export {
+  explainQuery,
+  hashQueryPlan,
+  migrateGeoParquetQueryPlanV1,
+  parseQueryPlan,
+  queryPlanCacheKey,
+  serializeQueryPlan,
+} from "./planner.js";
 export {
   QUERY_RESOURCE_HANDLE_KIND,
   QUERY_RESOURCE_HANDLE_VERSION,
+  createGeoParquetResourceHandle,
   createGeoParquetResourceRegistry,
   hashGeoParquetResourceHandle,
   parseGeoParquetResourceHandle,
@@ -166,14 +180,19 @@ export {
   QUERY_IR_VERSION,
   QUERY_PLAN_KIND,
   QUERY_PLAN_VERSION,
+  QUERY_IR_V2_VERSION,
+  QUERY_PLAN_V2_VERSION,
 } from "./types.js";
 export type {
   CanonicalQuery,
   CanonicalSpatialFilter,
   DuckDbCompiledQueryV1,
+  DuckDbCompiledQueryV2,
   DuckDbGeometryEncoding,
   ExecuteQueryPlanOptions,
+  ExplainGeoParquetQueryOptions,
   ExplainQueryOptions,
+  GeoParquetRemoteQueryPlanStepV2,
   GeoServicesCompiledQueryV1,
   GrpcCompiledQueryV1,
   GrpcSpatialRelationship,
@@ -183,11 +202,16 @@ export type {
   LocalAggregatePlanStep,
   OgcApiFeaturesCompiledQueryV1,
   OdataCompiledQueryV1,
+  QueryExecutionPlan,
   QueryExecutionPlanV1,
+  QueryExecutionPlanV2,
   QueryFallbackPolicy,
   QueryIrGeoparquetIdentity,
+  QueryIrGeoparquetResourceIdentity,
   QueryIrSourceIdentity,
+  QueryIrSourceIdentityV2,
   QueryIrV1,
+  QueryIrV2,
   QueryPlanExecution,
   QueryPlanExecutionErrorCode,
   QueryPlanExecutor,
@@ -195,10 +219,12 @@ export type {
   QueryPlanningEstimates,
   RemoteCompiledQueryV1,
   QueryPlanStep,
+  QueryPlanStepV2,
   RemoteQueryPlanStep,
   WfsCompiledQueryV1,
 } from "./types.js";
 export type {
+  CreateGeoParquetResourceHandleInput,
   GeoParquetResolverResourceReferenceV1,
   GeoParquetResourceHandleV1,
   GeoParquetResourceRegistry,
