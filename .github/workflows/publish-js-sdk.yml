@@ -73,12 +73,12 @@ jobs:
           npm run check
           npm run samples:verify
           npm test
-          npm run build:split-packages
-          npm run verify:split-packages
-          npm run verify:browser
+          npm run build:split-packages:prepared
+          npm run verify:split-packages:prepared
+          npm run verify:browser:prepared
           npm run demo:primitive-matrix
           npm run demo:examples:typecheck
-          npm run demo:examples:build
+          npm run demo:examples:build:prepared
 
       - name: Validate publish ref and version
         if: env.DRY_RUN != 'true'
@@ -108,11 +108,11 @@ jobs:
 
       - name: Publish split packages
         run: |
-          npm run build:split-packages --silent
+          npm run build:split-packages:prepared --silent
           # build:split-packages cleans dist/, so (re)build the browser bundle
           # afterwards. Without this the root package publishes without
           # dist/browser/*, breaking the ./browser export and every CDN path.
-          npm run build:browser --silent
+          npm run verify:browser:prepared --silent
           node scripts/sample-contract.mjs artifacts
 
           # Refuse to publish an artifact that does not contain the surface the

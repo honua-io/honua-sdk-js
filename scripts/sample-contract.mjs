@@ -155,8 +155,9 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
       definition: "npm run build --silent && node examples/spatial-analytics-workbench/live-evidence.mjs",
       generatorPath: "examples/spatial-analytics-workbench/live-evidence.mjs",
       dependencies: {
-        build: "npm run clean --silent && tsc -p tsconfig.json",
+        build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
         clean: "rm -rf dist",
+        compile: "npm run clean --silent && tsc -p tsconfig.json",
       },
     },
   ],
