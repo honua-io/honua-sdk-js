@@ -120,6 +120,69 @@ metadata and is not invented as a GetFeature response CRS.
 query strings, and fragments; pass stable authorization scope identifiers, not
 tokens.
 
+## Opaque GeoParquet resource identity
+
+The experimental subpath also exposes the first execution-time resource
+identity slice. `GeoParquetResourceHandleV1` is a versioned JSON value containing
+only a resolver namespace, logical resource id, stable non-secret authorization
+partition, and optional data revision. Raw paths, globs, signed URLs, and expiry
+remain private to a lifecycle-scoped resolver registry:
+
+```ts doc-test=skip reason="partial excerpt requires application private locator and execution host"
+import {
+  createGeoParquetResourceRegistry,
+  hashGeoParquetResourceHandle,
+  resolveGeoParquetResource,
+} from "@honua/sdk-js/query-planner";
+
+const resources = createGeoParquetResourceRegistry({ resolver: "io.honua.app-assets" });
+const handle = resources.register({
+  id: "parcels:current",
+  authorizationContextId: "tenant:alpha/role:analyst",
+  resourceVersion: "snapshot:42",
+  sources: [privateSignedGeoParquetUrl],
+  expiresAt: privateSignedGeoParquetExpiryMs,
+});
+
+// Safe to fingerprint or persist: the private locator and deadline are absent.
+const resourceFingerprint = hashGeoParquetResourceHandle(handle);
+
+// Resolve only at the trusted execution boundary and consume immediately.
+const resolved = await resolveGeoParquetResource(handle, resources.resolver, {
+  authorizationContextId: "tenant:alpha/role:analyst",
+  signal,
+});
+await executeDuckDbWithPrivateSources(resolved.sources);
+
+// Clears all private locator material when the owning client/session ends.
+resources.dispose();
+```
+
+Re-registering the same resolver/id/authorization-context/resource-version
+atomically rotates private credentials without changing the handle or its
+fingerprint. Resolution compares authorization context before invoking the
+resolver, enforces exact expiry at `now >= expiresAt`, supports pre-flight and
+in-flight cancellation, and copies resolver output through fixed source-count
+and UTF-8 size ceilings. Unknown, revoked, closed, or cross-context resources
+fail closed. Foreign resolver failures are rebuilt as fixed-message SDK errors;
+their messages, causes, contexts, and raw locators are never retained.
+
+`resource.id`, `resourceVersion`, and `authorizationContextId` are
+identity-bearing. Derive them only from stable, non-secret facts such as dataset
+revision, tenant, and role ids—never from a bearer token, API key, signed query
+string, or a hash of credential material. Their validators enforce bounded
+syntax, not arbitrary secret detection, so callers remain responsible for this
+boundary. The registry is ephemeral in-memory isolation, not encrypted storage.
+Resolved `sources` cross the redaction boundary and must never be logged,
+persisted, fingerprinted, placed in telemetry, or sent over a network API.
+
+This slice intentionally does not rewrite v1 plans. Existing `1.0` GeoParquet
+IR and `duckdb-sql-v1` artifacts continue to parse as ordinary JSON and execute
+for credential-free locators. Until the follow-on compiler/executor cutover,
+callers must not pass signed or credential-bearing GeoParquet locators to
+`explainQuery`; opaque handles are created and resolved explicitly as shown
+above.
+
 ## DuckDB SQL and gRPC compilers
 
 `geoparquet` sources compile to deterministic DuckDB SQL over `read_parquet(...)`
@@ -215,4 +278,6 @@ snapshot/delta plans, receipts, and richer renderer/MCP consumption. Histogram
 and time-series aggregation are rejected by this compiler rather than silently
 ignored. The GeoServices, OGC API Features, WFS, OData, DuckDB SQL, gRPC, and
 bounded columnar/worker paths, spatial-aggregation pushdown, and a CLI plan
-consumer (`honua explain`) are now delivered.
+consumer (`honua explain`) are now delivered. Opaque GeoParquet handle creation
+and lifecycle resolution are delivered separately; routing those handles through
+planner, compiler, CLI, and executor boundaries remains follow-on work.

@@ -117,7 +117,7 @@ verifies registry shape plus this class/family documentation.
 | `HonuaWmtsCapabilitiesParseError` | `core.wmts-capabilities-parse` |
 | `HonuaDiscoveryError` | `discovery.*` (the eight values in `HonuaDiscoveryErrorCode`) |
 | `HonuaQueryPlanningError` | `query.planning.*` (the six values in `QueryPlanningErrorCode`) |
-| `HonuaQueryPlanExecutionError` | `query.execution.*` (the three values in `QueryPlanExecutionErrorCode`) |
+| `HonuaQueryPlanExecutionError` | `query.execution.*` (the seven values in `QueryPlanExecutionErrorCode`) |
 | `HonuaMapLibreSourceAdapterError` | `map.source-adapter.*` |
 | `HonuaDataToMapBridgeError` | `map.data-bridge.*` |
 | `HonuaAutomaticMapLibreStrategyError` | `map.automatic-strategy.*` |
@@ -203,6 +203,10 @@ string's local legacy `.code` or message.
 | `query.execution.invalid-plan` | `query` | `validation` | no | Query plan is invalid |
 | `query.execution.plan-context-mismatch` | `query` | `validation` | no | Execution context does not match the accepted query plan |
 | `query.execution.unsafe-materialization` | `query` | `validation` | no | Query execution exceeded its materialization bound |
+| `query.execution.invalid-resource-handle` | `query` | `validation` | no | Query resource handle is invalid |
+| `query.execution.resource-unavailable` | `query` | `authentication` | no | Query resource is unavailable in the authorization context |
+| `query.execution.resource-expired` | `query` | `authentication` | no | Query resource authorization has expired |
+| `query.execution.resource-resolution-failed` | `query` | `internal` | no | Query resource resolution failed |
 | `map.source-adapter.disposed` | `map` | `validation` | no | Map source adapter is disposed |
 | `map.source-adapter.source-conflict` | `map` | `validation` | no | Map source identifier already exists |
 | `map.source-adapter.layer-conflict` | `map` | `validation` | no | Map layer identifier already exists |

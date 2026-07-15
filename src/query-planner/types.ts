@@ -317,7 +317,14 @@ export class HonuaQueryPlanningError extends HonuaSdkError {
   }
 }
 
-export type QueryPlanExecutionErrorCode = "invalid-plan" | "plan-context-mismatch" | "unsafe-materialization";
+export type QueryPlanExecutionErrorCode =
+  | "invalid-plan"
+  | "plan-context-mismatch"
+  | "unsafe-materialization"
+  | "invalid-resource-handle"
+  | "resource-unavailable"
+  | "resource-expired"
+  | "resource-resolution-failed";
 
 export class HonuaQueryPlanExecutionError extends HonuaSdkError {
   public constructor(
@@ -343,6 +350,10 @@ const QUERY_EXECUTION_CODES = {
   "invalid-plan": "query.execution.invalid-plan",
   "plan-context-mismatch": "query.execution.plan-context-mismatch",
   "unsafe-materialization": "query.execution.unsafe-materialization",
+  "invalid-resource-handle": "query.execution.invalid-resource-handle",
+  "resource-unavailable": "query.execution.resource-unavailable",
+  "resource-expired": "query.execution.resource-expired",
+  "resource-resolution-failed": "query.execution.resource-resolution-failed",
 } as const satisfies Record<QueryPlanExecutionErrorCode, `query.execution.${string}`>;
 
 export interface ExecuteQueryPlanOptions {

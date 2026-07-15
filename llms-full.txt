@@ -2486,6 +2486,69 @@ metadata and is not invented as a GetFeature response CRS.
 query strings, and fragments; pass stable authorization scope identifiers, not
 tokens.
 
+## Opaque GeoParquet resource identity
+
+The experimental subpath also exposes the first execution-time resource
+identity slice. `GeoParquetResourceHandleV1` is a versioned JSON value containing
+only a resolver namespace, logical resource id, stable non-secret authorization
+partition, and optional data revision. Raw paths, globs, signed URLs, and expiry
+remain private to a lifecycle-scoped resolver registry:
+
+```ts doc-test=skip reason="partial excerpt requires application private locator and execution host"
+import {
+  createGeoParquetResourceRegistry,
+  hashGeoParquetResourceHandle,
+  resolveGeoParquetResource,
+} from "@honua/sdk-js/query-planner";
+
+const resources = createGeoParquetResourceRegistry({ resolver: "io.honua.app-assets" });
+const handle = resources.register({
+  id: "parcels:current",
+  authorizationContextId: "tenant:alpha/role:analyst",
+  resourceVersion: "snapshot:42",
+  sources: [privateSignedGeoParquetUrl],
+  expiresAt: privateSignedGeoParquetExpiryMs,
+});
+
+// Safe to fingerprint or persist: the private locator and deadline are absent.
+const resourceFingerprint = hashGeoParquetResourceHandle(handle);
+
+// Resolve only at the trusted execution boundary and consume immediately.
+const resolved = await resolveGeoParquetResource(handle, resources.resolver, {
+  authorizationContextId: "tenant:alpha/role:analyst",
+  signal,
+});
+await executeDuckDbWithPrivateSources(resolved.sources);
+
+// Clears all private locator material when the owning client/session ends.
+resources.dispose();
+```
+
+Re-registering the same resolver/id/authorization-context/resource-version
+atomically rotates private credentials without changing the handle or its
+fingerprint. Resolution compares authorization context before invoking the
+resolver, enforces exact expiry at `now >= expiresAt`, supports pre-flight and
+in-flight cancellation, and copies resolver output through fixed source-count
+and UTF-8 size ceilings. Unknown, revoked, closed, or cross-context resources
+fail closed. Foreign resolver failures are rebuilt as fixed-message SDK errors;
+their messages, causes, contexts, and raw locators are never retained.
+
+`resource.id`, `resourceVersion`, and `authorizationContextId` are
+identity-bearing. Derive them only from stable, non-secret facts such as dataset
+revision, tenant, and role ids—never from a bearer token, API key, signed query
+string, or a hash of credential material. Their validators enforce bounded
+syntax, not arbitrary secret detection, so callers remain responsible for this
+boundary. The registry is ephemeral in-memory isolation, not encrypted storage.
+Resolved `sources` cross the redaction boundary and must never be logged,
+persisted, fingerprinted, placed in telemetry, or sent over a network API.
+
+This slice intentionally does not rewrite v1 plans. Existing `1.0` GeoParquet
+IR and `duckdb-sql-v1` artifacts continue to parse as ordinary JSON and execute
+for credential-free locators. Until the follow-on compiler/executor cutover,
+callers must not pass signed or credential-bearing GeoParquet locators to
+`explainQuery`; opaque handles are created and resolved explicitly as shown
+above.
+
 ## DuckDB SQL and gRPC compilers
 
 `geoparquet` sources compile to deterministic DuckDB SQL over `read_parquet(...)`
@@ -2581,7 +2644,9 @@ snapshot/delta plans, receipts, and richer renderer/MCP consumption. Histogram
 and time-series aggregation are rejected by this compiler rather than silently
 ignored. The GeoServices, OGC API Features, WFS, OData, DuckDB SQL, gRPC, and
 bounded columnar/worker paths, spatial-aggregation pushdown, and a CLI plan
-consumer (`honua explain`) are now delivered.
+consumer (`honua explain`) are now delivered. Opaque GeoParquet handle creation
+and lifecycle resolution are delivered separately; routing those handles through
+planner, compiler, CLI, and executor boundaries remains follow-on work.
 
 ---
 
@@ -6198,7 +6263,7 @@ verifies registry shape plus this class/family documentation.
 | `HonuaWmtsCapabilitiesParseError` | `core.wmts-capabilities-parse` |
 | `HonuaDiscoveryError` | `discovery.*` (the eight values in `HonuaDiscoveryErrorCode`) |
 | `HonuaQueryPlanningError` | `query.planning.*` (the six values in `QueryPlanningErrorCode`) |
-| `HonuaQueryPlanExecutionError` | `query.execution.*` (the three values in `QueryPlanExecutionErrorCode`) |
+| `HonuaQueryPlanExecutionError` | `query.execution.*` (the seven values in `QueryPlanExecutionErrorCode`) |
 | `HonuaMapLibreSourceAdapterError` | `map.source-adapter.*` |
 | `HonuaDataToMapBridgeError` | `map.data-bridge.*` |
 | `HonuaAutomaticMapLibreStrategyError` | `map.automatic-strategy.*` |
@@ -6284,6 +6349,10 @@ string's local legacy `.code` or message.
 | `query.execution.invalid-plan` | `query` | `validation` | no | Query plan is invalid |
 | `query.execution.plan-context-mismatch` | `query` | `validation` | no | Execution context does not match the accepted query plan |
 | `query.execution.unsafe-materialization` | `query` | `validation` | no | Query execution exceeded its materialization bound |
+| `query.execution.invalid-resource-handle` | `query` | `validation` | no | Query resource handle is invalid |
+| `query.execution.resource-unavailable` | `query` | `authentication` | no | Query resource is unavailable in the authorization context |
+| `query.execution.resource-expired` | `query` | `authentication` | no | Query resource authorization has expired |
+| `query.execution.resource-resolution-failed` | `query` | `internal` | no | Query resource resolution failed |
 | `map.source-adapter.disposed` | `map` | `validation` | no | Map source adapter is disposed |
 | `map.source-adapter.source-conflict` | `map` | `validation` | no | Map source identifier already exists |
 | `map.source-adapter.layer-conflict` | `map` | `validation` | no | Map layer identifier already exists |
@@ -7199,42 +7268,42 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-14 at commit `117b5db`._
+_Generated 2026-07-15 at commit `2ff3aff`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 399.7 KiB | 425.3 KiB | 105.1 KiB | 112.5 KiB |
-| `/honua` | 513.2 KiB | 566.2 KiB | 135.4 KiB | 149.6 KiB |
-| `/contract` | 260.0 KiB | 287.3 KiB | 68.4 KiB | 72.9 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 631.5 KiB | 663.7 KiB | 129.5 KiB | 134.0 KiB |
-| `/plugin` (registry + certification, no heavy peers) | 57.1 KiB | 62.6 KiB | 17.6 KiB | 19.3 KiB |
+| `.` (root) | 400.4 KiB | 425.3 KiB | 105.2 KiB | 112.5 KiB |
+| `/honua` | 513.6 KiB | 566.2 KiB | 135.5 KiB | 149.6 KiB |
+| `/contract` | 260.4 KiB | 287.3 KiB | 68.4 KiB | 72.9 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 631.9 KiB | 663.7 KiB | 129.5 KiB | 134.0 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 57.5 KiB | 62.6 KiB | 17.7 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 50.1 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
-| `/nl-map-control` | 77.0 KiB | 84.5 KiB | 23.1 KiB | 25.3 KiB |
-| `/runtime` | 451.9 KiB | 458.7 KiB | 119.3 KiB | 131.7 KiB |
-| `/realtime` | 45.0 KiB | 49.3 KiB | 12.4 KiB | 13.5 KiB |
-| `/offline` | 40.5 KiB | 44.3 KiB | 12.1 KiB | 13.2 KiB |
-| `/query-planner` (worker runtime injected) | 90.8 KiB | 98.5 KiB | 26.4 KiB | 28.6 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 92.2 KiB | 100.0 KiB | 28.5 KiB | 30.8 KiB |
-| `/esri-compat` | 981.9 KiB | 1026.2 KiB | 244.3 KiB | 253.6 KiB |
+| `/nl-map-control` | 77.5 KiB | 84.5 KiB | 23.2 KiB | 25.3 KiB |
+| `/runtime` | 452.4 KiB | 458.7 KiB | 119.4 KiB | 131.7 KiB |
+| `/realtime` | 45.5 KiB | 49.3 KiB | 12.5 KiB | 13.5 KiB |
+| `/offline` | 41.0 KiB | 44.3 KiB | 12.2 KiB | 13.2 KiB |
+| `/query-planner` (worker runtime injected) | 98.9 KiB | 108.8 KiB | 28.7 KiB | 31.6 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 92.9 KiB | 100.0 KiB | 28.6 KiB | 30.8 KiB |
+| `/esri-compat` | 982.4 KiB | 1026.2 KiB | 244.4 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
-| `/geocoding` | 28.9 KiB | 31.6 KiB | 8.4 KiB | 9.1 KiB |
-| `/routing` | 22.6 KiB | 24.6 KiB | 7.0 KiB | 7.6 KiB |
-| `/auth` | 28.0 KiB | 30.6 KiB | 8.0 KiB | 8.7 KiB |
-| `/style` | 63.0 KiB | 69.0 KiB | 15.7 KiB | 17.2 KiB |
-| `/map` | 166.9 KiB | 182.2 KiB | 46.5 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 45.5 KiB | 46.5 KiB | 14.2 KiB | 14.6 KiB |
+| `/geocoding` | 29.4 KiB | 31.6 KiB | 8.4 KiB | 9.1 KiB |
+| `/routing` | 23.0 KiB | 24.6 KiB | 7.1 KiB | 7.6 KiB |
+| `/auth` | 28.4 KiB | 30.6 KiB | 8.1 KiB | 8.7 KiB |
+| `/style` | 63.4 KiB | 69.0 KiB | 15.8 KiB | 17.2 KiB |
+| `/map` | 167.6 KiB | 182.2 KiB | 46.7 KiB | 50.7 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 46.5 KiB | 51.1 KiB | 14.5 KiB | 14.6 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 433.5 KiB | 446.7 KiB | 114.2 KiB | 117.2 KiB |
+| `/react` (react/react-dom external) | 433.9 KiB | 446.7 KiB | 114.3 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 400.4 KiB | 426.0 KiB | 105.3 KiB | 112.8 KiB |
-| browser ESM (`./browser`) | 399.1 KiB | 424.6 KiB | 105.0 KiB | 112.5 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 214.4 KiB | 229.7 KiB | 54.3 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 346.5 KiB | 359.2 KiB | 89.2 KiB | 92.8 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 229.1 KiB | 245.9 KiB | 57.7 KiB | 61.4 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 401.0 KiB | 426.0 KiB | 105.4 KiB | 112.8 KiB |
+| browser ESM (`./browser`) | 399.8 KiB | 424.6 KiB | 105.2 KiB | 112.5 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 214.8 KiB | 229.7 KiB | 54.3 KiB | 57.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 346.9 KiB | 359.2 KiB | 89.3 KiB | 92.8 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 229.5 KiB | 245.9 KiB | 57.8 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 35.6 KiB | 37.7 KiB | 11.3 KiB | 12.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 36.3 KiB | 37.7 KiB | 11.4 KiB | 12.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
 
 ---

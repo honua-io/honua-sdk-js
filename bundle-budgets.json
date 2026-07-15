@@ -42,7 +42,8 @@
     "/react was reset for the react depth pass (#498): HonuaSourceLayer/useMountedSource pull the data-to-map bridge (mountSource + geojson projection + popup/hover wiring) and the selection context pulls the interactions feature-state + exploration selection-target primitives onto the entrypoint. Measured 415,869 minified / 109,064 gzip before the trunk rebase (+0.4 KiB min / +2.0 KiB gzip over the prior ceiling); ceilings are measured actual plus ~10% headroom.",
     "/agent-tools gained its first dedicated guard when it was promoted to the stable tier alongside /agent-safety (#502): the ten JSON-Schema tool definitions, the bounded executor with audit/redaction, the runtime adapters, and the MCP/OpenAI exporters measure 21,131 minified / 6,523 gzip bytes; the ceiling is measured actual plus ~10% headroom. Both agent entrypoints remain subpath-only — root and browser barrels are unchanged.",
     "The affected entrypoint ceilings were reset for the unified error envelope (#524): migrated public errors now carry stable domain/category/retryability metadata, bounded redacted context, cause projection, and a governed 102-code registry. Small domain entrypoints gain roughly 3.5–4.4 KiB gzip for this common runtime contract; only exceeded metrics were reset to measured actual plus 10% headroom. After the geometry error family joined the envelope on trunk, the root/browser gzip ceilings were reset from the merged measurements to restore the same 10% headroom policy.",
-    "The exceeded /honua, /contract, /runtime, and /geoparquet metrics were reset for the merged SourceSchemaV2 contract foundation (#523). /geoparquet carries bounded GeoParquet metadata consistency and native-geometry support validation while preserving v1 query-result normalization; the other entrypoints expose or consume the stable schema envelope. Only exceeded metrics were reset to measured actual plus 10% headroom."
+    "The exceeded /honua, /contract, /runtime, and /geoparquet metrics were reset for the merged SourceSchemaV2 contract foundation (#523). /geoparquet carries bounded GeoParquet metadata consistency and native-geometry support validation while preserving v1 query-result normalization; the other entrypoints expose or consume the stable schema envelope. Only exceeded metrics were reset to measured actual plus 10% headroom.",
+    "/query-planner was reset for versioned opaque GeoParquet resource handles and the lifecycle-scoped resolver registry (#587): strict scope/expiry/cancellation checks, bounded private locator resolution, and fixed redacted errors measure 101,266 minified / 29,409 gzip bytes. Both ceilings are measured actual plus 10% headroom. /geoparquet's exceeded minified ceiling was likewise reset after the shared resource-resolution error codes added 9 bytes to that entrypoint; its gzip ceiling remained unchanged."
   ],
   "entrypoints": {
     ".": {
@@ -90,8 +91,8 @@
       "gzip": 13532
     },
     "/query-planner": {
-      "min": 100824,
-      "gzip": 29273
+      "min": 111393,
+      "gzip": 32350
     },
     "/scene-workspace": {
       "min": 102449,
@@ -130,7 +131,7 @@
       "gzip": 51896
     },
     "/geoparquet": {
-      "min": 47583,
+      "min": 52352,
       "gzip": 14941
     },
     "/deckgl": {
