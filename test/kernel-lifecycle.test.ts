@@ -162,7 +162,7 @@ describe("kernel lifecycle substrate", () => {
     expect(lifecycle.dispose()).toBe(completion);
   });
 
-  it("shares the canonical completion with cleanup reentry and drains every resource once in reverse order", async () => {
+  it("uses a settled cleanup-reentry view and drains every resource once in reverse order", async () => {
     const lifecycle = createKernelLifecycle();
     const pendingCleanupStarted = deferred();
     const pendingCleanupGate = deferred();
@@ -193,7 +193,8 @@ describe("kernel lifecycle substrate", () => {
     });
     await pendingCleanupStarted.promise;
 
-    expect(reentrantCompletion).toBe(completion);
+    expect(reentrantCompletion).not.toBe(completion);
+    await expect(reentrantCompletion).resolves.toBeUndefined();
     expect(calls).toEqual(["reentrant", "pending:start"]);
     expect(reentrantCleanup).toHaveBeenCalledOnce();
     expect(pendingCleanup).toHaveBeenCalledOnce();
@@ -209,7 +210,7 @@ describe("kernel lifecycle substrate", () => {
     expect(lifecycle.dispose()).toBe(completion);
   });
 
-  it("does not deadlock when an async cleanup adopts the canonical owner completion", async () => {
+  it("does not deadlock when an async cleanup adopts its scoped disposal acknowledgement", async () => {
     const lifecycle = createKernelLifecycle();
     let reentrantCompletion: Promise<void> | undefined;
     const cleanup = vi.fn(async () => {
@@ -221,10 +222,45 @@ describe("kernel lifecycle substrate", () => {
     const completion = lifecycle.dispose();
     await within(completion);
 
-    expect(reentrantCompletion).toBe(completion);
+    expect(reentrantCompletion).not.toBe(completion);
+    await expect(reentrantCompletion).resolves.toBeUndefined();
     expect(cleanup).toHaveBeenCalledOnce();
     expect(lifecycle.state).toBe("disposed");
     expect(lifecycle.dispose()).toBe(completion);
+  });
+
+  it("awaits independent async cleanup work after synchronous disposal reentry", async () => {
+    const lifecycle = createKernelLifecycle();
+    const cleanupStarted = deferred();
+    const independentGate = deferred();
+    let released = false;
+    let reentrantCompletion: Promise<void> | undefined;
+    lifecycle.own(async () => {
+      reentrantCompletion = lifecycle.dispose();
+      cleanupStarted.resolve();
+      await independentGate.promise;
+      released = true;
+    });
+
+    const completion = lifecycle.dispose();
+    const repeated = lifecycle.dispose();
+    await cleanupStarted.promise;
+    let settled = false;
+    void completion.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+
+    expect(repeated).toBe(completion);
+    expect(reentrantCompletion).not.toBe(completion);
+    await expect(reentrantCompletion).resolves.toBeUndefined();
+    expect(released).toBe(false);
+    expect(settled).toBe(false);
+
+    independentGate.resolve();
+    await within(completion);
+    expect(released).toBe(true);
+    expect(settled).toBe(true);
   });
 
   it("continues after cleanup failures and preserves one aggregate completion", async () => {
