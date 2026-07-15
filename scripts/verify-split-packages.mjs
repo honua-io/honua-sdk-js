@@ -380,6 +380,29 @@ const capabilityProfile = evaluateCapabilityProfile(
 if (capabilityProfile.entries[0]?.effective !== "supported")
   throw new Error("evaluateCapabilityProfile export missing from @honua/sdk/source-capabilities");
 {
+  const capabilitySource = createDataset({
+    id: "split-package-capabilities",
+    client: new HonuaClient({ baseUrl: "https://example.test" }),
+    skipCompatibilityCheck: true,
+    sources: [
+      {
+        id: "split-package-smoke",
+        protocol: "ogc-features",
+        locator: { url: "https://example.test", collectionId: "split-package-smoke" },
+        capabilities: new Set(["query"]),
+        schemaV2: {
+          kind: "honua.source-schema",
+          version: "2.0",
+          fingerprint: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        },
+        capabilityProfile,
+      },
+    ],
+  }).source("split-package-smoke");
+  if (!capabilitySource?.supports("query"))
+    throw new Error("source.supports() missing from split @honua/sdk contract runtime");
+}
+{
   const staticProvider = apiKeyAuth("k");
   const provided = staticProvider.getCredentials({ reason: "initial", forceRefresh: false });
   if (!provided || provided.apiKey !== "k")

@@ -1,8 +1,8 @@
 # Source capability profiles
 
 > **Experimental.** `@honua/sdk-js/source-capabilities` is the canonical v2
-> claimed/observed/effective capability evaluator. It does not yet change the
-> stable `Source.capabilities` set or perform discovery or execution.
+> claimed/observed/effective capability evaluator and source support-check
+> surface. It does not perform discovery or execution.
 
 The v2 model keeps three statements separate:
 
@@ -78,6 +78,46 @@ profile.entries[0]?.effective; // "supported"
 profile.evaluatedAt;           // "2026-07-14T12:00:00Z"
 profile.validUntil;            // "2026-07-20T12:00:00Z"
 ```
+
+## Source support checks and narrowing
+
+`Dataset.source()` and `connect().source()` return a `CapabilityAwareSource`.
+Its synchronous `supports()` method accepts built-in and reverse-DNS extension
+identifiers. Only an exact `effective: "supported"` decision passes; unknown,
+unsupported, policy-disabled, peer-unavailable, authorization-required, and
+authorization-denied decisions all fail closed:
+
+```ts doc-test=skip reason="profile-aware discovery is delivered in the next capability slice"
+const source = dataset.source("parcels")!;
+
+if (source.supports("query")) {
+  // `source` is narrowed to SourceWithCapability<Attributes, "query"> here.
+  await executeQueryOnlyWorkflow(source);
+}
+
+const decision = source.capabilityProfile?.entries.find((entry) => entry.id === "query");
+console.log(decision?.effective, decision?.reasons);
+```
+
+An attached profile must be evaluated or parsed by the same SDK instance and
+its `sourceFingerprint` must match the descriptor's `schemaV2` fingerprint.
+This prevents an internally valid profile from being replayed against a
+different schema identity. Endpoint binding remains part of the focused
+discovery integration boundary: cache parsing must continue to supply both
+expected source coordinates as described below.
+
+For built-in identifiers, the legacy `ReadonlySet` is derived as the
+intersection of effective support and the adapter's existing capability
+maximum. Consequently metadata and policy can downgrade an operation but a
+profile cannot promote behavior the adapter does not implement. Supported
+extension identifiers are available through `supports()` and are intentionally
+absent from the built-in legacy set.
+
+Sources without a v2 profile retain their exact legacy set behavior:
+`supports()` delegates built-in checks to that set and returns `false` for
+extension identifiers. Existing third-party `SourceResolver` implementations
+do not need to add the method; the dataset decorates extensible results in
+place and uses a behavior-preserving facade for non-extensible results.
 
 `entries` and nested set-like values are sorted, deduplicated, cloned, and
 deeply frozen. Their normative order is the lexicographic unsigned-byte order
@@ -223,6 +263,8 @@ prohibited in evidence references, peer ids, scope ids, and extension values.
 
 ## Delivery boundary
 
-This slice does not add `source.supports()`, decorate legacy sources, or wire
-`connect()` discovery into the v2 profile. Those layers consume this evaluator
-in later slices. Existing stable `ReadonlySet` capability behavior is unchanged.
+This slice adds `source.supports()`, literal capability narrowing, verified
+profile attachment, and legacy/third-party compatibility. It does not yet wire
+GeoServices or OData discovery evidence into a v2 profile; that focused
+connection projection lands in the next slice. Existing sources without a
+profile retain their stable `ReadonlySet` capability behavior.

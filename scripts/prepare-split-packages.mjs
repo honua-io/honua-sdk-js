@@ -288,6 +288,7 @@ function createCompatPackage() {
   fs.mkdirSync(packageRoot, { recursive: true });
 
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
+  copySourceCapabilityContractSupport(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
@@ -346,6 +347,7 @@ function createGeometryPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
+  copySourceCapabilityContractSupport(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
 
@@ -484,6 +486,7 @@ function createReactPackage() {
   for (const directory of reactClosureDirectories) {
     copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
   }
+  copySourceCapabilityContractSupport(packageRoot);
 
   writePackageJson(packageRoot, {
     name: "@honua/react",
@@ -576,6 +579,7 @@ function createAppPlatformPackage() {
   for (const directory of [...appPlatformDirectories, ...stableClosureDirectories]) {
     copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
   }
+  copySourceCapabilityContractSupport(packageRoot);
 
   const subpathExport = (dir) => ({
     types: `./${dir}/index.d.ts`,
@@ -641,6 +645,17 @@ function copyMigrationCoreTypeSupport(packageRoot) {
   // (self-contained, no further core deps).
   copyFile(path.join(DIST_SRC_ROOT, "core", "path-utils.js"), path.join(coreRoot, "path-utils.js"));
   copyFile(path.join(DIST_SRC_ROOT, "core", "path-utils.d.ts"), path.join(coreRoot, "path-utils.d.ts"));
+}
+
+function copySourceCapabilityContractSupport(packageRoot) {
+  // `contract/source.js` decorates sources with `supports()` and its public
+  // declarations reference the profile vocabulary. Any self-contained split
+  // package that copies the contract needs this lightweight pair beside it;
+  // the evaluator/discovery runtime remains owned by the core SDK package.
+  for (const moduleName of ["source-capability-types", "source-capability-registry"]) {
+    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.js`), path.join(packageRoot, `${moduleName}.js`));
+    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.d.ts`), path.join(packageRoot, `${moduleName}.d.ts`));
+  }
 }
 
 function writePackageJson(packageRoot, overrides) {
