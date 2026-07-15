@@ -3,7 +3,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { HONUA_ERROR_CODE_REGISTRY } from "../dist/src/core/error-envelope.js";
+import { HONUA_ERROR_RUNTIME_CLASSIFICATIONS } from "../dist/src/core/error-classifications.js";
+import { HONUA_ERROR_CODE_REGISTRY } from "../dist/src/core/error-code-registry.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DOC_PATH = path.join(ROOT, "docs/errors.md");
@@ -54,14 +55,24 @@ const MIGRATED_PUBLIC_CLASSES = [
 ];
 
 const codes = Object.keys(HONUA_ERROR_CODE_REGISTRY);
+const runtimeCodes = Object.keys(HONUA_ERROR_RUNTIME_CLASSIFICATIONS);
 const failures = [];
+const errorEnvelopeRuntime = fs.readFileSync(path.join(ROOT, "dist/src/core/error-envelope.js"), "utf8");
 
 if (new Set(codes).size !== codes.length) failures.push("registry contains duplicate codes");
 if (codes.length === 0) failures.push("registry is empty");
+if (errorEnvelopeRuntime.includes("error-code-registry.js")) {
+  failures.push("error-envelope runtime depends on the descriptive registry");
+}
 if (!Object.isFrozen(HONUA_ERROR_CODE_REGISTRY)) failures.push("registry object is mutable");
+if (!Object.isFrozen(HONUA_ERROR_RUNTIME_CLASSIFICATIONS)) failures.push("runtime classification table is mutable");
+if (JSON.stringify(runtimeCodes) !== JSON.stringify(codes)) {
+  failures.push("runtime classification code set or ordering differs from the canonical registry");
+}
 
 for (const code of codes) {
   const descriptor = HONUA_ERROR_CODE_REGISTRY[code];
+  const runtimeClassification = HONUA_ERROR_RUNTIME_CLASSIFICATIONS[code];
   if (!VALID_DOMAINS.has(descriptor.domain)) failures.push(`${code}: unknown domain ${descriptor.domain}`);
   if (!code.startsWith(`${descriptor.domain}.`)) failures.push(`${code}: code/domain prefix mismatch`);
   if (!VALID_CATEGORIES.has(descriptor.category)) failures.push(`${code}: unknown category ${descriptor.category}`);
@@ -70,6 +81,16 @@ for (const code of codes) {
     failures.push(`${code}: missing registry documentation summary`);
   }
   if (!Object.isFrozen(descriptor)) failures.push(`${code}: registry descriptor is mutable`);
+  if (!runtimeClassification) {
+    failures.push(`${code}: missing runtime classification`);
+  } else {
+    const [domain, category, retryable] = runtimeClassification;
+    if (!Object.isFrozen(runtimeClassification)) failures.push(`${code}: runtime classification is mutable`);
+    if (runtimeClassification.length !== 3) failures.push(`${code}: runtime classification is not minimal`);
+    if (domain !== descriptor.domain || category !== descriptor.category || retryable !== descriptor.retryable) {
+      failures.push(`${code}: runtime classification differs from the canonical registry descriptor`);
+    }
+  }
 }
 
 const table = [

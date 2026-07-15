@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { HONUA_ERROR_RUNTIME_CLASSIFICATIONS } from "../src/core/error-classifications.js";
 import { HonuaExplorationContextError, HonuaWfsExceptionError } from "../src/core/errors.js";
 import { HonuaJobFailedError } from "../src/core/ogc-processes.js";
 import { DEFAULT_RETRYABLE_GRPC_CODES } from "../src/core/request-pipeline.js";
@@ -528,5 +529,18 @@ describe("tagged SDK error envelope", () => {
       false,
     );
     expect(HONUA_ERROR_CODE_REGISTRY["core.timeout"]).toBe(original);
+  });
+
+  it("keeps the compact runtime classifications in exact canonical registry parity", () => {
+    expect(Object.isFrozen(HONUA_ERROR_RUNTIME_CLASSIFICATIONS)).toBe(true);
+    expect(Object.keys(HONUA_ERROR_RUNTIME_CLASSIFICATIONS)).toEqual(Object.keys(HONUA_ERROR_CODE_REGISTRY));
+
+    for (const code of Object.keys(HONUA_ERROR_CODE_REGISTRY) as (keyof typeof HONUA_ERROR_CODE_REGISTRY)[]) {
+      const descriptor = HONUA_ERROR_CODE_REGISTRY[code];
+      const classification = HONUA_ERROR_RUNTIME_CLASSIFICATIONS[code];
+      expect(classification, code).toEqual([descriptor.domain, descriptor.category, descriptor.retryable]);
+      expect(Object.isFrozen(classification), code).toBe(true);
+      expect(classification, code).toHaveLength(3);
+    }
   });
 });
