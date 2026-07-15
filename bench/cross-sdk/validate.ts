@@ -146,7 +146,7 @@ export async function refreshCrossSdkSourceTree(
   } catch {
     fail("corpus JSON could not be parsed");
   }
-  const corpus = validateCrossSdkReferenceCorpus(foreign, new Date().toISOString().slice(0, 10));
+  const corpus = validateCrossSdkReferenceCorpusForMaintenance(foreign);
   const honua = corpus.references.find(({ id }) => id === "honua-sdk-js");
   const previousGitTree = honua?.package?.sourceTree?.gitTree;
   if (!previousGitTree) fail("Honua source tree binding is missing");
@@ -191,7 +191,16 @@ export function validateCrossSdkReferenceCorpus(foreign: unknown, now = "2026-07
   }
 }
 
-function validateCrossSdkReferenceCorpusUnsafe(foreign: unknown, now: string): CrossSdkReferenceCorpus {
+function validateCrossSdkReferenceCorpusForMaintenance(foreign: unknown): CrossSdkReferenceCorpus {
+  try {
+    return validateCrossSdkReferenceCorpusUnsafe(foreign, undefined);
+  } catch (cause) {
+    if (cause instanceof Error && cause.message.startsWith("Invalid cross-SDK reference corpus:")) throw cause;
+    throw new Error("Invalid cross-SDK reference corpus: input inspection failed", { cause });
+  }
+}
+
+function validateCrossSdkReferenceCorpusUnsafe(foreign: unknown, now: string | undefined): CrossSdkReferenceCorpus {
   const corpus = record(snapshotOwnedData(foreign), "corpus") as unknown as CrossSdkReferenceCorpus;
   exactKeys(
     corpus,
@@ -199,15 +208,16 @@ function validateCrossSdkReferenceCorpusUnsafe(foreign: unknown, now: string): C
     "corpus",
   );
   if (corpus.schemaVersion !== 1 || !SAFE_ID.test(corpus.id)) fail("corpus discriminator is invalid");
-  for (const [label, date] of [
+  const dates: Array<readonly [label: string, date: string]> = [
     ["reviewedAt", corpus.reviewedAt],
     ["reviewExpiresAt", corpus.reviewExpiresAt],
-    ["now", now],
-  ] as const) {
+  ];
+  if (now !== undefined) dates.push(["now", now]);
+  for (const [label, date] of dates) {
     if (!ISO_DATE.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00.000Z`))) fail(`${label} must be an ISO date`);
   }
   if (corpus.reviewedAt > corpus.reviewExpiresAt) fail("license review expires before it was performed");
-  if (now > corpus.reviewExpiresAt) fail("license review evidence is stale");
+  if (now !== undefined && now > corpus.reviewExpiresAt) fail("license review evidence is stale");
 
   const methodology = record(corpus.methodology, "methodology");
   exactKeys(

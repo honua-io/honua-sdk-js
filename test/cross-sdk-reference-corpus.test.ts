@@ -179,6 +179,32 @@ describe("cross-SDK reference corpus", () => {
     }
   });
 
+  it("keeps source-tree recovery usable when legal review freshness must fail later validation", async () => {
+    const value = await corpus();
+    const current = inspectCrossSdkSourceTree();
+    const stale = staleTree(current, JSON.stringify(value));
+    honuaSourceTree(value).gitTree = stale;
+    value.reviewExpiresAt = value.reviewedAt;
+    const temporaryCorpus = temporaryCorpusPath("expired-review-source-tree");
+    await writeFile(temporaryCorpus, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    try {
+      await expect(refreshCrossSdkSourceTree(temporaryCorpus)).resolves.toEqual({
+        schemaVersion: 1,
+        outcome: "updated",
+        previousGitTree: stale,
+        gitTree: current,
+      });
+      await expect(validateCrossSdkReferenceFiles(temporaryCorpus, "2027-01-01")).rejects.toThrow(
+        "license review evidence is stale",
+      );
+      expect(
+        honuaSourceTree(JSON.parse(await readFile(temporaryCorpus, "utf8")) as Record<string, unknown>).gitTree,
+      ).toBe(current);
+    } finally {
+      await unlink(temporaryCorpus);
+    }
+  });
+
   it("does not let source-tree recovery bypass unrelated fixture drift", async () => {
     const value = await corpus();
     const current = inspectCrossSdkSourceTree();
