@@ -1,4 +1,5 @@
 import {
+  type ExecutableCrsBinding,
   type JsonValue,
   type LogicalField,
   type LogicalType,
@@ -7,6 +8,7 @@ import {
   compareLogicalDomainValues,
   isLogicalDomainValueCompatible,
   parseSourceSchemaV2,
+  validateExecutableCrsBinding,
   validateSourceCrsDefinition,
 } from "../contract/schema.js";
 import { PROTOCOLS } from "../contract/types.js";
@@ -493,7 +495,7 @@ function parseExecutableGeometry(value: JsonValue | undefined, path: string): Js
   const layout = expectEnum(object.layout, `${path}.layout`, ["xy", "xyz", "xym", "xyzm"] as const);
   const crs = parseExecutableCrsBinding(object.crs, `${path}.crs`);
   const geometry = parseCanonicalGeometry(object.geometry, `${path}.geometry`, layout, 0);
-  return { state: "present", geometry, crs, layout };
+  return { state: "present", geometry, crs: crs as unknown as JsonValue, layout };
 }
 
 function parseExecutableBbox(value: JsonValue | undefined, path: string): JsonObject {
@@ -512,67 +514,19 @@ function parseExecutableBbox(value: JsonValue | undefined, path: string): JsonOb
       throw invalid(`${path}.box.bounds`, "minimum ordinates must not exceed maximum ordinates");
     }
   }
-  return { box: { layout, bounds: numbers }, crs: parseExecutableCrsBinding(object.crs, `${path}.crs`) };
+  return {
+    box: { layout, bounds: numbers },
+    crs: parseExecutableCrsBinding(object.crs, `${path}.crs`) as unknown as JsonValue,
+  };
 }
 
-function parseExecutableCrsBinding(value: JsonValue | undefined, path: string): JsonObject {
-  const object = expectObject(value, path);
-  assertOnlyKeys(object, ["definition", "coordinateOrder", "coordinateEpoch", "provenance"], path);
-  const definition = parseOutputCrs(object.definition, `${path}.definition`) as unknown as JsonValue;
-  const coordinateOrder = expectObject(object.coordinateOrder, `${path}.coordinateOrder`);
-  assertOnlyKeys(coordinateOrder, ["state", "source", "axes"], `${path}.coordinateOrder`);
-  expectExact(coordinateOrder.state, "known", `${path}.coordinateOrder.state`);
-  const orderSource = expectEnum(coordinateOrder.source, `${path}.coordinateOrder.source`, [
-    "crs-definition",
-    "protocol",
-    "encoding",
-    "declared",
-  ] as const);
-  const axes = expectArray(coordinateOrder.axes, `${path}.coordinateOrder.axes`);
-  if (axes.length < 2) throw invalid(`${path}.coordinateOrder.axes`, "must contain at least two axes");
-  const parsedAxes = axes.map((axis, index) => {
-    const axisPath = `${path}.coordinateOrder.axes[${index}]`;
-    const axisObject = expectObject(axis, axisPath);
-    assertOnlyKeys(axisObject, ["name", "abbreviation", "direction", "unit"], axisPath);
-    return {
-      name: expectBoundedText(axisObject.name, `${axisPath}.name`),
-      ...(axisObject.abbreviation === undefined
-        ? {}
-        : { abbreviation: expectBoundedText(axisObject.abbreviation, `${axisPath}.abbreviation`) }),
-      direction: expectEnum(axisObject.direction, `${axisPath}.direction`, [
-        "east",
-        "west",
-        "north",
-        "south",
-        "up",
-        "down",
-        "future",
-        "past",
-        "other",
-      ] as const),
-      unit: expectBoundedText(axisObject.unit, `${axisPath}.unit`),
-    };
-  });
-  const provenance = expectObject(object.provenance, `${path}.provenance`);
-  assertOnlyKeys(provenance, ["method", "native", "reprojection"], `${path}.provenance`);
-  const provenanceMethod = expectEnum(provenance.method, `${path}.provenance.method`, [
-    "metadata",
-    "payload",
-    "standard-default",
-    "declared",
-    "reprojected",
-  ] as const);
-  if (provenanceMethod === "reprojected" && provenance.reprojection === undefined) {
-    throw invalid(`${path}.provenance.reprojection`, "is required when method is reprojected");
+function parseExecutableCrsBinding(value: JsonValue | undefined, path: string): ExecutableCrsBinding {
+  try {
+    return validateExecutableCrsBinding(value, path);
+  } catch (error) {
+    if (error instanceof HonuaQueryPlanningError) throw error;
+    throw invalid(path, error instanceof TypeError ? error.message : "must be a valid executable CRS binding");
   }
-  return {
-    definition,
-    coordinateOrder: { state: "known", source: orderSource, axes: parsedAxes },
-    ...(object.coordinateEpoch === undefined
-      ? {}
-      : { coordinateEpoch: expectFiniteNumber(object.coordinateEpoch, `${path}.coordinateEpoch`) }),
-    provenance,
-  };
 }
 
 function parseCanonicalGeometry(value: JsonValue | undefined, path: string, layout: string, depth: number): JsonObject {
@@ -1117,6 +1071,10 @@ function validateLiteralForField(value: JsonValue, field: LogicalField, path: st
     }
   }
   if (field.constraints.state === "known" || field.constraints.state === "partial") {
+    // ECMA-262 patterns are declarative schema metadata, not trusted client
+    // code. Semantic admission deliberately leaves them to the adapter/server
+    // instead of executing a potentially backtracking expression on caller
+    // input. The remaining constraints are deterministic and bounded here.
     for (const constraint of field.constraints.values) {
       if (constraint.kind === "length" && typeof value === "string") {
         if (constraint.minimum !== undefined && value.length < constraint.minimum) {
@@ -1192,6 +1150,7 @@ function parseBoundedJson(value: string | unknown): JsonValue {
     if (TEXT_ENCODER.encode(value).byteLength > MAX_SEMANTIC_QUERY_BYTES) {
       throw invalid("$", `exceeds the ${MAX_SEMANTIC_QUERY_BYTES}-byte bound`);
     }
+    assertUniqueJsonObjectNames(value);
     try {
       parsed = JSON.parse(value) as unknown;
     } catch (error) {
@@ -1227,27 +1186,44 @@ function cloneBoundedJson(value: unknown, path: string, depth: number, state: Bo
   if (state.ancestors.has(value)) throw invalid(path, "must not contain cycles");
   state.ancestors.add(value);
   try {
-    if (Array.isArray(value)) {
-      if (value.length > MAX_SEMANTIC_QUERY_COLLECTION_ITEMS) throw invalid(path, "array is too large");
+    if (safeIsArray(value, path)) {
+      const lengthDescriptor = safeOwnPropertyDescriptor(value, "length", path);
+      if (!lengthDescriptor || !("value" in lengthDescriptor) || !Number.isSafeInteger(lengthDescriptor.value)) {
+        throw invalid(path, "must have an ordinary array length");
+      }
+      const length = lengthDescriptor.value as number;
+      if (length > MAX_SEMANTIC_QUERY_COLLECTION_ITEMS) throw invalid(path, "array is too large");
+      for (const key of safeOwnKeys(value, path)) {
+        if (key === "length") continue;
+        if (typeof key !== "string" || !isCanonicalArrayIndex(key, length)) {
+          throw invalid(path, "array must not contain symbol, extra, or non-JSON properties");
+        }
+      }
       const out: JsonValue[] = [];
-      for (let index = 0; index < value.length; index += 1) {
-        const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-        if (!descriptor || !("value" in descriptor)) throw invalid(`${path}[${index}]`, "must be an own data value");
+      for (let index = 0; index < length; index += 1) {
+        const descriptor = safeOwnPropertyDescriptor(value, String(index), `${path}[${index}]`);
+        if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
+          throw invalid(`${path}[${index}]`, "must be an enumerable own data value");
+        }
         out.push(cloneBoundedJson(descriptor.value, `${path}[${index}]`, depth + 1, state));
       }
       return out;
     }
-    const prototype = Object.getPrototypeOf(value);
+    const prototype = safeGetPrototypeOf(value, path);
     if (prototype !== Object.prototype && prototype !== null) throw invalid(path, "must be a plain JSON object");
-    const keys = Object.keys(value);
+    const ownKeys = safeOwnKeys(value, path);
+    if (ownKeys.some((key) => typeof key === "symbol")) throw invalid(path, "must not contain symbol properties");
+    const keys = ownKeys as string[];
     if (keys.length > MAX_SEMANTIC_QUERY_COLLECTION_ITEMS) throw invalid(path, "object has too many properties");
     const out: Record<string, JsonValue> = {};
     for (const key of keys) {
       const keyBytes = TEXT_ENCODER.encode(key).byteLength;
       if (keyBytes > MAX_SEMANTIC_QUERY_TEXT_BYTES) throw invalid(`${path}.${key}`, "property name is too large");
       consumeJsonBytes(state, keyBytes + 3, `${path}.${key}`);
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !("value" in descriptor)) throw invalid(`${path}.${key}`, "must be an own data value");
+      const descriptor = safeOwnPropertyDescriptor(value, key, `${path}.${key}`);
+      if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
+        throw invalid(`${path}.${key}`, "must be an enumerable own data value");
+      }
       Object.defineProperty(out, key, {
         value: cloneBoundedJson(descriptor.value, `${path}.${key}`, depth + 1, state),
         enumerable: true,
@@ -1258,6 +1234,210 @@ function cloneBoundedJson(value: unknown, path: string, depth: number, state: Bo
     return out;
   } finally {
     state.ancestors.delete(value);
+  }
+}
+
+function safeIsArray(value: object, path: string): boolean {
+  try {
+    return Array.isArray(value);
+  } catch {
+    throw invalid(path, "could not be inspected safely as JSON data");
+  }
+}
+
+function safeGetPrototypeOf(value: object, path: string): object | null {
+  try {
+    return Object.getPrototypeOf(value) as object | null;
+  } catch {
+    throw invalid(path, "could not be inspected safely as JSON data");
+  }
+}
+
+function safeOwnKeys(value: object, path: string): readonly PropertyKey[] {
+  try {
+    return Reflect.ownKeys(value);
+  } catch {
+    throw invalid(path, "could not be inspected safely as JSON data");
+  }
+}
+
+function safeOwnPropertyDescriptor(value: object, key: PropertyKey, path: string): PropertyDescriptor | undefined {
+  try {
+    return Object.getOwnPropertyDescriptor(value, key);
+  } catch {
+    throw invalid(path, "could not be inspected safely as JSON data");
+  }
+}
+
+function isCanonicalArrayIndex(key: string, length: number): boolean {
+  if (key.length === 0) return false;
+  const index = Number(key);
+  return Number.isSafeInteger(index) && index >= 0 && index < length && String(index) === key;
+}
+
+interface JsonNameScanState {
+  readonly text: string;
+  index: number;
+}
+
+/** JSON.parse keeps the last duplicate object member; reject ambiguity first. */
+function assertUniqueJsonObjectNames(text: string): void {
+  const state: JsonNameScanState = { text, index: 0 };
+  scanJsonValue(state, "$", 0);
+  skipJsonWhitespace(state);
+  if (state.index !== text.length) throw invalid("$", "is not valid JSON");
+}
+
+function scanJsonValue(state: JsonNameScanState, path: string, depth: number): void {
+  if (depth > MAX_SEMANTIC_QUERY_DEPTH) throw invalid(path, "exceeds the semantic query depth bound");
+  skipJsonWhitespace(state);
+  const character = state.text[state.index];
+  if (character === "{") {
+    scanJsonObject(state, path, depth);
+    return;
+  }
+  if (character === "[") {
+    scanJsonArray(state, path, depth);
+    return;
+  }
+  if (character === '"') {
+    scanJsonString(state);
+    return;
+  }
+  if (character === "t") {
+    scanJsonKeyword(state, "true");
+    return;
+  }
+  if (character === "f") {
+    scanJsonKeyword(state, "false");
+    return;
+  }
+  if (character === "n") {
+    scanJsonKeyword(state, "null");
+    return;
+  }
+  scanJsonNumber(state);
+}
+
+function scanJsonObject(state: JsonNameScanState, path: string, depth: number): void {
+  state.index += 1;
+  skipJsonWhitespace(state);
+  if (state.text[state.index] === "}") {
+    state.index += 1;
+    return;
+  }
+  const names = new Set<string>();
+  while (state.index < state.text.length) {
+    skipJsonWhitespace(state);
+    if (state.text[state.index] !== '"') throw invalid(path, "is not valid JSON");
+    const name = scanJsonString(state);
+    if (names.has(name)) throw invalid(path, `contains duplicate object name ${JSON.stringify(name)}`);
+    names.add(name);
+    skipJsonWhitespace(state);
+    if (state.text[state.index] !== ":") throw invalid(path, "is not valid JSON");
+    state.index += 1;
+    scanJsonValue(state, `${path}.${name}`, depth + 1);
+    skipJsonWhitespace(state);
+    const delimiter = state.text[state.index];
+    if (delimiter === "}") {
+      state.index += 1;
+      return;
+    }
+    if (delimiter !== ",") throw invalid(path, "is not valid JSON");
+    state.index += 1;
+  }
+  throw invalid(path, "is not valid JSON");
+}
+
+function scanJsonArray(state: JsonNameScanState, path: string, depth: number): void {
+  state.index += 1;
+  skipJsonWhitespace(state);
+  if (state.text[state.index] === "]") {
+    state.index += 1;
+    return;
+  }
+  let index = 0;
+  while (state.index < state.text.length) {
+    scanJsonValue(state, `${path}[${index}]`, depth + 1);
+    index += 1;
+    skipJsonWhitespace(state);
+    const delimiter = state.text[state.index];
+    if (delimiter === "]") {
+      state.index += 1;
+      return;
+    }
+    if (delimiter !== ",") throw invalid(path, "is not valid JSON");
+    state.index += 1;
+  }
+  throw invalid(path, "is not valid JSON");
+}
+
+function scanJsonString(state: JsonNameScanState): string {
+  const start = state.index;
+  state.index += 1;
+  while (state.index < state.text.length) {
+    const code = state.text.charCodeAt(state.index);
+    if (code <= 0x1f) throw invalid("$", "is not valid JSON");
+    const character = state.text[state.index];
+    if (character === '"') {
+      state.index += 1;
+      return JSON.parse(state.text.slice(start, state.index)) as string;
+    }
+    if (character === "\\") {
+      state.index += 1;
+      const escapeCode = state.text[state.index];
+      if (escapeCode === "u") {
+        const digits = state.text.slice(state.index + 1, state.index + 5);
+        if (digits.length !== 4 || !/^[0-9a-fA-F]{4}$/.test(digits)) throw invalid("$", "is not valid JSON");
+        state.index += 5;
+        continue;
+      }
+      if (escapeCode === undefined || !'"\\/bfnrt'.includes(escapeCode)) throw invalid("$", "is not valid JSON");
+    }
+    state.index += 1;
+  }
+  throw invalid("$", "is not valid JSON");
+}
+
+function scanJsonKeyword(state: JsonNameScanState, keyword: "true" | "false" | "null"): void {
+  if (state.text.slice(state.index, state.index + keyword.length) !== keyword) throw invalid("$", "is not valid JSON");
+  state.index += keyword.length;
+}
+
+function scanJsonNumber(state: JsonNameScanState): void {
+  const start = state.index;
+  if (state.text[state.index] === "-") state.index += 1;
+  if (state.text[state.index] === "0") {
+    state.index += 1;
+  } else {
+    if (!isJsonDigit(state.text[state.index], false)) throw invalid("$", "is not valid JSON");
+    while (isJsonDigit(state.text[state.index], true)) state.index += 1;
+  }
+  if (state.text[state.index] === ".") {
+    state.index += 1;
+    if (!isJsonDigit(state.text[state.index], true)) throw invalid("$", "is not valid JSON");
+    while (isJsonDigit(state.text[state.index], true)) state.index += 1;
+  }
+  if (state.text[state.index] === "e" || state.text[state.index] === "E") {
+    state.index += 1;
+    if (state.text[state.index] === "+" || state.text[state.index] === "-") state.index += 1;
+    if (!isJsonDigit(state.text[state.index], true)) throw invalid("$", "is not valid JSON");
+    while (isJsonDigit(state.text[state.index], true)) state.index += 1;
+  }
+  if (state.index === start) throw invalid("$", "is not valid JSON");
+}
+
+function isJsonDigit(value: string | undefined, allowZero: boolean): boolean {
+  if (value === undefined) return false;
+  const code = value.charCodeAt(0);
+  return code >= (allowZero ? 0x30 : 0x31) && code <= 0x39;
+}
+
+function skipJsonWhitespace(state: JsonNameScanState): void {
+  while (state.index < state.text.length) {
+    const code = state.text.charCodeAt(state.index);
+    if (code !== 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) return;
+    state.index += 1;
   }
 }
 

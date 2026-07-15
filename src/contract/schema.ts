@@ -675,6 +675,23 @@ export function validateSourceCrsDefinition(value: unknown): CrsDefinition {
   return deepFreeze(normalizeCrsDefinition(toPlainJson(value), "$.crs"));
 }
 
+/** @internal Query/spatial boundary for a fully validated executable CRS binding. */
+export function validateExecutableCrsBinding(value: unknown, path = "$.crs"): ExecutableCrsBinding {
+  const binding = normalizeCrsBinding(toPlainJson(value), path);
+  if (!isResolvedCrsDefinition(binding.definition)) {
+    throw new TypeError(`${path}.definition must be resolved before spatial execution`);
+  }
+  if (binding.coordinateOrder.state !== "known") {
+    throw new TypeError(`${path}.coordinateOrder must be known before spatial execution`);
+  }
+  return deepFreeze({
+    definition: binding.definition,
+    coordinateOrder: binding.coordinateOrder,
+    ...(binding.coordinateEpoch === undefined ? {} : { coordinateEpoch: binding.coordinateEpoch }),
+    provenance: binding.provenance,
+  });
+}
+
 function normalizeSchema(value: unknown, hasFingerprint: boolean): Omit<SourceSchemaV2, "fingerprint"> {
   const allowed = [
     "kind",
