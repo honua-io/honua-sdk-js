@@ -13,12 +13,15 @@ import {
   createGalleryModel,
   renderGalleryContent,
   verifyGalleryProjectionIntegrity,
+  verifyGalleryVisualAssets,
 } from "../../scripts/lib/docs-gallery.mjs";
 
 const projectionBytes = fs.readFileSync("samples/dist/honua-site-samples.v2.json", "utf8");
 const projection = JSON.parse(projectionBytes);
+const visualEvidenceBytes = fs.readFileSync("samples/dist/honua-site-visual-evidence.v1.json", "utf8");
+const visualEvidence = JSON.parse(visualEvidenceBytes);
 const consumerFixture = JSON.parse(
-  fs.readFileSync("samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json", "utf8"),
+  fs.readFileSync("samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json", "utf8"),
 );
 const repositorySourceResolver = (sample) => {
   const { docsPath } = sample.source;
@@ -38,9 +41,21 @@ function stableBytes(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-function fixtureForProjection(value) {
+function visualEvidenceForProjection(value) {
+  const evidence = structuredClone(visualEvidence);
+  evidence.projection = {
+    path: "samples/dist/honua-site-samples.v2.json",
+    format: value.format,
+    schemaVersion: value.schemaVersion,
+    sha256: createHash("sha256").update(stableBytes(value)).digest("hex"),
+  };
+  return evidence;
+}
+
+function fixtureForProjection(value, evidence = visualEvidenceForProjection(value)) {
   const fixture = structuredClone(consumerFixture);
   const bytes = stableBytes(value);
+  const evidenceBytes = stableBytes(evidence);
   const sampleIds = value.samples.map((sample) => sample.id);
   const routeIds = value.routes.map((route) => route.id);
   fixture.accepts = {
@@ -48,35 +63,59 @@ function fixtureForProjection(value) {
     projectionSchemaVersion: value.schemaVersion,
     catalogFormat: value.catalog.format,
     catalogSchemaVersion: value.catalog.schemaVersion,
+    visualEvidenceFormat: evidence.format,
+    visualEvidenceSchemaVersion: evidence.schemaVersion,
   };
-  fixture.input.sha256 = createHash("sha256").update(bytes).digest("hex");
+  fixture.inputs.projection.sha256 = createHash("sha256").update(bytes).digest("hex");
+  fixture.inputs.visualEvidence.sha256 = createHash("sha256").update(evidenceBytes).digest("hex");
   fixture.assertions = {
     sampleCount: value.samples.length,
     rootExampleCount: value.samples.filter((sample) => sample.sourceKind === "root-example").length,
     docsExampleCount: value.samples.filter((sample) => sample.sourceKind === "docs-example").length,
     goldenJourneyCount: value.goldenJourneys.length,
     qualifiedGoldenCount: value.goldenJourneys.filter((journey) => journey.status === "qualified").length,
+    visualEvidenceCount: evidence.qualifiedGoldenJourneys.length,
     routeCount: value.routes.length,
     sampleIdsUnique: new Set(sampleIds).size === sampleIds.length,
     routeIdsUnique: new Set(routeIds).size === routeIds.length,
     routesEndInHtml: value.routes.every((route) => route.route.endsWith(".html")),
+    visualEvidenceMatchesQualifiedGolden:
+      evidence.qualifiedGoldenJourneys.length ===
+      value.goldenJourneys.filter((journey) => journey.status === "qualified").length,
+    desktopMobileEvidenceRequired: true,
+    semanticGateSetRequired: true,
     executableSourceOwner: value.contract.executableSourceOwner,
     presentationOwner: value.contract.presentationOwner,
+    sourceImplementationDuplicated: false,
     credentialValuesForbidden: true,
   };
   return fixture;
 }
 
-async function verifiedGallery(value, { bytes = stableBytes(value), fixture = fixtureForProjection(value) } = {}) {
+async function verifiedGallery(
+  value,
+  {
+    bytes = stableBytes(value),
+    evidence = visualEvidenceForProjection(value),
+    evidenceBytes = stableBytes(evidence),
+    fixture = fixtureForProjection(value, evidence),
+  } = {},
+) {
   const integrity = await verifyGalleryProjectionIntegrity({
     projectionBytes: bytes,
+    visualEvidenceBytes: evidenceBytes,
     consumerFixture: fixture,
   });
   return createGalleryModel(integrity);
 }
 
 function canonicalGallery() {
-  return verifiedGallery(projection, { bytes: projectionBytes, fixture: consumerFixture });
+  return verifiedGallery(projection, {
+    bytes: projectionBytes,
+    evidence: visualEvidence,
+    evidenceBytes: visualEvidenceBytes,
+    fixture: consumerFixture,
+  });
 }
 
 function renderGallery(gallery, resolveSourceLink = repositorySourceResolver) {
@@ -89,6 +128,89 @@ function sampleById(value, id) {
 
 function galleryCards(gallery) {
   return gallery.groups.flatMap((group) => group.cards);
+}
+
+function qualifiedVisualFixture() {
+  const qualifiedProjection = structuredClone(projection);
+  const journey = qualifiedProjection.goldenJourneys.find((candidate) => candidate.id === "first-map");
+  journey.status = "qualified";
+  const sample = sampleById(qualifiedProjection, journey.candidateSampleId);
+  sample.track = "golden";
+  sample.lifecycle = { state: "active", reason: "Synthetic qualified gallery fixture." };
+  sample.validationProfile = "golden-browser";
+
+  const runId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const observedAt = "2099-01-01T00:00:00.000Z";
+  const expiresAt = "2099-01-08T00:00:00.000Z";
+  const imageBytes = {
+    desktop: Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.from("desktop-fixture")]),
+    mobile: Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.from("mobile-fixture")]),
+  };
+  const screenshots = [
+    ["desktop", { width: 1280, height: 720 }],
+    ["mobile", { width: 390, height: 844 }],
+  ].map(([variant, viewport]) => {
+    const bytes = imageBytes[variant];
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    return {
+      variant,
+      sourcePath: `samples/evidence/${sample.id}/runs/${runId}/artifacts/screenshot-${variant}.png`,
+      publicationPath: `assets/gallery-evidence/${sample.id}/${variant}-${digest.slice(0, 16)}.png`,
+      mediaType: "image/png",
+      viewport,
+      bytes: bytes.byteLength,
+      sha256: digest,
+    };
+  });
+  const gates = [
+    "packed-build",
+    "browser",
+    "accessibility",
+    "console",
+    "responsive",
+    "screenshot",
+    "performance",
+    "fixture",
+    "live",
+  ];
+  const evidence = visualEvidenceForProjection(qualifiedProjection);
+  evidence.qualifiedGoldenJourneys = [
+    {
+      journeyId: journey.id,
+      sampleId: sample.id,
+      sourceRevision: "a".repeat(40),
+      sourceDigest: "b".repeat(64),
+      observedAt,
+      expiresAt,
+      screenshots,
+      semanticEvidence: gates.map((gate) => ({
+        gate,
+        receiptPath: `samples/evidence/${sample.id}/receipts/${gate}.v1.json`,
+        reportPath: `samples/evidence/${sample.id}/runs/${runId}/artifacts/${gate}.json`,
+        observedAt,
+        expiresAt,
+        sha256: createHash("sha256").update(`receipt:${gate}`).digest("hex"),
+      })),
+      liveEvidence: {
+        mode: sample.evidence.live.mode,
+        status: "executed",
+        observedAt,
+        expiresAt,
+        evidencePath: `samples/evidence/${sample.id}/runs/${runId}/artifacts/live-evidence.json`,
+        provenance: { state: "live", observedAt, attribution: "Synthetic public fixture" },
+        semantics: {
+          operation: "discover-query-render",
+          outcome: "rendered",
+          itemCount: 3,
+          assertions: ["map and linked result are visible"],
+        },
+        timing: { totalMs: 125 },
+        degradation: { state: "none", reasons: [] },
+      },
+    },
+  ];
+  const assets = new Map(screenshots.map((screenshot) => [screenshot.sourcePath, imageBytes[screenshot.variant]]));
+  return { projection: qualifiedProjection, evidence, assets };
 }
 
 function occurrenceCount(value, pattern) {
@@ -105,15 +227,17 @@ function assertDeepFrozen(root) {
   }
 }
 
-test("binds the canonical schema-valid projection to its v2 consumer fixture", async () => {
+test("binds the canonical projection and visual evidence to its v3 consumer fixture", async () => {
   const gallery = await canonicalGallery();
 
   assert.deepEqual(gallery.integrity, {
     consumerFixtureFormat: consumerFixture.format,
-    projectionSha256: consumerFixture.input.sha256,
+    projectionSha256: consumerFixture.inputs.projection.sha256,
+    visualEvidenceSha256: consumerFixture.inputs.visualEvidence.sha256,
     publicationQualificationGate: "npm run samples:verify",
     validation: {
-      schemaPath: "samples/contract/v2/schemas/site-projection.schema.json",
+      projectionSchemaPath: "samples/contract/v2/schemas/site-projection.schema.json",
+      visualEvidenceSchemaPath: "samples/contract/v2/schemas/site-visual-evidence.schema.json",
       schemaValidated: true,
       sensitiveMetadataValidated: true,
     },
@@ -126,15 +250,18 @@ test("binds the canonical schema-valid projection to its v2 consumer fixture", a
 
 test("owns a deeply frozen projection snapshot across the verification and render boundary", async () => {
   const callerProjection = structuredClone(projection);
+  const callerEvidence = visualEvidenceForProjection(callerProjection);
   const verifiedTitle = sampleById(callerProjection, "endpoint-to-map").title;
   const integrity = await verifyGalleryProjectionIntegrity({
     projectionBytes: stableBytes(callerProjection),
-    consumerFixture: fixtureForProjection(callerProjection),
+    visualEvidenceBytes: stableBytes(callerEvidence),
+    consumerFixture: fixtureForProjection(callerProjection, callerEvidence),
   });
 
   assert.equal(Object.isFrozen(integrity), true);
   assert.notStrictEqual(integrity.projection, callerProjection);
   assertDeepFrozen(integrity.projection);
+  assertDeepFrozen(integrity.visualEvidence);
   assert.throws(() => {
     sampleById(integrity.projection, "endpoint-to-map").title = "Forged frozen title";
   }, TypeError);
@@ -253,11 +380,12 @@ test("deep-freezes and brands every rendered model claim", async () => {
 
 test("rejects consumer digest, format, assertion, and stable-byte tampering", async () => {
   const digestMismatch = structuredClone(consumerFixture);
-  digestMismatch.input.sha256 = "0".repeat(64);
+  digestMismatch.inputs.projection.sha256 = "0".repeat(64);
   await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes,
+        visualEvidenceBytes,
         consumerFixture: digestMismatch,
       }),
     /consumer projection digest mismatch/,
@@ -269,6 +397,7 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", as
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes,
+        visualEvidenceBytes,
         consumerFixture: formatMismatch,
       }),
     /accepted formats do not match/,
@@ -280,9 +409,10 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", as
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes,
+        visualEvidenceBytes,
         consumerFixture: fixtureFormatMismatch,
       }),
-    /consumer fixture format is not v2/,
+    /consumer fixture format is not v3/,
   );
 
   const assertionMismatch = structuredClone(consumerFixture);
@@ -291,6 +421,7 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", as
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes,
+        visualEvidenceBytes,
         consumerFixture: assertionMismatch,
       }),
     /consumer assertion sampleCount does not match/,
@@ -300,9 +431,32 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", as
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes: JSON.stringify(projection),
+        visualEvidenceBytes,
         consumerFixture,
       }),
     /projection bytes are not canonical stable JSON/,
+  );
+
+  const visualDigestMismatch = structuredClone(consumerFixture);
+  visualDigestMismatch.inputs.visualEvidence.sha256 = "0".repeat(64);
+  await assert.rejects(
+    () =>
+      verifyGalleryProjectionIntegrity({
+        projectionBytes,
+        visualEvidenceBytes,
+        consumerFixture: visualDigestMismatch,
+      }),
+    /consumer visual evidence digest mismatch/,
+  );
+
+  await assert.rejects(
+    () =>
+      verifyGalleryProjectionIntegrity({
+        projectionBytes,
+        visualEvidenceBytes: JSON.stringify(visualEvidence),
+        consumerFixture,
+      }),
+    /visual evidence bytes are not canonical stable JSON/,
   );
 });
 
@@ -310,33 +464,39 @@ test("cannot mint a token for credential-bearing or schema-invalid canonical byt
   const credentialBearing = structuredClone(projection);
   sampleById(credentialBearing, "endpoint-to-map").data.provenance =
     "https://data.example.test/features?access_token=actual-secret-value";
+  const credentialEvidence = visualEvidenceForProjection(credentialBearing);
   await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes: stableBytes(credentialBearing),
-        consumerFixture: fixtureForProjection(credentialBearing),
+        visualEvidenceBytes: stableBytes(credentialEvidence),
+        consumerFixture: fixtureForProjection(credentialBearing, credentialEvidence),
       }),
     /forbidden credential query parameter access_token/,
   );
 
   const schemaInvalid = structuredClone(projection);
   delete sampleById(schemaInvalid, "endpoint-to-map").title;
+  const invalidEvidence = visualEvidenceForProjection(schemaInvalid);
   await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes: stableBytes(schemaInvalid),
-        consumerFixture: fixtureForProjection(schemaInvalid),
+        visualEvidenceBytes: stableBytes(invalidEvidence),
+        consumerFixture: fixtureForProjection(schemaInvalid, invalidEvidence),
       }),
     /JSON Schema validation failed.*title/,
   );
 
   const foreignRepository = structuredClone(projection);
   sampleById(foreignRepository, "endpoint-to-map").source.repository = "honua-io/forked-sdk";
+  const foreignEvidence = visualEvidenceForProjection(foreignRepository);
   await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes: stableBytes(foreignRepository),
-        consumerFixture: fixtureForProjection(foreignRepository),
+        visualEvidenceBytes: stableBytes(foreignEvidence),
+        consumerFixture: fixtureForProjection(foreignRepository, foreignEvidence),
       }),
     /JSON Schema validation failed.*repository/,
   );
@@ -354,7 +514,7 @@ test("fails closed on missing quality profiles and forged golden qualification r
   forgedQualification.goldenJourneys[0].status = "qualified";
   await assert.rejects(
     () => verifiedGallery(forgedQualification),
-    /qualified candidate is not a golden card/,
+    /visual evidence does not exactly cover qualified golden journeys/,
   );
 });
 
@@ -378,6 +538,10 @@ test("projects one canonical catalog-v2 sample into an honest public gallery car
     projection: {
       format: projection.format,
       schemaVersion: projection.schemaVersion,
+    },
+    visualEvidence: {
+      format: visualEvidence.format,
+      schemaVersion: visualEvidence.schemaVersion,
     },
     catalog: projection.catalog,
     contract: projection.contract,
@@ -423,6 +587,66 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   ]);
 });
 
+test("publishes content-addressed desktop/mobile and semantic evidence only for qualified golden cards", async () => {
+  const fixture = qualifiedVisualFixture();
+  const gallery = await verifiedGallery(fixture.projection, { evidence: fixture.evidence });
+  const card = galleryCards(gallery).find((candidate) => candidate.sample.id === "maplibre-quickstart");
+  assert.equal(card.qualification.state, "receipt-qualified-golden");
+  assert.deepEqual(
+    card.visualEvidence.screenshots.map(({ variant, viewport }) => ({ variant, viewport })),
+    [
+      { variant: "desktop", viewport: { width: 1280, height: 720 } },
+      { variant: "mobile", viewport: { width: 390, height: 844 } },
+    ],
+  );
+  assert.deepEqual(
+    card.visualEvidence.semanticEvidence.map(({ gate }) => gate),
+    fixture.evidence.policy.requiredSemanticGates,
+  );
+  const html = renderGallery(gallery);
+  for (const screenshot of card.visualEvidence.screenshots) {
+    assert.ok(html.includes(screenshot.publicationPath));
+  }
+  assert.match(html, /Verified Honua × MapLibre flagship workflow at the desktop evidence viewport/);
+  assert.match(html, /Verified Honua × MapLibre flagship workflow at the mobile evidence viewport/);
+  assert.match(html, /<dt>Semantic evidence<\/dt>/);
+  assert.match(html, /discover-query-render/);
+
+  const assets = await verifyGalleryVisualAssets(gallery, (sourcePath) => fixture.assets.get(sourcePath));
+  assert.deepEqual(
+    assets.map(({ publicationPath }) => publicationPath),
+    card.visualEvidence.screenshots.map(({ publicationPath }) => publicationPath),
+  );
+  await assert.rejects(
+    () => verifyGalleryVisualAssets(gallery, () => Buffer.from("tampered")),
+    /screenshot bytes do not match visual evidence/,
+  );
+});
+
+test("fails publication when qualified golden visual evidence is missing or incomplete", async () => {
+  const fixture = qualifiedVisualFixture();
+  const missing = structuredClone(fixture.evidence);
+  missing.qualifiedGoldenJourneys = [];
+  await assert.rejects(
+    () => verifiedGallery(fixture.projection, { evidence: missing }),
+    /does not exactly cover qualified golden journeys/,
+  );
+
+  const incomplete = structuredClone(fixture.evidence);
+  incomplete.qualifiedGoldenJourneys[0].screenshots.pop();
+  await assert.rejects(
+    () => verifiedGallery(fixture.projection, { evidence: incomplete }),
+    /JSON Schema validation failed/,
+  );
+
+  const stale = structuredClone(fixture.evidence);
+  stale.qualifiedGoldenJourneys[0].expiresAt = "2020-01-01T00:00:00.000Z";
+  await assert.rejects(
+    () => verifiedGallery(fixture.projection, { evidence: stale }),
+    /visual evidence is stale/,
+  );
+});
+
 test("sorts public capability and protocol facets deterministically", async () => {
   const gallery = await canonicalGallery();
   const capabilities = galleryCards(gallery).flatMap((card) => card.sample.capabilities);
@@ -458,6 +682,7 @@ test("renders accessible controls, compact essentials, and disclosed catalog tru
     "Required gates",
     "Catalog",
     "Projection",
+    "Visual evidence",
     "Contract",
   ]) {
     assert.match(html, new RegExp(`<dt>${label}</dt>`));
@@ -495,11 +720,13 @@ test("renders global provenance once and puts every card CTA before its disclosu
   assert.equal(occurrenceCount(html, /data-gallery-provenance/g), 1);
   assert.equal(occurrenceCount(html, /<dt>Catalog<\/dt>/g), 1);
   assert.equal(occurrenceCount(html, /<dt>Projection<\/dt>/g), 1);
+  assert.equal(occurrenceCount(html, /<dt>Visual evidence<\/dt>/g), 1);
   assert.equal(occurrenceCount(html, /<dt>Contract<\/dt>/g), 1);
   assert.equal(occurrenceCount(html, /<dt>Consumer fixture<\/dt>/g), 1);
   assert.equal(occurrenceCount(html, /<dt>Projection SHA-256<\/dt>/g), 1);
   assert.ok(html.includes(consumerFixture.format));
-  assert.ok(html.includes(consumerFixture.input.sha256));
+  assert.ok(html.includes(consumerFixture.inputs.projection.sha256));
+  assert.ok(html.includes(consumerFixture.inputs.visualEvidence.sha256));
   assert.equal(cards.length, 32);
   for (const card of cards) {
     const ctaIndex = card.indexOf('<a class="demo-link"');

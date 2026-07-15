@@ -1,13 +1,20 @@
 import { createHash } from "node:crypto";
-import { validateSiteProjection } from "../sample-contract.mjs";
+import {
+  validateSiteConsumerFixture,
+  validateSiteProjection,
+  validateSiteVisualEvidence,
+} from "../sample-contract.mjs";
 import { normalizeGalleryText } from "./docs-gallery-client.mjs";
 
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const SITE_VISUAL_EVIDENCE_PATH = "samples/dist/honua-site-visual-evidence.v1.json";
+const SITE_VISUAL_EVIDENCE_SCHEMA_PATH = "samples/contract/v2/schemas/site-visual-evidence.schema.json";
 const CANONICAL_SOURCE_REPOSITORY = "honua-io/honua-sdk-js";
 const CANONICAL_SOURCE_BASE = "https://github.com/honua-io/honua-sdk-js/blob/trunk";
-const CONSUMER_FIXTURE_FORMAT = "honua.site.sdk-sample-consumer-fixture.v2";
+const CONSUMER_FIXTURE_FORMAT = "honua.site.sdk-sample-consumer-fixture.v3";
 const SITE_PROJECTION_FORMAT = "honua.site.sdk-sample-projection.v2";
+const SITE_VISUAL_EVIDENCE_FORMAT = "honua.site.sdk-sample-visual-evidence.v1";
 const SAMPLE_CATALOG_FORMAT = "honua.sdk.sample-catalog.v2";
 const REPRESENTATIVE_ROUTES = Object.freeze(["quickstart-map", "public-safety", "two-protocols"]);
 const QUALITY_GATE_KEYS = Object.freeze([
@@ -48,11 +55,11 @@ function assertExactKeys(value, expected, label) {
   assertPlainObject(value, label);
   const actual = Object.keys(value).sort();
   const sortedExpected = [...expected].sort();
-  invariant(JSON.stringify(actual) === JSON.stringify(sortedExpected), `${label} keys must match the v2 contract`);
+  invariant(JSON.stringify(actual) === JSON.stringify(sortedExpected), `${label} keys must match the declared contract`);
 }
 
-function stableProjectionBytes(projection) {
-  return `${JSON.stringify(projection, null, 2)}\n`;
+function stableJsonBytes(value) {
+  return `${JSON.stringify(value, null, 2)}\n`;
 }
 
 function sha256(value) {
@@ -82,15 +89,27 @@ function deepFreezeJson(value) {
  * accepted only by this module's model builder, so callers cannot mutate or
  * substitute projection state after verification.
  */
-export async function verifyGalleryProjectionIntegrity({ projectionBytes, consumerFixture }) {
+export async function verifyGalleryProjectionIntegrity({
+  projectionBytes,
+  visualEvidenceBytes,
+  consumerFixture,
+}) {
   invariant(typeof projectionBytes === "string", "projection bytes must be supplied as UTF-8 text");
+  invariant(typeof visualEvidenceBytes === "string", "visual evidence bytes must be supplied as UTF-8 text");
   let projection;
+  let visualEvidence;
   try {
     projection = JSON.parse(projectionBytes);
   } catch {
     throw new Error("Gallery projection integrity: projection bytes must be valid JSON");
   }
+  try {
+    visualEvidence = JSON.parse(visualEvidenceBytes);
+  } catch {
+    throw new Error("Gallery projection integrity: visual evidence bytes must be valid JSON");
+  }
   assertPlainObject(projection, "projection");
+  assertPlainObject(visualEvidence, "visual evidence");
   invariant(
     projection.format === SITE_PROJECTION_FORMAT && projection.schemaVersion === 2,
     "projection format is not the supported v2 contract",
@@ -99,41 +118,97 @@ export async function verifyGalleryProjectionIntegrity({ projectionBytes, consum
     projection.catalog?.format === SAMPLE_CATALOG_FORMAT && projection.catalog?.schemaVersion === 2,
     "catalog format is not the supported v2 contract",
   );
-  const stableBytes = stableProjectionBytes(projection);
-  invariant(projectionBytes === stableBytes, "projection bytes are not canonical stable JSON");
+  invariant(
+    visualEvidence.format === SITE_VISUAL_EVIDENCE_FORMAT && visualEvidence.schemaVersion === 1,
+    "visual evidence format is not the supported v1 contract",
+  );
+  const stableProjection = stableJsonBytes(projection);
+  const stableVisualEvidence = stableJsonBytes(visualEvidence);
+  invariant(projectionBytes === stableProjection, "projection bytes are not canonical stable JSON");
+  invariant(
+    visualEvidenceBytes === stableVisualEvidence,
+    "visual evidence bytes are not canonical stable JSON",
+  );
   deepFreezeJson(projection);
+  deepFreezeJson(visualEvidence);
   await validateSiteProjection(projection);
+  await validateSiteVisualEvidence(visualEvidence, projection);
 
   assertExactKeys(
     consumerFixture,
-    ["format", "schemaVersion", "accepts", "input", "assertions", "representativeRoutes"],
+    ["format", "schemaVersion", "accepts", "inputs", "assertions", "representativeRoutes"],
     "consumer fixture",
   );
-  invariant(consumerFixture.format === CONSUMER_FIXTURE_FORMAT, "consumer fixture format is not v2");
-  invariant(consumerFixture.schemaVersion === 2, "consumer fixture schemaVersion is not 2");
+  invariant(consumerFixture.format === CONSUMER_FIXTURE_FORMAT, "consumer fixture format is not v3");
+  invariant(consumerFixture.schemaVersion === 3, "consumer fixture schemaVersion is not 3");
 
   assertExactKeys(
     consumerFixture.accepts,
-    ["projectionFormat", "projectionSchemaVersion", "catalogFormat", "catalogSchemaVersion"],
+    [
+      "projectionFormat",
+      "projectionSchemaVersion",
+      "catalogFormat",
+      "catalogSchemaVersion",
+      "visualEvidenceFormat",
+      "visualEvidenceSchemaVersion",
+    ],
     "consumer fixture accepts",
   );
   invariant(
     consumerFixture.accepts.projectionFormat === projection.format &&
       consumerFixture.accepts.projectionSchemaVersion === projection.schemaVersion &&
       consumerFixture.accepts.catalogFormat === projection.catalog?.format &&
-      consumerFixture.accepts.catalogSchemaVersion === projection.catalog?.schemaVersion,
+      consumerFixture.accepts.catalogSchemaVersion === projection.catalog?.schemaVersion &&
+      consumerFixture.accepts.visualEvidenceFormat === visualEvidence.format &&
+      consumerFixture.accepts.visualEvidenceSchemaVersion === visualEvidence.schemaVersion,
     "consumer accepted formats do not match the projection",
   );
 
-  assertExactKeys(consumerFixture.input, ["path", "schemaPath", "sha256"], "consumer fixture input");
-  invariant(consumerFixture.input.path === SITE_PROJECTION_PATH, "consumer input path is not canonical");
-  invariant(
-    consumerFixture.input.schemaPath === SITE_PROJECTION_SCHEMA_PATH,
-    "consumer schema path is not canonical",
+  assertExactKeys(consumerFixture.inputs, ["projection", "visualEvidence"], "consumer fixture inputs");
+  assertExactKeys(
+    consumerFixture.inputs.projection,
+    ["path", "schemaPath", "sha256"],
+    "consumer projection input",
   );
-  invariant(/^[a-f0-9]{64}$/.test(consumerFixture.input.sha256), "consumer projection digest is malformed");
-  const projectionSha256 = sha256(stableBytes);
-  invariant(consumerFixture.input.sha256 === projectionSha256, "consumer projection digest mismatch");
+  assertExactKeys(
+    consumerFixture.inputs.visualEvidence,
+    ["path", "schemaPath", "sha256"],
+    "consumer visual evidence input",
+  );
+  invariant(
+    consumerFixture.inputs.projection.path === SITE_PROJECTION_PATH,
+    "consumer projection input path is not canonical",
+  );
+  invariant(
+    consumerFixture.inputs.projection.schemaPath === SITE_PROJECTION_SCHEMA_PATH,
+    "consumer projection schema path is not canonical",
+  );
+  invariant(
+    consumerFixture.inputs.visualEvidence.path === SITE_VISUAL_EVIDENCE_PATH,
+    "consumer visual evidence input path is not canonical",
+  );
+  invariant(
+    consumerFixture.inputs.visualEvidence.schemaPath === SITE_VISUAL_EVIDENCE_SCHEMA_PATH,
+    "consumer visual evidence schema path is not canonical",
+  );
+  invariant(
+    /^[a-f0-9]{64}$/.test(consumerFixture.inputs.projection.sha256),
+    "consumer projection digest is malformed",
+  );
+  invariant(
+    /^[a-f0-9]{64}$/.test(consumerFixture.inputs.visualEvidence.sha256),
+    "consumer visual evidence digest is malformed",
+  );
+  const projectionSha256 = sha256(stableProjection);
+  const visualEvidenceSha256 = sha256(stableVisualEvidence);
+  invariant(
+    consumerFixture.inputs.projection.sha256 === projectionSha256,
+    "consumer projection digest mismatch",
+  );
+  invariant(
+    consumerFixture.inputs.visualEvidence.sha256 === visualEvidenceSha256,
+    "consumer visual evidence digest mismatch",
+  );
 
   const samples = Array.isArray(projection.samples) ? projection.samples : [];
   const journeys = Array.isArray(projection.goldenJourneys) ? projection.goldenJourneys : [];
@@ -146,12 +221,19 @@ export async function verifyGalleryProjectionIntegrity({ projectionBytes, consum
     docsExampleCount: samples.filter((sample) => sample.sourceKind === "docs-example").length,
     goldenJourneyCount: journeys.length,
     qualifiedGoldenCount: journeys.filter((journey) => journey.status === "qualified").length,
+    visualEvidenceCount: visualEvidence.qualifiedGoldenJourneys.length,
     routeCount: routes.length,
     sampleIdsUnique: new Set(sampleIds).size === sampleIds.length,
     routeIdsUnique: new Set(routeIds).size === routeIds.length,
     routesEndInHtml: routes.every((route) => typeof route.route === "string" && route.route.endsWith(".html")),
+    visualEvidenceMatchesQualifiedGolden:
+      visualEvidence.qualifiedGoldenJourneys.length ===
+      journeys.filter((journey) => journey.status === "qualified").length,
+    desktopMobileEvidenceRequired: true,
+    semanticGateSetRequired: true,
     executableSourceOwner: projection.contract?.executableSourceOwner,
     presentationOwner: projection.contract?.presentationOwner,
+    sourceImplementationDuplicated: false,
     credentialValuesForbidden: true,
   };
   invariant(expectedAssertions.sampleIdsUnique, "projection sample IDs are not unique");
@@ -177,14 +259,18 @@ export async function verifyGalleryProjectionIntegrity({ projectionBytes, consum
     consumerFixture.representativeRoutes.every((routeId) => routeIdSet.has(routeId)),
     "consumer representative route is absent from the projection",
   );
+  await validateSiteConsumerFixture(consumerFixture, projection, visualEvidence);
 
   const integrity = Object.freeze({
     projection,
+    visualEvidence,
     consumerFixtureFormat: consumerFixture.format,
     projectionSha256,
+    visualEvidenceSha256,
     publicationQualificationGate: "npm run samples:verify",
     validation: Object.freeze({
-      schemaPath: SITE_PROJECTION_SCHEMA_PATH,
+      projectionSchemaPath: SITE_PROJECTION_SCHEMA_PATH,
+      visualEvidenceSchemaPath: SITE_VISUAL_EVIDENCE_SCHEMA_PATH,
       schemaValidated: true,
       sensitiveMetadataValidated: true,
     }),
@@ -329,7 +415,7 @@ function resolvedReplacement(replacement, indexes, publicSampleIds) {
 }
 
 function gallerySearchText(card) {
-  const { sample, journey, replacement } = card;
+  const { sample, journey, replacement, visualEvidence } = card;
   return normalizeGalleryText(
     [
       sample.id,
@@ -362,6 +448,9 @@ function gallerySearchText(card) {
       card.qualification.label,
       card.qualityProfile.description,
       ...card.qualification.requiredGates,
+      visualEvidence?.liveEvidence.semantics.operation,
+      visualEvidence?.liveEvidence.semantics.outcome,
+      ...(visualEvidence?.liveEvidence.semantics.assertions ?? []),
     ]
       .filter((value) => value !== undefined && value !== null)
       .join(" "),
@@ -400,11 +489,18 @@ export function createGalleryModel(integrity) {
     externalReplacements: new Map(externalReplacements.map((replacement) => [replacement.id, replacement])),
   };
   const qualityProfiles = validateQualificationModel(siteProjection, indexes);
+  const visualEvidenceBySample = new Map(
+    integrity.visualEvidence.qualifiedGoldenJourneys.map((entry) => [entry.sampleId, entry]),
+  );
   const publicSampleIds = new Set(publicSamples.map((sample) => sample.id));
   const provenance = {
     projection: {
       format: siteProjection.format,
       schemaVersion: siteProjection.schemaVersion,
+    },
+    visualEvidence: {
+      format: integrity.visualEvidence.format,
+      schemaVersion: integrity.visualEvidence.schemaVersion,
     },
     catalog: structuredClone(siteProjection.catalog ?? {}),
     contract: structuredClone(siteProjection.contract ?? {}),
@@ -422,8 +518,15 @@ export function createGalleryModel(integrity) {
         : null,
       replacement: resolvedReplacement(sample.lifecycle.replacement, indexes, publicSampleIds),
       qualityProfile: structuredClone(qualityProfiles.get(sample.validationProfile)),
+      visualEvidence: visualEvidenceBySample.has(sample.id)
+        ? structuredClone(visualEvidenceBySample.get(sample.id))
+        : null,
     };
     card.qualification = qualificationFor(sample, card.journey, card.qualityProfile);
+    invariant(
+      (card.qualification.state === "receipt-qualified-golden") === (card.visualEvidence !== null),
+      `${sample.id} visual evidence does not match its qualification state`,
+    );
     return { ...card, searchText: gallerySearchText(card) };
   });
   const groups = PUBLIC_GALLERY_TRACKS.map(({ track, title }) => ({
@@ -438,6 +541,7 @@ export function createGalleryModel(integrity) {
     integrity: {
       consumerFixtureFormat: integrity.consumerFixtureFormat,
       projectionSha256: integrity.projectionSha256,
+      visualEvidenceSha256: integrity.visualEvidenceSha256,
       publicationQualificationGate: integrity.publicationQualificationGate,
       validation: structuredClone(integrity.validation),
     },
@@ -449,6 +553,46 @@ export function createGalleryModel(integrity) {
   });
   VERIFIED_GALLERY_MODELS.add(gallery);
   return gallery;
+}
+
+/**
+ * Re-read every qualified screenshot immediately before publication. The
+ * returned content-addressed assets are the only visual files the docs builder
+ * may copy into the static site.
+ */
+export async function verifyGalleryVisualAssets(gallery, readAsset) {
+  invariant(
+    gallery && VERIFIED_GALLERY_MODELS.has(gallery),
+    "visual asset verification requires a verified gallery model",
+  );
+  if (typeof readAsset !== "function") throw new TypeError("visual asset verification requires an asset reader");
+  const assets = [];
+  const publicationPaths = new Set();
+  for (const card of gallery.groups.flatMap((group) => group.cards)) {
+    for (const screenshot of card.visualEvidence?.screenshots ?? []) {
+      invariant(
+        safeRepositoryRelativeUrl(screenshot.sourcePath) === screenshot.sourcePath &&
+          new RegExp(
+            `^samples/evidence/${card.sample.id}/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/artifacts/screenshot-${screenshot.variant}\\.png$`,
+          ).test(screenshot.sourcePath),
+        `${card.sample.id} visual source path is unsafe`,
+      );
+      const publicationPath = validatedVisualPublicationPath(screenshot, card.sample.id);
+      invariant(!publicationPaths.has(publicationPath), `duplicate gallery visual publication path ${publicationPath}`);
+      publicationPaths.add(publicationPath);
+      const bytes = Buffer.from(await readAsset(screenshot.sourcePath));
+      invariant(
+        bytes.byteLength === screenshot.bytes && sha256(bytes) === screenshot.sha256,
+        `${card.sample.id} ${screenshot.variant} screenshot bytes do not match visual evidence`,
+      );
+      invariant(
+        bytes.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")),
+        `${card.sample.id} ${screenshot.variant} visual evidence is not a PNG`,
+      );
+      assets.push({ publicationPath, bytes });
+    }
+  }
+  return assets;
 }
 
 function escapeHtml(value) {
@@ -643,6 +787,57 @@ function renderJourney(journey) {
   )}</strong>`;
 }
 
+function validatedVisualPublicationPath(screenshot, sampleId) {
+  const value = safeRepositoryRelativeUrl(screenshot.publicationPath);
+  invariant(
+    value === screenshot.publicationPath &&
+      value.startsWith(`assets/gallery-evidence/${sampleId}/`) &&
+      value.endsWith(`-${screenshot.sha256.slice(0, 16)}.png`),
+    `${sampleId} visual publication path is unsafe or not content-addressed`,
+  );
+  return value;
+}
+
+function renderVisualEvidence(entry, title) {
+  if (!entry) return "";
+  const [desktop, mobile] = entry.screenshots;
+  const desktopPath = validatedVisualPublicationPath(desktop, entry.sampleId);
+  const mobilePath = validatedVisualPublicationPath(mobile, entry.sampleId);
+  return `<div class="demo-visual-evidence" aria-label="Verified desktop and mobile screenshots">
+    <figure>
+      <img src="${escapeHtml(desktopPath)}" width="${escapeHtml(desktop.viewport.width)}" height="${escapeHtml(
+        desktop.viewport.height,
+      )}" alt="Verified ${escapeHtml(title)} at the desktop evidence viewport" loading="lazy" decoding="async" />
+      <figcaption>Desktop · ${escapeHtml(desktop.viewport.width)}×${escapeHtml(desktop.viewport.height)}</figcaption>
+    </figure>
+    <figure>
+      <img src="${escapeHtml(mobilePath)}" width="${escapeHtml(mobile.viewport.width)}" height="${escapeHtml(
+        mobile.viewport.height,
+      )}" alt="Verified ${escapeHtml(title)} at the mobile evidence viewport" loading="lazy" decoding="async" />
+      <figcaption>Mobile · ${escapeHtml(mobile.viewport.width)}×${escapeHtml(mobile.viewport.height)}</figcaption>
+    </figure>
+    <p>Content-addressed evidence observed <time datetime="${escapeHtml(entry.observedAt)}">${escapeHtml(
+      entry.observedAt,
+    )}</time></p>
+  </div>`;
+}
+
+function renderVisualEvidenceDetails(entry, title) {
+  if (!entry) return "";
+  const live = entry.liveEvidence;
+  const realtime = live.realtime
+    ? ` · realtime window ${escapeHtml(live.realtime.observationWindowMs)} ms`
+    : "";
+  return `<dt>Visual receipt</dt><dd>source <code>${escapeHtml(entry.sourceRevision)}</code> · expires
+        <time datetime="${escapeHtml(entry.expiresAt)}">${escapeHtml(entry.expiresAt)}</time></dd>
+      <dt>Semantic evidence</dt><dd><strong>${escapeHtml(live.semantics.outcome)}</strong> · ${escapeHtml(
+        live.semantics.itemCount,
+      )} items · ${escapeHtml(live.semantics.operation)}${realtime}<br />${renderTags(
+        entry.semanticEvidence.map(({ gate }) => gate),
+        `${title} verified semantic evidence gates`,
+      )}</dd>`;
+}
+
 function renderOption(value) {
   return `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`;
 }
@@ -650,6 +845,7 @@ function renderOption(value) {
 function renderGalleryProvenance(gallery) {
   const catalog = gallery.provenance.catalog;
   const projection = gallery.provenance.projection;
+  const visualEvidence = gallery.provenance.visualEvidence;
   const contract = gallery.provenance.contract;
   return `<aside class="gallery-provenance" data-gallery-provenance aria-label="Gallery catalog and contract provenance">
   <details>
@@ -661,6 +857,9 @@ function renderGalleryProvenance(gallery) {
       <dt>Projection</dt><dd><code>${escapeHtml(projection.format)}</code> schema ${escapeHtml(
         projection.schemaVersion,
       )}</dd>
+      <dt>Visual evidence</dt><dd><code>${escapeHtml(visualEvidence.format)}</code> schema ${escapeHtml(
+        visualEvidence.schemaVersion,
+      )} · SHA-256 <code>${escapeHtml(gallery.integrity.visualEvidenceSha256)}</code></dd>
       <dt>Contract</dt><dd>producer <code>${escapeHtml(
         contract.producer,
       )}</code> · consumer <code>${escapeHtml(
@@ -692,6 +891,8 @@ function renderCard(card, resolveSourceLink) {
   const configurationNote = sample.data.configurationGap
     ? `<dt>Configuration note</dt><dd>${escapeHtml(sample.data.configurationGap)}</dd>`
     : "";
+  const visualEvidence = renderVisualEvidence(card.visualEvidence, sample.title);
+  const visualEvidenceDetails = renderVisualEvidenceDetails(card.visualEvidence, sample.title);
 
   return `<article class="demo-card demo-card--${escapeHtml(sample.lifecycle.state)}" id="sample-${escapeHtml(
     encodeURIComponent(sample.id),
@@ -709,6 +910,7 @@ function renderCard(card, resolveSourceLink) {
   </header>
   <p class="demo-id"><code>${escapeHtml(sample.id)}</code></p>
   <p class="demo-summary">${escapeHtml(sample.summary)}</p>
+  ${visualEvidence}
   <a class="demo-link" href="${escapeHtml(source.href)}">${sourceLabel} →</a>
   <dl class="demo-facts demo-facts--essential">
     <dt>SDK</dt><dd><code>${escapeHtml(sample.sdk.package)}</code> <code>${escapeHtml(sample.sdk.version)}</code></dd>
@@ -728,6 +930,7 @@ function renderCard(card, resolveSourceLink) {
       <dt>Attribution</dt><dd>${escapeHtml(sample.data.attribution)}</dd>
       <dt>Freshness</dt><dd>${escapeHtml(sample.data.freshness)}</dd>
       <dt>Evidence details</dt><dd>${renderEvidenceDetails(sample)}</dd>
+      ${visualEvidenceDetails}
       <dt>Expected degradation</dt><dd>${escapeHtml(sample.expectedDegradation)}</dd>
       <dt>Renderers</dt><dd>${renderTags(sample.renderers, `${sample.title} renderers`)}</dd>
       <dt>Golden journey</dt><dd>${renderJourney(card.journey)}</dd>

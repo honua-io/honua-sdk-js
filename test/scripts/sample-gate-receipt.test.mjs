@@ -111,6 +111,28 @@ function undecodableViewportPng(extraChunks = []) {
   ]);
 }
 
+function screenshotVariant(variant, imagePath, imageBytes, viewport) {
+  return {
+    variant,
+    projectName: "chromium",
+    browserName: "chromium",
+    path: imagePath,
+    bytes: imageBytes.byteLength,
+    sha256: digest(imageBytes),
+    viewport,
+  };
+}
+
+function screenshotReport(targetSampleId, screenshots) {
+  return {
+    format: "honua.sdk.sample-screenshot-gate.v2",
+    sampleId: targetSampleId,
+    sourceRevision: revision,
+    command: ["npm", "run", "test:playwright:receipt"],
+    screenshots,
+  };
+}
+
 function playwrightGateReport({
   gate: reportGate = "browser",
   retry = 0,
@@ -348,47 +370,51 @@ test("Playwright evidence binds every declared browser engine without assuming o
 
 test("renaming text to PNG cannot qualify a screenshot", async () => {
   const targetSampleId = "standalone-quickstart";
-  const fakePng = await artifact("renamed.png", "not a png", targetSampleId);
-  const reportPath = await artifact("screenshot.json", {
-    format: "honua.sdk.sample-screenshot-gate.v1",
-    sampleId: targetSampleId,
-    sourceRevision: revision,
-    command: ["npm", "run", "test:playwright:receipt"],
-    screenshot: {
-      projectName: "chromium",
-      browserName: "chromium",
-      path: fakePng,
-      bytes: 9,
-      sha256: "0".repeat(64),
-      viewport: { width: 1280, height: 720 },
-    },
-  }, targetSampleId);
+  const fakeBytes = Buffer.from("not a png");
+  const desktop = await artifact("renamed-desktop.png", fakeBytes, targetSampleId);
+  const mobile = await artifact("renamed-mobile.png", fakeBytes, targetSampleId);
+  const reportPath = await artifact(
+    "screenshot.json",
+    screenshotReport(targetSampleId, [
+      screenshotVariant("desktop", desktop, fakeBytes, { width: 1280, height: 720 }),
+      screenshotVariant("mobile", mobile, fakeBytes, { width: 390, height: 844 }),
+    ]),
+    targetSampleId,
+  );
   await assert.rejects(
     createGateReceipt(receiptOptions("screenshot", "screenshot-report", reportPath, targetSampleId)),
     /not a PNG/,
   );
 });
 
+test("screenshot evidence requires an ordered desktop/mobile pair", async () => {
+  const targetSampleId = "standalone-quickstart";
+  const imageBytes = undecodableViewportPng();
+  const imagePath = await artifact("desktop-only.png", imageBytes, targetSampleId);
+  const reportPath = await artifact(
+    "desktop-only.json",
+    screenshotReport(targetSampleId, [
+      screenshotVariant("desktop", imagePath, imageBytes, { width: 1280, height: 720 }),
+    ]),
+    targetSampleId,
+  );
+  await assert.rejects(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", reportPath, targetSampleId)),
+    /complete desktop\/mobile variant set/,
+  );
+});
+
 test("a CRC-correct PNG with undecodable image data cannot qualify", async () => {
   const targetSampleId = "standalone-quickstart";
   const imageBytes = undecodableViewportPng();
-  const imagePath = await artifact("undecodable.png", imageBytes, targetSampleId);
+  const desktopPath = await artifact("undecodable-desktop.png", imageBytes, targetSampleId);
+  const mobilePath = await artifact("undecodable-mobile.png", imageBytes, targetSampleId);
   const reportPath = await artifact(
     "undecodable-screenshot.json",
-    {
-      format: "honua.sdk.sample-screenshot-gate.v1",
-      sampleId: targetSampleId,
-      sourceRevision: revision,
-      command: ["npm", "run", "test:playwright:receipt"],
-      screenshot: {
-        projectName: "chromium",
-        browserName: "chromium",
-        path: imagePath,
-        bytes: imageBytes.byteLength,
-        sha256: digest(imageBytes),
-        viewport: { width: 1280, height: 720 },
-      },
-    },
+    screenshotReport(targetSampleId, [
+      screenshotVariant("desktop", desktopPath, imageBytes, { width: 1280, height: 720 }),
+      screenshotVariant("mobile", mobilePath, imageBytes, { width: 390, height: 844 }),
+    ]),
     targetSampleId,
   );
   await assert.rejects(
@@ -410,22 +436,16 @@ test("PNG evidence rejects unknown critical chunks and duplicate IHDR chunks", a
     ["duplicate-ihdr", undecodableViewportPng([pngChunk("IHDR", header)]), /duplicate IHDR/],
   ];
   for (const [name, imageBytes, expected] of cases) {
-    const imagePath = await artifact(`${name}.png`, imageBytes, targetSampleId);
+    const desktopPath = await artifact(`${name}-desktop.png`, imageBytes, targetSampleId);
+    const mobilePath = await artifact(`${name}-mobile.png`, imageBytes, targetSampleId);
     const reportPath = await artifact(
       `${name}.json`,
       {
-        format: "honua.sdk.sample-screenshot-gate.v1",
-        sampleId: targetSampleId,
-        sourceRevision: revision,
+        ...screenshotReport(targetSampleId, [
+          screenshotVariant("desktop", desktopPath, imageBytes, { width: 1280, height: 720 }),
+          screenshotVariant("mobile", mobilePath, imageBytes, { width: 390, height: 844 }),
+        ]),
         command,
-        screenshot: {
-          projectName: "chromium",
-          browserName: "chromium",
-          path: imagePath,
-          bytes: imageBytes.byteLength,
-          sha256: digest(imageBytes),
-          viewport: { width: 1280, height: 720 },
-        },
       },
       targetSampleId,
     );

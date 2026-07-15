@@ -8,8 +8,11 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { expectedGateCommand } from "./lib/sample-gates.mjs";
-import { validateQualificationReceiptSet } from "./sample-gate-receipt.mjs";
+import { expectedGateCommand, SAMPLE_SCREENSHOT_VARIANTS } from "./lib/sample-gates.mjs";
+import {
+  readCanonicalBoundedFile,
+  validateQualificationReceiptSet,
+} from "./sample-gate-receipt.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -24,9 +27,24 @@ const MIGRATION_SCHEMA_PATH = "samples/contract/v2/schemas/catalog-migration.sch
 const GENERATED_CATALOG_PATH = "docs/generated/sample-catalog.md";
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const SITE_VISUAL_EVIDENCE_PATH = "samples/dist/honua-site-visual-evidence.v1.json";
+const SITE_VISUAL_EVIDENCE_SCHEMA_PATH = "samples/contract/v2/schemas/site-visual-evidence.schema.json";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+const SITE_CONSUMER_FIXTURE_V3_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
+const SITE_CONSUMER_FIXTURE_V3_SCHEMA_PATH = "samples/contract/v2/schemas/site-consumer-fixture.schema.json";
+const SITE_VISUAL_GATE_ORDER = Object.freeze([
+  "packed-build",
+  "browser",
+  "accessibility",
+  "console",
+  "responsive",
+  "screenshot",
+  "performance",
+  "fixture",
+  "live",
+]);
 const FIXTURE_BUILD_ENVIRONMENT_HELPER = "../../scripts/lib/fixture-build-environment.mjs";
 const REVIEWED_FIXTURE_HARNESS_IMPORTS = new Set([
   FIXTURE_BUILD_ENVIRONMENT_HELPER,
@@ -3096,6 +3114,99 @@ export async function validateSiteProjection(projection) {
   await validateJsonSchema(projection, SITE_PROJECTION_SCHEMA_PATH);
 }
 
+export async function validateSiteVisualEvidence(evidence, projection, options = {}) {
+  validateSensitiveMetadata(evidence, "site visual evidence");
+  await validateJsonSchema(evidence, SITE_VISUAL_EVIDENCE_SCHEMA_PATH);
+  invariant(
+    JSON.stringify(evidence.policy.requiredScreenshotVariants) ===
+      JSON.stringify(SAMPLE_SCREENSHOT_VARIANTS.map((variant) => ({ id: variant.id, viewport: { ...variant.viewport } }))),
+    "site visual evidence screenshot variant policy drift",
+  );
+  invariant(
+    JSON.stringify(evidence.policy.requiredSemanticGates) === JSON.stringify(SITE_VISUAL_GATE_ORDER),
+    "site visual evidence semantic gate policy drift",
+  );
+  const entries = evidence.qualifiedGoldenJourneys;
+  invariant(
+    new Set(entries.map((entry) => entry.journeyId)).size === entries.length &&
+      new Set(entries.map((entry) => entry.sampleId)).size === entries.length,
+    "site visual evidence journey and sample IDs must be unique",
+  );
+  if (projection) {
+    invariant(
+      evidence.projection.path === SITE_PROJECTION_PATH &&
+        evidence.projection.format === projection.format &&
+        evidence.projection.schemaVersion === projection.schemaVersion &&
+        evidence.projection.sha256 === sha256(Buffer.from(stableJson(projection))),
+      "site visual evidence projection binding drift",
+    );
+    const qualified = projection.goldenJourneys.filter((journey) => journey.status === "qualified");
+    invariant(
+      JSON.stringify(entries.map((entry) => [entry.journeyId, entry.sampleId])) ===
+        JSON.stringify(qualified.map((journey) => [journey.id, journey.candidateSampleId])),
+      "site visual evidence does not exactly cover qualified golden journeys",
+    );
+    for (const entry of entries) {
+      const sample = projection.samples.find((candidate) => candidate.id === entry.sampleId);
+      invariant(
+        sample?.track === "golden" &&
+          sample.journeyId === entry.journeyId &&
+          sample.evidence.live.status === "executed" &&
+          sample.evidence.live.mode === entry.liveEvidence.mode,
+        `${entry.sampleId}: site visual evidence does not match its qualified card`,
+      );
+    }
+  }
+  const now = Date.parse(options.now ?? new Date().toISOString());
+  invariant(Number.isFinite(now), "site visual evidence validation time is invalid");
+  for (const entry of entries) {
+    invariant(
+      JSON.stringify(entry.semanticEvidence.map((item) => item.gate)) === JSON.stringify(SITE_VISUAL_GATE_ORDER),
+      `${entry.sampleId}: site visual evidence semantic gates are incomplete or out of order`,
+    );
+    invariant(
+      Date.parse(entry.expiresAt) > now && Date.parse(entry.expiresAt) > Date.parse(entry.observedAt),
+      `${entry.sampleId}: site visual evidence is stale or has an invalid observation window`,
+    );
+    for (let index = 0; index < SAMPLE_SCREENSHOT_VARIANTS.length; index += 1) {
+      const expected = SAMPLE_SCREENSHOT_VARIANTS[index];
+      const screenshot = entry.screenshots[index];
+      invariant(
+        screenshot.variant === expected.id &&
+          screenshot.sourcePath.startsWith(`samples/evidence/${entry.sampleId}/runs/`) &&
+          screenshot.sourcePath.endsWith(`/artifacts/screenshot-${expected.id}.png`) &&
+          screenshot.publicationPath ===
+            `assets/gallery-evidence/${entry.sampleId}/${expected.id}-${screenshot.sha256.slice(0, 16)}.png`,
+        `${entry.sampleId}: ${expected.id} visual publication binding drift`,
+      );
+    }
+    for (const item of entry.semanticEvidence) {
+      invariant(
+        item.receiptPath === `samples/evidence/${entry.sampleId}/receipts/${item.gate}.v1.json` &&
+          item.reportPath.startsWith(`samples/evidence/${entry.sampleId}/runs/`),
+        `${entry.sampleId}: ${item.gate} semantic evidence path binding drift`,
+      );
+    }
+    if (entry.journeyId === "incident-operations") {
+      invariant(
+        entry.liveEvidence.realtime?.observationWindowMs > 0,
+        `${entry.sampleId}: incident operations visual evidence must remain realtime`,
+      );
+    }
+  }
+}
+
+export async function validateSiteConsumerFixture(fixture, projection, visualEvidence) {
+  validateSensitiveMetadata(fixture, "site consumer fixture");
+  await validateJsonSchema(fixture, SITE_CONSUMER_FIXTURE_V3_SCHEMA_PATH);
+  if (projection && visualEvidence) {
+    invariant(
+      JSON.stringify(fixture) === JSON.stringify(generateSiteConsumerFixtureV3(projection, visualEvidence)),
+      "site consumer fixture does not exactly match its generated inputs",
+    );
+  }
+}
+
 export async function validateCiSelection(selection) {
   validateSensitiveMetadata(selection, "CI selection");
   await validateJsonSchema(selection, CI_SELECTION_SCHEMA_PATH);
@@ -3134,6 +3245,268 @@ function generateSiteConsumerFixture(projection) {
   };
 }
 
+function selectedReceiptSample(sample) {
+  return {
+    id: sample.id,
+    commandPlan: {
+      validation: { execution: "automatic", commands: [...sample.validation] },
+      fixtureEvidence: { execution: "orchestrated", commands: [...sample.evidence.fixture.commands] },
+      liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
+    },
+  };
+}
+
+async function canonicalEvidenceJson(relativePath, label) {
+  const bytes = await readCanonicalBoundedFile(PROJECT_ROOT, relativePath, {
+    label,
+    maxBytes: 16 * 1024 * 1024,
+  });
+  return { bytes, value: parseJsonDocument(bytes.toString("utf8"), relativePath) };
+}
+
+async function canonicalReceiptReport(receipt, sampleId, label) {
+  const artifact = receipt.artifacts?.[0];
+  invariant(artifact, `${sampleId}: ${label} receipt artifact is missing`);
+  const loaded = await canonicalEvidenceJson(artifact.path, `${sampleId} ${label}`);
+  invariant(
+    loaded.bytes.byteLength === artifact.bytes && sha256(loaded.bytes) === artifact.sha256,
+    `${sampleId}: ${label} changed after qualification validation`,
+  );
+  return loaded.value;
+}
+
+function projectedLiveEvidence(sample, liveReport, receipt) {
+  invariant(liveReport?.format === "honua.sdk.sample-live-gate.v1", `${sample.id}: live gate report is invalid`);
+  const evidence = liveReport.evidence;
+  invariant(evidence?.status === "executed" && evidence.lane === "live", `${sample.id}: live evidence is not executed`);
+  const realtime = evidence.realtime
+    ? {
+        observationWindowMs: evidence.realtime.observationWindowMs,
+        snapshotAt: evidence.realtime.snapshotAt,
+        cursor: evidence.realtime.cursor,
+        lagMs: evidence.realtime.lagMs,
+      }
+    : undefined;
+  if (sample.journeyId === "incident-operations") {
+    invariant(
+      realtime && realtime.observationWindowMs > 0,
+      `${sample.id}: incident operations visual evidence must remain realtime`,
+    );
+  }
+  return {
+    mode: sample.evidence.live.mode,
+    status: "executed",
+    observedAt: evidence.observedAt,
+    expiresAt: receipt.expiresAt,
+    evidencePath: liveReport.evidencePath,
+    provenance: {
+      state: evidence.provenance.state,
+      observedAt: evidence.provenance.observedAt,
+      attribution: evidence.provenance.attribution,
+    },
+    semantics: {
+      operation: evidence.semantics.operation,
+      outcome: evidence.semantics.outcome,
+      itemCount: evidence.semantics.itemCount,
+      assertions: [...evidence.semantics.assertions],
+    },
+    timing: { totalMs: evidence.timing.totalMs },
+    degradation: {
+      state: evidence.degradation.state,
+      reasons: [...evidence.degradation.reasons],
+    },
+    ...(realtime ? { realtime } : {}),
+  };
+}
+
+export async function generateSiteVisualEvidence(catalog, projection, options = {}) {
+  const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
+  const receiptRoot = path.join(PROJECT_ROOT, "samples/evidence");
+  const now = options.now ?? new Date().toISOString();
+  const evidence = [];
+  for (const journey of qualifiedJourneys) {
+    const sample = catalog.samples.find((candidate) => candidate.id === journey.candidateSampleId);
+    const profile = catalog.qualityProfiles.find((candidate) => candidate.id === sample?.validationProfile);
+    invariant(sample && profile, `${journey.id}: qualified visual evidence source is missing`);
+    invariant(
+      Object.values(profile.gates).every(Boolean),
+      `${sample.id}: qualified visual evidence requires the complete golden gate profile`,
+    );
+
+    const receipts = new Map();
+    for (const gate of SITE_VISUAL_GATE_ORDER) {
+      const relativePath = `samples/evidence/${sample.id}/receipts/${gate}.v1.json`;
+      const loaded = await canonicalEvidenceJson(relativePath, `${sample.id} ${gate} visual handoff receipt`);
+      receipts.set(gate, { ...loaded, relativePath });
+    }
+    const sourceDigests = new Set([...receipts.values()].map(({ value }) => value.sourceDigest));
+    const sourceRevisions = new Set([...receipts.values()].map(({ value }) => value.sourceRevision));
+    invariant(sourceDigests.size === 1, `${sample.id}: visual handoff receipts do not share one source digest`);
+    invariant(sourceRevisions.size === 1, `${sample.id}: visual handoff receipts do not share one source revision`);
+    const [sourceDigest] = sourceDigests;
+    const [sourceRevision] = sourceRevisions;
+
+    await validateQualificationReceiptSet({
+      sample: selectedReceiptSample(sample),
+      profile,
+      expectedCommand: expectedGateCommand,
+      receiptRoot,
+      now,
+      projectRoot: PROJECT_ROOT,
+      verifyCheckout: options.verifyCheckout,
+      ...(options.verifyCheckout === false ? { sourceDigest } : {}),
+    });
+
+    for (const receipt of receipts.values()) {
+      const current = await canonicalEvidenceJson(
+        receipt.relativePath,
+        `${sample.id} visual handoff receipt stability check`,
+      );
+      invariant(
+        current.bytes.equals(receipt.bytes),
+        `${sample.id}: ${receipt.value.gate} receipt changed during visual handoff generation`,
+      );
+    }
+
+    const screenshotReceipt = receipts.get("screenshot").value;
+    const screenshotReport = await canonicalReceiptReport(
+      screenshotReceipt,
+      sample.id,
+      "desktop/mobile visual handoff report",
+    );
+    invariant(
+      screenshotReport.format === "honua.sdk.sample-screenshot-gate.v2" &&
+        Array.isArray(screenshotReport.screenshots) &&
+        screenshotReport.screenshots.length === SAMPLE_SCREENSHOT_VARIANTS.length,
+      `${sample.id}: visual handoff requires the desktop/mobile screenshot report`,
+    );
+    const screenshots = SAMPLE_SCREENSHOT_VARIANTS.map((variant, index) => {
+      const screenshot = screenshotReport.screenshots[index];
+      invariant(
+        screenshot.variant === variant.id &&
+          screenshot.viewport?.width === variant.viewport.width &&
+          screenshot.viewport?.height === variant.viewport.height,
+        `${sample.id}: visual handoff ${variant.id} screenshot binding drift`,
+      );
+      return {
+        variant: variant.id,
+        sourcePath: screenshot.path,
+        publicationPath: `assets/gallery-evidence/${sample.id}/${variant.id}-${screenshot.sha256.slice(0, 16)}.png`,
+        mediaType: "image/png",
+        viewport: { ...variant.viewport },
+        bytes: screenshot.bytes,
+        sha256: screenshot.sha256,
+      };
+    });
+
+    const liveReceipt = receipts.get("live").value;
+    const liveReport = await canonicalReceiptReport(liveReceipt, sample.id, "live visual handoff report");
+    const observedAt = new Date(
+      Math.max(...[...receipts.values()].map(({ value }) => Date.parse(value.observedAt))),
+    ).toISOString();
+    const expiresAt = new Date(
+      Math.min(...[...receipts.values()].map(({ value }) => Date.parse(value.expiresAt))),
+    ).toISOString();
+    invariant(Date.parse(expiresAt) > Date.parse(observedAt), `${sample.id}: visual handoff receipt window is invalid`);
+
+    evidence.push({
+      journeyId: journey.id,
+      sampleId: sample.id,
+      sourceRevision,
+      sourceDigest,
+      observedAt,
+      expiresAt,
+      screenshots,
+      semanticEvidence: SITE_VISUAL_GATE_ORDER.map((gate) => {
+        const receipt = receipts.get(gate);
+        return {
+          gate,
+          receiptPath: receipt.relativePath,
+          reportPath: receipt.value.artifacts[0].path,
+          observedAt: receipt.value.observedAt,
+          expiresAt: receipt.value.expiresAt,
+          sha256: sha256(receipt.bytes),
+        };
+      }),
+      liveEvidence: projectedLiveEvidence(sample, liveReport, liveReceipt),
+    });
+  }
+
+  const visualEvidence = {
+    format: "honua.site.sdk-sample-visual-evidence.v1",
+    schemaVersion: 1,
+    projection: {
+      path: SITE_PROJECTION_PATH,
+      format: projection.format,
+      schemaVersion: projection.schemaVersion,
+      sha256: sha256(Buffer.from(stableJson(projection))),
+    },
+    policy: {
+      requiredScreenshotVariants: SAMPLE_SCREENSHOT_VARIANTS.map((variant) => ({
+        id: variant.id,
+        viewport: { ...variant.viewport },
+      })),
+      requiredSemanticGates: [...SITE_VISUAL_GATE_ORDER],
+      executableSourceOwner: "honua-io/honua-sdk-js",
+      presentationOwner: "honua-io/honua-site",
+    },
+    qualifiedGoldenJourneys: evidence,
+  };
+  validateSensitiveMetadata(visualEvidence, "site visual evidence");
+  return visualEvidence;
+}
+
+function generateSiteConsumerFixtureV3(projection, visualEvidence) {
+  const samples = projection.samples;
+  const journeys = projection.goldenJourneys;
+  const qualifiedGoldenCount = journeys.filter((journey) => journey.status === "qualified").length;
+  return {
+    format: "honua.site.sdk-sample-consumer-fixture.v3",
+    schemaVersion: 3,
+    accepts: {
+      projectionFormat: projection.format,
+      projectionSchemaVersion: projection.schemaVersion,
+      catalogFormat: projection.catalog.format,
+      catalogSchemaVersion: projection.catalog.schemaVersion,
+      visualEvidenceFormat: visualEvidence.format,
+      visualEvidenceSchemaVersion: visualEvidence.schemaVersion,
+    },
+    inputs: {
+      projection: {
+        path: SITE_PROJECTION_PATH,
+        schemaPath: SITE_PROJECTION_SCHEMA_PATH,
+        sha256: sha256(Buffer.from(stableJson(projection))),
+      },
+      visualEvidence: {
+        path: SITE_VISUAL_EVIDENCE_PATH,
+        schemaPath: SITE_VISUAL_EVIDENCE_SCHEMA_PATH,
+        sha256: sha256(Buffer.from(stableJson(visualEvidence))),
+      },
+    },
+    assertions: {
+      sampleCount: samples.length,
+      rootExampleCount: samples.filter((sample) => sample.sourceKind === "root-example").length,
+      docsExampleCount: samples.filter((sample) => sample.sourceKind === "docs-example").length,
+      goldenJourneyCount: journeys.length,
+      qualifiedGoldenCount,
+      visualEvidenceCount: visualEvidence.qualifiedGoldenJourneys.length,
+      routeCount: projection.routes.length,
+      sampleIdsUnique: new Set(samples.map((sample) => sample.id)).size === samples.length,
+      routeIdsUnique: new Set(projection.routes.map((route) => route.id)).size === projection.routes.length,
+      routesEndInHtml: projection.routes.every((route) => route.route.endsWith(".html")),
+      visualEvidenceMatchesQualifiedGolden:
+        visualEvidence.qualifiedGoldenJourneys.length === qualifiedGoldenCount,
+      desktopMobileEvidenceRequired: true,
+      semanticGateSetRequired: true,
+      executableSourceOwner: "honua-io/honua-sdk-js",
+      presentationOwner: "honua-io/honua-site",
+      sourceImplementationDuplicated: false,
+      credentialValuesForbidden: true,
+    },
+    representativeRoutes: ["quickstart-map", "public-safety", "two-protocols"],
+  };
+}
+
 function generatedCatalogMarkdown(catalog, packageJson) {
   const journeyRows = catalog.goldenJourneys.map(
     (journey) =>
@@ -3164,7 +3537,7 @@ function generatedCatalogMarkdown(catalog, packageJson) {
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
     "",
-    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The presentation-safe projection is [`samples/dist/honua-site-samples.v2.json`](../../samples/dist/honua-site-samples.v2.json).",
+    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The presentation-safe projection is [`samples/dist/honua-site-samples.v2.json`](../../samples/dist/honua-site-samples.v2.json); its qualified desktop/mobile receipt handoff is [`samples/dist/honua-site-visual-evidence.v1.json`](../../samples/dist/honua-site-visual-evidence.v1.json).",
     "",
   ].join("\n");
 }
@@ -3195,15 +3568,21 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-export async function generatedOutputs(catalog, packageJson) {
+export async function generatedOutputs(catalog, packageJson, options = {}) {
   const readme = await readFile(path.join(PROJECT_ROOT, "README.md"), "utf8");
   const projection = generateSiteProjection(catalog, packageJson);
+  const visualEvidence = await generateSiteVisualEvidence(catalog, projection, options);
   const ciSelection = generateCiSelection(catalog);
+  const consumerFixtureV3 = generateSiteConsumerFixtureV3(projection, visualEvidence);
+  await validateSiteVisualEvidence(visualEvidence, projection, options);
+  await validateSiteConsumerFixture(consumerFixtureV3, projection, visualEvidence);
   return new Map([
     [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
+    [SITE_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
     [SITE_CONSUMER_FIXTURE_PATH, stableJson(generateSiteConsumerFixture(projection))],
+    [SITE_CONSUMER_FIXTURE_V3_PATH, stableJson(consumerFixtureV3)],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
   ]);
 }

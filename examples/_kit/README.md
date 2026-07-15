@@ -82,9 +82,10 @@ every Playwright project declared by the pilot and binds each result to its
 actual browser engine. Console evidence is finalized only after quality checks,
 fixture teardown, and explicit closure of the pilot-owned page and browser
 context. Screenshot and performance gates execute that same
-reviewed browser workflow; the pilot's canonical `evidenceProject` writes a
-fully decoded PNG and browser observations with positive, monotonic navigation,
-resource, keyboard-interaction, and sample-ready timing.
+reviewed browser workflow; the pilot's canonical `evidenceProject` writes
+content-bound desktop (1280×720) and mobile (390×844) PNGs plus browser
+observations with positive, monotonic navigation, resource,
+keyboard-interaction, and sample-ready timing.
 
 ## Kit contracts
 
