@@ -12,6 +12,7 @@ const SCENARIO_REPOSITORY_PATH = `${FIXTURE_REPOSITORY_PATH}/src/workbench-scena
 const EXPECTED_BEHAVIOR_REPOSITORY_PATH = "examples/migration-workbench/fixtures/expected-behavior.v1.json";
 const PUBLIC_ARTIFACT_ROOT = "examples/migration-workbench/public/artifacts/v1";
 const GENERATED_TARGET_REPOSITORY_PATH = "examples/migration-workbench/src/generated/migrated-main.js";
+const GENERATED_TARGET_ROOT = path.posix.dirname(GENERATED_TARGET_REPOSITORY_PATH);
 const CLI_REPOSITORY_PATH = "dist/src/migration/cli.js";
 const EXECUTION_RUNNER_REPOSITORY_PATH = "scripts/lib/migration-workbench-execution-runner.mjs";
 const NETWORK_GUARD_REPOSITORY_PATH = "scripts/lib/migration-workbench-network-guard.mjs";
@@ -72,6 +73,19 @@ const EXPECTED_PUBLIC_ARTIFACT_NAMES = new Set(
     (repositoryPath) => path.posix.basename(repositoryPath),
   ),
 );
+const EXPECTED_GENERATED_TARGET_NAMES = new Set([path.posix.basename(GENERATED_TARGET_REPOSITORY_PATH)]);
+const RETIREMENT_ROOTS = Object.freeze([
+  {
+    repositoryPath: PUBLIC_ARTIFACT_ROOT,
+    expectedNames: EXPECTED_PUBLIC_ARTIFACT_NAMES,
+    label: "public migration artifact root",
+  },
+  {
+    repositoryPath: GENERATED_TARGET_ROOT,
+    expectedNames: EXPECTED_GENERATED_TARGET_NAMES,
+    label: "generated migration target root",
+  },
+]);
 
 export function defaultRepositoryRoot() {
   return canonicalizeExistingDirectory(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.."), "repository root");
@@ -863,23 +877,26 @@ function preflightArtifactDestinations(repositoryRoot) {
     });
   }
 
-  const publicRoot = resolveRepositoryPath(repositoryRoot, PUBLIC_ARTIFACT_ROOT, {
-    allowMissing: true,
-    expectedType: "directory",
-    label: "public migration artifact root",
-  });
   const retiredEntries = [];
-  if (lstatOrUndefined(publicRoot)) {
-    captureRegularTree(publicRoot);
-    for (const name of fs.readdirSync(publicRoot).sort(compareUtf8)) {
-      if (!EXPECTED_PUBLIC_ARTIFACT_NAMES.has(name)) {
-        retiredEntries.push({
-          absolutePath: path.join(publicRoot, name),
-          repositoryPath: path.posix.join(PUBLIC_ARTIFACT_ROOT, name),
-        });
+  for (const retirementRoot of RETIREMENT_ROOTS) {
+    const absoluteRoot = resolveRepositoryPath(repositoryRoot, retirementRoot.repositoryPath, {
+      allowMissing: true,
+      expectedType: "directory",
+      label: retirementRoot.label,
+    });
+    if (lstatOrUndefined(absoluteRoot)) {
+      captureRegularTree(absoluteRoot);
+      for (const name of fs.readdirSync(absoluteRoot).sort(compareUtf8)) {
+        if (!retirementRoot.expectedNames.has(name)) {
+          retiredEntries.push({
+            absolutePath: path.join(absoluteRoot, name),
+            repositoryPath: path.posix.join(retirementRoot.repositoryPath, name),
+          });
+        }
       }
     }
   }
+  retiredEntries.sort((left, right) => compareUtf8(left.repositoryPath, right.repositoryPath));
   return { retiredEntries };
 }
 

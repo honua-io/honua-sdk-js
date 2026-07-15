@@ -7,20 +7,94 @@ import { syncBuiltinESMExports } from "node:module";
 import net from "node:net";
 import tls from "node:tls";
 
-const networkAttempts = [];
+const TrustedArray = Array;
+const TrustedError = Error;
+const trustedDefineProperty = Object.defineProperty.bind(Object);
+const trustedFreeze = Object.freeze.bind(Object);
+const trustedGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor.bind(Object);
+const trustedGetPrototypeOf = Object.getPrototypeOf.bind(Object);
+const trustedOwnKeys = Reflect.ownKeys.bind(Reflect);
+const trustedString = String;
+const objectPrototype = Object.prototype;
+const networkAttempts = new TrustedArray();
+const patchedNetworkPrototypes = new WeakSet();
+
+function appendNetworkAttempt(api) {
+  trustedDefineProperty(networkAttempts, networkAttempts.length, {
+    value: api,
+    enumerable: true,
+    configurable: false,
+    writable: false,
+  });
+}
+
+function deniedNetworkError(api) {
+  appendNetworkAttempt(api);
+  const error = new TrustedError(`Generated migration target attempted a denied network operation (${api}).`);
+  trustedDefineProperty(error, "code", {
+    value: "HONUA_NETWORK_DENIED",
+    enumerable: true,
+    configurable: false,
+    writable: false,
+  });
+  return error;
+}
 
 function denyNetwork(api) {
   return function deniedNetworkOperation() {
-    networkAttempts.push(api);
-    const error = new Error(`Generated migration target attempted a denied network operation (${api}).`);
-    error.code = "HONUA_NETWORK_DENIED";
-    throw error;
+    throw deniedNetworkError(api);
   };
 }
 
 function replaceMethod(target, name, api) {
-  if (target && typeof target[name] === "function") {
-    target[name] = denyNetwork(api);
+  if (!target) {
+    return;
+  }
+  const descriptor = trustedGetOwnPropertyDescriptor(target, name);
+  if (!descriptor || typeof descriptor.value !== "function") {
+    return;
+  }
+  trustedDefineProperty(target, name, {
+    ...descriptor,
+    value: denyNetwork(api),
+    configurable: false,
+    writable: false,
+  });
+}
+
+function replaceAllPrototypeMethods(constructor, namespace, includeInherited = true) {
+  if (typeof constructor !== "function" || !constructor.prototype) {
+    return;
+  }
+  let prototype = constructor.prototype;
+  while (prototype && prototype !== objectPrototype) {
+    if (patchedNetworkPrototypes.has(prototype)) {
+      prototype = trustedGetPrototypeOf(prototype);
+      continue;
+    }
+    patchedNetworkPrototypes.add(prototype);
+    for (const name of trustedOwnKeys(prototype)) {
+      if (name === "constructor") {
+        continue;
+      }
+      const descriptor = trustedGetOwnPropertyDescriptor(prototype, name);
+      if (!descriptor) {
+        continue;
+      }
+      if (typeof descriptor.value === "function") {
+        const methodName = typeof name === "symbol" ? trustedString(name) : name;
+        trustedDefineProperty(prototype, name, {
+          value: denyNetwork(`${namespace}.${methodName}`),
+          enumerable: descriptor.enumerable,
+          configurable: false,
+          writable: false,
+        });
+      }
+    }
+    if (!includeInherited) {
+      break;
+    }
+    prototype = trustedGetPrototypeOf(prototype);
   }
 }
 
@@ -38,33 +112,57 @@ for (const [target, methods, namespace] of [
   }
 }
 
+replaceAllPrototypeMethods(dns.Resolver, "dns.Resolver");
+replaceAllPrototypeMethods(dnsPromises.Resolver, "dns.promises.Resolver");
+replaceAllPrototypeMethods(dgram.Socket, "dgram.Socket", false);
 replaceMethod(net.Socket?.prototype, "connect", "net.Socket.connect");
 replaceMethod(tls.TLSSocket?.prototype, "connect", "tls.TLSSocket.connect");
-replaceMethod(dns.Resolver?.prototype, "resolve", "dns.Resolver.resolve");
-replaceMethod(dns.Resolver?.prototype, "resolve4", "dns.Resolver.resolve4");
-replaceMethod(dns.Resolver?.prototype, "resolve6", "dns.Resolver.resolve6");
 
 if (typeof globalThis.fetch === "function") {
-  globalThis.fetch = denyNetwork("globalThis.fetch");
+  trustedDefineProperty(globalThis, "fetch", {
+    value: denyNetwork("globalThis.fetch"),
+    enumerable: true,
+    configurable: false,
+    writable: false,
+  });
 }
 if (typeof globalThis.WebSocket === "function") {
-  globalThis.WebSocket = class DeniedWebSocket {
-    constructor() {
-      return denyNetwork("globalThis.WebSocket")();
-    }
-  };
+  trustedDefineProperty(globalThis, "WebSocket", {
+    value: class DeniedWebSocket {
+      constructor() {
+        throw deniedNetworkError("globalThis.WebSocket");
+      }
+    },
+    enumerable: true,
+    configurable: false,
+    writable: false,
+  });
 }
 if (typeof globalThis.EventSource === "function") {
-  globalThis.EventSource = class DeniedEventSource {
-    constructor() {
-      return denyNetwork("globalThis.EventSource")();
-    }
-  };
+  trustedDefineProperty(globalThis, "EventSource", {
+    value: class DeniedEventSource {
+      constructor() {
+        throw deniedNetworkError("globalThis.EventSource");
+      }
+    },
+    enumerable: true,
+    configurable: false,
+    writable: false,
+  });
 }
 
 // Keep named ESM imports aligned with the patched CommonJS builtin exports.
 syncBuiltinESMExports();
 
 export function snapshotDeniedNetworkAttempts() {
-  return Object.freeze([...networkAttempts]);
+  const copy = new TrustedArray(networkAttempts.length);
+  for (let index = 0; index < networkAttempts.length; index += 1) {
+    trustedDefineProperty(copy, index, {
+      value: networkAttempts[index],
+      enumerable: true,
+      configurable: false,
+      writable: false,
+    });
+  }
+  return trustedFreeze(copy);
 }
