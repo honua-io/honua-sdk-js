@@ -83,7 +83,10 @@ export class KernelLifecycle implements AsyncDisposable {
    * order. Concurrent and repeated calls share the exact same completion.
    */
   public dispose(): Promise<void> {
-    if (this.#disposePromise) return this.#disposePromise;
+    if (this.#disposePromise) {
+      this.#resources.noteOwnerDisposalRequest();
+      return this.#disposePromise;
+    }
     this.#state = "disposing";
 
     let beginResourceDisposal: () => void = () => undefined;
@@ -133,6 +136,7 @@ export function createKernelLifecycle(options: KernelLifecycleOptions = {}): Ker
 
 class KernelResourceRegistry {
   readonly #owned = new Map<KernelOwnedResource, KernelOwnedCleanup>();
+  #activeCleanup: { ownerDisposalRequested: boolean } | undefined;
   #state: "active" | "disposing" | "disposed" = "active";
   #disposePromise: Promise<void> | undefined;
 
@@ -149,6 +153,15 @@ class KernelResourceRegistry {
     return this.#owned.delete(resource);
   }
 
+  /**
+   * Record owner-disposal reentry made synchronously while invoking a cleanup.
+   * An async cleanup wraps and adopts returned promises, so strict identity
+   * with the owner's completion is insufficient to recognize that cycle.
+   */
+  public noteOwnerDisposalRequest(): void {
+    if (this.#activeCleanup) this.#activeCleanup.ownerDisposalRequested = true;
+  }
+
   public dispose(ownerCompletion: Promise<void>): Promise<void> {
     if (this.#disposePromise) return this.#disposePromise;
     this.#state = "disposing";
@@ -158,11 +171,28 @@ class KernelResourceRegistry {
       const failures: unknown[] = [];
       for (const cleanup of cleanups) {
         try {
-          const result = cleanup();
+          const invocation = { ownerDisposalRequested: false };
+          this.#activeCleanup = invocation;
+          let result: void | PromiseLike<void>;
+          try {
+            result = cleanup();
+          } finally {
+            this.#activeCleanup = undefined;
+          }
           // A synchronous cleanup may report reentrant owner disposal by
-          // returning that owner's canonical completion. Awaiting the owner
-          // from inside its own drain would create a self-dependency.
-          if (result !== ownerCompletion) await result;
+          // returning that owner's canonical completion. An async cleanup
+          // instead returns a distinct promise which adopts the owner promise,
+          // so remember disposal reentry during invocation as well. Awaiting
+          // either form from inside the owner's drain creates a self-cycle.
+          if (result === ownerCompletion || invocation.ownerDisposalRequested) {
+            if (result !== undefined && result !== ownerCompletion) {
+              // The adopted promise can settle only after owner completion.
+              // Observe it so its later rejection cannot become unhandled.
+              void Promise.resolve(result).catch(() => undefined);
+            }
+          } else {
+            await result;
+          }
         } catch (error) {
           failures.push(error);
         }
