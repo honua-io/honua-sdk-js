@@ -4,9 +4,11 @@ import {
   type LogicalType,
   type SourceProtocol,
   type SourceSchemaV2,
+  isLogicalDomainValueCompatible,
   parseSourceSchemaV2,
   validateSourceCrsDefinition,
 } from "../contract/schema.js";
+import { PROTOCOLS } from "../contract/types.js";
 import type {
   AggregateMetric,
   BuiltInNativeDialect,
@@ -121,7 +123,8 @@ export function parseSemanticQuery(value: string | unknown, options: ParseSemant
     const json = parseBoundedJson(value);
     const query = parseQueryObject(json, "$" as const);
     const schema = options.schema === undefined ? undefined : parseSourceSchemaV2(options.schema);
-    validateParsedQuery(query, schema, options.protocol);
+    const protocol = parseProtocolOption(options.protocol);
+    validateParsedQuery(query, schema, protocol);
     return deepFreeze(query);
   } catch (error) {
     if (error instanceof HonuaQueryPlanningError) throw error;
@@ -388,9 +391,8 @@ function parseFilter(value: JsonValue, path: string, depth: number): RuntimeFilt
         operator: "like",
         operand: parseProperty(object.operand, `${path}.operand`),
         pattern: expectBoundedText(object.pattern, `${path}.pattern`),
-        ...(object.caseSensitive === undefined
-          ? {}
-          : { caseSensitive: expectBoolean(object.caseSensitive, `${path}.caseSensitive`) }),
+        caseSensitive:
+          object.caseSensitive === undefined ? true : expectBoolean(object.caseSensitive, `${path}.caseSensitive`),
       } as RuntimeFilter;
     }
     case "boolean": {
@@ -433,8 +435,7 @@ function parseProperty(value: JsonValue | undefined, path: string): PropertyNode
   const object = expectObject(value, path);
   assertOnlyKeys(object, ["kind", "name"], path);
   expectExact(object.kind, "property", `${path}.kind`);
-  const name = expectBoundedText(object.name, `${path}.name`);
-  if (name.length === 0) throw invalid(`${path}.name`, "must not be empty");
+  const name = expectNonblankBoundedText(object.name, `${path}.name`);
   return { kind: "property", name };
 }
 
@@ -691,7 +692,7 @@ function parseTemporalLiteral(value: JsonValue | undefined, path: string): Tempo
 
 function parseNativeFilter(object: JsonObject, path: string): JsonObject {
   assertOnlyKeys(object, ["kind", "dialect", "payload"], path);
-  const dialect = expectBoundedText(object.dialect, `${path}.dialect`);
+  const dialect = expectNonblankBoundedText(object.dialect, `${path}.dialect`);
   if (!isBuiltInDialect(dialect) && !EXTENSION_ID_PATTERN.test(dialect)) {
     throw invalid(`${path}.dialect`, "must be a built-in or namespaced extension dialect");
   }
@@ -702,7 +703,7 @@ function parseNativeFilter(object: JsonObject, path: string): JsonObject {
     if (!("value" in payload)) throw invalid(`${path}.payload.value`, "is required");
   } else {
     assertOnlyKeys(payload, ["format", "text"], `${path}.payload`);
-    expectBoundedText(payload.text, `${path}.payload.text`);
+    expectNonblankBoundedText(payload.text, `${path}.payload.text`);
   }
   if (NATIVE_JSON_DIALECTS.has(dialect) && format !== "json") {
     throw invalid(`${path}.payload.format`, `${dialect} requires json`);
@@ -721,11 +722,12 @@ function parseSort(value: JsonValue, path: string): readonly SemanticSort<Record
     const object = expectObject(entry, itemPath);
     assertOnlyKeys(object, ["field", "direction", "nulls"], itemPath);
     return {
-      field: expectBoundedText(object.field, `${itemPath}.field`) as never,
+      field: expectNonblankBoundedText(object.field, `${itemPath}.field`) as never,
       direction: expectEnum(object.direction, `${itemPath}.direction`, ["asc", "desc"] as const),
-      ...(object.nulls === undefined
-        ? {}
-        : { nulls: expectEnum(object.nulls, `${itemPath}.nulls`, ["first", "last", "native"] as const) }),
+      nulls:
+        object.nulls === undefined
+          ? "native"
+          : expectEnum(object.nulls, `${itemPath}.nulls`, ["first", "last", "native"] as const),
     };
   });
 }
@@ -766,7 +768,7 @@ function parseGeometryProjection(value: JsonValue, path: string): "include" | "o
   if (value === "include" || value === "omit") return value;
   const object = expectObject(value, path);
   assertOnlyKeys(object, ["field"], path);
-  return { field: expectBoundedText(object.field, `${path}.field`) };
+  return { field: expectNonblankBoundedText(object.field, `${path}.field`) };
 }
 
 function parseMetrics(
@@ -788,16 +790,15 @@ function parseMetrics(
       "variance",
     ] as const);
     assertOnlyKeys(object, ["fn", "field", "as"], itemPath);
-    const alias = expectBoundedText(object.as, `${itemPath}.as`);
-    if (alias.length === 0) throw invalid(`${itemPath}.as`, "must not be empty");
+    const alias = expectNonblankBoundedText(object.as, `${itemPath}.as`);
     if (fn === "count") {
       return {
         fn,
-        ...(object.field === undefined ? {} : { field: expectBoundedText(object.field, `${itemPath}.field`) }),
+        ...(object.field === undefined ? {} : { field: expectNonblankBoundedText(object.field, `${itemPath}.field`) }),
         as: alias,
       };
     }
-    return { fn, field: expectBoundedText(object.field, `${itemPath}.field`), as: alias };
+    return { fn, field: expectNonblankBoundedText(object.field, `${itemPath}.field`), as: alias };
   }) as never;
 }
 
@@ -861,6 +862,19 @@ function validateParsedQuery(
         metric.fn === "count" ? "field" : `${metric.fn}-compatible`,
       );
   });
+}
+
+function parseProtocolOption(value: unknown): SourceProtocol | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") throw invalid("options.protocol", "must be a string");
+  if (TEXT_ENCODER.encode(value).byteLength > MAX_SEMANTIC_QUERY_TEXT_BYTES) {
+    throw invalid("options.protocol", "text is too large");
+  }
+  if (value.trim() === "") throw invalid("options.protocol", "must be a non-empty string");
+  if (!PROTOCOLS.includes(value as (typeof PROTOCOLS)[number]) && !EXTENSION_ID_PATTERN.test(value)) {
+    throw invalid("options.protocol", "must be a built-in or namespaced extension protocol");
+  }
+  return value as SourceProtocol;
 }
 
 function validateFilter(filter: RuntimeFilter, schema: SourceSchemaV2, path: string): void {
@@ -1094,12 +1108,8 @@ function validateLiteralForField(value: JsonValue, field: LogicalField, path: st
         if (constraint.maximum !== undefined && value.length > constraint.maximum) {
           throw invalid(path, `exceeds ${field.name}'s maximum length ${constraint.maximum}`);
         }
-      } else if (constraint.kind === "pattern" && typeof value === "string") {
-        const expression = new RegExp(constraint.expression, constraint.flags);
-        if (!expression.test(value)) throw invalid(path, `does not match ${field.name}'s declared pattern`);
-      } else if (constraint.kind === "multiple-of" && typeof value === "number") {
-        const quotient = value / constraint.value;
-        if (Math.abs(quotient - Math.round(quotient)) > Number.EPSILON * Math.max(1, Math.abs(quotient)) * 8) {
+      } else if (constraint.kind === "multiple-of") {
+        if (!literalMatchesMultipleOf(value, type, constraint.value)) {
           throw invalid(path, `is not a multiple of ${field.name}'s declared step ${constraint.value}`);
         }
       }
@@ -1108,94 +1118,51 @@ function validateLiteralForField(value: JsonValue, field: LogicalField, path: st
 }
 
 function literalMatchesType(value: JsonValue, type: LogicalType): boolean {
-  switch (type.kind) {
-    case "boolean":
-      return typeof value === "boolean";
-    case "integer":
-      return integerMatchesType(value, type);
-    case "float":
-      return typeof value === "number" && Number.isFinite(value);
-    case "decimal":
-      return decimalMatchesType(value, type);
-    case "string":
-    case "binary":
-      return typeof value === "string";
-    case "duration":
-      return (
-        typeof value === "string" &&
-        /^-?P(?=\d|T\d)(?:\d+(?:\.\d+)?Y)?(?:\d+(?:\.\d+)?M)?(?:\d+(?:\.\d+)?W)?(?:\d+(?:\.\d+)?D)?(?:T(?:\d+(?:\.\d+)?H)?(?:\d+(?:\.\d+)?M)?(?:\d+(?:\.\d+)?S)?)?$/.test(
-          value,
-        )
-      );
-    case "uuid":
-      return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-    case "date":
-      return typeof value === "string" && isIsoDate(value);
-    case "time":
-      return typeof value === "string" && isIsoTime(value);
-    case "timestamp":
-      return typeof value === "string" && isTimestampForTimezone(value, type.timezone);
-    case "json":
-      return true;
-    case "union":
-      return type.members.some((member) => literalMatchesType(value, member));
-    case "unknown":
-    case "geometry":
-    case "list":
-    case "struct":
-      return false;
+  return isLogicalDomainValueCompatible(value, type);
+}
+
+function literalMatchesMultipleOf(value: JsonValue, type: LogicalType, step: number): boolean {
+  if (
+    typeof value === "string" &&
+    (type.kind === "integer" || type.kind === "decimal") &&
+    type.jsonEncoding === "string"
+  ) {
+    return exactDecimalMultiple(value, step);
   }
+  if (typeof value !== "number") return false;
+  const quotient = value / step;
+  return Math.abs(quotient - Math.round(quotient)) <= Number.EPSILON * Math.max(1, Math.abs(quotient)) * 8;
 }
 
-function integerMatchesType(value: JsonValue, type: Extract<LogicalType, { readonly kind: "integer" }>): boolean {
-  if (type.jsonEncoding === "number") {
-    if (typeof value !== "number" || !Number.isSafeInteger(value)) return false;
-  } else if (typeof value !== "string" || !/^-?(?:0|[1-9][0-9]*)$/.test(value)) {
-    return false;
+function exactDecimalMultiple(value: string, step: number): boolean {
+  const candidate = decimalIntegerRatio(value);
+  const divisor = decimalIntegerRatio(String(step));
+  if (!candidate || !divisor || divisor.coefficient === 0n) return false;
+  if (candidate.coefficient === 0n) return true;
+  const scaleDelta = divisor.scale - candidate.scale;
+  if (scaleDelta >= 0) {
+    return (candidate.coefficient * 10n ** BigInt(scaleDelta)) % divisor.coefficient === 0n;
   }
-  const candidate = BigInt(value as number | string);
-  const width = BigInt(type.bits);
-  const minimum = type.signed ? -(1n << (width - 1n)) : 0n;
-  const maximum = type.signed ? (1n << (width - 1n)) - 1n : (1n << width) - 1n;
-  return candidate >= minimum && candidate <= maximum;
+  return candidate.coefficient % (divisor.coefficient * 10n ** BigInt(-scaleDelta)) === 0n;
 }
 
-function decimalMatchesType(value: JsonValue, type: Extract<LogicalType, { readonly kind: "decimal" }>): boolean {
-  let text: string;
-  if (type.jsonEncoding === "string") {
-    if (typeof value !== "string") return false;
-    text = value;
-  } else {
-    if (typeof value !== "number" || !Number.isFinite(value)) return false;
-    text = String(value);
+function decimalIntegerRatio(value: string): { readonly coefficient: bigint; readonly scale: number } | undefined {
+  const match = /^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(value);
+  if (!match) return undefined;
+  const exponent = Number(match[4] ?? "0");
+  if (!Number.isSafeInteger(exponent)) return undefined;
+  const digits = `${match[2]}${match[3] ?? ""}`.replace(/^0+/, "") || "0";
+  let coefficient = BigInt(digits);
+  let scale = (match[3]?.length ?? 0) - exponent;
+  if (scale < 0) {
+    coefficient *= 10n ** BigInt(-scale);
+    scale = 0;
   }
-  const match = /^-?(0|[1-9][0-9]*)(?:\.([0-9]+))?$/.exec(text);
-  if (!match) return false;
-  const integer = (match[1] as string).replace(/^0+/, "");
-  const fraction = match[2] ?? "";
-  if (type.scale !== undefined && fraction.length > type.scale) return false;
-  const precision = `${integer}${fraction}`.replace(/^0+/, "").length || 1;
-  return type.precision === undefined || precision <= type.precision;
-}
-
-function isTimestampForTimezone(
-  value: string,
-  timezone: Extract<LogicalType, { readonly kind: "timestamp" }>["timezone"],
-): boolean {
-  if (timezone === "local") return isIsoLocalTimestamp(value);
-  if (timezone === "utc") return value.endsWith("Z") && isIsoInstant(value);
-  return isIsoInstant(value);
-}
-
-function isIsoLocalTimestamp(value: string): boolean {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/.exec(value);
-  return (
-    match !== null &&
-    isIsoDate(match[1] as string) &&
-    Number(match[2]) <= 23 &&
-    Number(match[3]) <= 59 &&
-    Number(match[4]) <= 59
-  );
+  while (scale > 0 && coefficient % 10n === 0n) {
+    coefficient /= 10n;
+    scale -= 1;
+  }
+  return { coefficient, scale };
 }
 
 function compareLiteral(left: JsonValue, right: JsonValue, type: LogicalType): number {
@@ -1367,6 +1334,12 @@ function expectBoundedText(value: JsonValue | undefined, path: string): string {
   return text;
 }
 
+function expectNonblankBoundedText(value: JsonValue | undefined, path: string): string {
+  const text = expectBoundedText(value, path);
+  if (text.trim() === "") throw invalid(path, "must be a non-empty string");
+  return text;
+}
+
 function expectBoolean(value: JsonValue | undefined, path: string): boolean {
   if (typeof value !== "boolean") throw invalid(path, "must be a boolean");
   return value;
@@ -1406,7 +1379,7 @@ function expectExact(value: JsonValue | undefined, expected: string, path: strin
 function parseStringArray(value: JsonValue | undefined, path: string, requireNonempty: boolean): readonly string[] {
   const array = expectArray(value, path);
   if (requireNonempty && array.length === 0) throw invalid(path, "must contain at least one field");
-  return array.map((entry, index) => expectBoundedText(entry, `${path}[${index}]`));
+  return array.map((entry, index) => expectNonblankBoundedText(entry, `${path}[${index}]`));
 }
 
 function assertOnlyKeys(object: JsonObject, allowed: readonly string[], path: string): void {
@@ -1458,18 +1431,6 @@ function isIsoInstant(value: string): boolean {
     offsetHour <= 23 &&
     offsetMinute <= 59 &&
     !Number.isNaN(Date.parse(value))
-  );
-}
-
-function isIsoTime(value: string): boolean {
-  const match = /^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))?$/.exec(value);
-  if (!match) return false;
-  return (
-    Number(match[1]) <= 23 &&
-    Number(match[2]) <= 59 &&
-    Number(match[3]) <= 59 &&
-    (match[4] === undefined || Number(match[4]) <= 23) &&
-    (match[5] === undefined || Number(match[5]) <= 59)
   );
 }
 
