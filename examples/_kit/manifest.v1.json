@@ -3,6 +3,19 @@
   "schemaVersion": 1,
   "samples": [
     {
+      "id": "migration-workbench",
+      "viteConfig": "examples/migration-workbench/vite.config.ts",
+      "tsconfig": "examples/migration-workbench/tsconfig.json",
+      "playwrightScript": "test:playwright:migration-workbench",
+      "playwrightFile": "test/playwright/migration-workbench.spec.mjs",
+      "playwrightTestTitle": "migration workbench proves artifact truth and generated behavior in source or packed mode",
+      "playwrightProjects": [{ "name": "chromium", "browserName": "chromium" }],
+      "evidenceProject": "chromium",
+      "sdkEntrypoints": ["@honua/sdk-js/esri-compat"],
+      "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
+      "workflowSelectors": ["#compat-metrics", "#assertion-matrix", "#maplibre-residuals", "#artifact-files"]
+    },
+    {
       "id": "service-explorer",
       "viteConfig": "examples/service-explorer/vite.config.ts",
       "tsconfig": "examples/service-explorer/tsconfig.json",

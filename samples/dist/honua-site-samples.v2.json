@@ -879,9 +879,8 @@
       "journeyId": "arcgis-migration",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Make this the canonical file-by-file ArcGIS migration journey.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Canonical deterministic ArcGIS migration evidence workbench."
       },
       "validationProfile": "browser-lab",
       "source": {
@@ -910,8 +909,7 @@
         "provenance": "Committed ArcGIS source fixtures and migration reports.",
         "attribution": "Fixture source attribution is preserved in output.",
         "freshness": "Versioned with the migration corpus.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads a cloud-admin API-key variable."
+        "configurationStatus": "not-required"
       },
       "evidence": {
         "fixture": {
@@ -919,8 +917,8 @@
           "status": "executed"
         },
         "live": {
-          "mode": "public-live",
-          "status": "planned"
+          "mode": "unavailable",
+          "status": "not-applicable"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
