@@ -1,10 +1,11 @@
-import type { ResolvedCrsDefinition } from "./contract/schema.js";
+import type { ResolvedCrsDefinition, SourceProtocol } from "./contract/schema.js";
 import type { Capability as BuiltInCapabilityId } from "./contract/types.js";
 import type { JsonValue } from "./query-planner/types.js";
 
 export const CAPABILITY_EVIDENCE_PROFILE_KIND = "honua.capability-evidence" as const;
 export const CAPABILITY_EVIDENCE_PROFILE_VERSION = "1.0" as const;
 export const CAPABILITY_EVIDENCE_FINGERPRINT_DOMAIN = "honua:capability-evidence:1.0" as const;
+export const CAPABILITY_SOURCE_ENDPOINT_FINGERPRINT_DOMAIN = "honua:capability-source-endpoint:1.0" as const;
 export const CAPABILITY_PROFILE_KIND = "honua.capabilities" as const;
 export const CAPABILITY_PROFILE_VERSION = "1.0" as const;
 export const CAPABILITY_PROFILE_FINGERPRINT_DOMAIN = "honua:capabilities:1.0" as const;
@@ -103,6 +104,17 @@ export interface CapabilityConstraints {
 
 export type CapabilityRuntimeEnvironment = "browser" | "worker" | "node" | "edge" | ExtensionIdentifier;
 
+/**
+ * Credential-free source endpoint coordinates used only to derive a digest.
+ * Query strings, fragments, URL user-info, and credential-shaped source ids
+ * are rejected before hashing and the raw coordinates are never transported.
+ */
+export interface CapabilitySourceEndpointIdentity {
+  readonly endpoint: string;
+  readonly protocol: SourceProtocol;
+  readonly sourceId?: string;
+}
+
 /** Static execution requirements retained in evidence and evaluated decisions. */
 export interface CapabilityRequirements {
   readonly environments?: readonly CapabilityRuntimeEnvironment[];
@@ -128,11 +140,15 @@ export type CapabilityEvaluationEntry = CapabilityEvidenceEntry;
 export interface CapabilityEvidenceProfileOptions {
   /** SourceSchemaV2 SHA-256 identity. May be derived only from consistent evidence. */
   readonly sourceFingerprint?: Sha256;
+  /** Required credential-free endpoint coordinates; only their derived digest is retained. */
+  readonly sourceEndpoint: CapabilitySourceEndpointIdentity;
 }
 
 export interface CapabilitySourceVerificationOptions {
-  /** Current SourceSchemaV2 SHA-256 identity required by this cache/use site. */
+  /** Current SourceSchemaV2 SHA-256 identity. Must be paired with expectedSourceEndpoint. */
   readonly expectedSourceFingerprint?: Sha256;
+  /** Current credential-free endpoint coordinates. Must be paired with expectedSourceFingerprint. */
+  readonly expectedSourceEndpoint?: CapabilitySourceEndpointIdentity;
 }
 
 /** Heavy, one-time validated transport/cache envelope for one source. */
@@ -142,6 +158,8 @@ export interface CapabilityEvidenceProfile {
   readonly fingerprint: Sha256;
   /** Required SourceSchemaV2 identity for cache invalidation and source binding. */
   readonly sourceFingerprint: Sha256;
+  /** Required digest of normalized protocol/endpoint/source coordinates. */
+  readonly sourceEndpointFingerprint: Sha256;
   readonly entries: readonly CapabilityEvidenceEntry[];
 }
 
@@ -229,6 +247,7 @@ export interface CapabilityProfile {
   readonly fingerprint: Sha256;
   readonly evidenceFingerprint: Sha256;
   readonly sourceFingerprint: Sha256;
+  readonly sourceEndpointFingerprint: Sha256;
   readonly evaluatedAt: IsoInstant | null;
   /** Exclusive conservative boundary; null means no freshness window was established. */
   readonly validUntil: IsoInstant | null;

@@ -60,7 +60,12 @@ const entries: readonly CapabilityEvidenceEntry[] = [
 ];
 
 // Heavy validation, CRS/PROJJSON checks, normalization, and static hashing run once.
-const evidenceProfile = createCapabilityEvidenceProfile(entries);
+const sourceEndpoint = {
+  endpoint: "https://example.test/ogc/features/collections/parcels",
+  protocol: "ogc-features",
+  sourceId: "parcels",
+} as const;
+const evidenceProfile = createCapabilityEvidenceProfile(entries, { sourceEndpoint });
 
 // Repeat evaluation is synchronous and does not revalidate static CRS definitions.
 const profile = evaluateCapabilityProfile(evidenceProfile, {
@@ -84,12 +89,19 @@ Arrays nested inside caller extension JSON are order-bearing and are preserved.
 the complete resolved-CRS and pinned official PROJJSON v0.7 boundary during
 evidence-profile creation.
 
-The evidence fingerprint uses the `honua:capability-evidence:1.0` domain and
-covers the complete normalized static envelope, including observation windows
-and source identity. The evaluated fingerprint uses
-`honua:capabilities:1.0` and binds that evidence fingerprint to the normalized
-dynamic context, effective states, reasons, `evaluatedAt`, and `validUntil`;
-repeat evaluation therefore does not walk full static PROJJSON documents.
+The endpoint fingerprint uses the
+`honua:capability-source-endpoint:1.0` domain over a normalized HTTP(S)
+scheme/host/path plus protocol and optional source id. Endpoint query strings,
+fragments, URL user-info, credential-shaped path content, and credential-shaped
+source ids are rejected; only the digest is retained. The evidence fingerprint uses the
+`honua:capability-evidence:1.0` domain and binds that endpoint digest, the
+SourceSchemaV2 fingerprint, and semantic evidence. Observation and expiry
+instants remain in transport but are excluded from semantic identity. The
+evaluated `honua:capabilities:1.0` fingerprint binds the evidence/source
+coordinates to normalized dynamic context and effective state/reason codes;
+`evaluatedAt` and `validUntil` remain auditable transport state but do not churn
+identity while the effective decision is unchanged. Repeat evaluation does not
+walk full static PROJJSON documents.
 
 ## Cache and transport boundaries
 
@@ -99,6 +111,7 @@ expires and must be recomputed with current dynamic state after each cache read:
 ```ts doc-test=skip reason="cache and runtime context are application-owned"
 const cached = parseCapabilityEvidenceProfile(await evidenceCache.get(sourceId), {
   expectedSourceFingerprint: currentSourceSchema.fingerprint,
+  expectedSourceEndpoint: currentSourceEndpoint,
 });
 
 const current = evaluateCapabilityProfile(cached, {
@@ -112,21 +125,27 @@ const current = evaluateCapabilityProfile(cached, {
 
 Use `serializeCapabilityEvidenceProfile` and `parseCapabilityEvidenceProfile`
 for static evidence transport. Both require the exact kind/version/key set and
-recompute the content fingerprint. All evidence in one profile belongs to one
-SourceSchemaV2 identity. A sole evidence `sourceFingerprint` is promoted to the
-required envelope field; otherwise creation requires an explicit
-`sourceFingerprint`. Mixed fingerprints are rejected. Cached parsing accepts
-`expectedSourceFingerprint` and rejects stale evidence from a different current
-schema; use `verifyCapabilityEvidenceProfileSource` for the same check on an
-already parsed in-memory cache value.
+recompute the semantic fingerprint. All evidence in one profile belongs to one
+SourceSchemaV2 identity and one normalized endpoint identity. A sole evidence
+`sourceFingerprint` is promoted to the required envelope field; otherwise
+creation requires an explicit `sourceFingerprint`. Creation always requires
+credential-free `sourceEndpoint` coordinates and transports only their digest.
+Mixed schema fingerprints are rejected. Cached parsing accepts paired
+`expectedSourceFingerprint` and `expectedSourceEndpoint` values and rejects
+same-schema evidence replayed from another endpoint; supplying only one
+coordinate fails closed. Use `verifyCapabilityEvidenceProfileSource` with both
+coordinates for the same check on an already parsed in-memory cache value.
 
 Use `serializeCapabilityProfile` and `parseCapabilityProfile` for evaluated
 diagnostics or audit transport. Parsing reconstructs the static evidence
 profile and replays evaluation; a forged effective state, reason, fingerprint,
 context, or freshness boundary is rejected. This is internal consistency, not
-current-source authorization: pass `expectedSourceFingerprint` when parsing for
-current use. Fingerprints are content addresses, not signatures, so authenticate
-the surrounding channel when origin matters.
+current-source authorization: pass both expected source coordinates when
+parsing for current use. Semantic fingerprints intentionally exclude clock-only
+freshness state; fingerprints are content addresses, not signatures, so
+authenticate the surrounding channel when origin or timestamp authenticity
+matters. Parsing verifies that a supplied evaluation instant reproduces the
+transported decision; it does not attest who supplied that clock input.
 
 ## Sensitive caller data
 
@@ -134,8 +153,9 @@ Capability profiles are potentially sensitive. The SDK rejects common
 credential-bearing forms: raw/parameterized URL evidence references,
 authorization headers, JWTs/private keys, non-structural peer or scope values,
 and credential-named or credential-shaped extension metadata. Extension keys
-are checked recursively, including credential names used as terminal or
-interior segments of reverse-DNS keys such as `com.example.apiKey`. Evidence
+are tokenized recursively across camel-case and separator boundaries, including
+forms such as `authorizationHeader`, `access_token_value`,
+`privateKeyPem`, and reverse-DNS keys such as `com.example.apiKey`. Evidence
 references are bounded stable printable-ASCII identities; peers use npm package
 identity syntax; scopes use bounded colon/slash-delimited identifiers.
 

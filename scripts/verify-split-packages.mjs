@@ -366,7 +366,14 @@ const capabilityProfile = evaluateCapabilityProfile(
         ],
       },
     ],
-    { sourceFingerprint: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    {
+      sourceFingerprint: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      sourceEndpoint: {
+        endpoint: "https://example.test/ogc/features/collections/split-package-smoke",
+        protocol: "ogc-features",
+        sourceId: "split-package-smoke",
+      },
+    },
   ),
   { evaluatedAt: "2026-07-14T12:00:01Z" },
 );

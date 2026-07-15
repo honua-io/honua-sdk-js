@@ -44,7 +44,8 @@ export function serializeCapabilityProfile(profile: CapabilityProfile): string {
  * Parse and verify a transported evaluated profile by reconstructing its static
  * evidence profile and reproducing every dynamic decision from the retained
  * caller-controlled evaluation context. This verifies internal consistency;
- * pass expectedSourceFingerprint to also bind use to the current SourceSchemaV2.
+ * Pass both expected source verification coordinates to bind use to the
+ * current SourceSchemaV2 and credential-free endpoint identity.
  */
 export function parseCapabilityProfile(
   value: string | unknown,
@@ -57,6 +58,7 @@ export function parseCapabilityProfile(
     "fingerprint",
     "evidenceFingerprint",
     "sourceFingerprint",
+    "sourceEndpointFingerprint",
     "evaluatedAt",
     "validUntil",
     "context",
@@ -75,6 +77,10 @@ export function parseCapabilityProfile(
     throw new TypeError("Capability profile.sourceFingerprint is required");
   }
   validateSha256(record.sourceFingerprint, "Capability profile.sourceFingerprint");
+  if (!Object.hasOwn(record, "sourceEndpointFingerprint")) {
+    throw new TypeError("Capability profile.sourceEndpointFingerprint is required");
+  }
+  validateSha256(record.sourceEndpointFingerprint, "Capability profile.sourceEndpointFingerprint");
   validateNullableInstant(record.evaluatedAt, "Capability profile.evaluatedAt");
   validateNullableInstant(record.validUntil, "Capability profile.validUntil");
   assertPlainCapabilityObject(record.context, "Capability profile.context", [
@@ -91,6 +97,7 @@ export function parseCapabilityProfile(
     version: CAPABILITY_EVIDENCE_PROFILE_VERSION,
     fingerprint: record.evidenceFingerprint,
     sourceFingerprint: record.sourceFingerprint,
+    sourceEndpointFingerprint: record.sourceEndpointFingerprint,
     entries: staticEntries,
   };
   const evidenceProfile = parseCapabilityEvidenceProfile(evidenceEnvelope, options);

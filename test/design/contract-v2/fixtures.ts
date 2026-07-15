@@ -223,9 +223,12 @@ export const capabilities: CapabilityProfile = {
   fingerprint: "sha256:capabilities",
   evidenceFingerprint: "sha256:capability-evidence",
   sourceFingerprint: "sha256:schema-primary-spatial",
+  sourceEndpointFingerprint: "sha256:source-endpoint",
   evaluatedAt: "2026-07-14T12:00:00Z",
   validUntil: "2026-07-20T12:00:00Z",
   context: {
+    policy: { allow: ["query"], deny: [] },
+    environment: "browser",
     availablePeers: [],
     authorization: { grantedScopes: [], deniedScopes: [] },
   },
