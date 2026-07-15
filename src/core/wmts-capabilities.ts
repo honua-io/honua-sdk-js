@@ -8,7 +8,7 @@
  * @module
  */
 
-import { HonuaSdkError } from "./error-envelope.js";
+import { HonuaSdkError, withHonuaErrorClassification } from "./error-base.js";
 import { decodeXmlText as decodeXmlEntities } from "./xml-text.js";
 
 /**
@@ -75,7 +75,7 @@ export interface WmtsCapabilityTileMatrix {
 
 export class HonuaWmtsCapabilitiesParseError extends HonuaSdkError {
   public constructor(message: string) {
-    super("core.wmts-capabilities-parse", message);
+    super("core.wmts-capabilities-parse", message, withHonuaErrorClassification({}, "core", "protocol", false));
     this.name = "HonuaWmtsCapabilitiesParseError";
   }
 }

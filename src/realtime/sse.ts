@@ -1,4 +1,4 @@
-import { isHonuaSdkError } from "../core/error-envelope.js";
+import { isLocalHonuaSdkError } from "../core/error-base.js";
 import { HonuaRealtimeResumeError } from "./resumable.js";
 import type {
   RealtimeFeatureEvent,
@@ -180,7 +180,7 @@ function normalizeRealtimeErrorEvent<TFeature>(event: RealtimeFeatureEvent<TFeat
   // Only a locally constructed realtime error is already inside the boundary.
   if (event.type !== "error") return event;
   const code = event.terminal ? "invalid-event" : "transport-gap";
-  if (event.error instanceof HonuaRealtimeResumeError && isHonuaSdkError(event.error) && event.error.code === code)
+  if (event.error instanceof HonuaRealtimeResumeError && isLocalHonuaSdkError(event.error) && event.error.code === code)
     return event;
   return {
     ...event,
@@ -199,7 +199,7 @@ function realtimeFailure(
   message: string,
   cause: unknown,
 ): HonuaRealtimeResumeError {
-  return cause instanceof HonuaRealtimeResumeError && isHonuaSdkError(cause) && cause.code === code
+  return cause instanceof HonuaRealtimeResumeError && isLocalHonuaSdkError(cause) && cause.code === code
     ? cause
     : new HonuaRealtimeResumeError(code, message, { cause });
 }

@@ -28,7 +28,7 @@ Every migrated instance has these common fields:
 | `category` | Stable `authentication`, `cancellation`, `capability`, `internal`, `network`, `protocol`, `timeout`, or `validation` classification. |
 | `retryable` | Stable boolean for this exact `sdkCode`. This metadata describes the existing policy; it does not initiate retries. |
 | `operationId` / `requestId` | Optional sanitized correlation identifiers when the throwing boundary has them. |
-| `context` | Frozen, recursively sanitized structured context. |
+| `context` | Frozen sanitized context. Leaf adapters preserve bounded safe scalars and conservatively redact richer values; explicit structured boundaries use the recursive sanitizer. |
 | `cause` | Original cause, retained on the in-process instance for debugging. |
 
 Existing error-specific `.code` values remain compatible. For example,
@@ -102,6 +102,27 @@ the code/domain/category/retryability classifications needed by the error base;
 human-readable registry summaries remain in the explicit public registry.
 `npm run check:error-codes` verifies exact classification parity, registry shape,
 and this class/family documentation.
+
+### Tree-shaking and explicit costs
+
+Focused subpaths such as `@honua/sdk-js/realtime`, `offline`, `routing`,
+`geocoding`, and `auth` retain only the leaf error base plus classifications
+owned by the imported error classes. They do not retain the complete runtime
+classification table, descriptive registry, or full cross-realm serializer.
+The leaf boundary keeps safe scalar diagnostics, uses fixed `reasonCode`
+contexts for closed reason unions, and redacts richer values conservatively.
+
+Importing `serializeHonuaError` or the root `isHonuaError` guard explicitly
+retains the compact runtime classification table needed for cross-realm
+validation. Importing `HONUA_ERROR_CODE_REGISTRY` intentionally adds the
+human-readable descriptors. `sanitizeHonuaErrorContext` remains available for
+boundaries that need the complete bounded recursive sanitizer.
+
+The generated [tree-shaking evidence](./error-tree-shaking.md) records the six
+contractual gzip reductions and exact retained error modules. Regenerate it
+with `npm run report:bundle-sizes`; `npm run verify:bundle-budgets` rejects
+stale evidence, and `npm run verify:packed-sdk` repeats the public-import
+fixtures against the packed tarball.
 
 | Public class | Registered `sdkCode` family |
 |--------------|-----------------------------|

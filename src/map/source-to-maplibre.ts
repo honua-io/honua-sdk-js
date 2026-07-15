@@ -7,7 +7,12 @@
  */
 
 import type { Result, Source } from "../contract/types.js";
-import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorOptions,
+  HonuaSdkError,
+  mergeHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryFromCanonical, queryIrSourceIdentity } from "../query-planner/ir.js";
@@ -72,10 +77,16 @@ export class HonuaMapLibreSourceAdapterError extends HonuaSdkError {
     public readonly detail?: Readonly<Record<string, unknown>>,
     options: HonuaErrorOptions = {},
   ) {
-    super(MAPLIBRE_SOURCE_ADAPTER_CODES[code], message, {
-      ...options,
-      context: mergeHonuaErrorContext(detail, options.context),
-    });
+    super(
+      MAPLIBRE_SOURCE_ADAPTER_CODES[code],
+      message,
+      withHonuaErrorClassification(
+        { ...options, context: mergeHonuaErrorContext(detail, options.context) },
+        "map",
+        code === "unsupported-plan" ? "capability" : code === "map-mutation-failed" ? "internal" : "validation",
+        false,
+      ),
+    );
     this.name = "HonuaMapLibreSourceAdapterError";
   }
 }

@@ -29,7 +29,7 @@ export interface HonuaErrorCodeDescriptor {
  * Canonical public code registry. Object keys make duplicate codes a compile
  * error; the base constructor rejects codes absent from this registry.
  */
-export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
+export const HONUA_ERROR_CODE_REGISTRY = /* @__PURE__ */ Object.freeze({
   "core.http.transient": classification("core", "protocol", true, "Retryable HTTP response failure"),
   "core.http.rejected": classification("core", "protocol", false, "Non-retryable HTTP response failure"),
   "core.timeout": classification("core", "timeout", true, "Request deadline elapsed"),

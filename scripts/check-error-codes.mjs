@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { HONUA_ERROR_RUNTIME_CLASSIFICATIONS } from "../dist/src/core/error-classifications.js";
-import { HONUA_ERROR_CODE_REGISTRY } from "../dist/src/core/error-envelope.js";
+import { HONUA_ERROR_CODE_REGISTRY } from "../dist/src/core/error-code-registry.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DOC_PATH = path.join(ROOT, "docs/errors.md");

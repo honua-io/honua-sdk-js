@@ -14,7 +14,12 @@
 
 import type { QueryTileSourceDescriptor } from "../contract/tiles.js";
 import type { Query, Result, Source } from "../contract/types.js";
-import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorOptions,
+  HonuaSdkError,
+  mergeHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import type { FeatureStateMap, HoverHandle, MapEventTarget } from "../interactions/feature-state.js";
 import { createHoverHandler } from "../interactions/feature-state.js";
@@ -139,10 +144,20 @@ export class HonuaDataToMapBridgeError extends HonuaSdkError {
     public readonly detail?: Readonly<Record<string, unknown>>,
     options: HonuaErrorOptions = {},
   ) {
-    super(DATA_TO_MAP_ERROR_CODES[code], message, {
-      ...options,
-      context: mergeHonuaErrorContext(detail, options.context),
-    });
+    super(
+      DATA_TO_MAP_ERROR_CODES[code],
+      message,
+      withHonuaErrorClassification(
+        { ...options, context: mergeHonuaErrorContext(detail, options.context) },
+        "map",
+        code === "map-mutation-failed"
+          ? "internal"
+          : code === "interaction-unsupported" || code === "filter-unsupported"
+            ? "capability"
+            : "validation",
+        false,
+      ),
+    );
     this.name = "HonuaDataToMapBridgeError";
   }
 }

@@ -7,7 +7,12 @@
  */
 
 import type { Source } from "../contract/types.js";
-import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorOptions,
+  HonuaSdkError,
+  mergeHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryIrSourceIdentity } from "../query-planner/ir.js";
 import { hashQueryPlan } from "../query-planner/planner.js";
@@ -171,10 +176,22 @@ export class HonuaAutomaticMapLibreStrategyError extends HonuaSdkError {
     public readonly detail?: Readonly<Record<string, unknown>>,
     options: HonuaErrorOptions = {},
   ) {
-    super(AUTOMATIC_MAPLIBRE_ERROR_CODES[code], message, {
-      ...options,
-      context: mergeHonuaErrorContext(detail, options.context),
-    });
+    super(
+      AUTOMATIC_MAPLIBRE_ERROR_CODES[code],
+      message,
+      withHonuaErrorClassification(
+        { ...options, context: mergeHonuaErrorContext(detail, options.context) },
+        "map",
+        code === "no-eligible-strategy"
+          ? "capability"
+          : code === "map-mutation-failed"
+            ? "internal"
+            : code === "cancelled"
+              ? "cancellation"
+              : "validation",
+        false,
+      ),
+    );
     this.name = "HonuaAutomaticMapLibreStrategyError";
   }
 }

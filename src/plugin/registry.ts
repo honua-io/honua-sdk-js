@@ -1,4 +1,4 @@
-import { type HonuaErrorCode, HonuaSdkError } from "../core/error-envelope.js";
+import { type HonuaErrorCode, HonuaSdkError, withHonuaErrorReasonClassification } from "../core/error-base.js";
 import { certifyHonuaPluginManifest, validateHonuaPluginCertificationHost } from "./certification.js";
 import type {
   HonuaPluginDependency,
@@ -273,14 +273,34 @@ export class HonuaPluginRegistryError extends HonuaSdkError {
 
   constructor(code: string, options: { cause?: unknown; cleanupErrors?: readonly unknown[] } = {}) {
     const cause = options.cause;
-    super(pluginSdkCode(code), typeof code === "string" ? code : "PLUGIN_UNKNOWN", {
-      ...(cause === undefined ? {} : { cause }),
-      context: { reasonCode: pluginReasonCode(code) },
-    });
+    const sdkCode = pluginSdkCode(code);
+    super(
+      sdkCode,
+      typeof code === "string" ? code : "PLUGIN_UNKNOWN",
+      withHonuaErrorReasonClassification(
+        cause === undefined ? {} : { cause },
+        "plugin",
+        pluginErrorCategory(sdkCode),
+        false,
+        pluginReasonCode(code),
+      ),
+    );
     this.name = "HonuaPluginRegistryError";
     this.code = code;
     this.cleanupErrors = Object.freeze([...(options.cleanupErrors ?? [])]);
   }
+}
+
+function pluginErrorCategory(code: HonuaErrorCode) {
+  if (code === "plugin.registry.validation" || code === "plugin.execution.validation") return "validation" as const;
+  if (
+    code === "plugin.compatibility" ||
+    code === "plugin.execution.policy-denied" ||
+    code === "plugin.capability-unavailable"
+  )
+    return "capability" as const;
+  if (code === "plugin.cancelled") return "cancellation" as const;
+  return "internal" as const;
 }
 
 /** Instance-scoped registry. It never imports plugin entrypoints or mutates global state. */

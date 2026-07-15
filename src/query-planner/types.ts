@@ -8,7 +8,7 @@ import type {
   Source,
   SourceDescriptor,
 } from "../contract/types.js";
-import { type HonuaErrorOptions, HonuaSdkError } from "../core/error-envelope.js";
+import { type HonuaErrorOptions, HonuaSdkError, withHonuaErrorClassification } from "../core/error-base.js";
 import type { EsriGeometryType, EsriSpatialRel } from "../core/types.js";
 
 export const QUERY_IR_VERSION = "1.0" as const;
@@ -312,7 +312,16 @@ export class HonuaQueryPlanningError extends HonuaSdkError {
     message: string,
     options: HonuaErrorOptions = {},
   ) {
-    super(QUERY_PLANNING_CODES[code], message, options);
+    super(
+      `query.planning.${code}`,
+      message,
+      withHonuaErrorClassification(
+        options,
+        "query",
+        code === "invalid-query" || code === "unsafe-materialization" ? "validation" : "capability",
+        false,
+      ),
+    );
     this.name = "HonuaQueryPlanningError";
   }
 }
@@ -325,25 +334,23 @@ export class HonuaQueryPlanExecutionError extends HonuaSdkError {
     message: string,
     options: HonuaErrorOptions = {},
   ) {
-    super(QUERY_EXECUTION_CODES[code], message, options);
+    super(
+      `query.execution.${code}`,
+      message,
+      withHonuaErrorClassification(options, "query", queryExecutionErrorCategory(code), false),
+    );
     this.name = "HonuaQueryPlanExecutionError";
   }
 }
 
-const QUERY_PLANNING_CODES = {
-  "invalid-query": "query.planning.invalid-query",
-  "unsupported-compiler": "query.planning.unsupported-compiler",
-  "unsupported-query": "query.planning.unsupported-query",
-  "capability-not-supported": "query.planning.capability-not-supported",
-  "fallback-disabled": "query.planning.fallback-disabled",
-  "unsafe-materialization": "query.planning.unsafe-materialization",
-} as const satisfies Record<QueryPlanningErrorCode, `query.planning.${string}`>;
-
-const QUERY_EXECUTION_CODES = {
-  "invalid-plan": "query.execution.invalid-plan",
-  "plan-context-mismatch": "query.execution.plan-context-mismatch",
-  "unsafe-materialization": "query.execution.unsafe-materialization",
-} as const satisfies Record<QueryPlanExecutionErrorCode, `query.execution.${string}`>;
+function queryExecutionErrorCategory(code: string) {
+  // Closed union: the remaining `resource-*` reasons are unavailable/expired authorization failures.
+  return code === "resource-resolution-failed"
+    ? ("internal" as const)
+    : code[0] === "r"
+      ? ("authentication" as const)
+      : ("validation" as const);
+}
 
 export interface ExecuteQueryPlanOptions {
   readonly signal?: AbortSignal;
