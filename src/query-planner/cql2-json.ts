@@ -103,7 +103,7 @@ export function semanticFilterToCql2Json<
     { kind: "features", filter },
     {
       ...(context.schema ? { schema: context.schema } : {}),
-      ...(context.protocol ? { protocol: context.protocol } : {}),
+      ...(context.protocol !== undefined ? { protocol: context.protocol } : {}),
     },
   );
   if (!query.filter) throw cql2Invalid("$", "requires a filter");
@@ -127,7 +127,7 @@ export function semanticFilterFromCql2Json(
     { kind: "features", filter },
     {
       ...(context.schema ? { schema: context.schema } : {}),
-      ...(context.protocol ? { protocol: context.protocol } : {}),
+      ...(context.protocol !== undefined ? { protocol: context.protocol } : {}),
     },
   );
   if (!query.filter) throw cql2Invalid("$", "requires a filter");
@@ -475,7 +475,14 @@ function geometryLayout(geometry: JsonObject, path: string): "xy" | "xyz" {
     if (geometries.length < MIN_CQL2_GEOMETRY_COLLECTION_ITEMS) {
       throw cql2Invalid(`${path}.geometries`, "must contain at least two geometries in CQL2 JSON");
     }
-    return geometryLayout(object(geometries[0] as JsonValue, `${path}.geometries[0]`), `${path}.geometries[0]`);
+    const layouts = geometries.map((entry, index) =>
+      geometryLayout(object(entry as JsonValue, `${path}.geometries[${index}]`), `${path}.geometries[${index}]`),
+    );
+    const layout = layouts[0] as "xy" | "xyz";
+    if (layouts.some((candidate) => candidate !== layout)) {
+      throw cql2Invalid(`${path}.geometries`, "must use one coordinate layout throughout the collection");
+    }
+    return layout;
   }
   if (!["Point", "MultiPoint", "LineString", "MultiLineString", "Polygon", "MultiPolygon"].includes(type)) {
     throw cql2Unsupported(`${path}.type`, "uses an unsupported GeoJSON geometry type");
@@ -545,7 +552,7 @@ function cql2Context(options: Cql2JsonInterchangeOptions): Cql2Context {
   return {
     ...(schema ? { schema } : {}),
     ...(filterCrs ? { filterCrs } : {}),
-    ...(options.protocol ? { protocol: options.protocol } : {}),
+    ...(options.protocol !== undefined ? { protocol: options.protocol } : {}),
   };
 }
 

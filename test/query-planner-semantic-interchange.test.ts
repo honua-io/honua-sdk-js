@@ -220,6 +220,20 @@ describe("semantic canonical identity", () => {
     );
     expect(hashSemanticQuery(implicit, options)).toBe(hashSemanticQuery(explicit, options));
   });
+
+  it.each([
+    ["empty", ""],
+    ["null", null],
+    ["unknown", "not-a-protocol"],
+    ["non-string", 7],
+  ] as const)("rejects %s untyped protocol options before canonical bytes or hashing", (_name, protocol) => {
+    const query = { kind: "features" } as const;
+    const options = { protocol: protocol as never };
+
+    expect(() => serializeCanonicalSemanticQuery(query, options)).toThrow(/options\.protocol/);
+    expect(() => canonicalSemanticQueryBytes(query, options)).toThrow(/options\.protocol/);
+    expect(() => hashSemanticQuery(query, options)).toThrow(/options\.protocol/);
+  });
 });
 
 describe("CQL2 JSON semantic interchange", () => {
@@ -355,6 +369,54 @@ describe("CQL2 JSON semantic interchange", () => {
     const encoded = semanticFilterToCql2Json(spatial([...twoMembers.geometries]), options);
     expect(encoded).toEqual({ op: "s_intersects", args: [{ property: "shape" }, twoMembers] });
     expect(semanticFilterToCql2Json(semanticFilterFromCql2Json(encoded, options), options)).toEqual(encoded);
+  });
+
+  it("validates every later and deeply nested GeometryCollection during CQL2 import", () => {
+    const options = { schema: schema(), protocol: "ogc-features" as const, filterCrs: crs84 };
+    const cql2 = (geometry: unknown) => ({
+      op: "s_intersects",
+      args: [{ property: "shape" }, geometry],
+    });
+    const invalidSecondMember = {
+      type: "GeometryCollection",
+      geometries: [point.geometry, { type: "GeometryCollection", geometries: [point.geometry] }],
+    };
+    expect(() => semanticFilterFromCql2Json(cql2(invalidSecondMember), options)).toThrow(
+      /geometries\[1\]\.geometries.*at least two/,
+    );
+
+    const invalidDeeperMember = {
+      type: "GeometryCollection",
+      geometries: [
+        point.geometry,
+        {
+          type: "GeometryCollection",
+          geometries: [point.geometry, { type: "GeometryCollection", geometries: [point.geometry] }],
+        },
+      ],
+    };
+    expect(() => semanticFilterFromCql2Json(cql2(invalidDeeperMember), options)).toThrow(
+      /geometries\[1\]\.geometries\[1\]\.geometries.*at least two/,
+    );
+  });
+
+  it.each([
+    ["empty", ""],
+    ["null", null],
+    ["unknown", "not-a-protocol"],
+    ["non-string", 7],
+  ] as const)("rejects %s untyped protocol options on CQL2 import and export", (_name, protocol) => {
+    const options = { protocol: protocol as never };
+    const filter = {
+      kind: "comparison",
+      operator: "eq",
+      left: { kind: "property", name: "status" },
+      right: { kind: "literal", value: "active" },
+    } as const;
+    const cql2 = { op: "=", args: [{ property: "status" }, "active"] };
+
+    expect(() => semanticFilterToCql2Json(filter, options)).toThrow(/options\.protocol/);
+    expect(() => semanticFilterFromCql2Json(cql2, options)).toThrow(/options\.protocol/);
   });
 
   it("fails closed for ambiguous, unsupported, and malformed CQL2 JSON", () => {

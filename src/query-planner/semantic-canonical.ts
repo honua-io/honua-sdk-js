@@ -20,7 +20,7 @@ export function serializeCanonicalSemanticQuery(value: unknown, options: Canonic
   const schema = verifiedSchema(options.schema);
   const query = parseSemanticQuery(value, {
     ...(schema ? { schema } : {}),
-    ...(options.protocol ? { protocol: options.protocol } : {}),
+    ...(options.protocol !== undefined ? { protocol: options.protocol } : {}),
   });
   const identity = {
     schemaFingerprint: schema?.fingerprint ?? null,
