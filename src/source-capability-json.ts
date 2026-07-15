@@ -65,11 +65,12 @@ function snapshotValue(
     for (const key of Reflect.ownKeys(value)) {
       if (typeof key !== "string") throw new TypeError(`${path} must not contain symbol keys`);
       assertUnicodeScalarString(key, `${path} object key`);
-      consumeText(key, `${path}.${key}`, limits, budget);
+      const memberPath = `${path} object member`;
+      consumeText(key, `${path} object key`, limits, budget);
       const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
-      assertEnumerableDataProperty(descriptor, `${path}.${key}`);
+      assertEnumerableDataProperty(descriptor, memberPath);
       Object.defineProperty(snapshot, key, {
-        value: snapshotValue(descriptor.value, `${path}.${key}`, limits, budget, ancestors, depth + 1),
+        value: snapshotValue(descriptor.value, memberPath, limits, budget, ancestors, depth + 1),
         enumerable: true,
         writable: true,
         configurable: true,
@@ -98,7 +99,7 @@ function snapshotArray(
   for (const key of Reflect.ownKeys(value)) {
     if (key === "length") continue;
     if (typeof key !== "string" || !isArrayIndex(key, length)) {
-      throw new TypeError(`${path} contains unsupported array property ${String(key)}`);
+      throw new TypeError(`${path} contains an unsupported array property`);
     }
   }
   const snapshot: unknown[] = [];
@@ -168,8 +169,12 @@ export function assertPlainCapabilityObject(value: unknown, path: string, allowe
 }
 
 export function assertExactCapabilityKeys(value: object, path: string, allowedKeys: readonly string[]): void {
+  let unknownCount = 0;
   for (const key of Object.keys(value)) {
-    if (!allowedKeys.includes(key)) throw new TypeError(`${path} contains unknown key ${key}`);
+    if (!allowedKeys.includes(key)) unknownCount++;
+  }
+  if (unknownCount > 0) {
+    throw new TypeError(`${path} contains ${unknownCount} unknown ${unknownCount === 1 ? "key" : "keys"}`);
   }
 }
 
@@ -201,7 +206,12 @@ export function capabilityInstantNanoseconds(value: IsoInstant): bigint {
 }
 
 export function compareCapabilityStrings(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
+  return compareCapabilityCanonicalJson(JSON.stringify(left), JSON.stringify(right));
+}
+
+/** Lexicographic UTF-8 byte order of two complete RFC 8785 JSON encodings. */
+export function compareCapabilityCanonicalJson(left: string, right: string): number {
+  return compareUtf8(left, right);
 }
 
 export function deepFreezeCapability<T>(value: T): T {
@@ -214,6 +224,17 @@ export function deepFreezeCapability<T>(value: T): T {
 
 export function utf8ByteLength(value: string): number {
   return new TextEncoder().encode(value).byteLength;
+}
+
+function compareUtf8(left: string, right: string): number {
+  const leftBytes = new TextEncoder().encode(left);
+  const rightBytes = new TextEncoder().encode(right);
+  const length = Math.min(leftBytes.length, rightBytes.length);
+  for (let index = 0; index < length; index++) {
+    const difference = leftBytes[index]! - rightBytes[index]!;
+    if (difference !== 0) return difference;
+  }
+  return leftBytes.length - rightBytes.length;
 }
 
 /** Reject duplicate object names before JSON.parse's last-name-wins result is trusted. */
@@ -249,7 +270,7 @@ function assertUniqueJsonObjectNames(source: string, label: string, maximumDepth
       }
       while (index < source.length) {
         const name = stringToken();
-        if (names.has(name)) throw new TypeError(`${label} JSON contains duplicate object name ${name}`);
+        if (names.has(name)) throw new TypeError(`${label} JSON contains a duplicate object name`);
         names.add(name);
         whitespace();
         index++;

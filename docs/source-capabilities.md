@@ -40,7 +40,7 @@ const entries: readonly CapabilityEvidenceEntry[] = [
         kind: "protocol-default",
         truth: "supported",
         reference: "ogc-api-features:core",
-        sourceFingerprint: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        sourceFingerprint: "sha256:a2c9cb525692cf2e224b088147f1b23ae99bce3c974ba023ab4898f28bc79aa8",
       },
       {
         kind: "conformance",
@@ -48,7 +48,7 @@ const entries: readonly CapabilityEvidenceEntry[] = [
         reference: "ogcapi-features:conf/core",
         observedAt: "2026-07-13T12:00:00Z",
         expiresAt: "2026-07-20T12:00:00Z",
-        sourceFingerprint: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        sourceFingerprint: "sha256:a2c9cb525692cf2e224b088147f1b23ae99bce3c974ba023ab4898f28bc79aa8",
       },
     ],
     authorizationScopes: ["dataset:parcels:read"],
@@ -75,16 +75,21 @@ profile.validUntil;            // "2026-07-20T12:00:00Z"
 ```
 
 `entries` and nested set-like values are sorted, deduplicated, cloned, and
-deeply frozen. Omitted constraint sets mean unknown or unbounded; explicit
-empty arrays mean observed none and remain present. `supportedCrs` is capped at
-64 definitions per capability and validated through the complete resolved-CRS
-and pinned official PROJJSON v0.7 boundary during evidence-profile creation.
+deeply frozen. Their normative order is the lexicographic unsigned-byte order
+of each element's UTF-8 RFC 8785 canonical JSON, never locale order or
+JavaScript's UTF-16 default `.sort()`. Omitted constraint sets mean unknown or
+unbounded; explicit empty arrays mean observed none and remain present.
+Arrays nested inside caller extension JSON are order-bearing and are preserved.
+`supportedCrs` is capped at 64 definitions per capability and validated through
+the complete resolved-CRS and pinned official PROJJSON v0.7 boundary during
+evidence-profile creation.
 
-The evidence fingerprint covers the complete normalized static envelope,
-including observation windows and source identity. The evaluated fingerprint
-binds that evidence fingerprint to the normalized dynamic context, effective
-states, reasons, `evaluatedAt`, and `validUntil`; repeat evaluation therefore
-does not walk full static PROJJSON documents.
+The evidence fingerprint uses the `honua:capability-evidence:1.0` domain and
+covers the complete normalized static envelope, including observation windows
+and source identity. The evaluated fingerprint uses
+`honua:capabilities:1.0` and binds that evidence fingerprint to the normalized
+dynamic context, effective states, reasons, `evaluatedAt`, and `validUntil`;
+repeat evaluation therefore does not walk full static PROJJSON documents.
 
 ## Cache and transport boundaries
 
@@ -128,7 +133,9 @@ the surrounding channel when origin matters.
 Capability profiles are potentially sensitive. The SDK rejects common
 credential-bearing forms: raw/parameterized URL evidence references,
 authorization headers, JWTs/private keys, non-structural peer or scope values,
-and credential-named or credential-shaped extension metadata. Evidence
+and credential-named or credential-shaped extension metadata. Extension keys
+are checked recursively, including credential names used as terminal or
+interior segments of reverse-DNS keys such as `com.example.apiKey`. Evidence
 references are bounded stable printable-ASCII identities; peers use npm package
 identity syntax; scopes use bounded colon/slash-delimited identifiers.
 
