@@ -7,447 +7,18 @@
  * context, never messages, stacks, response bodies, or cause payloads.
  */
 
+import { HONUA_ERROR_RUNTIME_CLASSIFICATIONS, type HonuaErrorRuntimeClassification } from "./error-classifications.js";
+import type { HonuaErrorCategory, HonuaErrorCode, HonuaErrorDomain } from "./error-code-registry.js";
+
+export { HONUA_ERROR_CODE_REGISTRY } from "./error-code-registry.js";
+export type {
+  HonuaErrorCategory,
+  HonuaErrorCode,
+  HonuaErrorCodeDescriptor,
+  HonuaErrorDomain,
+} from "./error-code-registry.js";
+
 export const HONUA_ERROR_KIND = "honua.sdk.error.v1" as const;
-
-export type HonuaErrorDomain = "core" | "discovery" | "query" | "map" | "runtime" | "realtime" | "offline" | "plugin";
-
-export type HonuaErrorCategory =
-  | "authentication"
-  | "cancellation"
-  | "capability"
-  | "internal"
-  | "network"
-  | "protocol"
-  | "timeout"
-  | "validation";
-
-export interface HonuaErrorCodeDescriptor {
-  readonly domain: HonuaErrorDomain;
-  readonly category: HonuaErrorCategory;
-  readonly retryable: boolean;
-  readonly summary: string;
-}
-
-/**
- * Canonical public code registry. Object keys make duplicate codes a compile
- * error; the base constructor rejects codes absent from this registry.
- */
-export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
-  "core.http.transient": classification("core", "protocol", true, "Retryable HTTP response failure"),
-  "core.http.rejected": classification("core", "protocol", false, "Non-retryable HTTP response failure"),
-  "core.timeout": classification("core", "timeout", true, "Request deadline elapsed"),
-  "core.network": classification("core", "network", true, "Network transport failure"),
-  "core.cancelled": classification("core", "cancellation", false, "Caller cancelled the operation"),
-  "core.grpc.transient": classification("core", "protocol", true, "Retryable gRPC-Web transport failure"),
-  "core.grpc.rejected": classification("core", "protocol", false, "Non-retryable gRPC-Web transport failure"),
-  "core.geometry.unknown-geometry": classification(
-    "core",
-    "validation",
-    false,
-    "Geometry shape cannot be classified safely",
-  ),
-  "core.geometry.malformed-geometry": classification(
-    "core",
-    "validation",
-    false,
-    "Recognized geometry has invalid coordinates or structure",
-  ),
-  "core.auth.interaction-required": classification(
-    "core",
-    "authentication",
-    false,
-    "Interactive authentication is required",
-  ),
-  "core.auth.refresh-failed": classification("core", "authentication", true, "Credential refresh failed transiently"),
-  "core.auth.invalid-grant": classification(
-    "core",
-    "authentication",
-    false,
-    "Authorization grant is invalid or expired",
-  ),
-  "core.capability-not-supported": classification(
-    "core",
-    "capability",
-    false,
-    "Requested source capability is unavailable",
-  ),
-  "core.exploration-context": classification("core", "validation", false, "Exploration context operation is invalid"),
-  "core.wfs-exception": classification("core", "protocol", false, "WFS exception report"),
-  "core.job-failed": classification("core", "protocol", false, "Remote job reached a failed terminal state"),
-  "core.wms-capabilities-parse": classification("core", "protocol", false, "WMS capabilities document is invalid"),
-  "core.wmts-capabilities-parse": classification("core", "protocol", false, "WMTS capabilities document is invalid"),
-  "discovery.ambiguous-protocol": classification(
-    "discovery",
-    "validation",
-    false,
-    "Multiple protocols match the endpoint",
-  ),
-  "discovery.ambiguous-source": classification(
-    "discovery",
-    "validation",
-    false,
-    "Multiple sources match the selection",
-  ),
-  "discovery.invalid-endpoint": classification("discovery", "validation", false, "Discovery endpoint is invalid"),
-  "discovery.invalid-cache-identity": classification(
-    "discovery",
-    "validation",
-    false,
-    "Discovery cache identity is invalid",
-  ),
-  "discovery.invalid-discovery-cache": classification(
-    "discovery",
-    "validation",
-    false,
-    "Discovery cache entry is invalid",
-  ),
-  "discovery.invalid-capability": classification(
-    "discovery",
-    "validation",
-    false,
-    "Discovered capability evidence is invalid",
-  ),
-  "discovery.unsupported-protocol": classification(
-    "discovery",
-    "capability",
-    false,
-    "Endpoint protocol is unsupported",
-  ),
-  "discovery.protocol-mismatch": classification(
-    "discovery",
-    "validation",
-    false,
-    "Endpoint protocol conflicts with its hint",
-  ),
-  "query.planning.invalid-query": classification("query", "validation", false, "Query is invalid"),
-  "query.planning.unsupported-compiler": classification(
-    "query",
-    "capability",
-    false,
-    "No compiler supports the source protocol",
-  ),
-  "query.planning.unsupported-query": classification(
-    "query",
-    "capability",
-    false,
-    "Query cannot be represented by the compiler",
-  ),
-  "query.planning.capability-not-supported": classification(
-    "query",
-    "capability",
-    false,
-    "Query requires an unavailable capability",
-  ),
-  "query.planning.fallback-disabled": classification(
-    "query",
-    "capability",
-    false,
-    "Required local fallback is disabled",
-  ),
-  "query.planning.unsafe-materialization": classification(
-    "query",
-    "validation",
-    false,
-    "Planned local materialization exceeds its safety bound",
-  ),
-  "query.execution.invalid-plan": classification("query", "validation", false, "Query plan is invalid"),
-  "query.execution.plan-context-mismatch": classification(
-    "query",
-    "validation",
-    false,
-    "Execution context does not match the accepted query plan",
-  ),
-  "query.execution.unsafe-materialization": classification(
-    "query",
-    "validation",
-    false,
-    "Query execution exceeded its materialization bound",
-  ),
-  "map.source-adapter.disposed": classification("map", "validation", false, "Map source adapter is disposed"),
-  "map.source-adapter.source-conflict": classification(
-    "map",
-    "validation",
-    false,
-    "Map source identifier already exists",
-  ),
-  "map.source-adapter.layer-conflict": classification(
-    "map",
-    "validation",
-    false,
-    "Map layer identifier already exists",
-  ),
-  "map.source-adapter.unsupported-plan": classification(
-    "map",
-    "capability",
-    false,
-    "Query plan cannot be rendered by the source adapter",
-  ),
-  "map.source-adapter.invalid-option": classification(
-    "map",
-    "validation",
-    false,
-    "Map source adapter option is invalid",
-  ),
-  "map.source-adapter.map-mutation-failed": classification("map", "internal", false, "Renderer mutation failed"),
-  "map.data-bridge.invalid-option": classification("map", "validation", false, "Data-to-map option is invalid"),
-  "map.data-bridge.disposed": classification("map", "validation", false, "Data-to-map bridge is disposed"),
-  "map.data-bridge.source-conflict": classification(
-    "map",
-    "validation",
-    false,
-    "Data-to-map source identifier already exists",
-  ),
-  "map.data-bridge.layer-conflict": classification(
-    "map",
-    "validation",
-    false,
-    "Data-to-map layer identifier already exists",
-  ),
-  "map.data-bridge.map-mutation-failed": classification(
-    "map",
-    "internal",
-    false,
-    "Data-to-map renderer mutation failed",
-  ),
-  "map.data-bridge.interaction-unsupported": classification(
-    "map",
-    "capability",
-    false,
-    "Renderer interaction is unsupported",
-  ),
-  "map.data-bridge.filter-unsupported": classification(
-    "map",
-    "capability",
-    false,
-    "Renderer filter mutation is unsupported",
-  ),
-  "map.automatic-strategy.no-eligible-strategy": classification(
-    "map",
-    "capability",
-    false,
-    "No exact map source strategy is eligible",
-  ),
-  "map.automatic-strategy.stale-plan": classification("map", "validation", false, "Map strategy plan is stale"),
-  "map.automatic-strategy.source-conflict": classification(
-    "map",
-    "validation",
-    false,
-    "Automatic strategy source identifier already exists",
-  ),
-  "map.automatic-strategy.layer-conflict": classification(
-    "map",
-    "validation",
-    false,
-    "Automatic strategy layer identifier already exists",
-  ),
-  "map.automatic-strategy.map-mutation-failed": classification(
-    "map",
-    "internal",
-    false,
-    "Automatic strategy renderer mutation failed",
-  ),
-  "map.automatic-strategy.cancelled": classification(
-    "map",
-    "cancellation",
-    false,
-    "Automatic map strategy was cancelled",
-  ),
-  "map.automatic-strategy.disposed": classification("map", "validation", false, "Automatic map strategy is disposed"),
-  "map.raster-strategy.unsupported-strategy": classification(
-    "map",
-    "capability",
-    false,
-    "Raster strategy is unsupported",
-  ),
-  "map.raster-strategy.capability-mismatch": classification(
-    "map",
-    "capability",
-    false,
-    "Raster source lacks a required capability",
-  ),
-  "map.raster-strategy.missing-metadata": classification(
-    "map",
-    "validation",
-    false,
-    "Raster source metadata is incomplete",
-  ),
-  "map.raster-strategy.invalid-option": classification("map", "validation", false, "Raster option is invalid"),
-  "map.raster-strategy.source-conflict": classification(
-    "map",
-    "validation",
-    false,
-    "Raster source identifier already exists",
-  ),
-  "map.raster-strategy.layer-conflict": classification(
-    "map",
-    "validation",
-    false,
-    "Raster layer identifier already exists",
-  ),
-  "map.raster-strategy.map-mutation-failed": classification(
-    "map",
-    "internal",
-    false,
-    "Raster renderer mutation failed",
-  ),
-  "map.automatic-integration.disposed": classification(
-    "map",
-    "validation",
-    false,
-    "Automatic map integration is disposed",
-  ),
-  "map.automatic-integration.invalid-target": classification(
-    "map",
-    "validation",
-    false,
-    "Automatic map integration target is invalid",
-  ),
-  "map.temporal-playback.invalid-option": classification(
-    "map",
-    "validation",
-    false,
-    "Temporal playback option is invalid",
-  ),
-  "runtime.map-package.fetch": classification("runtime", "network", true, "Map package fetch failed"),
-  "runtime.map-package.load": classification("runtime", "internal", false, "Map package load failed"),
-  "runtime.map-package.validate": classification("runtime", "validation", false, "Map package validation failed"),
-  "runtime.map-package.update": classification("runtime", "internal", false, "Map package update failed"),
-  "runtime.map-package.style-compose": classification(
-    "runtime",
-    "validation",
-    false,
-    "Map package style composition failed",
-  ),
-  "runtime.map-package.source-bind": classification("runtime", "internal", false, "Map package source binding failed"),
-  "runtime.map-package.view": classification("runtime", "internal", false, "Renderer view mutation failed"),
-  "runtime.map-package.popup": classification("runtime", "validation", false, "Popup binding failed"),
-  "runtime.map-package.dispose": classification("runtime", "internal", true, "Runtime disposal failed"),
-  "runtime.diagnostic": classification("runtime", "validation", false, "Runtime validation diagnostic"),
-  "runtime.query-tiles.transient": classification("runtime", "protocol", true, "Retryable query-tile response failure"),
-  "runtime.query-tiles.rejected": classification(
-    "runtime",
-    "protocol",
-    false,
-    "Non-retryable query-tile response failure",
-  ),
-  "realtime.cancelled": classification("realtime", "cancellation", false, "Realtime operation was cancelled"),
-  "realtime.transport.reconnectable": classification(
-    "realtime",
-    "network",
-    true,
-    "Realtime transport can reconnect or resnapshot",
-  ),
-  "realtime.checkpoint.invalid": classification(
-    "realtime",
-    "validation",
-    false,
-    "Realtime checkpoint or resume context is invalid",
-  ),
-  "realtime.sequence.gap": classification(
-    "realtime",
-    "protocol",
-    true,
-    "Realtime ordering requires a replacement snapshot",
-  ),
-  "realtime.protocol.terminal": classification(
-    "realtime",
-    "protocol",
-    false,
-    "Realtime delivery reached a terminal failure",
-  ),
-  "offline.region.validation": classification(
-    "offline",
-    "validation",
-    false,
-    "Offline region input or lifecycle state is invalid",
-  ),
-  "offline.region.quota": classification(
-    "offline",
-    "validation",
-    false,
-    "Offline region exceeds a logical storage quota",
-  ),
-  "offline.region.integrity": classification(
-    "offline",
-    "protocol",
-    false,
-    "Offline resource integrity verification failed",
-  ),
-  "offline.cancelled": classification("offline", "cancellation", false, "Offline operation was cancelled"),
-  "offline.transport.failure": classification(
-    "offline",
-    "network",
-    false,
-    "Offline resource or replica transport failed without a transient classification",
-  ),
-  "offline.transport.transient": classification(
-    "offline",
-    "network",
-    true,
-    "Offline resource or replica transport failed transiently",
-  ),
-  "offline.storage.concurrent": classification(
-    "offline",
-    "internal",
-    true,
-    "Offline storage inventory changed before commit",
-  ),
-  "offline.storage.failure": classification("offline", "internal", false, "Offline storage operation failed"),
-  "offline.replica-sync.capability": classification(
-    "offline",
-    "capability",
-    false,
-    "Replica synchronization capability is unavailable",
-  ),
-  "offline.replica-sync.validation": classification(
-    "offline",
-    "validation",
-    false,
-    "Replica synchronization request or state is invalid",
-  ),
-  "offline.replica-sync.permission-denied": classification(
-    "offline",
-    "authentication",
-    false,
-    "Replica synchronization permission was denied",
-  ),
-  "plugin.registry.validation": classification(
-    "plugin",
-    "validation",
-    false,
-    "Plugin registry input or lifecycle state is invalid",
-  ),
-  "plugin.compatibility": classification(
-    "plugin",
-    "capability",
-    false,
-    "Plugin declaration is incompatible with the host or its dependencies",
-  ),
-  "plugin.execution.policy-denied": classification(
-    "plugin",
-    "capability",
-    false,
-    "Plugin execution was denied by host policy",
-  ),
-  "plugin.capability-unavailable": classification(
-    "plugin",
-    "capability",
-    false,
-    "Plugin execution requires an unavailable capability or dependency",
-  ),
-  "plugin.lifecycle.activation": classification(
-    "plugin",
-    "internal",
-    false,
-    "Plugin activation or registration failed",
-  ),
-  "plugin.execution.validation": classification("plugin", "validation", false, "Plugin execution input is invalid"),
-  "plugin.lifecycle.cleanup": classification("plugin", "internal", false, "Plugin lifecycle cleanup failed"),
-  "plugin.cancelled": classification("plugin", "cancellation", false, "Plugin registration was cancelled"),
-  "plugin.internal": classification("plugin", "internal", false, "Plugin registry internal failure"),
-} as const satisfies Record<string, HonuaErrorCodeDescriptor>);
-
-export type HonuaErrorCode = keyof typeof HONUA_ERROR_CODE_REGISTRY;
 
 export type HonuaErrorEnvelopeContextValue =
   | null
@@ -501,13 +72,13 @@ export abstract class HonuaSdkError extends Error {
   public readonly context: HonuaErrorEnvelopeContext;
 
   protected constructor(code: HonuaErrorCode, message: string, options: HonuaErrorOptions = {}) {
-    const descriptor = errorCodeDescriptor(code);
+    const [domain, category, retryable] = errorCodeClassification(code);
     super(message, "cause" in options ? { cause: options.cause } : undefined);
     this.name = "HonuaSdkError";
-    this.domain = descriptor.domain;
+    this.domain = domain;
     this.sdkCode = code;
-    this.category = descriptor.category;
-    this.retryable = descriptor.retryable;
+    this.category = category;
+    this.retryable = retryable;
     this.operationId = sanitizeIdentifier(options.operationId);
     this.requestId = sanitizeIdentifier(options.requestId);
     this.context = sanitizeHonuaErrorContext(options.context);
@@ -526,13 +97,13 @@ export function isHonuaSdkError(error: unknown): error is HonuaSdkError {
     const kind = ownDataProperty(error, "kind");
     const sdkCode = ownDataProperty(error, "sdkCode");
     if (kind !== HONUA_ERROR_KIND || typeof sdkCode !== "string" || !isHonuaErrorCode(sdkCode)) return false;
-    const descriptor = HONUA_ERROR_CODE_REGISTRY[sdkCode];
+    const [domain, category, retryable] = HONUA_ERROR_RUNTIME_CLASSIFICATIONS[sdkCode];
     const context = ownDataProperty(error, "context");
     const name = ownDataProperty(error, "name");
     return (
-      ownDataProperty(error, "domain") === descriptor.domain &&
-      ownDataProperty(error, "retryable") === descriptor.retryable &&
-      ownDataProperty(error, "category") === descriptor.category &&
+      ownDataProperty(error, "domain") === domain &&
+      ownDataProperty(error, "retryable") === retryable &&
+      ownDataProperty(error, "category") === category &&
       typeof name === "string" &&
       isRecord(context) &&
       !Array.isArray(context)
@@ -548,7 +119,7 @@ export function serializeHonuaError(error: HonuaSdkError): SerializedHonuaError 
   if (typeof sdkCode !== "string" || !isHonuaErrorCode(sdkCode)) {
     throw new TypeError("Cannot serialize an SDK error with an unregistered code");
   }
-  const descriptor = HONUA_ERROR_CODE_REGISTRY[sdkCode];
+  const [domain, category, retryable] = HONUA_ERROR_RUNTIME_CLASSIFICATIONS[sdkCode];
   const cause = serializeCause(ownDataProperty(error, "cause"));
   const operationId = sanitizeIdentifier(asOptionalString(ownDataProperty(error, "operationId")));
   const requestId = sanitizeIdentifier(asOptionalString(ownDataProperty(error, "requestId")));
@@ -556,10 +127,10 @@ export function serializeHonuaError(error: HonuaSdkError): SerializedHonuaError 
   return {
     kind: HONUA_ERROR_KIND,
     name: sanitizeErrorName(ownDataProperty(error, "name")),
-    domain: descriptor.domain,
+    domain,
     code: sdkCode,
-    category: descriptor.category,
-    retryable: descriptor.retryable,
+    category,
+    retryable,
     ...(operationId ? { operationId } : {}),
     ...(requestId ? { requestId } : {}),
     context: isRecord(context) && !Array.isArray(context) ? sanitizeHonuaErrorContext(context) : emptyContext(),
@@ -601,7 +172,7 @@ export function mergeHonuaErrorContext(
 }
 
 export function isHonuaErrorCode(code: string): code is HonuaErrorCode {
-  return Object.hasOwn(HONUA_ERROR_CODE_REGISTRY, code);
+  return Object.hasOwn(HONUA_ERROR_RUNTIME_CLASSIFICATIONS, code);
 }
 
 /** @internal True only for a valid tagged retryable network or timeout classification. */
@@ -610,25 +181,16 @@ export function isRetryableNetworkOrTimeoutHonuaError(error: unknown): boolean {
     if (!isHonuaSdkError(error)) return false;
     const sdkCode = ownDataProperty(error, "sdkCode");
     if (typeof sdkCode !== "string" || !isHonuaErrorCode(sdkCode)) return false;
-    const descriptor = HONUA_ERROR_CODE_REGISTRY[sdkCode];
-    return descriptor.retryable && (descriptor.category === "network" || descriptor.category === "timeout");
+    const [, category, retryable] = HONUA_ERROR_RUNTIME_CLASSIFICATIONS[sdkCode];
+    return retryable && (category === "network" || category === "timeout");
   } catch {
     return false;
   }
 }
 
-function classification(
-  domain: HonuaErrorDomain,
-  category: HonuaErrorCategory,
-  retryable: boolean,
-  summary: string,
-): HonuaErrorCodeDescriptor {
-  return Object.freeze({ domain, category, retryable, summary });
-}
-
-function errorCodeDescriptor(code: string): HonuaErrorCodeDescriptor {
+function errorCodeClassification(code: string): HonuaErrorRuntimeClassification {
   if (!isHonuaErrorCode(code)) throw new TypeError(`Unregistered Honua SDK error code: ${code}`);
-  return HONUA_ERROR_CODE_REGISTRY[code];
+  return HONUA_ERROR_RUNTIME_CLASSIFICATIONS[code];
 }
 
 const REDACTED = "[REDACTED]";
@@ -743,13 +305,13 @@ function serializeCause(cause: unknown): SerializedHonuaErrorCause | undefined {
     if (isHonuaSdkError(cause)) {
       const sdkCode = ownDataProperty(cause, "sdkCode");
       if (typeof sdkCode !== "string" || !isHonuaErrorCode(sdkCode)) return { name: "Error" };
-      const descriptor = HONUA_ERROR_CODE_REGISTRY[sdkCode];
+      const [domain, category, retryable] = HONUA_ERROR_RUNTIME_CLASSIFICATIONS[sdkCode];
       return {
         name: sanitizeErrorName(ownDataProperty(cause, "name")),
-        domain: descriptor.domain,
+        domain,
         code: sdkCode,
-        category: descriptor.category,
-        retryable: descriptor.retryable,
+        category,
+        retryable,
       };
     }
     if (cause instanceof Error) return { name: errorNameWithoutGetters(cause) };
