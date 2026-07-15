@@ -44,6 +44,16 @@ export {
   resolveGeoParquetResource,
 } from "./resource.js";
 export {
+  SEMANTIC_QUERY_CANONICAL_KIND,
+  SEMANTIC_QUERY_CANONICAL_VERSION,
+  SEMANTIC_QUERY_HASH_DOMAIN,
+  canonicalSemanticQueryBytes,
+  hashSemanticQuery,
+  serializeCanonicalSemanticQuery,
+} from "./semantic-canonical.js";
+export { legacyWhereToNativeFilter } from "./semantic-compat.js";
+export { semanticFilterFromCql2Json, semanticFilterToCql2Json } from "./cql2-json.js";
+export {
   MAX_SEMANTIC_QUERY_BYTES,
   MAX_SEMANTIC_QUERY_COLLECTION_ITEMS,
   MAX_SEMANTIC_QUERY_DEPTH,
@@ -59,6 +69,9 @@ export type { SemanticQueryBuilder } from "./semantic.js";
 export type {
   AggregateMetric,
   BuiltInNativeDialect,
+  CanonicalSemanticQueryOptions,
+  Cql2JsonExpression,
+  Cql2JsonInterchangeOptions,
   ComparisonNode,
   CountMetric,
   DistanceOperand,
@@ -72,6 +85,8 @@ export type {
   GeometryProjectionFor,
   GroupableFieldName,
   ListNode,
+  LegacyWhereDialectFor,
+  LegacyWhereProtocol,
   LiteralNode,
   NativeDialectFor,
   NativeFilter,

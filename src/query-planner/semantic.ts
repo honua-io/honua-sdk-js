@@ -122,6 +122,11 @@ interface BoundedJsonState {
   readonly ancestors: WeakSet<object>;
 }
 
+/** @internal Shared bounded JSON boundary for semantic interchange codecs. */
+export function parseBoundedSemanticJson(value: string | unknown): JsonValue {
+  return deepFreeze(parseBoundedJson(value));
+}
+
 /**
  * Parse untrusted JSON or an untyped JavaScript value into a deeply immutable
  * semantic query. Syntax, resource bounds, dialect payload shape, and (when
