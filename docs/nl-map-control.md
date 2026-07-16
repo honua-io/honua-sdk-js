@@ -143,9 +143,9 @@ const openAiTools = toNlMapControlOpenAiToolDefinitions();
 ```
 
 `proposeMapPlan` is a read tool (planning only); `executeMapPlan` is an
-action tool that requires opt-in and accepts a serialized plan plus an
-optional approval bundle — the same plan-only, envelope-gated contract as
-the in-app API. `@honua/mcp-server` hosts these definitions through
+action tool that requires opt-in and accepts a serialized plan plus the
+approval bundle indicated by the proposal's `approvalRequired` field.
+`@honua/mcp-server` hosts these definitions through
 `createNlMapControlMcpHost` and `createServer(client, { nlMapControl })`. The
 MCP boundary additionally requires an atomic approval-use consumer, matches
 transport authorization scopes to the exact signed source binding, verifies the
@@ -155,6 +155,13 @@ approvals are snapshotted as bounded JSON without invoking accessors before any
 asynchronous authorization callback. Its content-addressed execution receipt
 omits the raw instruction and tool result payloads while retaining the exact
 plan and SDK receipt digests.
+
+Unlike the in-app controller's default read-only auto-execution policy, the MCP
+host also requires an approval for a read-only step that names a `sourceId`
+(including `runWidgetQuery`). The signed source binding is the authority from
+which the host derives required transport scopes; without it, a protected-source
+read is refused before the runtime is called. Read-only map inspection that does
+not name a source can still use the controller's auto-execution policy.
 
 ## Errors
 

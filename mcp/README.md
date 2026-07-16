@@ -90,7 +90,8 @@ atomic approval-use store can opt into two additional tools:
 
 - `proposeMapPlan` — compiles an instruction into an inspectable, content-addressed plan and never executes it.
 - `executeMapPlan` — accepts that plan plus a signed approval envelope and executes only after scope, signature,
-  expiry, single-use, cancellation, and plan-identity checks.
+  expiry, single-use, cancellation, and plan-identity checks. The envelope is required for effects and for every
+  read step that names a `sourceId`; only non-source inspection may use read-only auto-execution.
 
 ```ts
 import { createNlMapControlMcpHost, createServer } from "@honua/mcp-server";
