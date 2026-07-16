@@ -3,6 +3,7 @@ import {
   type HonuaErrorCode,
   HonuaSdkError,
   isRetryableNetworkOrTimeoutHonuaError,
+  ownDataProperty,
   withHonuaErrorReasonClassification,
 } from "../core/error-base.js";
 
@@ -253,7 +254,7 @@ export class HonuaOfflineRegionError extends HonuaSdkError {
     message: string,
     options: { readonly cause?: unknown; readonly resourceId?: string; readonly path?: string } = {},
   ) {
-    const cause = options.cause;
+    const cause = ownDataProperty(options, "cause");
     const sdkCode = offlineRegionSdkCode(code, cause);
     const [category, retryable] = offlineRegionClassification(sdkCode);
     super(
@@ -268,8 +269,8 @@ export class HonuaOfflineRegionError extends HonuaSdkError {
       ),
     );
     this.name = "HonuaOfflineRegionError";
-    this.resourceId = options.resourceId;
-    this.path = options.path;
+    this.resourceId = ownDataProperty(options, "resourceId") as string | undefined;
+    this.path = ownDataProperty(options, "path") as string | undefined;
   }
 
   public readonly resourceId?: string;

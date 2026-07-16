@@ -14,7 +14,6 @@ import {
   type HonuaSdkError,
   type SerializedHonuaError,
   type SerializedHonuaErrorCause,
-  asOptionalString,
   emptyContext,
   errorNameWithoutGetters,
   isRecord,
@@ -22,6 +21,7 @@ import {
   sanitizeErrorName,
   sanitizeHonuaErrorContext,
   sanitizeIdentifier,
+  serializeLocalHonuaError,
 } from "./error-base.js";
 import { HONUA_ERROR_RUNTIME_CLASSIFICATIONS } from "./error-classifications.js";
 import type { HonuaErrorCode } from "./error-code-registry.js";
@@ -53,14 +53,16 @@ export function isHonuaErrorCode(code: string): code is HonuaErrorCode {
 
 /** Serialize a tagged SDK error without crossing its redaction boundary. */
 export function serializeHonuaError(error: HonuaSdkError): SerializedHonuaError {
+  const local = serializeLocalHonuaError(error);
+  if (local) return local;
   const sdkCode = ownDataProperty(error, "sdkCode");
   if (typeof sdkCode !== "string" || !isHonuaErrorCode(sdkCode)) {
     throw new TypeError("Cannot serialize an SDK error with an unregistered code");
   }
   const [domain, category, retryable] = HONUA_ERROR_RUNTIME_CLASSIFICATIONS[sdkCode];
   const cause = serializeCause(ownDataProperty(error, "cause"));
-  const operationId = sanitizeIdentifier(asOptionalString(ownDataProperty(error, "operationId")));
-  const requestId = sanitizeIdentifier(asOptionalString(ownDataProperty(error, "requestId")));
+  const operationId = sanitizeIdentifier(ownDataProperty(error, "operationId"));
+  const requestId = sanitizeIdentifier(ownDataProperty(error, "requestId"));
   const context = ownDataProperty(error, "context");
   return {
     kind: HONUA_ERROR_KIND,
@@ -108,8 +110,7 @@ function serializeCause(cause: unknown): SerializedHonuaErrorCause | undefined {
   if (cause === undefined) return undefined;
   try {
     if (isHonuaSdkError(cause)) {
-      const sdkCode = ownDataProperty(cause, "sdkCode");
-      if (typeof sdkCode !== "string" || !isHonuaErrorCode(sdkCode)) return { name: "Error" };
+      const sdkCode = ownDataProperty(cause, "sdkCode") as HonuaErrorCode;
       const [domain, category, retryable] = HONUA_ERROR_RUNTIME_CLASSIFICATIONS[sdkCode];
       return {
         name: sanitizeErrorName(ownDataProperty(cause, "name")),

@@ -395,7 +395,7 @@ export class HonuaQueryPlanningError extends HonuaSdkError {
     options: HonuaErrorOptions = {},
   ) {
     super(
-      QUERY_PLANNING_CODES[code],
+      `query.planning.${code}`,
       message,
       withHonuaErrorClassification(
         options,
@@ -425,42 +425,17 @@ export class HonuaQueryPlanExecutionError extends HonuaSdkError {
     options: HonuaErrorOptions = {},
   ) {
     super(
-      QUERY_EXECUTION_CODES[code],
+      `query.execution.${code}`,
       message,
-      withHonuaErrorClassification(options, "query", queryExecutionErrorCategory(code), false),
+      withHonuaErrorClassification(
+        options,
+        "query",
+        code.endsWith("failed") ? "internal" : code[0] === "r" ? "authentication" : "validation",
+        false,
+      ),
     );
     this.name = "HonuaQueryPlanExecutionError";
   }
-}
-
-const QUERY_PLANNING_CODES = {
-  "invalid-query": "query.planning.invalid-query",
-  "unsupported-compiler": "query.planning.unsupported-compiler",
-  "unsupported-query": "query.planning.unsupported-query",
-  "capability-not-supported": "query.planning.capability-not-supported",
-  "fallback-disabled": "query.planning.fallback-disabled",
-  "unsafe-materialization": "query.planning.unsafe-materialization",
-} as const satisfies Record<QueryPlanningErrorCode, `query.planning.${string}`>;
-
-const QUERY_EXECUTION_CODES = {
-  "invalid-plan": "query.execution.invalid-plan",
-  "plan-context-mismatch": "query.execution.plan-context-mismatch",
-  "unsafe-materialization": "query.execution.unsafe-materialization",
-  "invalid-resource-handle": "query.execution.invalid-resource-handle",
-  "resource-unavailable": "query.execution.resource-unavailable",
-  "resource-expired": "query.execution.resource-expired",
-  "resource-resolution-failed": "query.execution.resource-resolution-failed",
-  "resource-execution-failed": "query.execution.resource-execution-failed",
-} as const satisfies Record<QueryPlanExecutionErrorCode, `query.execution.${string}`>;
-
-function queryExecutionErrorCategory(code: QueryPlanExecutionErrorCode) {
-  if (code === "resource-resolution-failed" || code === "resource-execution-failed") {
-    return "internal" as const;
-  }
-  if (code === "resource-unavailable" || code === "resource-expired") {
-    return "authentication" as const;
-  }
-  return "validation" as const;
 }
 
 export interface ExecuteQueryPlanOptions {

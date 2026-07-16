@@ -65,24 +65,26 @@ export type HonuaErrorRuntimeClassification = readonly [
 ];
 
 const ERROR_CLASSIFICATION = Symbol();
-const ERROR_CLASSIFICATION_PROOF = Symbol.for("honua.ec");
 type ClassifiedHonuaErrorOptions = HonuaErrorOptions & {
-  readonly [ERROR_CLASSIFICATION]: HonuaErrorRuntimeClassification;
+  readonly [ERROR_CLASSIFICATION]: readonly [
+    source: object,
+    domain: HonuaErrorDomain,
+    category: HonuaErrorCategory,
+    retryable: boolean,
+    context: HonuaErrorEnvelopeContext,
+  ];
 };
 const LOCAL_ERRORS = new WeakSet<HonuaSdkError>();
 
 /** @internal Attach a leaf-owned classification without changing the public constructor contract. */
 export function withHonuaErrorClassification(
-  options: HonuaErrorOptions,
+  options: HonuaErrorOptions | HonuaErrorMetadata,
   domain: HonuaErrorDomain,
   category: HonuaErrorCategory,
   retryable: boolean,
+  context: Readonly<Record<string, unknown>> | undefined = ownHonuaErrorContext(options),
 ): HonuaErrorOptions {
-  return {
-    ...options,
-    context: sanitizeCompactHonuaErrorContext(options.context),
-    [ERROR_CLASSIFICATION]: [domain, category, retryable],
-  } as ClassifiedHonuaErrorOptions;
+  return classifiedOptions(options, domain, category, retryable, sanitizeCompactHonuaErrorContext(context));
 }
 
 /** @internal Attach a classification with the complete structured context sanitizer. */
@@ -91,8 +93,9 @@ export function withStructuredHonuaErrorClassification(
   domain: HonuaErrorDomain,
   category: HonuaErrorCategory,
   retryable: boolean,
+  context: Readonly<Record<string, unknown>> | undefined = ownHonuaErrorContext(options),
 ): HonuaErrorOptions {
-  return classifiedOptions(options, domain, category, retryable, sanitizeHonuaErrorContext(options.context));
+  return classifiedOptions(options, domain, category, retryable, sanitizeHonuaErrorContext(context));
 }
 
 /** @internal Attach a classification with the fixed safe reason context used by closed error-code unions. */
@@ -123,19 +126,17 @@ export abstract class HonuaSdkError extends Error {
   protected constructor(code: HonuaErrorCode, message: string, options: HonuaErrorOptions = {}) {
     const classification = (options as Partial<ClassifiedHonuaErrorOptions>)[ERROR_CLASSIFICATION];
     if (!classification) throw new TypeError(`Unregistered Honua SDK error code: ${code}`);
-    const [domain, category, retryable] = classification;
-    super(message, "cause" in options ? { cause: options.cause } : undefined);
+    const [source, domain, category, retryable, context] = classification;
+    const cause = Object.getOwnPropertyDescriptor(source, "cause");
+    super(message, cause && "value" in cause ? { cause: cause.value } : undefined);
     this.name = "HonuaSdkError";
     this.domain = domain;
     this.sdkCode = code;
     this.category = category;
     this.retryable = retryable;
-    this.operationId = sanitizeIdentifier(options.operationId);
-    this.requestId = sanitizeIdentifier(options.requestId);
-    this.context = options.context as HonuaErrorEnvelopeContext;
-    Object.defineProperty(this, ERROR_CLASSIFICATION_PROOF, {
-      value: [code, domain, category, retryable].join(),
-    });
+    this.operationId = sanitizeIdentifier(ownDataProperty(source, "operationId") as string | undefined);
+    this.requestId = sanitizeIdentifier(ownDataProperty(source, "requestId") as string | undefined);
+    this.context = context;
     for (const key of ["domain", "sdkCode", "category", "retryable", "operationId", "requestId", "context"]) {
       Object.defineProperty(this, key, { configurable: false, writable: false });
     }
@@ -144,7 +145,7 @@ export abstract class HonuaSdkError extends Error {
 
   /** Safe JSON projection. Raw messages, stacks, details, bodies, and causes are intentionally omitted. */
   public toJSON(): SerializedHonuaError {
-    return serializeLocalHonuaError(this);
+    return serializeLocalHonuaError(this) as SerializedHonuaError;
   }
 }
 
@@ -155,11 +156,12 @@ export function isHonuaSdkError(error: unknown): error is HonuaSdkError {
 
 /** @internal True only for an error constructed by this SDK instance. */
 export function isLocalHonuaSdkError(error: unknown): error is HonuaSdkError {
-  return typeof error === "object" && error !== null && LOCAL_ERRORS.has(error as HonuaSdkError);
+  return LOCAL_ERRORS.has(error as HonuaSdkError);
 }
 
-function serializeLocalHonuaError(error: HonuaSdkError): SerializedHonuaError {
-  if (!LOCAL_ERRORS.has(error)) throw new TypeError("Cannot serialize an SDK error with an unregistered code");
+/** @internal Serialize an instance authenticated by this module's private WeakSet. */
+export function serializeLocalHonuaError(error: HonuaSdkError): SerializedHonuaError | undefined {
+  if (!LOCAL_ERRORS.has(error)) return undefined;
   const cause = serializeLocalCause(ownDataProperty(error, "cause"));
   return {
     kind: HONUA_ERROR_KIND,
@@ -181,13 +183,15 @@ function serializeLocalHonuaError(error: HonuaSdkError): SerializedHonuaError {
  * serializer, while redacting richer or credential-bearing values.
  */
 function classifiedOptions(
-  options: ErrorOptions,
+  options: object,
   domain: HonuaErrorDomain,
   category: HonuaErrorCategory,
   retryable: boolean,
   context: HonuaErrorEnvelopeContext,
 ): HonuaErrorOptions {
-  return { ...options, context, [ERROR_CLASSIFICATION]: [domain, category, retryable] } as ClassifiedHonuaErrorOptions;
+  return {
+    [ERROR_CLASSIFICATION]: [options, domain, category, retryable, context],
+  } as ClassifiedHonuaErrorOptions;
 }
 
 function sanitizeCompactHonuaErrorContext(context?: Readonly<Record<string, unknown>>): HonuaErrorEnvelopeContext {
@@ -212,8 +216,11 @@ function sanitizeCompactValue(value: unknown, seen: WeakSet<object>, depth: numb
   seen.add(value);
   let output: HonuaErrorEnvelopeContextValue[] | Record<string, HonuaErrorEnvelopeContextValue>;
   if (Array.isArray(value)) {
-    output = value.slice(0, 100).map((item) => sanitizeCompactValue(item, seen, depth + 1));
-    if (value.length > 100) output.push(TRUNCATED);
+    const length = ownDataProperty(value, "length") as number;
+    output = Array.from({ length: Math.min(length, 100) }, (_, index) =>
+      sanitizeCompactValue(ownDataProperty(value, index, "[ACCESSOR]"), seen, depth + 1),
+    );
+    if (length > 100) output.push(TRUNCATED);
   } else {
     output = Object.create(null) as Record<string, HonuaErrorEnvelopeContextValue>;
     let count = 0;
@@ -234,7 +241,10 @@ function sanitizeCompactValue(value: unknown, seen: WeakSet<object>, depth: numb
 
 function leafErrorName(value: unknown): string {
   // Preserve the legacy full serializer's deliberate allowlist boundary.
-  return typeof value === "string" && /^(?:Honua(?!GeometryError$)\w{1,64}|QueryTileServerResponse)Error$/.test(value)
+  return typeof value === "string" &&
+    /^(?:(?:Abort|Aggregate|Eval|Range|Reference|Syntax|Type|URI)?|Honua(?!GeometryError$)\w{1,64}|QueryTileServerResponse)Error$/.test(
+      value,
+    )
     ? value
     : "Error";
 }
@@ -364,10 +374,11 @@ function sanitizeValue(
     if (depth >= MAX_DEPTH) return TRUNCATED;
     if (seen.has(value)) return "[CIRCULAR]";
     seen.add(value);
-    const result = value
-      .slice(0, MAX_ARRAY_ITEMS)
-      .map((item) => sanitizeValue(item, key, seen, depth + 1)) as HonuaErrorEnvelopeContextValue[];
-    if (value.length > result.length) result.push(TRUNCATED);
+    const length = ownDataProperty(value, "length") as number;
+    const result = Array.from({ length: Math.min(length, MAX_ARRAY_ITEMS) }, (_, index) =>
+      sanitizeValue(ownDataProperty(value, index, "[ACCESSOR]"), key, seen, depth + 1),
+    );
+    if (length > result.length) result.push(TRUNCATED);
     seen.delete(value);
     return Object.freeze(result);
   }
@@ -400,66 +411,35 @@ function sanitizeString(value: string, urlExpected: boolean): string {
 }
 
 /** @internal */
-export function sanitizeIdentifier(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined;
+export function sanitizeIdentifier(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
   return /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(value) ? value : REDACTED;
-}
-
-/** @internal */
-export function asOptionalString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
 }
 
 function serializeLocalCause(cause: unknown): SerializedHonuaErrorCause | undefined {
   if (cause === undefined) return undefined;
   try {
-    const classification = leafCauseClassification(cause);
-    if (classification) {
-      const [code, domain, category, retryable] = classification;
+    if (isLocalHonuaSdkError(cause)) {
       return {
-        name: leafErrorName(ownDataProperty(cause as object, "name")),
-        domain,
-        code,
-        category,
-        retryable,
+        name: leafErrorName(ownDataProperty(cause, "name")),
+        domain: cause.domain,
+        code: cause.sdkCode,
+        category: cause.category,
+        retryable: cause.retryable,
       };
     }
-    if (cause instanceof Error) return { name: "Error" };
+    if (cause instanceof Error) {
+      if (ownDataProperty(cause, "kind") === HONUA_ERROR_KIND) return { name: "Error" };
+      return {
+        name: leafErrorName(
+          ownDataProperty(cause, "name") ?? ownDataProperty(Object.getPrototypeOf(cause) as object, "name"),
+        ),
+      };
+    }
     return { name: typeof cause };
   } catch {
     return { name: "Error" };
   }
-}
-
-function leafCauseClassification(
-  cause: unknown,
-): readonly [HonuaErrorCode, HonuaErrorDomain, HonuaErrorCategory, boolean] | undefined {
-  if (
-    cause === null ||
-    typeof cause !== "object" ||
-    Array.isArray(cause) ||
-    ownDataProperty(cause, "kind") !== HONUA_ERROR_KIND
-  )
-    return undefined;
-  const code = ownDataProperty(cause, "sdkCode");
-  const domain = ownDataProperty(cause, "domain");
-  const category = ownDataProperty(cause, "category");
-  const retryable = ownDataProperty(cause, "retryable");
-  if (
-    typeof code !== "string" ||
-    typeof domain !== "string" ||
-    typeof category !== "string" ||
-    typeof retryable !== "boolean" ||
-    ownDataProperty(cause, ERROR_CLASSIFICATION_PROOF) !== [code, domain, category, retryable].join()
-  ) {
-    return undefined;
-  }
-  return [code, domain, category, retryable] as readonly [
-    HonuaErrorCode,
-    HonuaErrorDomain,
-    HonuaErrorCategory,
-    boolean,
-  ];
 }
 
 /** @internal */
@@ -468,9 +448,27 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** @internal */
-export function ownDataProperty(value: object, key: PropertyKey): unknown {
+export function ownDataProperty(value: object, key: PropertyKey, accessor?: unknown): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  return descriptor && "value" in descriptor ? descriptor.value : accessor;
+}
+
+/** @internal Read only an own data-property context from caller options. */
+export function ownHonuaErrorContext(options: object): Readonly<Record<string, unknown>> | undefined {
+  const context = ownDataProperty(options, "context");
+  return context !== null && typeof context === "object" && !Array.isArray(context)
+    ? (context as Readonly<Record<string, unknown>>)
+    : undefined;
+}
+
+/** @internal Add an explicit cause without spreading caller metadata. */
+export function honuaErrorOptionsWithCause(options: HonuaErrorMetadata, cause: unknown): HonuaErrorOptions {
+  return {
+    cause,
+    operationId: ownDataProperty(options, "operationId") as string | undefined,
+    requestId: ownDataProperty(options, "requestId") as string | undefined,
+    context: ownHonuaErrorContext(options),
+  };
 }
 
 /** @internal */

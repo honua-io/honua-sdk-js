@@ -18,6 +18,7 @@ import {
   type HonuaErrorOptions,
   HonuaSdkError,
   mergeHonuaErrorContext,
+  ownHonuaErrorContext,
   withHonuaErrorClassification,
 } from "../core/error-base.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
@@ -148,7 +149,7 @@ export class HonuaDataToMapBridgeError extends HonuaSdkError {
       DATA_TO_MAP_ERROR_CODES[code],
       message,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(detail, options.context) },
+        options,
         "map",
         code === "map-mutation-failed"
           ? "internal"
@@ -156,6 +157,7 @@ export class HonuaDataToMapBridgeError extends HonuaSdkError {
             ? "capability"
             : "validation",
         false,
+        mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
       ),
     );
     this.name = "HonuaDataToMapBridgeError";

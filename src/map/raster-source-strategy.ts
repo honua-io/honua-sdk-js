@@ -3,6 +3,7 @@ import {
   type HonuaErrorOptions,
   HonuaSdkError,
   mergeHonuaErrorContext,
+  ownHonuaErrorContext,
   withHonuaErrorClassification,
 } from "../core/error-base.js";
 import {
@@ -45,7 +46,7 @@ export class HonuaMapLibreRasterStrategyError extends HonuaSdkError {
       MAPLIBRE_RASTER_ERROR_CODES[code],
       message,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(detail, options.context) },
+        options,
         "map",
         code === "unsupported-strategy" || code === "capability-mismatch"
           ? "capability"
@@ -53,6 +54,7 @@ export class HonuaMapLibreRasterStrategyError extends HonuaSdkError {
             ? "internal"
             : "validation",
         false,
+        mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
       ),
     );
     this.name = "HonuaMapLibreRasterStrategyError";

@@ -118,6 +118,16 @@ validation. Importing `HONUA_ERROR_CODE_REGISTRY` intentionally adds the
 human-readable descriptors. `sanitizeHonuaErrorContext` remains available for
 boundaries that need the complete bounded recursive sanitizer.
 
+Nested classifications in a leaf error are authenticated with module-local
+instance identity, not a public or global symbol. A cause created by another
+bundle or realm is therefore projected conservatively as `{ name: "Error" }`;
+serializing that foreign error directly through `serializeHonuaError` can still
+validate its top-level classification against the complete governed table.
+For a locally constructed outer error, `toJSON()` and `serializeHonuaError()`
+use the same leaf boundary and remain byte-for-byte equivalent. Error option
+and array context projection reads own data descriptors only, so enumerable
+getters are never invoked and accessor slots are emitted as `[ACCESSOR]`.
+
 The generated [tree-shaking evidence](./error-tree-shaking.md) records the six
 contractual gzip reductions and exact retained error modules. Regenerate it
 with `npm run report:bundle-sizes`; `npm run verify:bundle-budgets` rejects

@@ -13,6 +13,7 @@ import {
   HonuaAuthError,
   HonuaCapabilityNotSupportedError,
   HonuaDiscoveryError,
+  type HonuaErrorOptions,
   HonuaGeometryError,
   HonuaGrpcError,
   HonuaHttpError,
@@ -433,6 +434,15 @@ describe("tagged SDK error envelope", () => {
       '{"__proto__":{"polluted":"yes"},"constructor":{"prototype":{"polluted":"yes"}},"safe":"value"}',
     ) as Record<string, unknown>;
     context.capturedAt = capturedAt;
+    const values = ["safe"];
+    Object.defineProperty(values, "0", {
+      enumerable: true,
+      get() {
+        getterInvoked = true;
+        return "Bearer array-getter-secret";
+      },
+    });
+    context.values = values;
     Object.defineProperty(context, "authorization", {
       enumerable: true,
       get() {
@@ -451,8 +461,68 @@ describe("tagged SDK error envelope", () => {
     expect(error.context.__redacted_keys__).toBe(2);
     expect(error.context.authorization).toBe("[REDACTED]");
     expect(error.context.capturedAt).toBe("2026-07-13T00:00:00.000Z");
+    expect(error.context.values).toEqual(["[ACCESSOR]"]);
     expect(({} as { polluted?: string }).polluted).toBeUndefined();
     expect(JSON.stringify(serialized)).not.toContain("getter-secret");
+  });
+
+  it("projects only own data error options across core, structured, map, and runtime constructors", () => {
+    let accessorInvoked = false;
+    const cause = new TypeError("local cause");
+    const options: HonuaErrorOptions & Record<string, unknown> = {
+      cause: undefined,
+      operationId: "operation-42",
+      requestId: "request-42",
+      context: { safe: "kept" },
+    };
+    Object.defineProperty(options, "unrelated", {
+      enumerable: true,
+      get() {
+        accessorInvoked = true;
+        throw new Error("unrelated options accessor must not run");
+      },
+    });
+
+    const errors = [
+      new HonuaAbortError("aborted", options),
+      new HonuaDiscoveryError("invalid-endpoint", "invalid", undefined, options),
+      new HonuaGeometryError("malformed-geometry", "invalid", undefined, options),
+      new HonuaHttpError(503, "unavailable", undefined, options),
+      new HonuaMapLibreSourceAdapterError("map-mutation-failed", "failed", undefined, options),
+      new HonuaRealtimeResumeError("invalid-event", "invalid", options),
+      new HonuaNetworkError("offline", cause, options),
+      new HonuaRuntimeDiagnosticError("invalid", [], cause, options),
+    ];
+
+    expect(accessorInvoked).toBe(false);
+    for (const error of errors) {
+      expect(error.operationId).toBe("operation-42");
+      expect(error.requestId).toBe("request-42");
+    }
+    for (const error of [...errors.slice(0, 5), ...errors.slice(6)]) {
+      expect(error.context).toMatchObject({ safe: "kept" });
+    }
+    expect(errors[5]?.context).toEqual({ reasonCode: "invalid-event" });
+    for (const error of errors.slice(0, 6)) expect(Object.hasOwn(error, "cause")).toBe(true);
+    expect(errors[6]?.cause).toBe(cause);
+    expect(errors[7]?.cause).toBe(cause);
+
+    const accessorOptions = Object.create(null) as Record<string, unknown>;
+    for (const key of ["cause", "operationId", "requestId", "context"] as const) {
+      Object.defineProperty(accessorOptions, key, {
+        enumerable: true,
+        get() {
+          accessorInvoked = true;
+          throw new Error(`${key} accessor must not run`);
+        },
+      });
+    }
+    const ignored = new HonuaAbortError("aborted", accessorOptions as HonuaErrorOptions);
+    expect(accessorInvoked).toBe(false);
+    expect(Object.hasOwn(ignored, "cause")).toBe(false);
+    expect(ignored.operationId).toBeUndefined();
+    expect(ignored.requestId).toBeUndefined();
+    expect(ignored.context).toEqual({});
   });
 
   it("rejects spoofed cross-realm envelopes whose registry classification was altered", () => {

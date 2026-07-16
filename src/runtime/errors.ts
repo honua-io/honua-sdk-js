@@ -11,6 +11,8 @@ import {
   type HonuaErrorMetadata,
   HonuaSdkError,
   mergeHonuaErrorContext,
+  ownDataProperty,
+  ownHonuaErrorContext,
   withHonuaErrorClassification,
 } from "../core/error-base.js";
 
@@ -62,12 +64,7 @@ export class HonuaMapPackageError extends HonuaSdkError {
       MAP_PACKAGE_ERROR_CODES[options.stage],
       message,
       withHonuaErrorClassification(
-        {
-          cause: options.cause,
-          operationId: options.operationId,
-          requestId: options.requestId,
-          context: mergeHonuaErrorContext(options.context, { packageId: options.packageId, stage: options.stage }),
-        },
+        options,
         "runtime",
         options.stage === "fetch"
           ? "network"
@@ -75,13 +72,17 @@ export class HonuaMapPackageError extends HonuaSdkError {
             ? "validation"
             : "internal",
         options.stage === "fetch" || options.stage === "dispose",
+        mergeHonuaErrorContext(ownHonuaErrorContext(options), {
+          packageId: options.packageId,
+          stage: options.stage,
+        }),
       ),
     );
     this.name = "HonuaMapPackageError";
     this.packageId = options.packageId;
     this.stage = options.stage;
     this.detail = options.detail;
-    this.cause = options.cause;
+    this.cause = ownDataProperty(options, "cause");
   }
 }
 

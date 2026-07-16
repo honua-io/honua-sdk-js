@@ -12,6 +12,7 @@ import {
   type HonuaErrorCode,
   HonuaSdkError,
   isRetryableNetworkOrTimeoutHonuaError,
+  ownDataProperty,
   withHonuaErrorReasonClassification,
 } from "../core/error-base.js";
 
@@ -36,7 +37,7 @@ export class HonuaReplicaSyncError extends HonuaSdkError {
     message: string,
     options: { readonly details?: unknown; readonly cause?: unknown } = {},
   ) {
-    const cause = options.cause;
+    const cause = ownDataProperty(options, "cause");
     const sdkCode = replicaSyncSdkCode(code, cause);
     super(
       sdkCode,
@@ -51,7 +52,7 @@ export class HonuaReplicaSyncError extends HonuaSdkError {
     );
     this.name = "HonuaReplicaSyncError";
     this.code = code;
-    this.details = options.details;
+    this.details = ownDataProperty(options, "details");
   }
 }
 

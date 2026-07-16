@@ -35,8 +35,11 @@ import {
   type HonuaErrorMetadata,
   type HonuaErrorOptions,
   HonuaSdkError,
+  honuaErrorOptionsWithCause,
   isHonuaSdkError,
   mergeHonuaErrorContext,
+  ownDataProperty,
+  ownHonuaErrorContext,
   withHonuaErrorClassification,
   withStructuredHonuaErrorClassification,
 } from "./error-base.js";
@@ -63,10 +66,11 @@ export class HonuaDiscoveryError extends HonuaSdkError {
       `discovery.${code}`,
       message,
       withStructuredHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(detail, options.context) },
+        options,
         "discovery",
         code === "unsupported-protocol" ? "capability" : "validation",
         false,
+        mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
       ),
     );
     this.name = "HonuaDiscoveryError";
@@ -92,10 +96,11 @@ export class HonuaGeometryError extends HonuaSdkError {
       `core.geometry.${code}`,
       message,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(detail, options.context) },
+        options,
         "core",
         "validation",
         false,
+        mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
       ),
     );
     this.name = "HonuaGeometryError";
@@ -118,10 +123,11 @@ export class HonuaHttpError extends HonuaSdkError {
       HTTP_RETRYABLE_STATUSES.has(statusCode) ? "core.http.transient" : "core.http.rejected",
       `HTTP ${statusCode}: ${message}`,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(options.context, { statusCode }) },
+        options,
         "core",
         "protocol",
         HTTP_RETRYABLE_STATUSES.has(statusCode),
+        mergeHonuaErrorContext(ownHonuaErrorContext(options), { statusCode }),
       ),
     );
     this.name = "HonuaHttpError";
@@ -139,10 +145,11 @@ export class HonuaTimeoutError extends HonuaSdkError {
       "core.timeout",
       `Request timed out after ${timeoutMs}ms`,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(options.context, { timeoutMs }) },
+        options,
         "core",
         "timeout",
         true,
+        mergeHonuaErrorContext(ownHonuaErrorContext(options), { timeoutMs }),
       ),
     );
     this.name = "HonuaTimeoutError";
@@ -155,7 +162,11 @@ export class HonuaNetworkError extends HonuaSdkError {
   public override readonly cause: unknown;
 
   public constructor(message: string, cause: unknown, metadata: HonuaErrorMetadata = {}) {
-    super("core.network", message, withHonuaErrorClassification({ ...metadata, cause }, "core", "network", true));
+    super(
+      "core.network",
+      message,
+      withHonuaErrorClassification(honuaErrorOptionsWithCause(metadata, cause), "core", "network", true),
+    );
     this.name = "HonuaNetworkError";
     this.cause = cause;
   }
@@ -184,10 +195,11 @@ export class HonuaGrpcError extends HonuaSdkError {
       retryable ? "core.grpc.transient" : "core.grpc.rejected",
       message,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(options.context, { grpcCode: code }) },
+        options,
         "core",
         "protocol",
         retryable,
+        mergeHonuaErrorContext(ownHonuaErrorContext(options), { grpcCode: code }),
       ),
     );
     this.name = "HonuaGrpcError";
@@ -215,10 +227,11 @@ export class HonuaCapabilityNotSupportedError extends HonuaSdkError {
       "core.capability-not-supported",
       message,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(options.context, { capability, protocol, sourceId }) },
+        options,
         "core",
         "capability",
         false,
+        mergeHonuaErrorContext(ownHonuaErrorContext(options), { capability, protocol, sourceId }),
       ),
     );
     this.name = "HonuaCapabilityNotSupportedError";
@@ -268,7 +281,7 @@ export class HonuaAuthError extends HonuaSdkError {
       withHonuaErrorClassification(options, "core", "authentication", code === "refresh_failed"),
     );
     this.name = "HonuaAuthError";
-    this.cause = options.cause;
+    this.cause = ownDataProperty(options, "cause");
   }
 }
 
@@ -288,10 +301,11 @@ export class HonuaExplorationContextError extends HonuaSdkError {
       "core.exploration-context",
       message,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(options.context, { reason: code }) },
+        options,
         "core",
         "validation",
         false,
+        mergeHonuaErrorContext(ownHonuaErrorContext(options), { reason: code }),
       ),
     );
     this.name = "HonuaExplorationContextError";
@@ -318,10 +332,11 @@ export class HonuaWfsExceptionError extends HonuaSdkError {
       "core.wfs-exception",
       formattedMessage,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(options.context, { exceptionCode, locator }) },
+        options,
         "core",
         "protocol",
         false,
+        mergeHonuaErrorContext(ownHonuaErrorContext(options), { exceptionCode, locator }),
       ),
     );
     this.name = "HonuaWfsExceptionError";

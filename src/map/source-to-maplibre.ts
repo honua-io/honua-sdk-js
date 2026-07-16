@@ -11,15 +11,16 @@ import {
   type HonuaErrorOptions,
   HonuaSdkError,
   mergeHonuaErrorContext,
+  ownHonuaErrorContext,
   withHonuaErrorClassification,
 } from "../core/error-base.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
-import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
+import { canonicalStringify, sha256, toJsonValue } from "../query-planner/canonical.js";
 import { queryFromCanonical, queryIrSourceIdentity } from "../query-planner/ir.js";
-import { hashQueryPlanV1 } from "../query-planner/planner.js";
 import {
   type ExecuteQueryPlanOptions,
   HonuaQueryPlanExecutionError,
+  type JsonValue,
   type QueryExecutionPlanV1,
 } from "../query-planner/types.js";
 import type { AdapterGeoJsonFeatureCollection } from "./feature-service-adapter.js";
@@ -81,10 +82,11 @@ export class HonuaMapLibreSourceAdapterError extends HonuaSdkError {
       `map.source-adapter.${code}`,
       message,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(detail, options.context) },
+        options,
         "map",
         code === "unsupported-plan" ? "capability" : code === "map-mutation-failed" ? "internal" : "validation",
         false,
+        mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
       ),
     );
     this.name = "HonuaMapLibreSourceAdapterError";
@@ -501,7 +503,7 @@ function assertQueryable<T>(source: Source<T>): void {
 }
 
 function assertProjectionPlanContext<T>(source: Source<T>, plan: QueryExecutionPlanV1): void {
-  if (hashQueryPlanV1(plan) !== plan.fingerprint) {
+  if (hashMapQueryPlanV1(plan) !== plan.fingerprint) {
     throw new HonuaQueryPlanExecutionError(
       "invalid-plan",
       "Plan content does not match its fingerprint; project only the accepted immutable plan.",
@@ -526,6 +528,14 @@ function assertProjectionPlanContext<T>(source: Source<T>, plan: QueryExecutionP
       "Source identity, descriptor capabilities, or runtime capabilities do not match the accepted plan projection context.",
     );
   }
+}
+
+/** Integrity path scoped to the v1 map adapter; persistence uses the full planner guard. */
+function hashMapQueryPlanV1(plan: QueryExecutionPlanV1): `sha256:${string}` | undefined {
+  const { id: _id, fingerprint: _fingerprint, ...unsigned } = plan;
+  const sources = plan.ir.source.protocol === "geoparquet" ? plan.ir.source.geoparquet?.sources : undefined;
+  if (sources?.some((value) => /[\s?#@]/.test(value))) return undefined;
+  return sha256(canonicalStringify(toJsonValue(unsigned) as JsonValue));
 }
 
 function assertExecutionContext<T>(

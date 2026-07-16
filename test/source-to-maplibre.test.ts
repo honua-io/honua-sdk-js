@@ -5,7 +5,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { Query, Result, Source, SourceDescriptor } from "../src/contract/types.js";
 import { capabilities } from "../src/contract/types.js";
 import { HonuaMapLibreSourceAdapterError, mountSourceToMapLibre, projectSourceToMapLibre } from "../src/map/index.js";
-import { explainQuery } from "../src/query-planner/index.js";
+import {
+  type QueryExecutionPlanV1,
+  canonicalStringify,
+  explainQuery,
+  sha256,
+  toJsonValue,
+} from "../src/query-planner/index.js";
 
 const descriptor: SourceDescriptor = {
   id: "Mixed Parcels",
@@ -118,6 +124,23 @@ describe("projectSourceToMapLibre", () => {
     });
     expect(() => projectSourceToMapLibre(other, plan, mixedResult)).toThrowError(
       expect.objectContaining({ code: "plan-context-mismatch" }),
+    );
+  });
+
+  it("rejects re-fingerprinted v1 GeoParquet plans with credential-bearing locators", () => {
+    const hostile = structuredClone(plan);
+    const sourceIdentity = hostile.ir.source as unknown as {
+      protocol: string;
+      geoparquet?: { sources: string[] };
+    };
+    sourceIdentity.protocol = "geoparquet";
+    sourceIdentity.geoparquet = {
+      sources: ["https://user:secret@example.test/parcels.parquet?X-Amz-Signature=secret"],
+    };
+    resignPlan(hostile);
+
+    expect(() => projectSourceToMapLibre(fakeSource([mixedResult]), hostile, mixedResult)).toThrowError(
+      expect.objectContaining({ code: "invalid-plan" }),
     );
   });
 
@@ -487,6 +510,11 @@ describe("mountSourceToMapLibre", () => {
     expect(map.sources.size).toBe(0);
   });
 });
+
+function resignPlan(value: QueryExecutionPlanV1): void {
+  const { id: _id, fingerprint: _fingerprint, ...unsigned } = value;
+  (value as { fingerprint: `sha256:${string}` }).fingerprint = sha256(canonicalStringify(toJsonValue(unsigned)));
+}
 
 function pointResult(objectId: number): Result<Record<string, unknown>> {
   return {

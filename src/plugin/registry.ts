@@ -1,4 +1,9 @@
-import { type HonuaErrorCode, HonuaSdkError, withHonuaErrorReasonClassification } from "../core/error-base.js";
+import {
+  type HonuaErrorCode,
+  HonuaSdkError,
+  ownDataProperty,
+  withHonuaErrorReasonClassification,
+} from "../core/error-base.js";
 import { certifyHonuaPluginManifest, validateHonuaPluginCertificationHost } from "./certification.js";
 import type {
   HonuaPluginDependency,
@@ -272,7 +277,7 @@ export class HonuaPluginRegistryError extends HonuaSdkError {
   readonly cleanupErrors: readonly unknown[];
 
   constructor(code: string, options: { cause?: unknown; cleanupErrors?: readonly unknown[] } = {}) {
-    const cause = options.cause;
+    const cause = ownDataProperty(options, "cause");
     const sdkCode = pluginSdkCode(code);
     super(
       sdkCode,
@@ -287,7 +292,8 @@ export class HonuaPluginRegistryError extends HonuaSdkError {
     );
     this.name = "HonuaPluginRegistryError";
     this.code = code;
-    this.cleanupErrors = Object.freeze([...(options.cleanupErrors ?? [])]);
+    const cleanupErrors = ownDataProperty(options, "cleanupErrors");
+    this.cleanupErrors = Object.freeze(Array.isArray(cleanupErrors) ? [...cleanupErrors] : []);
   }
 }
 

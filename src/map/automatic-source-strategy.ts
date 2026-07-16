@@ -11,6 +11,7 @@ import {
   type HonuaErrorOptions,
   HonuaSdkError,
   mergeHonuaErrorContext,
+  ownHonuaErrorContext,
   withHonuaErrorClassification,
 } from "../core/error-base.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
@@ -180,7 +181,7 @@ export class HonuaAutomaticMapLibreStrategyError extends HonuaSdkError {
       AUTOMATIC_MAPLIBRE_ERROR_CODES[code],
       message,
       withHonuaErrorClassification(
-        { ...options, context: mergeHonuaErrorContext(detail, options.context) },
+        options,
         "map",
         code === "no-eligible-strategy"
           ? "capability"
@@ -190,6 +191,7 @@ export class HonuaAutomaticMapLibreStrategyError extends HonuaSdkError {
               ? "cancellation"
               : "validation",
         false,
+        mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
       ),
     );
     this.name = "HonuaAutomaticMapLibreStrategyError";

@@ -116,7 +116,22 @@ describe("error tree-shake fixtures", () => {
   it("bounds cyclic context without invoking accessors", () => {
     let accessorInvoked = false;
     const nested = Object.create(null) as Record<string, unknown>;
-    nested.values = Array.from({ length: 101 }, (_, index) => index);
+    const inputValues = Array.from({ length: 101 }, (_, index) => index);
+    Object.defineProperty(inputValues, "0", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        accessorInvoked = true;
+        return "Bearer array-index-secret";
+      },
+    });
+    nested.values = inputValues;
+    nested.proxiedValues = new Proxy([1, 2], {
+      get() {
+        accessorInvoked = true;
+        throw new Error("array proxy get trap must not run");
+      },
+    });
     nested.self = nested;
     const detail = { nested } as Record<string, unknown>;
     Object.defineProperty(detail, "authorization", {
@@ -131,16 +146,18 @@ describe("error tree-shake fixtures", () => {
     expect(accessorInvoked).toBe(false);
     expect(error.toJSON().context).toMatchObject({
       nested: {
+        proxiedValues: [1, 2],
         self: "[CIRCULAR]",
       },
       authorization: "[REDACTED]",
     });
-    const values = (error.toJSON().context.nested as { readonly values: readonly unknown[] }).values;
-    expect(values).toHaveLength(101);
-    expect(values.at(-1)).toBe("[TRUNCATED]");
+    const projectedValues = (error.toJSON().context.nested as { readonly values: readonly unknown[] }).values;
+    expect(projectedValues).toHaveLength(101);
+    expect(projectedValues[0]).toBe("[ACCESSOR]");
+    expect(projectedValues.at(-1)).toBe("[TRUNCATED]");
   });
 
-  it("projects separately bundled SDK causes without trusting altered classifications", async () => {
+  it("fails closed for separately bundled causes while the explicit top-level serializer validates them", async () => {
     const result = await esbuild.build({
       bundle: true,
       stdin: {
@@ -172,14 +189,14 @@ describe("error tree-shake fixtures", () => {
       { operations: ["query", "setData"] },
       { cause },
     );
-    const expectedCause = {
-      name: "HonuaRealtimeResumeError",
+    const expectedTopLevel = {
       domain: "realtime",
       code: "realtime.protocol.terminal",
       category: "protocol",
       retryable: false,
     } as const;
-    expect(outer.toJSON().cause).toEqual(expectedCause);
+    expect(serializeHonuaError(cause)).toMatchObject(expectedTopLevel);
+    expect(outer.toJSON().cause).toEqual({ name: "Error" });
     expect(outer.toJSON()).toEqual(serializeHonuaError(outer));
 
     const descriptors = Object.getOwnPropertyDescriptors(cause);
@@ -190,5 +207,23 @@ describe("error tree-shake fixtures", () => {
     });
     const alteredOuter = new HonuaGeometryError("malformed-geometry", "bad", {}, { cause: altered });
     expect(alteredOuter.toJSON().cause).toEqual({ name: "Error" });
+  });
+
+  it("rejects a foreign cause that forges every former public-symbol proof field", () => {
+    const forged = {
+      kind: "honua.sdk.error.v1",
+      name: "HonuaRealtimeResumeError",
+      sdkCode: "unknown.code",
+      domain: "realtime",
+      category: "protocol",
+      retryable: false,
+      context: Object.create(null),
+      [Symbol.for("honua.ec")]: "unknown.code,realtime,protocol,false",
+    };
+    const outer = new HonuaMapLibreSourceAdapterError("map-mutation-failed", "outer", undefined, { cause: forged });
+
+    expect(outer.toJSON().cause).toEqual({ name: "object" });
+    expect(outer.toJSON()).toEqual(serializeHonuaError(outer));
+    expect(JSON.stringify(outer)).not.toContain("unknown.code");
   });
 });

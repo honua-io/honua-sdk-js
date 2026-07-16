@@ -14,7 +14,9 @@ import type { FeatureId } from "../contract/types.js";
 import {
   type HonuaErrorMetadata,
   HonuaSdkError,
+  honuaErrorOptionsWithCause,
   mergeHonuaErrorContext,
+  ownHonuaErrorContext,
   withHonuaErrorClassification,
 } from "../core/error-base.js";
 import { sourceFeatureSelectionTarget } from "../exploration/selection.js";
@@ -63,17 +65,14 @@ export class HonuaRuntimeDiagnosticError extends HonuaSdkError {
       "runtime.diagnostic",
       message,
       withHonuaErrorClassification(
-        {
-          ...metadata,
-          cause,
-          context: mergeHonuaErrorContext(metadata.context, {
-            diagnosticCount: diagnostics.length,
-            diagnosticCodes: diagnostics.map(({ code }) => code),
-          }),
-        },
+        honuaErrorOptionsWithCause(metadata, cause),
         "runtime",
         "validation",
         false,
+        mergeHonuaErrorContext(ownHonuaErrorContext(metadata), {
+          diagnosticCount: diagnostics.length,
+          diagnosticCodes: diagnostics.map(({ code }) => code),
+        }),
       ),
     );
     this.name = "HonuaRuntimeDiagnosticError";
