@@ -2,6 +2,45 @@
 
 This sample demonstrates a linked service/layer explorer using the Honua SDK app-workspace and linked-view abstractions.
 
+## Public-kernel capability truth (S1)
+
+[`src/truth-model.ts`](./src/truth-model.ts) is the renderer-neutral substrate
+for the replacement golden journey. It owns one public `createHonua()` kernel
+(or borrows an explicitly injected kernel), connects a pasted URL, calls the
+managed connection's immutable `inspect()` surface, and projects only inspected
+truth. It performs no protocol guessing and adds no capability inference.
+
+The model exposes explicit `loading`, `ready`, `partial`, `ambiguous`, `auth`,
+`unsupported`, `cancelled`, and `error` states. A successful inspection includes
+service detection evidence, sources and locators, legacy and v2 schema identity,
+CRS/extent, effective capabilities, structured evidence decisions,
+claimed/observed/effective capability profiles, pagination constraints,
+provenance, metadata-cache status, and a credential-free authorization-scope
+label. Capability-profile evidence retains bounded `metadata`, `conformance`,
+and `probe` identities and freshness without retaining credential-bearing URL
+parameters. The public kernel does not currently report detector confidence, so
+the model says `not-reported` instead of inventing a score. Feature data is
+never described as metadata-cache content.
+
+Renderer state is deeply frozen and bounded. URL user-info, query strings, and
+fragments are not retained; credential-shaped scope labels and diagnostic text
+are redacted; source, field, decision, evidence, provenance, extent, and
+diagnostic collections have explicit limits with visible truncation diagnostics.
+An inspected default source is accepted only as kernel truth; a caller-supplied
+selector cannot manufacture selection truth, and the model states whether a
+selected source is inside the bounded visible projection.
+The live managed connection is retained separately for the accepted-operation
+workflow in S2 and is disposed on replacement, cancellation, or model teardown.
+
+The focused fixture matrix covers GeoServices Feature/Map, OGC API
+Features/Tiles/Maps, WFS, WMS, WMTS, STAC, and OData inspection profiles. WMS
+and WMTS are projection fixtures only in this slice: if the installed public
+kernel does not yet expose a connect adapter for a supplied protocol, the model
+truthfully returns `unsupported` rather than simulating discovery.
+
+The existing presentation shell below remains in place until S2/S3 wire the
+paste-URL workflow and remove the compatibility app-workspace surface.
+
 The default app configuration targets cloud Honua:
 
 - `VITE_HONUA_SERVICE_EXPLORER_BASE_URL=https://cloud.honua.io`
@@ -70,9 +109,14 @@ To open a specific fixture source, pass `?source=<id>` in the URL. Useful source
 ```sh
 npm run demo:service-explorer:typecheck
 npm run demo:service-explorer:build
+npm test -- test/service-explorer-truth-model.test.ts
 npm test -- test/service-explorer-workspace.test.ts
 npm run test:playwright:service-explorer
 ```
+
+The focused truth-model suite currently exercises 22 cases across the ten
+declared protocol profiles, input normalization/redaction, nested collection
+budgets, selection integrity, supersession, cancellation, and disposal.
 
 The Playwright workflow exercises the source picker, map, result table, and
 chart at desktop and mobile viewports, performs a real keyboard activation,
@@ -82,6 +126,9 @@ additionally proves loopback readiness and complete server shutdown.
 
 ## Slice Coverage
 
+- Public-kernel URL-to-inspection truth model with explicit terminal states,
+  bounded renderer projection, cancellation, redaction, and multi-protocol
+  fixture coverage.
 - Service and layer discovery from cloud Honua or the local fixture catalog.
 - Standards source picker for every SDK protocol — Honua gRPC, FeatureServer, MapServer, ImageServer, Geometry Service, GP Service, OGC API Features/Tiles/Maps/Records, STAC, WFS, WMS, WMTS, OData, and MapLibre vector/raster/GeoJSON — grouped by protocol family.
 - Schema, capabilities, extent, metadata cache status, and revalidate controls.
@@ -91,6 +138,11 @@ additionally proves loopback readiness and complete server shutdown.
 - Shared selection drives map feature-state, table highlighting, and the detail panel.
 - Unsupported/degraded states are represented as diagnostics and capability badges.
 - Experimental control-plane handoff can locate a hosted map package, then runtime loading remains on `@honua/sdk-js/runtime`.
+
+S2 and S3 remain intentionally outside this slice: the current compatibility
+shell still needs replacement by the paste-URL operation workflow, accepted
+query/render explain plan and TypeScript generator, followed by source/packed,
+hostile-browser, scheduled-live, catalog/gallery, and route-retirement evidence.
 
 ## Caching Notes
 
