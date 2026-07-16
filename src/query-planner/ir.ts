@@ -159,35 +159,55 @@ export function queryIrSourceIdentityV2(
     throw new HonuaQueryPlanningError("invalid-query", "GeoParquet authorization scope identity is invalid");
   }
   const geometryProperty = descriptor.schema?.fields?.find((field) => field.type === "esriFieldTypeGeometry")?.name;
-  const geometryColumn = descriptor.locator.geoparquet?.geometryColumn ?? geometryProperty;
-  const primaryKey = optionsPrimaryKey(descriptor);
+  const primaryKey = optionalPlanMetadata(descriptor.schema?.primaryKey, "primary key");
+  const schemaVersion = optionalPlanMetadata(context.schemaVersion, "schema version");
+  const sourceVersion = optionalPlanMetadata(context.sourceVersion, "source version");
+  const geometryColumn = optionalPlanMetadata(
+    descriptor.locator.geoparquet?.geometryColumn ?? geometryProperty,
+    "geometry column",
+  );
+  const bboxColumn = optionalPlanMetadata(descriptor.locator.geoparquet?.bboxColumn, "bbox column");
+  const geometryEncoding = descriptor.locator.geoparquet?.geometryEncoding;
+  if (
+    geometryEncoding !== undefined &&
+    geometryEncoding !== "wkb" &&
+    geometryEncoding !== "native" &&
+    geometryEncoding !== "geojson"
+  ) {
+    throw new HonuaQueryPlanningError("invalid-query", "GeoParquet geometry encoding identity is invalid");
+  }
   return deepFreeze({
     id: resource.resource.id,
     protocol: "geoparquet",
     endpoint: "[opaque-resource]",
     ...(primaryKey ? { primaryKey } : {}),
-    ...(context.schemaVersion !== undefined ? { schemaVersion: context.schemaVersion } : {}),
-    ...(context.sourceVersion !== undefined ? { sourceVersion: context.sourceVersion } : {}),
+    ...(schemaVersion ? { schemaVersion } : {}),
+    ...(sourceVersion ? { sourceVersion } : {}),
     geoparquet: {
       resource,
       ...(geometryColumn ? { geometryColumn } : {}),
-      ...(descriptor.locator.geoparquet?.geometryEncoding
-        ? { geometryEncoding: descriptor.locator.geoparquet.geometryEncoding }
-        : {}),
-      ...(descriptor.locator.geoparquet?.bboxColumn ? { bboxColumn: descriptor.locator.geoparquet.bboxColumn } : {}),
+      ...(geometryEncoding ? { geometryEncoding } : {}),
+      ...(bboxColumn ? { bboxColumn } : {}),
     },
     authorizationScope,
     capabilities: [...descriptor.capabilities].sort(),
   });
 }
 
-function optionsPrimaryKey(descriptor: SourceDescriptor): string | undefined {
-  const primaryKey = descriptor.schema?.primaryKey;
-  if (primaryKey === undefined) return undefined;
-  if (typeof primaryKey !== "string" || primaryKey.length === 0 || primaryKey.length > 1_024) {
-    throw new HonuaQueryPlanningError("invalid-query", "GeoParquet primary key identity is invalid");
+function optionalPlanMetadata(value: unknown, label: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.length === 0 || value.length > 1_024 || containsControlCharacter(value)) {
+    throw new HonuaQueryPlanningError("invalid-query", `GeoParquet ${label} identity is invalid`);
   }
-  return primaryKey;
+  return value;
+}
+
+function containsControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
 }
 
 function isStableAuthorizationScope(value: unknown): value is string {

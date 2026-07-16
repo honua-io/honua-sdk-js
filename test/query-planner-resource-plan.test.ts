@@ -110,6 +110,56 @@ describe("opaque GeoParquet v2 query plans", () => {
     expect(queryPlanCacheKey(opaquePlan(otherContext))).not.toBe(queryPlanCacheKey(firstPlan));
   });
 
+  it("rejects unsafe v2 metadata before returning a self-invalid plan", () => {
+    const handle = createGeoParquetResourceHandle({
+      resolver: "io.honua.metadata",
+      id: "parcels:metadata",
+      authorizationContextId: CONTEXT,
+    });
+    const marker = "metadata-secret-marker";
+    const base = descriptor(SIGNED_SOURCE);
+    const cases: ReadonlyArray<{
+      readonly descriptor: SourceDescriptor;
+      readonly schemaVersion?: string;
+      readonly sourceVersion?: string;
+    }> = [
+      { descriptor: { ...base, schema: { primaryKey: `id\n${marker}` } } },
+      {
+        descriptor: {
+          ...base,
+          locator: {
+            ...base.locator,
+            geoparquet: { ...base.locator.geoparquet, geometryColumn: `geometry\u0000${marker}` },
+          },
+        },
+      },
+      {
+        descriptor: {
+          ...base,
+          locator: {
+            ...base.locator,
+            geoparquet: { ...base.locator.geoparquet, bboxColumn: `bbox\r${marker}` },
+          },
+        },
+      },
+      { descriptor: base, schemaVersion: `schema\t${marker}` },
+      { descriptor: base, sourceVersion: `source\u007f${marker}` },
+    ];
+
+    for (const item of cases) {
+      const error = captureError(() =>
+        explainQuery({
+          descriptor: item.descriptor,
+          geoparquetResource: handle,
+          ...(item.schemaVersion !== undefined ? { schemaVersion: item.schemaVersion } : {}),
+          ...(item.sourceVersion !== undefined ? { sourceVersion: item.sourceVersion } : {}),
+        }),
+      );
+      expect(error).toMatchObject({ code: "invalid-query" });
+      assertErrorRedacted(error, [marker, ...MARKERS]);
+    }
+  });
+
   it("resolves only at execution and routes the private sources through the GeoParquet adapter seam", async () => {
     const registry = createGeoParquetResourceRegistry({ resolver: "io.honua.execute" });
     const handle = registry.register({ id: "parcels:run", authorizationContextId: CONTEXT, sources: [SIGNED_SOURCE] });
