@@ -854,9 +854,51 @@ console.log("splitPackageSmoke=ok");
 `.trimStart();
   fs.writeFileSync(path.join(tempRoot, "smoke.mjs"), smokeScript, "utf8");
 
+  const declarationSmoke = `
+import type { SourceDescriptor as EsriCompatSourceDescriptor } from "./node_modules/@honua/sdk-esri-compat/contract/index.js";
+import type { SourceDescriptor as ReactSourceDescriptor } from "./node_modules/@honua/react/contract/index.js";
+import type { SourceDescriptor as GeometrySourceDescriptor } from "./node_modules/@honua/geometry/contract/index.js";
+import type { SourceDescriptor as AppPlatformSourceDescriptor } from "./node_modules/@honua/app-platform/contract/index.js";
+
+type CompanionSourceDescriptor =
+  | EsriCompatSourceDescriptor
+  | ReactSourceDescriptor
+  | GeometrySourceDescriptor
+  | AppPlatformSourceDescriptor;
+
+export const acceptsCompanionSourceDescriptor = (descriptor: CompanionSourceDescriptor): string => descriptor.id;
+`.trimStart();
+  fs.writeFileSync(path.join(tempRoot, "smoke-types.ts"), declarationSmoke, "utf8");
+  fs.writeFileSync(
+    path.join(tempRoot, "tsconfig.json"),
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          lib: ["ES2022", "DOM", "DOM.Iterable"],
+          module: "NodeNext",
+          moduleResolution: "NodeNext",
+          noEmit: true,
+          skipLibCheck: false,
+          strict: true,
+          target: "ES2022",
+          verbatimModuleSyntax: true,
+        },
+        files: ["smoke-types.ts"],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
   // Exercise the generated directories as published archives rather than
   // file: symlinks; peer resolution must occur from the consumer install.
   runCommand("npm", ["install", "--install-links", "--ignore-scripts", "--no-package-lock", "--silent"], tempRoot);
+  runCommand(
+    process.execPath,
+    [path.join(PROJECT_ROOT, "node_modules", "typescript", "bin", "tsc"), "--project", "tsconfig.json"],
+    tempRoot,
+  );
   const smokeResult = runCommand("node", ["smoke.mjs"], tempRoot);
   process.stdout.write(smokeResult.stdout);
 } finally {

@@ -1,6 +1,5 @@
-import type { ResolvedCrsDefinition, SourceProtocol } from "./contract/schema.js";
+import type { JsonValue, ResolvedCrsDefinition, SourceProtocol } from "./contract/schema.js";
 import type { Capability as BuiltInCapabilityId } from "./contract/types.js";
-import type { JsonValue } from "./query-planner/types.js";
 
 export const CAPABILITY_EVIDENCE_PROFILE_KIND = "honua.capability-evidence" as const;
 export const CAPABILITY_EVIDENCE_PROFILE_VERSION = "1.0" as const;
