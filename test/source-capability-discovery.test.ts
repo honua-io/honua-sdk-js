@@ -143,6 +143,22 @@ describe("connectWithSourceCapabilities", () => {
     expect(cached?.sources[0]).not.toHaveProperty("capabilityProfile");
   });
 
+  it("does not reuse a stale discovery policy when evaluation omits policy", async () => {
+    useDiscoveryClock();
+    const reusedOptions = {
+      ...odataOptions("https://example.test/odata"),
+      capabilityPolicy: { deny: ["query"] },
+    } as unknown as SourceCapabilityConnectOptions;
+    const connection = await connectWithSourceCapabilities(reusedOptions, { evaluatedAt: EVALUATED_AT });
+
+    expect(capability(connection.source(), "query")).toMatchObject({
+      effective: "supported",
+      reasons: ["supported-by-claim-and-observation"],
+    });
+    expect(connection.source().supports("query")).toBe(true);
+    expect(connection.source().capabilities.has("query")).toBe(true);
+  });
+
   it("produces equivalent OData decisions across facade and third-party roots while retaining endpoint identity", async () => {
     useDiscoveryClock();
     const facade = await connectWithSourceCapabilities(odataOptions("https://facade.test/odata"), {

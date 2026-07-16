@@ -2,7 +2,7 @@
 
 For nearly all consumers the canonical install is the single `@honua/sdk-js`
 package described in [`INSTALL.md`](../INSTALL.md). The repository also carries
-an opt-in build target that produces four standalone npm packages from the
+an opt-in build target that produces six focused npm packages from the
 same source tree, for downstream packagers and organizations that only want a
 subset of the surface.
 
@@ -16,6 +16,12 @@ subset of the surface.
 | `@honua/react` | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers) |
 | `@honua/geometry` | `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops + reprojection |
 | `@honua/app-platform` | (evicted from `@honua/sdk-js`) | Application-platform surfaces — app-shell/workspace/scene state, studio + generated-app builder contracts, operator controllers, native controls / web components, and hosted-product clients (control-plane, collaboration, share, operate, replica-sync). See [`decisions/scope-split-and-1.0.md`](./decisions/scope-split-and-1.0.md). |
+
+Companion packages that carry a copy of the contract declare the exact
+`@honua/sdk` version as a required peer. Their local contract forwards
+capability-profile recognition to that peer, so an immutable profile created by
+the core SDK remains valid across React, app-platform, geometry, and Esri-compat
+boundaries without exposing the profile-registration authority.
 
 ## How to build the split tarballs
 

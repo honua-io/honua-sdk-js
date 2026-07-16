@@ -169,6 +169,7 @@ function createSdkPackage() {
     copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.js`), path.join(packageRoot, `${moduleName}.js`));
     copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.d.ts`), path.join(packageRoot, `${moduleName}.d.ts`));
   }
+  writeCanonicalCapabilityProfileVerifier(packageRoot);
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.d.ts"), path.join(packageRoot, "index.d.ts"));
 
@@ -204,6 +205,10 @@ function createSdkPackage() {
       "./source-capability-discovery": {
         types: "./source-capability-discovery.d.ts",
         default: "./source-capability-discovery.js",
+      },
+      "./internal/source-capability-profile-verifier": {
+        types: "./source-capability-profile-verifier.d.ts",
+        default: "./source-capability-profile-verifier.js",
       },
       "./deckgl": {
         types: "./deckgl/index.d.ts",
@@ -344,6 +349,9 @@ function createCompatPackage() {
       "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
       ...geometryRuntimeDependencies(),
     },
+    peerDependencies: {
+      "@honua/sdk": version,
+    },
   });
 
   writeReadme(
@@ -385,6 +393,9 @@ function createGeometryPackage() {
       },
     },
     dependencies: geometryRuntimeDependencies(),
+    peerDependencies: {
+      "@honua/sdk": version,
+    },
   });
 
   writeReadme(
@@ -528,6 +539,7 @@ function createReactPackage() {
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
     },
     peerDependencies: {
+      "@honua/sdk": version,
       react: rootPackageJson.peerDependencies.react,
       "react-dom": rootPackageJson.peerDependencies["react-dom"],
       "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],
@@ -629,6 +641,7 @@ function createAppPlatformPackage() {
       ...geometryRuntimeDependencies(),
     },
     peerDependencies: {
+      "@honua/sdk": version,
       "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],
       cesium: rootPackageJson.peerDependencies.cesium,
     },
@@ -670,13 +683,25 @@ function copyMigrationCoreTypeSupport(packageRoot) {
 
 function copySourceCapabilityContractSupport(packageRoot) {
   // `contract/source.js` decorates sources with `supports()` and its public
-  // declarations reference the profile vocabulary. Any self-contained split
-  // package that copies the contract needs this lightweight pair beside it;
-  // the evaluator/discovery runtime remains owned by the core SDK package.
-  for (const moduleName of ["source-capability-types", "source-capability-registry"]) {
-    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.js`), path.join(packageRoot, `${moduleName}.js`));
-    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.d.ts`), path.join(packageRoot, `${moduleName}.d.ts`));
-  }
+  // declarations reference the profile vocabulary. Copy the data-only types,
+  // but forward recognition to the required @honua/sdk peer: copying the
+  // module-local WeakSet would create a distinct brand in every split package.
+  copyFile(path.join(DIST_SRC_ROOT, "source-capability-types.js"), path.join(packageRoot, "source-capability-types.js"));
+  copyFile(
+    path.join(DIST_SRC_ROOT, "source-capability-types.d.ts"),
+    path.join(packageRoot, "source-capability-types.d.ts"),
+  );
+  const verifier = "@honua/sdk/internal/source-capability-profile-verifier";
+  const forwardingModule = `export { isRegisteredCapabilityProfile } from "${verifier}";\n`;
+  fs.writeFileSync(path.join(packageRoot, "source-capability-registry.js"), forwardingModule, "utf8");
+  fs.writeFileSync(path.join(packageRoot, "source-capability-registry.d.ts"), forwardingModule, "utf8");
+}
+
+function writeCanonicalCapabilityProfileVerifier(packageRoot) {
+  const forwardingModule =
+    'export { isRegisteredCapabilityProfile } from "./source-capability-registry.js";\n';
+  fs.writeFileSync(path.join(packageRoot, "source-capability-profile-verifier.js"), forwardingModule, "utf8");
+  fs.writeFileSync(path.join(packageRoot, "source-capability-profile-verifier.d.ts"), forwardingModule, "utf8");
 }
 
 function writePackageJson(packageRoot, overrides) {

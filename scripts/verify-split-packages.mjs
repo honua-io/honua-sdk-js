@@ -12,6 +12,12 @@ const PACKAGES_ROOT = path.join(PROJECT_ROOT, "dist", "packages");
 const EXPECTED_PUBLISHED_NODE_ENGINE = ">=20.0.0";
 const ROOT_PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
 const EXPECTED_LICENSE = ROOT_PACKAGE_JSON.license;
+const CAPABILITY_PROFILE_COMPANIONS = new Set([
+  "@honua/sdk-esri-compat",
+  "@honua/react",
+  "@honua/geometry",
+  "@honua/app-platform",
+]);
 
 const packageDirs = {
   "@honua/sdk": path.join(PACKAGES_ROOT, "honua-sdk"),
@@ -49,6 +55,16 @@ for (const [name, directory] of Object.entries(packageDirs)) {
 
   if (name === "@honua/sdk" && packageJson.sideEffects !== false) {
     process.stderr.write("Split @honua/sdk must declare sideEffects=false for named-import tree shaking.\n");
+    process.exit(1);
+  }
+
+  if (
+    CAPABILITY_PROFILE_COMPANIONS.has(name) &&
+    packageJson?.peerDependencies?.["@honua/sdk"] !== ROOT_PACKAGE_JSON.version
+  ) {
+    process.stderr.write(
+      `${name} must require the exact @honua/sdk peer so capability-profile identity is shared.\n`,
+    );
     process.exit(1);
   }
 
@@ -145,6 +161,9 @@ import {
   geoServicesGeometryServiceSource,
   geoServicesImageSource,
 } from "@honua/sdk/contract";
+import { createDataset as createReactContractDataset } from "./node_modules/@honua/react/contract/index.js";
+import { createDataset as createAppPlatformContractDataset } from "./node_modules/@honua/app-platform/contract/index.js";
+import * as reactCapabilityRegistry from "./node_modules/@honua/react/source-capability-registry.js";
 import {
   HONUA_AGENT_TOOL_NAMES,
   explainHonuaCapabilityGap,
@@ -393,6 +412,8 @@ const capabilityProfile = evaluateCapabilityProfile(
 );
 if (capabilityProfile.entries[0]?.effective !== "supported")
   throw new Error("evaluateCapabilityProfile export missing from @honua/sdk/source-capabilities");
+if (Object.keys(reactCapabilityRegistry).join(",") !== "isRegisteredCapabilityProfile")
+  throw new Error("split companion exposes a capability-profile registration escape hatch");
 {
   const capabilitySource = createDataset({
     id: "split-package-capabilities",
@@ -415,6 +436,44 @@ if (capabilityProfile.entries[0]?.effective !== "supported")
   }).source("split-package-smoke");
   if (!capabilitySource?.supports("query"))
     throw new Error("source.supports() missing from split @honua/sdk contract runtime");
+}
+for (const [packageName, createSplitDataset] of [
+  ["@honua/react", createReactContractDataset],
+  ["@honua/app-platform", createAppPlatformContractDataset],
+]) {
+  const descriptor = {
+    id: "cross-package-profile",
+    protocol: "ogc-features",
+    locator: { url: "https://example.test", collectionId: "split-package-smoke" },
+    capabilities: new Set(["query"]),
+    schemaV2: {
+      kind: "honua.source-schema",
+      version: "2.0",
+      fingerprint: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    },
+    capabilityProfile,
+  };
+  const source = createSplitDataset({
+    id: packageName,
+    client: new HonuaClient({ baseUrl: "https://example.test" }),
+    skipCompatibilityCheck: true,
+    sources: [descriptor],
+  }).source("cross-package-profile");
+  if (!source?.supports("query"))
+    throw new Error(packageName + " rejected the canonical @honua/sdk capability-profile brand");
+
+  let rejectedClone = false;
+  try {
+    createSplitDataset({
+      id: packageName + "-forged",
+      client: new HonuaClient({ baseUrl: "https://example.test" }),
+      skipCompatibilityCheck: true,
+      sources: [{ ...descriptor, capabilityProfile: structuredClone(capabilityProfile) }],
+    });
+  } catch (error) {
+    rejectedClone = /capabilityProfile must be evaluated or parsed by this SDK instance/.test(String(error));
+  }
+  if (!rejectedClone) throw new Error(packageName + " accepted an unregistered capability-profile clone");
 }
 {
   const staticProvider = apiKeyAuth("k");
@@ -765,7 +824,9 @@ console.log("splitPackageSmoke=ok");
 `.trimStart();
   fs.writeFileSync(path.join(tempRoot, "smoke.mjs"), smokeScript, "utf8");
 
-  runCommand("npm", ["install", "--ignore-scripts", "--no-package-lock", "--silent"], tempRoot);
+  // Exercise the generated directories as published archives rather than
+  // file: symlinks; peer resolution must occur from the consumer install.
+  runCommand("npm", ["install", "--install-links", "--ignore-scripts", "--no-package-lock", "--silent"], tempRoot);
   const smokeResult = runCommand("node", ["smoke.mjs"], tempRoot);
   process.stdout.write(smokeResult.stdout);
 } finally {

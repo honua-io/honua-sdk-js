@@ -127,7 +127,10 @@ export async function connectWithSourceCapabilities(
   const projection = capabilityProjection(safeEvaluation);
   const capabilityPolicy = discoveryPolicy(safeEvaluation.policy);
   return (await connectWithSourceSchemaProjection(
-    { ...options, ...(capabilityPolicy ? { capabilityPolicy } : {}) },
+    // Evaluation is the sole policy authority for this focused connection.
+    // Always overwrite a policy left on a reused ConnectOptions object so the
+    // legacy capability set and the evaluated profile cannot disagree.
+    { ...options, capabilityPolicy },
     SOURCE_SCHEMA_V2_CONNECT_PROJECTION,
     projection,
   )) as HonuaConnectionWithCapabilityProfiles;
