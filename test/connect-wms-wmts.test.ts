@@ -113,6 +113,12 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
       available: false,
       reason: "Raw WMS GetFeatureInfo requires a Honua service binding for the existing canonical query adapter.",
     });
+    expect(parcels.metadata?.operations?.legend).toMatchObject({
+      available: true,
+      formats: ["image/png"],
+      methods: ["GET"],
+      urls: ["https://maps.example/ogc/legend?tenant=public"],
+    });
     const rawSource = connection.source("parcels");
     expect(rawSource.descriptor).toMatchObject({
       id: parcels.descriptor.id,
@@ -158,12 +164,13 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
 
   it("discovers WMTS styles, dimensions, relative REST resources, and all linked tile matrices", async () => {
     const connection = await connect({
-      endpoint: "https://tiles.example/ogc/wmts",
-      protocol: "wmts",
+      endpoint: "https://tiles.example/ogc/wmts?SERVICE=WMTS&REQUEST=GetCapabilities&VERSION=1.0.0",
+      protocol: "auto",
       authorizationScopeFingerprint: "anonymous",
       clientOptions: { fetchFn: capabilitiesFetch(WMTS_CAPABILITIES) },
     });
 
+    expect(connection.inspection.endpoint).toBe("https://tiles.example/ogc/wmts");
     const source = connection.inspection.sources[0]!;
     expect(source.descriptor.locator).toEqual({
       url: "https://tiles.example/ogc/wmts",
@@ -299,29 +306,62 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
-  it("revalidates cached capabilities with ETag and accepts a valid 304", async () => {
-    const requests: Request[] = [];
-    const fetchFn = vi.fn(async (input, init) => {
-      const request = new Request(input, init);
-      requests.push(request);
-      if (requests.length === 1) return xml(WMS_CAPABILITIES, { ETag: '"capabilities-v1"' });
-      return new Response(null, { status: 304, headers: { ETag: '"capabilities-v1"' } });
-    });
-    const client = new HonuaClient({ baseUrl: "https://maps.example", fetchFn });
-    const options = {
+  it.each([
+    ["ETag", '"capabilities-v1"', "if-none-match"],
+    ["Last-Modified", "Thu, 16 Jul 2026 12:00:00 GMT", "if-modified-since"],
+  ] as const)(
+    "revalidates cached capabilities with %s and accepts a valid 304",
+    async (header, value, requestHeader) => {
+      const requests: Request[] = [];
+      const fetchFn = vi.fn(async (input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        if (requests.length === 1) return xml(WMS_CAPABILITIES, { [header]: value });
+        return new Response(null, { status: 304, headers: { [header]: value } });
+      });
+      const client = new HonuaClient({ baseUrl: "https://maps.example", fetchFn });
+      const options = {
+        endpoint: "https://maps.example/ogc/wms",
+        protocol: "wms" as const,
+        typeName: "parcels",
+        authorizationScopeFingerprint: "anonymous",
+        client,
+      };
+      await connect(options);
+      const refreshed = await connect({ ...options, refresh: true });
+
+      expect(requests).toHaveLength(2);
+      expect(requests[1]?.headers.get(requestHeader)).toBe(value);
+      expect(refreshed.inspection.sources[0]?.descriptor.capabilities.has("render")).toBe(true);
+      expect(refreshed.inspection.sources[0]?.descriptor.capabilities.has("query")).toBe(false);
+    },
+  );
+
+  it("degrades malformed optional metadata into structured partial-discovery reasons", async () => {
+    const missingStyleName = WMS_CAPABILITIES.replace(
+      "<Style><Name>night</Name><Title>Night</Title></Style>",
+      "<Style><Title>Missing name</Title></Style>",
+    );
+    const connection = await connect({
       endpoint: "https://maps.example/ogc/wms",
-      protocol: "wms" as const,
+      protocol: "wms",
       typeName: "parcels",
       authorizationScopeFingerprint: "anonymous",
-      client,
-    };
-    await connect(options);
-    const refreshed = await connect({ ...options, refresh: true });
+      clientOptions: { fetchFn: capabilitiesFetch(missingStyleName) },
+    });
+    const source = connection.inspection.sources[0]!;
 
-    expect(requests).toHaveLength(2);
-    expect(requests[1]?.headers.get("if-none-match")).toBe('"capabilities-v1"');
-    expect(refreshed.inspection.sources[0]?.descriptor.capabilities.has("render")).toBe(true);
-    expect(refreshed.inspection.sources[0]?.descriptor.capabilities.has("query")).toBe(false);
+    expect(source.descriptor.capabilities.has("render")).toBe(true);
+    expect(source.metadata?.styles?.map((style) => style.id)).toEqual(["outline"]);
+    expect(source.metadata?.partialReasons).toContain("WMS Style metadata without a name was ignored.");
+    expect(source.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "partial-discovery",
+          message: "WMS metadata retained 2 structured partial-discovery reasons.",
+        }),
+      ]),
+    );
   });
 
   it("rejects unsafe advertised URLs without retaining credentials or inventing render support", async () => {
