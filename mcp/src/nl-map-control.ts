@@ -134,7 +134,7 @@ export interface NlMapControlMcpHost {
 }
 
 class HonuaNlMapMcpError extends Error {
-  public readonly code: "authorization-scope-denied" | "invalid-input" | "unsafe-output";
+  public readonly code: "approval-required" | "authorization-scope-denied" | "invalid-input" | "unsafe-output";
 
   public constructor(code: HonuaNlMapMcpError["code"], message: string) {
     super(message);
@@ -182,7 +182,7 @@ export function createNlMapControlMcpHost(options: CreateNlMapControlMcpHostOpti
       );
       signal?.throwIfAborted();
       assertMcpSafePlan(plan);
-      return Object.freeze({ plan, approvalRequired: !plan.readOnly });
+      return Object.freeze({ plan, approvalRequired: planRequiresMcpApproval(plan) });
     },
     async execute(
       input: { readonly plan: unknown; readonly approval?: unknown },
@@ -194,6 +194,12 @@ export function createNlMapControlMcpHost(options: CreateNlMapControlMcpHostOpti
       const plan = parseMcpPlan(request.plan);
       assertMcpSafePlan(plan);
       const approval = request.approval === undefined ? undefined : (request.approval as unknown as NlMapPlanApproval);
+      if (approval === undefined && planRequiresMcpApproval(plan)) {
+        throw new HonuaNlMapMcpError(
+          "approval-required",
+          "MCP source-scoped and effectful map plans require a signed approval envelope",
+        );
+      }
 
       if (approval !== undefined) {
         const authorizationTime = now();
@@ -307,7 +313,7 @@ export function registerNlMapControlMcpTools(server: McpServer, host: NlMapContr
     executeDefinition.name,
     {
       title: executeDefinition.title,
-      description: executeDefinition.description,
+      description: `${executeDefinition.description} In the MCP host, source-scoped reads also require a signed approval so transport scopes can be matched to the exact source binding.`,
       inputSchema: executeSchema,
       annotations: {
         readOnlyHint: false,
@@ -466,6 +472,15 @@ function authorizationSourceId(step: NlMapPlan["steps"][number], approvedSourceI
     return sourceId;
   }
   return approvedSourceId;
+}
+
+function planRequiresMcpApproval(plan: NlMapPlan): boolean {
+  return (
+    !plan.readOnly ||
+    plan.steps.some(
+      (step) => (step.call as { readonly args?: Readonly<Record<string, unknown>> }).args?.sourceId !== undefined,
+    )
+  );
 }
 
 function assertAuthorizationScopes(approval: NlMapPlanApproval, grantedInput: readonly string[]): void {

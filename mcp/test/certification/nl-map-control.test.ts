@@ -94,6 +94,71 @@ describe("MCP certification — NL map control", () => {
     expect(harness.effects).toHaveLength(1);
   });
 
+  it("requires scoped single-use approval for a read-only source operation", async () => {
+    const harness = await createHarness({
+      toolCall: { name: "runWidgetQuery", arguments: { sourceId: "source-b", kind: "count" } },
+    });
+    const proposed = await propose(harness);
+    expect(proposed.plan.readOnly).toBe(true);
+    expect(proposed.approvalRequired).toBe(true);
+
+    const missing = await call(harness.client, "executeMapPlan", { plan: proposed.plan });
+    expect(missing).toMatchObject({ isError: true, value: { error: { code: "approval-required" } } });
+    expect(harness.store.consumedCount).toBe(0);
+    expect(harness.effects).toHaveLength(0);
+
+    const approval = await approveNlMapPlan({
+      plan: proposed.plan,
+      actor: "mcp-certifier",
+      approver: "fixture-reviewer",
+      signer: testCrypto().signer,
+      bindings: {
+        "source-b": nlMapRuntimeBinding({
+          id: "source-b",
+          observedAt: NOW,
+          authorizationScope: ["source:read"],
+        }),
+      },
+      issuedAt: NOW,
+      expiresAt: EXPIRES,
+      now: NOW,
+    });
+    harness.setScopes(["map:control"]);
+    const wrongScope = await call(harness.client, "executeMapPlan", { plan: proposed.plan, approval });
+    expect(wrongScope).toMatchObject({
+      isError: true,
+      value: { error: { code: "authorization-scope-denied" } },
+    });
+    expect(harness.store.consumedCount).toBe(0);
+    expect(harness.effects).toHaveLength(0);
+
+    harness.setScopes(["source:read"]);
+    const first = await call<McpNlMapExecutionResponse>(harness.client, "executeMapPlan", {
+      plan: proposed.plan,
+      approval,
+    });
+    expect(first).toMatchObject({ isError: false, value: { mode: "approved", outcome: "succeeded" } });
+    expect(harness.store.consumedCount).toBe(1);
+    expect(harness.effects).toHaveLength(1);
+
+    const replay = await call(harness.client, "executeMapPlan", { plan: proposed.plan, approval });
+    expect(replay).toMatchObject({ isError: true, value: { error: { code: "policy-denied" } } });
+    expect(harness.effects).toHaveLength(1);
+  });
+
+  it("keeps truly non-source read-only inspection eligible for auto-execution", async () => {
+    const harness = await createHarness({ toolCall: { name: "summarizeSelection", arguments: {} } });
+    const proposed = await propose(harness);
+
+    expect(proposed.plan.readOnly).toBe(true);
+    expect(proposed.approvalRequired).toBe(false);
+    const result = await call<McpNlMapExecutionResponse>(harness.client, "executeMapPlan", {
+      plan: proposed.plan,
+    });
+    expect(result).toMatchObject({ isError: false, value: { mode: "auto-read-only", outcome: "succeeded" } });
+    expect(harness.store.consumedCount).toBe(0);
+  });
+
   it("refuses missing, expired, replayed, wrong-scope, and tampered approvals before mutation", async () => {
     const harness = await createHarness();
     const proposed = await propose(harness);
@@ -386,6 +451,11 @@ async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
       effects.push({ op: "selectFeature", target });
       return [target];
     },
+    runWidgetQuery: (request) => {
+      effects.push({ op: "runWidgetQuery", request });
+      return { sourceId: request.sourceId, kind: request.kind, data: { count: 3 } };
+    },
+    summarizeSelection: () => ({ count: 0, bySource: [], targets: [] }),
   };
   const crypto = testCrypto();
   const store = new DeterministicUseStore(() => currentTime);
