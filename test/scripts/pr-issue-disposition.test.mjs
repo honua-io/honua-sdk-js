@@ -164,7 +164,15 @@ describe("pull request issue disposition policy", () => {
     );
     assert.match(workflow, /^  push:\n    branches:\n      - trunk$/mu);
     assert.doesNotMatch(workflow, /pull_request(?:_target)?:/u);
-    assert.match(workflow, /^  checks: write$/mu);
+    assert.match(workflow, /^permissions: read-all$/mu);
+    assert.match(
+      workflow,
+      /^  release-please:\n    runs-on: ubuntu-latest\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
+    );
+    assert.match(
+      workflow,
+      /^  release-please-disposition:\n    needs: release-please\n    runs-on: ubuntu-latest\n    permissions:\n      checks: write\n      contents: read\n      pull-requests: read$/mu,
+    );
     assert.equal(actionUses.length, usesLines.length);
     assert.ok(actionUses.length > 0);
     for (const actionUse of actionUses) {
