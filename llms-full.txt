@@ -960,7 +960,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="kepler-analytics"></a>[`kepler-analytics`](../../examples/kepler-analytics/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Replays operations data through kepler.gl with linked filters and KPI evidence. |
 | <a id="maplibre-quickstart"></a>[`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | recipe | first-map | supported | rework | browser-recipe | hybrid | legacy-unsafe | Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence. |
 | <a id="mcp-gis-assistant"></a>[`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | lab | - | experimental | rework | browser-lab | fixture | not-required | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
-| <a id="migration-workbench"></a>[`migration-workbench`](../../docs/migration-honua-maplibre.md) | lab | arcgis-migration | supported | rework | browser-lab | fixture | legacy-unsafe | Scans and transforms ArcGIS application source with auditable compatibility results. |
+| <a id="migration-workbench"></a>[`migration-workbench`](../../docs/migration-honua-maplibre.md) | lab | arcgis-migration | supported | active | browser-lab | fixture | not-required | Scans and transforms ArcGIS application source with auditable compatibility results. |
 | <a id="nl-map-control"></a>[`nl-map-control`](../../examples/nl-map-control/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
 | <a id="node-backend-quickstart"></a>[`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | - | supported | active | headless-recipe | hybrid | approved | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |
@@ -1313,7 +1313,7 @@ Labels: `fixture` · `public-live` · `degraded`
 - Executable entry: [examples/migration-workbench/src/main.ts](../../examples/migration-workbench/src/main.ts)
 - Example notes: [docs/migration-honua-maplibre.md](../migration-honua-maplibre.md)
 - Compile check: `npm run demo:migration-workbench:typecheck`
-- Sample contract: `lab` · `supported` · `rework`
+- Sample contract: `lab` · `supported` · `active`
 - Data and auth: `fixture` · `none`
 - Provenance: Committed ArcGIS source fixtures and migration reports.
 - Freshness: Versioned with the migration corpus.
@@ -11423,6 +11423,31 @@ ArcGIS JS API behind end-to-end.
 This page documents the slice that shipped in PR #208 (commit
 `af1ebee`). It does not close issue #205 — open acceptance items are
 called out under [Manual gaps](#manual-gaps).
+
+## Canonical migration workbench
+
+[`examples/migration-workbench`](../examples/migration-workbench/README.md)
+is the supported, active browser lab for the complete migration journey. The
+repository build invokes the real `honua-migrate` CLI against the Honua-authored
+`arcgis-source-app` fixture and commits a deterministic report, patch, widget
+guidance, MapLibre assessment, generated compat target, and SHA-256 manifest.
+The browser only projects and revalidates those artifacts; it does not contain
+a second transform, accept uploads, read credentials, or perform cloud import.
+
+Use the artifact and browser gates directly, or exercise the same reviewed
+journey through the sample kit in source and packed SDK modes:
+
+```bash
+npm run demo:migration-workbench:artifacts:check
+npm run test:playwright:migration-workbench
+npm run samples:run -- verify --sample migration-workbench --sdk-mode source
+npm run samples:run -- verify --sample migration-workbench --sdk-mode packed
+```
+
+The catalog exposes this as the planned `arcgis-migration` golden candidate.
+It remains a lab—not a qualified golden card—until current screenshot,
+performance, semantic, and required live receipts satisfy the golden profile;
+gallery qualification is tracked by #550.
 
 ## How it differs from the other targets
 

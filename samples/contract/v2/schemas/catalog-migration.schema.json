@@ -76,6 +76,15 @@
             },
             "additionalProperties": false
           },
+          "fixture": {
+            "type": "object",
+            "properties": {
+              "status": { "enum": ["executed", "not-applicable", "planned"] },
+              "commands": { "type": "array", "items": { "type": "string" } },
+              "evidencePath": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
           "live": {
             "type": "object",
             "properties": {

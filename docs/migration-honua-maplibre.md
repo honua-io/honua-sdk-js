@@ -11,6 +11,31 @@ This page documents the slice that shipped in PR #208 (commit
 `af1ebee`). It does not close issue #205 — open acceptance items are
 called out under [Manual gaps](#manual-gaps).
 
+## Canonical migration workbench
+
+[`examples/migration-workbench`](../examples/migration-workbench/README.md)
+is the supported, active browser lab for the complete migration journey. The
+repository build invokes the real `honua-migrate` CLI against the Honua-authored
+`arcgis-source-app` fixture and commits a deterministic report, patch, widget
+guidance, MapLibre assessment, generated compat target, and SHA-256 manifest.
+The browser only projects and revalidates those artifacts; it does not contain
+a second transform, accept uploads, read credentials, or perform cloud import.
+
+Use the artifact and browser gates directly, or exercise the same reviewed
+journey through the sample kit in source and packed SDK modes:
+
+```bash
+npm run demo:migration-workbench:artifacts:check
+npm run test:playwright:migration-workbench
+npm run samples:run -- verify --sample migration-workbench --sdk-mode source
+npm run samples:run -- verify --sample migration-workbench --sdk-mode packed
+```
+
+The catalog exposes this as the planned `arcgis-migration` golden candidate.
+It remains a lab—not a qualified golden card—until current screenshot,
+performance, semantic, and required live receipts satisfy the golden profile;
+gallery qualification is tracked by #550.
+
 ## How it differs from the other targets
 
 The migration codemod (`src/migration/codemod.ts`) exposes three
