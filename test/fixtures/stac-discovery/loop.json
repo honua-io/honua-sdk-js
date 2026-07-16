@@ -1,0 +1,10 @@
+{
+  "type": "Catalog",
+  "stac_version": "1.1.0",
+  "id": "fixture-loop",
+  "title": "Loop",
+  "description": "Links back to the root.",
+  "links": [
+    { "rel": "child", "href": "./catalog.json", "type": "application/json" }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/raster/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/table/v1.2.0/schema.json"
+  ],
+  "id": "scene-a",
+  "collection": "imagery",
+  "geometry": null,
+  "bbox": [-158.2, 21.1, -157.7, 21.7],
+  "properties": {
+    "datetime": "2025-02-03T04:05:06Z",
+    "proj:code": "EPSG:32604"
+  },
+  "links": [
+    { "rel": "collection", "href": "../collections/imagery.json", "type": "application/json" }
+  ],
+  "assets": {
+    "cog": {
+      "href": "../assets/cog.bin",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "roles": ["data"],
+      "raster:bands": [{ "nodata": 0 }],
+      "proj:code": "EPSG:32604",
+      "proj:bbox": [590000, 2330000, 640000, 2400000]
+    },
+    "geoparquet": {
+      "href": "../assets/places.bin",
+      "type": "application/vnd.apache.parquet",
+      "roles": ["data"],
+      "table:columns": [{ "name": "geometry", "type": "binary" }],
+      "geoparquet:version": "1.1.0"
+    },
+    "pmtiles": {
+      "href": "../assets/basemap.bin",
+      "type": "application/vnd.pmtiles",
+      "roles": ["data"]
+    },
+    "tilejson": {
+      "href": "../assets/vector.json",
+      "type": "application/vnd.mapbox.tile+json",
+      "roles": ["tiles"]
+    },
+    "vector-template": {
+      "href": "../tiles/{z}/{x}/{y}",
+      "type": "application/vnd.mapbox-vector-tile",
+      "roles": ["tiles"]
+    },
+    "metadata": {
+      "href": "../assets/metadata.json",
+      "type": "application/json",
+      "roles": ["metadata"]
+    },
+    "generic-geotiff": {
+      "href": "../assets/generic-tiff.bin",
+      "type": "image/tiff; application=geotiff",
+      "roles": ["data"]
+    },
+    "mislabelled-pmtiles": {
+      "href": "../assets/not-pmtiles.bin",
+      "type": "application/vnd.pmtiles",
+      "roles": ["data"]
+    },
+    "suffix-only": {
+      "href": "../assets/misleading.pmtiles",
+      "type": "text/plain",
+      "roles": ["data"]
+    },
+    "signed-pmtiles": {
+      "href": "../assets/private.bin?sig=top-secret&sp=r",
+      "type": "application/vnd.pmtiles",
+      "roles": ["data"]
+    }
+  }
+}
