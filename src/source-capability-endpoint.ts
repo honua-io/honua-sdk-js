@@ -31,7 +31,7 @@ export function createCapabilitySourceEndpointFingerprint(identity: CapabilitySo
     "protocol",
     "sourceId",
   ]);
-  const endpoint = normalizeCredentialFreeEndpoint(safeIdentity.endpoint);
+  const endpoint = normalizeCapabilitySourceEndpoint(safeIdentity.endpoint);
   if (
     typeof safeIdentity.protocol !== "string" ||
     safeIdentity.protocol.length > MAX_PROTOCOL_LENGTH ||
@@ -55,7 +55,8 @@ export function createCapabilitySourceEndpointFingerprint(identity: CapabilitySo
   ) as Sha256;
 }
 
-function normalizeCredentialFreeEndpoint(value: unknown): string {
+/** @internal Canonical credential-free endpoint boundary shared by discovery bindings. */
+export function normalizeCapabilitySourceEndpoint(value: unknown): string {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
