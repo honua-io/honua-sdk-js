@@ -85,6 +85,16 @@ export interface HonuaOdataEdmEncodingOptions {
   readonly maxDepth?: number;
 }
 
+/** Controls metadata-typed entity-key encoding. */
+export interface HonuaOdataEntityKeyEncodingOptions extends HonuaOdataEdmEncodingOptions {
+  /**
+   * Ordered metadata key fields to place in this URL predicate. Omit this for
+   * a direct entity set. Navigation paths may provide the child-key subset
+   * because the parent key is already carried by the path.
+   */
+  readonly keyFields?: readonly string[];
+}
+
 /** Body projection consumed by a later HTTP/edit integration layer. */
 export interface HonuaOdataEncodedWriteBody {
   /** JSON-compatible body with metadata-declared values encoded losslessly. */
@@ -147,16 +157,21 @@ export function encodeOdataEntityKey(
   metadata: HonuaOdataMetadata,
   entitySet: string,
   key: unknown,
-  options: HonuaOdataEdmEncodingOptions = {},
+  options: HonuaOdataEntityKeyEncodingOptions = {},
 ): HonuaOdataEncodedEntityKey {
   try {
     const context = encodingContext(options);
     const model = codecModel(metadata, entitySet);
-    if (model.keys.length === 0) throw encodingError("invalid-metadata", ["key"]);
-    if (new Set(model.keys).size !== model.keys.length) throw encodingError("invalid-metadata", ["key"]);
+    const configuredKeyFields = dataProperty(options, "keyFields", ["options", "keyFields"], "invalid-options");
+    const keys =
+      configuredKeyFields === undefined
+        ? model.keys
+        : keyFieldOverride(configuredKeyFields, model.keys, ["options", "keyFields"]);
+    if (keys.length === 0) throw encodingError("invalid-metadata", ["key"]);
+    if (new Set(keys).size !== keys.length) throw encodingError("invalid-metadata", ["key"]);
 
     const fields = new Map(model.fields.map((field) => [field.name, field]));
-    const keyFields = model.keys.map((name) => {
+    const keyFields = keys.map((name) => {
       if (!simpleIdentifier(name)) throw encodingError("invalid-metadata", ["key"]);
       const field = fields.get(name);
       if (!field) throw encodingError("invalid-metadata", ["key", name]);
@@ -184,6 +199,28 @@ export function encodeOdataEntityKey(
   } catch (error) {
     rethrowEncodingError(error, "invalid-value", ["key"]);
   }
+}
+
+function keyFieldOverride(
+  value: unknown,
+  declaredKeys: readonly string[],
+  path: readonly (string | number)[],
+): readonly string[] {
+  if (!Array.isArray(value)) throw encodingError("invalid-options", path);
+  const fields = arrayDataValues(value, path, "invalid-options");
+  if (
+    fields.length === 0 ||
+    fields.some((field) => typeof field !== "string") ||
+    new Set(fields).size !== fields.length
+  ) {
+    throw encodingError("invalid-options", path);
+  }
+  const selected = new Set(fields as string[]);
+  const ordered = declaredKeys.filter((field) => selected.has(field));
+  if (ordered.length !== fields.length || ordered.some((field, index) => field !== fields[index])) {
+    throw encodingError("invalid-options", path);
+  }
+  return ordered;
 }
 
 function codecModel(metadata: HonuaOdataMetadata, requestedEntitySet: string): OdataCodecModel {

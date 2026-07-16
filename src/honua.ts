@@ -460,8 +460,21 @@ export type {
   HonuaOdataMetadata,
   HonuaOdataPage,
   HonuaOdataQueryParams,
+  HonuaOdataWriteRequestOptions,
   OdataSpatialFilterContext,
 } from "./core/odata.js";
+export {
+  HonuaOdataEdmEncodingError,
+  encodeOdataEntityKey,
+  encodeOdataWriteBody,
+} from "./core/odata-write-codec.js";
+export type {
+  HonuaOdataEdmEncodingErrorCode,
+  HonuaOdataEdmEncodingOptions,
+  HonuaOdataEncodedEntityKey,
+  HonuaOdataEncodedWriteBody,
+  HonuaOdataEntityKeyEncodingOptions,
+} from "./core/odata-write-codec.js";
 export {
   HonuaWfs,
   HonuaWfsFeatureType,
@@ -976,6 +989,8 @@ export type {
   JobSnapshotListener,
   JobStatus,
   MapBinding,
+  OdataSourceOptions,
+  OdataWriteEncoding,
   PaginationSpec,
   Protocol,
   Query,

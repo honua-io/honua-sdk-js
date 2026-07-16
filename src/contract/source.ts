@@ -16,6 +16,12 @@
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
 import {
+  type HonuaOdataEncodedEntityKey,
+  type HonuaOdataEncodedWriteBody,
+  encodeOdataEntityKey,
+  encodeOdataWriteBody,
+} from "../core/odata-write-codec.js";
+import {
   type HonuaOdataAdvertisedCapabilities,
   type HonuaOdataBatchOperation,
   type HonuaOdataBatchOutcome,
@@ -2242,6 +2248,20 @@ function canonicalEditResultFromTransaction<T>(
  * precedent for the metadata-driven downgrade pattern referenced in
  * `docs/shared-client-contract.md`.
  */
+/** JSON write policy for the canonical OData source adapter. */
+export type OdataWriteEncoding = "legacy" | "lossless-json";
+
+/** Options for {@link odataSource}. */
+export interface OdataSourceOptions {
+  /**
+   * Opt into metadata-driven exact EDM body and key encoding. `Edm.Int64`
+   * and `Edm.Decimal` values become validated JSON strings and request media
+   * types receive `IEEE754Compatible=true` only when required. Defaults to
+   * `legacy`, preserving the original JSON bytes and key formatting.
+   */
+  readonly writeEncoding?: OdataWriteEncoding;
+}
+
 /**
  * Adapter factory for an OData v4 entity set.
  *
@@ -2269,11 +2289,21 @@ function canonicalEditResultFromTransaction<T>(
  * });
  * ```
  */
-export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
+
+export function odataSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+  options: OdataSourceOptions = {},
+): Source<T> {
   const { entitySet, basePath } = requireOdataLocator(descriptor);
   const entity = new HonuaOdataEntitySet({ client, entitySet, basePath });
   const declaredCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.odata;
   const negotiation = new OdataCapabilityNegotiator(entity, declaredCaps);
+  const writeEncoding = options.writeEncoding ?? "legacy";
+  if (writeEncoding !== "legacy" && writeEncoding !== "lossless-json") {
+    throw new TypeError('odata: writeEncoding must be "legacy" or "lossless-json"');
+  }
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
     odata: entity,
@@ -2386,6 +2416,10 @@ export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient
       ensureCapability(descriptor, declaredCaps, "applyEdits");
       await negotiation.ensureAdvertised(descriptor, "applyEdits");
       const keyFields = await negotiation.keyFields(descriptor.id);
+      const prepared =
+        writeEncoding === "lossless-json"
+          ? prepareLosslessOdataEdits(entity, envelope, keyFields, await negotiation.metadata())
+          : undefined;
 
       // Atomic path: when the caller asks for rollback-on-failure AND the
       // service advertises `$batch`, collapse the envelope into a single
@@ -2397,9 +2431,9 @@ export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient
       if (envelope.rollbackOnFailure === true) {
         const batchAdvertised = await negotiation.batchAdvertised();
         if (batchAdvertised) {
-          return atomicOdataApplyEdits(entity, envelope, keyFields, descriptor);
+          return atomicOdataApplyEdits(entity, envelope, keyFields, descriptor, prepared);
         }
-        const result = await perCallOdataApplyEdits(entity, envelope, keyFields);
+        const result = await perCallOdataApplyEdits(entity, envelope, keyFields, prepared);
         return {
           ...result,
           degraded: [
@@ -2415,7 +2449,7 @@ export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient
         } satisfies EditResult;
       }
 
-      return perCallOdataApplyEdits(entity, envelope, keyFields);
+      return perCallOdataApplyEdits(entity, envelope, keyFields, prepared);
     },
     async queryRelated() {
       // OData has no canonical related-records surface; navigation
@@ -2425,6 +2459,102 @@ export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient
     },
     attachments: unsupportedAttachmentApi(descriptor),
   });
+}
+
+interface PreparedOdataBody {
+  readonly body: Record<string, unknown>;
+  readonly contentType: string;
+}
+
+interface PreparedOdataUpdate extends PreparedOdataBody {
+  readonly key: HonuaOdataEncodedEntityKey;
+}
+
+interface PreparedOdataDelete {
+  readonly key: HonuaOdataEncodedEntityKey;
+}
+
+interface PreparedOdataEdits {
+  readonly adds: readonly PreparedOdataBody[];
+  readonly updates: readonly PreparedOdataUpdate[];
+  readonly deletes: readonly PreparedOdataDelete[];
+}
+
+/**
+ * Preflight the complete opted-in envelope against one cached metadata
+ * snapshot. Both direct and atomic execution consume this projection, so a
+ * local encoding failure cannot leak a partial request or take a different
+ * branch-specific coercion path.
+ */
+function prepareLosslessOdataEdits<T>(
+  entity: HonuaOdataEntitySet,
+  envelope: EditEnvelope<T>,
+  keyFields: ReadonlyArray<string>,
+  metadata: HonuaOdataMetadata,
+): PreparedOdataEdits {
+  const urlKeys = urlKeyFields(entity.entitySet, keyFields);
+  const adds = (envelope.adds ?? []).map((add) => preparedOdataBody(metadata, entity.entitySet, add));
+  const updates = (envelope.updates ?? []).map((update) => {
+    const prepared = preparedOdataBody(metadata, entity.entitySet, update);
+    const key = encodeOdataEntityKey(metadata, entity.entitySet, canonicalKeyInput(update.id, prepared.body, urlKeys), {
+      keyFields: urlKeys,
+    });
+    return { ...prepared, key };
+  });
+  const deletes = (envelope.deletes ?? []).map((id) => ({
+    key: encodeOdataEntityKey(metadata, entity.entitySet, canonicalKeyInput(id, {}, urlKeys), {
+      keyFields: urlKeys,
+    }),
+  }));
+  return { adds, updates, deletes };
+}
+
+function preparedOdataBody<T>(
+  metadata: HonuaOdataMetadata,
+  entitySet: string,
+  feature: { attributes: T; geometry?: Record<string, unknown> | null },
+): PreparedOdataBody {
+  const attributes = encodeOdataWriteBody(metadata, entitySet, feature.attributes as Readonly<Record<string, unknown>>);
+  let encoded: HonuaOdataEncodedWriteBody = attributes;
+  if (
+    feature.geometry !== undefined &&
+    feature.geometry !== null &&
+    attributes.body.Geometry === undefined &&
+    attributes.body.geometry === undefined
+  ) {
+    const geometry = encodeOdataWriteBody(metadata, entitySet, { Geometry: feature.geometry });
+    encoded = {
+      body: { ...attributes.body, ...geometry.body },
+      requiresIeee754Compatible: attributes.requiresIeee754Compatible || geometry.requiresIeee754Compatible,
+    };
+  }
+  return {
+    body: encoded.body,
+    contentType: encoded.requiresIeee754Compatible ? "application/json;IEEE754Compatible=true" : "application/json",
+  };
+}
+
+function canonicalKeyInput(
+  id: FeatureId | undefined,
+  attributes: Readonly<Record<string, unknown>>,
+  keyFields: ReadonlyArray<string>,
+): unknown {
+  if (keyFields.length <= 1) {
+    const field = keyFields[0];
+    return (field ? attributes[field] : undefined) ?? id;
+  }
+  const key: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  for (const field of keyFields) {
+    const value = attributes[field] ?? (field === "ObjectId" ? id : undefined);
+    if (value === undefined || value === null) return undefined;
+    Object.defineProperty(key, field, {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value,
+    });
+  }
+  return key;
 }
 
 /**
@@ -2437,16 +2567,21 @@ async function perCallOdataApplyEdits<T>(
   entity: HonuaOdataEntitySet,
   envelope: EditEnvelope<T>,
   keyFields: ReadonlyArray<string>,
+  prepared?: PreparedOdataEdits,
 ): Promise<EditResult> {
   const added: EditOutcome[] = [];
   const updated: EditOutcome[] = [];
   const deleted: EditOutcome[] = [];
   const { signal } = envelope;
 
-  for (const add of envelope.adds ?? []) {
+  const adds = envelope.adds ?? [];
+  for (let index = 0; index < adds.length; index += 1) {
+    const add = adds[index];
+    const encoded = prepared?.adds[index];
     try {
-      const created = await entity.add<Record<string, unknown>>(featureToOdataBody(add), {
+      const created = await entity.add<Record<string, unknown>>(encoded?.body ?? featureToOdataBody(add), {
         ...(signal ? { signal } : {}),
+        ...(encoded ? { contentType: encoded.contentType } : {}),
       });
       const id = readKey(created, keyFields, add.id);
       added.push(id !== undefined ? { id, success: true } : { success: true });
@@ -2460,21 +2595,29 @@ async function perCallOdataApplyEdits<T>(
   // using the full `keyFields` because the response body still carries
   // every key.
   const urlKeys = urlKeyFields(entity.entitySet, keyFields);
-  for (const update of envelope.updates ?? []) {
-    const key = canonicalKeyToOdata(update, urlKeys);
+  const updates = envelope.updates ?? [];
+  for (let index = 0; index < updates.length; index += 1) {
+    const update = updates[index];
+    const encoded = prepared?.updates[index];
+    const key = encoded?.key.literal ?? canonicalKeyToOdata(update, urlKeys);
     if (key === undefined) {
       updated.push({ success: false, error: { code: 400, description: "update.id is required" } });
       continue;
     }
     try {
-      await entity.update(key, featureToOdataBody(update), { ...(signal ? { signal } : {}) });
+      await entity.update(key, encoded?.body ?? featureToOdataBody(update), {
+        ...(signal ? { signal } : {}),
+        ...(encoded ? { contentType: encoded.contentType } : {}),
+      });
       updated.push({ id: update.id ?? readKeyFromBody(update.attributes, keyFields), success: true });
     } catch (err) {
       updated.push({ id: update.id, success: false, error: editErrorFromCatch(err) });
     }
   }
-  for (const id of envelope.deletes ?? []) {
-    const key = canonicalKeyToOdata({ id, attributes: {} as Record<string, unknown> }, urlKeys);
+  const deletes = envelope.deletes ?? [];
+  for (let index = 0; index < deletes.length; index += 1) {
+    const id = deletes[index];
+    const key = prepared?.deletes[index]?.key.literal ?? canonicalKeyToOdata({ id, attributes: {} }, urlKeys);
     if (key === undefined) {
       deleted.push({ success: false, error: { code: 400, description: "delete id is required" } });
       continue;
@@ -2503,6 +2646,7 @@ async function atomicOdataApplyEdits<T>(
   envelope: EditEnvelope<T>,
   keyFields: ReadonlyArray<string>,
   descriptor: SourceDescriptor,
+  prepared?: PreparedOdataEdits,
 ): Promise<EditResult> {
   const operations: HonuaOdataBatchOperation[] = [];
   // Track which bucket each operation belongs to so the response loop
@@ -2521,21 +2665,26 @@ async function atomicOdataApplyEdits<T>(
   // and the test surface stays small.
   let seq = 1;
   const adds = envelope.adds ?? [];
-  for (const add of adds) {
+  for (let index = 0; index < adds.length; index += 1) {
+    const add = adds[index];
+    const encoded = prepared?.adds[index];
     const id = String(seq++);
     operations.push({
       id,
       method: "POST",
       url: stripLeadingSlashLocal(entity.entitySet),
-      body: featureToOdataBody(add),
+      body: encoded?.body ?? featureToOdataBody(add),
+      ...(encoded ? { headers: { "Content-Type": encoded.contentType } } : {}),
     });
     bucketIndices.add.push(plan.length);
     plan.push({ kind: "add", id: add.id });
   }
   const updates = envelope.updates ?? [];
-  for (const update of updates) {
+  for (let index = 0; index < updates.length; index += 1) {
+    const update = updates[index];
+    const encoded = prepared?.updates[index];
     const id = String(seq++);
-    const key = canonicalKeyToOdata(update, urlKeys);
+    const key = encoded?.key.literal ?? canonicalKeyToOdata(update, urlKeys);
     if (key === undefined) {
       bucketIndices.update.push(plan.length);
       plan.push({ kind: "update", id: update.id });
@@ -2544,22 +2693,29 @@ async function atomicOdataApplyEdits<T>(
     operations.push({
       id,
       method: "PATCH",
-      url: `${entity.entitySet}(${key})`,
-      body: featureToOdataBody(update),
+      url: `${entity.entitySet}(${encoded?.key.pathSegment ?? key})`,
+      body: encoded?.body ?? featureToOdataBody(update),
+      ...(encoded ? { headers: { "Content-Type": encoded.contentType } } : {}),
     });
     bucketIndices.update.push(plan.length);
     plan.push({ kind: "update", id: update.id, key });
   }
   const deletes = envelope.deletes ?? [];
-  for (const rawId of deletes) {
+  for (let index = 0; index < deletes.length; index += 1) {
+    const rawId = deletes[index];
+    const encoded = prepared?.deletes[index];
     const id = String(seq++);
-    const key = canonicalKeyToOdata({ id: rawId, attributes: {} as Record<string, unknown> }, urlKeys);
+    const key = encoded?.key.literal ?? canonicalKeyToOdata({ id: rawId, attributes: {} }, urlKeys);
     if (key === undefined) {
       bucketIndices.delete.push(plan.length);
       plan.push({ kind: "delete", id: rawId });
       continue;
     }
-    operations.push({ id, method: "DELETE", url: `${entity.entitySet}(${key})` });
+    operations.push({
+      id,
+      method: "DELETE",
+      url: `${entity.entitySet}(${encoded?.key.pathSegment ?? key})`,
+    });
     bucketIndices.delete.push(plan.length);
     plan.push({ kind: "delete", id: rawId, key });
   }
@@ -3120,6 +3276,11 @@ class OdataCapabilityNegotiator {
     const typeName = meta.entitySets[this.entity.entitySetName];
     if (!typeName) return [];
     return meta.keys[typeName] ?? [];
+  }
+
+  /** Return the same single-flight snapshot used by every capability probe. */
+  public metadata(): Promise<HonuaOdataMetadata> {
+    return this.materialize();
   }
 
   public async keyField(sourceId: SourceId): Promise<string> {

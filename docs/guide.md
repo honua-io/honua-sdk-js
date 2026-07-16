@@ -754,6 +754,44 @@ const aggregated = await odata.apply(
 );
 ```
 
+Lossless OData writes are deliberately opt-in on the OData source factory. The
+default remains the original `JSON.stringify` body and key formatter. Choose
+`writeEncoding: "lossless-json"` when edit values must follow their declared
+EDM types exactly:
+
+```ts doc-test=compile
+import { PROTOCOL_DEFAULT_CAPABILITIES, odataSource } from "@honua/sdk-js/contract";
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({ baseUrl: "https://server.honua.io" });
+const exactParcels = odataSource<Record<string, unknown>>(
+  {
+    id: "parcels-odata",
+    protocol: "odata",
+    locator: { url: "https://server.honua.io/odata", entitySet: "Parcels" },
+    capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+  },
+  client,
+  "strict",
+  { writeEncoding: "lossless-json" },
+);
+
+await exactParcels.applyEdits({
+  adds: [{ attributes: { ObjectId: 9_223_372_036_854_775_807n, AssessedValue: "1234567890.125" } }],
+  updates: [{ id: "9223372036854775807", attributes: { AssessedValue: "1234567890.250" } }],
+});
+```
+
+The adapter reuses its single-flight `$metadata` snapshot to validate and
+encode `Edm.Int64`, `Edm.Decimal`, special `Edm.Single`/`Edm.Double` values,
+nested complex values, collections, and typed single/composite keys. Bodies
+that contain an exact integer or decimal use
+`application/json;IEEE754Compatible=true`; ordinary bodies keep
+`application/json`. The same preflight projection feeds independent edits and
+JSON `$batch` parts. Invalid values—including braced or malformed GUID keys—
+fail locally before any edit request, and diagnostics retain only a bounded
+property path, never the rejected value or request body.
+
 `Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites
 the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` →
 `eq`, plus the SQL comparison operators `>=` / `<=` / `>` / `<` → `ge` /
