@@ -21,7 +21,7 @@ import type {
   DiscoveryState,
   SourceDiscoveryInspection,
 } from "@honua/sdk-js/contract";
-import { PROTOCOLS, normalizeDiscoveryEndpoint } from "@honua/sdk-js/contract";
+import { PROTOCOLS } from "@honua/sdk-js/contract";
 
 const MAX_ENDPOINT_INPUT_LENGTH = 4_096;
 const MAX_SELECTOR_LENGTH = 512;
@@ -68,7 +68,10 @@ export interface ServiceExplorerEndpointInput {
  * these values are copied into the inspection model.
  */
 export interface ServiceExplorerInspectOptions {
+  /** Transport/cache partition only. Never rendered unless it is an exact SHA-256 identity. */
   readonly authorizationScopeFingerprint?: string;
+  /** Optional credential-free structural label rendered instead of the opaque fingerprint. */
+  readonly authorizationScopeLabel?: string;
   readonly client?: HonuaKernelConnectOptions["client"];
   readonly clientOptions?: HonuaKernelConnectOptions["clientOptions"];
   readonly metadata?: HonuaKernelConnectOptions["metadata"];
@@ -398,7 +401,12 @@ class ServiceExplorerTruthModelSession implements ServiceExplorerTruthModel {
     this.#activeAbortController = controller;
     const signal = combineAbortSignals(controller.signal, options.signal);
     const inputSnapshot = snapshotEndpointInput(input);
-    const request = createRequestView(generation, inputSnapshot.input, options.authorizationScopeFingerprint);
+    const request = createRequestView(
+      generation,
+      inputSnapshot.input,
+      options.authorizationScopeFingerprint,
+      options.authorizationScopeLabel,
+    );
     const previous = this.#activeConnection;
     this.#activeConnection = undefined;
     this.#publish(freezeView({ kind: "loading", request }));
@@ -543,19 +551,16 @@ function snapshotEndpointInput(foreign: ServiceExplorerEndpointInput): EndpointI
   if (typeof url !== "string" || !validEndpointInput(url)) {
     return invalidInputSnapshot("input.invalid-endpoint", "Invalid endpoint", "Enter a bounded HTTP(S) service URL.");
   }
-  let normalizedUrl: string;
-  try {
-    normalizedUrl = normalizeEndpointForKernel(url);
-  } catch {
-    return invalidInputSnapshot("input.invalid-endpoint", "Invalid endpoint", "Enter a bounded HTTP(S) service URL.");
-  }
+  const canonical = canonicalEndpointForKernel(url);
+  if ("failure" in canonical)
+    return invalidInputSnapshot(canonical.failure.code, "Invalid endpoint", canonical.failure.detail);
   const input: {
     url: string;
     protocol?: ConnectProtocolHint;
     sourceId?: string;
     collectionId?: string;
     typeName?: string;
-  } = { url: normalizedUrl };
+  } = { url: canonical.url };
   const protocol = values.protocol;
   if (protocol !== undefined) {
     if (typeof protocol !== "string" || !CONNECT_PROTOCOL_HINTS.has(protocol)) {
@@ -563,7 +568,7 @@ function snapshotEndpointInput(foreign: ServiceExplorerEndpointInput): EndpointI
         "input.invalid-protocol",
         "Invalid protocol hint",
         "Choose auto or a public SDK protocol identifier.",
-        { url: normalizedUrl },
+        { url: canonical.url },
       );
     }
     input.protocol = protocol as ConnectProtocolHint;
@@ -624,19 +629,39 @@ function hasUnsafeControl(value: string): boolean {
   return false;
 }
 
-function normalizeEndpointForKernel(value: string): string {
-  const original = new URL(value);
-  const normalized = new URL(normalizeDiscoveryEndpoint(original));
-  // Discovery normalization removes credential-shaped query material, while
-  // path bytes (including a meaningful trailing slash) remain request truth.
-  normalized.pathname = original.pathname;
-  return normalized.toString();
+function canonicalEndpointForKernel(
+  value: string,
+): { readonly url: string } | { readonly failure: { readonly code: string; readonly detail: string } } {
+  const endpoint = new URL(value);
+  const removableFormatQuery =
+    endpoint.searchParams.size > 0 &&
+    [...endpoint.searchParams].every(
+      ([name, queryValue]) =>
+        (name.toLowerCase() === "f" || name.toLowerCase() === "format") &&
+        (queryValue.toLowerCase() === "json" || queryValue.toLowerCase() === "pjson"),
+    );
+  if (endpoint.hash || (endpoint.search && !removableFormatQuery)) {
+    return {
+      failure: {
+        code: "input.identity-bearing-endpoint",
+        detail:
+          "Remove fragments and identity-bearing query parameters. Configure authentication separately; only f/format=json/pjson discovery controls are removable.",
+      },
+    };
+  }
+  if (removableFormatQuery) endpoint.search = "";
+  while (endpoint.pathname.length > 1 && endpoint.pathname.endsWith("/")) {
+    endpoint.pathname = endpoint.pathname.slice(0, -1);
+  }
+  const normalized = endpoint.toString();
+  return { url: normalized.endsWith("/") ? normalized.slice(0, -1) : normalized };
 }
 
 function createRequestView(
   id: number,
   input: ServiceExplorerEndpointInput,
   authorizationScopeFingerprint: string | undefined,
+  authorizationScopeLabel: string | undefined,
 ): ServiceExplorerRequestView {
   const sourceId = safeSelector(input.sourceId);
   const collectionId = safeSelector(input.collectionId);
@@ -648,21 +673,26 @@ function createRequestView(
     ...(sourceId ? { sourceId } : {}),
     ...(collectionId ? { collectionId } : {}),
     ...(typeName ? { typeName } : {}),
-    authorization: authorizationView(authorizationScopeFingerprint),
+    authorization: authorizationView(authorizationScopeFingerprint, authorizationScopeLabel),
   });
 }
 
-function authorizationView(value: unknown): ServiceExplorerAuthorizationView {
-  if (value !== undefined && (typeof value !== "string" || value.length > 256)) {
-    return freezeView({ mode: "scoped", scopeIdentity: "[configured]", credentialsRetained: false });
-  }
-  const candidate = value?.trim();
-  const anonymous = candidate === undefined || candidate === "" || candidate === "public" || candidate === "anonymous";
+function authorizationView(fingerprint: unknown, displayLabel: unknown): ServiceExplorerAuthorizationView {
+  const anonymous =
+    fingerprint === undefined || fingerprint === "" || fingerprint === "public" || fingerprint === "anonymous";
+  const label = anonymous ? "public" : safeAuthorizationIdentity(fingerprint, displayLabel);
   return freezeView({
     mode: anonymous ? "anonymous" : "scoped",
-    scopeIdentity: anonymous ? "public" : safeScopeIdentity(candidate),
+    scopeIdentity: label,
     credentialsRetained: false,
   });
+}
+
+function safeAuthorizationIdentity(fingerprint: unknown, displayLabel: unknown): string {
+  const structuralLabel = safeScopeIdentity(displayLabel);
+  if (structuralLabel !== "[configured]") return structuralLabel;
+  if (typeof fingerprint === "string" && /^sha256:[0-9a-f]{64}$/i.test(fingerprint)) return fingerprint.toLowerCase();
+  return "[configured]";
 }
 
 function safeScopeIdentity(value: unknown): string {
