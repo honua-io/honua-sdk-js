@@ -15,7 +15,12 @@
     "./agent-execution": {
       "types": "./dist/src/agent-execution.d.ts",
       "default": "./dist/src/agent-execution.js"
-    }
+    },
+    "./nl-map-control": {
+      "types": "./dist/src/nl-map-control.d.ts",
+      "default": "./dist/src/nl-map-control.js"
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "clean": "rm -rf dist coverage",

@@ -145,8 +145,13 @@ const openAiTools = toNlMapControlOpenAiToolDefinitions();
 `proposeMapPlan` is a read tool (planning only); `executeMapPlan` is an
 action tool that requires opt-in and accepts a serialized plan plus an
 optional approval bundle — the same plan-only, envelope-gated contract as
-the in-app API. MCP servers hosting these tools keep the identical safety
-semantics because they delegate to `createNlMapControl`.
+the in-app API. `@honua/mcp-server` hosts these definitions through
+`createNlMapControlMcpHost` and `createServer(client, { nlMapControl })`. The
+MCP boundary additionally requires an atomic approval-use consumer, matches
+transport authorization scopes to the approved source bindings, propagates
+cancellation, and refuses credential/cursor/endpoint-bearing plans before
+mutation. Its content-addressed execution receipt omits the raw instruction and
+tool result payloads while retaining the exact plan and SDK receipt digests.
 
 ## Errors
 
