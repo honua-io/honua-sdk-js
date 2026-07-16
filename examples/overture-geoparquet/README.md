@@ -4,7 +4,7 @@ Honua's large-data browser sample runs a protocol-neutral spatial query through
 DuckDB-WASM's worker with one bounded policy in two lanes:
 
 - `fixture` uses a committed 1.9 KB GeoParquet file, the package-locked DuckDB
-  main module and worker, and a signed Parquet extension prepared into an
+  main module and worker, and a SHA-256-pinned Parquet extension prepared into an
   ignored cache. Every browser asset is self-hosted; required CI makes no
   cross-origin requests.
 - `live` is opt-in and targets a pinned item from Overture's official STAC

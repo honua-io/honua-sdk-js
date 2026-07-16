@@ -15,7 +15,7 @@ const repoRoot = path.resolve(exampleRoot, "../..");
 
 // DuckDB-WASM assets are large (34 MB .wasm) so they are NOT committed. This
 // plugin serves the package-locked main module and worker from node_modules in
-// dev and copies them into the build output under /duckdb/. The signed Parquet
+// dev and copies them into the build output under /duckdb/. The SHA-256-pinned Parquet
 // extension is prepared separately into an ignored, digest-checked cache and
 // then served from the same origin; no executable artifact is committed.
 const duckdbDist = path.resolve(repoRoot, "node_modules/@duckdb/duckdb-wasm/dist");

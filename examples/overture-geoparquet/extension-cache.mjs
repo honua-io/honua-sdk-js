@@ -21,7 +21,11 @@ function notFound(error) {
 }
 
 async function readBoundedResponseBody(response, maximumBytes) {
-  if (!response.body?.getReader) return new Uint8Array(await response.arrayBuffer());
+  if (typeof response.body?.getReader !== "function") {
+    throw new Error(
+      "Pinned DuckDB extension response requires a readable byte stream; unbounded whole-body readers are not allowed.",
+    );
+  }
   const reader = response.body.getReader();
   const chunks = [];
   let byteLength = 0;

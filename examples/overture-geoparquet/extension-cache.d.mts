@@ -29,7 +29,6 @@ export interface ExtensionFetchResponse {
       releaseLock(): void;
     };
   };
-  arrayBuffer(): Promise<ArrayBuffer>;
 }
 
 export type ExtensionFetch = (

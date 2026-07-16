@@ -2,7 +2,7 @@
 
 This directory intentionally contains no executable artifacts. The demo copies
 its DuckDB main module and worker from the package-locked dependency and prepares
-the signed Parquet extension into an ignored cache; generated `.wasm` and worker
+the SHA-256-pinned Parquet extension into an ignored cache; generated `.wasm` and worker
 files stay outside Git.
 
 - npm package: `@duckdb/duckdb-wasm@1.32.0`

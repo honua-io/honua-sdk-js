@@ -63,14 +63,23 @@ class MemoryFileSystem implements ExtensionCacheFileSystem {
 }
 
 function response(bytes: Uint8Array, overrides: Partial<ExtensionFetchResponse> = {}): ExtensionFetchResponse {
+  let emitted = false;
   return {
     ok: true,
     status: 200,
     redirected: false,
     url: TEST_PROVENANCE.sourceUrl,
     headers: { get: () => "application/wasm" },
-    async arrayBuffer() {
-      return Uint8Array.from(bytes).buffer;
+    body: {
+      getReader: () => ({
+        async read() {
+          if (emitted) return { done: true };
+          emitted = true;
+          return { done: false, value: Uint8Array.from(bytes) };
+        },
+        async cancel() {},
+        releaseLock() {},
+      }),
     },
     ...overrides,
   };
@@ -215,6 +224,24 @@ describe("Overture DuckDB extension preparation", () => {
     ).rejects.toThrow(`exceeds ${TEST_PROVENANCE.bytes} bytes`);
     expect(cancel).toHaveBeenCalledOnce();
     expect(releaseLock).toHaveBeenCalledOnce();
+    expect(fsImpl.files.size).toBe(0);
+  });
+
+  it("fails closed without a byte stream and never invokes an unbounded whole-body reader", async () => {
+    const fsImpl = new MemoryFileSystem();
+    const arrayBuffer = vi.fn(async () => Uint8Array.from(VALID_BYTES).buffer);
+    const fetchImpl: ExtensionFetch = async () =>
+      Object.assign(response(VALID_BYTES, { body: undefined }), { arrayBuffer });
+
+    await expect(
+      ensurePinnedParquetExtension({
+        cachePath: CACHE_PATH,
+        fsImpl,
+        fetchImpl,
+        provenance: TEST_PROVENANCE,
+      }),
+    ).rejects.toThrow("unbounded whole-body readers are not allowed");
+    expect(arrayBuffer).not.toHaveBeenCalled();
     expect(fsImpl.files.size).toBe(0);
   });
 
