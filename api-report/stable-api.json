@@ -4,8 +4,8 @@
     {
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
-      "exportCount": 144,
-      "signatureSha256": "43203c0c18726f606a359ceb1791740def7450fc5a9407cfb3326142bc48a1bf",
+      "exportCount": 142,
+      "signatureSha256": "4625669d688998b0b5a81a3a7b57fe1dfb4c27d66fcf7e1542db746b5ebd2475",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -24,7 +24,6 @@
         "CanonicalSpatialFilter — interface",
         "Capabilities — type",
         "Capability — type",
-        "CapabilityAwareSource — interface",
         "CapabilityPolicy — type",
         "ConnectCacheStatus — type",
         "ConnectDiscoveryCache — interface",
@@ -131,7 +130,6 @@
         "SourceSchema — interface",
         "SourceTimeSeriesCapabilityMetadata — interface",
         "SourceToMapLibreMap — interface",
-        "SourceWithCapability — type",
         "SpatialFilter — interface",
         "bufferEnvelope — function",
         "capabilities — function",
@@ -156,8 +154,8 @@
     {
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
-      "exportCount": 144,
-      "signatureSha256": "43203c0c18726f606a359ceb1791740def7450fc5a9407cfb3326142bc48a1bf",
+      "exportCount": 142,
+      "signatureSha256": "4625669d688998b0b5a81a3a7b57fe1dfb4c27d66fcf7e1542db746b5ebd2475",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -176,7 +174,6 @@
         "CanonicalSpatialFilter — interface",
         "Capabilities — type",
         "Capability — type",
-        "CapabilityAwareSource — interface",
         "CapabilityPolicy — type",
         "ConnectCacheStatus — type",
         "ConnectDiscoveryCache — interface",
@@ -283,7 +280,6 @@
         "SourceSchema — interface",
         "SourceTimeSeriesCapabilityMetadata — interface",
         "SourceToMapLibreMap — interface",
-        "SourceWithCapability — type",
         "SpatialFilter — interface",
         "bufferEnvelope — function",
         "capabilities — function",
