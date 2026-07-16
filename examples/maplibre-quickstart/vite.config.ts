@@ -4,14 +4,10 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vite";
 
+import { verifyFirstMapBudgets } from "../../scripts/verify-first-map-budgets.mjs";
+
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(exampleRoot, "../..");
-
-// Benchmark lane (scripts/benchmark-time-to-first-map.mjs): when
-// HONUA_QUICKSTART_SDK_DIR points at an installed @honua/sdk-js package,
-// bundle the example against that package's published dist entrypoints so the
-// measured browser map exercises exactly what consumers install. Otherwise
-// (default dev/demo lanes) alias into the repo TypeScript source.
 const installedSdkDir = process.env.HONUA_QUICKSTART_SDK_DIR;
 
 const versionManifestPath = installedSdkDir
@@ -58,6 +54,14 @@ export default defineConfig({
   resolve: {
     alias: sdkAliases(),
   },
+  plugins: [
+    {
+      name: "honua-first-map-budgets",
+      closeBundle() {
+        verifyFirstMapBudgets();
+      },
+    },
+  ],
   server: {
     host: "127.0.0.1",
     fs: {

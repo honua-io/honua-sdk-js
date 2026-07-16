@@ -1,85 +1,83 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveQuickstartConfig, resolveQuickstartStagingConfig } from "../examples/maplibre-quickstart/src/config.js";
+import { resolveFirstMapConfig } from "../examples/maplibre-quickstart/src/first-map-config.js";
+import { firstMapCopyCode } from "../examples/maplibre-quickstart/src/first-map-copy.js";
+import {
+  FIRST_MAP_RUNTIME_BUDGET_MS,
+  resolveFirstMapShellConfig,
+  toFirstMapConfigInput,
+} from "../examples/maplibre-quickstart/src/first-map-shell-config.js";
 
-describe("maplibre quickstart config", () => {
-  it("uses deterministic same-origin defaults for the local review lane", () => {
-    const config = resolveQuickstartConfig({});
+describe("First Map shell configuration", () => {
+  it("defaults to a credential-free same-origin fixture with an explicit runtime budget", () => {
+    const config = resolveFirstMapShellConfig({}, "http://127.0.0.1:4173");
 
-    expect(config.honuaBaseUrl).toBe("");
-    expect(config.mode).toBe("fixture");
-    expect(config.dataVersion).toBe("honolulu-operations-v1");
-    expect(config.serviceId).toBe("natural-earth");
-    expect(config.layerId).toBe(0);
-    expect(config.where).toBe("1=1");
-    expect(config.resultRecordCount).toBe(25);
-    expect(config.basemapStyle).toBe("https://demotiles.maplibre.org/style.json");
-    expect(config.sourceId).toBe("quickstart-features");
+    expect(config).toMatchObject({
+      endpoint: "http://127.0.0.1:4173/rest/services/natural-earth/FeatureServer/0",
+      mode: "fixture",
+      protocol: "auto",
+      maxFeatures: 5_000,
+      basemapStyle: "http://127.0.0.1:4173/__honua-quickstart__/basemap-style.json",
+      query: { returnGeometry: true, pagination: { limit: 5_000 } },
+    });
+    expect(FIRST_MAP_RUNTIME_BUDGET_MS).toBe(5_000);
   });
 
-  it("normalizes anonymous live overrides without browser secrets", () => {
-    const config = resolveQuickstartConfig({
-      VITE_HONUA_QUICKSTART_BASE_URL: "https://demo.honua.example///",
-      VITE_HONUA_QUICKSTART_SERVICE_ID: "operations",
-      VITE_HONUA_QUICKSTART_LAYER_ID: "7",
-      VITE_HONUA_QUICKSTART_WHERE: "status = 'open'",
-      VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: "12",
-      VITE_HONUA_QUICKSTART_BASEMAP_STYLE: "https://maps.example/style.json",
-      VITE_HONUA_QUICKSTART_DATA_VERSION: "public-demo-v3",
+  it("uses only the reviewed public-live environment surface", () => {
+    const config = resolveFirstMapShellConfig(
+      {
+        VITE_HONUA_FIRST_MAP_BASEMAP_STYLE: "https://tiles.example.test/style.json",
+        VITE_HONUA_FIRST_MAP_FILTER: "STATUS = 'Ready'",
+        VITE_HONUA_FIRST_MAP_MAX_FEATURES: "50",
+        VITE_HONUA_FIRST_MAP_MODE: "public-live",
+        VITE_HONUA_FIRST_MAP_PROTOCOL: "ogc-features",
+        VITE_HONUA_FIRST_MAP_SOURCE_ID: "operations-areas",
+        VITE_HONUA_FIRST_MAP_URL: "https://features.example.test/ogc",
+      },
+      "https://app.example.test",
+    );
+
+    expect(config).toMatchObject({
+      endpoint: "https://features.example.test/ogc",
+      mode: "public-live",
+      protocol: "ogc-features",
+      sourceId: "operations-areas",
+      maxFeatures: 50,
+      query: { where: "STATUS = 'Ready'", pagination: { limit: 50 } },
+    });
+  });
+
+  it("rejects credential-bearing basemap assets and changes pasted cross-origin URLs to public-live mode", () => {
+    expect(() =>
+      resolveFirstMapShellConfig(
+        { VITE_HONUA_FIRST_MAP_BASEMAP_STYLE: "https://tiles.example.test/style.json?token=secret" },
+        "https://app.example.test",
+      ),
+    ).toThrow("credential-free HTTP(S)");
+
+    const shell = resolveFirstMapShellConfig({}, "https://app.example.test");
+    const input = toFirstMapConfigInput(shell, {
+      endpoint: "https://public.example.test/rest/services/demo/FeatureServer/0",
+      protocol: "auto",
+    });
+    expect(resolveFirstMapConfig(input).mode).toBe("public-live");
+  });
+
+  it("renders the selected bounded filter through copyable public-SDK code without executable markup", () => {
+    const config = resolveFirstMapConfig<Record<string, unknown>>({
+      endpoint: "https://public.example.test/rest/services/demo/FeatureServer/0",
+      maxFeatures: 25,
+    });
+    const code = firstMapCopyCode(config, "https://tiles.example.test/style.json", {
+      returnGeometry: true,
+      where: "NAME = '<script>'",
+      pagination: { limit: 25 },
     });
 
-    expect(config.honuaBaseUrl).toBe("https://demo.honua.example");
-    expect(config.mode).toBe("live");
-    expect(config.serviceId).toBe("operations");
-    expect(config.layerId).toBe(7);
-    expect(config.where).toBe("status = 'open'");
-    expect(config.resultRecordCount).toBe(12);
-    expect(config.basemapStyle).toBe("https://maps.example/style.json");
-    expect(config.dataVersion).toBe("public-demo-v3");
-    expect(config.apiKey).toBeUndefined();
-    expect(config.bearerToken).toBeUndefined();
-  });
-
-  it("rejects browser credential configuration", () => {
-    expect(() =>
-      resolveQuickstartConfig({
-        VITE_HONUA_QUICKSTART_BASE_URL: "https://demo.honua.example",
-        VITE_HONUA_QUICKSTART_API_KEY: "do-not-bundle-this",
-      }),
-    ).toThrow("browser quickstart is intentionally secret-free");
-  });
-
-  it("rejects credentials embedded in the browser endpoint URL", () => {
-    expect(() =>
-      resolveQuickstartConfig({
-        VITE_HONUA_QUICKSTART_BASE_URL: "https://user:secret@demo.honua.example",
-      }),
-    ).toThrow("base URL must not contain userinfo");
-    expect(() =>
-      resolveQuickstartConfig({
-        VITE_HONUA_QUICKSTART_BASE_URL: "https://demo.honua.example?token=secret",
-      }),
-    ).toThrow("base URL must not contain userinfo");
-  });
-
-  it("requires the staging contract keys", () => {
-    expect(() => resolveQuickstartStagingConfig({})).toThrow("HONUA_STAGING_BASE_URL is required.");
-  });
-
-  it("resolves staging configuration without browser-only env vars", () => {
-    const config = resolveQuickstartStagingConfig({
-      HONUA_STAGING_BASE_URL: "https://staging.honua.example/",
-      HONUA_STAGING_SERVICE_ID: "ready-layer",
-      HONUA_STAGING_LAYER_ID: "3",
-      HONUA_STAGING_WHERE: "1=1",
-      HONUA_STAGING_RESULT_RECORD_COUNT: "10",
-      HONUA_STAGING_API_KEY: "staging-key",
-    });
-
-    expect(config.honuaBaseUrl).toBe("https://staging.honua.example");
-    expect(config.serviceId).toBe("ready-layer");
-    expect(config.layerId).toBe(3);
-    expect(config.resultRecordCount).toBe(10);
-    expect(config.apiKey).toBe("staging-key");
+    expect(code).toContain('from "@honua/sdk-js"');
+    expect(code).toContain('from "@honua/sdk-js/map"');
+    expect(code).toContain('await map.once("load")');
+    expect(code).toContain("\\u003cscript>");
+    expect(code).not.toContain("<script>");
   });
 });

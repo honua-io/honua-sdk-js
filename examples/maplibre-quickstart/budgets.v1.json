@@ -1,0 +1,13 @@
+{
+  "format": "honua.sdk.first-map-budgets.v1",
+  "runtime": {
+    "firstMapMs": 5000
+  },
+  "bundle": {
+    "maximumFiles": 16,
+    "maximumSingleJavaScriptBytes": 1550000,
+    "javascript": { "bytes": 1750000, "gzipBytes": 475000 },
+    "css": { "bytes": 100000, "gzipBytes": 20000 },
+    "total": { "bytes": 1900000, "gzipBytes": 520000 }
+  }
+}

@@ -4,33 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#071b22" />
-    <title>Honua × MapLibre — five-minute mapping workflow</title>
+    <title>Honua First Map</title>
   </head>
   <body>
-    <a class="skip-link" href="#map">Skip to map</a>
+    <a class="skip-link" href="#map">Skip to the map</a>
     <div class="app-shell">
       <header class="hero">
-        <div class="hero-copy">
-          <div class="brand-line">
-            <span class="brand-mark" aria-hidden="true">H</span>
-            <p class="eyebrow">Honua JavaScript SDK × MapLibre</p>
-            <span id="mode-badge" class="mode-badge">Detecting mode</span>
-          </div>
-          <h1>From endpoint to linked map, with every decision in the open.</h1>
-          <p class="hero-lede">
-            Connect, discover, explain, query, and mount through one protocol-neutral workflow. Filter the table,
-            select a feature, and watch the same exploration state drive every view.
+        <div>
+          <p class="eyebrow">Honua JavaScript SDK × MapLibre</p>
+          <h1>First map, with every decision in the open.</h1>
+          <p class="lede">
+            Paste a public GeoServices or OGC API Features endpoint. Honua discovers its source contract, explains a
+            bounded strategy, and mounts it through the same protocol-neutral workflow.
           </p>
         </div>
-        <div class="hero-proof" aria-label="Workflow promise">
-          <span>No account</span>
-          <span>No browser secret</span>
-          <span>Deterministic fixture</span>
-        </div>
+        <span id="mode-badge" class="mode-badge">Detecting mode</span>
       </header>
 
-      <nav class="journey" aria-label="SDK workflow">
-        <ol id="journey-stages">
+      <nav class="journey" aria-label="First Map workflow">
+        <ol>
           <li id="journey-connect" data-state="pending"><span>01</span><strong>Connect</strong><small>Waiting</small></li>
           <li id="journey-discover" data-state="pending"><span>02</span><strong>Discover</strong><small>Waiting</small></li>
           <li id="journey-explain" data-state="pending"><span>03</span><strong>Explain</strong><small>Waiting</small></li>
@@ -40,135 +32,137 @@
       </nav>
 
       <main>
-        <section class="workspace" aria-label="Linked geospatial workspace">
+        <section class="connect-card" aria-labelledby="connect-heading">
+          <div>
+            <p class="eyebrow">Public endpoint</p>
+            <h2 id="connect-heading">Bring your own URL</h2>
+          </div>
+          <form id="endpoint-form" class="endpoint-form">
+            <label class="endpoint-input" for="endpoint-url">
+              <span>Endpoint URL</span>
+              <input id="endpoint-url" name="endpoint" type="url" inputmode="url" required />
+            </label>
+            <label for="protocol-hint">
+              <span>Protocol</span>
+              <select id="protocol-hint" name="protocol">
+                <option value="auto">Auto-detect</option>
+                <option value="geoservices-feature-service">GeoServices FeatureServer</option>
+                <option value="ogc-features">OGC API Features</option>
+              </select>
+            </label>
+            <label id="source-field" for="source-id" hidden>
+              <span>Advertised source</span>
+              <select id="source-id" name="source"></select>
+              <small id="source-help"></small>
+            </label>
+            <button id="build-map" class="primary-button" type="submit">Build first map</button>
+          </form>
+          <p class="form-note">Anonymous HTTP(S) URLs only. Credentials, tokens, query strings, and fragments are rejected.</p>
+          <p id="workflow-error" class="error-message" role="alert" hidden></p>
+        </section>
+
+        <section class="workspace" aria-label="First Map workspace">
           <section class="map-stage" aria-labelledby="map-heading">
-            <header class="map-stage-header">
+            <header class="map-header">
               <div>
                 <p class="eyebrow">MapLibre runtime</p>
-                <h2 id="map-heading">Honolulu operations districts</h2>
+                <h2 id="map-heading">Mounted source</h2>
               </div>
-              <div class="map-status" aria-label="Map status">
+              <div class="map-counts" aria-label="Rendered map counts">
                 <span id="map-visible-count">0 visible</span>
-                <span id="map-filter-count">0 filters</span>
+                <span id="map-filter-count">No filter</span>
               </div>
             </header>
-            <div id="map" class="map-canvas" role="application" aria-label="Interactive map of queried features"></div>
+            <div id="map" class="map-canvas" role="region" aria-label="Interactive First Map"></div>
             <div id="map-overlay" class="map-overlay" data-state="loading" role="status" aria-live="polite">
-              <p class="map-overlay-title">Connecting to Honua</p>
-              <p class="map-overlay-body">Preparing the protocol-neutral workflow.</p>
+              <strong id="map-overlay-title">Preparing First Map</strong>
+              <span id="map-overlay-body">Waiting for endpoint configuration.</span>
             </div>
           </section>
 
-          <aside class="explorer-panel" aria-label="Linked explorer">
-            <section class="explorer-controls" aria-labelledby="explorer-heading">
-              <div class="section-heading inline-heading">
-                <div>
-                  <p class="eyebrow">Linked exploration</p>
-                  <h2 id="explorer-heading">One state, every view</h2>
+          <aside class="control-panel" aria-label="Map controls and diagnostics">
+            <section>
+              <p class="eyebrow">Bounded source query</p>
+              <h2>Filter the mounted data</h2>
+              <form id="filter-form" class="filter-form">
+                <label for="native-filter">
+                  <span>Source-native filter</span>
+                  <input id="native-filter" name="filter" placeholder="STATUS = 'Ready'" autocomplete="off" />
+                </label>
+                <div class="button-row">
+                  <button id="apply-filter" class="primary-button" type="submit">Apply filter</button>
+                  <button id="clear-filter" class="secondary-button" type="button">Clear</button>
                 </div>
-                <button id="clear-filter-button" class="secondary-button" type="button">Clear filter</button>
-              </div>
-              <label class="field-control" for="attribute-filter">
-                <span>Attribute filter</span>
-                <select id="attribute-filter" disabled>
-                  <option value="">All rendered features</option>
-                </select>
-              </label>
-              <dl class="linked-context-grid">
-                <div><dt>Visible rows</dt><dd id="linked-visible-count">0</dd></div>
-                <div><dt>Filters</dt><dd id="linked-filter-state">None</dd></div>
-                <div><dt>Selection</dt><dd id="linked-selection-count">0</dd></div>
-                <div><dt>Viewport</dt><dd id="linked-extent">No viewport</dd></div>
-              </dl>
+              </form>
+              <p class="help-copy">
+                Filter syntax belongs to the selected protocol (SQL-92 for GeoServices; CQL2 text where advertised for OGC).
+              </p>
+              <p id="filter-error" class="error-message" role="alert" hidden></p>
             </section>
 
-            <section class="results-panel" aria-labelledby="results-heading">
-              <div class="section-heading">
-                <p class="eyebrow">Query result</p>
-                <h2 id="results-heading">Linked table</h2>
-              </div>
-              <div class="table-scroll">
-                <table>
-                  <thead><tr><th scope="col">Feature</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-                  <tbody id="feature-list"><tr><td colspan="3" class="empty-copy">Loading query result…</td></tr></tbody>
-                </table>
-              </div>
+            <section>
+              <p class="eyebrow">Keyboard path</p>
+              <h2>Inspect without a pointer</h2>
+              <button id="inspect-visible" class="secondary-button full-button" type="button" disabled>
+                Inspect visible feature
+              </button>
+              <dl class="compact-metrics">
+                <div><dt>Visible</dt><dd id="linked-visible-count">0</dd></div>
+                <div><dt>Total reported</dt><dd id="diagnostic-total">Waiting</dd></div>
+                <div><dt>Geometry</dt><dd id="diagnostic-geometry">Waiting</dd></div>
+              </dl>
+              <p id="overflow-warning" class="warning-message" role="alert" hidden></p>
             </section>
 
-            <article class="selection-card" aria-labelledby="selected-feature-title">
-              <p class="eyebrow">Shared selection</p>
-              <h2 id="selected-feature-title">Waiting for data</h2>
-              <p id="selected-feature-subtitle">Select a table row or map feature.</p>
-              <dl class="selection-meta">
-                <div><dt>Feature ID</dt><dd id="selected-feature-id">—</dd></div>
-                <div><dt>Geometry</dt><dd id="selected-feature-geometry">—</dd></div>
+            <details open>
+              <summary>Why this map strategy?</summary>
+              <dl class="compact-metrics">
+                <div><dt>Strategy</dt><dd id="plan-strategy">Waiting</dd></div>
+                <div><dt>Feature limit</dt><dd id="plan-limit">Waiting</dd></div>
               </dl>
-              <dl id="selected-feature-attributes" class="attribute-list">
-                <div class="empty-copy">Attributes appear after selection.</div>
-              </dl>
-            </article>
+              <ul id="plan-reasons" class="diagnostic-list"><li>Waiting for discovery.</li></ul>
+            </details>
           </aside>
         </section>
 
-        <section class="evidence-section" aria-labelledby="evidence-heading">
-          <div class="section-heading evidence-heading">
-            <div>
-              <p class="eyebrow">Runtime evidence</p>
-              <h2 id="evidence-heading">Know exactly what produced this map.</h2>
-            </div>
-            <p id="demo-status" class="status-line" aria-live="polite">Waiting for the connection.</p>
+        <section class="evidence-card" aria-labelledby="evidence-heading">
+          <div>
+            <p class="eyebrow">Inspectable evidence</p>
+            <h2 id="evidence-heading">What produced this map</h2>
           </div>
           <dl class="evidence-grid">
-            <div><dt>Provenance</dt><dd id="evidence-endpoint">Waiting…</dd><small id="evidence-source">—</small></div>
-            <div><dt>Freshness</dt><dd id="evidence-freshness">Waiting…</dd><small id="evidence-observed">—</small></div>
-            <div><dt>Authorization</dt><dd id="evidence-auth">Waiting…</dd><small>No credential values are exposed</small></div>
-            <div><dt>Versions</dt><dd id="evidence-versions">Waiting…</dd><small id="evidence-data-version">—</small></div>
-            <div><dt>Metadata cache</dt><dd id="evidence-cache">Waiting…</dd><small>SDK-reported state</small></div>
-            <div><dt>Degradation</dt><dd id="evidence-degradation">Waiting…</dd><small>Never silently empty</small></div>
+            <div><dt>Endpoint</dt><dd id="evidence-endpoint">Waiting</dd></div>
+            <div><dt>Protocol</dt><dd id="evidence-protocol">Waiting</dd></div>
+            <div><dt>Source</dt><dd id="evidence-source">Waiting</dd></div>
+            <div><dt>Authorization</dt><dd>Anonymous · no browser credential</dd></div>
+            <div><dt>Attribution</dt><dd id="evidence-attribution">Waiting</dd></div>
+            <div><dt>Metadata cache</dt><dd id="evidence-cache">Waiting</dd></div>
+            <div><dt>Observed</dt><dd id="evidence-observed">Waiting</dd></div>
+            <div><dt>First-map budget</dt><dd id="evidence-runtime">Waiting</dd></div>
           </dl>
-          <div id="capability-list" class="capability-list" aria-label="Source contract capabilities"></div>
+          <h3>Advertised capabilities</h3>
+          <ul id="capability-list" class="tag-list"><li class="tag">Waiting</li></ul>
+          <details>
+            <summary>Discovery diagnostics</summary>
+            <ul id="connection-diagnostics" class="diagnostic-list"><li>Waiting for discovery.</li></ul>
+          </details>
         </section>
 
-        <section class="plan-section" aria-labelledby="plan-heading">
-          <div class="plan-summary">
-            <p class="eyebrow">Explain before execute</p>
-            <h2 id="plan-heading">The query plan is a product surface.</h2>
-            <p>
-              Honua separates intent from execution. The fingerprint proves the accepted plan has not changed between
-              explanation and query.
-            </p>
-            <dl class="plan-metrics">
-              <div><dt>Plan</dt><dd id="plan-id">Waiting…</dd></div>
-              <div><dt>Pushdown</dt><dd id="plan-pushdown">Waiting…</dd></div>
-              <div><dt>Fidelity</dt><dd id="plan-fidelity">Waiting…</dd></div>
-              <div><dt>Cache</dt><dd id="plan-cache">Waiting…</dd></div>
-            </dl>
+        <section class="code-card" aria-labelledby="code-heading">
+          <div class="code-heading">
+            <div>
+              <p class="eyebrow">Copyable path</p>
+              <h2 id="code-heading">Use the same public SDK surface</h2>
+            </div>
+            <button id="copy-code" class="secondary-button" type="button">Copy code</button>
           </div>
-          <div class="plan-detail">
-            <ol id="plan-steps" class="plan-steps"><li>Waiting for discovery.</li></ol>
-            <details>
-              <summary>Inspect query intent and plan JSON</summary>
-              <pre id="plan-json">{}</pre>
-            </details>
-            <details>
-              <summary>Inspect linked query projection</summary>
-              <pre id="linked-query-projection">{}</pre>
-            </details>
-          </div>
-        </section>
-
-        <section class="legacy-status" aria-label="Detailed runtime status">
-          <span id="status-compatibility">Checking…</span>
-          <span id="status-target">Waiting…</span>
-          <span id="status-service-layer">Waiting…</span>
-          <span id="status-feature-count">0</span>
-          <span id="status-geometry-types">Waiting…</span>
-          <span id="status-error">None</span>
+          <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
+          <pre tabindex="0"><code id="copyable-code">The runnable code appears after discovery.</code></pre>
         </section>
       </main>
 
       <footer>
-        <p>Fixture and live modes share the same semantic workflow. Only the endpoint changes.</p>
+        <p>The fixture and public endpoint modes share one workflow; only the URL and protocol hint change.</p>
         <a href="https://github.com/honua-io/honua-sdk-js/tree/trunk/examples/maplibre-quickstart">View tested source</a>
       </footer>
     </div>

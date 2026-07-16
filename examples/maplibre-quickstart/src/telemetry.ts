@@ -1,5 +1,3 @@
-import type { QuickstartRenderableGeometryType } from "./esri-geojson.js";
-
 export interface QuickstartTelemetryEvent {
   type:
     | "init"
@@ -23,7 +21,7 @@ export interface QuickstartRuntimeState {
   layerId?: number;
   featureCount?: number;
   renderableFeatureCount?: number;
-  geometryTypes?: QuickstartRenderableGeometryType[];
+  geometryTypes?: string[];
   serverVersion?: string;
   releaseChannel?: string;
   queryDurationMs?: number;
@@ -32,6 +30,9 @@ export interface QuickstartRuntimeState {
   planId?: string;
   planFingerprint?: string;
   planPushdown?: "full" | "partial";
+  firstMapDurationMs?: number;
+  runtimeBudgetMs?: number;
+  withinRuntimeBudget?: boolean;
   mapReady?: boolean;
   selectedFeatureId?: string | null;
   lastError?: string | null;
@@ -48,7 +49,7 @@ declare global {
   interface Window {
     __HONUA_QUICKSTART_EVENTS__?: QuickstartTelemetryEvent[];
     __HONUA_QUICKSTART_RUNTIME__?: QuickstartRuntimeState;
-    __HONUA_QUICKSTART_DISPOSE__?: () => void;
+    __HONUA_QUICKSTART_DISPOSE__?: () => Promise<void>;
   }
 }
 
