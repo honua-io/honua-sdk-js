@@ -193,7 +193,7 @@ Labels: `fixture` · `public-live` · `degraded`
 - Executable entry: [examples/migration-workbench/src/main.ts](../../examples/migration-workbench/src/main.ts)
 - Example notes: [docs/migration-honua-maplibre.md](../migration-honua-maplibre.md)
 - Compile check: `npm run demo:migration-workbench:typecheck`
-- Sample contract: `lab` · `supported` · `rework`
+- Sample contract: `lab` · `supported` · `active`
 - Data and auth: `fixture` · `none`
 - Provenance: Committed ArcGIS source fixtures and migration reports.
 - Freshness: Versioned with the migration corpus.
