@@ -17,9 +17,8 @@ export function sourceCapabilityEndpointIdentity(
   const { protocol, locator } = descriptor;
   if (protocol === "odata") {
     const entitySet = requiredIdentifier(locator.entitySet, "OData locator.entitySet");
-    const root = requiredEndpoint(locator.url);
     return endpointIdentity({
-      endpoint: `${trimTrailingSlashes(root)}/${encodeURIComponent(entitySet)}`,
+      endpoint: canonicalOdataEntityEndpoint(locator.url, entitySet),
       protocol,
       sourceId: descriptor.id,
     });
@@ -40,6 +39,15 @@ export function sourceCapabilityEndpointIdentity(
   throw new TypeError(
     `Capability discovery endpoint binding is not certified for protocol "${String(protocol)}"; use the protocol rollout issue for that adapter.`,
   );
+}
+
+function canonicalOdataEntityEndpoint(rawEndpoint: string, entitySet: string): string {
+  const endpoint = requiredEndpoint(rawEndpoint);
+  const parsed = new URL(endpoint);
+  const advertisedPath = trimTrailingSlashes(parsed.pathname);
+  const basePath = advertisedPath === "" ? "/odata" : advertisedPath;
+  parsed.pathname = `${basePath}/${encodeURIComponent(entitySet)}`;
+  return parsed.toString();
 }
 
 function endpointIdentity(identity: CapabilitySourceEndpointIdentity): CapabilitySourceEndpointIdentity {

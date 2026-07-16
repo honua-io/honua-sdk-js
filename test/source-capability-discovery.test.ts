@@ -46,6 +46,23 @@ describe("capability discovery endpoint binding", () => {
       sourceId: "Work Orders",
     });
 
+    const originOnly = {
+      ...odata,
+      locator: { ...odata.locator, url: "https://example.test" },
+    };
+    const explicitDefaultPath = {
+      ...odata,
+      locator: { ...odata.locator, url: "https://example.test/odata" },
+    };
+    expect(sourceCapabilityEndpointIdentity(originOnly)).toEqual({
+      endpoint: "https://example.test/odata/Work%20Orders",
+      protocol: "odata",
+      sourceId: "Work Orders",
+    });
+    expect(createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(originOnly))).toBe(
+      createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(explicitDefaultPath)),
+    );
+
     expect(() =>
       sourceCapabilityEndpointIdentity(
         geoDescriptor("https://example.test/rest/services/Public/Parcels/FeatureServer/8", "Public/Parcels", 7),
