@@ -4,6 +4,8 @@ import type {
   ExecutableBoundingBox,
   ExecutableCrsBinding,
   ExecutableGeometryValue,
+  GeometryFieldSchema,
+  GeometryKind,
   JsonValue,
   LogicalField,
   Position,
@@ -29,6 +31,7 @@ import {
   quotedSemanticString,
   recordSemanticFieldMapping,
   semanticRequestFingerprint,
+  sortSemanticFieldMappings,
   verifiedSemanticSourceText,
   verifiedSemanticSourceVersion,
 } from "./semantic-literals.js";
@@ -294,7 +297,7 @@ export function compileSemanticOdataQuery<TRecord, TSpatiality extends SourceSpa
       ...projection,
       ...(orderBy ? { orderBy } : {}),
       ...page,
-      fieldMappings: sortedOdataFieldMappings(state.fieldMappings),
+      fieldMappings: sortSemanticFieldMappings(state.fieldMappings),
       usesNativeFilter: state.usesNativeFilter,
     };
     const artifact: SemanticOdataCompiledQueryV1 = {
@@ -424,7 +427,7 @@ function odataOutputGeometry(
   return {
     field: field.name,
     propertyPath,
-    spatialType: odataSpatialType(field, path),
+    spatialType: odataSpatialType(field, metadata, path),
     crs,
     layout: "xy",
   };
@@ -652,8 +655,8 @@ function compileOdataSpatial(filter: RuntimeOdataSpatialFilter, state: OdataSema
   }
   const field = semanticSchemaField(state.schema, fieldName, `${path}.property.name`);
   const propertyPath = odataRequestField(field, state, `${path}.property.name`);
-  const spatialType = odataSpatialType(field, `${path}.property.name`);
   const metadata = sourceOdataGeometryField(state.schema, fieldName, `${path}.property`);
+  const spatialType = odataSpatialType(field, metadata, `${path}.property.name`);
   const sourceCrs = executableOdataCrs(metadata.crs, `${path}.property`);
   if (metadata.layout !== "xy") {
     semanticUnsupported(
@@ -803,22 +806,58 @@ function assertOdataEastNorth(value: ExecutableCrsBinding, path: string): void {
   }
 }
 
-function odataSpatialType(field: LogicalField, path: string): "geography" | "geometry" {
-  const types = new Set(
-    field.native
-      .filter((reference) => reference.protocol === "odata")
-      .map((reference) => reference.name)
-      .filter((name) => name.startsWith("Edm.Geography") || name.startsWith("Edm.Geometry")),
-  );
-  if (types.size !== 1) {
+const ODATA_SPATIAL_NATIVE_TYPES: Readonly<
+  Record<string, { readonly spatialType: "geography" | "geometry"; readonly geometryKind?: GeometryKind }>
+> = {
+  "Edm.Geography": { spatialType: "geography" },
+  "Edm.GeographyPoint": { spatialType: "geography", geometryKind: "Point" },
+  "Edm.GeographyLineString": { spatialType: "geography", geometryKind: "LineString" },
+  "Edm.GeographyPolygon": { spatialType: "geography", geometryKind: "Polygon" },
+  "Edm.GeographyMultiPoint": { spatialType: "geography", geometryKind: "MultiPoint" },
+  "Edm.GeographyMultiLineString": { spatialType: "geography", geometryKind: "MultiLineString" },
+  "Edm.GeographyMultiPolygon": { spatialType: "geography", geometryKind: "MultiPolygon" },
+  "Edm.GeographyCollection": { spatialType: "geography", geometryKind: "GeometryCollection" },
+  "Edm.Geometry": { spatialType: "geometry" },
+  "Edm.GeometryPoint": { spatialType: "geometry", geometryKind: "Point" },
+  "Edm.GeometryLineString": { spatialType: "geometry", geometryKind: "LineString" },
+  "Edm.GeometryPolygon": { spatialType: "geometry", geometryKind: "Polygon" },
+  "Edm.GeometryMultiPoint": { spatialType: "geometry", geometryKind: "MultiPoint" },
+  "Edm.GeometryMultiLineString": { spatialType: "geometry", geometryKind: "MultiLineString" },
+  "Edm.GeometryMultiPolygon": { spatialType: "geometry", geometryKind: "MultiPolygon" },
+  "Edm.GeometryCollection": { spatialType: "geometry", geometryKind: "GeometryCollection" },
+};
+
+function odataSpatialType(field: LogicalField, metadata: GeometryFieldSchema, path: string): "geography" | "geometry" {
+  const candidateNames = field.native
+    .filter((reference) => reference.protocol === "odata")
+    .map((reference) => reference.name)
+    .filter((name) => name.startsWith("Edm.Geography") || name.startsWith("Edm.Geometry"));
+  const types = new Set(candidateNames.filter((name) => Object.hasOwn(ODATA_SPATIAL_NATIVE_TYPES, name)));
+  if (candidateNames.length !== types.size || types.size !== 1) {
     semanticUnsupported(
       "unsupported-source",
       path,
-      "OData geometry properties require one exact Edm.Geography* or Edm.Geometry* native type",
+      "OData geometry properties require one exact OData v4 Edm.Geography or Edm.Geometry primitive type",
     );
   }
   const type = [...types][0] as string;
-  return type.startsWith("Edm.Geography") ? "geography" : "geometry";
+  const evidence = ODATA_SPATIAL_NATIVE_TYPES[type];
+  if (!evidence) {
+    semanticUnsupported("unsupported-source", path, "OData spatial native type evidence is unavailable");
+  }
+  const geometryKind = evidence.geometryKind;
+  if (
+    geometryKind &&
+    ((metadata.geometryTypes.state === "known" && metadata.geometryTypes.type !== geometryKind) ||
+      (metadata.geometryTypes.state === "mixed" && !metadata.geometryTypes.types.includes(geometryKind)))
+  ) {
+    semanticUnsupported(
+      "unsupported-source",
+      path,
+      "OData native spatial primitive conflicts with SourceSchemaV2 geometry-type evidence",
+    );
+  }
+  return evidence.spatialType;
 }
 
 function sourceOdataGeometryField(schema: SourceSchemaV2, name: string, path: string) {
@@ -844,10 +883,4 @@ function odataRequestField(field: LogicalField, state: OdataSemanticState, path:
 
 function odataParenthesized(value: string): string {
   return `(${value})`;
-}
-
-function sortedOdataFieldMappings(
-  mappings: readonly SemanticCompilerFieldMapping[],
-): readonly SemanticCompilerFieldMapping[] {
-  return [...mappings].sort((left, right) => left.logicalField.localeCompare(right.logicalField, "en-US"));
 }

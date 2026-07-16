@@ -28,6 +28,8 @@ import { createSourceSchemaV2 } from "../src/source-schema.js";
 interface Incident {
   readonly id: number;
   readonly status: string;
+  readonly zulu: string;
+  readonly äther: string;
   readonly preciseAmount: string;
   readonly score: number;
   readonly optionalNote: string | null;
@@ -73,6 +75,31 @@ const epsg4326: ExecutableCrsBinding = {
   provenance: { method: "declared" },
 };
 
+const epsg3857: ExecutableCrsBinding = {
+  definition: {
+    kind: "authority",
+    authority: "EPSG",
+    code: "3857",
+    definitionAxisOrder: {
+      state: "known",
+      source: "crs-definition",
+      axes: [
+        { name: "easting", direction: "east", unit: "metre" },
+        { name: "northing", direction: "north", unit: "metre" },
+      ],
+    },
+  },
+  coordinateOrder: {
+    state: "known",
+    source: "encoding",
+    axes: [
+      { name: "easting", direction: "east", unit: "metre" },
+      { name: "northing", direction: "north", unit: "metre" },
+    ],
+  },
+  provenance: { method: "declared" },
+};
+
 const point: ExecutableGeometryValue = {
   state: "present",
   geometry: { type: "Point", coordinates: [-157.86, 21.31] },
@@ -95,7 +122,10 @@ function field(name: string, type: LogicalField["type"], overrides: Partial<Logi
   };
 }
 
-function geoServicesSchema(): SourceSchemaV2 {
+function geoServicesSchema(
+  geometryLayout: "xy" | "xyz" | "xym" | "xyzm" | "unknown" = "xy",
+  statusPath = "statüs_physical",
+): SourceSchemaV2 {
   return createSourceSchemaV2({
     fields: [
       field(
@@ -103,7 +133,9 @@ function geoServicesSchema(): SourceSchemaV2 {
         { kind: "integer", bits: 32, signed: true, jsonEncoding: "number" },
         { path: ["OBJECTID"], nullability: "non-nullable", roles: ["primary-key", "feature-id"] },
       ),
-      field("status", { kind: "string" }, { path: ['statüs"physical'] }),
+      field("status", { kind: "string" }, { path: [statusPath] }),
+      field("zulu", { kind: "string" }, { path: ["zulu_value"] }),
+      field("äther", { kind: "string" }, { path: ["aether_value"] }),
       field(
         "preciseAmount",
         { kind: "decimal", precision: 18, scale: 4, jsonEncoding: "string" },
@@ -126,7 +158,7 @@ function geoServicesSchema(): SourceSchemaV2 {
           field: "shape",
           geometryTypes: { state: "known", type: "Point" },
           crs: epsg4326,
-          layout: "xy",
+          layout: geometryLayout,
           allowsEmpty: false,
         },
       ],
@@ -144,7 +176,12 @@ function geoServicesSchema(): SourceSchemaV2 {
   });
 }
 
-function odataSchema(geometryNative = true): SourceSchemaV2 {
+function odataSchema(
+  geometryNative = true,
+  statusPath: readonly [string, ...string[]] = ["Details", "Stātus"],
+  geometryNativeType = "Edm.GeographyPoint",
+  geometryKind: "Point" | "Polygon" = "Point",
+): SourceSchemaV2 {
   return createSourceSchemaV2({
     fields: [
       field(
@@ -157,7 +194,9 @@ function odataSchema(geometryNative = true): SourceSchemaV2 {
           native: [{ protocol: "odata", name: "Edm.Int32", path: ["Incident", "IncidentId"] }],
         },
       ),
-      field("status", { kind: "string" }, { path: ["Details", "Stātus"] }),
+      field("status", { kind: "string" }, { path: statusPath }),
+      field("zulu", { kind: "string" }, { path: ["Details", "Zulu"] }),
+      field("äther", { kind: "string" }, { path: ["Details", "Äther"] }),
       field(
         "preciseAmount",
         { kind: "decimal", precision: 18, scale: 4, jsonEncoding: "string" },
@@ -177,7 +216,7 @@ function odataSchema(geometryNative = true): SourceSchemaV2 {
           path: ["Location"],
           roles: ["geometry"],
           native: geometryNative
-            ? [{ protocol: "odata", name: "Edm.GeographyPoint", path: ["Incident", "Location"] }]
+            ? [{ protocol: "odata", name: geometryNativeType, path: ["Incident", "Location"] }]
             : [],
         },
       ),
@@ -188,7 +227,7 @@ function odataSchema(geometryNative = true): SourceSchemaV2 {
       fields: [
         {
           field: "shape",
-          geometryTypes: { state: "known", type: "Point" },
+          geometryTypes: { state: "known", type: geometryKind },
           crs: epsg4326,
           layout: "xy",
           allowsEmpty: false,
@@ -287,7 +326,7 @@ describe("semantic GeoServices and OData compilers", () => {
       layerId: 0,
       sourceVersion: "etag:7",
       sqlFormat: "standard",
-      outFields: ["OBJECTID", 'statüs"physical', "precise_amount", "score_value", "optional_note"],
+      outFields: ["OBJECTID", "statüs_physical", "precise_amount", "score_value", "optional_note"],
       returnGeometry: false,
       orderByFields: '"precise_amount" DESC',
       resultOffset: 7,
@@ -295,7 +334,7 @@ describe("semantic GeoServices and OData compilers", () => {
       usesNativeFilter: false,
     });
     expect(artifact.where).toBe(
-      '("statüs""physical" = \'Mālama\'\' OR 1=1 -- 東京\') AND ("precise_amount" = 1234567890123.5000) AND ("score_value" = 0.0000001) AND ("observed_at" > TIMESTAMP \'2026-07-14 12:34:56.123456\') AND ("optional_note" IS NULL)',
+      '("statüs_physical" = \'Mālama\'\' OR 1=1 -- 東京\') AND ("precise_amount" = 1234567890123.5000) AND ("score_value" = 0.0000001) AND ("observed_at" > TIMESTAMP \'2026-07-14 12:34:56.123456\') AND ("optional_note" IS NULL)',
     );
     expect(artifact.fieldMappings).toEqual([
       { logicalField: "id", physicalPath: ["OBJECTID"], requestField: "OBJECTID" },
@@ -303,7 +342,7 @@ describe("semantic GeoServices and OData compilers", () => {
       { logicalField: "optionalNote", physicalPath: ["optional_note"], requestField: "optional_note" },
       { logicalField: "preciseAmount", physicalPath: ["precise_amount"], requestField: "precise_amount" },
       { logicalField: "score", physicalPath: ["score_value"], requestField: "score_value" },
-      { logicalField: "status", physicalPath: ['statüs"physical'], requestField: 'statüs"physical' },
+      { logicalField: "status", physicalPath: ["statüs_physical"], requestField: "statüs_physical" },
     ]);
     const q = createSemanticQueryBuilder<Incident, "geoservices-feature-service", "primary-geometry">();
     const unfiltered = compiled(compileGeo(q.features({ select: ["id"] as const, geometry: "omit" })));
@@ -353,6 +392,107 @@ describe("semantic GeoServices and OData compilers", () => {
         },
       ],
     });
+
+    const mismatchedCrs = compileGeo(
+      q.features({
+        select: ["id"] as const,
+        geometry: "omit",
+        filter: defineSpatialNode<Incident, "primary-geometry">({
+          kind: "spatial",
+          operator: "intersects",
+          property: q.property("shape"),
+          geometry: { ...point, crs: epsg3857 },
+        }),
+      }),
+    );
+    expect(mismatchedCrs).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "crs-transform-required", path: "$.filter.geometry.crs" }],
+    });
+  });
+
+  it("preserves every known GeoServices output coordinate layout and rejects unknown layout", () => {
+    const q = createSemanticQueryBuilder<Incident, "geoservices-feature-service", "primary-geometry">();
+    const query = q.features({ select: ["id"] as const, geometry: "include" });
+    const source = {
+      protocol: "geoservices-feature-service" as const,
+      serviceId: "incidents",
+      layerId: 0,
+    };
+    for (const [layout, returnZ, returnM] of [
+      ["xy", false, false],
+      ["xyz", true, false],
+      ["xym", false, true],
+      ["xyzm", true, true],
+    ] as const) {
+      expect(
+        compiled(compileSemanticGeoServicesQuery({ query, schema: geoServicesSchema(layout), source })),
+      ).toMatchObject({ returnGeometry: true, returnZ, returnM });
+    }
+    expect(compileSemanticGeoServicesQuery({ query, schema: geoServicesSchema("unknown"), source })).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-projection", path: "$.geometry" }],
+    });
+  });
+
+  it("allows only identity GeoServices output CRS without explicit transformation evidence", () => {
+    const q = createSemanticQueryBuilder<Incident, "geoservices-feature-service", "primary-geometry">();
+    const identity = compiled(
+      compileGeo(
+        q.features({
+          select: ["id"] as const,
+          geometry: "include",
+          outputCrs: epsg4326.definition,
+        }),
+      ),
+    );
+    expect(identity).toMatchObject({ outSr: { wkid: 4326 }, returnGeometry: true, returnZ: false, returnM: false });
+
+    const transform = compileGeo(
+      q.features({
+        select: ["id"] as const,
+        geometry: "include",
+        outputCrs: epsg3857.definition,
+      }),
+    );
+    expect(transform).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "crs-transform-required", path: "$.outputCrs" }],
+    });
+  });
+
+  it("quotes SQL-only physical fields but rejects ambiguous raw REST field parameters", () => {
+    const q = createSemanticQueryBuilder<Incident, "geoservices-feature-service", "primary-geometry">();
+    const source = {
+      protocol: "geoservices-feature-service" as const,
+      serviceId: "incidents",
+      layerId: 0,
+    };
+    const sqlOnly = compiled(
+      compileSemanticGeoServicesQuery({
+        query: q.features({
+          select: ["id"] as const,
+          geometry: "omit",
+          filter: q.comparison("eq", q.property("status"), "open"),
+        }),
+        schema: geoServicesSchema("xy", 'status"raw'),
+        source,
+      }),
+    );
+    expect(sqlOnly.where).toBe('"status""raw" = \'open\'');
+
+    for (const physicalName of ['status"raw', "status,OBJECTID", "status DESC", "status other", "status\nother"]) {
+      expect(
+        compileSemanticGeoServicesQuery({
+          query: q.features({ select: ["status"] as const, geometry: "omit" }),
+          schema: geoServicesSchema("xy", physicalName),
+          source,
+        }),
+      ).toMatchObject({
+        outcome: "unsupported",
+        diagnostics: [{ code: "unsupported-source", path: "$.select[0]" }],
+      });
+    }
   });
 
   it("fails closed for predicates GeoServices request parameters cannot preserve", () => {
@@ -451,6 +591,25 @@ describe("semantic GeoServices and OData compilers", () => {
       { logicalField: "status", physicalPath: ["Details", "Stātus"], requestField: "Details/Stātus" },
     ]);
     expect(Object.isFrozen(artifact)).toBe(true);
+
+    const q = createSemanticQueryBuilder<Incident, "odata", "primary-geometry">();
+    const unfiltered = compiled(compileOdata(q.features({ select: ["id"] as const, geometry: "omit" })));
+    expect(unfiltered.filter).toBeUndefined();
+    expect(JSON.stringify(unfiltered)).not.toMatch(/(?:1\s+eq\s+1|true)/i);
+  });
+
+  it("orders Unicode field evidence by scalar value without locale-dependent collation", () => {
+    const geo = createSemanticQueryBuilder<Incident, "geoservices-feature-service", "primary-geometry">();
+    const geoArtifact = compiled(
+      compileGeo(geo.features({ select: ["äther", "zulu", "status"] as const, geometry: "omit" })),
+    );
+    const odata = createSemanticQueryBuilder<Incident, "odata", "primary-geometry">();
+    const odataArtifact = compiled(
+      compileOdata(odata.features({ select: ["äther", "zulu", "status"] as const, geometry: "omit" })),
+    );
+
+    expect(geoArtifact.fieldMappings.map((mapping) => mapping.logicalField)).toEqual(["status", "zulu", "äther"]);
+    expect(odataArtifact.fieldMappings.map((mapping) => mapping.logicalField)).toEqual(["status", "zulu", "äther"]);
   });
 
   it("requires Edm geometry type, property CRS/layout, and geo.intersects source evidence", () => {
@@ -508,6 +667,39 @@ describe("semantic GeoServices and OData compilers", () => {
       outcome: "unsupported",
       diagnostics: [{ code: "unsupported-source", path: "$.filter.property.name" }],
     });
+
+    for (const schema of [
+      odataSchema(true, ["Details", "Stātus"], "Edm.GeographyEvil"),
+      odataSchema(true, ["Details", "Stātus"], "Edm.GeographyPolygon"),
+    ]) {
+      expect(
+        compileSemanticOdataQuery({
+          query: filterOnly,
+          schema,
+          source: { entitySet: "Incidents", supportedSpatialFunctions: ["geo.intersects"] },
+        }),
+      ).toMatchObject({
+        outcome: "unsupported",
+        diagnostics: [{ code: "unsupported-source", path: "$.filter.property.name" }],
+      });
+    }
+
+    const mismatchedCrs = compileOdata(
+      q.features({
+        select: ["id"] as const,
+        geometry: "omit",
+        filter: defineSpatialNode<Incident, "primary-geometry">({
+          kind: "spatial",
+          operator: "intersects",
+          property: q.property("shape"),
+          geometry: { ...point, crs: epsg3857 },
+        }),
+      }),
+    );
+    expect(mismatchedCrs).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "crs-transform-required", path: "$.filter.geometry.crs" }],
+    });
   });
 
   it("fails OData closed for always-true patterns, aggregation, and cross-dialect native text", () => {
@@ -530,6 +722,16 @@ describe("semantic GeoServices and OData compilers", () => {
     expect(aggregate).toMatchObject({
       outcome: "unsupported",
       diagnostics: [{ code: "unsupported-node", path: "$.kind" }],
+    });
+
+    const unsafePhysicalPath = compileSemanticOdataQuery({
+      query: odataQuery("open"),
+      schema: odataSchema(true, ["Details", "status) or true"]),
+      source: { entitySet: "Incidents" },
+    });
+    expect(unsafePhysicalPath).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-source", path: "$.select[1]" }],
     });
 
     const native = q.features({
@@ -565,5 +767,16 @@ describe("semantic GeoServices and OData compilers", () => {
   it("publishes the GeoServices artifact type from the query-planner surface", () => {
     expectTypeOf(compiled(compileGeo())).toMatchTypeOf<SemanticGeoServicesCompiledQueryV1>();
     expectTypeOf(compiled(compileOdata())).toMatchTypeOf<SemanticOdataCompiledQueryV1>();
+  });
+
+  it("keeps runtime peers out of both open-protocol semantic compiler modules", () => {
+    const runtimePeerImport = /(?:from\s+|import\s*\(\s*)["'](?:@bufbuild\/|@connectrpc\/|@duckdb\/|maplibre-gl["'])/;
+    for (const sourceUrl of [
+      new URL("../src/query-planner/geoservices.ts", import.meta.url),
+      new URL("../src/query-planner/odata.ts", import.meta.url),
+      new URL("../src/query-planner/semantic-literals.ts", import.meta.url),
+    ]) {
+      expect(readFileSync(sourceUrl, "utf8")).not.toMatch(runtimePeerImport);
+    }
   });
 });

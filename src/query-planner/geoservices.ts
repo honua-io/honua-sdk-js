@@ -17,6 +17,7 @@ import {
   type SemanticCompilationResult,
   prepareSemanticCompilerQuery,
   runSemanticCompiler,
+  sameCrsDefinition,
   sameExecutableCrs,
   semanticSchemaField,
   semanticUnsupported,
@@ -28,6 +29,7 @@ import {
   quotedSemanticString,
   recordSemanticFieldMapping,
   semanticRequestFingerprint,
+  sortSemanticFieldMappings,
   sql92Identifier,
   verifiedSemanticSourceText,
   verifiedSemanticSourceVersion,
@@ -168,6 +170,8 @@ export interface SemanticGeoServicesCompiledQueryV1 {
   readonly where?: string;
   readonly outFields?: readonly string[];
   readonly returnGeometry: boolean;
+  readonly returnZ?: boolean;
+  readonly returnM?: boolean;
   readonly outSr?: SemanticGeoServicesSpatialReference;
   readonly orderByFields?: string;
   readonly resultOffset?: number;
@@ -229,14 +233,7 @@ export function compileSemanticGeoServicesQuery<TRecord, TSpatiality extends Sou
     const orderByFields = geoServicesOrderBy(query, state);
     const aggregation = query.kind === "aggregate" ? geoServicesSemanticAggregation(query, state) : {};
     const page = geoServicesPage(query, state);
-    const outSr = query.outputCrs ? geoServicesSpatialReference(query.outputCrs, "$.outputCrs") : undefined;
-    if (outSr && !projection.returnGeometry) {
-      semanticUnsupported(
-        "unsupported-projection",
-        "$.outputCrs",
-        "GeoServices cannot apply an output CRS when geometry is omitted",
-      );
-    }
+    const outSr = geoServicesOutputCrs(query, projection.returnGeometry, state);
     const queryFingerprint = hashSemanticQuery(query, { schema, protocol: source.protocol });
     const request = {
       protocol: source.protocol,
@@ -251,7 +248,7 @@ export function compileSemanticGeoServicesQuery<TRecord, TSpatiality extends Sou
       ...page,
       ...spatial,
       ...aggregation,
-      fieldMappings: sortedFieldMappings(state.fieldMappings),
+      fieldMappings: sortSemanticFieldMappings(state.fieldMappings),
       usesNativeFilter: state.usesNativeFilter,
     };
     const artifact: SemanticGeoServicesCompiledQueryV1 = {
@@ -326,7 +323,7 @@ function verifiedGeoServicesSource(value: SemanticGeoServicesSourceIdentity): Ve
 function geoServicesProjection(
   query: RuntimeGeoServicesQuery,
   state: GeoServicesSemanticState,
-): { readonly outFields?: readonly string[]; readonly returnGeometry: boolean } {
+): Pick<SemanticGeoServicesCompiledQueryV1, "outFields" | "returnGeometry" | "returnZ" | "returnM"> {
   if (query.kind === "aggregate") return { returnGeometry: false };
   const primary = primaryGeometryField(state.schema);
   const geometryField =
@@ -362,7 +359,6 @@ function geoServicesProjection(
           "A geometry field cannot be returned as a GeoServices attribute",
         );
       }
-      if (field.name === geometryField) geoServicesRequestField(field, state, path);
       return;
     }
     outFields.push(geoServicesRequestField(field, state, path));
@@ -374,7 +370,60 @@ function geoServicesProjection(
       "GeoServices cannot prove an exact geometry-only attribute projection",
     );
   }
-  return { outFields, returnGeometry: geometryField !== undefined };
+  if (!geometryField) return { outFields, returnGeometry: false };
+  const geometryPath = query.geometry === undefined ? "$.schema.geometry" : "$.geometry";
+  const field = semanticSchemaField(state.schema, geometryField, geometryPath);
+  geoServicesPhysicalField(field, state, geometryPath);
+  const metadata = sourceGeometryField(state.schema, geometryField, geometryPath);
+  switch (metadata.layout) {
+    case "xy":
+      return { outFields, returnGeometry: true, returnZ: false, returnM: false };
+    case "xyz":
+      return { outFields, returnGeometry: true, returnZ: true, returnM: false };
+    case "xym":
+      return { outFields, returnGeometry: true, returnZ: false, returnM: true };
+    case "xyzm":
+      return { outFields, returnGeometry: true, returnZ: true, returnM: true };
+    default:
+      semanticUnsupported(
+        "unsupported-projection",
+        geometryPath,
+        "GeoServices geometry output requires a known xy, xyz, xym, or xyzm source layout",
+      );
+  }
+}
+
+function geoServicesOutputCrs(
+  query: RuntimeGeoServicesQuery,
+  returnGeometry: boolean,
+  state: GeoServicesSemanticState,
+): SemanticGeoServicesSpatialReference | undefined {
+  if (!query.outputCrs) return undefined;
+  if (!returnGeometry) {
+    semanticUnsupported(
+      "unsupported-projection",
+      "$.outputCrs",
+      "GeoServices cannot apply an output CRS when geometry is omitted",
+    );
+  }
+  const primary = primaryGeometryField(state.schema);
+  if (!primary) {
+    semanticUnsupported(
+      "unsupported-source",
+      "$.outputCrs",
+      "GeoServices output CRS requires a primary geometry field",
+    );
+  }
+  const metadata = sourceGeometryField(state.schema, primary, "$.outputCrs");
+  const sourceCrs = executableGeoServicesCrs(metadata.crs, "$.outputCrs");
+  if (!sameCrsDefinition(sourceCrs.definition, query.outputCrs)) {
+    semanticUnsupported(
+      "crs-transform-required",
+      "$.outputCrs",
+      "GeoServices output reprojection requires explicit datum-transformation evidence",
+    );
+  }
+  return geoServicesSpatialReference(query.outputCrs, "$.outputCrs");
 }
 
 function geoServicesOrderBy(query: RuntimeGeoServicesQuery, state: GeoServicesSemanticState): string | undefined {
@@ -401,7 +450,8 @@ function geoServicesOrderBy(query: RuntimeGeoServicesQuery, state: GeoServicesSe
       }
       const path = `$.sort[${index}].field`;
       const field = semanticSchemaField(state.schema, sort.field as string, path);
-      return `${geoServicesSqlField(field, state, path)} ${sort.direction === "desc" ? "DESC" : "ASC"}`;
+      const requestField = geoServicesRequestField(field, state, path);
+      return `${sql92Identifier(requestField, path)} ${sort.direction === "desc" ? "DESC" : "ASC"}`;
     })
     .join(", ");
 }
@@ -678,7 +728,7 @@ function compileGeoServicesSpatial(
     );
   }
   const property = semanticSchemaField(state.schema, propertyName, `${path}.property.name`);
-  geoServicesRequestField(property, state, `${path}.property.name`);
+  geoServicesPhysicalField(property, state, `${path}.property.name`);
   const geometryMetadata = sourceGeometryField(state.schema, propertyName, `${path}.property`);
   const sourceCrs = executableGeoServicesCrs(geometryMetadata.crs, `${path}.property`);
   const relationship = geoServicesRelationship(filter.operator, path);
@@ -899,11 +949,24 @@ function primaryGeometryField(schema: SourceSchemaV2): string | undefined {
 }
 
 function geoServicesSqlField(field: LogicalField, state: GeoServicesSemanticState, path: string): string {
-  const requestField = geoServicesRequestField(field, state, path);
-  return sql92Identifier(requestField, path);
+  return sql92Identifier(geoServicesPhysicalField(field, state, path), path);
 }
 
 function geoServicesRequestField(field: LogicalField, state: GeoServicesSemanticState, path: string): string {
+  const requestField = geoServicesPhysicalField(field, state, path);
+  if (!GEO_SERVICES_REST_FIELD_NAME.test(requestField)) {
+    semanticUnsupported(
+      "unsupported-source",
+      path,
+      "GeoServices raw field parameters require one Unicode identifier without delimiters or whitespace",
+    );
+  }
+  return requestField;
+}
+
+const GEO_SERVICES_REST_FIELD_NAME = /^[_\p{ID_Start}][_\p{ID_Continue}]*$/u;
+
+function geoServicesPhysicalField(field: LogicalField, state: GeoServicesSemanticState, path: string): string {
   if (field.path.length !== 1) {
     semanticUnsupported(
       "unsupported-source",
@@ -927,10 +990,4 @@ function containsSpatialFilter(filter: RuntimeGeoServicesFilter): boolean {
 
 function parenthesized(value: string): string {
   return `(${value})`;
-}
-
-function sortedFieldMappings(
-  mappings: readonly SemanticCompilerFieldMapping[],
-): readonly SemanticCompilerFieldMapping[] {
-  return [...mappings].sort((left, right) => left.logicalField.localeCompare(right.logicalField, "en-US"));
 }

@@ -27,6 +27,13 @@ export function recordSemanticFieldMapping(
   mappings.push({ logicalField: field.name, physicalPath: [...field.path], requestField });
 }
 
+/** @internal Sort mapping evidence by Unicode scalar value, independent of locale/ICU data. */
+export function sortSemanticFieldMappings(
+  mappings: readonly SemanticCompilerFieldMapping[],
+): readonly SemanticCompilerFieldMapping[] {
+  return [...mappings].sort((left, right) => compareUnicodeScalars(left.logicalField, right.logicalField));
+}
+
 /** @internal Quote one SQL-92 identifier without changing its Unicode spelling. */
 export function sql92Identifier(value: string, path: string): string {
   verifiedPhysicalSegment(value, path);
@@ -134,4 +141,17 @@ function expandExponent(value: string): string {
   if (decimalPosition <= 0) return `${sign}0.${"0".repeat(-decimalPosition)}${digits}`;
   if (decimalPosition >= digits.length) return `${sign}${digits}${"0".repeat(decimalPosition - digits.length)}`;
   return `${sign}${digits.slice(0, decimalPosition)}.${digits.slice(decimalPosition)}`;
+}
+
+function compareUnicodeScalars(left: string, right: string): number {
+  const leftScalars = [...left];
+  const rightScalars = [...right];
+  const length = Math.min(leftScalars.length, rightScalars.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftPoint = leftScalars[index]?.codePointAt(0) ?? 0;
+    const rightPoint = rightScalars[index]?.codePointAt(0) ?? 0;
+    if (leftPoint !== rightPoint) return leftPoint < rightPoint ? -1 : 1;
+  }
+  if (leftScalars.length === rightScalars.length) return 0;
+  return leftScalars.length < rightScalars.length ? -1 : 1;
 }
