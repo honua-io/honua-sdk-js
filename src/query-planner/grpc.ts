@@ -1055,7 +1055,9 @@ function splitGrpcServerAnd(value: string): string[] {
     }
     current += character;
   }
-  if (current.length > 0) parts.push(current);
+  // Preserve an empty final segment so a terminal separator cannot turn an
+  // invalid native expression into the preceding valid clause.
+  parts.push(current);
   return parts;
 }
 

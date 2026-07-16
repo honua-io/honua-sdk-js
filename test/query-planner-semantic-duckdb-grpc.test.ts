@@ -796,6 +796,7 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
       "amount > 0 OR amount < 2",
       "amount > 1e3",
       "unknown > 0",
+      "amount > 0 AND",
       "amount > 0\n",
     ]) {
       expect(
