@@ -759,6 +759,82 @@ describe("semantic WFS 2.0 FES compiler", () => {
     ).toThrow("$.filter.bbox.box.layout must be one of xy, xyz");
   });
 
+  it("refuses CRS axis dimensions that do not exactly match the encoded coordinate layout", () => {
+    const threeAxisCrs: ExecutableCrsBinding = {
+      definition: {
+        kind: "authority",
+        authority: "EPSG",
+        code: "4979",
+        definitionAxisOrder: {
+          state: "known",
+          source: "crs-definition",
+          axes: [
+            { name: "geodetic latitude", direction: "north", unit: "degree" },
+            { name: "geodetic longitude", direction: "east", unit: "degree" },
+            { name: "ellipsoidal height", direction: "up", unit: "metre" },
+          ],
+        },
+      },
+      coordinateOrder: {
+        state: "known",
+        source: "encoding",
+        axes: [
+          { name: "longitude", direction: "east", unit: "degree" },
+          { name: "latitude", direction: "north", unit: "degree" },
+          { name: "height", direction: "up", unit: "metre" },
+        ],
+      },
+      provenance: { method: "declared" },
+    };
+    const twoDimensionalTupleInThreeAxisCrs: ExecutableGeometryValue = {
+      state: "present",
+      geometry: { type: "Point", coordinates: [-157.86, 21.31] },
+      crs: threeAxisCrs,
+      layout: "xy",
+    };
+
+    const ogcBuilder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
+    const ogcQuery = ogcBuilder.features({
+      geometry: "include",
+      filter: defineSpatialNode<Incident, "primary-geometry">({
+        kind: "spatial",
+        operator: "intersects",
+        property: ogcBuilder.property("shape"),
+        geometry: twoDimensionalTupleInThreeAxisCrs,
+      }),
+    });
+    expect(
+      compile(ogcQuery, {
+        conformsTo: fullConformance,
+      }),
+    ).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "crs-transform-required", path: "$.filter.geometry.crs" }],
+    });
+
+    const wfsBuilder = createSemanticQueryBuilder<Incident, "wfs", "primary-geometry">();
+    const wfsQueryWithMismatchedAxes = wfsBuilder.features({
+      geometry: "include",
+      filter: defineSpatialNode<Incident, "primary-geometry">({
+        kind: "spatial",
+        operator: "intersects",
+        property: wfsBuilder.property("shape"),
+        geometry: twoDimensionalTupleInThreeAxisCrs,
+      }),
+    });
+    expect(
+      compileWfs(wfsQueryWithMismatchedAxes, {
+        capabilities: {
+          ...fullWfsCapabilities,
+          supportedFilterCrs: ["http://www.opengis.net/def/crs/EPSG/0/4979"],
+        },
+      }),
+    ).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "crs-transform-required", path: "$.filter.geometry.crs" }],
+    });
+  });
+
   it("publishes the FES compiler result and artifact types", () => {
     expectTypeOf(compileWfs()).toEqualTypeOf<SemanticCompilationResult<SemanticWfsCompiledQueryV1>>();
   });

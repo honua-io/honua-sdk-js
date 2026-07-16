@@ -232,13 +232,13 @@ export function ogcAxisPlan(binding: ExecutableCrsBinding, dimensions: 2 | 3, pa
   if (targetOrder.state !== "known") {
     semanticUnsupported("unsupported-crs", path, "OGC filter execution requires known CRS-definition axis order");
   }
-  const sourceAxes = binding.coordinateOrder.axes.slice(0, dimensions);
-  const targetAxes = targetOrder.axes.slice(0, dimensions);
+  const sourceAxes = binding.coordinateOrder.axes;
+  const targetAxes = targetOrder.axes;
   if (sourceAxes.length !== dimensions || targetAxes.length !== dimensions) {
     semanticUnsupported(
       "crs-transform-required",
       path,
-      `OGC filter execution requires ${dimensions} source and CRS-definition axes`,
+      `OGC filter execution requires exactly ${dimensions} source and CRS-definition axes for the coordinate layout`,
     );
   }
   const unused = new Set(sourceAxes.map((_, index) => index));
