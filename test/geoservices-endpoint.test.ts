@@ -25,15 +25,15 @@ describe("GeoServices endpoint normalization", () => {
   it("normalizes folder names, casing, selected resources, and removable format queries", () => {
     expect(
       normalizeGeoServicesEndpoint(
-        "https://example.test/Honua/rest/services/Public%20Works/%C4%80ina/imageserver/007/?F=PJSON",
+        "https://example.test/Honua/rest/services/Public%20Works/%C4%80ina/featureserver/007/?F=PJSON",
       ),
     ).toEqual({
-      endpoint: "https://example.test/Honua/rest/services/Public%20Works/%C4%80ina/ImageServer/7",
+      endpoint: "https://example.test/Honua/rest/services/Public%20Works/%C4%80ina/FeatureServer/7",
       clientBaseUrl: "https://example.test/Honua",
-      serviceUrl: "https://example.test/Honua/rest/services/Public%20Works/%C4%80ina/ImageServer",
+      serviceUrl: "https://example.test/Honua/rest/services/Public%20Works/%C4%80ina/FeatureServer",
       serviceId: "Public Works/Āina",
-      serviceKind: "image",
-      protocol: "geoservices-image-service",
+      serviceKind: "feature",
+      protocol: "geoservices-feature-service",
       layerId: 7,
     });
     expect(
@@ -58,6 +58,7 @@ describe("GeoServices endpoint normalization", () => {
     "https://example.test/rest/services/../FeatureServer",
     "https://example.test/rest/services/Parcels/GeometryServer/project",
     "https://example.test/rest/services/Parcels/ImageServer/catalog",
+    "https://example.test/rest/services/Parcels/ImageServer/7",
     "https://example.test/rest/services/Parcels/FeatureServer/9007199254740992",
     "https://example.test/rest/services/Parcels/GPServer/%2F",
   ])("rejects unsafe canonical input %s", (endpoint) => {

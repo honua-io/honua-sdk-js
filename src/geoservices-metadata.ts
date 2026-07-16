@@ -57,10 +57,8 @@ export async function getGeoServicesMetadata(
       if (code !== undefined && [401, 403, 498, 499].includes(code)) {
         return Object.freeze({ kind: "secured" as const, statusCode: code });
       }
-      const rawMessage = readOwn(serviceError, "message");
       throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices metadata returned an error object.", {
-        code,
-        message: typeof rawMessage === "string" ? rawMessage : undefined,
+        ...(code !== undefined ? { code } : {}),
       });
     }
     return Object.freeze({ kind: "available" as const, value: body });

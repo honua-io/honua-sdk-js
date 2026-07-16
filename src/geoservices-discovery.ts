@@ -916,11 +916,10 @@ function combineAuthentication(
   children: readonly GeoServicesAuthenticationDescriptor[],
 ): GeoServicesAuthenticationDescriptor {
   const all = [root, ...children];
-  return (
-    all.find((entry) => entry.requirement === "required") ??
-    all.find((entry) => entry.requirement === "not-required") ??
-    root
-  );
+  const required = all.find((entry) => entry.requirement === "required");
+  if (required) return required;
+  if (all.every((entry) => entry.requirement === "not-required")) return root;
+  return all.find((entry) => entry.requirement === "unknown") ?? UNKNOWN_AUTHENTICATION;
 }
 
 function normalizeTokenServiceUrl(value: string, serviceUrl: string): string {

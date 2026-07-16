@@ -25,7 +25,7 @@ export interface NormalizedGeoServicesEndpoint {
   readonly serviceId: string;
   readonly serviceKind: GeoServicesServiceKind;
   readonly protocol: GeoServicesServiceProtocol;
-  /** Selected FeatureServer, MapServer, or ImageServer numeric layer/catalog id. */
+  /** Selected FeatureServer or MapServer numeric layer id. */
   readonly layerId?: number;
   /** Selected GPServer task name. */
   readonly taskName?: string;
@@ -55,7 +55,7 @@ const SERVICE_TYPES: Readonly<Record<string, ServiceTypeDefinition>> = Object.fr
     path: "ImageServer",
     serviceKind: "image",
     protocol: "geoservices-image-service",
-    resource: "layer",
+    resource: "none",
   }),
   geometryserver: Object.freeze({
     path: "GeometryServer",

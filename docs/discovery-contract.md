@@ -111,7 +111,8 @@ API Features and STAC API landing pages, raw OGC API Records catalog roots, raw
 OGC API Tiles and Maps service roots (render-only sources),
 WFS 2.0 endpoints, OData v4 service
 roots, static-file GeoParquet assets, and canonical GeoServices
-`FeatureServer` / `MapServer` / `ImageServer` service or layer URLs. OGC, STAC,
+`FeatureServer` / `MapServer` service or layer URLs plus `ImageServer` service
+roots. OGC, STAC,
 WFS, OData, Records, Tiles, Maps, and GeoParquet endpoints require an explicit
 `protocol: "ogc-features"`,
 `protocol: "stac"`, `protocol: "wfs"`, `protocol: "odata"`,
@@ -198,9 +199,11 @@ and the object-id primary key are projected into the common source schema.
 `discoverGeoServices()` accepts canonical `FeatureServer`, `MapServer`,
 `ImageServer`, `GeometryServer`, and `GPServer` service URLs. It uses the same
 strict endpoint classifier as `connect()`, including nested folder/service ids,
-optional numeric layer/catalog ids, selected GP task names, and removal of a
-pasted JSON-format query. Other query parameters, credentials, fragments, and
-non-canonical layouts fail before metadata is requested.
+optional numeric FeatureServer/MapServer layer ids, selected GP task names, and
+removal of a pasted JSON-format query. `ImageServer/{numericId}` is rejected
+until the raster-catalog adapter can execute that selection without dropping
+it. Other query parameters, credentials, fragments, and non-canonical layouts
+fail before metadata is requested.
 
 ```ts doc-test=compile
 import { discoverGeoServices } from "@honua/sdk-js/honua";
@@ -248,7 +251,12 @@ service identity with `authentication-required` and `partial-discovery`
 diagnostics instead of inventing operations. A failed GP task metadata request
 similarly yields an `unavailable` task descriptor while retaining successful
 siblings. `signal`, `refresh`, metadata cache headers, retry, and transport/auth
-options follow the same client contract as `connect()`.
+options follow the same client contract as `connect()`. Authentication is
+`not-required` only when the service and every relevant task explicitly
+establish that result; any required evidence wins, and mixed
+`not-required`/unknown evidence remains unknown. Non-authentication
+GeoServices error envelopes retain a bounded numeric code but discard remote
+message text before constructing the public discovery error.
 
 At an OGC service root, all advertised collections become `Dataset` source
 descriptors; at a GeoServices root, advertised layers and tables do. A layer

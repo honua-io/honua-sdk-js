@@ -4,8 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { connect } from "../src/connect.js";
 import { HonuaClient } from "../src/core/client.js";
-import { HonuaAbortError } from "../src/core/errors.js";
+import { HonuaAbortError, HonuaDiscoveryError } from "../src/core/errors.js";
 import { discoverGeoServices } from "../src/geoservices-discovery.js";
+import { getGeoServicesMetadata } from "../src/geoservices-metadata.js";
 
 const imageMetadata = fixture("image-server.json");
 const geometryMetadata = fixture("geometry-server.json");
@@ -108,6 +109,27 @@ describe("GeoServices service discovery", () => {
     });
   });
 
+  it("rejects ImageServer catalog ids before authentication or network work", async () => {
+    const fetchFn = vi.fn<typeof fetch>();
+    const auth = vi.fn(async () => "secret");
+    const endpoint = "https://example.test/rest/services/Elevation/Oahu/ImageServer/7";
+
+    await expect(
+      connect({
+        endpoint,
+        protocol: "auto",
+        authorizationScopeFingerprint: "scope",
+        clientOptions: { fetchFn, auth },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+    await expect(discoverGeoServices({ endpoint, clientOptions: { fetchFn, auth } })).rejects.toMatchObject({
+      name: "HonuaDiscoveryError",
+      code: "invalid-endpoint",
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(auth).not.toHaveBeenCalled();
+  });
+
   it("returns GeometryServer operations as non-Source descriptors and resolves relative URLs", async () => {
     const requests: Request[] = [];
     const client = new HonuaClient({
@@ -181,7 +203,7 @@ describe("GeoServices service discovery", () => {
     ]);
   });
 
-  it("discovers GPServer task execution modes without starting jobs", async () => {
+  it("discovers GPServer task execution modes without starting jobs and keeps mixed auth evidence unknown", async () => {
     const requests: string[] = [];
     const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(new Request(input, init).url);
@@ -203,6 +225,7 @@ describe("GeoServices service discovery", () => {
       protocol: "geoservices-gp-service",
       serviceId: "Analysis/Tools",
       sourceBacked: false,
+      authentication: { requirement: "unknown", evidence: "none", schemes: [] },
     });
     expect(result.sources).toEqual([]);
     expect(result.operations).toEqual([
@@ -328,6 +351,32 @@ describe("GeoServices service discovery", () => {
         clientOptions: { fetchFn: vi.fn(async () => json({ tasks: "Viewshed" })) },
       }),
     ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+  });
+
+  it("never reflects a remote GeoServices error message into a public discovery error", async () => {
+    const reflectedToken = "reflected-bearer-token-should-not-escape";
+    const client = new HonuaClient({ baseUrl: "https://example.test" });
+    vi.spyOn(client, "request").mockResolvedValue({
+      error: { code: 500, message: `Authorization: Bearer ${reflectedToken}` },
+    });
+    let caught: unknown;
+    try {
+      await getGeoServicesMetadata(
+        client,
+        "https://example.test",
+        "https://example.test/rest/services/Utilities/Geometry/GeometryServer",
+        {},
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(HonuaDiscoveryError);
+    if (!(caught instanceof HonuaDiscoveryError)) return;
+    expect(caught.message).toBe("GeoServices metadata returned an error object.");
+    expect(caught.detail).toEqual({ code: 500 });
+    expect(caught.context).toEqual({ code: 500 });
+    expect(JSON.stringify(caught)).not.toContain(reflectedToken);
   });
 
   it("fails closed when ImageServer metadata proves identity but no operation support", async () => {
