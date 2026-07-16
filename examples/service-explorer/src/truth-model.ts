@@ -1,17 +1,17 @@
 import {
+  type ConnectLocator,
+  type ConnectProtocolHint,
+  type ConnectionInspection,
   HonuaAbortError,
   HonuaAuthError,
   HonuaDiscoveryError,
   HonuaHttpError,
+  type HonuaKernel,
+  type HonuaKernelConnectOptions,
+  type HonuaKernelConnection,
+  type HonuaKernelOptions,
   createHonua,
   isHonuaError,
-  type ConnectLocator,
-  type ConnectProtocolHint,
-  type ConnectionInspection,
-  type HonuaKernel,
-  type HonuaKernelConnection,
-  type HonuaKernelConnectOptions,
-  type HonuaKernelOptions,
 } from "@honua/sdk-js";
 import type {
   DiscoveryCapabilityDecision,
@@ -21,18 +21,28 @@ import type {
   DiscoveryState,
   SourceDiscoveryInspection,
 } from "@honua/sdk-js/contract";
+import { PROTOCOLS, normalizeDiscoveryEndpoint } from "@honua/sdk-js/contract";
 
 const MAX_ENDPOINT_INPUT_LENGTH = 4_096;
 const MAX_SELECTOR_LENGTH = 512;
 const MAX_TEXT_LENGTH = 512;
 const MAX_SOURCES = 256;
 const MAX_FIELDS_PER_SOURCE = 256;
+const MAX_CRS_PER_SOURCE = 32;
+const MAX_CAPABILITIES_PER_SOURCE = 64;
+const MAX_CAPABILITY_DECISIONS_PER_SOURCE = 128;
 const MAX_DIAGNOSTICS = 512;
 const MAX_PROVENANCE_PER_SOURCE = 32;
 const MAX_EXTENTS_PER_SOURCE = 16;
 const MAX_PROFILE_ENTRIES = 128;
+const MAX_PROFILE_EVIDENCE_PER_ENTRY = 16;
+const MAX_PAGINATION_MODES = 16;
+const MAX_AUTHORIZATION_SCOPES_PER_CAPABILITY = 32;
 const MAX_EVIDENCE_PER_CAPABILITY = 16;
 const MAX_REASONS_PER_CAPABILITY = 16;
+const MAX_DIAGNOSTIC_CAPABILITIES = 32;
+const ENDPOINT_INPUT_KEYS = new Set(["url", "protocol", "sourceId", "collectionId", "typeName"]);
+const CONNECT_PROTOCOL_HINTS = new Set<string>(["auto", ...PROTOCOLS]);
 
 export type ServiceExplorerTruthStateKind =
   | "idle"
@@ -107,6 +117,7 @@ export interface ServiceExplorerCapabilityDecisionView {
   readonly positiveEvidence: boolean;
   readonly policyAllowed: boolean;
   readonly evidence: readonly ServiceExplorerCapabilityEvidenceView[];
+  readonly evidenceTruncated: boolean;
 }
 
 export interface ServiceExplorerCapabilityProfileEntryView {
@@ -114,11 +125,26 @@ export interface ServiceExplorerCapabilityProfileEntryView {
   readonly claimed: string;
   readonly observed: string;
   readonly effective: string;
+  readonly evidence: readonly ServiceExplorerCapabilityProfileEvidenceView[];
+  readonly evidenceTruncated: boolean;
   readonly reasons: readonly string[];
+  readonly reasonsTruncated: boolean;
+  readonly authorizationScopes: readonly string[];
+  readonly authorizationScopesTruncated: boolean;
   readonly pagination?: {
     readonly modes: readonly string[];
     readonly maxPageSize?: number;
+    readonly modesTruncated: boolean;
   };
+}
+
+export interface ServiceExplorerCapabilityProfileEvidenceView {
+  readonly kind: string;
+  readonly truth: string;
+  readonly reference: string;
+  readonly sourceFingerprint?: string;
+  readonly observedAt?: string;
+  readonly expiresAt?: string;
 }
 
 export interface ServiceExplorerCapabilityProfileView {
@@ -162,6 +188,7 @@ export interface ServiceExplorerExtentView {
     readonly interval: readonly (readonly (string | null)[])[];
     readonly trs?: string;
   };
+  readonly truncated: boolean;
 }
 
 export interface ServiceExplorerSourceLocatorView {
@@ -190,14 +217,19 @@ export interface ServiceExplorerSourceView {
   readonly protocol: string;
   readonly locator: ServiceExplorerSourceLocatorView;
   readonly discovery: DiscoveryState;
+  readonly crsCount: number;
   readonly crs: readonly string[];
   readonly extent?: ServiceExplorerExtentView;
   readonly attribution?: string;
   readonly schema: ServiceExplorerSchemaView;
+  readonly effectiveCapabilityCount: number;
   readonly effectiveCapabilities: readonly string[];
+  readonly capabilityDecisionCount: number;
   readonly capabilityDecisions: readonly ServiceExplorerCapabilityDecisionView[];
   readonly capabilityProfile?: ServiceExplorerCapabilityProfileView;
+  readonly provenanceCount: number;
   readonly provenance: readonly ServiceExplorerProvenanceView[];
+  readonly truncated: boolean;
 }
 
 export interface ServiceExplorerDiagnosticView {
@@ -207,6 +239,7 @@ export interface ServiceExplorerDiagnosticView {
   readonly severity: "info" | "warning";
   readonly message: string;
   readonly capabilities: readonly string[];
+  readonly capabilitiesTruncated: boolean;
 }
 
 export interface ServiceExplorerInspectionView {
@@ -215,6 +248,12 @@ export interface ServiceExplorerInspectionView {
     readonly endpoint: string;
     readonly protocol: string;
     readonly protocolHint: string;
+    readonly detection: {
+      readonly requestedProtocolHint: string;
+      readonly resolvedProtocol: string;
+      /** The public kernel currently exposes evidence, but no numeric or categorical detector confidence. */
+      readonly confidence: "not-reported";
+    };
     readonly evidenceStates: readonly DiscoveryState[];
     readonly cache: {
       readonly scope: "discovery-metadata";
@@ -229,6 +268,7 @@ export interface ServiceExplorerInspectionView {
     readonly visibleSourceCount: number;
     readonly sourceIds: readonly string[];
     readonly selectedSourceId?: string;
+    readonly selectedSourceVisible: boolean;
     readonly selectionRequired: boolean;
   };
   readonly sources: readonly ServiceExplorerSourceView[];
@@ -334,7 +374,11 @@ class ServiceExplorerTruthModelSession implements ServiceExplorerTruthModel {
   public subscribe(listener: (state: ServiceExplorerTruthState) => void): () => void {
     this.#assertActive();
     this.#listeners.add(listener);
-    listener(this.#state);
+    try {
+      listener(this.#state);
+    } catch {
+      // Listener failures belong to the presentation host, not discovery.
+    }
     return () => this.#listeners.delete(listener);
   }
 
@@ -353,27 +397,38 @@ class ServiceExplorerTruthModelSession implements ServiceExplorerTruthModel {
     const controller = new AbortController();
     this.#activeAbortController = controller;
     const signal = combineAbortSignals(controller.signal, options.signal);
-    const request = createRequestView(generation, input, options.authorizationScopeFingerprint);
+    const inputSnapshot = snapshotEndpointInput(input);
+    const request = createRequestView(generation, inputSnapshot.input, options.authorizationScopeFingerprint);
+    const previous = this.#activeConnection;
+    this.#activeConnection = undefined;
     this.#publish(freezeView({ kind: "loading", request }));
 
-    const inputFailure = validateInput(input);
-    if (inputFailure) {
-      const state = freezeView({ kind: "error", request, failure: inputFailure } satisfies ServiceExplorerFailureState);
+    if (previous) await disposeQuietly(previous);
+    if (signal.aborted) {
+      const state = cancelledState(request);
+      if (generation === this.#generation) {
+        if (isPublishedCancellation(this.#state, request.id)) return this.#state;
+        this.#publish(state);
+      }
+      return state;
+    }
+    if (inputSnapshot.failure) {
+      const state = freezeView({
+        kind: "error",
+        request,
+        failure: inputSnapshot.failure,
+      } satisfies ServiceExplorerFailureState);
       if (generation === this.#generation) this.#publish(state);
       return state;
     }
 
-    const previous = this.#activeConnection;
-    this.#activeConnection = undefined;
-    if (previous) await previous.dispose();
-
     let connection: HonuaKernelConnection | undefined;
     try {
       signal.throwIfAborted();
-      connection = await this.#honua.connect(createLocator(input), createConnectOptions(options, signal));
+      connection = await this.#honua.connect(createLocator(inputSnapshot.input), createConnectOptions(options, signal));
       const inspection = await connection.inspect({ signal });
       signal.throwIfAborted();
-      const view = projectInspection(connection, inspection, request, input.sourceId);
+      const view = projectInspection(connection, inspection, request);
       const terminal = classifyInspection(request, view);
       if (generation !== this.#generation) {
         await connection.dispose();
@@ -385,7 +440,10 @@ class ServiceExplorerTruthModelSession implements ServiceExplorerTruthModel {
     } catch (error) {
       if (connection) await disposeQuietly(connection);
       const terminal = failureState(request, error, signal);
-      if (generation === this.#generation) this.#publish(terminal);
+      if (generation === this.#generation) {
+        if (terminal.kind === "cancelled" && isPublishedCancellation(this.#state, request.id)) return this.#state;
+        this.#publish(terminal);
+      }
       return terminal;
     } finally {
       if (generation === this.#generation) this.#activeAbortController = undefined;
@@ -408,10 +466,12 @@ class ServiceExplorerTruthModelSession implements ServiceExplorerTruthModel {
     const connection = this.#activeConnection;
     this.#activeConnection = undefined;
     this.#listeners.clear();
-    this.#disposePromise = (async () => {
-      if (connection) await connection.dispose();
-      if (this.#ownsHonua) await this.#honua.dispose();
-    })();
+    // Publish the idempotent completion before invoking foreign cleanup. A
+    // managed connection may synchronously call application hooks while its
+    // disposal starts; those hooks must observe an already-disposing model.
+    this.#disposePromise = Promise.resolve().then(() =>
+      disposeOwnedResources(connection, this.#ownsHonua ? this.#honua : undefined),
+    );
     return this.#disposePromise;
   }
 
@@ -421,12 +481,156 @@ class ServiceExplorerTruthModelSession implements ServiceExplorerTruthModel {
 
   #publish(state: ServiceExplorerTruthState): void {
     this.#state = state;
-    for (const listener of [...this.#listeners]) listener(state);
+    for (const listener of [...this.#listeners]) {
+      try {
+        listener(state);
+      } catch {
+        // Presentation failures must not change discovery truth or leak into
+        // the kernel lifecycle. Hosts own their listener diagnostics.
+      }
+    }
   }
 
   #assertActive(): void {
     if (this.#disposePromise) throw new Error("Service Explorer truth model is disposed.");
   }
+}
+
+interface EndpointInputSnapshot {
+  readonly input: ServiceExplorerEndpointInput;
+  readonly failure?: ServiceExplorerFailureView;
+}
+
+function snapshotEndpointInput(foreign: ServiceExplorerEndpointInput): EndpointInputSnapshot {
+  if (foreign === null || typeof foreign !== "object" || Array.isArray(foreign)) {
+    return invalidInputSnapshot("input.invalid-endpoint", "Invalid endpoint", "Enter a bounded HTTP(S) service URL.");
+  }
+  const values: Record<string, unknown> = Object.create(null);
+  try {
+    const prototype = Object.getPrototypeOf(foreign);
+    const keys = Reflect.ownKeys(foreign);
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      keys.length > ENDPOINT_INPUT_KEYS.size ||
+      keys.some((key) => typeof key !== "string" || !ENDPOINT_INPUT_KEYS.has(key))
+    ) {
+      return invalidInputSnapshot(
+        "input.invalid-shape",
+        "Invalid endpoint input",
+        "Endpoint input must contain only URL and source-selection fields.",
+      );
+    }
+    for (const key of keys as string[]) {
+      const descriptor = Object.getOwnPropertyDescriptor(foreign, key);
+      if (!descriptor || descriptor.get || descriptor.set) {
+        return invalidInputSnapshot(
+          "input.invalid-shape",
+          "Invalid endpoint input",
+          "Endpoint input accessors are not accepted.",
+        );
+      }
+      values[key] = descriptor.value;
+    }
+  } catch {
+    return invalidInputSnapshot(
+      "input.invalid-shape",
+      "Invalid endpoint input",
+      "Endpoint input could not be inspected safely.",
+    );
+  }
+
+  const url = values.url;
+  if (typeof url !== "string" || !validEndpointInput(url)) {
+    return invalidInputSnapshot("input.invalid-endpoint", "Invalid endpoint", "Enter a bounded HTTP(S) service URL.");
+  }
+  let normalizedUrl: string;
+  try {
+    normalizedUrl = normalizeEndpointForKernel(url);
+  } catch {
+    return invalidInputSnapshot("input.invalid-endpoint", "Invalid endpoint", "Enter a bounded HTTP(S) service URL.");
+  }
+  const input: {
+    url: string;
+    protocol?: ConnectProtocolHint;
+    sourceId?: string;
+    collectionId?: string;
+    typeName?: string;
+  } = { url: normalizedUrl };
+  const protocol = values.protocol;
+  if (protocol !== undefined) {
+    if (typeof protocol !== "string" || !CONNECT_PROTOCOL_HINTS.has(protocol)) {
+      return invalidInputSnapshot(
+        "input.invalid-protocol",
+        "Invalid protocol hint",
+        "Choose auto or a public SDK protocol identifier.",
+        { url: normalizedUrl },
+      );
+    }
+    input.protocol = protocol as ConnectProtocolHint;
+  }
+  for (const key of ["sourceId", "collectionId", "typeName"] as const) {
+    const value = values[key];
+    if (value === undefined) continue;
+    if (
+      typeof value !== "string" ||
+      value.length === 0 ||
+      value.length > MAX_SELECTOR_LENGTH ||
+      value.trim() !== value ||
+      hasUnsafeControl(value)
+    ) {
+      return invalidInputSnapshot(
+        `input.invalid-${key.toLowerCase()}`,
+        "Invalid source selector",
+        `${key} must be a bounded, non-empty, trimmed string.`,
+        input,
+      );
+    }
+    input[key] = value;
+  }
+  return freezeView({ input: freezeView(input) });
+}
+
+function invalidInputSnapshot(
+  code: string,
+  title: string,
+  detail: string,
+  input: ServiceExplorerEndpointInput = { url: "" },
+): EndpointInputSnapshot {
+  return freezeView({ input: freezeView({ ...input }), failure: failure(code, title, detail, false) });
+}
+
+function validEndpointInput(value: string): boolean {
+  if (
+    value.length === 0 ||
+    value.length > MAX_ENDPOINT_INPUT_LENGTH ||
+    value.trim() !== value ||
+    hasUnsafeControl(value)
+  ) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+function hasUnsafeControl(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code <= 31 || code === 127) return true;
+  }
+  return false;
+}
+
+function normalizeEndpointForKernel(value: string): string {
+  const original = new URL(value);
+  const normalized = new URL(normalizeDiscoveryEndpoint(original));
+  // Discovery normalization removes credential-shaped query material, while
+  // path bytes (including a meaningful trailing slash) remain request truth.
+  normalized.pathname = original.pathname;
+  return normalized.toString();
 }
 
 function createRequestView(
@@ -448,7 +652,10 @@ function createRequestView(
   });
 }
 
-function authorizationView(value: string | undefined): ServiceExplorerAuthorizationView {
+function authorizationView(value: unknown): ServiceExplorerAuthorizationView {
+  if (value !== undefined && (typeof value !== "string" || value.length > 256)) {
+    return freezeView({ mode: "scoped", scopeIdentity: "[configured]", credentialsRetained: false });
+  }
   const candidate = value?.trim();
   const anonymous = candidate === undefined || candidate === "" || candidate === "public" || candidate === "anonymous";
   return freezeView({
@@ -458,8 +665,9 @@ function authorizationView(value: string | undefined): ServiceExplorerAuthorizat
   });
 }
 
-function safeScopeIdentity(value: string): string {
+function safeScopeIdentity(value: unknown): string {
   if (
+    typeof value !== "string" ||
     value.length > 128 ||
     !/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(value) ||
     /(?:bearer|password|secret|token|api[_-]?key|session|signature|jwt)/i.test(value)
@@ -467,27 +675,6 @@ function safeScopeIdentity(value: string): string {
     return "[configured]";
   }
   return value;
-}
-
-function validateInput(input: ServiceExplorerEndpointInput): ServiceExplorerFailureView | undefined {
-  if (typeof input.url !== "string" || input.url.length === 0 || input.url.length > MAX_ENDPOINT_INPUT_LENGTH) {
-    return failure("input.invalid-endpoint", "Invalid endpoint", "Enter a bounded HTTP(S) service URL.", false);
-  }
-  for (const [name, value] of [
-    ["sourceId", input.sourceId],
-    ["collectionId", input.collectionId],
-    ["typeName", input.typeName],
-  ] as const) {
-    if (value !== undefined && (typeof value !== "string" || value.length > MAX_SELECTOR_LENGTH)) {
-      return failure(
-        `input.invalid-${name.toLowerCase()}`,
-        "Invalid source selector",
-        `${name} must be a bounded string.`,
-        false,
-      );
-    }
-  }
-  return undefined;
 }
 
 function createLocator(input: ServiceExplorerEndpointInput): ConnectLocator {
@@ -500,10 +687,7 @@ function createLocator(input: ServiceExplorerEndpointInput): ConnectLocator {
   };
 }
 
-function createConnectOptions(
-  options: ServiceExplorerInspectOptions,
-  signal: AbortSignal,
-): HonuaKernelConnectOptions {
+function createConnectOptions(options: ServiceExplorerInspectOptions, signal: AbortSignal): HonuaKernelConnectOptions {
   return {
     ...(options.authorizationScopeFingerprint !== undefined
       ? { authorizationScopeFingerprint: options.authorizationScopeFingerprint }
@@ -520,19 +704,35 @@ function projectInspection(
   connection: HonuaKernelConnection,
   inspection: ConnectionInspection,
   request: ServiceExplorerRequestView,
-  explicitlySelectedSourceId: string | undefined,
 ): ServiceExplorerInspectionView {
+  const inspectedDefaultSourceId = inspection.defaultSourceId;
   const visibleInspections = inspection.sources.slice(0, MAX_SOURCES);
+  const selectedSourceVisible =
+    inspectedDefaultSourceId !== undefined &&
+    visibleInspections.some((source) => source.descriptor.id === inspectedDefaultSourceId);
+  const invalidDefaultSource =
+    inspectedDefaultSourceId !== undefined && !selectedSourceVisible && inspection.sources.length <= MAX_SOURCES;
+  const selectedSourceId = invalidDefaultSource ? undefined : inspectedDefaultSourceId;
   const sources = visibleInspections.map(projectSource);
-  const selectedSourceId = explicitlySelectedSourceId ?? inspection.defaultSourceId;
-  const diagnostics = projectDiagnostics(inspection, visibleInspections, inspection.sources.length > MAX_SOURCES);
-  const evidenceStates = [...new Set(inspection.sources.map((source) => source.discovery))].sort();
+  const diagnostics = projectDiagnostics(
+    inspection,
+    visibleInspections,
+    sources,
+    inspection.sources.length > MAX_SOURCES,
+    invalidDefaultSource,
+  );
+  const evidenceStates = [...new Set(visibleInspections.map((source) => source.discovery))].sort();
   return freezeView({
     service: {
       id: safeText(inspection.id),
       endpoint: safeEndpoint(inspection.endpoint),
       protocol: safeText(inspection.protocol, 64),
       protocolHint: request.protocolHint,
+      detection: {
+        requestedProtocolHint: request.protocolHint,
+        resolvedProtocol: safeText(inspection.protocol, 64),
+        confidence: "not-reported",
+      },
       evidenceStates,
       cache: {
         scope: "discovery-metadata",
@@ -547,11 +747,14 @@ function projectInspection(
       visibleSourceCount: sources.length,
       sourceIds: sources.map((source) => source.id),
       ...(selectedSourceId ? { selectedSourceId: safeText(selectedSourceId) } : {}),
+      selectedSourceVisible,
       selectionRequired: inspection.sources.length > 1 && selectedSourceId === undefined,
     },
     sources,
     diagnostics,
-    truncated: inspection.sources.length > MAX_SOURCES || diagnostics.some((entry) => entry.code.startsWith("explorer.")),
+    truncated:
+      inspection.sources.length > MAX_SOURCES ||
+      diagnostics.some((entry) => entry.code.startsWith("explorer.") || entry.capabilitiesTruncated),
   });
 }
 
@@ -585,20 +788,49 @@ function projectSource(inspection: SourceDiscoveryInspection): ServiceExplorerSo
         }
       : {}),
   };
-  const crs = (inspection.metadata?.crs ?? []).slice(0, MAX_EXTENTS_PER_SOURCE).map((entry) => safeText(entry, 256));
+  const allCrs = inspection.metadata?.crs ?? [];
+  const crs = allCrs.slice(0, MAX_CRS_PER_SOURCE).map((entry) => safeText(entry, 256));
+  const extent = inspection.metadata?.extent ? projectExtent(inspection.metadata.extent) : undefined;
+  const effectiveCapabilityCount = descriptor.capabilities.size;
+  const effectiveCapabilities: string[] = [];
+  for (const capability of descriptor.capabilities) {
+    if (effectiveCapabilities.length >= MAX_CAPABILITIES_PER_SOURCE) break;
+    effectiveCapabilities.push(safeText(capability, 128));
+  }
+  const capabilityDecisions = inspection.capabilityDecisions
+    .slice(0, MAX_CAPABILITY_DECISIONS_PER_SOURCE)
+    .map(projectCapabilityDecision);
+  const capabilityProfile = descriptor.capabilityProfile
+    ? projectCapabilityProfile(descriptor.capabilityProfile)
+    : undefined;
+  const provenance = inspection.provenance.slice(0, MAX_PROVENANCE_PER_SOURCE).map(projectProvenance);
+  const truncated =
+    schemaView.truncated ||
+    allCrs.length > MAX_CRS_PER_SOURCE ||
+    effectiveCapabilityCount > MAX_CAPABILITIES_PER_SOURCE ||
+    inspection.capabilityDecisions.length > MAX_CAPABILITY_DECISIONS_PER_SOURCE ||
+    capabilityDecisions.some((decision) => decision.evidenceTruncated) ||
+    capabilityProfile?.truncated === true ||
+    inspection.provenance.length > MAX_PROVENANCE_PER_SOURCE ||
+    extent?.truncated === true;
   return freezeView({
     id: safeText(descriptor.id),
     protocol: safeText(descriptor.protocol, 64),
     locator: projectLocator(descriptor.locator),
     discovery: inspection.discovery,
+    crsCount: allCrs.length,
     crs,
-    ...(inspection.metadata?.extent ? { extent: projectExtent(inspection.metadata.extent) } : {}),
+    ...(extent ? { extent } : {}),
     ...(descriptor.attribution ? { attribution: safeText(descriptor.attribution) } : {}),
     schema: schemaView,
-    effectiveCapabilities: [...descriptor.capabilities].map((entry) => safeText(entry, 128)).sort(),
-    capabilityDecisions: inspection.capabilityDecisions.map(projectCapabilityDecision),
-    ...(descriptor.capabilityProfile ? { capabilityProfile: projectCapabilityProfile(descriptor.capabilityProfile) } : {}),
-    provenance: inspection.provenance.slice(0, MAX_PROVENANCE_PER_SOURCE).map(projectProvenance),
+    effectiveCapabilityCount,
+    effectiveCapabilities: effectiveCapabilities.sort(),
+    capabilityDecisionCount: inspection.capabilityDecisions.length,
+    capabilityDecisions,
+    ...(capabilityProfile ? { capabilityProfile } : {}),
+    provenanceCount: inspection.provenance.length,
+    provenance,
+    truncated,
   });
 }
 
@@ -619,12 +851,18 @@ function projectLocator(locator: SourceDiscoveryInspection["descriptor"]["locato
   });
 }
 
-function projectExtent(extent: NonNullable<SourceDiscoveryInspection["metadata"]>["extent"]): ServiceExplorerExtentView {
+function projectExtent(
+  extent: NonNullable<SourceDiscoveryInspection["metadata"]>["extent"],
+): ServiceExplorerExtentView {
+  const bboxes = extent?.spatial?.bbox ?? [];
+  const intervals = extent?.temporal?.interval ?? [];
+  const visibleBboxes = bboxes.slice(0, MAX_EXTENTS_PER_SOURCE);
+  const visibleIntervals = intervals.slice(0, MAX_EXTENTS_PER_SOURCE);
   return freezeView({
     ...(extent?.spatial
       ? {
           spatial: {
-            bbox: extent.spatial.bbox.slice(0, MAX_EXTENTS_PER_SOURCE).map((bbox) => bbox.slice(0, 6)),
+            bbox: visibleBboxes.map((bbox) => bbox.slice(0, 6)),
             ...(extent.spatial.crs ? { crs: safeText(extent.spatial.crs, 256) } : {}),
           },
         }
@@ -632,13 +870,18 @@ function projectExtent(extent: NonNullable<SourceDiscoveryInspection["metadata"]
     ...(extent?.temporal
       ? {
           temporal: {
-            interval: extent.temporal.interval
-              .slice(0, MAX_EXTENTS_PER_SOURCE)
-              .map((interval) => interval.slice(0, 2).map((value) => (value === null ? null : safeText(value, 128)))),
+            interval: visibleIntervals.map((interval) =>
+              interval.slice(0, 2).map((value) => (value === null ? null : safeText(value, 128))),
+            ),
             ...(extent.temporal.trs ? { trs: safeText(extent.temporal.trs, 256) } : {}),
           },
         }
       : {}),
+    truncated:
+      bboxes.length > MAX_EXTENTS_PER_SOURCE ||
+      intervals.length > MAX_EXTENTS_PER_SOURCE ||
+      visibleBboxes.some((bbox) => bbox.length > 6) ||
+      visibleIntervals.some((interval) => interval.length > 2),
   });
 }
 
@@ -652,6 +895,7 @@ function projectCapabilityDecision(decision: DiscoveryCapabilityDecision): Servi
     positiveEvidence: decision.positiveEvidence,
     policyAllowed: decision.policyAllowed,
     evidence: decision.evidence.slice(0, MAX_EVIDENCE_PER_CAPABILITY).map(projectCapabilityEvidence),
+    evidenceTruncated: decision.evidence.length > MAX_EVIDENCE_PER_CAPABILITY,
   });
 }
 
@@ -669,19 +913,38 @@ function projectCapabilityEvidence(
 function projectCapabilityProfile(
   profile: NonNullable<SourceDiscoveryInspection["descriptor"]["capabilityProfile"]>,
 ): ServiceExplorerCapabilityProfileView {
+  let paginationTruncated = false;
+  let reasonsTruncated = false;
+  let evidenceTruncated = false;
+  let authorizationScopesTruncated = false;
   const entries = profile.entries.slice(0, MAX_PROFILE_ENTRIES).map((entry) => {
     const pagination = entry.constraints?.pagination;
+    const authorizationScopes = entry.authorizationScopes ?? [];
+    if ((pagination?.modes.length ?? 0) > MAX_PAGINATION_MODES) paginationTruncated = true;
+    if (entry.reasons.length > MAX_REASONS_PER_CAPABILITY) reasonsTruncated = true;
+    if (entry.evidence.length > MAX_PROFILE_EVIDENCE_PER_ENTRY) evidenceTruncated = true;
+    if (authorizationScopes.length > MAX_AUTHORIZATION_SCOPES_PER_CAPABILITY) {
+      authorizationScopesTruncated = true;
+    }
     return {
       id: safeText(entry.id, 128),
       claimed: entry.claimed,
       observed: entry.observed,
       effective: entry.effective,
+      evidence: entry.evidence.slice(0, MAX_PROFILE_EVIDENCE_PER_ENTRY).map(projectProfileEvidence),
+      evidenceTruncated: entry.evidence.length > MAX_PROFILE_EVIDENCE_PER_ENTRY,
       reasons: entry.reasons.slice(0, MAX_REASONS_PER_CAPABILITY).map((reason) => safeText(reason, 256)),
+      reasonsTruncated: entry.reasons.length > MAX_REASONS_PER_CAPABILITY,
+      authorizationScopes: authorizationScopes
+        .slice(0, MAX_AUTHORIZATION_SCOPES_PER_CAPABILITY)
+        .map((scope) => safeScopeIdentity(scope)),
+      authorizationScopesTruncated: authorizationScopes.length > MAX_AUTHORIZATION_SCOPES_PER_CAPABILITY,
       ...(pagination
         ? {
             pagination: {
-              modes: pagination.modes.map((mode) => safeText(mode, 64)),
+              modes: pagination.modes.slice(0, MAX_PAGINATION_MODES).map((mode) => safeText(mode, 64)),
               ...(pagination.maxPageSize !== undefined ? { maxPageSize: pagination.maxPageSize } : {}),
+              modesTruncated: pagination.modes.length > MAX_PAGINATION_MODES,
             },
           }
         : {}),
@@ -690,10 +953,34 @@ function projectCapabilityProfile(
   return freezeView({
     fingerprint: safeText(profile.fingerprint, 128),
     evidenceFingerprint: safeText(profile.evidenceFingerprint, 128),
-    evaluatedAt: profile.evaluatedAt,
-    validUntil: profile.validUntil,
+    evaluatedAt: profile.evaluatedAt === null ? null : safeText(profile.evaluatedAt, 128),
+    validUntil: profile.validUntil === null ? null : safeText(profile.validUntil, 128),
     entries,
-    truncated: profile.entries.length > MAX_PROFILE_ENTRIES,
+    truncated:
+      profile.entries.length > MAX_PROFILE_ENTRIES ||
+      paginationTruncated ||
+      reasonsTruncated ||
+      evidenceTruncated ||
+      authorizationScopesTruncated,
+  });
+}
+
+function projectProfileEvidence(
+  evidence: NonNullable<
+    SourceDiscoveryInspection["descriptor"]["capabilityProfile"]
+  >["entries"][number]["evidence"][number],
+): ServiceExplorerCapabilityProfileEvidenceView {
+  return freezeView({
+    kind: safeText(evidence.kind, 64),
+    truth: safeText(evidence.truth, 64),
+    reference: safeEvidenceReference(evidence.reference),
+    ...(evidence.sourceFingerprint ? { sourceFingerprint: safeText(evidence.sourceFingerprint, 128) } : {}),
+    ...(evidence.kind === "metadata" || evidence.kind === "conformance" || evidence.kind === "probe"
+      ? {
+          observedAt: safeText(evidence.observedAt, 128),
+          expiresAt: safeText(evidence.expiresAt, 128),
+        }
+      : {}),
   });
 }
 
@@ -708,46 +995,90 @@ function projectProvenance(provenance: DiscoveryProvenance): ServiceExplorerProv
 function projectDiagnostics(
   inspection: ConnectionInspection,
   sources: readonly SourceDiscoveryInspection[],
+  projectedSources: readonly ServiceExplorerSourceView[],
   sourceLimitExceeded: boolean,
+  invalidDefaultSource: boolean,
 ): readonly ServiceExplorerDiagnosticView[] {
-  const diagnostics: ServiceExplorerDiagnosticView[] = inspection.diagnostics.map((entry) =>
-    projectDiagnostic("service", entry),
-  );
-  for (const source of sources) {
+  const diagnostics: ServiceExplorerDiagnosticView[] = [];
+  let diagnosticsTruncated = false;
+  const append = (entry: ServiceExplorerDiagnosticView): boolean => {
+    if (diagnostics.length >= MAX_DIAGNOSTICS - 1) {
+      diagnosticsTruncated = true;
+      return false;
+    }
+    diagnostics.push(entry);
+    return true;
+  };
+  for (const entry of inspection.diagnostics) {
+    if (!append(projectDiagnostic("service", entry))) break;
+  }
+  for (const [index, source] of sources.entries()) {
+    if (diagnosticsTruncated) break;
     for (const diagnostic of source.diagnostics) {
-      diagnostics.push(projectDiagnostic("source", diagnostic, source.descriptor.id));
+      if (!append(projectDiagnostic("source", diagnostic, source.descriptor.id))) break;
     }
     if ((source.descriptor.schema?.fields?.length ?? 0) > MAX_FIELDS_PER_SOURCE) {
-      diagnostics.push({
-        scope: "projection",
-        sourceId: safeText(source.descriptor.id),
-        code: "explorer.field-limit",
-        severity: "warning",
-        message: `Only the first ${MAX_FIELDS_PER_SOURCE} inspected fields are visible.`,
-        capabilities: [],
-      });
+      append(
+        freezeView({
+          scope: "projection",
+          sourceId: safeText(source.descriptor.id),
+          code: "explorer.field-limit",
+          severity: "warning",
+          message: `Only the first ${MAX_FIELDS_PER_SOURCE} inspected fields are visible.`,
+          capabilities: [],
+          capabilitiesTruncated: false,
+        }),
+      );
+    }
+    if (projectedSources[index]?.truncated) {
+      append(
+        freezeView({
+          scope: "projection",
+          sourceId: safeText(source.descriptor.id),
+          code: "explorer.source-projection-limit",
+          severity: "warning",
+          message: "One or more inspected source collections were bounded for renderer projection.",
+          capabilities: [],
+          capabilitiesTruncated: false,
+        }),
+      );
     }
   }
   if (sourceLimitExceeded) {
-    diagnostics.push({
-      scope: "projection",
-      code: "explorer.source-limit",
-      severity: "warning",
-      message: `Only the first ${MAX_SOURCES} inspected sources are visible.`,
-      capabilities: [],
-    });
+    append(
+      freezeView({
+        scope: "projection",
+        code: "explorer.source-limit",
+        severity: "warning",
+        message: `Only the first ${MAX_SOURCES} inspected sources are visible.`,
+        capabilities: [],
+        capabilitiesTruncated: false,
+      }),
+    );
   }
-  if (diagnostics.length > MAX_DIAGNOSTICS) {
-    return freezeView([
-      ...diagnostics.slice(0, MAX_DIAGNOSTICS - 1),
-      {
+  if (invalidDefaultSource) {
+    append(
+      freezeView({
+        scope: "projection",
+        code: "explorer.invalid-default-source",
+        severity: "warning",
+        message: "The inspected default source was not present in the inspected source collection.",
+        capabilities: [],
+        capabilitiesTruncated: false,
+      }),
+    );
+  }
+  if (diagnosticsTruncated) {
+    diagnostics.push(
+      freezeView({
         scope: "projection",
         code: "explorer.diagnostic-limit",
         severity: "warning",
         message: `Only the first ${MAX_DIAGNOSTICS - 1} diagnostics are visible.`,
         capabilities: [],
-      } satisfies ServiceExplorerDiagnosticView,
-    ]);
+        capabilitiesTruncated: false,
+      }),
+    );
   }
   return freezeView(diagnostics);
 }
@@ -763,7 +1094,10 @@ function projectDiagnostic(
     code: safeText(diagnostic.code, 128),
     severity: diagnostic.severity,
     message: safeText(diagnostic.message),
-    capabilities: (diagnostic.capabilities ?? []).map((capability) => safeText(capability, 128)),
+    capabilities: (diagnostic.capabilities ?? [])
+      .slice(0, MAX_DIAGNOSTIC_CAPABILITIES)
+      .map((capability) => safeText(capability, 128)),
+    capabilitiesTruncated: (diagnostic.capabilities?.length ?? 0) > MAX_DIAGNOSTIC_CAPABILITIES,
   });
 }
 
@@ -797,7 +1131,7 @@ function classifyInspection(
       ),
     });
   }
-  if (inspection.diagnostics.some((diagnostic) => diagnostic.severity === "warning")) {
+  if (inspection.truncated || inspection.diagnostics.some((diagnostic) => diagnostic.severity === "warning")) {
     return freezeView({ kind: "partial", request, inspection });
   }
   return freezeView({ kind: "ready", request, inspection });
@@ -871,12 +1205,14 @@ function cancelledState(request: ServiceExplorerRequestView): ServiceExplorerFai
   });
 }
 
-function failure(
-  code: string,
-  title: string,
-  detail: string,
-  retryable: boolean,
-): ServiceExplorerFailureView {
+function isPublishedCancellation(
+  state: ServiceExplorerTruthState,
+  requestId: number,
+): state is ServiceExplorerFailureState & { readonly kind: "cancelled" } {
+  return state.kind === "cancelled" && state.request.id === requestId;
+}
+
+function failure(code: string, title: string, detail: string, retryable: boolean): ServiceExplorerFailureView {
   return freezeView({
     code: safeText(code, 128),
     title: safeText(title, 128),
@@ -902,16 +1238,34 @@ function safeEndpoint(value: unknown): string {
   }
 }
 
+function safeEvidenceReference(value: unknown): string {
+  if (typeof value !== "string") return "[invalid text]";
+  if (/^https?:\/\//i.test(value)) return safeText(safeEndpoint(value), 256);
+  return safeText(value, 256);
+}
+
 function safeSelector(value: unknown): string | undefined {
   if (typeof value !== "string" || value.length === 0) return undefined;
   return safeText(value, MAX_SELECTOR_LENGTH);
 }
 
-function safeText(value: string, limit = MAX_TEXT_LENGTH): string {
-  return value
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "�")
-    .replace(/\b(Bearer)\s+[^\s]+/gi, "$1 [redacted]")
-    .replace(/\b(access_token|api[_-]?key|password|secret|session|signature|token)=([^\s&]+)/gi, "$1=[redacted]")
+function safeText(value: unknown, limit = MAX_TEXT_LENGTH): string {
+  if (typeof value !== "string") return "[invalid text]";
+  let withoutControls = "";
+  for (const character of value.slice(0, limit * 4)) {
+    const code = character.charCodeAt(0);
+    withoutControls +=
+      code <= 8 || (code >= 11 && code <= 12) || (code >= 14 && code <= 31) || code === 127 ? "�" : character;
+  }
+  return withoutControls
+    .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "[redacted-auth]")
+    .replace(/\bAKIA[0-9A-Z]{16}\b/g, "[redacted-aws-key]")
+    .replace(/\b(?:gh[pousr]_|glpat-|xox[baprs]-)[A-Za-z0-9_-]{8,}\b/gi, "[redacted-provider-token]")
+    .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, "[redacted-jwt]")
+    .replace(
+      /\b(access[-_]?key|access[-_]?token|api[-_]?key|authorization|aws[-_]?secret[-_]?access[-_]?key|bearer|client[-_]?secret|cookie|credential|pass(?:word)?|proxy[-_]?authorization|pwd|secret|session|set[-_]?cookie|signature|token)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s&,;}]+)/gi,
+      "$1=[redacted]",
+    )
     .slice(0, limit);
 }
 
@@ -925,6 +1279,29 @@ async function disposeQuietly(connection: HonuaKernelConnection): Promise<void> 
   } catch {
     // The terminal inspection state remains credential-safe and deterministic.
   }
+}
+
+async function disposeOwnedResources(
+  connection: HonuaKernelConnection | undefined,
+  honua: HonuaKernel | undefined,
+): Promise<void> {
+  const errors: unknown[] = [];
+  if (connection) {
+    try {
+      await connection.dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (honua) {
+    try {
+      await honua.dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) throw new AggregateError(errors, "Service Explorer truth-model disposal failed.");
 }
 
 function freezeView<T>(value: T): T {
