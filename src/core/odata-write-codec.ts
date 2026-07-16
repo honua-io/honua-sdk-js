@@ -620,7 +620,7 @@ function floatingJsonValue(value: unknown, path: readonly (string | number)[]): 
   return value;
 }
 
-function singleJsonValue(value: unknown, path: readonly (string | number)[]): number | string {
+function validatedSingleValue(value: unknown, path: readonly (string | number)[]): number | string {
   const encoded = floatingJsonValue(value, path);
   if (typeof encoded === "string") return encoded;
 
@@ -629,6 +629,16 @@ function singleJsonValue(value: unknown, path: readonly (string | number)[]): nu
   // contradicts the opt-in codec's lossless contract. Callers can make that
   // conversion explicit with Math.fround before encoding.
   if (!Object.is(Math.fround(encoded), encoded)) throw encodingError("invalid-value", path);
+  return encoded;
+}
+
+function singleJsonValue(value: unknown, path: readonly (string | number)[]): number | string {
+  const encoded = validatedSingleValue(value, path);
+  if (typeof encoded === "number" && Object.is(encoded, -0)) {
+    // JSON.stringify(-0) emits 0, so the body projection cannot preserve the
+    // IEEE-754 sign bit without violating OData's JSON-number requirement.
+    throw encodingError("invalid-value", path);
+  }
   return encoded;
 }
 
@@ -645,8 +655,9 @@ function floatingKeyValue(value: unknown, path: readonly (string | number)[]): s
 }
 
 function singleKeyValue(value: unknown, path: readonly (string | number)[]): string {
-  const encoded = singleJsonValue(value, path);
+  const encoded = validatedSingleValue(value, path);
   if (typeof encoded === "string") return encoded;
+  if (Object.is(encoded, -0)) return "-0";
   return typeof value === "string" ? value : String(encoded);
 }
 

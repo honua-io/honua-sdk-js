@@ -231,8 +231,8 @@ describe("OData lossless write body encoding", () => {
     expect(Object.is(Math.fround(roundTripped), expected)).toBe(true);
   });
 
-  it.each([0.1, "0.1", 16_777_217, "16777217", 3.4028236e38, 1e-46])(
-    "rejects Edm.Single input %s that would round or overflow in binary32",
+  it.each([0.1, "0.1", 16_777_217, "16777217", 3.4028236e38, 1e-46, -0, "-0"])(
+    "rejects Edm.Single input %s that would round, overflow, or lose its sign in JSON",
     (input) => {
       const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { Score: input }));
       expect(error.code).toBe("invalid-value");
@@ -406,6 +406,8 @@ describe("OData metadata-typed key encoding", () => {
     [0.5, "0.5"],
     ["16777216", "16777216"],
     ["INF", "INF"],
+    [-0, "-0"],
+    ["-0", "-0"],
   ] as const)("formats admitted Edm.Single binary32 key %s", (input, expected) => {
     expect(encodeOdataEntityKey(metadata, "SingleKeys", input)).toEqual({
       literal: expected,
