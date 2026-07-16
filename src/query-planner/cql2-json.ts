@@ -87,6 +87,8 @@ const CQL2_TO_TEMPORAL = {
 // `geometries` with minItems: 2. Enforce that in both directions even though
 // the broader semantic/GeoJSON model also admits a single member.
 const MIN_CQL2_GEOMETRY_COLLECTION_ITEMS = 2;
+const CQL2_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const CQL2_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
 /**
  * Export the CQL2-representable semantic-filter subset. CQL2 carries spatial
@@ -193,7 +195,7 @@ function exportFilter(filter: RuntimeFilter, context: Cql2Context, path: string,
     case "temporal":
       return {
         op: TEMPORAL_TO_CQL2[filter.operator],
-        args: [{ property: filter.operand.name }, exportTemporalLiteral(filter.value)],
+        args: [{ property: filter.operand.name }, exportTemporalLiteral(filter.value, `${path}.args[1]`)],
       };
     case "native":
       throw cql2Unsupported(path, "native expressions are dialect escape hatches, not semantic CQL2 nodes");
@@ -228,10 +230,14 @@ function exportSpatial(
 function exportLiteral(value: JsonValue, field: LogicalField | undefined, path: string): JsonValue {
   if (field?.type.kind === "date") {
     if (typeof value !== "string") throw cql2Unsupported(path, "date values require their string encoding");
+    if (!CQL2_DATE.test(value)) throw cql2Unsupported(path, "date values require the CQL2 full-date form");
     return { date: value };
   }
   if (field?.type.kind === "timestamp") {
     if (typeof value !== "string") throw cql2Unsupported(path, "timestamp values require their string encoding");
+    if (!CQL2_TIMESTAMP.test(value)) {
+      throw cql2Unsupported(path, "timestamp values require the CQL2 UTC Z form");
+    }
     return { timestamp: value };
   }
   if (
@@ -246,10 +252,25 @@ function exportLiteral(value: JsonValue, field: LogicalField | undefined, path: 
   return value;
 }
 
-function exportTemporalLiteral(value: TemporalLiteralNode): JsonObject {
-  if (value.valueType === "date") return { date: value.value };
-  if (value.valueType === "instant") return { timestamp: value.value };
-  return { interval: [...value.value] };
+function exportTemporalLiteral(value: TemporalLiteralNode, path: string): JsonObject {
+  if (value.valueType === "interval") {
+    return {
+      interval: value.value.map((entry, index) => exportTemporalEndpoint(entry, `${path}.interval[${index}]`)),
+    };
+  }
+  if (value.valueType === "date") {
+    if (!CQL2_DATE.test(value.value)) throw cql2Unsupported(path, "date values require the CQL2 full-date form");
+    return { date: value.value };
+  }
+  if (!CQL2_TIMESTAMP.test(value.value)) {
+    throw cql2Unsupported(path, "timestamp values require the CQL2 UTC Z form");
+  }
+  return { timestamp: value.value };
+}
+
+function exportTemporalEndpoint(value: string, path: string): string {
+  if (CQL2_DATE.test(value) || CQL2_TIMESTAMP.test(value)) return value;
+  throw cql2Unsupported(path, "requires a CQL2 full-date or UTC Z timestamp");
 }
 
 function importFilter(value: JsonValue, context: Cql2Context, path: string, depth: number): RuntimeSemanticFilter {
@@ -420,7 +441,9 @@ function importLiteral(value: JsonValue, field: LogicalField | undefined, path: 
     exactKeys(value, ["date"], path);
     if (!field) throw cql2Unsupported(path, "tagged date comparison requires schema context");
     if (field.type.kind !== "date") throw cql2Invalid(path, "date literal does not match the schema field type");
-    return { kind: "literal" as const, value: text(value.date, `${path}.date`) };
+    const date = text(value.date, `${path}.date`);
+    if (!CQL2_DATE.test(date)) throw cql2Invalid(`${path}.date`, "must use the CQL2 full-date form");
+    return { kind: "literal" as const, value: date };
   }
   if ("timestamp" in value) {
     exactKeys(value, ["timestamp"], path);
@@ -428,7 +451,11 @@ function importLiteral(value: JsonValue, field: LogicalField | undefined, path: 
     if (field.type.kind !== "timestamp") {
       throw cql2Invalid(path, "timestamp literal does not match the schema field type");
     }
-    return { kind: "literal" as const, value: text(value.timestamp, `${path}.timestamp`) };
+    const timestamp = text(value.timestamp, `${path}.timestamp`);
+    if (!CQL2_TIMESTAMP.test(timestamp)) {
+      throw cql2Invalid(`${path}.timestamp`, "must use the CQL2 UTC Z form");
+    }
+    return { kind: "literal" as const, value: timestamp };
   }
   throw cql2Unsupported(path, "uses an unsupported CQL2 scalar expression");
 }
@@ -437,24 +464,36 @@ function importTemporalLiteral(value: JsonValue, path: string): TemporalLiteralN
   const literal = object(value, path);
   if ("date" in literal) {
     exactKeys(literal, ["date"], path);
-    return { kind: "temporal-literal", valueType: "date", value: text(literal.date, `${path}.date`) };
+    const date = text(literal.date, `${path}.date`);
+    if (!CQL2_DATE.test(date)) throw cql2Invalid(`${path}.date`, "must use the CQL2 full-date form");
+    return { kind: "temporal-literal", valueType: "date", value: date };
   }
   if ("timestamp" in literal) {
     exactKeys(literal, ["timestamp"], path);
+    const timestamp = text(literal.timestamp, `${path}.timestamp`);
+    if (!CQL2_TIMESTAMP.test(timestamp)) {
+      throw cql2Invalid(`${path}.timestamp`, "must use the CQL2 UTC Z form");
+    }
     return {
       kind: "temporal-literal",
       valueType: "instant",
-      value: text(literal.timestamp, `${path}.timestamp`),
+      value: timestamp,
     };
   }
   if ("interval" in literal) {
     exactKeys(literal, ["interval"], path);
     const interval = array(literal.interval as JsonValue, `${path}.interval`);
     exactLength(interval, 2, `${path}.interval`);
+    const endpoints = [text(interval[0], `${path}.interval[0]`), text(interval[1], `${path}.interval[1]`)] as const;
+    endpoints.forEach((entry, index) => {
+      if (!CQL2_DATE.test(entry) && !CQL2_TIMESTAMP.test(entry)) {
+        throw cql2Invalid(`${path}.interval[${index}]`, "must use a CQL2 full-date or UTC Z timestamp");
+      }
+    });
     return {
       kind: "temporal-literal",
       valueType: "interval",
-      value: [text(interval[0], `${path}.interval[0]`), text(interval[1], `${path}.interval[1]`)],
+      value: endpoints,
     };
   }
   throw cql2Unsupported(path, "uses an unsupported temporal literal");
@@ -475,9 +514,14 @@ function geometryLayout(geometry: JsonObject, path: string): "xy" | "xyz" {
     if (geometries.length < MIN_CQL2_GEOMETRY_COLLECTION_ITEMS) {
       throw cql2Invalid(`${path}.geometries`, "must contain at least two geometries in CQL2 JSON");
     }
-    const layouts = geometries.map((entry, index) =>
-      geometryLayout(object(entry as JsonValue, `${path}.geometries[${index}]`), `${path}.geometries[${index}]`),
-    );
+    const layouts = geometries.map((entry, index) => {
+      const childPath = `${path}.geometries[${index}]`;
+      const child = object(entry as JsonValue, childPath);
+      if (child.type === "GeometryCollection") {
+        throw cql2Invalid(childPath, "must not be a nested GeometryCollection in CQL2 JSON");
+      }
+      return geometryLayout(child, childPath);
+    });
     const layout = layouts[0] as "xy" | "xyz";
     if (layouts.some((candidate) => candidate !== layout)) {
       throw cql2Invalid(`${path}.geometries`, "must use one coordinate layout throughout the collection");
@@ -505,8 +549,16 @@ function assertCql2GeometryCollectionCardinality(geometry: JsonObject, path: str
     throw cql2Unsupported(`${path}.geometries`, "must contain at least two geometries in CQL2 JSON");
   }
   geometries.forEach((entry, index) => {
-    if (entry !== null && !Array.isArray(entry) && typeof entry === "object") {
-      assertCql2GeometryCollectionCardinality(entry as JsonObject, `${path}.geometries[${index}]`);
+    if (
+      entry !== null &&
+      !Array.isArray(entry) &&
+      typeof entry === "object" &&
+      (entry as JsonObject).type === "GeometryCollection"
+    ) {
+      throw cql2Unsupported(
+        `${path}.geometries[${index}]`,
+        "nested GeometryCollection literals are outside CQL2 JSON 1.0",
+      );
     }
   });
 }

@@ -280,6 +280,21 @@ describe("CQL2 JSON semantic interchange", () => {
     expect(semanticFilterToCql2Json(decoded, options)).toEqual(encoded);
   });
 
+  it("rejects offset timestamps that the normative CQL2 JSON form cannot represent", () => {
+    const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
+    const options = { protocol: "ogc-features" as const };
+    const offsetInstant = "2026-07-15T02:00:00+02:00";
+    const filter = builder.temporal("after", builder.property("observedAt"), temporalLiteral("instant", offsetInstant));
+
+    expect(() => semanticFilterToCql2Json(filter, options)).toThrow(/UTC Z form/);
+    expect(() =>
+      semanticFilterFromCql2Json(
+        { op: "t_after", args: [{ property: "observedAt" }, { timestamp: offsetInstant }] },
+        options,
+      ),
+    ).toThrow(/UTC Z form/);
+  });
+
   it("round-trips number-encoded decimals and rejects only precision-losing string encodings", () => {
     const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
     const options = { schema: schema(), protocol: "ogc-features" as const };
@@ -371,33 +386,38 @@ describe("CQL2 JSON semantic interchange", () => {
     expect(semanticFilterToCql2Json(semanticFilterFromCql2Json(encoded, options), options)).toEqual(encoded);
   });
 
-  it("validates every later and deeply nested GeometryCollection during CQL2 import", () => {
+  it("rejects nested GeometryCollections excluded by the normative CQL2 JSON schema", () => {
     const options = { schema: schema(), protocol: "ogc-features" as const, filterCrs: crs84 };
     const cql2 = (geometry: unknown) => ({
       op: "s_intersects",
       args: [{ property: "shape" }, geometry],
     });
-    const invalidSecondMember = {
-      type: "GeometryCollection",
-      geometries: [point.geometry, { type: "GeometryCollection", geometries: [point.geometry] }],
-    };
-    expect(() => semanticFilterFromCql2Json(cql2(invalidSecondMember), options)).toThrow(
-      /geometries\[1\]\.geometries.*at least two/,
-    );
-
-    const invalidDeeperMember = {
+    const nestedCollection = {
       type: "GeometryCollection",
       geometries: [
         point.geometry,
         {
           type: "GeometryCollection",
-          geometries: [point.geometry, { type: "GeometryCollection", geometries: [point.geometry] }],
+          geometries: [point.geometry, { type: "Point", coordinates: [-157.8, 21.4] }],
         },
       ],
     };
-    expect(() => semanticFilterFromCql2Json(cql2(invalidDeeperMember), options)).toThrow(
-      /geometries\[1\]\.geometries\[1\]\.geometries.*at least two/,
+    expect(() => semanticFilterFromCql2Json(cql2(nestedCollection), options)).toThrow(
+      /geometries\[1\].*nested GeometryCollection/,
     );
+
+    const semanticNested = defineSpatialNode<Incident, "primary-geometry">({
+      kind: "spatial",
+      operator: "intersects",
+      property: { kind: "property", name: "shape" },
+      geometry: {
+        state: "present",
+        geometry: nestedCollection,
+        crs: crs84,
+        layout: "xy",
+      } as unknown as ExecutableGeometryValue,
+    });
+    expect(() => semanticFilterToCql2Json(semanticNested, options)).toThrow(/outside CQL2 JSON 1\.0/);
   });
 
   it.each([
