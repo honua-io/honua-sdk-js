@@ -12,6 +12,7 @@ import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import type { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
 import type { HonuaLayerMetadata, HonuaServiceMetadata } from "./core/types.js";
+import { parseGeoServicesEndpoint } from "./geoservices-endpoint.js";
 
 export interface ConnectTarget {
   readonly endpoint: string;
@@ -41,9 +42,31 @@ export interface GeoServicesDiscoveryResult {
 }
 
 export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint): ConnectTarget {
-  const geoservices = parseGeoServicesTarget(endpoint);
+  const classifiedGeoServices = parseGeoServicesEndpoint(endpoint);
+  const geoservices =
+    classifiedGeoServices?.protocol === "geoservices-feature-service" ||
+    classifiedGeoServices?.protocol === "geoservices-map-service"
+      ? {
+          endpoint: classifiedGeoServices.endpoint,
+          clientBaseUrl: classifiedGeoServices.clientBaseUrl,
+          protocol: classifiedGeoServices.protocol,
+          serviceId: classifiedGeoServices.serviceId,
+          ...(classifiedGeoServices.layerId !== undefined ? { layerId: classifiedGeoServices.layerId } : {}),
+        }
+      : undefined;
   if (hint === "auto") {
     if (geoservices) return geoservices;
+    if (classifiedGeoServices) {
+      throw new HonuaDiscoveryError(
+        "unsupported-protocol",
+        `GeoServices ${classifiedGeoServices.serviceKind} services are not Source-backed by this connect() path; use discoverGeoServices() for service discovery.`,
+        {
+          endpoint,
+          resolvedProtocol: classifiedGeoServices.protocol,
+          serviceKind: classifiedGeoServices.serviceKind,
+        },
+      );
+    }
     throw new HonuaDiscoveryError(
       "ambiguous-protocol",
       "connect() could not determine the protocol from the URL without probing. Pass an explicit protocol hint.",
@@ -244,32 +267,6 @@ export async function discoverGeoServicesSources(
   });
   throwIfAborted(options.signal);
   return Object.freeze({ retrievedAt, sources: Object.freeze(sources) });
-}
-
-function parseGeoServicesTarget(endpoint: string): ConnectTarget | undefined {
-  const url = new URL(endpoint);
-  const match = /^(.*)\/rest\/services\/(.+)\/(FeatureServer|MapServer)(?:\/(\d+))?\/?$/i.exec(url.pathname);
-  if (!match) return undefined;
-  const [, prefix = "", encodedServiceId = "", serviceType = "", layerText] = match;
-  let serviceId: string;
-  try {
-    serviceId = encodedServiceId
-      .split("/")
-      .map((part) => decodeURIComponent(part))
-      .join("/");
-  } catch {
-    throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices URL contains an invalid encoded service id.");
-  }
-  if (!serviceId || serviceId.split("/").some((part) => !part || part === "." || part === "..")) {
-    throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices URL contains an invalid service id.");
-  }
-  return {
-    endpoint,
-    clientBaseUrl: `${url.origin}${prefix}`.replace(/\/$/, ""),
-    protocol: serviceType.toLowerCase() === "featureserver" ? "geoservices-feature-service" : "geoservices-map-service",
-    serviceId,
-    ...(layerText !== undefined ? { layerId: Number.parseInt(layerText, 10) } : {}),
-  };
 }
 
 function validateLayerSummaries(
