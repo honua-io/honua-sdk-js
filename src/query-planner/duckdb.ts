@@ -250,6 +250,7 @@ export function compileSemanticDuckDbQuery<TRecord, TSpatiality extends SourceSp
 ): SemanticCompilationResult<SemanticDuckDbCompiledQueryV1> {
   return runSemanticCompiler(() => {
     const { query, schema } = prepareSemanticCompilerQuery(options.query, options.schema, "geoparquet");
+    verifyDuckDbPhysicalPaths(schema);
     const resource = verifiedSemanticResource(options.resource);
     const geometry = options.geometry ? verifyDuckDbGeometrySource(options.geometry, schema) : undefined;
     const spatialStrategy = verifiedDuckDbSpatialStrategy(options.spatialStrategy);
@@ -381,7 +382,7 @@ function duckDbProjection(query: RuntimeDuckDbQuery, state: DuckDbSemanticState)
       }
       return;
     }
-    if (field.name.toLowerCase() === "geometry") {
+    if (duckDbAsciiIdentifierKey(field.name) === "geometry") {
       geometryAliasCollisionPath = query.select ? path : "$.geometry";
     }
     parts.push(aliasedDuckDbField(state.schema, field.name, path));
@@ -605,11 +606,11 @@ function compileDuckDbFilter(filter: RuntimeDuckDbFilter, state: DuckDbSemanticS
           "DuckDB native filters require a duckdb-sql text payload",
         );
       }
-      if (hasDuckDbAnonymousParameter(filter.payload.text)) {
+      if (hasDuckDbParameterMarker(filter.payload.text)) {
         semanticUnsupported(
           "unsupported-native-filter",
           `${path}.payload.text`,
-          "DuckDB native filters cannot contain anonymous parameters because the native payload carries no bind values",
+          "DuckDB native filters cannot contain parameter markers because the native payload carries no bind values",
         );
       }
       state.usesNativeFilter = true;
@@ -618,7 +619,7 @@ function compileDuckDbFilter(filter: RuntimeDuckDbFilter, state: DuckDbSemanticS
   }
 }
 
-function hasDuckDbAnonymousParameter(text: string): boolean {
+function hasDuckDbParameterMarker(text: string): boolean {
   let index = 0;
   while (index < text.length) {
     const character = text[index];
@@ -642,6 +643,7 @@ function hasDuckDbAnonymousParameter(text: string): boolean {
         index = end === -1 ? text.length : end + delimiter.length;
         continue;
       }
+      if (/[0-9A-Za-z_]/.test(text[index + 1] ?? "")) return true;
     }
     if (character === "?") return true;
     index += 1;
@@ -687,6 +689,35 @@ function skipDuckDbBlockComment(text: string, start: number): number {
 function duckDbDollarQuoteDelimiter(text: string, start: number): string | undefined {
   const match = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(text.slice(start));
   return match?.[0];
+}
+
+function verifyDuckDbPhysicalPaths(schema: SourceSchemaV2): void {
+  const paths = new Map<string, readonly string[]>();
+  schema.fields.forEach((field, index) => {
+    const key = JSON.stringify(field.path.map(duckDbAsciiIdentifierKey));
+    const previous = paths.get(key);
+    if (previous && !sameDuckDbPhysicalPath(previous, field.path)) {
+      semanticUnsupported(
+        "unsupported-source",
+        `options.schema.fields[${index}].path`,
+        "DuckDB cannot resolve physical field paths that differ only by ASCII case",
+      );
+    }
+    paths.set(key, field.path);
+  });
+}
+
+function sameDuckDbPhysicalPath(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((segment, index) => segment === right[index]);
+}
+
+function duckDbAsciiIdentifierKey(value: string): string {
+  let key = "";
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    key += code >= 0x41 && code <= 0x5a ? String.fromCharCode(code + 0x20) : character;
+  }
+  return key;
 }
 
 function compileDuckDbSpatial(

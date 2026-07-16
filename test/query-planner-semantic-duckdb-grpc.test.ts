@@ -645,6 +645,46 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     }
   });
 
+  it("rejects ASCII case-folded DuckDB physical path collisions", () => {
+    interface CollisionRecord {
+      readonly upper: string;
+      readonly lower: string;
+    }
+    const query = createSemanticQueryBuilder<CollisionRecord, "geoparquet", "non-spatial">();
+    const collidingSchema = nonSpatialSchema([
+      field("upper", { kind: "string" }, { path: ["Status"] }),
+      field("lower", { kind: "string" }, { path: ["status"] }),
+    ]);
+
+    expect(
+      compileSemanticDuckDbQuery({
+        query: query.features({ select: ["upper"] as const, geometry: "omit" }),
+        schema: collidingSchema,
+        resource,
+      }),
+    ).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [
+        {
+          code: "unsupported-source",
+          path: "options.schema.fields[1].path",
+        },
+      ],
+    });
+
+    const distinctUnicodeSchema = nonSpatialSchema([
+      field("upper", { kind: "string" }, { path: ["Status"] }),
+      field("lower", { kind: "string" }, { path: ["státus"] }),
+    ]);
+    expect(
+      compileSemanticDuckDbQuery({
+        query: query.features({ select: ["upper", "lower"] as const, geometry: "omit" }),
+        schema: distinctUnicodeSchema,
+        resource,
+      }).outcome,
+    ).toBe("compiled");
+  });
+
   it("does not label measured or unknown DuckDB GeoJSON output layouts as exact", () => {
     const query = createSemanticQueryBuilder<Incident, "geoparquet", "primary-geometry">();
     for (const layout of ["xym", "xyzm", "unknown"] as const) {
@@ -813,22 +853,27 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     const quotedQuestionMark = duckDb(
       duck.features({
         geometry: "omit",
-        filter: duck.native("duckdb-sql", { format: "text", text: "status = '?' /* ? */" }),
+        filter: duck.native("duckdb-sql", {
+          format: "text",
+          text: "status = '?' AND note = '$1' /* ? $name */ AND tag = $safe$?$1$name$safe$",
+        }),
       }),
     );
-    expect(compiled(quotedQuestionMark).sqlTemplate).toContain("WHERE (status = '?' /* ? */)");
+    expect(compiled(quotedQuestionMark).usesNativeFilter).toBe(true);
 
-    expect(
-      duckDb(
-        duck.features({
-          geometry: "omit",
-          filter: duck.native("duckdb-sql", { format: "text", text: "amount > ?" }),
-        }),
-      ),
-    ).toMatchObject({
-      outcome: "unsupported",
-      diagnostics: [{ code: "unsupported-native-filter", path: "$.filter.payload.text" }],
-    });
+    for (const text of ["amount > ?", "amount > $1", "amount > $minimum"]) {
+      expect(
+        duckDb(
+          duck.features({
+            geometry: "omit",
+            filter: duck.native("duckdb-sql", { format: "text", text }),
+          }),
+        ),
+      ).toMatchObject({
+        outcome: "unsupported",
+        diagnostics: [{ code: "unsupported-native-filter", path: "$.filter.payload.text" }],
+      });
+    }
 
     const quotedAnd = grpc(
       honua.features({
