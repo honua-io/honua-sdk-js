@@ -88,7 +88,7 @@ async function executeGeoParquetRemote<T>(
   } catch {
     throw resourceExecutionFailed();
   }
-  const executeResolvedQuery = ownFunction(adapterValue, "executeResolvedQuery");
+  const executeResolvedQuery = safeAdapterMethod(adapterValue, "executeResolvedQuery");
   if (!executeResolvedQuery) throw resourceExecutionFailed();
   const geometryColumn = plan.ir.source.geoparquet.geometryColumn;
   try {
@@ -117,11 +117,24 @@ async function executeGeoParquetRemote<T>(
   }
 }
 
-function ownFunction(value: unknown, key: string): ((...args: unknown[]) => unknown) | undefined {
+const MAX_ADAPTER_PROTOTYPE_DEPTH = 16;
+
+/** Resolve a data-method without invoking accessors or unbounded prototype traps. */
+function safeAdapterMethod(value: unknown, key: string): ((...args: unknown[]) => unknown) | undefined {
   try {
     if (value === null || typeof value !== "object") return undefined;
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    return descriptor && "value" in descriptor && typeof descriptor.value === "function" ? descriptor.value : undefined;
+    const visited = new Set<object>();
+    let current: object | null = value;
+    for (let depth = 0; current !== null && depth < MAX_ADAPTER_PROTOTYPE_DEPTH; depth += 1) {
+      if (visited.has(current)) return undefined;
+      visited.add(current);
+      const descriptor = Object.getOwnPropertyDescriptor(current, key);
+      if (descriptor) {
+        return "value" in descriptor && typeof descriptor.value === "function" ? descriptor.value : undefined;
+      }
+      current = Object.getPrototypeOf(current);
+    }
+    return undefined;
   } catch {
     return undefined;
   }

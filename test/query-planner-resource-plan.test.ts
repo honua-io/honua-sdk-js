@@ -186,6 +186,56 @@ describe("opaque GeoParquet v2 query plans", () => {
     assertRedacted([JSON.stringify(execution), serializeQueryPlan(plan)], MARKERS);
   });
 
+  it("supports prototype adapter methods without invoking accessors", async () => {
+    const registry = createGeoParquetResourceRegistry({ resolver: "io.honua.prototype-adapter" });
+    const handle = registry.register({
+      id: "parcels:prototype-adapter",
+      authorizationContextId: CONTEXT,
+      sources: [SIGNED_SOURCE],
+    });
+    const plan = opaquePlan(handle);
+
+    class PrototypeAdapter {
+      calls = 0;
+
+      async executeResolvedQuery(input: { readonly sources: readonly string[] }): Promise<Result> {
+        this.calls += 1;
+        expect(input.sources).toEqual([SIGNED_SOURCE]);
+        return result([{ attributes: { id: this.calls } }]);
+      }
+    }
+
+    const adapter = new PrototypeAdapter();
+    await expect(
+      executeQueryPlan(plan, fakeSource(descriptor(ROTATED_SOURCE), adapter), {
+        ...PLAN_CONTEXT,
+        authorizationContextId: CONTEXT,
+        geoParquetResourceResolver: registry.resolver,
+      }),
+    ).resolves.toMatchObject({ result: { features: [{ attributes: { id: 1 } }] } });
+    expect(adapter.calls).toBe(1);
+
+    const accessorMarker = "prototype-accessor-secret";
+    let accessorCalls = 0;
+    class AccessorAdapter {
+      get executeResolvedQuery(): never {
+        accessorCalls += 1;
+        throw new Error(accessorMarker);
+      }
+    }
+
+    const failure = await rejectionOf(
+      executeQueryPlan(plan, fakeSource(descriptor(ROTATED_SOURCE), new AccessorAdapter()), {
+        ...PLAN_CONTEXT,
+        authorizationContextId: CONTEXT,
+        geoParquetResourceResolver: registry.resolver,
+      }),
+    );
+    expect(failure).toMatchObject({ code: "resource-execution-failed" });
+    expect(accessorCalls).toBe(0);
+    assertErrorRedacted(failure, [accessorMarker, ...MARKERS]);
+  });
+
   it("uses the real Node GeoParquet runtime seam without profiling or retaining the signed source in the plan", async () => {
     const sql: string[] = [];
     const runtime = new GeoparquetRuntime({
@@ -571,7 +621,7 @@ function descriptor(
 
 function fakeSource(
   sourceDescriptor: SourceDescriptor,
-  adapter: { readonly executeResolvedQuery: (...args: never[]) => unknown } | undefined,
+  adapter: object | undefined,
   query = vi.fn(async () => result([])),
 ): Source {
   const unsupported = async () => {
