@@ -221,6 +221,17 @@ export const capabilities: CapabilityProfile = {
   kind: "honua.capabilities",
   version: "1.0",
   fingerprint: "sha256:capabilities",
+  evidenceFingerprint: "sha256:capability-evidence",
+  sourceFingerprint: "sha256:schema-primary-spatial",
+  sourceEndpointFingerprint: "sha256:source-endpoint",
+  evaluatedAt: "2026-07-14T12:00:00Z",
+  validUntil: "2026-07-20T12:00:00Z",
+  context: {
+    policy: { allow: ["query"], deny: [] },
+    environment: "browser",
+    availablePeers: [],
+    authorization: { grantedScopes: [], deniedScopes: [] },
+  },
   entries: [
     {
       id: "query",
@@ -229,13 +240,21 @@ export const capabilities: CapabilityProfile = {
       effective: "supported",
       evidence: [
         {
+          kind: "protocol-default",
+          truth: "supported",
+          reference: "ogcapi-features:core",
+          sourceFingerprint: "sha256:schema-primary-spatial",
+        },
+        {
           kind: "conformance",
           truth: "supported",
-          reference: "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
+          reference: "ogcapi-features:conf/core",
           observedAt: "2026-07-13T12:00:00Z",
+          expiresAt: "2026-07-20T12:00:00Z",
+          sourceFingerprint: "sha256:schema-primary-spatial",
         },
       ],
-      reasons: [],
+      reasons: ["supported-by-claim-and-observation"],
       constraints: {
         outputFormats: ["application/geo+json"],
         filterOperators: ["eq", "in", "intersects"],

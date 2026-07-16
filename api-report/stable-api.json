@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 142,
-      "signatureSha256": "bfe69f146d04024a04ee7919f24be0ba4677c6ae6bddbc6af8c4853b8c22564b",
+      "signatureSha256": "4625669d688998b0b5a81a3a7b57fe1dfb4c27d66fcf7e1542db746b5ebd2475",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -155,7 +155,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 142,
-      "signatureSha256": "bfe69f146d04024a04ee7919f24be0ba4677c6ae6bddbc6af8c4853b8c22564b",
+      "signatureSha256": "4625669d688998b0b5a81a3a7b57fe1dfb4c27d66fcf7e1542db746b5ebd2475",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -305,7 +305,7 @@
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
       "exportCount": 1102,
-      "signatureSha256": "6c90e96e3c08c93c16953fa067e3ea3f8bd1048071d547e5a07a43b72c791b1f",
+      "signatureSha256": "0fac8c3d3f090b149d96df2953f04ab63ac2a1ecce8c541ccc8d8b889023d64b",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -1443,8 +1443,8 @@
     {
       "subpath": "@honua/sdk-js/contract",
       "types": "dist/src/contract/index.d.ts",
-      "exportCount": 427,
-      "signatureSha256": "6502e566b06218a27c2e8c073e611c204ada2af66d066c56ae2bb58b1121fb36",
+      "exportCount": 429,
+      "signatureSha256": "27b070552a5bdfa54e19493da3a4bc2f5f01da14bf04e2ef6b34bcfc3b5652af",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -1493,6 +1493,7 @@
         "CanonicalFeature — interface",
         "Capabilities — type",
         "Capability — type",
+        "CapabilityAwareSource — interface",
         "CapabilityPolicy — type",
         "CreateDatasetOptions — interface",
         "CreateEditSessionOptions — interface",
@@ -1666,6 +1667,7 @@
         "SourceSchema — interface",
         "SourceSchemaV2Envelope — interface",
         "SourceTimeSeriesCapabilityMetadata — interface",
+        "SourceWithCapability — type",
         "SpatialAggregationCacheMetadata — interface",
         "SpatialAggregationCategoryBucket — interface",
         "SpatialAggregationCategorySummarySpec — interface",

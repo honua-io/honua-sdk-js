@@ -1,0 +1,159 @@
+const MAX_PEER_IDENTIFIER_LENGTH = 214;
+const MAX_SCOPE_IDENTIFIER_LENGTH = 128;
+const MAX_REFERENCE_LENGTH = 256;
+const PEER_IDENTIFIER_PATTERN = /^(?:[a-z0-9][a-z0-9._-]*|@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*)$/;
+const SCOPE_IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:(?::|\/)[A-Za-z0-9][A-Za-z0-9._-]*)*$/;
+const OBVIOUS_AUTHORIZATION_PATTERN = /\b(?:bearer|basic)\s+[A-Za-z0-9+/_.=-]+/i;
+const SENSITIVE_ASSIGNMENT_PATTERN =
+  /(?:^|[\s?&#;,/])(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|client[_-]?secret|password|passwd|credential|signature|sig)[:=]/i;
+const SENSITIVE_WORD_PATTERN = /(?:^|[^a-z0-9])(?:secret|password|passwd|credential|private[_-]?key)(?:$|[^a-z0-9])/i;
+const PRIVATE_KEY_PATTERN = /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/;
+const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/;
+const AWS_ACCESS_KEY_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/;
+const SENSITIVE_EXTENSION_KEY_TOKENS = new Set([
+  "authorization",
+  "cookie",
+  "token",
+  "password",
+  "passwd",
+  "secret",
+  "credential",
+  "credentials",
+  "signature",
+  "sas",
+  "prototype",
+  "constructor",
+]);
+const SENSITIVE_EXTENSION_KEY_SEQUENCES = new Set([
+  "proxy authorization",
+  "set cookie",
+  "access token",
+  "refresh token",
+  "id token",
+  "auth token",
+  "bearer token",
+  "api key",
+  "client secret",
+  "private key",
+  "signed url",
+]);
+const SENSITIVE_COMPACT_KEY_PREFIXES = [
+  "authorization",
+  "proxyauthorization",
+  "setcookie",
+  "accesstoken",
+  "refreshtoken",
+  "idtoken",
+  "authtoken",
+  "bearertoken",
+  "apikey",
+  "clientsecret",
+  "privatekey",
+  "signedurl",
+] as const;
+
+/** Validate an evidence locator/label and reject common credential-bearing forms. */
+export function validateCapabilityEvidenceReference(value: unknown, path: string): asserts value is string {
+  validateBoundedText(value, path, MAX_REFERENCE_LENGTH);
+  assertNoObviousCredential(value, path);
+  if (!/^[\x20-\x7e]+$/.test(value)) {
+    throw new TypeError(`${path} must contain printable ASCII only`);
+  }
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) || value.includes("?") || value.includes("#")) {
+    throw new TypeError(`${path} must be a stable evidence identity, not a raw or parameterized URL`);
+  }
+}
+
+/** Validate a package/runtime peer identity, not an installed credential value. */
+export function validateCapabilityPeerIdentifier(value: unknown, path: string): asserts value is string {
+  validateBoundedText(value, path, MAX_PEER_IDENTIFIER_LENGTH);
+  if (!PEER_IDENTIFIER_PATTERN.test(value)) {
+    throw new TypeError(`${path} must be a structural package or runtime peer identifier`);
+  }
+  assertNoObviousCredential(value, path);
+}
+
+/** Validate an authorization scope name, not a token or authorization header. */
+export function validateCapabilityScopeIdentifier(value: unknown, path: string): asserts value is string {
+  validateBoundedText(value, path, MAX_SCOPE_IDENTIFIER_LENGTH);
+  if (!SCOPE_IDENTIFIER_PATTERN.test(value)) {
+    throw new TypeError(`${path} must be a structural authorization scope identifier`);
+  }
+  assertNoObviousCredential(value, path);
+}
+
+/** Reject credential-shaped keys and values anywhere inside extension metadata. */
+export function assertNoSensitiveCapabilityExtension(value: unknown, path: string): void {
+  const stack: Array<{ readonly value: unknown; readonly path: string }> = [{ value, path }];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (typeof current.value === "string") {
+      assertNoObviousCredential(current.value, current.path);
+      continue;
+    }
+    if (current.value === null || typeof current.value !== "object") continue;
+    if (Array.isArray(current.value)) {
+      for (let index = 0; index < current.value.length; index++) {
+        stack.push({ value: current.value[index], path: `${current.path}[${index}]` });
+      }
+      continue;
+    }
+    for (const [key, child] of Object.entries(current.value)) {
+      if (hasSensitiveExtensionKeyName(key)) {
+        throw new TypeError(`${current.path} contains a credential-sensitive extension key`);
+      }
+      // Do not echo caller-controlled metadata keys if a descendant is rejected.
+      stack.push({ value: child, path: `${current.path} member` });
+    }
+  }
+}
+
+function hasSensitiveExtensionKeyName(key: string): boolean {
+  if (key.split(/[.:/]+/).includes("__proto__")) return true;
+  const tokens = tokenizeExtensionKey(key);
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index]!;
+    if (SENSITIVE_EXTENSION_KEY_TOKENS.has(token)) return true;
+    if (SENSITIVE_EXTENSION_KEY_SEQUENCES.has(`${token} ${tokens[index + 1] ?? ""}`.trim())) return true;
+    if (SENSITIVE_COMPACT_KEY_PREFIXES.some((prefix) => token.startsWith(prefix))) return true;
+  }
+  return false;
+}
+
+function tokenizeExtensionKey(key: string): readonly string[] {
+  return key
+    .replaceAll(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replaceAll(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^A-Za-z0-9]+/)
+    .filter((token) => token.length > 0)
+    .map((token) => token.toLowerCase());
+}
+
+function assertNoObviousCredential(value: string, path: string): void {
+  if (
+    OBVIOUS_AUTHORIZATION_PATTERN.test(value) ||
+    SENSITIVE_ASSIGNMENT_PATTERN.test(value) ||
+    SENSITIVE_WORD_PATTERN.test(value) ||
+    PRIVATE_KEY_PATTERN.test(value) ||
+    JWT_PATTERN.test(value) ||
+    AWS_ACCESS_KEY_PATTERN.test(value)
+  ) {
+    throw new TypeError(`${path} must not contain credential-shaped data`);
+  }
+}
+
+/** Reject common credential shapes without reflecting caller content. */
+export function assertNoObviousCapabilityCredential(value: string, path: string): void {
+  assertNoObviousCredential(value, path);
+}
+
+function validateBoundedText(value: unknown, path: string, maximum: number): asserts value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > maximum) {
+    throw new TypeError(`${path} must be non-empty bounded text`);
+  }
+  if (value.trim() !== value) throw new TypeError(`${path} must not contain leading or trailing whitespace`);
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1f || code === 0x7f) throw new TypeError(`${path} must not contain control characters`);
+  }
+}

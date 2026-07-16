@@ -10,12 +10,13 @@
  */
 
 import { geoParquetSourceSchemaV2, geoServicesSourceSchemaV2, odataSourceSchemaV2 } from "./connect-schema.js";
-import { type ConnectSourceSchemaProjection, connectWithSourceSchemaProjection } from "./connect.js";
+import { connectWithSourceSchemaProjection } from "./connect.js";
 import type { ConnectOptions, HonuaConnection, HonuaConnectionInspection } from "./connect.js";
 import type { SourceDiscoveryInspection } from "./contract/discovery.js";
 import { parseSourceSchemaV2 } from "./contract/schema.js";
 import type { SourceSchemaV2 } from "./contract/schema.js";
-import type { Dataset, Source, SourceDescriptor, SourceId } from "./contract/types.js";
+import type { CapabilityAwareSource, Dataset, SourceDescriptor, SourceId } from "./contract/types.js";
+import { SOURCE_SCHEMA_V2_CONNECT_PROJECTION } from "./source-schema-connect-projection.js";
 
 export {
   geoParquetSourceSchemaV2,
@@ -36,21 +37,13 @@ export {
 } from "./contract/schema.js";
 export type * from "./contract/schema.js";
 
-const SOURCE_SCHEMA_V2_CONNECT_PROJECTION = Object.freeze<ConnectSourceSchemaProjection>({
-  cacheIdentity: "honua.source-schema@2.0",
-  parseCached: parseSourceSchemaV2,
-  geoServices: (metadata, context) => geoServicesSourceSchemaV2(metadata, context),
-  odata: (metadata, entitySet, context) => odataSourceSchemaV2(metadata, entitySet, context),
-  geoParquet: (profile, context) => geoParquetSourceSchemaV2(profile, context),
-});
-
 /** Descriptor refinement returned by the focused, fully validated connection path. */
 export type SourceDescriptorWithSchemaV2 = Omit<SourceDescriptor, "schemaV2"> & {
   readonly schemaV2?: SourceSchemaV2;
 };
 
 /** Source refinement whose descriptor exposes the complete validated schema. */
-export type SourceWithSchemaV2<T = Record<string, unknown>> = Omit<Source<T>, "descriptor"> & {
+export type SourceWithSchemaV2<T = Record<string, unknown>> = Omit<CapabilityAwareSource<T>, "descriptor"> & {
   readonly descriptor: SourceDescriptorWithSchemaV2;
 };
 

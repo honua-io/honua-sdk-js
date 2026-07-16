@@ -80,6 +80,18 @@ const TARGETS = [
     entry: "dist/src/source-schema.js",
     label: "`/source-schema` (focused schema + pinned PROJJSON validator)",
   },
+  {
+    key: "/source-capabilities",
+    kind: "bundle",
+    entry: "dist/src/source-capabilities.js",
+    label: "`/source-capabilities` (static evidence ingestion + lightweight evaluator)",
+  },
+  {
+    key: "/source-capability-discovery",
+    kind: "bundle",
+    entry: "dist/src/source-capability-discovery.js",
+    label: "`/source-capability-discovery` (GeoServices/OData schema-bound evaluation)",
+  },
   { key: "/plugin", kind: "bundle", entry: "dist/src/plugin/index.js", label: "`/plugin` (registry + certification, no heavy peers)" },
   { key: "/agent-tools", kind: "bundle", entry: "dist/src/agent-tools/index.js", label: "`/agent-tools`" },
   { key: "/agent-safety", kind: "bundle", entry: "dist/src/agent-safety/index.js", label: "`/agent-safety`" },
@@ -152,6 +164,13 @@ const TARGETS = [
     label: "tree-shake guard (`{ connect }` from root, source-schema runtime excluded)",
   },
   {
+    key: "tree-shake:source-capabilities-evaluate",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-source-capabilities-evaluate.mjs",
+    label: "tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded)",
+    forbiddenInputs: ["dist/src/contract/schema.js", "dist/src/gen/projjson/"],
+  },
+  {
     key: "tree-shake:esri-compat-FeatureLayerCompat",
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-esri-compat-feature-layer.mjs",
@@ -190,13 +209,27 @@ function gzipBytes(buffer) {
   return gzipSync(buffer, { level: 9 }).byteLength;
 }
 
-async function measureBundle(entryAbs, extraExternal = []) {
+async function measureBundle(entryAbs, extraExternal = [], forbiddenInputs = []) {
   const result = await esbuild.build({
     ...SHARED_ESBUILD_OPTIONS,
     external: [...EXTERNAL, ...extraExternal],
     format: "esm",
     entryPoints: [entryAbs],
+    metafile: forbiddenInputs.length > 0,
   });
+  if (forbiddenInputs.length > 0) {
+    const retainedInputs = Object.values(result.metafile.outputs).flatMap((output) =>
+      Object.entries(output.inputs)
+        .filter(([, metadata]) => metadata.bytesInOutput > 0)
+        .map(([input]) => input.replaceAll("\\", "/")),
+    );
+    for (const forbiddenInput of forbiddenInputs) {
+      const retained = retainedInputs.find((input) => input.includes(forbiddenInput));
+      if (retained !== undefined) {
+        throw new Error(`Tree-shake fixture ${entryAbs} unexpectedly retained ${retained}`);
+      }
+    }
+  }
   const buffer = Buffer.from(result.outputFiles[0].contents);
   return { min: buffer.byteLength, gzip: gzipBytes(buffer) };
 }
@@ -218,7 +251,7 @@ async function measureAll() {
     measurements[target.key] =
       target.kind === "prebuilt"
         ? measurePrebuilt(entryAbs)
-        : await measureBundle(entryAbs, target.external ?? []);
+        : await measureBundle(entryAbs, target.external ?? [], target.forbiddenInputs ?? []);
   }
   return measurements;
 }

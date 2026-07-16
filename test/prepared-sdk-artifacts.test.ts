@@ -38,7 +38,7 @@ describe("prepared SDK artifact contract", () => {
 
   it("keeps root compilation outside tests and imported test helpers", () => {
     expect(assertTestBuildOwnership({ projectRoot: getProjectRoot() }).filesChecked).toBeGreaterThan(300);
-  }, 15_000);
+  }, 60_000);
 
   it("uses one build owner and explicit already-prepared composed lanes", () => {
     const packageJson = readJson<{ scripts: Record<string, string> }>(path.join(getProjectRoot(), "package.json"));

@@ -847,6 +847,7 @@ export interface CapabilityEvidence {
   readonly truth: CapabilityTruth;
   readonly reference: string;
   readonly observedAt?: IsoInstant;
+  readonly expiresAt?: IsoInstant;
   readonly sourceFingerprint?: Sha256;
 }
 
@@ -856,21 +857,44 @@ export type EffectiveCapabilityState =
   | "unknown"
   | "policy-disabled"
   | "peer-unavailable"
-  | "authorization-required";
+  | "authorization-required"
+  | "authorization-denied";
 
 export type PaginationMode = "offset" | "cursor" | "next-link";
 
-export interface CapabilityDecision {
+export interface CapabilityRequirements {
+  readonly environments?: readonly ("browser" | "worker" | "node" | "edge" | ExtensionIdentifier)[];
+  readonly peers?: readonly string[];
+}
+
+export interface CapabilityEvidenceEntry {
   readonly id: CapabilityId;
   readonly claimed: CapabilityTruth;
   readonly observed: CapabilityTruth | "not-observed";
-  readonly effective: EffectiveCapabilityState;
   readonly evidence: readonly CapabilityEvidence[];
-  readonly reasons: readonly string[];
-  /** Stable scope identifiers only; never credentials or tokens. */
+  /** Structural scope identifiers; credentials and tokens are prohibited. */
   readonly authorizationScopes?: readonly string[];
   /** Machine-readable operation limits used by validation and planning. */
   readonly constraints?: CapabilityConstraints;
+  readonly requirements?: CapabilityRequirements;
+}
+
+export interface CapabilityDecision extends CapabilityEvidenceEntry {
+  readonly effective: EffectiveCapabilityState;
+  readonly reasons: readonly string[];
+}
+
+export interface CapabilityEvaluationContextSnapshot {
+  readonly policy?: {
+    readonly allow?: readonly CapabilityId[];
+    readonly deny: readonly CapabilityId[];
+  };
+  readonly environment?: "browser" | "worker" | "node" | "edge" | ExtensionIdentifier;
+  readonly availablePeers: readonly string[];
+  readonly authorization: {
+    readonly grantedScopes: readonly string[];
+    readonly deniedScopes: readonly string[];
+  };
 }
 
 export interface CapabilityConstraints {
@@ -896,8 +920,39 @@ export interface CapabilityProfile {
   readonly kind: "honua.capabilities";
   readonly version: "1.0";
   readonly fingerprint: Sha256;
+  readonly evidenceFingerprint: Sha256;
+  readonly sourceFingerprint: Sha256;
+  readonly sourceEndpointFingerprint: Sha256;
+  readonly evaluatedAt: IsoInstant | null;
+  readonly validUntil: IsoInstant | null;
+  readonly context: CapabilityEvaluationContextSnapshot;
   /** Sorted by id with no duplicates; arrays replace the current Set. */
   readonly entries: readonly CapabilityDecision[];
+}
+
+export interface CapabilityEvidenceProfile {
+  readonly kind: "honua.capability-evidence";
+  readonly version: "1.0";
+  readonly fingerprint: Sha256;
+  readonly sourceFingerprint: Sha256;
+  readonly sourceEndpointFingerprint: Sha256;
+  readonly entries: readonly CapabilityEvidenceEntry[];
+}
+
+export interface CapabilitySourceEndpointIdentity {
+  readonly endpoint: string;
+  readonly protocol: SourceProtocol;
+  readonly sourceId?: string;
+}
+
+export interface CapabilityEvidenceProfileOptions {
+  readonly sourceFingerprint?: Sha256;
+  readonly sourceEndpoint: CapabilitySourceEndpointIdentity;
+}
+
+export interface CapabilitySourceVerificationOptions {
+  readonly expectedSourceFingerprint?: Sha256;
+  readonly expectedSourceEndpoint?: CapabilitySourceEndpointIdentity;
 }
 
 // ── Serializable descriptor and invalidation identity ─────────────────────

@@ -68,6 +68,7 @@ import { HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import { HonuaPmtilesArchive, stripPmtilesScheme } from "./pmtiles.js";
+import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
 import {
   type AdapterFor,
   type AdapterKind,
@@ -84,6 +85,7 @@ import {
   type AttachmentUpdate,
   CAPABILITIES,
   type Capability,
+  type CapabilityAwareSource,
   type CapabilityPolicy,
   type CreateDatasetOptions,
   type Dataset,
@@ -161,35 +163,37 @@ export function createDataset(options: CreateDatasetOptions): Dataset {
   const { id, client, sources, resolveSource } = options;
   const policy: CapabilityPolicy = options.capabilityPolicy ?? "strict";
   const descriptors = new Map<SourceId, SourceDescriptor>();
-  const handles = new Map<SourceId, Source>();
+  const handles = new Map<SourceId, CapabilityAwareSource>();
   let compatibilityPromise: Promise<boolean> | undefined;
 
-  for (const descriptor of sources) {
+  for (const input of sources) {
+    const descriptor = normalizeCapabilityDescriptor(input);
     if (descriptors.has(descriptor.id)) {
       throw new Error(`createDataset: duplicate source id "${descriptor.id}"`);
     }
     descriptors.set(descriptor.id, descriptor);
   }
 
-  function resolve<T>(descriptor: SourceDescriptor): Source<T> {
+  function resolve<T>(descriptor: SourceDescriptor): CapabilityAwareSource<T> {
     const cached = handles.get(descriptor.id);
-    if (cached) return cached as Source<T>;
+    if (cached) return cached as CapabilityAwareSource<T>;
 
+    const builtIn = buildBuiltInSource<T>(descriptor, client, policy);
     const built =
-      buildBuiltInSource<T>(descriptor, client, policy) ??
-      (resolveSource?.(descriptor, { client, capabilityPolicy: policy }) as Source<T> | undefined);
+      builtIn ?? (resolveSource?.(descriptor, { client, capabilityPolicy: policy }) as Source<T> | undefined);
     if (!built) {
       throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
     }
-    handles.set(descriptor.id, built as Source);
-    return built;
+    const source = builtIn ?? addCapabilitySupport(built, descriptor);
+    handles.set(descriptor.id, source as CapabilityAwareSource);
+    return source;
   }
 
   return {
     id,
     client,
     sourceDescriptors: [...descriptors.values()],
-    source<T = Record<string, unknown>>(sourceId: SourceId): Source<T> | undefined {
+    source<T = Record<string, unknown>>(sourceId: SourceId): CapabilityAwareSource<T> | undefined {
       const descriptor = descriptors.get(sourceId);
       if (!descriptor) return undefined;
       return resolve<T>(descriptor);
@@ -219,7 +223,7 @@ function buildBuiltInSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> | undefined {
+): CapabilityAwareSource<T> | undefined {
   switch (descriptor.protocol) {
     case "geoservices-feature-service":
       return geoServicesFeatureSource<T>(descriptor, client, policy);
@@ -287,7 +291,8 @@ export function geoServicesFeatureSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const { serviceId, layerId } = requireFeatureServiceLocator(descriptor);
   const layer = new HonuaFeatureLayer<T>({ client, serviceId, layerId });
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"];
@@ -391,7 +396,8 @@ export function geoServicesMapServiceSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const { serviceId, layerId } = requireMapServiceLocator(descriptor);
   const service = new HonuaMapService({ client, serviceId });
   const layer = new HonuaMapLayer({ client, serviceId, layerId });
@@ -495,7 +501,8 @@ export function ogcFeaturesSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const { collectionId } = requireOgcLocator(descriptor);
   const layoutMode = ogcFeaturesLayoutMode(descriptor.locator.layout);
   const collection = new HonuaOgcFeatureCollection({
@@ -721,7 +728,8 @@ export function geoServicesImageSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const { serviceId } = requireImageServiceLocator(descriptor);
   const service = new HonuaImageService({ client, serviceId });
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-image-service"];
@@ -835,7 +843,8 @@ export function geoServicesGeometryServiceSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const service = new HonuaGeometryService({ client });
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-geometry-service"];
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
@@ -863,7 +872,8 @@ export function geoServicesGPServiceSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-gp-service"];
   const { serviceId, taskName } = requireGPServiceLocator(descriptor, caps);
   const service = new HonuaGeoprocessingService({
@@ -896,7 +906,8 @@ export function ogcTilesSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const { collectionId, tileMatrixSetId } = requireOgcTilesLocator(descriptor);
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["ogc-tiles"];
   const basePath = descriptor.locator.basePath;
@@ -946,7 +957,8 @@ export function pmtilesSource<T>(
   descriptor: SourceDescriptor,
   _client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const url = stripPmtilesScheme(requirePmtilesLocator(descriptor));
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.pmtiles;
   const archive = new HonuaPmtilesArchive(url);
@@ -975,7 +987,8 @@ export function ogcMapsSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const basePath = descriptor.locator.basePath;
   // A `connect()`-discovered third-party root threads its basePath so render
   // routes resolve against the advertised layout, not the `/ogc/maps` facade.
@@ -1015,7 +1028,8 @@ export function ogcRecordsSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const { collectionId } = requireOgcRecordsLocator(descriptor);
   const basePath = descriptor.locator.basePath;
   const collection = new HonuaOgcRecordCollection({
@@ -1137,7 +1151,12 @@ export function ogcRecordsSource<T>(
  * });
  * ```
  */
-export function wmsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
+export function wmsSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const { serviceId } = requireWmsLocator(descriptor);
   const layerName = descriptor.locator.typeName;
   const styleId = descriptor.locator.styleId;
@@ -1239,7 +1258,12 @@ export function wmsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
  * const tile = await wmts!.tile({ tileMatrixSet: "WebMercatorQuad", tileMatrix: "8", tileRow: 5, tileCol: 8 });
  * ```
  */
-export function wmtsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
+export function wmtsSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const { serviceId } = requireWmtsLocator(descriptor);
   const layerName = descriptor.locator.typeName;
   const tileMatrixSetId = descriptor.locator.tileMatrixSetId ?? "WebMercatorQuad";
@@ -1301,7 +1325,8 @@ export function stacSearchSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   // Endpoint-layout selection. `stac-api` treats `locator.url` as a raw STAC
   // API root (search / collections mounted directly under it) rather than the
   // Honua `/stac` facade. `stac-static` reads a static catalog.json tree with
@@ -1460,7 +1485,12 @@ const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
  * });
  * ```
  */
-export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
+export function wfsSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const { url, typeName, featureNamespace, srsName: wfsSrsName } = requireWfsLocator(descriptor);
   const root = client.wfs(url);
   const featureType = new HonuaWfsFeatureType({ root, typeName });
@@ -2269,7 +2299,12 @@ function canonicalEditResultFromTransaction<T>(
  * });
  * ```
  */
-export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
+export function odataSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const { entitySet, basePath } = requireOdataLocator(descriptor);
   const entity = new HonuaOdataEntitySet({ client, entitySet, basePath });
   const declaredCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.odata;
@@ -3194,11 +3229,11 @@ function makeSource<T>(
   _policy: CapabilityPolicy,
   adapters: Partial<Record<AdapterKind, unknown>>,
   impl: SourceImplementation<T>,
-): Source<T> {
+): CapabilityAwareSource<T> {
   function lookupAdapter<K extends AdapterKind>(kind: K): AdapterFor<K> | undefined {
     return adapters[kind] as AdapterFor<K> | undefined;
   }
-  return {
+  const source: Source<T> = {
     descriptor: { ...descriptor, capabilities: caps },
     capabilities: caps,
     query: impl.query.bind(impl),
@@ -3213,6 +3248,7 @@ function makeSource<T>(
     protocol: lookupAdapter,
     adapter: lookupAdapter,
   };
+  return addCapabilitySupport(source, source.descriptor);
 }
 
 /**
