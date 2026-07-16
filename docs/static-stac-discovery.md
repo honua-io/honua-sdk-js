@@ -106,7 +106,7 @@ Classification never uses a file-name extension. A URL ending in `.pmtiles`,
 | Format | Evidence used | Fail-closed behavior |
 | --- | --- | --- |
 | COG | Explicit Cloud Optimized GeoTIFF media profile, roles/extensions, and a bounded TIFF signature probe | A TIFF signature validates a declared COG but cannot prove cloud optimization. Generic GeoTIFF remains ambiguous. |
-| GeoParquet | Parquet media/roles/extensions plus an honored suffix range, a structurally decoded Compact Protocol footer, valid `geo` profile JSON, and `PAR1` prefix/footer framing | A generic or malformed Parquet file, an incomplete footer, and a server that ignores or misstates the suffix range are not promoted. |
+| GeoParquet | Parquet media/roles/extensions plus an honored suffix range, a structurally decoded Compact Protocol footer, required primary-column `encoding` and `geometry_types` metadata, and `PAR1` prefix/footer framing | A generic or malformed Parquet file, a merely present `geo` object, an incomplete footer, and a server that ignores or misstates the suffix range are not promoted. |
 | PMTiles | PMTiles media/roles/extensions plus the `PMTiles` magic and v3 byte | Conflicting magic produces an ambiguous candidate. |
 | Tiles | Explicit vector/raster tile media, a `{z}/{x}/{y}` template, or a bounded TileJSON object | Unknown tile content stays unknown and cannot become a renderer locator. |
 | Metadata | An explicit metadata role paired with an absent or metadata-compatible JSON/XML/text media type | Metadata is never treated as queryable spatial data. |
@@ -164,6 +164,14 @@ for footer evidence.
 `probeOrigins` authorizes bounded anonymous probes, not full asset download.
 Signed/query-bearing asset URLs are normalized for display and returned as
 `resolver-required`; the caller must resolve fresh access at execution time.
+
+The authorization-scope default is deliberately narrow. `public` is inferred
+only when discovery uses `globalThis.fetch`, sends no caller headers, and stays
+on the root origin. Supplying a custom `fetchFn`, any non-empty caller headers,
+or an expanded traversal/probe origin policy requires an explicit, non-public
+`authorizationScopeFingerprint`. Use a stable ACL/audience label—not a token or
+credential—so authenticated or transport-dependent results cannot collide in a
+public discovery cache partition.
 
 ## Diagnostics
 

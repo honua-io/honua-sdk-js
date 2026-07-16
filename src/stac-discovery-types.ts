@@ -35,7 +35,12 @@ export interface StacDiscoveryLimits {
 export interface DiscoverStaticStacOptions {
   /** Absolute HTTP(S) URL of a Catalog, Collection, or Item JSON document. */
   readonly endpoint: string | URL;
-  /** Stable ACL/audience fingerprint. Raw credentials are prohibited. Defaults to `public`. */
+  /**
+   * Stable ACL/audience fingerprint. Raw credentials are prohibited. Defaults
+   * to `public` only for default-fetch, header-free, root-origin discovery;
+   * caller transport/headers/cross-origin policy require an explicit
+   * non-public value.
+   */
   readonly authorizationScopeFingerprint?: string;
   /** Fetch implementation; defaults to `globalThis.fetch`. */
   readonly fetchFn?: StacDiscoveryFetch;

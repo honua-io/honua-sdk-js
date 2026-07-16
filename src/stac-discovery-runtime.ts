@@ -18,6 +18,7 @@ import {
   type StacTransportPurpose,
   type StacTransportResponse,
   type StacTransportStatistics,
+  normalizeStacDiscoveryHeaders,
   normalizeStacDiscoveryLimits,
 } from "./stac-discovery-transport.js";
 import type {
@@ -65,6 +66,13 @@ export async function discoverStaticStacRuntime(
   const limits = normalizeStacDiscoveryLimits(options.limits);
   const allowedOrigins = normalizeOrigins(options.allowedOrigins, rootUrl.origin, "allowedOrigins");
   const probeOrigins = normalizeOrigins(options.probeOrigins, rootUrl.origin, "probeOrigins");
+  const callerHeaders = normalizeStacDiscoveryHeaders(options.headers);
+  const authorizationScopeFingerprint = resolveAuthorizationScopeFingerprint(
+    options,
+    callerHeaders,
+    allowedOrigins,
+    probeOrigins,
+  );
   const fetchFn = options.fetchFn ?? globalThis.fetch;
   if (typeof fetchFn !== "function") {
     throw new HonuaDiscoveryError("invalid-endpoint", "Static STAC discovery requires a Fetch implementation.");
@@ -80,7 +88,7 @@ export async function discoverStaticStacRuntime(
   const transport = new StacDiscoveryTransport({
     fetchFn,
     rootOrigin: rootUrl.origin,
-    ...(options.headers ? { headers: options.headers } : {}),
+    ...(hasHeaders(callerHeaders) ? { headers: callerHeaders } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
     limits,
     statistics: transportStatistics,
@@ -89,7 +97,7 @@ export async function discoverStaticStacRuntime(
   const cacheIdentity = await createDiscoveryCacheIdentity({
     endpoint: rootUrl,
     protocol: "stac",
-    authorizationScopeFingerprint: options.authorizationScopeFingerprint ?? "public",
+    authorizationScopeFingerprint,
     adapterVersion: STAC_STATIC_ADAPTER_VERSION,
     projectionVersion: STAC_STATIC_PROJECTION_VERSION,
   });
@@ -296,6 +304,39 @@ export async function discoverStaticStacRuntime(
       probeBytesRead: transportStatistics.probeBytesRead,
     }),
   });
+}
+
+function resolveAuthorizationScopeFingerprint(
+  options: DiscoverStaticStacOptions,
+  headers: Headers,
+  allowedOrigins: ReadonlySet<string>,
+  probeOrigins: ReadonlySet<string>,
+): string {
+  const supplied = options.authorizationScopeFingerprint;
+  const transportIsCallerScoped =
+    options.fetchFn !== undefined || hasHeaders(headers) || allowedOrigins.size > 1 || probeOrigins.size > 1;
+  if (!transportIsCallerScoped) return supplied ?? "public";
+  if (
+    typeof supplied !== "string" ||
+    !supplied.trim() ||
+    supplied.trim() !== supplied ||
+    supplied.toLowerCase() === "public" ||
+    supplied.toLowerCase() === "anonymous"
+  ) {
+    throw new HonuaDiscoveryError(
+      "invalid-cache-identity",
+      "Static STAC discovery requires an explicit non-public authorizationScopeFingerprint when caller transport, headers, or cross-origin policy can affect discovery truth.",
+    );
+  }
+  return supplied;
+}
+
+function hasHeaders(headers: Headers): boolean {
+  let present = false;
+  headers.forEach(() => {
+    present = true;
+  });
+  return present;
 }
 
 async function normalizeAsset(input: {

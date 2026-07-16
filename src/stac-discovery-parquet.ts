@@ -21,7 +21,20 @@ const COMPACT_UUID = 13;
 const MAX_COMPACT_NODES = 50_000;
 const MAX_COMPACT_DEPTH = 32;
 const MAX_KEY_VALUES = 4_096;
+const MAX_GEOMETRY_COLUMNS = 1_024;
+const MAX_GEOMETRY_TYPES = 32;
+const MAX_COLUMN_NAME_LENGTH = 1_024;
 const FORBIDDEN_JSON_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+const GEOPARQUET_1_1_ENCODINGS = new Set([
+  "WKB",
+  "point",
+  "linestring",
+  "polygon",
+  "multipoint",
+  "multilinestring",
+  "multipolygon",
+]);
+const GEOMETRY_TYPE = /^(?:GeometryCollection|(?:Multi)?(?:Point|LineString|Polygon))(?: Z)?$/;
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
 
 /** Inspect a complete bounded Parquet footer without guessing from raw text. */
@@ -153,12 +166,44 @@ function parseGeoParquetProfile(value: string): GeoParquetFooterInspection | und
     !/^1\.(?:0|1)\.\d+$/.test(version) ||
     typeof primaryColumn !== "string" ||
     !primaryColumn ||
+    primaryColumn.length > MAX_COLUMN_NAME_LENGTH ||
     !isPlainObject(columns) ||
-    !isPlainObject(columns[primaryColumn])
+    !validGeoParquetColumns(columns, version)
   ) {
     return undefined;
   }
+  if (!Object.hasOwn(columns, primaryColumn)) return undefined;
   return Object.freeze({ state: "geoparquet", version, primaryColumn });
+}
+
+function validGeoParquetColumns(columns: Record<string, unknown>, version: string): boolean {
+  const entries = Object.entries(columns);
+  if (entries.length === 0 || entries.length > MAX_GEOMETRY_COLUMNS) return false;
+  for (const [name, value] of entries) {
+    if (!name || name.length > MAX_COLUMN_NAME_LENGTH || !isPlainObject(value)) return false;
+    const encoding = value.encoding;
+    const geometryTypes = value.geometry_types;
+    if (
+      typeof encoding !== "string" ||
+      (version.startsWith("1.0.") ? encoding !== "WKB" : !GEOPARQUET_1_1_ENCODINGS.has(encoding)) ||
+      !validGeometryTypes(geometryTypes)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function validGeometryTypes(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length > MAX_GEOMETRY_TYPES) return false;
+  const unique = new Set<string>();
+  for (const geometryType of value) {
+    if (typeof geometryType !== "string" || !GEOMETRY_TYPE.test(geometryType) || unique.has(geometryType)) {
+      return false;
+    }
+    unique.add(geometryType);
+  }
+  return true;
 }
 
 function isSafeJson(root: unknown): boolean {

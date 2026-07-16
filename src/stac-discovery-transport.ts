@@ -109,7 +109,7 @@ export class StacDiscoveryTransport {
   public constructor(options: StacDiscoveryTransportOptions) {
     this.fetchFn = options.fetchFn;
     this.rootOrigin = options.rootOrigin;
-    this.headers = normalizeCallerHeaders(options.headers);
+    this.headers = normalizeStacDiscoveryHeaders(options.headers);
     this.signal = options.signal;
     this.limits = options.limits;
     this.statistics = options.statistics;
@@ -241,7 +241,8 @@ export class StacDiscoveryTransport {
   }
 }
 
-function normalizeCallerHeaders(input: HeadersInit | undefined): Headers {
+/** Snapshot and validate caller headers before transport/cache-scope admission. */
+export function normalizeStacDiscoveryHeaders(input: HeadersInit | undefined): Headers {
   let headers: Headers;
   try {
     headers = new Headers(input);

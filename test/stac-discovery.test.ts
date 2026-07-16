@@ -6,10 +6,15 @@ import { describe, expect, it, vi } from "vitest";
 
 import { HonuaAbortError, HonuaDiscoveryError, HonuaNetworkError, HonuaTimeoutError } from "../src/core/errors.js";
 import { discoverStaticStac } from "../src/stac-discovery.js";
-import type { StacDiscoveryFetch } from "../src/stac-discovery.js";
+import type { DiscoverStaticStacOptions, StacDiscoveryFetch } from "../src/stac-discovery.js";
 
 const FIXTURE_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "stac-discovery");
 const BASE_URL = "https://catalog.test/stac/catalog.json";
+const FIXTURE_SCOPE = "fixture:static-stac:v1";
+
+function discoverFixture(options: DiscoverStaticStacOptions) {
+  return discoverStaticStac({ authorizationScopeFingerprint: FIXTURE_SCOPE, ...options });
+}
 
 describe("static STAC discovery", () => {
   it("normalizes catalog, collection, and item traversal with identity, extent, time, legal, and provenance", async () => {
@@ -69,9 +74,65 @@ describe("static STAC discovery", () => {
     expect(JSON.stringify(result.diagnostics)).not.toContain("attacker.example");
   });
 
+  it("requires explicit cache scope for caller-controlled transport and preserves the safe public default", async () => {
+    const catalog = JSON.stringify({
+      type: "Catalog",
+      stac_version: "1.1.0",
+      id: "scope-catalog",
+      description: "scope fixture",
+      links: [],
+    });
+    const firstTransport = vi.fn<StacDiscoveryFetch>(
+      async () => new Response(catalog, { headers: { "Content-Type": "application/json" } }),
+    );
+    const secondTransport = vi.fn<StacDiscoveryFetch>(
+      async () => new Response(catalog, { headers: { "Content-Type": "application/json" } }),
+    );
+
+    await expect(discoverStaticStac({ endpoint: BASE_URL, fetchFn: firstTransport })).rejects.toMatchObject({
+      code: "invalid-cache-identity",
+    });
+    await expect(
+      discoverStaticStac({ endpoint: BASE_URL, authorizationScopeFingerprint: "public", fetchFn: secondTransport }),
+    ).rejects.toMatchObject({ code: "invalid-cache-identity" });
+    expect(firstTransport).not.toHaveBeenCalled();
+    expect(secondTransport).not.toHaveBeenCalled();
+
+    await expect(
+      discoverStaticStac({ endpoint: BASE_URL, headers: { "X-Caller-Scope": "tenant-a" } }),
+    ).rejects.toMatchObject({ code: "invalid-cache-identity" });
+    await expect(
+      discoverStaticStac({ endpoint: BASE_URL, allowedOrigins: ["https://metadata.test"] }),
+    ).rejects.toMatchObject({ code: "invalid-cache-identity" });
+
+    const first = await discoverStaticStac({
+      endpoint: BASE_URL,
+      authorizationScopeFingerprint: "tenant:a",
+      fetchFn: firstTransport,
+    });
+    const second = await discoverStaticStac({
+      endpoint: BASE_URL,
+      authorizationScopeFingerprint: "tenant:b",
+      fetchFn: secondTransport,
+    });
+    expect(first.cacheIdentity.key).not.toBe(second.cacheIdentity.key);
+
+    const defaultFetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response(catalog, { headers: { "Content-Type": "application/json" } }));
+    try {
+      const implicitPublic = await discoverStaticStac({ endpoint: BASE_URL });
+      const explicitPublic = await discoverStaticStac({ endpoint: BASE_URL, authorizationScopeFingerprint: "public" });
+      expect(implicitPublic.cacheIdentity.key).toBe(explicitPublic.cacheIdentity.key);
+      expect(defaultFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      defaultFetch.mockRestore();
+    }
+  });
+
   it("classifies from declared evidence and bounded probes without using file extensions", async () => {
     const fixture = await fixtureFetch();
-    const result = await discoverStaticStac({ endpoint: BASE_URL, fetchFn: fixture.fetchFn });
+    const result = await discoverFixture({ endpoint: BASE_URL, fetchFn: fixture.fetchFn });
     const assets = Object.fromEntries(result.assets.map((asset) => [asset.key, asset]));
 
     expect(assets.cog).toMatchObject({
@@ -160,7 +221,7 @@ describe("static STAC discovery", () => {
     });
     const parquet = geoparquetFixture();
     const discoverWith = async (assetResponse: () => Response) =>
-      discoverStaticStac({
+      discoverFixture({
         endpoint: "https://catalog.test/item.json",
         fetchFn: async (input) =>
           String(input).endsWith("item.json")
@@ -203,11 +264,47 @@ describe("static STAC discovery", () => {
     expect(falsePositive.assets[0]?.classification.evidence).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: "probe-conflict", format: "geoparquet" })]),
     );
+
+    for (const geoMetadata of [
+      { version: "1.1.0", primary_column: "geometry", columns: { geometry: {} } },
+      {
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding: "made-up", geometry_types: [] } },
+      },
+      {
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding: "WKB", geometry_types: ["Point", "Point"] } },
+      },
+      {
+        version: "1.0.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding: "point", geometry_types: ["Point"] } },
+      },
+    ]) {
+      const mereGeoObject = geoparquetFixture(geoMetadata);
+      const rejectedProfile = await discoverWith(
+        () =>
+          new Response(mereGeoObject.buffer as ArrayBuffer, {
+            status: 206,
+            headers: { "Content-Range": `bytes 0-${mereGeoObject.byteLength - 1}/${mereGeoObject.byteLength}` },
+          }),
+      );
+      expect(rejectedProfile.assets[0]?.classification).toMatchObject({
+        state: "ambiguous",
+        candidates: ["geoparquet"],
+      });
+      expect(rejectedProfile.assets[0]?.source).toBeUndefined();
+      expect(rejectedProfile.assets[0]?.classification.evidence).toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: "probe-conflict", format: "geoparquet" })]),
+      );
+    }
   });
 
   it("returns metadata-only ambiguity when probes are disabled", async () => {
     const fixture = await fixtureFetch();
-    const result = await discoverStaticStac({ endpoint: BASE_URL, fetchFn: fixture.fetchFn, probeAssets: false });
+    const result = await discoverFixture({ endpoint: BASE_URL, fetchFn: fixture.fetchFn, probeAssets: false });
     const assets = Object.fromEntries(result.assets.map((asset) => [asset.key, asset]));
 
     expect(assets.pmtiles?.classification).toMatchObject({
@@ -222,7 +319,7 @@ describe("static STAC discovery", () => {
 
   it("bounds loops, documents, depth, and response bytes deterministically", async () => {
     const fixture = await fixtureFetch();
-    const depthBounded = await discoverStaticStac({
+    const depthBounded = await discoverFixture({
       endpoint: BASE_URL,
       fetchFn: fixture.fetchFn,
       probeAssets: false,
@@ -235,7 +332,7 @@ describe("static STAC discovery", () => {
     expect(fixture.requests).toHaveLength(1);
 
     const documentsFixture = await fixtureFetch();
-    const documentBounded = await discoverStaticStac({
+    const documentBounded = await discoverFixture({
       endpoint: BASE_URL,
       fetchFn: documentsFixture.fetchFn,
       probeAssets: false,
@@ -245,7 +342,7 @@ describe("static STAC discovery", () => {
     expect(documentBounded.diagnostics.some((entry) => entry.code === "document-limit")).toBe(true);
 
     const assetsFixture = await fixtureFetch();
-    const assetBounded = await discoverStaticStac({
+    const assetBounded = await discoverFixture({
       endpoint: BASE_URL,
       fetchFn: assetsFixture.fetchFn,
       probeAssets: false,
@@ -255,7 +352,7 @@ describe("static STAC discovery", () => {
     expect(assetBounded.diagnostics.some((entry) => entry.code === "asset-limit")).toBe(true);
 
     await expect(
-      discoverStaticStac({
+      discoverFixture({
         endpoint: "https://catalog.test/oversized.json",
         fetchFn: async () => new Response(JSON.stringify({ type: "Catalog", padding: "x".repeat(2_000) })),
         limits: { maxJsonBytes: 128 },
@@ -291,7 +388,7 @@ describe("static STAC discovery", () => {
         ? new Response(null, { status: 302, headers: { Location: "./item.json" } })
         : new Response(item, { headers: { "Content-Type": "application/geo+json" } });
     };
-    const result = await discoverStaticStac({
+    const result = await discoverFixture({
       endpoint: "https://catalog.test/root.json",
       fetchFn: sameOrigin,
       headers: { Authorization: "Bearer never-retained", "X-Caller-Context": "root-only" },
@@ -315,7 +412,7 @@ describe("static STAC discovery", () => {
       async () => new Response(null, { status: 302, headers: { Location: "https://attacker.test/steal" } }),
     );
     await expect(
-      discoverStaticStac({
+      discoverFixture({
         endpoint: "https://catalog.test/root.json",
         fetchFn: hostile,
         headers: { Authorization: "Bearer never-replayed" },
@@ -331,7 +428,7 @@ describe("static STAC discovery", () => {
         ? new Response(null, { status: 302, headers: { Location: "https://metadata.test/item.json" } })
         : new Response(item, { headers: { "Content-Type": "application/geo+json" } });
     };
-    await discoverStaticStac({
+    await discoverFixture({
       endpoint: "https://catalog.test/root.json",
       fetchFn: allowedCrossOrigin,
       allowedOrigins: ["https://metadata.test"],
@@ -345,7 +442,7 @@ describe("static STAC discovery", () => {
   it("propagates caller cancellation and distinguishes request deadlines", async () => {
     const hangingFetch: StacDiscoveryFetch = async () => new Promise<Response>(() => undefined);
     const controller = new AbortController();
-    const cancelled = discoverStaticStac({
+    const cancelled = discoverFixture({
       endpoint: BASE_URL,
       fetchFn: hangingFetch,
       signal: controller.signal,
@@ -355,7 +452,7 @@ describe("static STAC discovery", () => {
     await expect(cancelled).rejects.toBeInstanceOf(HonuaAbortError);
 
     await expect(
-      discoverStaticStac({
+      discoverFixture({
         endpoint: BASE_URL,
         fetchFn: hangingFetch,
         limits: { requestTimeoutMs: 5 },
@@ -372,7 +469,7 @@ describe("static STAC discovery", () => {
         { headers: { "Content-Type": "application/json" } },
       );
     await expect(
-      discoverStaticStac({
+      discoverFixture({
         endpoint: BASE_URL,
         fetchFn: hangingBody,
         limits: { requestTimeoutMs: 5 },
@@ -388,7 +485,7 @@ describe("static STAC discovery", () => {
         { headers: { "Content-Type": "application/json" } },
       );
     await expect(
-      discoverStaticStac({
+      discoverFixture({
         endpoint: BASE_URL,
         fetchFn: uncancellableBody,
         limits: { requestTimeoutMs: 5 },
@@ -398,13 +495,13 @@ describe("static STAC discovery", () => {
 
   it("rejects credential-bearing roots and structurally hostile JSON", async () => {
     await expect(
-      discoverStaticStac({ endpoint: "https://user:password@catalog.test/root.json", fetchFn: vi.fn() }),
+      discoverFixture({ endpoint: "https://user:password@catalog.test/root.json", fetchFn: vi.fn() }),
     ).rejects.toBeInstanceOf(HonuaDiscoveryError);
     await expect(
-      discoverStaticStac({ endpoint: "https://catalog.test/root.json?token=secret", fetchFn: vi.fn() }),
+      discoverFixture({ endpoint: "https://catalog.test/root.json?token=secret", fetchFn: vi.fn() }),
     ).rejects.toBeInstanceOf(HonuaDiscoveryError);
     await expect(
-      discoverStaticStac({
+      discoverFixture({
         endpoint: "https://catalog.test/root.json",
         fetchFn: async () =>
           new Response('{"type":"Catalog","stac_version":"1.1.0","id":"root","links":[],"__proto__":{}}', {
@@ -479,12 +576,14 @@ async function fixtureFetch(): Promise<{ readonly fetchFn: StacDiscoveryFetch; r
   return { fetchFn, requests };
 }
 
-function geoparquetFixture(): Uint8Array {
-  const geo = JSON.stringify({
+function geoparquetFixture(
+  geoMetadata: unknown = {
     version: "1.1.0",
     primary_column: "geometry",
     columns: { geometry: { encoding: "WKB", geometry_types: [], crs: null } },
-  });
+  },
+): Uint8Array {
+  const geo = JSON.stringify(geoMetadata);
   const schemaElement = bytes(0x48, ...compactString("schema"), 0x15, 0x00, 0x00);
   const keyValue = bytes(0x18, ...compactString("geo"), 0x18, ...compactString(geo), 0x00);
   const metadata = bytes(
