@@ -12,10 +12,10 @@
  */
 
 export { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
-export { compileDuckDbQuery, compileDuckDbQueryV2 } from "./duckdb.js";
+export { compileDuckDbQuery, compileDuckDbQueryV2, compileSemanticDuckDbQuery } from "./duckdb.js";
 export { executeQueryPlan } from "./executor.js";
 export { compileGeoServicesQuery } from "./geoservices.js";
-export { compileGrpcQuery } from "./grpc.js";
+export { compileGrpcQuery, compileSemanticGrpcQuery } from "./grpc.js";
 export { compileOgcApiFeaturesQuery } from "./ogc-features.js";
 export { compileOdataQuery } from "./odata.js";
 export { compileWfsQuery } from "./wfs.js";
@@ -52,6 +52,14 @@ export {
   serializeCanonicalSemanticQuery,
 } from "./semantic-canonical.js";
 export { legacyWhereToNativeFilter } from "./semantic-compat.js";
+export type {
+  SemanticCompilationResult,
+  SemanticCompilerDiagnostic,
+  SemanticCompilerFidelity,
+  SemanticCompilerLoss,
+  SemanticCompilerUnsupportedCode,
+  SemanticSqlParameter,
+} from "./semantic-compiler.js";
 export { semanticFilterFromCql2Json, semanticFilterToCql2Json } from "./cql2-json.js";
 export {
   MAX_SEMANTIC_QUERY_BYTES,
@@ -123,6 +131,22 @@ export type {
   TemporalValue,
   TopologicalSpatialPredicate,
 } from "./semantic-types.js";
+export type {
+  SemanticDuckDbCompileOptions,
+  SemanticDuckDbCompiledQueryV1,
+  SemanticDuckDbGeometrySource,
+  SemanticDuckDbSpatialCompilation,
+} from "./duckdb.js";
+export type {
+  SemanticGrpcCompileOptions,
+  SemanticGrpcCompiledQueryV1,
+  SemanticGrpcCoordinate,
+  SemanticGrpcCoordinateSequence,
+  SemanticGrpcGeometry,
+  SemanticGrpcSourceIdentity,
+  SemanticGrpcSpatialReference,
+  SemanticGrpcSpatialRelationship,
+} from "./grpc.js";
 export {
   COLUMNAR_WORKER_CANCEL_KIND,
   COLUMNAR_WORKER_ERROR_KIND,
