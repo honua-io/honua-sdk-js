@@ -7,6 +7,7 @@ on:
 
 permissions:
   actions: write
+  checks: write
   contents: write
   pull-requests: write
 
@@ -23,6 +24,30 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # Release Please updates its PR from this trusted push workflow. Emit the
+      # required context here so bot commits never need pull-request approval.
+      - name: Check out trusted disposition policy
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-policy
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js for trusted disposition policy
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20.19.0"
+
+      - name: Emit current Release Please disposition check
+        working-directory: trusted-policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TRUSTED_POLICY_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"
+          node scripts/check-release-please-disposition.mjs
 
       - name: Dispatch package publish workflows
         if: ${{ steps.release.outputs.releases_created == 'true' }}

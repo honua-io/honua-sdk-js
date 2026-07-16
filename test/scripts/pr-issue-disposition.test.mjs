@@ -13,30 +13,55 @@ import {
   parsePullRequestDisposition,
   validatePullRequestDisposition,
 } from "../../scripts/lib/pr-issue-disposition.mjs";
+import {
+  GITHUB_ACTIONS_APP_ID,
+  publishReleasePleaseDispositionCheck,
+  RELEASE_PLEASE_EXEMPTION,
+  REQUIRED_DISPOSITION_CHECK,
+} from "../../scripts/lib/release-please-disposition-check.mjs";
 
 const repository = "honua-io/honua-sdk-js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const cli = path.join(root, "scripts/check-pr-issue-disposition.mjs");
+const releasePleaseFixture = JSON.parse(
+  fs.readFileSync(
+    path.join(root, "test/fixtures/pr-issue-disposition/release-please-pr-382.json"),
+    "utf8",
+  ),
+);
 
 function graphqlPayload({
   body = "Refs #550 (S2; S3 remains)",
   closingIssueNumbers = [],
   updatedAt = "2026-07-14T22:00:00Z",
+  number = 595,
+  title = "docs(samples): project gallery metadata",
+  headRefName = "codex/issue-550-gallery-s2",
+  headSha = "a".repeat(40),
+  headRepository = repository,
+  baseRefName = "trunk",
+  baseSha = "b".repeat(40),
+  baseRepository = repository,
+  authorLogin = "mikemcdougall",
+  authorType = "User",
 } = {}) {
   return {
     data: {
       repository: {
         nameWithOwner: repository,
         pullRequest: {
-          number: 595,
+          number,
           body,
-          title: "docs(samples): project gallery metadata",
+          title,
           state: "OPEN",
           updatedAt,
-          headRefName: "codex/issue-550-gallery-s2",
-          headRefOid: "a".repeat(40),
-          baseRefName: "trunk",
-          author: { __typename: "User", login: "mikemcdougall" },
+          headRefName,
+          headRefOid: headSha,
+          headRepository: headRepository ? { nameWithOwner: headRepository } : null,
+          baseRefName,
+          baseRefOid: baseSha,
+          baseRepository: baseRepository ? { nameWithOwner: baseRepository } : null,
+          author: { __typename: authorType, login: authorLogin },
           closingIssuesReferences: {
             nodes: closingIssueNumbers.map((number) => ({
               number,
@@ -52,6 +77,46 @@ function graphqlPayload({
 
 function issue(number, overrides = {}) {
   return { number, repository, state: "open", isPullRequest: false, ...overrides };
+}
+
+function releasePleaseRestPull(overrides = {}) {
+  return {
+    number: releasePleaseFixture.pullRequestNumber,
+    body: releasePleaseFixture.body,
+    title: releasePleaseFixture.title,
+    state: "open",
+    updated_at: releasePleaseFixture.updatedAt,
+    user: { login: "github-actions[bot]", type: "Bot" },
+    head: {
+      ref: releasePleaseFixture.headRefName,
+      sha: releasePleaseFixture.headSha,
+      repo: { full_name: releasePleaseFixture.headRepository },
+    },
+    base: {
+      ref: releasePleaseFixture.baseRefName,
+      sha: releasePleaseFixture.baseSha,
+      repo: { full_name: releasePleaseFixture.baseRepository },
+    },
+    ...overrides,
+  };
+}
+
+function releasePleaseGraphqlPayload(overrides = {}) {
+  return graphqlPayload({
+    body: releasePleaseFixture.body,
+    number: releasePleaseFixture.pullRequestNumber,
+    title: releasePleaseFixture.title,
+    updatedAt: releasePleaseFixture.updatedAt,
+    headRefName: releasePleaseFixture.headRefName,
+    headSha: releasePleaseFixture.headSha,
+    headRepository: releasePleaseFixture.headRepository,
+    baseRefName: releasePleaseFixture.baseRefName,
+    baseSha: releasePleaseFixture.baseSha,
+    baseRepository: releasePleaseFixture.baseRepository,
+    authorLogin: releasePleaseFixture.authorLogin,
+    authorType: releasePleaseFixture.authorType,
+    ...overrides,
+  });
 }
 
 function validate(overrides = {}) {
@@ -89,6 +154,23 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /persist-credentials: false/u);
     assert.match(workflow, /working-directory: trusted-policy/u);
     assert.match(workflow, /name: PR Issue Disposition/u);
+  });
+
+  it("emits Release Please checks only from pinned code on a trusted trunk push", () => {
+    const workflow = fs.readFileSync(path.join(root, ".github/workflows/release-please.yml"), "utf8");
+    assert.match(workflow, /^  push:\n    branches:\n      - trunk$/mu);
+    assert.doesNotMatch(workflow, /pull_request(?:_target)?:/u);
+    assert.match(workflow, /^  checks: write$/mu);
+    assert.match(workflow, /actions\/checkout@[0-9a-f]{40}/u);
+    assert.match(workflow, /actions\/setup-node@[0-9a-f]{40}/u);
+    assert.match(workflow, /ref: \$\{\{ github\.sha \}\}/u);
+    assert.match(workflow, /path: trusted-policy/u);
+    assert.match(workflow, /persist-credentials: false/u);
+    assert.match(workflow, /working-directory: trusted-policy/u);
+    assert.match(workflow, /TRUSTED_POLICY_SHA: \$\{\{ github\.sha \}\}/u);
+    assert.match(workflow, /test "\$\(git rev-parse HEAD\)" = "\$\{TRUSTED_POLICY_SHA\}"/u);
+    assert.match(workflow, /node scripts\/check-release-please-disposition\.mjs/u);
+    assert.doesNotMatch(workflow, /pull_request\.head|\/approve|approveWorkflow|gh api .*approve/u);
   });
 
   it("accepts exact completion and partial-slice footer blocks", () => {
@@ -184,7 +266,7 @@ describe("pull request issue disposition policy", () => {
     );
   });
 
-  it("exempts only tightly identified Dependabot and Release Please branches", () => {
+  it("exempts the held #382 metadata only as the complete Release Please identity tuple", () => {
     assert.equal(
       automationExemption({
         authorLogin: "dependabot[bot]",
@@ -194,30 +276,44 @@ describe("pull request issue disposition policy", () => {
       }),
       "Dependabot dependency update",
     );
+    assert.equal(automationExemption(releasePleaseFixture), RELEASE_PLEASE_EXEMPTION);
+
+    const lookalikes = [
+      { authorLogin: "octocat[bot]" },
+      { authorType: "User" },
+      { headRefName: "feature/arbitrary-github-actions-branch" },
+      { headRefName: "release-please--branches--preview" },
+      { title: "chore: release preview" },
+      { title: "chore: release trunk (lookalike)" },
+      { baseRefName: "preview" },
+      { baseSha: "not-a-commit" },
+      { headSha: "not-a-commit" },
+      { headRepository: "mallory/honua-sdk-js" },
+      { baseRepository: "mallory/honua-sdk-js" },
+      { repository: "mallory/honua-sdk-js" },
+    ];
+    for (const override of lookalikes) {
+      assert.equal(
+        automationExemption({ ...releasePleaseFixture, ...override }),
+        null,
+        `unexpected exemption for ${JSON.stringify(override)}`,
+      );
+    }
+
     assert.equal(
       automationExemption({
+        ...releasePleaseFixture,
         authorLogin: "github-actions[bot]",
-        authorType: "Bot",
-        headRefName: "release-please--branches--trunk",
-        title: "chore: release trunk",
-      }),
-      "Release Please automation",
-    );
-    assert.equal(
-      automationExemption({
-        authorLogin: "github-actions[bot]",
-        authorType: "Bot",
-        headRefName: "feature/not-release-please",
+        headRefName: "feature/arbitrary-github-actions-branch",
         title: "chore: release trunk",
       }),
       null,
     );
     assert.equal(
       automationExemption({
-        authorLogin: "github-actions",
-        authorType: "User",
-        headRefName: "release-please--branches--trunk",
-        title: "chore: release trunk",
+        ...releasePleaseFixture,
+        authorLogin: "github-actions[bot]",
+        headRepository: "fork-owner/honua-sdk-js",
       }),
       null,
     );
@@ -245,6 +341,181 @@ describe("pull request issue disposition policy", () => {
         closingIssueNumbers: [],
       }),
       { status: "exempt", exemption: "Dependabot dependency update", closes: [], refs: [] },
+    );
+  });
+});
+
+describe("trusted Release Please disposition publication", () => {
+  it("re-reads current REST and GraphQL metadata before creating the exact source-bound check", async () => {
+    const requests = [];
+    const request = async (url, options = {}) => {
+      requests.push({ url, options });
+      const pathname = new URL(url).pathname;
+      if (pathname.endsWith("/pulls")) return [releasePleaseRestPull()];
+      if (pathname.endsWith("/graphql")) return releasePleaseGraphqlPayload();
+      if (pathname.endsWith("/check-runs")) {
+        const body = JSON.parse(options.body);
+        return {
+          id: 987654,
+          name: body.name,
+          head_sha: body.head_sha,
+          status: body.status,
+          conclusion: body.conclusion,
+          app: { id: GITHUB_ACTIONS_APP_ID, slug: "github-actions" },
+        };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    };
+    const trustedPolicySha = releasePleaseFixture.baseSha;
+
+    const result = await publishReleasePleaseDispositionCheck(
+      {
+        repository,
+        trustedPolicySha,
+        detailsUrl: "https://github.com/honua-io/honua-sdk-js/actions/runs/1234",
+      },
+      request,
+    );
+
+    assert.deepEqual(result, {
+      status: "published",
+      exemption: RELEASE_PLEASE_EXEMPTION,
+      repository,
+      pullRequestNumber: 382,
+      headSha: releasePleaseFixture.headSha,
+      trustedPolicySha,
+      checkRunId: 987654,
+    });
+    assert.equal(requests.filter(({ url }) => new URL(url).pathname.endsWith("/graphql")).length, 2);
+    const discovery = requests.find(({ url }) => new URL(url).pathname.endsWith("/pulls"));
+    assert.equal(new URL(discovery.url).searchParams.get("head"), "honua-io:release-please--branches--trunk");
+    assert.equal(new URL(discovery.url).searchParams.get("base"), "trunk");
+
+    const creation = requests.find(({ url }) => new URL(url).pathname.endsWith("/check-runs"));
+    assert.equal(creation.options.method, "POST");
+    const body = JSON.parse(creation.options.body);
+    assert.equal(body.name, REQUIRED_DISPOSITION_CHECK);
+    assert.equal(body.head_sha, releasePleaseFixture.headSha);
+    assert.equal(body.conclusion, "success");
+    assert.equal(body.output.title, RELEASE_PLEASE_EXEMPTION);
+    assert.match(body.output.summary, /Release Please automation/u);
+    assert.match(body.output.summary, new RegExp(trustedPolicySha, "u"));
+    assert.equal(body.details_url, "https://github.com/honua-io/honua-sdk-js/actions/runs/1234");
+  });
+
+  it("does nothing when the trusted release workflow has no open release PR", async () => {
+    const requests = [];
+    const result = await publishReleasePleaseDispositionCheck(
+      { repository, trustedPolicySha: "d".repeat(40) },
+      async (url) => {
+        requests.push(url);
+        return [];
+      },
+    );
+    assert.deepEqual(result, { status: "not-found", trustedPolicySha: "d".repeat(40) });
+    assert.equal(requests.length, 1);
+    assert.match(requests[0], /\/pulls\?/u);
+  });
+
+  it("fails closed for arbitrary GitHub Actions metadata, Dependabot, and fork-origin heads", async () => {
+    const hostileCandidates = [
+      releasePleaseRestPull({ title: "chore: release attacker-title" }),
+      releasePleaseRestPull({
+        head: {
+          ...releasePleaseRestPull().head,
+          ref: "release-please--branches--attacker",
+        },
+      }),
+      releasePleaseRestPull({
+        head: {
+          ...releasePleaseRestPull().head,
+          repo: { full_name: "attacker/honua-sdk-js" },
+        },
+      }),
+      releasePleaseRestPull({
+        title: "chore(deps): bump vite",
+        user: { login: "dependabot[bot]", type: "Bot" },
+        head: {
+          ...releasePleaseRestPull().head,
+          ref: "dependabot/npm_and_yarn/vite-9",
+        },
+      }),
+    ];
+
+    for (const candidate of hostileCandidates) {
+      let calls = 0;
+      await assert.rejects(
+        publishReleasePleaseDispositionCheck(
+          { repository, trustedPolicySha: "e".repeat(40) },
+          async () => {
+            calls += 1;
+            return [candidate];
+          },
+        ),
+        /did not match the exact Release Please automation policy/u,
+      );
+      assert.equal(calls, 1);
+    }
+  });
+
+  it("does not publish when REST and stable GraphQL metadata disagree", async () => {
+    const requests = [];
+    await assert.rejects(
+      publishReleasePleaseDispositionCheck(
+        { repository, trustedPolicySha: "f".repeat(40) },
+        async (url) => {
+          requests.push(url);
+          const pathname = new URL(url).pathname;
+          if (pathname.endsWith("/pulls")) return [releasePleaseRestPull()];
+          if (pathname.endsWith("/graphql")) {
+            return releasePleaseGraphqlPayload({ headSha: "1".repeat(40) });
+          }
+          throw new Error("A check run must not be created for mismatched metadata.");
+        },
+      ),
+      /headSha changed between REST and GraphQL/u,
+    );
+    assert.equal(requests.filter((url) => new URL(url).pathname.endsWith("/check-runs")).length, 0);
+  });
+
+  it("binds the validated PR base to the exact trusted trunk policy revision", async () => {
+    const requests = [];
+    await assert.rejects(
+      publishReleasePleaseDispositionCheck(
+        { repository, trustedPolicySha: "f".repeat(40) },
+        async (url) => {
+          requests.push(url);
+          const pathname = new URL(url).pathname;
+          if (pathname.endsWith("/pulls")) return [releasePleaseRestPull()];
+          if (pathname.endsWith("/graphql")) return releasePleaseGraphqlPayload();
+          throw new Error("A check run must not be created for a stale trusted base.");
+        },
+      ),
+      /base does not match the trusted trunk policy revision/u,
+    );
+    assert.equal(requests.filter((url) => new URL(url).pathname.endsWith("/check-runs")).length, 0);
+  });
+
+  it("verifies that GitHub attached the check to the GitHub Actions integration", async () => {
+    await assert.rejects(
+      publishReleasePleaseDispositionCheck(
+        { repository, trustedPolicySha: releasePleaseFixture.baseSha },
+        async (url, options = {}) => {
+          const pathname = new URL(url).pathname;
+          if (pathname.endsWith("/pulls")) return [releasePleaseRestPull()];
+          if (pathname.endsWith("/graphql")) return releasePleaseGraphqlPayload();
+          const body = JSON.parse(options.body);
+          return {
+            id: 42,
+            name: body.name,
+            head_sha: body.head_sha,
+            status: body.status,
+            conclusion: body.conclusion,
+            app: { id: 1, slug: "untrusted-app" },
+          };
+        },
+      ),
+      /source-bound GitHub Actions disposition check/u,
     );
   });
 });
