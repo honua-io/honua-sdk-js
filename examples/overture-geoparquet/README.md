@@ -3,9 +3,10 @@
 Honua's large-data browser sample runs a protocol-neutral spatial query through
 DuckDB-WASM's worker with one bounded policy in two lanes:
 
-- `fixture` uses a committed 1.9 KB GeoParquet file and self-hosted DuckDB,
-  worker, and Parquet extension assets. Required CI makes no cross-origin
-  requests.
+- `fixture` uses a committed 1.9 KB GeoParquet file, the package-locked DuckDB
+  main module and worker, and a signed Parquet extension prepared into an
+  ignored cache. Every browser asset is self-hosted; required CI makes no
+  cross-origin requests.
 - `live` is opt-in and targets a pinned item from Overture's official STAC
   catalog and public AWS Open Data bucket without credentials.
 
@@ -86,18 +87,45 @@ new verified object identity and regenerated evidence.
 ## Run
 
 ```bash
+npm run demo:overture:prepare # verify or acquire the pinned DuckDB extension
 npm run demo:overture
 npm run demo:overture:fixture     # regenerate the deterministic fixture
 ```
 
 Append `?lane=live` to opt into AWS. No live request occurs by default.
 
+## DuckDB Artifact Preparation
+
+No DuckDB executable is stored in Git. `@duckdb/duckdb-wasm@1.32.0` supplies
+the package-locked main module and worker. DuckDB-WASM loads Parquet dynamically,
+so a cold `demo:overture:prepare` makes one request to the exact official URL
+`https://extensions.duckdb.org/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm`.
+The preparation command rejects redirects, alternate URLs, unexpected content
+types, wrong byte length, invalid WebAssembly magic, or a SHA-256 other than
+`22765c8f7dc741cda2b571a66ac7bb355295d7d69a6c37e5315b265672984f55`.
+Build and dev commands run preparation first, then Vite revalidates and serves
+the cache from the demo origin. Browser runtime never falls back to DuckDB's
+public extension repository or a JavaScript CDN.
+
+The cache file is
+`node_modules/.cache/honua-sdk-js/duckdb-extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm`.
+For an offline or air-gapped build, pre-seed that exact path after dependency
+installation, then require validation without network access:
+
+```bash
+npm run demo:overture:prepare -- --offline
+```
+
+Missing or corrupt offline bytes fail closed. Online preparation atomically
+replaces a corrupt cache only after the newly acquired bytes pass every
+identity check.
+
 ## Validate
 
 ```bash
 npm run demo:overture:typecheck
 npm run demo:overture:build
-npx vitest run test/overture-large-data.test.ts test/geoparquet-source.test.ts test/geoparquet-sql.test.ts
+npx vitest run test/overture-extension-cache.test.ts test/overture-large-data.test.ts test/geoparquet-source.test.ts test/geoparquet-sql.test.ts
 npm run test:playwright:overture
 npm run samples:verify
 ```

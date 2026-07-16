@@ -229,6 +229,7 @@ const BOUNDED_VALIDATION_SEGMENTS = [
   /^npm run build --silent$/,
   /^node examples\/(?:ai-spatial-app-builder|spatial-analytics-workbench)\/evidence-check\.mjs$/,
   /^node examples\/node-backend-quickstart\/dist\/smoke\.js$/,
+  /^node examples\/overture-geoparquet\/prepare-duckdb-extension\.mjs$/,
   /^node scripts\/ensure-kepler-demo-deps\.mjs$/,
   /^playwright test test\/playwright\/[a-z0-9.-]+\.spec\.mjs$/,
   /^tsc -p examples\/[a-z0-9-]+\/tsconfig(?:\.build)?\.json(?: --noEmit)?$/,
