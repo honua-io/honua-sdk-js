@@ -162,7 +162,7 @@ describe("opaque GeoParquet v2 query plans", () => {
       });
       expect(execution.result.features[0]?.attributes).toMatchObject({ id: 7, name: "fixture" });
       expect(sql).toHaveLength(1);
-      expect(sql[0]).toContain(SIGNED_SOURCE.replace("'", "''"));
+      expect(sql[0]).toContain(SIGNED_SOURCE.replaceAll("'", "''"));
       expect(sql[0]).not.toContain("DESCRIBE");
       assertRedacted([serializeQueryPlan(plan), queryPlanCacheKey(plan)], MARKERS);
     } finally {
