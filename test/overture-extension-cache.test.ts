@@ -69,7 +69,7 @@ function response(bytes: Uint8Array, overrides: Partial<ExtensionFetchResponse> 
     status: 200,
     redirected: false,
     url: TEST_PROVENANCE.sourceUrl,
-    headers: { get: () => "application/wasm" },
+    headers: { get: (name) => (name.toLowerCase() === "content-type" ? "application/wasm" : null) },
     body: {
       getReader: () => ({
         async read() {
@@ -88,9 +88,27 @@ function response(bytes: Uint8Array, overrides: Partial<ExtensionFetchResponse> 
 describe("Overture DuckDB extension preparation", () => {
   it("acquires exactly one pinned URL and atomically validates the cache", async () => {
     const fsImpl = new MemoryFileSystem();
-    const calls: Array<{ url: string; redirect: string; accept: string }> = [];
+    const calls: Array<{
+      url: string;
+      method: string;
+      redirect: string;
+      credentials: string;
+      referrerPolicy: string;
+      cache: string;
+      accept: string;
+      acceptEncoding: string;
+    }> = [];
     const fetchImpl: ExtensionFetch = async (url, init) => {
-      calls.push({ url, redirect: init.redirect, accept: init.headers.accept });
+      calls.push({
+        url,
+        method: init.method,
+        redirect: init.redirect,
+        credentials: init.credentials,
+        referrerPolicy: init.referrerPolicy,
+        cache: init.cache,
+        accept: init.headers.accept,
+        acceptEncoding: init.headers["accept-encoding"],
+      });
       expect(init.signal).toBeInstanceOf(AbortSignal);
       return response(VALID_BYTES);
     };
@@ -103,7 +121,18 @@ describe("Overture DuckDB extension preparation", () => {
     });
 
     expect(prepared.status).toBe("downloaded");
-    expect(calls).toEqual([{ url: TEST_PROVENANCE.sourceUrl, redirect: "error", accept: "application/wasm" }]);
+    expect(calls).toEqual([
+      {
+        url: TEST_PROVENANCE.sourceUrl,
+        method: "GET",
+        redirect: "error",
+        credentials: "omit",
+        referrerPolicy: "no-referrer",
+        cache: "no-store",
+        accept: "application/wasm",
+        acceptEncoding: "identity",
+      },
+    ]);
     expect(fsImpl.files.get(CACHE_PATH)).toEqual(VALID_BYTES);
     expect([...fsImpl.files.keys()]).toEqual([CACHE_PATH]);
     await expect(
@@ -194,6 +223,54 @@ describe("Overture DuckDB extension preparation", () => {
     expect(invalidFs.files.size).toBe(0);
   });
 
+  it("requires the exact final URL, status, media type, and declared length", async () => {
+    const cases: Array<{ response: ExtensionFetchResponse; message: string }> = [
+      { response: response(VALID_BYTES, { url: "" }), message: "redirects are not allowed" },
+      { response: response(VALID_BYTES, { status: 206 }), message: "HTTP 206" },
+      {
+        response: response(VALID_BYTES, { headers: { get: () => null } }),
+        message: "content type <missing>",
+      },
+      {
+        response: response(VALID_BYTES, {
+          headers: {
+            get: (name) => {
+              if (name.toLowerCase() === "content-type") return "application/wasm";
+              if (name.toLowerCase() === "content-length") return "999";
+              return null;
+            },
+          },
+        }),
+        message: "content length mismatch",
+      },
+      {
+        response: response(VALID_BYTES, {
+          headers: {
+            get: (name) => {
+              if (name.toLowerCase() === "content-type") return "application/wasm";
+              if (name.toLowerCase() === "content-encoding") return "gzip";
+              return null;
+            },
+          },
+        }),
+        message: "content encoding gzip",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const fsImpl = new MemoryFileSystem();
+      await expect(
+        ensurePinnedParquetExtension({
+          cachePath: CACHE_PATH,
+          fsImpl,
+          fetchImpl: async () => testCase.response,
+          provenance: TEST_PROVENANCE,
+        }),
+      ).rejects.toThrow(testCase.message);
+      expect(fsImpl.files.size).toBe(0);
+    }
+  });
+
   it("caps a streamed response before publishing oversized bytes", async () => {
     const fsImpl = new MemoryFileSystem();
     const cancel = vi.fn(async () => undefined);
@@ -259,5 +336,27 @@ describe("Overture DuckDB extension preparation", () => {
         provenance: TEST_PROVENANCE,
       }),
     ).toBe("/repo/node_modules/.cache/honua-sdk-js/duckdb-extensions/v-test/wasm_eh/parquet.duckdb_extension.wasm");
+  });
+
+  it("rejects credential-bearing sources and cache-path provenance traversal", async () => {
+    const credentialSource = {
+      ...TEST_PROVENANCE,
+      sourceUrl: "https://token@extensions.example.test/v-test/parquet.wasm",
+    };
+    await expect(
+      ensurePinnedParquetExtension({
+        cachePath: CACHE_PATH,
+        fsImpl: new MemoryFileSystem(),
+        fetchImpl: vi.fn<ExtensionFetch>(),
+        provenance: credentialSource,
+      }),
+    ).rejects.toThrow("credential-free HTTPS URL");
+
+    expect(() =>
+      resolveParquetExtensionCachePath({
+        repoRoot: "/repo",
+        provenance: { ...TEST_PROVENANCE, platform: "../escape" },
+      }),
+    ).toThrow("safe path segment");
   });
 });

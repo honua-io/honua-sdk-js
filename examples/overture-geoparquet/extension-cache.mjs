@@ -20,6 +20,51 @@ function notFound(error) {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
+function validatePathSegment(value, label) {
+  if (typeof value !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(value) || value === "." || value === "..") {
+    throw new Error(`Pinned DuckDB extension ${label} must be one safe path segment.`);
+  }
+}
+
+function validateProvenance(provenance) {
+  if (!provenance || typeof provenance !== "object") {
+    throw new Error("Pinned DuckDB extension provenance is required.");
+  }
+  validatePathSegment(provenance.engineVersion, "engineVersion");
+  validatePathSegment(provenance.platform, "platform");
+  validatePathSegment(provenance.fileName, "fileName");
+  if (!Number.isSafeInteger(provenance.bytes) || provenance.bytes <= provenance.wasmMagic?.length) {
+    throw new Error("Pinned DuckDB extension byte length must be a positive safe integer larger than its magic.");
+  }
+  if (!/^[a-f0-9]{64}$/.test(provenance.sha256)) {
+    throw new Error("Pinned DuckDB extension SHA-256 must be one lowercase 64-character digest.");
+  }
+  if (
+    !Array.isArray(provenance.wasmMagic) ||
+    provenance.wasmMagic.length === 0 ||
+    provenance.wasmMagic.some((value) => !Number.isInteger(value) || value < 0 || value > 0xff)
+  ) {
+    throw new Error("Pinned DuckDB extension magic must contain byte values.");
+  }
+  let source;
+  try {
+    source = new URL(provenance.sourceUrl);
+  } catch (cause) {
+    throw new Error("Pinned DuckDB extension source URL is invalid.", { cause });
+  }
+  if (
+    source.protocol !== "https:" ||
+    source.username ||
+    source.password ||
+    source.search ||
+    source.hash ||
+    source.href !== provenance.sourceUrl
+  ) {
+    throw new Error("Pinned DuckDB extension source must be one canonical credential-free HTTPS URL.");
+  }
+  return source.href;
+}
+
 async function readBoundedResponseBody(response, maximumBytes) {
   if (typeof response.body?.getReader !== "function") {
     throw new Error(
@@ -54,6 +99,7 @@ async function readBoundedResponseBody(response, maximumBytes) {
 }
 
 export function validatePinnedParquetExtension(bytes, provenance = PARQUET_EXTENSION_PROVENANCE) {
+  validateProvenance(provenance);
   if (!(bytes instanceof Uint8Array)) throw new Error("Pinned DuckDB extension must be a Uint8Array.");
   if (bytes.byteLength !== provenance.bytes) {
     throw new Error(
@@ -72,6 +118,7 @@ export function validatePinnedParquetExtension(bytes, provenance = PARQUET_EXTEN
 
 export function resolveParquetExtensionCachePath({ repoRoot, provenance = PARQUET_EXTENSION_PROVENANCE }) {
   if (!repoRoot) throw new Error("repoRoot is required to resolve the DuckDB extension cache.");
+  validateProvenance(provenance);
   const cacheRoot = path.join(repoRoot, "node_modules", ".cache", "honua-sdk-js", "duckdb-extensions");
   return path.join(cacheRoot, provenance.engineVersion, provenance.platform, provenance.fileName);
 }
@@ -114,31 +161,46 @@ export async function ensurePinnedParquetExtension({
   if (typeof fetchImpl !== "function")
     throw new Error("No fetch implementation is available for extension preparation.");
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new Error("timeoutMs must be a positive integer.");
+  const sourceUrl = validateProvenance(provenance);
 
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(new Error("Pinned DuckDB extension download timed out.")), timeoutMs);
   let response;
   try {
-    response = await fetchImpl(provenance.sourceUrl, {
-      headers: { accept: "application/wasm" },
+    response = await fetchImpl(sourceUrl, {
+      method: "GET",
+      headers: { accept: "application/wasm", "accept-encoding": "identity" },
       redirect: "error",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+      cache: "no-store",
       signal: abort.signal,
     });
   } catch (cause) {
     clearTimeout(timeout);
-    throw new Error(`Failed to acquire pinned DuckDB extension from ${provenance.sourceUrl}.`, { cause });
+    throw new Error(`Failed to acquire pinned DuckDB extension from ${sourceUrl}.`, { cause });
   }
   let downloaded;
   try {
-    if (!response.ok) {
+    if (!response.ok || response.status !== 200) {
       throw new Error(`Pinned DuckDB extension request failed with HTTP ${response.status}.`);
     }
-    if (response.redirected || (response.url && response.url !== provenance.sourceUrl)) {
+    if (response.redirected || response.url !== sourceUrl) {
       throw new Error("Pinned DuckDB extension request changed origin or path; redirects are not allowed.");
     }
     const contentType = response.headers?.get?.("content-type");
-    if (contentType && !contentType.toLowerCase().startsWith("application/wasm")) {
-      throw new Error(`Pinned DuckDB extension response has unexpected content type ${contentType}.`);
+    if (contentType?.split(";", 1)[0]?.trim().toLowerCase() !== "application/wasm") {
+      throw new Error(`Pinned DuckDB extension response has unexpected content type ${contentType ?? "<missing>"}.`);
+    }
+    const contentEncoding = response.headers?.get?.("content-encoding");
+    if (contentEncoding !== null && contentEncoding !== undefined && contentEncoding.toLowerCase() !== "identity") {
+      throw new Error(`Pinned DuckDB extension response has unexpected content encoding ${contentEncoding}.`);
+    }
+    const contentLength = response.headers?.get?.("content-length");
+    if (contentLength !== null && contentLength !== undefined && contentLength !== String(provenance.bytes)) {
+      throw new Error(
+        `Pinned DuckDB extension content length mismatch: expected ${provenance.bytes}, received ${contentLength}.`,
+      );
     }
     downloaded = await readBoundedResponseBody(response, provenance.bytes);
     validatePinnedParquetExtension(downloaded, provenance);

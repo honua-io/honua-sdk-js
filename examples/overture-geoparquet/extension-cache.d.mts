@@ -34,8 +34,12 @@ export interface ExtensionFetchResponse {
 export type ExtensionFetch = (
   url: string,
   init: {
-    readonly headers: { readonly accept: "application/wasm" };
+    readonly method: "GET";
+    readonly headers: { readonly accept: "application/wasm"; readonly "accept-encoding": "identity" };
     readonly redirect: "error";
+    readonly credentials: "omit";
+    readonly referrerPolicy: "no-referrer";
+    readonly cache: "no-store";
     readonly signal: AbortSignal;
   },
 ) => Promise<ExtensionFetchResponse>;

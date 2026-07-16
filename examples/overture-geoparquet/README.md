@@ -105,7 +105,10 @@ types, wrong byte length, invalid WebAssembly magic, or a SHA-256 other than
 `22765c8f7dc741cda2b571a66ac7bb355295d7d69a6c37e5315b265672984f55`.
 Build and dev commands run preparation first, then Vite revalidates and serves
 the cache from the demo origin. Browser runtime never falls back to DuckDB's
-public extension repository or a JavaScript CDN.
+public extension repository or a JavaScript CDN. The acquisition request is a
+credential-free `GET` with redirects, referrers, ambient credentials, and HTTP
+cache reuse disabled; it accepts only an exact `200` response from the pinned
+URL with an `application/wasm` content type.
 
 The cache file is
 `node_modules/.cache/honua-sdk-js/duckdb-extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm`.
@@ -114,11 +117,16 @@ installation, then require validation without network access:
 
 ```bash
 npm run demo:overture:prepare -- --offline
+npm run demo:overture:build:offline
 ```
 
 Missing or corrupt offline bytes fail closed. Online preparation atomically
 replaces a corrupt cache only after the newly acquired bytes pass every
-identity check.
+identity check. Required CI names the cold acquisition separately, then proves
+the build from the validated cache with the offline command. The Security
+workflow rejects executable signatures and extensions from the Git tree, while
+publish-surface verification applies the same policy to the root and split npm
+tarballs.
 
 ## Validate
 

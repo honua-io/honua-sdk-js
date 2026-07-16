@@ -22,3 +22,5 @@ before Vite starts, validates its URL, size, WebAssembly magic, and digest, and
 stores it outside the repository source tree. The Playwright journey executes
 both `parquet_scan` and `read_parquet` while blocking external extension/CDN
 requests; `test/overture-large-data.test.ts` pins the package asset digests.
+`security:binary-artifacts` rejects executable signatures and filenames in Git,
+and publish-surface verification rejects them from every npm tarball.
