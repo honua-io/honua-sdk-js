@@ -242,6 +242,9 @@ describe("normative Honua GeoArrow batches", () => {
     expect(() => createGeoArrowBatch(input, { maxRows: 1, maxCopiedBytes: 8 })).toThrowError(
       expect.objectContaining({ code: "copy-limit-exceeded" }),
     );
+    expect(() => createGeoArrowBatch(input, { maxRows: 1, maxCopiedBytes: 1024, maxBackingBytes: 8 })).toThrowError(
+      expect.objectContaining({ code: "copy-limit-exceeded" }),
+    );
     expect(() => createGeoArrowBatch(input, { maxRows: 1, maxDictionaryValues: 1 })).not.toThrow();
 
     const { batch } = createGeoArrowBatch(input);
@@ -274,5 +277,203 @@ describe("normative Honua GeoArrow batches", () => {
     expect(() => inspectGeoArrowBatch({ ...batch, identity: undefined })).toThrowError(
       expect.objectContaining({ code: "invalid-batch" }),
     );
+  });
+
+  it("rejects forged geometry, temporal, dictionary, and id schema declarations", () => {
+    const schemaId = "forged-schema@1";
+    const { batch } = createGeoArrowBatch({
+      id: "forged:0",
+      sequence: 0,
+      schemaId,
+      identity: identity(schemaId),
+      geometry: { kind: "point", coordinateLayout: "interleaved", values: [[1, 2]] },
+      temporal: { field: "observed_at", unit: "millisecond", timezone: "UTC", values: [1n] },
+      dictionary: { field: "status", ordered: true, values: ["open"] },
+      featureIds: { field: "feature_id", values: new Uint32Array([1]) },
+    });
+    const fields = batch.schema.fields;
+
+    const forgedGeometry = {
+      ...batch,
+      schema: {
+        ...batch.schema,
+        fields: [
+          {
+            ...fields[0]!,
+            children: [
+              {
+                ...fields[0]!.children![0]!,
+                type: { name: "fixed_size_list", parameters: { size: 3, valueType: "float64" } },
+              },
+            ],
+          },
+          ...fields.slice(1),
+        ],
+      },
+    };
+    expect(() => inspectGeoArrowBatch(forgedGeometry)).toThrowError(expect.objectContaining({ code: "invalid-batch" }));
+
+    const forgedTemporal = {
+      ...batch,
+      schema: {
+        ...batch.schema,
+        fields: [
+          fields[0]!,
+          { ...fields[1]!, type: { name: "timestamp", parameters: { unit: "second" } } },
+          ...fields.slice(2),
+        ],
+      },
+    };
+    expect(() => inspectGeoArrowBatch(forgedTemporal)).toThrowError(expect.objectContaining({ code: "invalid-batch" }));
+
+    const forgedTemporalChild = {
+      ...batch,
+      schema: {
+        ...batch.schema,
+        fields: [
+          fields[0]!,
+          { ...fields[1]!, children: [{ name: "forged", type: { name: "int64" }, nullable: false }] },
+          ...fields.slice(2),
+        ],
+      },
+    };
+    expect(() => inspectGeoArrowBatch(forgedTemporalChild)).toThrowError(
+      expect.objectContaining({ code: "invalid-batch" }),
+    );
+
+    const forgedDictionary = {
+      ...batch,
+      schema: {
+        ...batch.schema,
+        fields: [
+          ...fields.slice(0, 2),
+          {
+            ...fields[2]!,
+            type: { name: "dictionary", parameters: { indexType: "int32", valueType: "utf8", ordered: false } },
+          },
+          fields[3]!,
+        ],
+      },
+    };
+    expect(() => inspectGeoArrowBatch(forgedDictionary)).toThrowError(
+      expect.objectContaining({ code: "invalid-batch" }),
+    );
+
+    const forgedId = {
+      ...batch,
+      schema: { ...batch.schema, fields: [...fields.slice(0, 3), { ...fields[3]!, nullable: true }] },
+    };
+    expect(() => inspectGeoArrowBatch(forgedId)).toThrowError(expect.objectContaining({ code: "invalid-batch" }));
+
+    let nestedExtension: Record<string, unknown> = {};
+    const extensionRoot = nestedExtension;
+    for (let index = 0; index < 70; index += 1) {
+      const child: Record<string, unknown> = {};
+      nestedExtension.child = child;
+      nestedExtension = child;
+    }
+    const forgedExtension = {
+      ...batch,
+      schema: {
+        ...batch.schema,
+        fields: [
+          {
+            ...fields[0]!,
+            metadata: {
+              ...fields[0]!.metadata,
+              "ARROW:extension:metadata": JSON.stringify({ crs: extensionRoot }),
+            },
+          },
+          ...fields.slice(1),
+        ],
+      },
+    };
+    expect(() => inspectGeoArrowBatch(forgedExtension)).toThrowError(
+      expect.objectContaining({ code: "invalid-batch" }),
+    );
+
+    const orphanMetadata: Record<string, string> = { ...batch.schema.metadata };
+    delete orphanMetadata["honua.geoarrow.temporal.field"];
+    const orphanTemporalMetadata = {
+      ...batch,
+      schema: {
+        ...batch.schema,
+        fields: [fields[0]!, fields[2]!, fields[3]!],
+        metadata: orphanMetadata,
+      },
+      buffers: batch.buffers.filter(({ field }) => field !== "observed_at"),
+    };
+    expect(() => inspectGeoArrowBatch(orphanTemporalMetadata)).toThrowError(
+      expect.objectContaining({ code: "invalid-batch" }),
+    );
+  });
+
+  it("bounds CRS traversal and int32-backed representation before allocation", () => {
+    const schemaId = "bounds@1";
+    const base = {
+      id: "bounds:0",
+      sequence: 0,
+      schemaId,
+      identity: identity(schemaId, "geometry"),
+    };
+    const cyclic: Record<string, unknown> = { type: "GeographicCRS" };
+    cyclic.self = cyclic;
+    expect(() =>
+      createGeoArrowBatch({
+        ...base,
+        geometry: { kind: "point", crs: cyclic, values: [[1, 2]] },
+      }),
+    ).toThrowError(expect.objectContaining({ code: "invalid-input" }));
+
+    let getterCalls = 0;
+    const axes: unknown[] = ["east"];
+    Object.defineProperty(axes, "0", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return "east";
+      },
+    });
+    expect(() =>
+      createGeoArrowBatch({
+        ...base,
+        geometry: { kind: "point", crs: { axes }, values: [[1, 2]] },
+      }),
+    ).toThrowError(expect.objectContaining({ code: "invalid-input" }));
+    expect(getterCalls).toBe(0);
+
+    let deep: Record<string, unknown> = {};
+    const root = deep;
+    for (let index = 0; index < 70; index += 1) {
+      const child: Record<string, unknown> = {};
+      deep.child = child;
+      deep = child;
+    }
+    expect(() =>
+      createGeoArrowBatch({ ...base, geometry: { kind: "point", crs: root, values: [[1, 2]] } }),
+    ).toThrowError(expect.objectContaining({ code: "invalid-input" }));
+
+    expect(() =>
+      createGeoArrowBatch(
+        { ...base, geometry: { kind: "point", crs: { name: "x".repeat(200) }, values: [[1, 2]] } },
+        { maxStringBytes: 128 },
+      ),
+    ).toThrowError(expect.objectContaining({ code: "invalid-input" }));
+
+    expect(() =>
+      createGeoArrowBatch({ ...base, geometry: { kind: "point", values: [[1, 2]] } }, { maxVertices: 0x8000_0000 }),
+    ).toThrowError(
+      expect.objectContaining({
+        code: "invalid-input",
+        detail: expect.objectContaining({ resource: "maxVertices" }),
+      }),
+    );
+
+    expect(() =>
+      createGeoArrowBatch({
+        ...base,
+        geometry: { kind: "multipoint", values: [[1, 2]] } as never,
+      }),
+    ).toThrowError(expect.objectContaining({ code: "unsupported-layout" }));
   });
 });

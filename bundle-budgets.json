@@ -50,7 +50,8 @@
     "/source-capability-discovery has its first dedicated guard for #525 slice 3. It intentionally owns the heavy SourceSchemaV2 validator plus GeoServices/OData connect graph while /source-capabilities remains evaluator-only and tree-shakeable. The initial 682,644 minified / 142,099 gzip measurement is budgeted at measured actual plus 10% headroom.",
     "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom.",
     "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation.",
-    "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged."
+    "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged.",
+    "/query-planner and /deckgl were reset for normative GeoArrow batches and the direct scatterplot path (#536): dependency-free point/line/polygon layouts, bounded semantic conversion, standards-compliant reverse import with authorization-safe IPC backing isolation, the lazy external apache-arrow adapter, and exact validated zero-copy Point binding measure 499,281 / 97,500 bytes and 48,522 / 14,108 bytes respectively. The deck.gl seam deliberately retains the dependency-free normative inspector so forged schema, identity, non-finite coordinates, and unsafe CRS evidence fail before rendering. Ceilings are measured actual plus 10% headroom; apache-arrow and @deck.gl/layers remain optional external peers, and root/browser entrypoints are unchanged."
   ],
   "entrypoints": {
     ".": {
@@ -106,8 +107,8 @@
       "gzip": 13532
     },
     "/query-planner": {
-      "min": 449546,
-      "gzip": 89935
+      "min": 549210,
+      "gzip": 107250
     },
     "/scene-workspace": {
       "min": 102449,
@@ -150,8 +151,8 @@
       "gzip": 17174
     },
     "/deckgl": {
-      "min": 16916,
-      "gzip": 5687
+      "min": 53375,
+      "gzip": 15519
     },
     "browser-iife": {
       "min": 436255,

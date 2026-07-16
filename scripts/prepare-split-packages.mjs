@@ -291,9 +291,11 @@ function createSdkPackage() {
     },
     peerDependencies: {
       "@deck.gl/layers": rootPackageJson.peerDependencies["@deck.gl/layers"],
+      "apache-arrow": rootPackageJson.peerDependencies["apache-arrow"],
     },
     peerDependenciesMeta: {
       "@deck.gl/layers": { optional: true },
+      "apache-arrow": { optional: true },
     },
   });
 

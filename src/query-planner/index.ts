@@ -164,10 +164,13 @@ export {
   createColumnarWorkerSession,
   createGeoArrowBatch,
   decodeGeoArrowBatch,
+  fromApacheArrowRecordBatch,
   inspectGeoArrowBatch,
   inspectColumnarBatch,
   leaseColumnarBatch,
+  loadApacheArrow,
   startColumnarWorkerHost,
+  toApacheArrowRecordBatch,
 } from "../columnar/index.js";
 export {
   COLUMNAR_BATCH_KIND,
@@ -182,6 +185,16 @@ export {
   HonuaColumnarTransferError,
 } from "../columnar/index.js";
 export type {
+  ApacheArrowAdapterMetrics,
+  ApacheArrowAdapterOptions,
+  ApacheArrowDataLike,
+  ApacheArrowFieldLike,
+  ApacheArrowModuleImporter,
+  ApacheArrowModuleLike,
+  ApacheArrowRecordBatchLike,
+  ApacheArrowRecordBatchResult,
+  ApacheArrowTypeLike,
+  ApacheArrowVectorLike,
   ColumnarBatchLeaseState,
   ColumnarBatchIdentityV1,
   ColumnarBatchLimits,
@@ -247,7 +260,10 @@ export type {
   GeoArrowTemporalBuffers,
   GeoArrowTemporalColumnInput,
   GeoArrowTimestampUnit,
+  FromApacheArrowRecordBatchOptions,
+  GeoArrowBatchFromApacheResult,
   HonuaGeoArrowErrorCode,
+  LoadApacheArrowOptions,
   StartColumnarWorkerHostOptions,
 } from "../columnar/index.js";
 export {

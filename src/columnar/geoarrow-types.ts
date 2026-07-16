@@ -161,6 +161,89 @@ export interface GeoArrowBatchInspection {
   readonly metrics: GeoArrowConversionMetrics;
 }
 
+/** Structural Apache Arrow data node used without importing peer declarations. */
+export interface ApacheArrowDataLike {
+  readonly length: number;
+  readonly offset: number;
+  readonly values?: ArrayBufferView;
+  readonly nullBitmap?: Uint8Array;
+  readonly valueOffsets?: Int32Array;
+  readonly children: readonly ApacheArrowDataLike[];
+  readonly dictionary?: ApacheArrowVectorLike;
+}
+
+/** Structural Apache Arrow vector used by the optional adapter. */
+export interface ApacheArrowVectorLike {
+  readonly length: number;
+  readonly data: readonly ApacheArrowDataLike[];
+}
+
+export interface ApacheArrowFieldLike {
+  readonly name: string;
+  readonly nullable: boolean;
+  readonly metadata: ReadonlyMap<string, string>;
+  readonly type: ApacheArrowTypeLike;
+}
+
+/** Structural Arrow type metadata needed for schema-safe zero-copy import. */
+export interface ApacheArrowTypeLike {
+  toString(): string;
+  readonly children?: readonly ApacheArrowFieldLike[];
+  readonly isOrdered?: boolean;
+}
+
+/** Minimum RecordBatch surface accepted and returned by the adapter. */
+export interface ApacheArrowRecordBatchLike {
+  readonly numRows: number;
+  readonly schema: {
+    readonly fields: readonly ApacheArrowFieldLike[];
+    readonly metadata: ReadonlyMap<string, string>;
+  };
+  getChildAt(index: number): ApacheArrowVectorLike | null;
+}
+
+/** Opaque module namespace for an injected Apache Arrow implementation. */
+export type ApacheArrowModuleLike = Readonly<Record<string, unknown>>;
+export type ApacheArrowModuleImporter = (specifier: string) => Promise<unknown>;
+
+export interface LoadApacheArrowOptions {
+  readonly importModule?: ApacheArrowModuleImporter;
+}
+
+export interface ApacheArrowAdapterOptions extends LoadApacheArrowOptions {
+  readonly module?: ApacheArrowModuleLike;
+}
+
+export interface ApacheArrowAdapterMetrics {
+  readonly rows: number;
+  readonly backingBytes: number;
+  readonly referencedBytes: number;
+  /** Exact payload bytes copied to isolate a foreign shared/padded backing. */
+  readonly copiedBytes: number;
+}
+
+export interface ApacheArrowRecordBatchResult {
+  readonly recordBatch: ApacheArrowRecordBatchLike;
+  readonly metrics: ApacheArrowAdapterMetrics;
+}
+
+export interface FromApacheArrowRecordBatchOptions {
+  /** Required with `schemaId` and `identity` when importing a non-Honua RecordBatch. */
+  readonly id?: string;
+  readonly sequence?: number;
+  readonly rowOffset?: number;
+  /** Required with `id` and `identity` when importing a non-Honua RecordBatch. */
+  readonly schemaId?: string;
+  /** Required with `id` and `schemaId` when importing a non-Honua RecordBatch. */
+  readonly identity?: ColumnarBatchIdentityV1;
+  readonly limits?: GeoArrowConversionLimits;
+}
+
+export interface GeoArrowBatchFromApacheResult {
+  readonly batch: ColumnarBatchV1;
+  readonly metrics: ApacheArrowAdapterMetrics;
+}
+
 export type HonuaGeoArrowErrorCode =
   | "invalid-input"
   | "invalid-batch"

@@ -70,6 +70,45 @@ buffers and reports `copiedBytes: 0`. Object rows are created only by the
 explicit `decodeGeoArrowBatch()` call, which applies the same ceilings and
 reports `materializedRows`; there is no unbounded conversion mode.
 
+### Optional Apache Arrow adapter
+
+Install `apache-arrow` only in applications that exchange real Arrow
+`RecordBatch` objects. The peer is dynamically imported and is absent from the
+SDK root/static dependency graph:
+
+```sh
+npm install apache-arrow
+```
+
+```ts doc-test=compile
+import {
+  fromApacheArrowRecordBatch,
+  toApacheArrowRecordBatch,
+} from "@honua/sdk-js/query-planner";
+
+const { recordBatch, metrics: arrowMetrics } = await toApacheArrowRecordBatch(batch);
+const { batch: restored, metrics: restoredMetrics } = fromApacheArrowRecordBatch(recordBatch);
+
+console.log(arrowMetrics.copiedBytes, restoredMetrics.copiedBytes); // 0 0
+console.log(restored.identity?.planId); // plan:sha256:abc
+```
+
+The adapter constructs the official nested Arrow shapes and retains the batch's
+coordinate, offset, validity, timestamp, dictionary, and id buffers by
+identity when each backing contains only the imported batch. Arrow IPC commonly
+pads views and shares the complete stream allocation across record batches. The
+reverse adapter narrows every logical view, then performs an explicit bounded
+isolation copy when transferring the original backing could disclose unrelated
+batch bytes; `metrics.copiedBytes` reports the exact cost. Slices that cannot be
+interpreted losslessly still fail with `HonuaGeoArrowError`.
+
+A standards-compliant GeoArrow batch without Honua's private transport metadata
+is also accepted for the same supported field layout when the caller supplies
+`id`, `schemaId`, and full batch `identity` import options. Those values cannot
+be inferred safely from Arrow alone. `loadApacheArrow()` supports an injected
+importer and reports code `missing-peer` with `{ package: "apache-arrow" }` when
+unavailable.
+
 ## Create a batch without copying payload bytes
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
