@@ -6,11 +6,13 @@ import { type ConnectDiscoverySnapshot, connect } from "../src/connect.js";
 import { HonuaClient } from "../src/core/client.js";
 import {
   HonuaAbortError,
+  HonuaCapabilityNotSupportedError,
   HonuaDiscoveryError,
   HonuaHttpError,
   HonuaNetworkError,
   HonuaTimeoutError,
 } from "../src/core/errors.js";
+import { projectRasterSourceToMapLibre } from "../src/map/raster-source-strategy.js";
 
 const WMS_CAPABILITIES = readFileSync(
   new URL("./fixtures/backend-agnostic/wms/capabilities.xml", import.meta.url),
@@ -65,7 +67,7 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
     const imagery = connection.inspection.sources.find((source) => source.descriptor.id === "imagery")!;
     expect(parcels.descriptor.capabilities.has("render")).toBe(true);
     expect(parcels.descriptor.capabilities.has("tiles")).toBe(true);
-    expect(parcels.descriptor.capabilities.has("query")).toBe(true);
+    expect(parcels.descriptor.capabilities.has("query")).toBe(false);
     expect(imagery.descriptor.capabilities.has("render")).toBe(true);
     expect(imagery.descriptor.capabilities.has("query")).toBe(false);
     expect(imagery.metadata?.operations?.featureInfo).toMatchObject({
@@ -73,7 +75,15 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
       reason: "The WMS layer is not queryable.",
     });
 
-    expect(parcels.descriptor.locator).toEqual({ url: "https://maps.example/ogc/wms", typeName: "parcels" });
+    expect(parcels.descriptor.locator).toEqual({
+      url: "https://maps.example/ogc/wms",
+      typeName: "parcels",
+      raster: {
+        kind: "wms-kvp",
+        url: "https://maps.example/ogc/render?tenant=public",
+        format: "image/png",
+      },
+    });
     expect(parcels.metadata?.protocolVersion).toBe("1.3.0");
     expect(parcels.metadata?.formats?.render).toEqual(["image/png", "image/jpeg", "image/svg+xml"]);
     expect(parcels.metadata?.styles).toEqual(
@@ -99,6 +109,23 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
       methods: ["GET", "POST"],
       urls: ["https://maps.example/ogc/render?tenant=public", "https://maps.example/ogc/render-post?tenant=public"],
     });
+    expect(parcels.metadata?.operations?.featureInfo).toMatchObject({
+      available: false,
+      reason: "Raw WMS GetFeatureInfo requires a Honua service binding for the existing canonical query adapter.",
+    });
+    const rawSource = connection.source("parcels");
+    expect(rawSource.descriptor).toMatchObject({
+      id: parcels.descriptor.id,
+      protocol: parcels.descriptor.protocol,
+      locator: parcels.descriptor.locator,
+    });
+    expect([...rawSource.capabilities]).toEqual([...parcels.descriptor.capabilities]);
+    expect(rawSource.protocol("wms")).toBeUndefined();
+    await expect(rawSource.query()).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+    const projection = projectRasterSourceToMapLibre(rawSource.descriptor);
+    expect(projection.source.tiles[0]).toContain("https://maps.example/ogc/render?tenant=public&");
+    expect(projection.source.tiles[0]).not.toContain("https://maps.example/ogc/wms?");
+    expect(projection.source.tiles[0]).toContain("REQUEST=GetMap");
     expect(parcels.provenance[0]?.source).toContain("SERVICE=WMS");
     expect(parcels.provenance[0]?.validator).toBe('"capabilities-v1"');
   });
@@ -120,6 +147,11 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
       url: "https://maps.example/dispatch",
       typeName: "parcels",
       styleId: "outline",
+      raster: {
+        kind: "wms-kvp",
+        url: "https://maps.example/render?tenant=public",
+        format: "image/png",
+      },
     });
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
@@ -138,6 +170,12 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
       typeName: "imagery",
       styleId: "day",
       tileMatrixSetId: "WebMercatorQuad",
+      raster: {
+        kind: "wmts-template",
+        url: "https://tiles.example/ogc/tiles/{Style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png?tenant=public",
+        format: "image/png",
+        tileMatrixTemplate: "{z}",
+      },
     });
     expect(source.descriptor.capabilities.has("render")).toBe(true);
     expect(source.descriptor.capabilities.has("tiles")).toBe(true);
@@ -163,6 +201,72 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
     expect(source.metadata?.operations?.featureInfo?.urls).toContain(
       "https://tiles.example/ogc/info/{Style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}/{J}/{I}.json?tenant=public",
     );
+    const rawSource = connection.source("imagery");
+    expect(rawSource.protocol("wmts")).toBeUndefined();
+    await expect(rawSource.query()).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+    expect(projectRasterSourceToMapLibre(rawSource.descriptor).source.tiles).toEqual([
+      "https://tiles.example/ogc/tiles/day/WebMercatorQuad/{z}/{y}/{x}.png?tenant=public",
+    ]);
+  });
+
+  it("preserves advertised WMTS matrix identifier prefixes in the existing MapLibre path", async () => {
+    const prefixed = WMTS_CAPABILITIES.replace(
+      "<ows:Identifier>0</ows:Identifier>",
+      "<ows:Identifier>EPSG3857:0</ows:Identifier>",
+    ).replace("<ows:Identifier>1</ows:Identifier>", "<ows:Identifier>EPSG3857:1</ows:Identifier>");
+    const connection = await connect({
+      endpoint: "https://tiles.example/ogc/wmts",
+      protocol: "wmts",
+      typeName: "imagery",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: capabilitiesFetch(prefixed) },
+    });
+
+    expect(connection.source().descriptor.locator.raster).toMatchObject({
+      kind: "wmts-template",
+      tileMatrixTemplate: "EPSG3857:{z}",
+    });
+    expect(projectRasterSourceToMapLibre(connection.source().descriptor).source.tiles[0]).toContain(
+      "/EPSG3857%3A{z}/{y}/{x}.png?tenant=public",
+    );
+  });
+
+  it("fails closed when advertised WMTS matrix identifiers cannot map exactly to MapLibre zooms", async () => {
+    const nonExecutable = WMTS_CAPABILITIES.replace(
+      "<ows:Identifier>0</ows:Identifier>",
+      "<ows:Identifier>zero</ows:Identifier>",
+    ).replace("<ows:Identifier>1</ows:Identifier>", "<ows:Identifier>one</ows:Identifier>");
+    const connection = await connect({
+      endpoint: "https://tiles.example/ogc/wmts",
+      protocol: "wmts",
+      typeName: "imagery",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: capabilitiesFetch(nonExecutable) },
+    });
+    const source = connection.inspection.sources[0]!;
+
+    expect(source.descriptor.capabilities.has("render")).toBe(false);
+    expect(source.descriptor.capabilities.has("tiles")).toBe(false);
+    expect(source.descriptor.locator.raster).toBeUndefined();
+    expect(source.metadata?.operations?.tiles).toMatchObject({
+      available: false,
+      reason: 'WMTS tile matrix set "WebMercatorQuad" has identifiers that cannot map exactly to MapLibre zoom levels.',
+    });
+  });
+
+  it("retains canonical Honua WMS query execution only when discovery resolves a service id", async () => {
+    const connection = await connect({
+      endpoint: "https://maps.example/rest/services/Public/Map/MapServer/WMS",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: capabilitiesFetch(WMS_CAPABILITIES) },
+    });
+    const source = connection.source();
+
+    expect(source.descriptor.locator.serviceId).toBe("Public/Map");
+    expect(source.capabilities.has("query")).toBe(true);
+    expect(source.protocol("wms")).toBeDefined();
   });
 
   it("shares cached capabilities across layer/style selections but isolates authorization scopes", async () => {
@@ -216,7 +320,8 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
 
     expect(requests).toHaveLength(2);
     expect(requests[1]?.headers.get("if-none-match")).toBe('"capabilities-v1"');
-    expect(refreshed.inspection.sources[0]?.descriptor.capabilities.has("query")).toBe(true);
+    expect(refreshed.inspection.sources[0]?.descriptor.capabilities.has("render")).toBe(true);
+    expect(refreshed.inspection.sources[0]?.descriptor.capabilities.has("query")).toBe(false);
   });
 
   it("rejects unsafe advertised URLs without retaining credentials or inventing render support", async () => {
@@ -237,10 +342,31 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
     expect(source.descriptor.capabilities.has("tiles")).toBe(false);
     expect(source.metadata?.operations?.render).toMatchObject({ available: false });
     expect(source.metadata?.operations?.render?.urls).toEqual([]);
+    expect(source.metadata?.operations?.render?.methods).toEqual([]);
     expect(source.metadata?.partialReasons?.join(" ")).not.toContain("secret");
     expect(source.diagnostics).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: "partial-discovery" })]),
     );
+  });
+
+  it("retains only methods backed by validated same-origin operation URLs", async () => {
+    const unsafePost = WMS_CAPABILITIES.replace(
+      './render-post?tenant=public"',
+      'https://evil.example/render-post?token=secret"',
+    );
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: capabilitiesFetch(unsafePost) },
+    });
+
+    expect(connection.inspection.sources[0]?.metadata?.operations?.render).toMatchObject({
+      available: true,
+      methods: ["GET"],
+      urls: ["https://maps.example/ogc/render?tenant=public"],
+    });
   });
 
   it("refuses cross-origin redirects before credentials can be replayed", async () => {
@@ -319,6 +445,37 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
     };
     await connect(options);
     await expect(connect({ ...options, refresh: true })).rejects.toBeInstanceOf(HonuaHttpError);
+  });
+
+  it("does not read validators or stale metadata when the metadata cache is bypassed", async () => {
+    const requests: Request[] = [];
+    const fetchFn = vi.fn(async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      if (requests.length === 1) return xml(WMS_CAPABILITIES, { ETag: '"capabilities-v1"' });
+      return new Response("temporarily unavailable", {
+        status: 503,
+        headers: { "Content-Type": "text/plain" },
+      });
+    });
+    const client = new HonuaClient({
+      baseUrl: "https://maps.example",
+      fetchFn,
+      retry: { maxRetries: 0 },
+    });
+    const options = {
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms" as const,
+      authorizationScopeFingerprint: "anonymous",
+      client,
+    };
+    await connect(options);
+    await expect(connect({ ...options, metadata: { cache: "bypass" } })).rejects.toBeInstanceOf(HonuaHttpError);
+
+    expect(requests).toHaveLength(2);
+    expect(requests[1]?.headers.get("if-none-match")).toBeNull();
+    expect(requests[1]?.headers.get("if-modified-since")).toBeNull();
+    expect(requests[1]?.headers.get("cache-control")).toBe("no-store");
   });
 
   it("rejects malformed XML and credential-bearing cached operation metadata", async () => {

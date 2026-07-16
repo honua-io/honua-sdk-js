@@ -989,6 +989,7 @@ export type {
   PaginationSpec,
   Protocol,
   Query,
+  RasterRequestBinding,
   QueryTileCacheIdentityDescriptor,
   QueryTileCacheKeyOptions,
   QueryTileCachePolicy,

@@ -19,7 +19,7 @@ import type {
   DiscoveryStyleMetadata,
   DiscoveryTileMatrixSetMetadata,
 } from "./contract/discovery.js";
-import type { Capability, SourceLocator } from "./contract/types.js";
+import type { Capability, RasterRequestBinding, SourceLocator } from "./contract/types.js";
 import {
   HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS,
   type HonuaCacheValidator,
@@ -144,7 +144,9 @@ async function fetchCapabilities(
   const metadata = normalizeHonuaMetadataRequestOptions(options.metadata);
   const cacheKey = `${protocol}:${source}:${identity.authorizationScopeDigest}`;
   const cache = cacheFor(client);
-  const cached = cache.get(cacheKey);
+  // Bypass is a complete read/write bypass: no freshness hit, validator, or
+  // stale-if-error fallback may observe an SDK-local entry.
+  const cached = metadata.cache === "bypass" ? undefined : cache.get(cacheKey);
   const now = Date.now();
   if (
     metadata.cache !== "bypass" &&
@@ -287,13 +289,26 @@ function projectWms(
     const mapFormat = preferredFormat(capabilities.formats.map, SUPPORTED_IMAGE_FORMATS);
     const featureInfoFormat = preferredFormat(capabilities.formats.featureInfo, SUPPORTED_FEATURE_INFO_FORMATS);
     const renderReason = wmsRenderUnavailableReason(map, mapFormat);
-    const queryReason = wmsQueryUnavailableReason(layer, featureInfo, featureInfoFormat);
+    const advertisedQueryReason = wmsQueryUnavailableReason(layer, featureInfo, featureInfoFormat);
+    const queryReason =
+      advertisedQueryReason ??
+      (target.serviceId
+        ? undefined
+        : "Raw WMS GetFeatureInfo requires a Honua service binding for the existing canonical query adapter.");
     const legendReason = wmsLegendUnavailableReason(legend, capabilities.formats.legend);
     if (renderReason) partialReasons.push(renderReason);
     if (layer.queryable && queryReason) partialReasons.push(queryReason);
     if (legendReason && legend !== undefined) partialReasons.push(legendReason);
     const renderAvailable = renderReason === undefined;
     const queryAvailable = queryReason === undefined;
+    const raster =
+      renderAvailable && mapFormat && map?.getUrls[0]
+        ? (Object.freeze({
+            kind: "wms-kvp",
+            url: map.getUrls[0],
+            format: mapFormat,
+          }) satisfies RasterRequestBinding)
+        : undefined;
     const capabilitiesEnabled: Capability[] = [
       ...(renderAvailable ? (["render", "tiles"] as const) : []),
       ...(queryAvailable ? (["query"] as const) : []),
@@ -327,6 +342,7 @@ function projectWms(
       ...(target.serviceId ? { serviceId: target.serviceId } : {}),
       typeName: layer.name,
       ...(selectedStyle ? { styleId: selectedStyle.id } : {}),
+      ...(raster ? { raster } : {}),
     });
     const schemaV2 = sourceSchemaProjection?.wms(metadata, {
       source: document.source,
@@ -396,7 +412,18 @@ function projectWmts(
       ["TileMatrix", "TileRow", "TileCol", "I", "J"],
       partialReasons,
     );
-    const tileReason = wmtsTileUnavailableReason(selectedStyle, selectedMatrixSet, format, getTile, tileResource);
+    const advertisedTileReason = wmtsTileUnavailableReason(
+      selectedStyle,
+      selectedMatrixSet,
+      format,
+      getTile,
+      tileResource,
+    );
+    const rasterResult =
+      advertisedTileReason === undefined && selectedMatrixSet && format
+        ? wmtsRasterBinding(selectedMatrixSet, format, getTile, tileResource)
+        : undefined;
+    const tileReason = advertisedTileReason ?? rasterResult?.reason;
     const featureInfoReason = wmtsFeatureInfoUnavailableReason(
       selectedStyle,
       selectedMatrixSet,
@@ -441,6 +468,7 @@ function projectWmts(
       typeName: layer.identifier,
       ...(selectedStyle ? { styleId: selectedStyle.id } : {}),
       ...(selectedMatrixSet ? { tileMatrixSetId: selectedMatrixSet.identifier } : {}),
+      ...(rasterResult?.binding ? { raster: rasterResult.binding } : {}),
     });
     const schemaV2 = sourceSchemaProjection?.wmts(metadata, {
       source: document.source,
@@ -475,7 +503,10 @@ function validatedWmsOperation(operation: WmsCapabilityOperation, endpoint: stri
   return Object.freeze({
     getUrls: get.urls,
     postUrls: post.urls,
-    methods: operation.methods,
+    methods: Object.freeze([
+      ...(get.urls.length > 0 ? (["GET"] as const) : []),
+      ...(post.urls.length > 0 ? (["POST"] as const) : []),
+    ]),
     reasons: Object.freeze(unique([...get.reasons, ...post.reasons])),
   });
 }
@@ -498,7 +529,10 @@ function validatedWmtsOperation(
   return Object.freeze({
     getUrls: get.urls,
     postUrls: post.urls,
-    methods: operation.methods,
+    methods: Object.freeze([
+      ...(get.urls.length > 0 ? (["GET"] as const) : []),
+      ...(post.urls.length > 0 ? (["POST"] as const) : []),
+    ]),
     reasons: Object.freeze(unique([...get.reasons, ...post.reasons])),
   });
 }
@@ -584,6 +618,76 @@ function wmtsTileUnavailableReason(
     return "WMTS layer advertises no safe GetTile GET URL or valid REST template.";
   }
   return undefined;
+}
+
+function wmtsRasterBinding(
+  matrixSet: WmtsCapabilityTileMatrixSet,
+  format: string,
+  operation: ValidatedOperation,
+  template: string | undefined,
+): { readonly binding?: RasterRequestBinding; readonly reason?: string } {
+  if (!mapLibreCompatibleMatrixSet(matrixSet)) {
+    return Object.freeze({
+      reason: `WMTS tile matrix set "${matrixSet.identifier}" is not Web Mercator compatible with the existing MapLibre raster adapter.`,
+    });
+  }
+  const tileMatrixTemplate = mapLibreTileMatrixTemplate(matrixSet);
+  if (!tileMatrixTemplate) {
+    return Object.freeze({
+      reason: `WMTS tile matrix set "${matrixSet.identifier}" has identifiers that cannot map exactly to MapLibre zoom levels.`,
+    });
+  }
+  if (template) {
+    const variables = templateVariables(template);
+    const supportedVariables = new Set(["Layer", "Style", "TileMatrixSet", "TileMatrix", "TileRow", "TileCol"]);
+    if (variables.ok && [...variables.values].every((variable) => supportedVariables.has(variable))) {
+      return Object.freeze({
+        binding: Object.freeze({
+          kind: "wmts-template",
+          url: template,
+          format,
+          tileMatrixTemplate,
+        }),
+      });
+    }
+    if (operation.getUrls.length === 0) {
+      return Object.freeze({
+        reason: `WMTS ResourceURL for tile matrix set "${matrixSet.identifier}" contains dimensions the existing raster adapter cannot bind.`,
+      });
+    }
+  }
+  const url = operation.getUrls[0];
+  if (!url) {
+    return Object.freeze({
+      reason: "WMTS GetTile has no reviewed GET binding for the existing raster adapter.",
+    });
+  }
+  return Object.freeze({
+    binding: Object.freeze({
+      kind: "wmts-kvp",
+      url,
+      format,
+      tileMatrixTemplate,
+    }),
+  });
+}
+
+function mapLibreCompatibleMatrixSet(matrixSet: WmtsCapabilityTileMatrixSet): boolean {
+  const crs = matrixSet.supportedCrs?.toLowerCase() ?? "";
+  const wellKnownScaleSet = matrixSet.wellKnownScaleSet?.toLowerCase() ?? "";
+  return crs.includes("3857") || crs.includes("900913") || wellKnownScaleSet.includes("googlemapscompatible");
+}
+
+function mapLibreTileMatrixTemplate(matrixSet: WmtsCapabilityTileMatrixSet): string | undefined {
+  if (matrixSet.matrices.length === 0) return undefined;
+  let prefix: string | undefined;
+  for (const [index, matrix] of matrixSet.matrices.entries()) {
+    const match = /^(.*?)(0|[1-9]\d*)$/.exec(matrix.identifier);
+    if (!match || match[2] !== String(index)) return undefined;
+    if (prefix === undefined) prefix = match[1];
+    else if (prefix !== match[1]) return undefined;
+  }
+  return `${prefix ?? ""}{z}`;
 }
 
 function wmtsFeatureInfoUnavailableReason(

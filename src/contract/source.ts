@@ -1157,6 +1157,16 @@ export function wmsSource<T>(
   policy: CapabilityPolicy,
 ): CapabilityAwareSource<T> {
   descriptor = normalizeCapabilityDescriptor(descriptor);
+  const advertisedCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wms;
+  if (typeof descriptor.locator.serviceId !== "string" || descriptor.locator.serviceId.length === 0) {
+    if (descriptor.locator.raster?.kind !== "wms-kvp") requireWmsLocator(descriptor);
+    // Raw third-party discovery is renderable through the existing descriptor
+    // → MapLibre raster projection. The existing canonical FeatureInfo adapter
+    // is Honua-service-id based, so keep that surface fail-closed here.
+    const caps = new Set([...advertisedCaps].filter((capability) => capability !== "query"));
+    descriptor = { ...descriptor, capabilities: caps };
+    return makeSource<T>(descriptor, caps, policy, {}, unsupportedFeatureSurface<T>(descriptor));
+  }
   const { serviceId } = requireWmsLocator(descriptor);
   const layerName = descriptor.locator.typeName;
   const styleId = descriptor.locator.styleId;
@@ -1178,7 +1188,7 @@ export function wmsSource<T>(
     if (typeof styleId === "string") layerOpts.defaultStyleId = styleId;
     adapterRegistry["wms-layer"] = new HonuaWmsLayer(layerOpts);
   }
-  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wms;
+  const caps = advertisedCaps;
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
@@ -1264,6 +1274,15 @@ export function wmtsSource<T>(
   policy: CapabilityPolicy,
 ): CapabilityAwareSource<T> {
   descriptor = normalizeCapabilityDescriptor(descriptor);
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wmts;
+  if (typeof descriptor.locator.serviceId !== "string" || descriptor.locator.serviceId.length === 0) {
+    if (descriptor.locator.raster?.kind !== "wmts-kvp" && descriptor.locator.raster?.kind !== "wmts-template") {
+      requireWmtsLocator(descriptor);
+    }
+    // Raw WMTS sources use the validated descriptor binding in the existing
+    // MapLibre projection; no second protocol wire adapter is introduced.
+    return makeSource<T>(descriptor, caps, policy, {}, unsupportedFeatureSurface<T>(descriptor));
+  }
   const { serviceId } = requireWmtsLocator(descriptor);
   const layerName = descriptor.locator.typeName;
   const tileMatrixSetId = descriptor.locator.tileMatrixSetId ?? "WebMercatorQuad";
@@ -1286,8 +1305,6 @@ export function wmtsSource<T>(
       tileMatrixSetId,
     });
   }
-  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wmts;
-
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
 }
 

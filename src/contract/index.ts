@@ -78,6 +78,7 @@ export type {
   PaginationSpec,
   Protocol,
   Query,
+  RasterRequestBinding,
   RelatedGroup,
   RelatedQuery,
   RelatedResult,

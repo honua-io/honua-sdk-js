@@ -1609,7 +1609,7 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
   if (target.protocol === "wms" || target.protocol === "wmts") {
     assertCachedKeys(
       locator as unknown as Record<string, unknown>,
-      ["url", "serviceId", "typeName", "styleId", "tileMatrixSetId"],
+      ["url", "serviceId", "typeName", "styleId", "tileMatrixSetId", "raster"],
       `${target.protocol.toUpperCase()} source locator`,
     );
     if (locator.url !== target.endpoint || locator.typeName !== sourceId) {
@@ -1639,6 +1639,7 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
     ) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached WMTS tile matrix set id is invalid.");
     }
+    validateCachedRasterLocatorBinding(locator.raster, target.protocol, target.endpoint);
     return;
   }
   if (target.protocol === "odata") {
@@ -1734,11 +1735,14 @@ function validateCachedRasterMetadataBinding(
     if (render !== resolved.has("render") || render !== resolved.has("tiles") || query !== resolved.has("query")) {
       cacheMetadataError("Cached WMS operations contradict cached capability evidence.");
     }
+    validateCachedExecutableRasterBinding(locator, metadata.operations?.render, render);
   } else {
     const tiles = metadata.operations?.tiles?.available === true;
     if (tiles !== resolved.has("render") || tiles !== resolved.has("tiles")) {
       cacheMetadataError("Cached WMTS tile operation contradicts cached capability evidence.");
     }
+    validateCachedExecutableRasterBinding(locator, metadata.operations?.tiles, tiles);
+    if (tiles) validateCachedTileMatrixBinding(locator, metadata);
     validateCachedTemplateOperation(metadata.operations?.tiles, ["TileMatrix", "TileRow", "TileCol"], "tile");
     validateCachedTemplateOperation(
       metadata.operations?.featureInfo,
@@ -1746,6 +1750,78 @@ function validateCachedRasterMetadataBinding(
       "FeatureInfo",
     );
   }
+}
+
+function validateCachedRasterLocatorBinding(
+  value: SourceLocator["raster"],
+  protocol: "wms" | "wmts",
+  endpoint: string,
+): void {
+  if (value === undefined) return;
+  if (!isPlainObject(value)) cacheMetadataError("Cached raster binding must be an object.");
+  if (protocol === "wms") {
+    assertCachedKeys(value, ["kind", "url", "format"], "WMS raster binding");
+    if (value.kind !== "wms-kvp") cacheMetadataError("Cached WMS raster binding kind is invalid.");
+  } else {
+    assertCachedKeys(value, ["kind", "url", "format", "tileMatrixTemplate"], "WMTS raster binding");
+    if (value.kind !== "wmts-kvp" && value.kind !== "wmts-template") {
+      cacheMetadataError("Cached WMTS raster binding kind is invalid.");
+    }
+    if (
+      typeof value.tileMatrixTemplate !== "string" ||
+      !/^[A-Za-z0-9_.:-]{0,128}\{z\}$/.test(value.tileMatrixTemplate)
+    ) {
+      cacheMetadataError("Cached WMTS tile-matrix template is invalid.");
+    }
+    if (
+      value.kind === "wmts-template" &&
+      (typeof value.url !== "string" ||
+        !["TileMatrix", "TileRow", "TileCol"].every((name) => value.url.includes(`{${name}}`)))
+    ) {
+      cacheMetadataError("Cached WMTS ResourceURL binding lacks required placeholders.");
+    }
+  }
+  validateCachedMetadataUrl(value.url, "raster binding", endpoint);
+  immutableString(value.format, "Cached raster binding format");
+}
+
+function validateCachedExecutableRasterBinding(
+  locator: SourceLocator,
+  operation: DiscoveryOperationMetadata | undefined,
+  available: boolean,
+): void {
+  const binding = locator.raster;
+  if (available !== (binding !== undefined)) {
+    cacheMetadataError("Cached raster capability and executable binding contradict each other.");
+  }
+  if (!binding) return;
+  if (!operation?.urls.includes(binding.url) || !operation.formats.includes(binding.format)) {
+    cacheMetadataError("Cached raster binding was not present in the reviewed operation metadata.");
+  }
+}
+
+function validateCachedTileMatrixBinding(locator: SourceLocator, metadata: DiscoverySourceMetadata): void {
+  const binding = locator.raster;
+  if (!binding || binding.kind === "wms-kvp") return;
+  const matrixSet = metadata.tileMatrixSets?.find((candidate) => candidate.id === locator.tileMatrixSetId);
+  if (
+    !matrixSet ||
+    mapLibreTileMatrixTemplateFromMetadata(matrixSet.matrices.map((matrix) => matrix.id)) !== binding.tileMatrixTemplate
+  ) {
+    cacheMetadataError("Cached WMTS raster binding does not match its advertised tile-matrix identifiers.");
+  }
+}
+
+function mapLibreTileMatrixTemplateFromMetadata(ids: readonly string[]): string | undefined {
+  if (ids.length === 0) return undefined;
+  let prefix: string | undefined;
+  for (const [index, id] of ids.entries()) {
+    const match = /^(.*?)(0|[1-9]\d*)$/.exec(id);
+    if (!match || match[2] !== String(index)) return undefined;
+    if (prefix === undefined) prefix = match[1];
+    else if (prefix !== match[1]) return undefined;
+  }
+  return `${prefix ?? ""}{z}`;
 }
 
 function validateCachedTemplateOperation(

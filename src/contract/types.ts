@@ -272,6 +272,29 @@ export type DatasetId = string;
 export type FeatureId = number | string;
 
 /**
+ * Validated raster request binding selected during WMS / WMTS discovery.
+ *
+ * The binding keeps the service identity in {@link SourceLocator.url} while
+ * carrying the exact same-origin operation URL or ResourceURL template that
+ * the existing MapLibre raster projection must execute. Callers constructing
+ * descriptors manually may omit it and retain the canonical Honua endpoint
+ * conventions.
+ */
+export type RasterRequestBinding =
+  | {
+      readonly kind: "wms-kvp";
+      readonly url: string;
+      readonly format: string;
+    }
+  | {
+      readonly kind: "wmts-kvp" | "wmts-template";
+      readonly url: string;
+      readonly format: string;
+      /** Exact matrix identifier pattern, with `{z}` as the MapLibre zoom token. */
+      readonly tileMatrixTemplate: string;
+    };
+
+/**
  * Protocol-specific endpoint information. Field-compatible with the server
  * `SourceBinding.locator` shape documented in
  * `docs/source-binding-alignment.md` (a Honua SDK `SourceDescriptor` may be
@@ -314,6 +337,8 @@ export interface SourceLocator {
   tileMatrixSetId?: string;
   /** OGC API Maps / Tiles style identifier for styled-output endpoints. */
   styleId?: string;
+  /** Exact, capability-reviewed raster operation selected by `connect()`. */
+  raster?: RasterRequestBinding;
   /** WFS / WMS type-name identifier. */
   typeName?: string;
   /**
