@@ -97,7 +97,15 @@ export interface HonuaKernel extends AsyncDisposable {
 
 /** Create an isolated Honua application kernel. */
 export function createHonua(options: HonuaKernelOptions = {}): HonuaKernel {
-  return createHonuaKernel(options);
+  const snapshot = snapshotOwnDataObject(options, "createHonua() options");
+  return createHonuaKernel({
+    ...(snapshot.capabilityPolicy !== undefined
+      ? { capabilityPolicy: snapshot.capabilityPolicy as DiscoveryCapabilityPolicy }
+      : {}),
+    ...(snapshot.discoveryCacheMaxEntries !== undefined
+      ? { discoveryCacheMaxEntries: snapshot.discoveryCacheMaxEntries as number }
+      : {}),
+  });
 }
 
 /** @internal Test/adapter seam that keeps the production options intentionally small. */
@@ -752,7 +760,11 @@ function credentialSafeError(error: unknown, secrets: readonly string[]): unknow
   if (error instanceof HonuaDiscoveryError) {
     const code = stableStringProperty(error, "code");
     if (code.safe && isDiscoveryErrorCode(code.value)) {
-      return new HonuaDiscoveryError(code.value, sanitizedMessage, { redacted: true });
+      return new HonuaDiscoveryError(
+        code.value,
+        sanitizedMessage,
+        sanitizedDiscoveryErrorDetail(error, secrets) ?? { redacted: true },
+      );
     }
   }
   if (error instanceof HonuaAbortError) return new HonuaAbortError(sanitizedMessage);
@@ -760,6 +772,24 @@ function credentialSafeError(error: unknown, secrets: readonly string[]): unknow
   const name = stableStringProperty(error, "name");
   if (name.safe && name.value !== undefined) sanitized.name = name.value;
   return sanitized;
+}
+
+function sanitizedDiscoveryErrorDetail(
+  error: HonuaDiscoveryError,
+  secrets: readonly string[],
+): Readonly<Record<string, unknown>> | undefined {
+  try {
+    const descriptor = stablePropertyDescriptor(error, "context");
+    if (!descriptor || !("value" in descriptor)) return undefined;
+    const context = descriptor.value;
+    if (typeof context !== "object" || context === null || Array.isArray(context)) return undefined;
+    const cloned = cloneInspectionValue(context, secrets, new Set(), 0);
+    return typeof cloned === "object" && cloned !== null && !Array.isArray(cloned)
+      ? (cloned as Readonly<Record<string, unknown>>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function stableStringProperty(value: object, key: PropertyKey): { readonly safe: boolean; readonly value?: string } {

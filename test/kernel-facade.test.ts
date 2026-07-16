@@ -3,7 +3,12 @@ import type { ConnectOptions, HonuaConnection } from "../src/connect.js";
 import type { SourceDiscoveryInspection } from "../src/contract/discovery.js";
 import type { Dataset, Source, SourceDescriptor, SourceId } from "../src/contract/types.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "../src/core/errors.js";
-import { type ConnectLocator, createHonuaKernel } from "../src/kernel/index.js";
+import {
+  type ConnectLocator,
+  type HonuaKernelOptions,
+  createHonua,
+  createHonuaKernel,
+} from "../src/kernel/index.js";
 import type { KernelConnectDelegate } from "../src/kernel/lifecycle.js";
 
 interface MockConnection {
@@ -91,7 +96,7 @@ function mockConnection(
         cacheStatus: options.cacheStatus ?? "miss",
       },
       source,
-    } as HonuaConnection,
+    } as unknown as HonuaConnection,
   };
 }
 
@@ -132,6 +137,18 @@ async function rejected(promise: Promise<unknown>): Promise<Error> {
 }
 
 describe("createHonua application kernel facade", () => {
+  it("projects only the public construction options into the internal lifecycle", async () => {
+    const options = {
+      capabilityPolicy: { allow: ["query"] },
+      discoveryCacheMaxEntries: 2,
+      connectDelegate: "not-a-public-option",
+    } as unknown as HonuaKernelOptions;
+
+    const honua = createHonua(options);
+    await expect(honua.dispose()).resolves.toBeUndefined();
+    expect(() => createHonua({ discoveryCacheMaxEntries: 0 })).toThrow(RangeError);
+  });
+
   it("returns a deeply immutable, detached, credential-safe inspection without exposing cache partitions", async () => {
     const secret = "TOP-SECRET-API-KEY";
     const advertisedSecret = "SIGNED-URL-SECRET";
@@ -486,7 +503,7 @@ describe("createHonua application kernel facade", () => {
         clientOptions: { apiKey: secret },
       }),
     );
-    expect(detailFailure).toMatchObject({ code: "protocol-mismatch", detail: { redacted: true } });
+    expect(detailFailure).toMatchObject({ code: "protocol-mismatch", detail: { debug: "[redacted]" } });
     expect(`${detailFailure.message} ${JSON.stringify(detailFailure)}`).not.toContain(secret);
 
     const locatorSecret = "LOCATOR-SECRET";
