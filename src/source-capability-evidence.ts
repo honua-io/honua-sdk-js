@@ -165,9 +165,7 @@ function createBoundCapabilityEvidenceProfile(
   assertMaximumCount(safeEntries.length, MAX_CAPABILITY_ENTRIES, "Capability evidence entries");
   validateSha256(binding.sourceEndpointFingerprint, "Capability source endpoint fingerprint");
   const sourceDescriptorMatches =
-    binding.sourceEndpoint === undefined
-      ? undefined
-      : createSourceDescriptorMatcher(binding.sourceEndpointFingerprint);
+    binding.sourceEndpoint === undefined ? undefined : createSourceDescriptorMatcher(binding.sourceEndpointFingerprint);
 
   const ids = new Set<string>();
   const normalizedEntries = safeEntries.map((entry, index) => {
