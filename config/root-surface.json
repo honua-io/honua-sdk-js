@@ -1,5 +1,5 @@
 {
-  "$comment": "Reviewed final root surface for issue #451. Generated migration rows partition the b6e89a4 transition-era root; do not hand-edit without regenerating fixtures and migration documentation.",
+  "$comment": "Reviewed final root surface for issues #451 and #532. Generated migration rows partition the b6e89a4 transition-era root; regenerate fixtures and migration documentation after reviewed additions.",
   "schemaVersion": 1,
   "inclusionRule": [
     "Include symbols used directly by the committed connect-query-explain-mount golden root workflow.",
@@ -35,6 +35,7 @@
       "capabilities",
       "connect",
       "createDataset",
+      "createHonua",
       "envelope",
       "executeQueryPlan",
       "explainQuery",
@@ -103,11 +104,14 @@
       "ConnectDiscoveryCacheContext",
       "ConnectDiscoverySnapshot",
       "ConnectDiscoverySourceSnapshot",
+      "ConnectionInspection",
+      "ConnectLocator",
       "ConnectOptions",
       "ConnectProtocolHint",
       "ConnectResolvedProtocol",
       "createDataset",
       "CreateDatasetOptions",
+      "createHonua",
       "Dataset",
       "DatasetId",
       "DegradedReason",
@@ -153,6 +157,10 @@
       "HonuaGeometryErrorCode",
       "HonuaGrpcError",
       "HonuaHttpError",
+      "HonuaKernel",
+      "HonuaKernelConnection",
+      "HonuaKernelConnectOptions",
+      "HonuaKernelOptions",
       "HonuaMapLibreSourceAdapterError",
       "HonuaNetworkError",
       "HonuaQueryPlanExecutionError",
@@ -160,6 +168,7 @@
       "HonuaSdkError",
       "HonuaTimeoutError",
       "HonuaTransport",
+      "InspectOptions",
       "isHonuaError",
       "isHonuaErrorCode",
       "JsonPrimitive",
@@ -222,6 +231,38 @@
     ]
   },
   "promotions": [
+    {
+      "symbol": "createHonua",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "ConnectionInspection",
+      "kind": "type"
+    },
+    {
+      "symbol": "ConnectLocator",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaKernel",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaKernelConnection",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaKernelConnectOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaKernelOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "InspectOptions",
+      "kind": "type"
+    },
     {
       "symbol": "bufferEnvelope",
       "kind": "runtime"

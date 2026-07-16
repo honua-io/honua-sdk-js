@@ -50,12 +50,13 @@
     "/source-capability-discovery has its first dedicated guard for #525 slice 3. It intentionally owns the heavy SourceSchemaV2 validator plus GeoServices/OData connect graph while /source-capabilities remains evaluator-only and tree-shakeable. The initial 682,644 minified / 142,099 gzip measurement is budgeted at measured actual plus 10% headroom.",
     "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom.",
     "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation.",
-    "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged."
+    "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged.",
+    "'tree-shake:root-createHonua' guards the managed application-kernel facade (#532): importing only createHonua retains reviewed discovery plus instance lifecycle/inspection logic, while renderer, query-planner, plugin, and application-platform systems remain shakeable. The fixture explicitly rejects those systems plus Arrow and DuckDB inputs. The standalone root-connect fixture remains unchanged at 345.9 KiB minified / 89.0 KiB gzip. Root and browser ceilings were reset from the measured managed-facade totals (root 454,923 / 119,064; IIFE 455,539 / 119,255; ESM 454,215 / 119,031) to actual plus ~10% headroom."
   ],
   "entrypoints": {
     ".": {
-      "min": 435499,
-      "gzip": 115241
+      "min": 500416,
+      "gzip": 130971
     },
     "/honua": {
       "min": 579760,
@@ -154,12 +155,12 @@
       "gzip": 5687
     },
     "browser-iife": {
-      "min": 436255,
-      "gzip": 115514
+      "min": 501093,
+      "gzip": 131181
     },
     "browser-esm": {
-      "min": 434799,
-      "gzip": 115191
+      "min": 499637,
+      "gzip": 130935
     },
     "tree-shake:HonuaClient": {
       "min": 235231,
@@ -172,6 +173,10 @@
     "tree-shake:source-capabilities-evaluate": {
       "min": 18332,
       "gzip": 6372
+    },
+    "tree-shake:root-createHonua": {
+      "min": 407259,
+      "gzip": 105067
     },
     "/react": {
       "min": 457456,

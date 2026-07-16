@@ -63,6 +63,31 @@ Run it locally with `npm run demo:endpoint-to-map`
 ([`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md)); the full cookbook
 is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
+For an application that opens more than one source or needs deterministic
+refresh and shutdown, put discovery under one instance-scoped owner:
+
+```ts doc-test=compile
+import { createHonua } from "@honua/sdk-js";
+
+const honua = createHonua({ discoveryCacheMaxEntries: 128 });
+try {
+  const data = await honua.connect(
+    "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
+  );
+  const inspection = await data.inspect();
+  const source = data.source<{ NAME: string; Seats_2020: number }>();
+
+  console.log(inspection.cacheStatus, source.descriptor.id);
+} finally {
+  await honua.dispose();
+}
+```
+
+`inspect()` reuses the immutable snapshot established by `connect()`;
+`inspect({ refresh: true, signal })` revalidates it. Service roots with more
+than one source require an explicit `sourceId` in the locator/options or in
+`source(id)`—the kernel never chooses the first advertised source silently.
+
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.0-beta.0`). The 22-entrypoint stable tier is frozen and guarded
 by an API-surface gate; 11 experimental subpaths may change before 1.0, and
@@ -1718,13 +1743,13 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-16 at commit `e074710`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-16 at commit `47d3fc0`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 423.1 KiB | 110.7 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 444.3 KiB | 116.3 KiB |
 | Importing only `HonuaClient` (tree-shake guard) | 210.5 KiB | 53.2 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 33.3 KiB | 10.8 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 259.0 KiB | 68.3 KiB |
@@ -1747,10 +1772,10 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 423.1 KiB ≈
-1.41 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 444.3 KiB ≈
+1.43 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
-0.37 MB over the wire with gzip. Esri's totals also grow with widgets;
+0.38 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.
 
 **`@esri/arcgis-rest-js`** (<https://developers.arcgis.com/arcgis-rest-js/>, retrieved 2026-07-13).
@@ -4566,6 +4591,15 @@ Status: **accepted for review** on 2026-07-10 for
 [`honua-sdk-js#386`](https://github.com/honua-io/honua-sdk-js/issues/386).
 Merging this decision accepts the product boundary and TypeScript direction;
 it does not claim that the proposed facade is implemented.
+
+Implementation note (issue #532): the reviewed root now ships the first
+additive slice: `createHonua()` owns instance-local discovery policy, cache,
+cancellation, and managed connections; `connect()`, immutable `inspect()` /
+`inspect({ refresh: true })`, explicit `source()` selection, and async disposal
+are implemented. The pre-existing standalone `connect()` keeps its lower-level
+`HonuaConnection` type, so the owned additive handle is named
+`HonuaKernelConnection`. Diagnostics channels, plugins, planning, querying, and
+renderer mounting remain future slices and are not claimed by this note.
 
 ## Decision summary
 
@@ -7581,12 +7615,12 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-16 at commit `e074710`._
+_Generated 2026-07-16 at commit `47d3fc0`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 423.1 KiB | 425.3 KiB | 110.7 KiB | 112.5 KiB |
-| `/honua` | 523.2 KiB | 566.2 KiB | 137.7 KiB | 149.6 KiB |
+| `.` (root) | 444.3 KiB | 488.7 KiB | 116.3 KiB | 127.9 KiB |
+| `/honua` | 544.3 KiB | 566.2 KiB | 143.4 KiB | 149.6 KiB |
 | `/contract` | 259.0 KiB | 287.3 KiB | 68.3 KiB | 72.9 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 631.2 KiB | 663.7 KiB | 129.3 KiB | 134.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 253.7 KiB | 257.5 KiB | 31.2 KiB | 33.2 KiB |
@@ -7612,11 +7646,12 @@ _Generated 2026-07-16 at commit `e074710`._
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 432.9 KiB | 446.7 KiB | 114.4 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 423.7 KiB | 426.0 KiB | 110.8 KiB | 112.8 KiB |
-| browser ESM (`./browser`) | 422.4 KiB | 424.6 KiB | 110.6 KiB | 112.5 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 444.9 KiB | 489.3 KiB | 116.5 KiB | 128.1 KiB |
+| browser ESM (`./browser`) | 443.6 KiB | 487.9 KiB | 116.2 KiB | 127.9 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 210.5 KiB | 229.7 KiB | 53.2 KiB | 57.6 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 345.9 KiB | 359.2 KiB | 89.0 KiB | 92.8 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery facade only) | 367.1 KiB | 397.7 KiB | 94.7 KiB | 102.6 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 225.3 KiB | 245.9 KiB | 56.6 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 33.3 KiB | 37.7 KiB | 10.8 KiB | 12.0 KiB |

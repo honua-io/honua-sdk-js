@@ -2,7 +2,7 @@
 import {
   type Query,
   type SourceToMapLibreMap,
-  connect,
+  createHonua,
   envelope,
   explainQuery,
   mountSourceToMapLibre,
@@ -10,11 +10,12 @@ import {
 
 declare const map: SourceToMapLibreMap;
 
-const connection = await connect({
-  endpoint: "https://example.test/ogc",
+const honua = createHonua();
+const connection = await honua.connect({
+  url: "https://example.test/ogc",
   protocol: "ogc-features",
-  authorizationScopeFingerprint: "anonymous",
 });
+await connection.inspect();
 const source = connection.source<{ status: string }>();
 const query: Query<{ status: string }> = {
   where: "status = 'open'",
@@ -25,6 +26,7 @@ const query: Query<{ status: string }> = {
 const plan = explainQuery({ descriptor: source.descriptor, query });
 const mounted = await mountSourceToMapLibre(map, source, plan);
 mounted.dispose();
+await honua.dispose();
 
 // Headless callers may use executeQueryPlan(plan, source) instead of mounting;
 // it is an alternative terminal path, not an additional step before mount.

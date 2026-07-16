@@ -5,6 +5,15 @@ Status: **accepted for review** on 2026-07-10 for
 Merging this decision accepts the product boundary and TypeScript direction;
 it does not claim that the proposed facade is implemented.
 
+Implementation note (issue #532): the reviewed root now ships the first
+additive slice: `createHonua()` owns instance-local discovery policy, cache,
+cancellation, and managed connections; `connect()`, immutable `inspect()` /
+`inspect({ refresh: true })`, explicit `source()` selection, and async disposal
+are implemented. The pre-existing standalone `connect()` keeps its lower-level
+`HonuaConnection` type, so the owned additive handle is named
+`HonuaKernelConnection`. Diagnostics channels, plugins, planning, querying, and
+renderer mounting remain future slices and are not claimed by this note.
+
 ## Decision summary
 
 Honua will be a **universal geospatial application kernel**, not a proprietary
