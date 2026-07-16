@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 import type { AggregationSpec } from "../src/contract/types.js";
 import {
   DuckDbLosslessDecodeError,
+  compileDuckDbLosslessRowDecoder,
   compileDuckDbLosslessValueDecoder,
   decodeDuckDbLosslessValue,
   deriveDuckDbAggregateOutputFields,
+  duckDbLosslessTransportKind,
 } from "../src/geoparquet/lossless-decoder.js";
 
 function littleEndian128(value: bigint): Uint8Array {
@@ -195,6 +197,20 @@ describe("GeoParquet lossless DuckDB value decoder", () => {
     expect(decoder.decode(1n, "first")).toBe("1");
     expect(decoder.decode(2n, "second")).toBe("2");
     expect(Object.isFrozen(decoder)).toBe(true);
+  });
+
+  it("compiles a strict row decoder and classifies exact Arrow transports", () => {
+    const decoder = compileDuckDbLosslessRowDecoder([
+      { name: "id", type: "BIGINT" },
+      { name: "amount", type: "DECIMAL(10,2)" },
+    ]);
+    expect(decoder.decode({ id: 9_007_199_254_740_993n, amount: "12.30" })).toEqual({
+      id: "9007199254740993",
+      amount: "12.30",
+    });
+    expect(duckDbLosslessTransportKind("BIGINT")).toBe("text");
+    expect(duckDbLosslessTransportKind("TIMESTAMPTZ")).toBe("utc-timestamp-text");
+    expect(duckDbLosslessTransportKind("STRUCT(id BIGINT)")).toBe("native");
   });
 
   it("recursively decodes arrays, lists, quoted structs, maps, and Arrow-shaped wrappers", () => {

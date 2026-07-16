@@ -1,6 +1,6 @@
 // Deterministic generator for the tiny GeoParquet test fixtures.
 //
-// Produces two byte-identical-across-runs parquet files under this directory:
+// Produces three byte-identical-across-runs parquet files under this directory:
 //   1. places-geoparquet.parquet — GeoParquet 1.1 style: a GEOMETRY column
 //      that DuckDB writes with a `geo` key-value metadata block. Detection
 //      goes through the GeoParquet JSON.
@@ -8,6 +8,8 @@
 //      GeoParquet metadata. Detection falls back to the Parquet column type +
 //      conventional-name heuristic, and geometry is decoded with
 //      ST_GeomFromWKB.
+//   3. lossless-values.parquet — exact wide integer, decimal, temporal,
+//      binary, list, and struct values used by the opt-in JSON result tests.
 //
 // Both carry the same 8 Oahu "places" with stable GERS-style ids so the
 // example and tests can assert on them. Regenerate with:
@@ -75,11 +77,67 @@ async function main() {
   const wkbBytes = fs.readFileSync(wkbTmp);
   fs.writeFileSync(path.join(HERE, "places-wkb-nometa.parquet"), wkbBytes);
 
+  // 3. Exact values whose JavaScript representation must not depend on
+  // Arrow's default number/wrapper conversions.
+  await d.run(`
+    CREATE TABLE lossless_values (
+      group_key BIGINT,
+      int_value INTEGER,
+      big_value BIGINT,
+      unsigned_value UBIGINT,
+      amount DECIMAL(20,5),
+      event_date DATE,
+      event_time TIME,
+      event_ts TIMESTAMP_NS,
+      event_tz TIMESTAMPTZ,
+      payload BLOB,
+      nested STRUCT(ids BIGINT[], amount DECIMAL(20,5)),
+      fixed_ids BIGINT[2],
+      measures MAP(BIGINT, DECIMAL(10,2))
+    );
+    INSERT INTO lossless_values VALUES
+      (
+        9007199254740993,
+        2147483647,
+        9223372036854775807,
+        18446744073709551615,
+        123456789012345.67890,
+        DATE '2026-07-15',
+        TIME '12:34:56.123456',
+        CAST('2026-07-15 12:34:56.123456789' AS TIMESTAMP_NS),
+        CAST('2026-07-15 12:34:56.123456+05:30' AS TIMESTAMPTZ),
+        from_hex('00ff80'),
+        {'ids': [9007199254740993, 9223372036854775807], 'amount': 0.00001},
+        CAST([9007199254740993, 9223372036854775807] AS BIGINT[2]),
+        MAP([CAST(9007199254740993 AS BIGINT)], [CAST(1.23 AS DECIMAL(10,2))])
+      ),
+      (
+        9007199254740993,
+        2147483647,
+        9223372036854775807,
+        18446744073709551615,
+        123456789012345.67890,
+        DATE '2026-07-16',
+        TIME '23:59:59.999999',
+        CAST('2026-07-16 23:59:59.999999999' AS TIMESTAMP_NS),
+        CAST('2026-07-16 23:59:59.999999-10:00' AS TIMESTAMPTZ),
+        from_hex('0102'),
+        {'ids': [-9007199254740993], 'amount': -0.00001},
+        CAST([-9007199254740993, -9223372036854775807] AS BIGINT[2]),
+        MAP([CAST(-9007199254740993 AS BIGINT)], [CAST(-4.50 AS DECIMAL(10,2))])
+      );
+  `);
+  const losslessTmp = tmp("lossless.parquet");
+  await d.run(`COPY lossless_values TO '${losslessTmp}' (FORMAT parquet);`);
+  const losslessBytes = fs.readFileSync(losslessTmp);
+  fs.writeFileSync(path.join(HERE, "lossless-values.parquet"), losslessBytes);
+
   await d.close();
   fs.rmSync(TMP, { recursive: true, force: true });
   process.stdout.write(
-    `Wrote places-geoparquet.parquet (${geoparquetBytes.byteLength} B) and ` +
-      `places-wkb-nometa.parquet (${wkbBytes.byteLength} B)\n`,
+    `Wrote places-geoparquet.parquet (${geoparquetBytes.byteLength} B), ` +
+      `places-wkb-nometa.parquet (${wkbBytes.byteLength} B), and ` +
+      `lossless-values.parquet (${losslessBytes.byteLength} B)\n`,
   );
 }
 

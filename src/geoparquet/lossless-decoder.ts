@@ -83,6 +83,12 @@ export interface DuckDbLosslessValueDecoder {
   decode(value: unknown, fieldName?: string): DuckDbLosslessJsonValue;
 }
 
+/** A decoder compiled once for one exact DuckDB result-row projection. */
+export interface DuckDbLosslessRowDecoder {
+  readonly fields: readonly SourceProfileField[];
+  decode(row: unknown): { [key: string]: DuckDbLosslessJsonValue };
+}
+
 /** Compile a reusable decoder for one effective DuckDB output type. */
 export function compileDuckDbLosslessValueDecoder(declaredType: string): DuckDbLosslessValueDecoder {
   const boundedType = validateDeclaredTypeInput(declaredType);
@@ -104,6 +110,114 @@ export function decodeDuckDbLosslessValue(
   fieldName?: string,
 ): DuckDbLosslessJsonValue {
   return compileDuckDbLosslessValueDecoder(declaredType).decode(value, fieldName);
+}
+
+/**
+ * Compile a strict row boundary from the effective output schema.
+ *
+ * Rows must be plain data objects with exactly the projected string keys.
+ * Accessors, symbols, duplicate fields, missing/extra keys, and hostile proxy
+ * traps fail closed before a value decoder is invoked.
+ */
+export function compileDuckDbLosslessRowDecoder(fields: readonly SourceProfileField[]): DuckDbLosslessRowDecoder {
+  if (!Array.isArray(fields) || fields.length > MAX_CONTAINER_ENTRIES) {
+    throw new DuckDbLosslessDecodeError("GEOPARQUET_LOSSLESS_CONTAINER_LIMIT", "$", "ROW");
+  }
+  const names = new Set<string>();
+  const compiled = fields.map((field, index) => {
+    if (
+      field === null ||
+      typeof field !== "object" ||
+      typeof field.name !== "string" ||
+      field.name.length === 0 ||
+      field.name.length > MAX_TYPE_LENGTH ||
+      names.has(field.name)
+    ) {
+      throw new DuckDbLosslessDecodeError("GEOPARQUET_LOSSLESS_INVALID_TYPE", `$.fields[${index}]`, "ROW");
+    }
+    names.add(field.name);
+    return Object.freeze({
+      field: Object.freeze({ ...field }),
+      decoder: compileDuckDbLosslessValueDecoder(field.type),
+    });
+  });
+  const frozenFields = Object.freeze(compiled.map(({ field }) => field));
+
+  return Object.freeze({
+    fields: frozenFields,
+    decode(row: unknown): { [key: string]: DuckDbLosslessJsonValue } {
+      const entries = losslessRowEntries(row);
+      if (entries.size !== compiled.length) rowFailure("GEOPARQUET_LOSSLESS_INVALID_VALUE", "$", "ROW");
+      const result: { [key: string]: DuckDbLosslessJsonValue } = {};
+      for (const { field, decoder } of compiled) {
+        if (!entries.has(field.name)) {
+          rowFailure("GEOPARQUET_LOSSLESS_INVALID_VALUE", appendFieldPath("$", field.name), "ROW");
+        }
+        Object.defineProperty(result, field.name, {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value: decoder.decode(entries.get(field.name), field.name),
+        });
+      }
+      return result;
+    },
+  });
+}
+
+/**
+ * How an effective root value must cross the DuckDB/Arrow boundary.
+ * Exact wide integers, decimals, and temporal values travel as canonical text
+ * so Arrow cannot first coerce them into an unsafe JavaScript number.
+ */
+export function duckDbLosslessTransportKind(declaredType: string): "native" | "text" | "utc-timestamp-text" {
+  const boundedType = validateDeclaredTypeInput(declaredType);
+  const parsed = parseDuckType(boundedType);
+  assertSupportedType(parsed, boundedType);
+  if (parsed.kind === "temporal" && parsed.name === "TIMESTAMP" && parsed.zoned) {
+    return "utc-timestamp-text";
+  }
+  if (parsed.kind === "decimal" || parsed.kind === "temporal") return "text";
+  if (parsed.kind === "scalar" && INTEGER_TYPES[parsed.name]?.string === true) return "text";
+  return "native";
+}
+
+function losslessRowEntries(row: unknown): ReadonlyMap<string, unknown> {
+  if (typeof row !== "object" || row === null || Array.isArray(row)) {
+    rowFailure("GEOPARQUET_LOSSLESS_INVALID_VALUE", "$", "ROW");
+  }
+  let prototype: object | null;
+  let keys: readonly PropertyKey[];
+  try {
+    prototype = Object.getPrototypeOf(row);
+    keys = Reflect.ownKeys(row);
+  } catch {
+    rowFailure("GEOPARQUET_LOSSLESS_AMBIGUOUS_WRAPPER", "$", "ROW");
+  }
+  if (prototype !== null && prototype !== Object.prototype) {
+    rowFailure("GEOPARQUET_LOSSLESS_AMBIGUOUS_WRAPPER", "$", "ROW");
+  }
+  if (keys.length > MAX_CONTAINER_ENTRIES) {
+    rowFailure("GEOPARQUET_LOSSLESS_CONTAINER_LIMIT", "$", "ROW");
+  }
+  const entries = new Map<string, unknown>();
+  for (const key of keys) {
+    if (typeof key !== "string") rowFailure("GEOPARQUET_LOSSLESS_AMBIGUOUS_WRAPPER", "$", "ROW");
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(row, key);
+    } catch {
+      rowFailure("GEOPARQUET_LOSSLESS_AMBIGUOUS_WRAPPER", appendFieldPath("$", key), "ROW");
+    }
+    if (!descriptor) rowFailure("GEOPARQUET_LOSSLESS_AMBIGUOUS_WRAPPER", appendFieldPath("$", key), "ROW");
+    if (isAccessor(descriptor)) rowFailure("GEOPARQUET_LOSSLESS_ACCESSOR", appendFieldPath("$", key), "ROW");
+    entries.set(key, descriptor.value);
+  }
+  return entries;
+}
+
+function rowFailure(code: DuckDbLosslessErrorCode, path: string, declaredType: string): never {
+  throw new DuckDbLosslessDecodeError(code, path, declaredType);
 }
 
 /** Effective fields emitted by an aggregate SELECT, in SQL projection order. */
