@@ -295,6 +295,17 @@ describe("CQL2 JSON semantic interchange", () => {
     ).toThrow(/UTC Z form/);
   });
 
+  it("rejects scalar spellings that cannot round-trip through schema-typed fields", () => {
+    const options = { schema: schema(), protocol: "ogc-features" as const };
+
+    expect(() =>
+      semanticFilterFromCql2Json({ op: "=", args: [{ property: "observedAt" }, "2026-07-15T00:00:00Z"] }, options),
+    ).toThrow(/timestamp comparisons require the tagged CQL2 literal form/);
+    expect(() =>
+      semanticFilterFromCql2Json({ op: "=", args: [{ property: "preciseAmount" }, "9007199254740993.00"] }, options),
+    ).toThrow(/cannot preserve string-encoded numeric precision/);
+  });
+
   it("round-trips number-encoded decimals and rejects only precision-losing string encodings", () => {
     const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
     const options = { schema: schema(), protocol: "ogc-features" as const };

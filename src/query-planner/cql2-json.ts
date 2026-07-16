@@ -436,7 +436,18 @@ function importLiteral(value: JsonValue, field: LogicalField | undefined, path: 
   if (value === null || Array.isArray(value)) {
     throw cql2Unsupported(path, "the supported scalar form accepts string, number, boolean, date, or timestamp");
   }
-  if (typeof value !== "object") return { kind: "literal" as const, value };
+  if (typeof value !== "object") {
+    if (field?.type.kind === "date" || field?.type.kind === "timestamp") {
+      throw cql2Unsupported(path, `schema-typed ${field.type.kind} comparisons require the tagged CQL2 literal form`);
+    }
+    if (
+      (field?.type.kind === "decimal" && field.type.jsonEncoding === "string") ||
+      (field?.type.kind === "integer" && field.type.jsonEncoding === "string")
+    ) {
+      throw cql2Unsupported(path, "CQL2 JSON numbers cannot preserve string-encoded numeric precision");
+    }
+    return { kind: "literal" as const, value };
+  }
   if ("date" in value) {
     exactKeys(value, ["date"], path);
     if (!field) throw cql2Unsupported(path, "tagged date comparison requires schema context");
