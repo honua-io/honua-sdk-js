@@ -16,7 +16,7 @@ export { compileDuckDbQuery, compileDuckDbQueryV2, compileSemanticDuckDbQuery } 
 export { executeQueryPlan } from "./executor.js";
 export { compileGeoServicesQuery } from "./geoservices.js";
 export { compileGrpcQuery, compileSemanticGrpcQuery } from "./grpc.js";
-export { compileOgcApiFeaturesQuery } from "./ogc-features.js";
+export { compileOgcApiFeaturesQuery, compileSemanticOgcApiFeaturesQuery } from "./ogc-features.js";
 export { compileOdataQuery } from "./odata.js";
 export { compileWfsQuery } from "./wfs.js";
 export {
@@ -148,6 +148,13 @@ export type {
   SemanticGrpcSpatialReference,
   SemanticGrpcSpatialRelationship,
 } from "./grpc.js";
+export type {
+  Cql2FilterLanguage,
+  OgcApiFeaturesFilterConformanceEvidence,
+  SemanticOgcApiFeaturesCompileOptions,
+  SemanticOgcApiFeaturesCompiledQueryV1,
+  SemanticOgcApiFeaturesSourceIdentity,
+} from "./ogc-features.js";
 export {
   COLUMNAR_WORKER_CANCEL_KIND,
   COLUMNAR_WORKER_ERROR_KIND,
