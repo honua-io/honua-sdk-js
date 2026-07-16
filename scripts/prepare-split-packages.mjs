@@ -684,22 +684,24 @@ function copyMigrationCoreTypeSupport(packageRoot) {
 function copySourceCapabilityContractSupport(packageRoot) {
   // `contract/source.js` decorates sources with `supports()` and its public
   // declarations reference the profile vocabulary. Copy the data-only types,
-  // but forward recognition to the required @honua/sdk peer: copying the
-  // module-local WeakSet would create a distinct brand in every split package.
+  // but forward recognition and endpoint binding to the required @honua/sdk
+  // peer: copying the module-local WeakMaps would create distinct brands and
+  // discard the private source matcher in every split package.
   copyFile(path.join(DIST_SRC_ROOT, "source-capability-types.js"), path.join(packageRoot, "source-capability-types.js"));
   copyFile(
     path.join(DIST_SRC_ROOT, "source-capability-types.d.ts"),
     path.join(packageRoot, "source-capability-types.d.ts"),
   );
   const verifier = "@honua/sdk/internal/source-capability-profile-verifier";
-  const forwardingModule = `export { isRegisteredCapabilityProfile } from "${verifier}";\n`;
+  const forwardingModule =
+    `export { isRegisteredCapabilityProfile, matchesRegisteredCapabilityProfileSource } from "${verifier}";\n`;
   fs.writeFileSync(path.join(packageRoot, "source-capability-registry.js"), forwardingModule, "utf8");
   fs.writeFileSync(path.join(packageRoot, "source-capability-registry.d.ts"), forwardingModule, "utf8");
 }
 
 function writeCanonicalCapabilityProfileVerifier(packageRoot) {
   const forwardingModule =
-    'export { isRegisteredCapabilityProfile } from "./source-capability-registry.js";\n';
+    'export { isRegisteredCapabilityProfile, matchesRegisteredCapabilityProfileSource } from "./source-capability-registry.js";\n';
   fs.writeFileSync(path.join(packageRoot, "source-capability-profile-verifier.js"), forwardingModule, "utf8");
   fs.writeFileSync(path.join(packageRoot, "source-capability-profile-verifier.d.ts"), forwardingModule, "utf8");
 }

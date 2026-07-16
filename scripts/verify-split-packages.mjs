@@ -412,7 +412,10 @@ const capabilityProfile = evaluateCapabilityProfile(
 );
 if (capabilityProfile.entries[0]?.effective !== "supported")
   throw new Error("evaluateCapabilityProfile export missing from @honua/sdk/source-capabilities");
-if (Object.keys(reactCapabilityRegistry).join(",") !== "isRegisteredCapabilityProfile")
+if (
+  Object.keys(reactCapabilityRegistry).join(",") !==
+  "isRegisteredCapabilityProfile,matchesRegisteredCapabilityProfileSource"
+)
   throw new Error("split companion exposes a capability-profile registration escape hatch");
 {
   const capabilitySource = createDataset({
@@ -423,7 +426,10 @@ if (Object.keys(reactCapabilityRegistry).join(",") !== "isRegisteredCapabilityPr
       {
         id: "split-package-smoke",
         protocol: "ogc-features",
-        locator: { url: "https://example.test", collectionId: "split-package-smoke" },
+        locator: {
+          url: "https://example.test/ogc/features/collections/split-package-smoke",
+          collectionId: "split-package-smoke",
+        },
         capabilities: new Set(["query"]),
         schemaV2: {
           kind: "honua.source-schema",
@@ -442,9 +448,12 @@ for (const [packageName, createSplitDataset] of [
   ["@honua/app-platform", createAppPlatformContractDataset],
 ]) {
   const descriptor = {
-    id: "cross-package-profile",
+    id: "split-package-smoke",
     protocol: "ogc-features",
-    locator: { url: "https://example.test", collectionId: "split-package-smoke" },
+    locator: {
+      url: "https://example.test/ogc/features/collections/split-package-smoke",
+      collectionId: "split-package-smoke",
+    },
     capabilities: new Set(["query"]),
     schemaV2: {
       kind: "honua.source-schema",
@@ -458,9 +467,30 @@ for (const [packageName, createSplitDataset] of [
     client: new HonuaClient({ baseUrl: "https://example.test" }),
     skipCompatibilityCheck: true,
     sources: [descriptor],
-  }).source("cross-package-profile");
+  }).source("split-package-smoke");
   if (!source?.supports("query"))
-    throw new Error(packageName + " rejected the canonical @honua/sdk capability-profile brand");
+    throw new Error(packageName + " rejected the canonical @honua/sdk capability-profile endpoint proof");
+
+  let rejectedReplay = false;
+  try {
+    createSplitDataset({
+      id: packageName + "-replayed",
+      client: new HonuaClient({ baseUrl: "https://example.test" }),
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          ...descriptor,
+          locator: {
+            url: "https://other.example.test/ogc/features/collections/split-package-smoke",
+            collectionId: "split-package-smoke",
+          },
+        },
+      ],
+    });
+  } catch (error) {
+    rejectedReplay = /capabilityProfile does not match its endpoint fingerprint/.test(String(error));
+  }
+  if (!rejectedReplay) throw new Error(packageName + " accepted a cross-endpoint capability-profile replay");
 
   let rejectedClone = false;
   try {
