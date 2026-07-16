@@ -8,6 +8,7 @@ const PARTIAL_EXPLANATION_PATTERN =
   /(?:\bS[1-9][0-9]*\b|\bslice\b|\bpartial\b|\bremain(?:s|ing)?\b|\bfollow[- ]?up\b|\bblocked\b|\bhandoff\b)/iu;
 const MAX_DISPOSITIONS = 20;
 const MAX_EXPLANATION_LENGTH = 160;
+const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 
 export class PullRequestDispositionError extends Error {
   constructor(code, message) {
@@ -22,6 +23,10 @@ function fail(code, message) {
 }
 
 function normalizeLogin(value) {
+  return String(value ?? "").toLowerCase();
+}
+
+function normalizeRepository(value) {
   return String(value ?? "").toLowerCase();
 }
 
@@ -41,11 +46,21 @@ export function automationExemption(input) {
   ) {
     return "Dependabot dependency update";
   }
+
+  const repository = normalizeRepository(input.repository);
+  const sameRepositoryRelease =
+    /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/u.test(repository) &&
+    normalizeRepository(input.baseRepository) === repository &&
+    normalizeRepository(input.headRepository) === repository;
   if (
     botActor &&
     (login === "github-actions" || login === "github-actions[bot]" || login === "app/github-actions") &&
-    head.startsWith("release-please--branches--") &&
-    /^chore: release(?:\s|$)/u.test(pullRequestTitle)
+    sameRepositoryRelease &&
+    String(input.baseRefName ?? "") === "trunk" &&
+    head === "release-please--branches--trunk" &&
+    SHA_PATTERN.test(String(input.baseSha ?? "")) &&
+    SHA_PATTERN.test(String(input.headSha ?? "")) &&
+    pullRequestTitle === "chore: release trunk"
   ) {
     return "Release Please automation";
   }

@@ -45,6 +45,10 @@ function eventPullRequestInput(event) {
     authorType: pullRequest.user?.type ?? "",
     headRefName: pullRequest.head?.ref ?? "",
     headSha: pullRequest.head?.sha ?? "",
+    headRepository: pullRequest.head?.repo?.full_name ?? "",
+    baseRefName: pullRequest.base?.ref ?? "",
+    baseSha: pullRequest.base?.sha ?? "",
+    baseRepository: pullRequest.base?.repo?.full_name ?? repository,
     title: pullRequest.title ?? "",
   };
 }

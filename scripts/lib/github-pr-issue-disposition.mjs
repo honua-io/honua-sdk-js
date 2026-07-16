@@ -14,6 +14,9 @@ const GITHUB_GRAPHQL_QUERY = `query($owner: String!, $name: String!, $number: In
       headRefName
       headRefOid
       baseRefName
+      baseRefOid
+      headRepository { nameWithOwner }
+      baseRepository { nameWithOwner }
       author { __typename login }
       closingIssuesReferences(first: 100) {
         nodes { number repository { nameWithOwner } }
@@ -46,6 +49,9 @@ function snapshotKey(input) {
     headRefName: input.headRefName,
     headSha: input.headSha,
     baseRefName: input.baseRefName,
+    baseSha: input.baseSha,
+    headRepository: input.headRepository,
+    baseRepository: input.baseRepository,
     authorLogin: input.authorLogin,
     authorType: input.authorType,
     closingIssueNumbers: input.closingIssueNumbers,
@@ -67,6 +73,9 @@ function parseGraphqlSnapshot(payload, input) {
   }
   if (pullRequest.state !== "OPEN") {
     throw new Error(`Pull request #${input.pullRequestNumber} is ${String(pullRequest.state).toLowerCase()}.`);
+  }
+  if (normalizedRepository(pullRequest.baseRepository?.nameWithOwner) !== normalizedRepository(input.repository)) {
+    throw new Error(`Pull request #${input.pullRequestNumber} returned unexpected base-repository metadata.`);
   }
 
   const closing = pullRequest.closingIssuesReferences;
@@ -91,6 +100,9 @@ function parseGraphqlSnapshot(payload, input) {
     headRefName: pullRequest.headRefName ?? "",
     headSha: pullRequest.headRefOid ?? "",
     baseRefName: pullRequest.baseRefName ?? "",
+    baseSha: pullRequest.baseRefOid ?? "",
+    headRepository: pullRequest.headRepository?.nameWithOwner ?? "",
+    baseRepository: pullRequest.baseRepository?.nameWithOwner ?? "",
     authorLogin: pullRequest.author?.login ?? "",
     authorType: pullRequest.author?.__typename ?? "",
     closingIssueNumbers,
