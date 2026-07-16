@@ -65,8 +65,9 @@ OGC source may carry `cql2-json` or `cql2-text`; it cannot carry
 `geoservices-sql92`. A native expression is an escape hatch, not a claim that
 the expression is protocol neutral.
 
-This semantic surface does not change compilation or execution. Protocol
-compiler adoption remains in #527-#529.
+The semantic surface is now compiled directly by the OGC API Features, WFS,
+DuckDB, and Honua gRPC compiler boundaries described below. Integration into
+the complete explain-plan executor remains a separate planner/facade concern.
 
 ### Canonical bytes and query identity
 
@@ -152,6 +153,102 @@ native expressions, property-property comparisons, arithmetic/custom
 functions, measured geometry layouts, and wrapping bounding boxes fail closed
 rather than being weakened.
 
+## OGC API Features and WFS 2.0 semantic compilers
+
+`compileSemanticOgcApiFeaturesQuery()` compiles the validated AST to canonical
+CQL2 JSON or escaped CQL2 text. It does not infer filtering support from the
+protocol name: the caller supplies the concrete collection's discovered
+`/conformance` values, and the compiler requires the exact Features Part 3,
+basic CQL2, encoding, and optional operator conformance classes used by the
+query. When both encodings are advertised, JSON is the deterministic default;
+an explicit preference is accepted only when that encoding was discovered.
+
+`compileSemanticWfsQuery()` compiles the same semantic nodes to namespace-safe
+[FES 2.0 XML](https://docs.ogc.org/is/09-026r2/09-026r2.html). Its evidence is a
+normalized projection of the concrete WFS capabilities document: ad hoc query
+and sorting constraints, logical-operator presence, comparison/spatial/temporal
+operators and operands, and filter/output CRS identifiers. Every generated
+operator and GML operand must be advertised. Missing evidence returns an
+`unsupported` result at the exact query path; it never becomes an empty filter,
+`TRUE`, an envelope approximation, or a dropped relationship.
+
+```ts doc-test=compile
+import type { SourceSchemaV2 } from "@honua/sdk-js/source-schema";
+import {
+  compileSemanticWfsQuery,
+  createSemanticQueryBuilder,
+} from "@honua/sdk-js/query-planner";
+
+interface Parcel {
+  id: number;
+  status: string;
+}
+
+declare const schema: SourceSchemaV2;
+
+const q = createSemanticQueryBuilder<Parcel, "wfs", "non-spatial">();
+const query = q.features({
+  select: ["id", "status"] as const,
+  geometry: "omit",
+  filter: q.and(
+    q.comparison("eq", q.property("status"), "active"),
+    q.isNull(q.property("id"), "is-not-null"),
+  ),
+});
+const compilation = compileSemanticWfsQuery({
+  query,
+  schema,
+  source: {
+    typeName: "cad:Parcel",
+    namespaces: { cad: "https://example.test/cadastre" },
+  },
+  capabilities: {
+    version: "2.0.0",
+    implementsAdHocQuery: true,
+    implementsSorting: false,
+    logicalOperators: true,
+    comparisonOperators: ["PropertyIsEqualTo", "PropertyIsNull"],
+    geometryOperands: [],
+    spatialOperators: [],
+    temporalOperands: [],
+    temporalOperators: [],
+    supportedFilterCrs: [],
+    supportedOutputCrs: [],
+  },
+});
+
+if (compilation.outcome === "compiled") {
+  console.log(compilation.artifact.filter);
+} else {
+  console.warn(compilation.diagnostics[0]);
+}
+```
+
+CQL2 identifiers and WFS `ValueReference` paths come only from the verified
+`SourceSchemaV2` native mapping. CQL2 text rejects identifiers outside its
+normative grammar. FES accepts only a conservative QName/path subset, requires
+every prefix to have a caller-supplied namespace URI, and reserves the FES,
+GML, WFS, XML Schema, and XML prefixes. Literals remain structural values in
+CQL2 JSON, are escaped with the CQL2 control/quote rules in text, and use typed,
+XML-escaped `fes:Literal` elements in FES. GML geometry and temporal literals
+receive deterministic IDs.
+
+Spatial values carry executable CRS bindings. The compilers reorder payload
+coordinates into known CRS-definition axis order only when axis directions and
+units match losslessly, stamp the resulting CRS URI, and require that URI in
+discovered source metadata. Unknown axes, coordinate epochs, required unit or
+datum transforms, mixed CQL2 filter CRS, and measured geometry or bounding-box
+layouts fail closed. No compiler relabels coordinates or treats a measure as a
+third spatial ordinate.
+
+Artifacts bind canonical query identity to schema and normalized capability
+evidence with separate SHA-256 fingerprints, then fingerprint the complete
+wire-request preimage. Reordering capability arrays or namespace object keys
+does not change identity. Protocol-native escape hatches remain terminal and
+dialect matched: OGC accepts only advertised `cql2-json`/`cql2-text`, while WFS
+accepts only `fes-2.0` XML. `usesNativeFilter` makes that trust-boundary choice
+visible to policy and diagnostics.
+
 ### Deprecated raw `where` compatibility
 
 The v1 `Query.where` member remains operational but is deprecated and explicitly
@@ -172,8 +269,8 @@ console.log(compatibilityFilter.dialect); // geoservices-sql92
 ```
 
 Existing v1 planning still serializes `where` as `{ kind: "source-native",
-expression }`, preserving compatibility until #527-#529 adopt semantic nodes.
-New code should use typed builders instead of the bridge.
+expression }`, preserving compatibility while consumers migrate to semantic
+compiler artifacts. New code should use typed builders instead of the bridge.
 
 ## Semantic DuckDB and Honua gRPC compilers
 

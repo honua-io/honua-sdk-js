@@ -3,6 +3,14 @@ import { type FesNode, UNSUPPORTED_FES, compileSpatialFilter, compileWhere, seri
 import type { CanonicalQuery, QueryIrSourceIdentity, WfsCompiledQueryV1 } from "./types.js";
 import { HonuaQueryPlanningError } from "./types.js";
 
+export { compileSemanticWfsQuery } from "./wfs-semantic.js";
+export type {
+  SemanticWfsCompileOptions,
+  SemanticWfsCompiledQueryV1,
+  SemanticWfsSourceIdentity,
+  Wfs20FilterCapabilitiesEvidence,
+} from "./wfs-semantic.js";
+
 /** Compile canonical query IR to a deterministic WFS 2.0 GetFeature request. */
 export function compileWfsQuery(source: QueryIrSourceIdentity, query: CanonicalQuery): WfsCompiledQueryV1 {
   if (source.protocol !== "wfs") {

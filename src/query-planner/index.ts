@@ -18,7 +18,7 @@ export { compileGeoServicesQuery } from "./geoservices.js";
 export { compileGrpcQuery, compileSemanticGrpcQuery } from "./grpc.js";
 export { compileOgcApiFeaturesQuery, compileSemanticOgcApiFeaturesQuery } from "./ogc-features.js";
 export { compileOdataQuery } from "./odata.js";
-export { compileWfsQuery } from "./wfs.js";
+export { compileSemanticWfsQuery, compileWfsQuery } from "./wfs.js";
 export {
   canonicalizeQuery,
   createGeoParquetQueryIr,
@@ -155,6 +155,12 @@ export type {
   SemanticOgcApiFeaturesCompiledQueryV1,
   SemanticOgcApiFeaturesSourceIdentity,
 } from "./ogc-features.js";
+export type {
+  SemanticWfsCompileOptions,
+  SemanticWfsCompiledQueryV1,
+  SemanticWfsSourceIdentity,
+  Wfs20FilterCapabilitiesEvidence,
+} from "./wfs.js";
 export {
   COLUMNAR_WORKER_CANCEL_KIND,
   COLUMNAR_WORKER_ERROR_KIND,

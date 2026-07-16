@@ -528,7 +528,7 @@ function compileCql2JsonSpatial(
     semanticUnsupported(
       "unsupported-geometry",
       `${path}.geometry.layout`,
-      "CQL2 text cannot preserve measured coordinate layouts",
+      "CQL2 JSON cannot preserve measured coordinate layouts",
     );
   }
   const geometry = geometryInDefinitionOrder(filter.geometry, `${path}.geometry`);

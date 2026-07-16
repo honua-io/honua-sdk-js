@@ -170,7 +170,11 @@ export function normalizeNamespaceBindings(
   }
   const bindings: Record<string, string> = {};
   for (const [prefix, uri] of entries) {
-    if (!XML_PREFIX.test(prefix) || prefix.toLowerCase().startsWith("xml")) {
+    if (
+      !XML_PREFIX.test(prefix) ||
+      prefix.toLowerCase().startsWith("xml") ||
+      RESERVED_FES_PREFIXES.has(prefix.toLowerCase())
+    ) {
       throw new HonuaQueryPlanningError("invalid-query", `${path}.${prefix} is not a safe XML namespace prefix`);
     }
     if (typeof uri !== "string" || uri.length === 0 || byteLength(uri) > MAX_NAMESPACE_TEXT_BYTES) {
@@ -180,8 +184,9 @@ export function normalizeNamespaceBindings(
     bindings[prefix] = uri;
   }
   const ordered = Object.entries(bindings).sort(([left], [right]) => compareUtf8(left, right));
+  const normalizedBindings = Object.fromEntries(ordered) as Record<string, string>;
   return {
-    bindings: Object.freeze(bindings),
+    bindings: Object.freeze(normalizedBindings),
     ordered: Object.freeze(ordered.map((entry) => Object.freeze(entry) as readonly [string, string])),
   };
 }
@@ -274,7 +279,15 @@ export function geometryInDefinitionOrder(value: ExecutableGeometryValue, path: 
 
 /** @internal Reorder a validated semantic bounding box into CRS-definition axis order. */
 export function bboxInDefinitionOrder(value: ExecutableBoundingBox, path: string): readonly number[] {
-  const dimensions = value.box.layout === "xy" ? 2 : 3;
+  const layout: unknown = value.box.layout;
+  if (layout !== "xy" && layout !== "xyz") {
+    semanticUnsupported(
+      "unsupported-geometry",
+      `${path}.box.layout`,
+      "OGC CQL2/FES bounding boxes cannot preserve measured coordinate layouts",
+    );
+  }
+  const dimensions = layout === "xy" ? 2 : 3;
   const plan = ogcAxisPlan(value.crs, dimensions, `${path}.crs`);
   const lower = value.box.bounds.slice(0, dimensions);
   const upper = value.box.bounds.slice(dimensions);
@@ -540,6 +553,7 @@ function hex(value: number): string {
 const XML_NAME_START = "(?:[_\\p{L}]|[\\p{Nl}])";
 const XML_NAME_PART = "(?:[-._\\p{L}\\p{Nl}\\p{N}\\p{M}\\u00B7\\u203F\\u2040])";
 const XML_PREFIX = new RegExp(`^${XML_NAME_START}${XML_NAME_PART}*$`, "u");
+const RESERVED_FES_PREFIXES = new Set(["fes", "gml", "wfs", "xs", "xsi"]);
 const FES_QNAME = `(?:${XML_NAME_START}${XML_NAME_PART}*:)?${XML_NAME_START}${XML_NAME_PART}*`;
 const FES_PATH_SEGMENT = new RegExp(`^${FES_QNAME}$`, "u");
 const CQL_IDENTIFIER = new RegExp(`^(?::|${XML_NAME_START})(?::|${XML_NAME_PART})*$`, "u");
