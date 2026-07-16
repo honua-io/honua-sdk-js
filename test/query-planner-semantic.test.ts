@@ -204,6 +204,8 @@ function assertCompileTimeRelationships(): void {
   builder.comparison("eq", builder.property("score"), "high");
   // @ts-expect-error Boolean fields are not ordered.
   builder.comparison("gt", builder.property("active"), true);
+  // @ts-expect-error Branded temporal strings do not accept string-pattern operators.
+  builder.like(builder.property("observedAt"), "2026-%");
   // @ts-expect-error Numeric metrics cannot target a string field.
   builder.aggregate({ groupBy: [], metrics: [{ fn: "avg", field: "status", as: "mean" }] });
   // @ts-expect-error An OGC source cannot carry a GeoServices native filter.
@@ -280,6 +282,57 @@ describe("semantic query AST", () => {
         distance: { value: 0, unit: "metre", mode: "planar" },
       }),
     ).toThrow(/greater than zero/);
+
+    const webMercator = {
+      kind: "authority",
+      authority: "EPSG",
+      code: "3857",
+      definitionAxisOrder: {
+        state: "known",
+        source: "crs-definition",
+        axes: [
+          { name: "easting", abbreviation: "X", direction: "east", unit: "metre" },
+          { name: "northing", abbreviation: "Y", direction: "north", unit: "metre" },
+        ],
+      },
+    } as const;
+    const mismatchedReprojection = {
+      ...point,
+      crs: {
+        ...crs,
+        provenance: {
+          method: "reprojected",
+          reprojection: {
+            source: webMercator,
+            target: webMercator,
+            engine: "test-engine",
+          },
+        },
+      },
+    };
+    expect(() =>
+      parseSemanticQuery({
+        kind: "features",
+        filter: { kind: "spatial", operator: "intersects", geometry: mismatchedReprojection },
+      }),
+    ).toThrow(/must semantically match/);
+
+    const malformedNativeProvenance = {
+      ...point,
+      crs: {
+        ...crs,
+        provenance: {
+          method: "declared",
+          native: { protocol: "ogc-features", name: "crs", unexpected: true },
+        },
+      },
+    };
+    expect(() =>
+      parseSemanticQuery({
+        kind: "features",
+        filter: { kind: "spatial", operator: "intersects", geometry: malformedNativeProvenance },
+      }),
+    ).toThrow(/unexpected/);
   });
 
   it("validates temporal predicate values against timestamp precision and timezone truth", () => {
@@ -574,19 +627,6 @@ describe("semantic query AST", () => {
     expect(semanticLiteralAccepts(type, rejected, overrides)).toBe(false);
   });
 
-  it("does not execute source-provided ECMA-262 field patterns during semantic admission", () => {
-    const schema = scalarSchema(
-      { kind: "string" },
-      {
-        constraints: {
-          state: "known",
-          values: [{ kind: "pattern", syntax: "ecma-262", expression: "^(a+)+$" }],
-        },
-      },
-    );
-    expect(() => parseSemanticQuery(equalityQuery(`${"a".repeat(64)}!`), { schema })).not.toThrow();
-  });
-
   it("validates protocol options even when the query contains no native filter", () => {
     expect(() => parseSemanticQuery({ kind: "features" }, { protocol: "not-a-protocol" as never })).toThrow(
       /options\.protocol.*built-in or namespaced/,
@@ -653,6 +693,54 @@ describe("semantic query AST", () => {
     expect(implicitNulls.sort).toEqual([{ field: "score", direction: "desc", nulls: "native" }]);
   });
 
+  it("defers schema patterns without narrowing or executing ECMA-262", () => {
+    const patternedInput = schemaInput();
+    const comparison = (name: string, value: unknown) => ({
+      kind: "features",
+      filter: {
+        kind: "comparison",
+        operator: "eq",
+        left: { kind: "property", name },
+        right: { kind: "literal", value },
+      },
+    });
+    const patternSchema = (expression: string) =>
+      createSourceSchemaV2({
+        ...patternedInput,
+        fields: patternedInput.fields.map((candidate) =>
+          candidate.name === "status"
+            ? {
+                ...candidate,
+                type: { kind: "string" },
+                domain: { state: "none", reason: "unconstrained" },
+                constraints: {
+                  state: "known",
+                  values: [{ kind: "pattern", syntax: "ecma-262", expression }],
+                },
+              }
+            : candidate,
+        ),
+      });
+
+    for (const [expression, value] of [
+      ["^[A-Z]{2}$", "HI"],
+      ["^(open|closed)$", "open"],
+      ["^[A-Z]+$", "ACTIVE"],
+    ] as const) {
+      expect(parseSemanticQuery(comparison("status", value), { schema: patternSchema(expression) })).toMatchObject({
+        kind: "features",
+      });
+    }
+
+    // A schema pattern is metadata at this boundary. In particular, the
+    // parser must never run a catastrophic expression against hostile input.
+    expect(
+      parseSemanticQuery(comparison("status", `${"a".repeat(4096)}!`), {
+        schema: patternSchema("^(a+)+$"),
+      }),
+    ).toMatchObject({ kind: "features" });
+  });
+
   it("binds native payload form and dialect to the source protocol", () => {
     expect(
       parseSemanticQuery(
@@ -717,6 +805,42 @@ describe("semantic query AST", () => {
     const accessor = { kind: "features" } as Record<string, unknown>;
     Object.defineProperty(accessor, "select", { enumerable: true, get: () => ["id"] });
     expect(() => parseSemanticQuery(accessor)).toThrow(/own data value/);
+    expect(() => parseSemanticQuery('{"kind":"features","k\\u0069nd":"aggregate"}')).toThrow(
+      /duplicate object name "kind"/,
+    );
+
+    const extraArray = ["id"] as Array<string> & { extra?: boolean };
+    extraArray.extra = true;
+    expect(() => parseSemanticQuery({ kind: "features", select: extraArray })).toThrow(/extra/);
+
+    const hiddenArray = ["id"];
+    Object.defineProperty(hiddenArray, "hidden", { value: true });
+    expect(() => parseSemanticQuery({ kind: "features", select: hiddenArray })).toThrow(/extra/);
+
+    const nonEnumerableIndex: string[] = [];
+    Object.defineProperty(nonEnumerableIndex, "0", { value: "id", enumerable: false });
+    expect(() => parseSemanticQuery({ kind: "features", select: nonEnumerableIndex })).toThrow(/enumerable/);
+
+    const symbolArray = ["id"];
+    Object.defineProperty(symbolArray, Symbol("hidden"), { value: true });
+    expect(() => parseSemanticQuery({ kind: "features", select: symbolArray })).toThrow(/symbol/);
+
+    const trapText = "do-not-reflect-proxy-trap-details";
+    const proxy = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error(trapText);
+        },
+      },
+    );
+    try {
+      parseSemanticQuery(proxy);
+      expect.unreachable("proxy input must be rejected");
+    } catch (error) {
+      expect(String(error)).toMatch(/could not be inspected safely as JSON data/);
+      expect(String(error)).not.toContain(trapText);
+    }
     expect(() => parseSemanticQuery({ kind: "features", where: "1=1" })).toThrow(/not part/);
     expect(() => parseSemanticQuery("x".repeat(MAX_SEMANTIC_QUERY_BYTES + 1))).toThrow(/byte bound/);
     expect(() =>

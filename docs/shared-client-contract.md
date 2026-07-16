@@ -29,8 +29,9 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
   `geoServicesGPServiceSource`, `ogcFeaturesSource`, `ogcTilesSource`,
   `ogcMapsSource`, `stacSearchSource`, `wmsSource`, `wmtsSource`,
   `wfsSource`, `odataSource`).
-- **Non-goal:** a query DSL. `Query.where` is still a SQL-92 / CQL2
-  string; adapters translate to their wire format.
+- **Non-goal:** replacing the v1 `Query` envelope while protocol compilers
+  migrate. `Query.where` is a deprecated, source-native compatibility string;
+  new filters use the typed semantic AST from `@honua/sdk-js/query-planner`.
 
 ## Module layout
 
@@ -70,7 +71,7 @@ unsupported-capability, and degraded-result scenarios.
 | `SourceDescriptor` | `{ id, protocol, locator, capabilities, schema?, attribution? }`. The serializable identity of one source. |
 | `Source<T>` | Runtime handle. Methods: `query`, `queryAll`, `queryAggregate`, `queryExtent`, `stream`, `queryObjectIds`, `applyEdits`, `queryRelated`, `attachments` (namespace), `protocol` (typed escape hatch; `adapter` is the legacy alias). |
 | `Dataset` | Logical grouping of sources sharing identity. Methods: `source(id)`, `sourceIds()`, `isCompatible()`, `supportsFeature()`. |
-| `Query<T>` | `{ where?, spatialFilter?, outFields?, orderBy?, pagination?, aggregation?, returnGeometry?, outSr?, signal? }`. |
+| `Query<T>` | The v1 compatibility envelope `{ where?, spatialFilter?, outFields?, orderBy?, pagination?, aggregation?, returnGeometry?, outSr?, signal? }`; `where` is deprecated and source-native. New filters use the typed query-planner AST. |
 | `Result<T>` | `{ features, exceededTransferLimit, totalCount?, aggregateRows?, extent?, fields?, degraded? }`. |
 | `SpatialAggregationRequest` / `SpatialAggregationResult` | Indexed spatial aggregation contract for large result sets. Requests carry `where`, `spatialFilter`, `viewport`, zoom/index-resolution hints, opaque index selection, summary specs (`category`, `histogram`, `range`, `count`, `sum`, `avg`, `min`, `max`), and optional `groupBy`. Results carry opaque indexed cells, grouped/totals summaries, backend index metadata, widget metadata, and progressive loading state. |
 | `EditEnvelope<T>` | `{ adds?, updates?, deletes?, rollbackOnFailure?, signal? }`. Each add / update is a `CanonicalFeature<T>` (attributes + optional geometry + optional id). |
@@ -162,6 +163,7 @@ const dataset = createDataset({
 });
 
 const parcels = dataset.source("parcels-fs")!;
+// Deprecated source-native compatibility text during semantic compiler adoption.
 const result = await parcels.query({ where: "STATE = 'CA'", pagination: { limit: 100 } });
 ```
 

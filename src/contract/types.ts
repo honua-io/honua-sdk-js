@@ -521,7 +521,15 @@ export interface AggregationMetric {
  * ```
  */
 export interface Query<_T = Record<string, unknown>> {
-  /** Logical filter expression. SQL-92 WHERE for GeoServices, CQL2 for OGC. */
+  /**
+   * Source-native filter text retained for v1 compatibility. Its language is
+   * selected by the source adapter (for example GeoServices SQL-92, CQL2 text,
+   * OData, or DuckDB SQL) and is never protocol neutral.
+   *
+   * @deprecated Build a typed semantic filter through
+   * `@honua/sdk-js/query-planner`; use `legacyWhereToNativeFilter` only while
+   * migrating existing protocol-bound text.
+   */
   where?: string;
   /** Spatial constraint. Reuses `core/spatial-filter.ts`. */
   spatialFilter?: SpatialFilter;
@@ -656,6 +664,12 @@ export interface RelatedQuery {
   relationshipId: number;
   /** Source feature ids whose related records to return. */
   sourceIds: ReadonlyArray<FeatureId>;
+  /**
+   * Source-native related-record filter text retained for compatibility.
+   *
+   * @deprecated Use the typed protocol adapter escape hatch until semantic
+   * related-record filtering is available.
+   */
   where?: string;
   outFields?: readonly string[];
   returnGeometry?: boolean;
@@ -688,6 +702,12 @@ export interface AttachmentInfo {
 export interface AttachmentQuery {
   /** Optional caller-supplied parent ids. Empty = all matching `where`. */
   parentIds?: ReadonlyArray<FeatureId>;
+  /**
+   * Source-native attachment filter text retained for compatibility.
+   *
+   * @deprecated Use the typed protocol adapter escape hatch until semantic
+   * attachment filtering is available.
+   */
   where?: string;
   signal?: AbortSignal;
 }
