@@ -418,7 +418,7 @@ async function normalizeAsset(input: {
   const attribution =
     optionalText(input.rawAsset.attribution, "STAC asset attribution", 8_192) ?? input.context.attribution;
   const collectionId = input.parsed.collectionId ?? input.context.collectionId;
-  const identity = [collectionId, input.parsed.documentType === "item" ? input.parsed.id : undefined, input.key]
+  const identity = [collectionId, input.parsed.id === collectionId ? undefined : input.parsed.id, input.key]
     .filter((value): value is string => value !== undefined)
     .map(encodeURIComponent)
     .join("/");

@@ -100,8 +100,12 @@ describe("static STAC discovery", () => {
         tileLayout: "tilejson",
         tileContent: "vector",
       },
-      source: { protocol: "maplibre-vector" },
+      source: {
+        protocol: "maplibre-vector",
+        locator: { url: "https://catalog.test/stac/tiles/{z}/{x}/{y}" },
+      },
     });
+    expect(assets.tilejson?.source?.locator.url).not.toContain("vector.json");
     expect(assets["vector-template"]).toMatchObject({
       classification: {
         state: "classified",
@@ -133,8 +137,72 @@ describe("static STAC discovery", () => {
     const requested = fixture.requests.map((request) => request.url);
     expect(requested.some((url) => url.endsWith("misleading.pmtiles"))).toBe(false);
     expect(requested.some((url) => url.includes("private.bin"))).toBe(false);
-    expect(fixture.requests.filter((request) => request.range).length).toBe(7);
+    expect(fixture.requests.filter((request) => request.range).length).toBe(8);
     expect(result.statistics.probeBytesRead).toBeGreaterThan(0);
+  });
+
+  it("requires an honored suffix range and structural GeoParquet footer before emitting a locator", async () => {
+    const item = JSON.stringify({
+      type: "Feature",
+      stac_version: "1.1.0",
+      id: "range-item",
+      geometry: null,
+      bbox: [0, 0, 1, 1],
+      properties: { datetime: "2025-01-01T00:00:00Z" },
+      links: [],
+      assets: {
+        table: {
+          href: "./table.bin",
+          type: "application/vnd.apache.parquet",
+          roles: ["data"],
+        },
+      },
+    });
+    const parquet = geoparquetFixture();
+    const discoverWith = async (assetResponse: () => Response) =>
+      discoverStaticStac({
+        endpoint: "https://catalog.test/item.json",
+        fetchFn: async (input) =>
+          String(input).endsWith("item.json")
+            ? new Response(item, { headers: { "Content-Type": "application/geo+json" } })
+            : assetResponse(),
+      });
+
+    const ignored = await discoverWith(() => new Response(parquet.buffer as ArrayBuffer, { status: 200 }));
+    expect(ignored.assets[0]?.classification).toMatchObject({ state: "ambiguous", candidates: ["geoparquet"] });
+    expect(ignored.assets[0]?.source).toBeUndefined();
+    expect(ignored.assets[0]?.classification.evidence).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "probe-skipped", format: "geoparquet" })]),
+    );
+
+    const malformed = await discoverWith(
+      () =>
+        new Response(parquet.buffer as ArrayBuffer, {
+          status: 206,
+          headers: { "Content-Range": "not-a-byte-range" },
+        }),
+    );
+    expect(malformed.assets[0]?.classification).toMatchObject({ state: "ambiguous", candidates: ["geoparquet"] });
+    expect(malformed.assets[0]?.source).toBeUndefined();
+
+    const substringOnly = new TextEncoder().encode(
+      'PAR1\u0000geo\u0000{"version":"1.1.0","primary_column":"geometry","columns":{"geometry":{}}}\u0000PAR1',
+    );
+    const falsePositive = await discoverWith(
+      () =>
+        new Response(substringOnly.buffer as ArrayBuffer, {
+          status: 206,
+          headers: { "Content-Range": `bytes 0-${substringOnly.byteLength - 1}/${substringOnly.byteLength}` },
+        }),
+    );
+    expect(falsePositive.assets[0]?.classification).toMatchObject({
+      state: "ambiguous",
+      candidates: ["geoparquet"],
+    });
+    expect(falsePositive.assets[0]?.source).toBeUndefined();
+    expect(falsePositive.assets[0]?.classification.evidence).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "probe-conflict", format: "geoparquet" })]),
+    );
   });
 
   it("returns metadata-only ambiguity when probes are disabled", async () => {
@@ -154,17 +222,37 @@ describe("static STAC discovery", () => {
 
   it("bounds loops, documents, depth, and response bytes deterministically", async () => {
     const fixture = await fixtureFetch();
-    const bounded = await discoverStaticStac({
+    const depthBounded = await discoverStaticStac({
       endpoint: BASE_URL,
       fetchFn: fixture.fetchFn,
       probeAssets: false,
-      limits: { maxDocuments: 1, maxDepth: 0, maxAssets: 1, maxLinksPerDocument: 2 },
+      limits: { maxDocuments: 128, maxDepth: 0, maxAssets: 1, maxLinksPerDocument: 2 },
     });
-    expect(bounded.documents).toHaveLength(1);
-    expect(bounded.diagnostics.map((entry) => entry.code)).toEqual(
+    expect(depthBounded.documents).toHaveLength(1);
+    expect(depthBounded.diagnostics.map((entry) => entry.code)).toEqual(
       expect.arrayContaining(["link-limit", "depth-limit"]),
     );
     expect(fixture.requests).toHaveLength(1);
+
+    const documentsFixture = await fixtureFetch();
+    const documentBounded = await discoverStaticStac({
+      endpoint: BASE_URL,
+      fetchFn: documentsFixture.fetchFn,
+      probeAssets: false,
+      limits: { maxDocuments: 2 },
+    });
+    expect(documentBounded.documents).toHaveLength(2);
+    expect(documentBounded.diagnostics.some((entry) => entry.code === "document-limit")).toBe(true);
+
+    const assetsFixture = await fixtureFetch();
+    const assetBounded = await discoverStaticStac({
+      endpoint: BASE_URL,
+      fetchFn: assetsFixture.fetchFn,
+      probeAssets: false,
+      limits: { maxAssets: 1 },
+    });
+    expect(assetBounded.assets).toHaveLength(1);
+    expect(assetBounded.diagnostics.some((entry) => entry.code === "asset-limit")).toBe(true);
 
     await expect(
       discoverStaticStac({
@@ -176,7 +264,11 @@ describe("static STAC discovery", () => {
   });
 
   it("follows same-origin redirects but refuses cross-origin replay of credentials", async () => {
-    const requests: Array<{ readonly url: string; readonly authorization: string | null }> = [];
+    const requests: Array<{
+      readonly url: string;
+      readonly authorization: string | null;
+      readonly callerContext: string | null;
+    }> = [];
     const item = JSON.stringify({
       type: "Feature",
       stac_version: "1.1.0",
@@ -189,7 +281,12 @@ describe("static STAC discovery", () => {
     });
     const sameOrigin: StacDiscoveryFetch = async (input, init) => {
       const url = String(input);
-      requests.push({ url, authorization: new Headers(init?.headers).get("authorization") });
+      const headers = new Headers(init?.headers);
+      requests.push({
+        url,
+        authorization: headers.get("authorization"),
+        callerContext: headers.get("x-caller-context"),
+      });
       return url.endsWith("root.json")
         ? new Response(null, { status: 302, headers: { Location: "./item.json" } })
         : new Response(item, { headers: { "Content-Type": "application/geo+json" } });
@@ -197,12 +294,20 @@ describe("static STAC discovery", () => {
     const result = await discoverStaticStac({
       endpoint: "https://catalog.test/root.json",
       fetchFn: sameOrigin,
-      headers: { Authorization: "Bearer never-retained" },
+      headers: { Authorization: "Bearer never-retained", "X-Caller-Context": "root-only" },
     });
     expect(result.root.id).toBe("redirected-item");
     expect(requests).toEqual([
-      { url: "https://catalog.test/root.json", authorization: "Bearer never-retained" },
-      { url: "https://catalog.test/item.json", authorization: "Bearer never-retained" },
+      {
+        url: "https://catalog.test/root.json",
+        authorization: "Bearer never-retained",
+        callerContext: "root-only",
+      },
+      {
+        url: "https://catalog.test/item.json",
+        authorization: "Bearer never-retained",
+        callerContext: "root-only",
+      },
     ]);
     expect(JSON.stringify(result)).not.toContain("never-retained");
 
@@ -217,6 +322,24 @@ describe("static STAC discovery", () => {
       }),
     ).rejects.toBeInstanceOf(HonuaNetworkError);
     expect(hostile).toHaveBeenCalledOnce();
+
+    const crossOriginRequests: Array<{ readonly url: string; readonly headers: Headers }> = [];
+    const allowedCrossOrigin: StacDiscoveryFetch = async (input, init) => {
+      const url = String(input);
+      crossOriginRequests.push({ url, headers: new Headers(init?.headers) });
+      return url.includes("catalog.test")
+        ? new Response(null, { status: 302, headers: { Location: "https://metadata.test/item.json" } })
+        : new Response(item, { headers: { "Content-Type": "application/geo+json" } });
+    };
+    await discoverStaticStac({
+      endpoint: "https://catalog.test/root.json",
+      fetchFn: allowedCrossOrigin,
+      allowedOrigins: ["https://metadata.test"],
+      headers: { Authorization: "Bearer root-only", "X-Caller-Context": "root-only" },
+    });
+    expect(crossOriginRequests).toHaveLength(2);
+    expect(crossOriginRequests[1]?.headers.get("authorization")).toBeNull();
+    expect(crossOriginRequests[1]?.headers.get("x-caller-context")).toBeNull();
   });
 
   it("propagates caller cancellation and distinguishes request deadlines", async () => {
@@ -235,6 +358,39 @@ describe("static STAC discovery", () => {
       discoverStaticStac({
         endpoint: BASE_URL,
         fetchFn: hangingFetch,
+        limits: { requestTimeoutMs: 5 },
+      }),
+    ).rejects.toBeInstanceOf(HonuaTimeoutError);
+
+    const hangingBody: StacDiscoveryFetch = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start() {
+            // Intentionally leave the body open until the request deadline.
+          },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    await expect(
+      discoverStaticStac({
+        endpoint: BASE_URL,
+        fetchFn: hangingBody,
+        limits: { requestTimeoutMs: 5 },
+      }),
+    ).rejects.toBeInstanceOf(HonuaTimeoutError);
+
+    const uncancellableBody: StacDiscoveryFetch = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          pull: () => new Promise<void>(() => undefined),
+          cancel: () => new Promise<void>(() => undefined),
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    await expect(
+      discoverStaticStac({
+        endpoint: BASE_URL,
+        fetchFn: uncancellableBody,
         limits: { requestTimeoutMs: 5 },
       }),
     ).rejects.toBeInstanceOf(HonuaTimeoutError);
@@ -277,9 +433,7 @@ async function fixtureFetch(): Promise<{ readonly fetchFn: StacDiscoveryFetch; r
   }
   const tiff = Uint8Array.from([0x49, 0x49, 0x2a, 0x00, ...new Array(28).fill(0)]);
   const pmtiles = Uint8Array.from([0x50, 0x4d, 0x54, 0x69, 0x6c, 0x65, 0x73, 0x03, ...new Array(24).fill(0)]);
-  const geoparquet = new TextEncoder().encode(
-    'PAR1\u0000geo\u0000{"version":"1.1.0","primary_column":"geometry","columns":{}}\u0000PAR1',
-  );
+  const geoparquet = geoparquetFixture();
   const tilejson = JSON.stringify({
     tilejson: "3.0.0",
     tiles: ["https://catalog.test/stac/tiles/{z}/{x}/{y}"],
@@ -312,10 +466,63 @@ async function fixtureFetch(): Promise<{ readonly fetchFn: StacDiscoveryFetch; r
               ? pmtiles
               : undefined;
     if (body === undefined) return new Response("missing", { status: 404 });
-    return new Response(body, {
+    return new Response(typeof body === "string" ? body : (body.buffer as ArrayBuffer), {
       status: range ? 206 : 200,
-      headers: { "Content-Type": typeof body === "string" ? "application/json" : "application/octet-stream" },
+      headers: {
+        "Content-Type": typeof body === "string" ? "application/json" : "application/octet-stream",
+        ...(range && typeof body !== "string"
+          ? { "Content-Range": `bytes 0-${body.byteLength - 1}/${body.byteLength}` }
+          : {}),
+      },
     });
   };
   return { fetchFn, requests };
+}
+
+function geoparquetFixture(): Uint8Array {
+  const geo = JSON.stringify({
+    version: "1.1.0",
+    primary_column: "geometry",
+    columns: { geometry: { encoding: "WKB", geometry_types: [], crs: null } },
+  });
+  const schemaElement = bytes(0x48, ...compactString("schema"), 0x15, 0x00, 0x00);
+  const keyValue = bytes(0x18, ...compactString("geo"), 0x18, ...compactString(geo), 0x00);
+  const metadata = bytes(
+    0x15,
+    0x02,
+    0x19,
+    0x1c,
+    ...schemaElement,
+    0x16,
+    0x00,
+    0x19,
+    0x0c,
+    0x19,
+    0x1c,
+    ...keyValue,
+    0x00,
+  );
+  const footerLength = new Uint8Array(4);
+  new DataView(footerLength.buffer).setUint32(0, metadata.byteLength, true);
+  return bytes(...new TextEncoder().encode("PAR1"), ...metadata, ...footerLength, ...new TextEncoder().encode("PAR1"));
+}
+
+function compactString(value: string): Uint8Array {
+  const encoded = new TextEncoder().encode(value);
+  return bytes(...unsignedVarint(encoded.byteLength), ...encoded);
+}
+
+function unsignedVarint(value: number): Uint8Array {
+  const encoded: number[] = [];
+  let remaining = value;
+  do {
+    const next = remaining & 0x7f;
+    remaining = Math.floor(remaining / 128);
+    encoded.push(remaining > 0 ? next | 0x80 : next);
+  } while (remaining > 0);
+  return Uint8Array.from(encoded);
+}
+
+function bytes(...values: number[]): Uint8Array {
+  return Uint8Array.from(values);
 }

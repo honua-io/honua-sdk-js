@@ -31,6 +31,7 @@ export interface StacTransportResponse {
   readonly contentType?: string;
   readonly etag?: string;
   readonly lastModified?: string;
+  readonly contentRange?: string;
   readonly bytes: Uint8Array;
   readonly truncated: boolean;
 }
@@ -49,8 +50,6 @@ export interface StacDiscoveryTransportOptions {
 }
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-const SENSITIVE_HEADER_NAMES = new Set(["authorization", "cookie", "proxy-authorization", "x-api-key"]);
-
 const LIMIT_DEFAULTS: ResolvedStacDiscoveryLimits = Object.freeze({
   maxDocuments: 128,
   maxDepth: 12,
@@ -190,26 +189,33 @@ export class StacDiscoveryTransport {
           if (currentUrl.protocol === "https:" && target.protocol !== "https:") {
             throw new HonuaNetworkError("Static STAC discovery refused an HTTPS downgrade redirect.", undefined);
           }
-          await response.body?.cancel().catch(() => undefined);
+          cancelStream(response.body);
           this.statistics.redirects += 1;
           current = target.toString();
           continue;
         }
 
         if (!response.ok) {
-          await response.body?.cancel().catch(() => undefined);
+          cancelStream(response.body);
           throw new HonuaHttpError(response.status, "Static STAC discovery request failed.", {});
         }
         const contentLength = parseContentLength(response.headers.get("content-length"));
         if (!truncate && contentLength !== undefined && contentLength > maximumBytes) {
-          await response.body?.cancel().catch(() => undefined);
+          cancelStream(response.body);
           throw new HonuaDiscoveryError(
             "invalid-endpoint",
             "Static STAC JSON exceeds the configured response-size limit.",
             { maximumBytes },
           );
         }
-        const body = await readBounded(response, maximumBytes, truncate, deadline.signal);
+        let body: Awaited<ReturnType<typeof readBounded>>;
+        try {
+          body = await readBounded(response, maximumBytes, truncate, deadline.signal);
+        } catch (cause) {
+          if (this.signal?.aborted) throw new HonuaAbortError();
+          if (deadline.timedOut()) throw new HonuaTimeoutError(this.limits.requestTimeoutMs);
+          throw cause;
+        }
         if (purpose === "probe") this.statistics.probeBytesRead += body.bytes.byteLength;
         else this.statistics.bytesRead += body.bytes.byteLength;
         return Object.freeze({
@@ -221,6 +227,9 @@ export class StacDiscoveryTransport {
           ...(response.headers.get("etag") ? { etag: response.headers.get("etag") ?? undefined } : {}),
           ...(response.headers.get("last-modified")
             ? { lastModified: response.headers.get("last-modified") ?? undefined }
+            : {}),
+          ...(response.headers.get("content-range")
+            ? { contentRange: response.headers.get("content-range") ?? undefined }
             : {}),
           bytes: body.bytes,
           truncated: body.truncated,
@@ -251,11 +260,7 @@ function normalizeCallerHeaders(input: HeadersInit | undefined): Headers {
 }
 
 function headersForOrigin(input: Headers, rootOrigin: boolean): Headers {
-  const headers = new Headers(input);
-  if (!rootOrigin) {
-    for (const name of SENSITIVE_HEADER_NAMES) headers.delete(name);
-  }
-  return headers;
+  return rootOrigin ? new Headers(input) : new Headers();
 }
 
 function parseContentLength(value: string | null): number | undefined {
@@ -293,14 +298,21 @@ async function readBounded(
         if (remaining > 0) chunks.push(chunk.subarray(0, remaining));
         length = maximumBytes;
         truncated = true;
-        await reader.cancel().catch(() => undefined);
+        cancelReader(reader);
         break;
       }
       chunks.push(chunk);
       length += chunk.byteLength;
     }
+  } catch (cause) {
+    cancelReader(reader);
+    throw cause;
   } finally {
-    reader.releaseLock();
+    try {
+      reader.releaseLock();
+    } catch {
+      // A hostile stream may keep an underlying read pending after cancel.
+    }
   }
   const bytes = new Uint8Array(length);
   let offset = 0;
@@ -309,6 +321,23 @@ async function readBounded(
     offset += chunk.byteLength;
   }
   return Object.freeze({ bytes, truncated });
+}
+
+function cancelStream(stream: ReadableStream<Uint8Array> | null): void {
+  if (!stream) return;
+  try {
+    void stream.cancel().catch(() => undefined);
+  } catch {
+    // Cancellation is best effort and must never extend a request deadline.
+  }
+}
+
+function cancelReader(reader: ReadableStreamDefaultReader<Uint8Array>): void {
+  try {
+    void reader.cancel().catch(() => undefined);
+  } catch {
+    // Cancellation is best effort and must never extend a request deadline.
+  }
 }
 
 function requestDeadline(

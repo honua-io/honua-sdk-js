@@ -1,5 +1,6 @@
 import { HonuaAbortError } from "./core/errors.js";
-import type { StacDiscoveryTransport } from "./stac-discovery-transport.js";
+import { hasParquetHeader, inspectGeoParquetFooter } from "./stac-discovery-parquet.js";
+import type { StacDiscoveryTransport, StacTransportResponse } from "./stac-discovery-transport.js";
 import type {
   StacAssetClassification,
   StacAssetClassificationEvidence,
@@ -34,6 +35,7 @@ interface ProbeOutcome {
   readonly contradicted: ReadonlySet<StacAssetFormat>;
   readonly evidence: readonly StacAssetClassificationEvidence[];
   readonly tileContent?: "vector" | "raster" | "unknown";
+  readonly tileTemplate?: string;
 }
 
 const PMTILES_MEDIA_TYPE = "application/vnd.pmtiles";
@@ -240,8 +242,11 @@ export async function classifyStacAsset(input: ClassifyStacAssetInput): Promise<
     });
   }
 
+  const sourceUrl = classification.tileLayout === "tilejson" ? probeOutcome?.tileTemplate : input.rawUrl;
   const source =
-    classification.state === "classified" && input.direct ? sourceLocator(classification, input.rawUrl) : undefined;
+    classification.state === "classified" && input.direct && sourceUrl
+      ? sourceLocator(classification, sourceUrl)
+      : undefined;
   return Object.freeze({ classification, ...(source ? { source } : {}), probeStatus });
 }
 
@@ -252,11 +257,11 @@ async function probeCandidate(
 ): Promise<ProbeOutcome> {
   if (candidates.has("geoparquet")) {
     const response = await input.transport.probe(input.rawUrl, "suffix");
-    return probeGeoParquet(response.bytes);
+    return probeGeoParquet(input, response);
   }
   if (candidates.has("tiles") && tileLayout !== "template") {
     const response = await input.transport.probe(input.rawUrl, "prefix");
-    return probeTileJson(response.bytes, response.truncated);
+    return probeTileJson(response.bytes, response.truncated, input.rawUrl);
   }
   const response = await input.transport.probe(input.rawUrl, "prefix");
   return probePrefix(response.bytes, candidates);
@@ -296,48 +301,84 @@ function probePrefix(bytes: Uint8Array, candidates: ReadonlySet<StacAssetFormat>
   return Object.freeze({ confirmed, contradicted, evidence: Object.freeze(evidence) });
 }
 
-function probeGeoParquet(bytes: Uint8Array): ProbeOutcome {
+async function probeGeoParquet(input: ClassifyStacAssetInput, suffix: StacTransportResponse): Promise<ProbeOutcome> {
   const confirmed = new Set<StacAssetFormat>();
   const contradicted = new Set<StacAssetFormat>();
   const evidence: StacAssetClassificationEvidence[] = [];
-  const parquet = bytes.byteLength >= 8 && ascii(bytes.subarray(bytes.byteLength - 4)) === "PAR1";
-  const text = ascii(bytes);
-  const geoMetadata =
-    parquet && text.includes("geo") && text.includes('"primary_column"') && text.includes('"columns"');
-  if (geoMetadata) {
-    confirmed.add("geoparquet");
+  const totalBytes = completeSuffixTotal(suffix);
+  if (totalBytes === undefined) {
+    evidence.push(
+      formatEvidence(
+        "probe-skipped",
+        "geoparquet",
+        "informational",
+        "The server did not return a complete validated suffix byte range; GeoParquet admission remains unresolved.",
+      ),
+    );
+    return Object.freeze({ confirmed, contradicted, evidence: Object.freeze(evidence) });
+  }
+  const footer = inspectGeoParquetFooter(suffix.bytes, totalBytes);
+  if (footer.state === "incomplete") {
     evidence.push(
       formatEvidence(
         "probe-metadata",
         "geoparquet",
-        "conclusive",
-        "The bounded Parquet footer contains the required GeoParquet metadata structure.",
+        "supporting",
+        "The Parquet footer exceeds the bounded suffix probe and requires the full GeoParquet profiler.",
       ),
     );
-  } else if (!parquet) {
+    return Object.freeze({ confirmed, contradicted, evidence: Object.freeze(evidence) });
+  }
+  if (footer.state === "invalid") {
     contradicted.add("geoparquet");
     evidence.push(
       formatEvidence(
         "probe-conflict",
         "geoparquet",
         "contradicting",
-        "The bounded suffix does not end in Parquet magic.",
+        "The validated suffix range is not a structurally valid Parquet footer.",
       ),
     );
-  } else {
+    return Object.freeze({ confirmed, contradicted, evidence: Object.freeze(evidence) });
+  }
+  if (footer.state === "parquet") {
+    contradicted.add("geoparquet");
+    evidence.push(
+      formatEvidence(
+        "probe-conflict",
+        "geoparquet",
+        "contradicting",
+        "The structural Parquet footer has no valid GeoParquet metadata profile.",
+      ),
+    );
+    return Object.freeze({ confirmed, contradicted, evidence: Object.freeze(evidence) });
+  }
+  const prefix = await input.transport.probe(input.rawUrl, "prefix");
+  if (hasParquetHeader(prefix.bytes)) {
+    confirmed.add("geoparquet");
     evidence.push(
       formatEvidence(
         "probe-metadata",
         "geoparquet",
-        "supporting",
-        "The asset has Parquet magic, but the bounded footer does not expose GeoParquet metadata.",
+        "conclusive",
+        `The bounded structural footer contains GeoParquet ${footer.version} metadata for primary column ${footer.primaryColumn}, and the prefix has Parquet magic.`,
+      ),
+    );
+  } else {
+    contradicted.add("geoparquet");
+    evidence.push(
+      formatEvidence(
+        "probe-conflict",
+        "geoparquet",
+        "contradicting",
+        "The structural footer declares GeoParquet, but the bounded prefix does not have Parquet magic.",
       ),
     );
   }
   return Object.freeze({ confirmed, contradicted, evidence: Object.freeze(evidence) });
 }
 
-function probeTileJson(bytes: Uint8Array, truncated: boolean): ProbeOutcome {
+function probeTileJson(bytes: Uint8Array, truncated: boolean, documentUrl: string): ProbeOutcome {
   const confirmed = new Set<StacAssetFormat>();
   const contradicted = new Set<StacAssetFormat>();
   const evidence: StacAssetClassificationEvidence[] = [];
@@ -373,6 +414,7 @@ function probeTileJson(bytes: Uint8Array, truncated: boolean): ProbeOutcome {
   ) {
     confirmed.add("tiles");
     const vector = Array.isArray((value as { vector_layers?: unknown }).vector_layers);
+    const tileTemplate = firstActionableTileTemplate((value as { tiles: string[] }).tiles, documentUrl);
     evidence.push(
       formatEvidence(
         "probe-metadata",
@@ -386,6 +428,7 @@ function probeTileJson(bytes: Uint8Array, truncated: boolean): ProbeOutcome {
       contradicted,
       evidence: Object.freeze(evidence),
       tileContent: vector ? "vector" : "unknown",
+      ...(tileTemplate ? { tileTemplate } : {}),
     });
   }
   contradicted.add("tiles");
@@ -393,6 +436,52 @@ function probeTileJson(bytes: Uint8Array, truncated: boolean): ProbeOutcome {
     formatEvidence("probe-conflict", "tiles", "contradicting", "The bounded JSON does not satisfy TileJSON structure."),
   );
   return Object.freeze({ confirmed, contradicted, evidence: Object.freeze(evidence), tileContent: "unknown" });
+}
+
+function completeSuffixTotal(response: StacTransportResponse): number | undefined {
+  if (response.status !== 206 || response.truncated || !response.contentRange) return undefined;
+  const match = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.contentRange.trim());
+  if (!match) return undefined;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  const total = Number(match[3]);
+  return Number.isSafeInteger(start) &&
+    Number.isSafeInteger(end) &&
+    Number.isSafeInteger(total) &&
+    start >= 0 &&
+    start <= end &&
+    end === total - 1 &&
+    response.bytes.byteLength === end - start + 1
+    ? total
+    : undefined;
+}
+
+function firstActionableTileTemplate(templates: readonly string[], documentUrl: string): string | undefined {
+  const document = new URL(documentUrl);
+  for (const template of templates) {
+    if (!template || template.length > 16_384) continue;
+    let parsed: URL;
+    try {
+      parsed = new URL(template, document);
+    } catch {
+      continue;
+    }
+    if (
+      (parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      (document.protocol === "https:" && parsed.protocol !== "https:")
+    ) {
+      continue;
+    }
+    const restored = parsed.toString().replaceAll(/%7B([zxy])%7D/gi, (_match, token: string) => {
+      return `{${token.toLowerCase()}}`;
+    });
+    if (hasTileTemplate(restored)) return restored;
+  }
+  return undefined;
 }
 
 function sourceLocator(classification: StacAssetClassification, url: string): StacCandidateSourceLocator | undefined {
