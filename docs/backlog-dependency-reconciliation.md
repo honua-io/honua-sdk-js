@@ -115,3 +115,15 @@ The `Backlog dependency reconciliation` workflow runs scheduled applies every si
 credentials, pins every action by commit, and never runs on pull-request events. The dry-run job has `contents: read`
 and `issues: read`; only the apply job receives `issues: write`. Both jobs write the bounded JSON report to the Actions
 log and job summary without adding issue comments.
+
+## Admission evidence
+
+On 2026-07-15 HST, two consecutive read-only runs against `honua-io/honua-sdk-js` from trunk base
+`abf3128c2e6ca7905ef2eb62571b4c2322619075` produced the same report SHA-256:
+`56c6672769dda2ba0c11a43adefa4cef9c8420ad634de9412ef5503b9338657a`. Both reports observed 58 open target issues,
+58 stabilized metadata records, 58 `missing` dispositions, zero other dispositions, and
+`mutationsPerformed: false`.
+
+The zero-mutation result is intentional and fail-closed: the existing backlog had not yet adopted the exact
+`## Backlog Dependencies` section. Maintainers must groom those issues to the documented automatic or manual form;
+the reconciler never invents dependencies from prose.
