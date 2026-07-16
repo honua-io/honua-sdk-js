@@ -22,9 +22,13 @@ parameters. The public kernel does not currently report detector confidence, so
 the model says `not-reported` instead of inventing a score. Feature data is
 never described as metadata-cache content.
 
-Renderer state is deeply frozen and bounded. URL user-info, query strings, and
-fragments are not retained; credential-shaped scope labels and diagnostic text
-are redacted; source, field, decision, evidence, provenance, extent, and
+Renderer state is deeply frozen and bounded. URL user-info, fragments, and
+identity-bearing query strings are rejected before the kernel runs; only
+`f`/`format=json|pjson` discovery controls are safely removed, matching the
+public kernel boundary. Opaque authorization-scope fingerprints remain
+transport-only; the renderer receives a separate validated structural label,
+an exact SHA-256 identity, or `[configured]`. Credential-shaped diagnostic text
+is redacted; source, field, decision, evidence, provenance, extent, and
 diagnostic collections have explicit limits with visible truncation diagnostics.
 An inspected default source is accepted only as kernel truth; a caller-supplied
 selector cannot manufacture selection truth, and the model states whether a
@@ -114,7 +118,7 @@ npm test -- test/service-explorer-workspace.test.ts
 npm run test:playwright:service-explorer
 ```
 
-The focused truth-model suite currently exercises 22 cases across the ten
+The focused truth-model suite currently exercises 24 cases across the ten
 declared protocol profiles, input normalization/redaction, nested collection
 budgets, selection integrity, supersession, cancellation, and disposal.
 

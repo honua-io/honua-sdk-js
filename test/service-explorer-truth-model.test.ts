@@ -23,7 +23,7 @@ import type {
   HonuaKernelConnectOptions,
   HonuaKernelConnection,
 } from "../src/index.js";
-import { HonuaAuthError, HonuaDiscoveryError } from "../src/index.js";
+import { HonuaAuthError, HonuaDiscoveryError, createHonua } from "../src/index.js";
 import type { CapabilityProfile } from "../src/source-capability-types.js";
 
 const ENDPOINT = "https://fixtures.example.test/services/root";
@@ -148,6 +148,9 @@ describe("Service Explorer capability-truth model", () => {
       { url: "ftp://fixtures.example.test/data" },
       { url: "https://user:password@fixtures.example.test/data" },
       { url: "https://fixtures.example.test/line\nbreak" },
+      { url: `${ENDPOINT}?z=2` },
+      { url: `${ENDPOINT}?token=TOP-SECRET` },
+      { url: `${ENDPOINT}#private` },
       { url: `https://fixtures.example.test/${"x".repeat(4_096)}` },
       { url: ENDPOINT, protocol: "made-up" },
       { url: ENDPOINT, sourceId: "" },
@@ -159,10 +162,26 @@ describe("Service Explorer capability-truth model", () => {
     expect(fake.connect).not.toHaveBeenCalled();
 
     await expect(
-      model.inspect({ url: `${ENDPOINT}/?z=2&token=TOP-SECRET&f=json#private`, protocol: "ogc-features" }),
+      model.inspect({ url: `${ENDPOINT}/?format=pjson&f=json`, protocol: "ogc-features" }),
     ).resolves.toMatchObject({ kind: "error" });
-    expect(fake.connect.mock.calls[0]?.[0]).toMatchObject({ url: `${ENDPOINT}/?f=json&z=2` });
+    expect(fake.connect.mock.calls[0]?.[0]).toMatchObject({ url: ENDPOINT });
     expect(JSON.stringify(fake.connect.mock.calls[0]?.[0])).not.toContain("TOP-SECRET");
+    await model.dispose();
+  });
+
+  it("rejects the same identity-bearing URL boundary as the real public kernel before network access", async () => {
+    const endpoint = `${ENDPOINT}?z=2`;
+    const kernel = createHonua();
+    await expect(kernel.connect({ url: endpoint, protocol: "ogc-features" })).rejects.toMatchObject({
+      code: "invalid-endpoint",
+    });
+    await kernel.dispose();
+
+    const model = createServiceExplorerTruthModel();
+    await expect(model.inspect({ url: endpoint, protocol: "ogc-features" })).resolves.toMatchObject({
+      kind: "error",
+      failure: { code: "input.identity-bearing-endpoint" },
+    });
     await model.dispose();
   });
 
@@ -179,8 +198,11 @@ describe("Service Explorer capability-truth model", () => {
       const model = createServiceExplorerTruthModel({ honua: fake.kernel });
 
       const state = await model.inspect(
-        { url: `${ENDPOINT}?access_token=never-retained#private`, protocol: profile.protocol },
-        { authorizationScopeFingerprint: "tenant:alpha/readers" },
+        { url: `${ENDPOINT}?format=json`, protocol: profile.protocol },
+        {
+          authorizationScopeFingerprint: `sha256:${"a".repeat(64)}`,
+          authorizationScopeLabel: "tenant:alpha/readers",
+        },
       );
 
       expect(state.kind).toBe("ready");
@@ -397,7 +419,7 @@ describe("Service Explorer capability-truth model", () => {
     expect(fake.connect).not.toHaveBeenCalled();
 
     const state = await model.inspect(
-      { url: `${ENDPOINT}?token=TOP-SECRET#private`, protocol: "geoservices-feature-service" },
+      { url: `${ENDPOINT}?f=json`, protocol: "geoservices-feature-service" },
       { authorizationScopeFingerprint: "Bearer TOP-SECRET" },
     );
     expect(state.kind).toBe("partial");
@@ -419,6 +441,31 @@ describe("Service Explorer capability-truth model", () => {
     expect(state.inspection.diagnostics.at(-1)?.code).toBe("explorer.diagnostic-limit");
     expect(state.inspection.truncated).toBe(true);
     expect(JSON.stringify(state)).not.toContain("TOP-SECRET");
+
+    await model.dispose();
+  });
+
+  it("keeps opaque authorization fingerprints transport-only", async () => {
+    const source = sourceInspection(PROTOCOL_FIXTURES[2] as ProtocolFixtureProfile);
+    const managed = fixtureConnection({
+      protocol: "ogc-features",
+      sources: [source],
+      defaultSourceId: source.descriptor.id,
+    });
+    const fake = fakeKernel(async () => managed.connection);
+    const model = createServiceExplorerTruthModel({ honua: fake.kernel });
+
+    const opaque = await model.inspect(
+      { url: ENDPOINT, protocol: "ogc-features" },
+      { authorizationScopeFingerprint: "short-api-key" },
+    );
+    expect(opaque.request.authorization).toEqual({
+      mode: "scoped",
+      scopeIdentity: "[configured]",
+      credentialsRetained: false,
+    });
+    expect(JSON.stringify(opaque)).not.toContain("short-api-key");
+    expect(fake.connect.mock.calls[0]?.[1]).toMatchObject({ authorizationScopeFingerprint: "short-api-key" });
 
     await model.dispose();
   });
