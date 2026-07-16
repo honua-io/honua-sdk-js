@@ -1,0 +1,32 @@
+{
+  "name": "Oahu Elevation",
+  "serviceDescription": "Terrain imagery and raster catalog",
+  "capabilities": "Image,Catalog,Metadata",
+  "supportedQueryFormats": "JSON, PBF",
+  "supportedImageFormatTypes": "PNG32,JPG",
+  "spatialReference": { "wkid": 102100, "latestWkid": 3857 },
+  "fullExtent": {
+    "xmin": -17600000,
+    "ymin": 2400000,
+    "xmax": -17500000,
+    "ymax": 2500000,
+    "spatialReference": { "wkid": 102100, "latestWkid": 3857 }
+  },
+  "maxRecordCount": 2000,
+  "maxImageWidth": 4096,
+  "maxImageHeight": 4096,
+  "maxMosaicImageCount": 20,
+  "maxDownloadImageCount": 10,
+  "tileInfo": { "spatialReference": { "wkid": 102100, "latestWkid": 3857 } },
+  "advancedQueryCapabilities": { "supportsPagination": true },
+  "objectIdField": "OBJECTID",
+  "fields": [
+    { "name": "OBJECTID", "alias": "Object ID", "type": "esriFieldTypeOID", "nullable": false },
+    { "name": "Name", "type": "esriFieldTypeString", "length": 128, "nullable": true }
+  ],
+  "operations": [
+    { "name": "Export Image", "href": "./exportImage", "methods": ["GET", "POST"] },
+    { "name": "Identify", "href": "identify", "methods": ["GET", "POST"] }
+  ],
+  "authInfo": { "isTokenBasedSecurity": false }
+}

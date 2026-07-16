@@ -45,7 +45,8 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
   const classifiedGeoServices = parseGeoServicesEndpoint(endpoint);
   const geoservices =
     classifiedGeoServices?.protocol === "geoservices-feature-service" ||
-    classifiedGeoServices?.protocol === "geoservices-map-service"
+    classifiedGeoServices?.protocol === "geoservices-map-service" ||
+    classifiedGeoServices?.protocol === "geoservices-image-service"
       ? {
           endpoint: classifiedGeoServices.endpoint,
           clientBaseUrl: classifiedGeoServices.clientBaseUrl,
@@ -71,7 +72,11 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
       "ambiguous-protocol",
       "connect() could not determine the protocol from the URL without probing. Pass an explicit protocol hint.",
       {
-        autoDetectedLayouts: ["*/rest/services/*/FeatureServer[/layer]", "*/rest/services/*/MapServer[/layer]"],
+        autoDetectedLayouts: [
+          "*/rest/services/*/FeatureServer[/layer]",
+          "*/rest/services/*/MapServer[/layer]",
+          "*/rest/services/*/ImageServer[/layer]",
+        ],
         supportedProtocols: [
           "ogc-features",
           "stac",
@@ -83,6 +88,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
           "ogc-maps",
           "geoservices-feature-service",
           "geoservices-map-service",
+          "geoservices-image-service",
         ],
       },
     );
@@ -163,13 +169,22 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
     const ogcBasePath = url.pathname && url.pathname !== "/" ? url.pathname : "";
     return { endpoint, clientBaseUrl: url.origin, protocol: hint, ogcBasePath };
   }
-  if (hint === "geoservices-feature-service" || hint === "geoservices-map-service") {
+  if (
+    hint === "geoservices-feature-service" ||
+    hint === "geoservices-map-service" ||
+    hint === "geoservices-image-service"
+  ) {
     if (!geoservices || geoservices.protocol !== hint) {
-      throw new HonuaDiscoveryError(
-        "invalid-endpoint",
-        `The endpoint is not a canonical ${hint === "geoservices-feature-service" ? "FeatureServer" : "MapServer"} URL.`,
-        { endpoint, protocol: hint },
-      );
+      const expected =
+        hint === "geoservices-feature-service"
+          ? "FeatureServer"
+          : hint === "geoservices-map-service"
+            ? "MapServer"
+            : "ImageServer";
+      throw new HonuaDiscoveryError("invalid-endpoint", `The endpoint is not a canonical ${expected} URL.`, {
+        endpoint,
+        protocol: hint,
+      });
     }
     return geoservices;
   }
@@ -189,6 +204,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
         "ogc-maps",
         "geoservices-feature-service",
         "geoservices-map-service",
+        "geoservices-image-service",
       ],
     },
   );
