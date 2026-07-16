@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { startMigrationWorkbenchFixtureServer } from "../../examples/migration-workbench/mock-server.mjs";
+import {
+  normalizeMigrationWorkbenchBasePath,
+  startMigrationWorkbenchFixtureServer,
+} from "../../examples/migration-workbench/mock-server.mjs";
 import { SAMPLE_PERFORMANCE_BUDGET_MS } from "../../scripts/lib/sample-gates.mjs";
 import { attestBrowserQuality, attestClosedFixture, finalizeSampleConsole } from "./sample-gate-assertions.mjs";
 
@@ -11,9 +14,28 @@ const VIEWPORTS = [
 ];
 const WORKFLOW_SELECTORS = ["#compat-metrics", "#assertion-matrix", "#maplibre-residuals", "#artifact-files"];
 const ARTIFACT_DECODED_BYTES_BUDGET = 512 * 1024;
+const HOSTED_BASE_PATH = "/honua-sdk-js/gallery/migration-workbench/";
 const CAPTURE_DIAGNOSTIC_ATTACHMENTS = process.env.HONUA_SAMPLE_PLAYWRIGHT_OUTPUT_DIR === undefined;
 
 test.setTimeout(90_000);
+
+test("migration workbench rejects malicious hosted base paths", () => {
+  expect(normalizeMigrationWorkbenchBasePath()).toBe("/");
+  expect(normalizeMigrationWorkbenchBasePath(HOSTED_BASE_PATH)).toBe(HOSTED_BASE_PATH);
+  for (const value of [
+    "honua/",
+    "/honua",
+    "//honua/",
+    "/honua//gallery/",
+    "/honua/../secret/",
+    "/honua/%2e%2e/secret/",
+    "/honua\\gallery/",
+    "/honua/?mode=preview",
+    "https://evil.example/honua/",
+  ]) {
+    expect(() => normalizeMigrationWorkbenchBasePath(value)).toThrow(/basePath|unsafe path segment/u);
+  }
+});
 
 test(
   "migration workbench proves artifact truth and generated behavior in source or packed mode",
@@ -30,7 +52,7 @@ test(
     });
     page.on("request", (request) => allRequests.push(request.url()));
 
-    const fixtureServer = await startMigrationWorkbenchFixtureServer();
+    const fixtureServer = await startMigrationWorkbenchFixtureServer({ basePath: HOSTED_BASE_PATH });
     const fixtureOrigin = new URL(fixtureServer.url).origin;
     await context.route(/^https?:\/\//u, async (route) => {
       const url = new URL(route.request().url());
@@ -168,20 +190,20 @@ test(
       expect(artifactProof.every((file) => file.observedSha256 === file.expectedSha256)).toBe(true);
       await expect(page.locator("#artifact-files a")).toHaveCount(5);
 
-      const performanceEvidence = await page.evaluate(() => {
+      const performanceEvidence = await page.evaluate((hostedBasePath) => {
         const artifactResources = performance
           .getEntriesByType("resource")
-          .filter((entry) => new URL(entry.name).pathname.startsWith("/artifacts/v1/"));
+          .filter((entry) => new URL(entry.name).pathname.startsWith(`${hostedBasePath}artifacts/v1/`));
         return {
           readyMs: performance.now(),
           artifactPaths: [...new Set(artifactResources.map((entry) => new URL(entry.name).pathname))].sort(),
           decodedBodyBytes: artifactResources.reduce((total, entry) => total + (entry.decodedBodySize ?? 0), 0),
           completedByMs: artifactResources.reduce((latest, entry) => Math.max(latest, entry.responseEnd ?? 0), 0),
         };
-      });
+      }, HOSTED_BASE_PATH);
       const expectedArtifactPaths = artifactProof
         .map((file) => new URL(file.href, fixtureServer.url).pathname)
-        .concat("/artifacts/v1/manifest.v1.json")
+        .concat(`${HOSTED_BASE_PATH}artifacts/v1/manifest.v1.json`)
         .sort();
       expect(performanceEvidence.artifactPaths).toEqual(expectedArtifactPaths);
       expect(performanceEvidence.readyMs).toBeLessThanOrEqual(SAMPLE_PERFORMANCE_BUDGET_MS);

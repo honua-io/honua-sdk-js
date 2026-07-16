@@ -3118,6 +3118,18 @@ export function generateCiSelection(catalog) {
 export async function validateSiteProjection(projection) {
   validateSensitiveMetadata(projection, "site projection");
   await validateJsonSchema(projection, SITE_PROJECTION_SCHEMA_PATH);
+  const sampleIds = new Set(projection.samples.map((sample) => sample.id));
+  invariant(sampleIds.size === projection.samples.length, "site projection sample IDs must be unique");
+  const routeIds = new Set(projection.routes.map((route) => route.id));
+  invariant(routeIds.size === projection.routes.length, "site projection route IDs must be unique");
+  for (const route of projection.routes) {
+    if (route.ownership === "sdk-projection") {
+      invariant(
+        sampleIds.has(route.sampleId),
+        `site projection route ${route.id} references unknown SDK sample ${route.sampleId}`,
+      );
+    }
+  }
 }
 
 export async function validateSiteVisualEvidence(evidence, projection, options = {}) {

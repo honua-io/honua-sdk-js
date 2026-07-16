@@ -24,7 +24,10 @@ export async function loadMigrationWorkbenchArtifacts(
   options: LoadMigrationWorkbenchArtifactsOptions = {},
 ): Promise<MigrationWorkbenchArtifactSet> {
   const fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
-  const artifactBaseUrl = (options.artifactBaseUrl ?? "/artifacts/v1").replace(/\/$/u, "");
+  // Keep the default relative to the document so a built sample remains
+  // runnable beneath a hosted base path (for example /samples/migration/)
+  // instead of silently escaping to the origin root.
+  const artifactBaseUrl = (options.artifactBaseUrl ?? "artifacts/v1").replace(/\/$/u, "");
   const [manifest, migrationReport, widgetReadiness, maplibreAssessment, diff] = await Promise.all([
     fetchJson(fetchFn, `${artifactBaseUrl}/${ARTIFACT_FILENAMES.manifest}`, options.signal),
     fetchJson(fetchFn, `${artifactBaseUrl}/${ARTIFACT_FILENAMES.migrationReport}`, options.signal),

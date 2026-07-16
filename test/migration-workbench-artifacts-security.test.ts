@@ -263,10 +263,24 @@ describe("migration workbench artifact hardening", () => {
   });
 
   it("is byte-identical under hostile Git environment and global configuration", async () => {
+    const baselineTemporaryRoot = makeTempDir("migration-hermetic-baseline");
     const baseline = await buildMigrationWorkbenchArtifacts({
       repositoryRoot,
-      temporaryRoot: makeTempDir("migration-hermetic-baseline"),
+      temporaryRoot: baselineTemporaryRoot,
     });
+    for (const bytes of baseline.artifacts.values()) {
+      const text = bytes.toString("utf8");
+      expect(text).not.toContain(repositoryRoot);
+      expect(text).not.toContain(baselineTemporaryRoot);
+    }
+    const baselineReport = JSON.parse(
+      baseline.artifacts
+        .get("examples/migration-workbench/public/artifacts/v1/migration-report.v1.json")
+        ?.toString("utf8") ?? "{}",
+    ) as { commands?: Array<{ id?: string; argv?: string[] }> };
+    expect(baselineReport.commands?.find((command) => command.id === "honua-compat-demo")?.argv).toContain(
+      "<repo>/examples",
+    );
     const hostileHome = makeTempDir("migration-hostile-git-home");
     fs.writeFileSync(
       path.join(hostileHome, ".gitconfig"),

@@ -21,6 +21,30 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml",
 };
 
+export function normalizeMigrationWorkbenchBasePath(value = "/") {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith("/") ||
+    !value.endsWith("/") ||
+    value.includes("\\") ||
+    value.includes("%") ||
+    value.includes("//") ||
+    value.includes("?") ||
+    value.includes("#") ||
+    [...value].some((character) => {
+      const codePoint = character.codePointAt(0);
+      return codePoint <= 0x20 || codePoint === 0x7f;
+    })
+  ) {
+    throw new Error("Migration workbench basePath must be a canonical absolute URL path ending in /");
+  }
+  const segments = value.split("/").filter(Boolean);
+  if (segments.some((segment) => segment === "." || segment === ".." || !/^[A-Za-z0-9._~-]+$/u.test(segment))) {
+    throw new Error("Migration workbench basePath contains an unsafe path segment");
+  }
+  return value;
+}
+
 function buildDemoIfNeeded() {
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   const result = spawnSync(npmCommand, ["run", "demo:migration-workbench:build", "--silent"], {
@@ -70,7 +94,8 @@ async function activeConnections(server) {
   });
 }
 
-export async function startMigrationWorkbenchFixtureServer({ build = true } = {}) {
+export async function startMigrationWorkbenchFixtureServer({ build = true, basePath = "/" } = {}) {
+  const hostedBasePath = normalizeMigrationWorkbenchBasePath(basePath);
   if (build) buildDemoIfNeeded();
 
   const server = http.createServer((request, response) => {
@@ -85,13 +110,19 @@ export async function startMigrationWorkbenchFixtureServer({ build = true } = {}
     }
 
     const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
-    if (requestUrl.pathname === "/favicon.ico") {
+    if (!requestUrl.pathname.startsWith(hostedBasePath)) {
+      response.writeHead(404, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+      response.end("Not found");
+      return;
+    }
+    const hostedPath = `/${requestUrl.pathname.slice(hostedBasePath.length)}`;
+    if (hostedPath === "/favicon.ico") {
       response.writeHead(204, { "cache-control": "no-store" });
       response.end();
       return;
     }
 
-    const staticFile = boundedStaticFile(requestUrl.pathname);
+    const staticFile = boundedStaticFile(hostedPath);
     if (staticFile) {
       serveFile(request, response, staticFile);
       return;
@@ -117,7 +148,7 @@ export async function startMigrationWorkbenchFixtureServer({ build = true } = {}
   let closePromise;
   return {
     server,
-    url: `http://127.0.0.1:${address.port}`,
+    url: `http://127.0.0.1:${address.port}${hostedBasePath}`,
     async close() {
       closePromise ??= (async () => {
         server.closeIdleConnections?.();

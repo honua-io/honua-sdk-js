@@ -30,6 +30,9 @@ const sampleConfig = createSampleViteConfig(import.meta.url, {
 
 export default {
   ...sampleConfig,
+  // Relative entry and asset URLs keep the static build relocatable under a
+  // gallery or documentation base path without a host-specific rebuild.
+  base: "./",
   plugins: [...(sampleConfig.plugins ?? []), rawGeneratedTargetPlugin],
   build: {
     ...sampleConfig.build,

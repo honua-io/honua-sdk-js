@@ -27,6 +27,18 @@ const QUALITY_GATE_KEYS = Object.freeze([
   "performance",
   "liveEvidence",
 ]);
+const PNG_SIGNATURE = Buffer.from("89504e470d0a1a0a", "hex");
+const PNG_CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < table.length; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
 const VERIFIED_INTEGRITIES = new WeakSet();
 const VERIFIED_GALLERY_MODELS = new WeakSet();
 
@@ -585,14 +597,86 @@ export async function verifyGalleryVisualAssets(gallery, readAsset) {
         bytes.byteLength === screenshot.bytes && sha256(bytes) === screenshot.sha256,
         `${card.sample.id} ${screenshot.variant} screenshot bytes do not match visual evidence`,
       );
+      const dimensions = verifiedPngDimensions(
+        bytes,
+        `${card.sample.id} ${screenshot.variant} visual evidence`,
+      );
       invariant(
-        bytes.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")),
-        `${card.sample.id} ${screenshot.variant} visual evidence is not a PNG`,
+        dimensions.width === screenshot.viewport.width && dimensions.height === screenshot.viewport.height,
+        `${card.sample.id} ${screenshot.variant} PNG dimensions do not match its declared viewport`,
       );
       assets.push({ publicationPath, bytes });
     }
   }
   return assets;
+}
+
+function pngCrc32(bytes, start, end) {
+  let crc = 0xffffffff;
+  for (let offset = start; offset < end; offset += 1) {
+    crc = PNG_CRC_TABLE[(crc ^ bytes[offset]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function verifiedPngDimensions(bytes, label) {
+  invariant(bytes.byteLength >= 45 && bytes.subarray(0, 8).equals(PNG_SIGNATURE), `${label} is not a PNG`);
+  let offset = 8;
+  let chunkCount = 0;
+  let dimensions = null;
+  let sawImageData = false;
+  let sawEnd = false;
+  while (offset < bytes.byteLength) {
+    invariant(++chunkCount <= 4_096, `${label} contains too many PNG chunks`);
+    invariant(bytes.byteLength - offset >= 12, `${label} has a truncated PNG chunk`);
+    const dataLength = bytes.readUInt32BE(offset);
+    invariant(dataLength <= bytes.byteLength - offset - 12, `${label} has an invalid PNG chunk length`);
+    const typeStart = offset + 4;
+    const dataStart = offset + 8;
+    const dataEnd = dataStart + dataLength;
+    const chunkEnd = dataEnd + 4;
+    const type = bytes.toString("ascii", typeStart, dataStart);
+    invariant(/^[A-Za-z]{4}$/u.test(type), `${label} has an invalid PNG chunk type`);
+    invariant(
+      bytes.readUInt32BE(dataEnd) === pngCrc32(bytes, typeStart, dataEnd),
+      `${label} has an invalid ${type} CRC`,
+    );
+    if (chunkCount === 1) invariant(type === "IHDR", `${label} does not begin with PNG IHDR`);
+    if (type === "IHDR") {
+      invariant(dimensions === null && dataLength === 13, `${label} has an invalid PNG IHDR`);
+      const width = bytes.readUInt32BE(dataStart);
+      const height = bytes.readUInt32BE(dataStart + 4);
+      const bitDepth = bytes[dataStart + 8];
+      const colorType = bytes[dataStart + 9];
+      const validBitDepths = {
+        0: [1, 2, 4, 8, 16],
+        2: [8, 16],
+        3: [1, 2, 4, 8],
+        4: [8, 16],
+        6: [8, 16],
+      };
+      invariant(
+        width > 0 &&
+          height > 0 &&
+          validBitDepths[colorType]?.includes(bitDepth) &&
+          bytes[dataStart + 10] === 0 &&
+          bytes[dataStart + 11] === 0 &&
+          (bytes[dataStart + 12] === 0 || bytes[dataStart + 12] === 1),
+        `${label} has unsupported PNG image metadata`,
+      );
+      dimensions = { width, height };
+    } else if (type === "IDAT") {
+      invariant(dimensions !== null && !sawEnd, `${label} has PNG image data outside its image body`);
+      sawImageData = true;
+    } else if (type === "IEND") {
+      invariant(dataLength === 0 && dimensions !== null && sawImageData && !sawEnd, `${label} has an invalid PNG IEND`);
+      sawEnd = true;
+      invariant(chunkEnd === bytes.byteLength, `${label} contains bytes after PNG IEND`);
+    }
+    offset = chunkEnd;
+  }
+  invariant(dimensions && sawImageData && sawEnd, `${label} is an incomplete PNG`);
+  return dimensions;
 }
 
 function escapeHtml(value) {

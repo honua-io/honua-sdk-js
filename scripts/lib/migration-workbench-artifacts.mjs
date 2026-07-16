@@ -152,8 +152,8 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
       repositoryRoot,
       temporaryRoot,
       aliases: [
-        [fixturePath, path.join(repositoryRoot, ...FIXTURE_REPOSITORY_PATH.split("/"))],
-        [sourceSnapshotRoot, path.join(repositoryRoot, "examples")],
+        [fixturePath, `<repo>/${FIXTURE_REPOSITORY_PATH}`],
+        [sourceSnapshotRoot, "<repo>/examples"],
       ],
     };
     const demoCommand = runCliCommand({
