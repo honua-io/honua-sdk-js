@@ -181,7 +181,10 @@ describe("odata / lossless write integration", () => {
     const guid = buildSource("GuidRecords", [route]);
     const assets = buildSource("Assets", [route]);
 
-    await named.applyEdits({ updates: [{ id: "O'Neil/a,b", attributes: {} }], deletes: ["O'Neil/a,b"] });
+    await named.applyEdits({
+      updates: [{ id: "東京/🌋,O'Neil", attributes: {} }],
+      deletes: ["東京/🌋,O'Neil"],
+    });
     await guid.applyEdits({
       updates: [{ id: "01234567-89AB-CDEF-0123-456789ABCDEF", attributes: {} }],
       deletes: ["01234567-89AB-CDEF-0123-456789ABCDEF"],
@@ -199,8 +202,8 @@ describe("odata / lossless write integration", () => {
     });
 
     expect(paths).toEqual([
-      "/odata/NamedRecords('O''Neil%2Fa%2Cb')",
-      "/odata/NamedRecords('O''Neil%2Fa%2Cb')",
+      "/odata/NamedRecords('%E6%9D%B1%E4%BA%AC%2F%F0%9F%8C%8B%2CO''Neil')",
+      "/odata/NamedRecords('%E6%9D%B1%E4%BA%AC%2F%F0%9F%8C%8B%2CO''Neil')",
       "/odata/GuidRecords(01234567-89AB-CDEF-0123-456789ABCDEF)",
       "/odata/GuidRecords(01234567-89AB-CDEF-0123-456789ABCDEF)",
       "/odata/Assets(Tenant='north%2FO''Neil',Id=9223372036854775807)",
@@ -225,6 +228,51 @@ describe("odata / lossless write integration", () => {
       expect(editHits).toBe(0);
     },
   );
+
+  it("preflights the complete envelope before issuing an edit request", async () => {
+    let editHits = 0;
+    const source = buildSource("Records", [
+      [
+        /\/odata\/Records/,
+        () => {
+          editHits += 1;
+          return jsonResponse({ Id: "1" });
+        },
+      ],
+    ]);
+
+    await expect(
+      source.applyEdits({
+        adds: [{ attributes: { Id: "1", Amount: "1.000000000" } }],
+        updates: [{ id: "not-an-int64", attributes: { Amount: "2.000000000" } }],
+      }),
+    ).rejects.toMatchObject({ code: "invalid-value", path: "$.key.Id" });
+    expect(editHits).toBe(0);
+  });
+
+  it("resolves prepared keys without consulting polluted prototypes", async () => {
+    let invoked = false;
+    const previous = Object.getOwnPropertyDescriptor(Object.prototype, "Id");
+    Object.defineProperty(Object.prototype, "Id", {
+      configurable: true,
+      get() {
+        invoked = true;
+        throw new Error("prototype-key-secret");
+      },
+    });
+    try {
+      const source = buildSource("Records", [["/odata/Records(1)", () => new Response(null, { status: 204 })]]);
+
+      const result = await source.applyEdits({
+        updates: [{ id: "1", attributes: { Amount: "1.000000000" } }],
+      });
+      expect(result.updated[0]).toMatchObject({ id: "1", success: true });
+      expect(invoked).toBe(false);
+    } finally {
+      if (previous) Object.defineProperty(Object.prototype, "Id", previous);
+      else Reflect.deleteProperty(Object.prototype, "Id");
+    }
+  });
 
   it("uses the same encoded bodies, keys, and per-part media types in an atomic batch", async () => {
     let outerContentType: string | null = null;
@@ -300,6 +348,36 @@ describe("odata / lossless write integration", () => {
         atomicityGroup: "g1",
       },
     ]);
+  });
+
+  it("keeps composite-key grammar visible in JSON batch target URLs", async () => {
+    let target: string | undefined;
+    const source = buildSource("Assets", [
+      [
+        "/odata/$batch",
+        (_url, init) => {
+          const payload = JSON.parse(String(init?.body ?? "{}")) as { requests?: Array<{ url?: string }> };
+          target = payload.requests?.[0]?.url;
+          return jsonResponse({ responses: [{ id: "1", status: 204 }] });
+        },
+      ],
+    ]);
+
+    const result = await source.applyEdits({
+      updates: [
+        {
+          attributes: {
+            Tenant: "north/O'Neil",
+            Id: "9223372036854775807",
+            Amount: "1.000000000",
+          },
+        },
+      ],
+      rollbackOnFailure: true,
+    });
+
+    expect(result.updated[0].success).toBe(true);
+    expect(target).toBe("Assets(Tenant='north%2FO''Neil',Id=9223372036854775807)");
   });
 
   it("preserves legacy body bytes, ordinary media types, and key formatting when omitted", async () => {

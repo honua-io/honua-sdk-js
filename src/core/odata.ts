@@ -28,6 +28,7 @@ import {
   withoutHonuaCacheState,
 } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
+import { encodeOdataKeyPredicatePath } from "./odata-key-path.js";
 import { trimTrailingSlashes } from "./path-utils.js";
 import type { HonuaFieldInfo } from "./types.js";
 
@@ -472,7 +473,7 @@ export class HonuaOdataEntitySet {
     body: Record<string, unknown>,
     options: HonuaOdataWriteRequestOptions = {},
   ): Promise<T | undefined> {
-    const path = `${this.entitySetPath()}(${encodeOdataKey(key)})`;
+    const path = `${this.entitySetPath()}(${encodeOdataKeyPredicatePath(key)})`;
     return this.requestJson<T | undefined>("PATCH", path, undefined, options.signal, JSON.stringify(body), {
       "Content-Type": options.contentType ?? "application/json",
     });
@@ -480,7 +481,7 @@ export class HonuaOdataEntitySet {
 
   /** Delete a row via `DELETE /<entitySet>(<key>)`. */
   public async delete(key: string, options: { signal?: AbortSignal } = {}): Promise<void> {
-    const path = `${this.entitySetPath()}(${encodeOdataKey(key)})`;
+    const path = `${this.entitySetPath()}(${encodeOdataKeyPredicatePath(key)})`;
     await this.requestJson<unknown>("DELETE", path, undefined, options.signal);
   }
 
@@ -756,46 +757,6 @@ function ensureLeadingSlash(path: string): string {
 
 function stripLeadingSlash(path: string): string {
   return path.startsWith("/") ? path.slice(1) : path;
-}
-
-/**
- * Make an OData entity key safe to interpolate into the URL path segment
- * `<entitySet>(<key>)`. A raw key containing characters such as `&`, `?`,
- * `#`, `/`, space, or `'` would otherwise split or mis-target the path
- * (e.g. `Customers(A&B)`).
- *
- * The key is treated as an OData literal: single-quoted spans are kept as
- * quoted string literals (with embedded `'` doubled per OData v4 §5.1.1.6.1),
- * and structural characters that delimit composite keys (`,`, `=`) and
- * literal quotes are preserved. Everything else is percent-encoded so the
- * resulting segment is a single, correctly-targeted URL path component.
- */
-function encodeOdataKey(key: string | number): string {
-  const raw = String(key);
-  let out = "";
-  let inQuote = false;
-  for (let i = 0; i < raw.length; i += 1) {
-    const ch = raw[i];
-    if (ch === "'") {
-      // Toggle quoted-literal state and keep the (URL-safe) quote verbatim.
-      inQuote = !inQuote;
-      out += "'";
-      continue;
-    }
-    if (!inQuote && (ch === "," || ch === "=")) {
-      // Composite-key delimiters stay structural outside quoted spans.
-      out += ch;
-      continue;
-    }
-    // Percent-encode anything that is unsafe in a path segment. Unreserved
-    // characters (RFC 3986) pass through untouched.
-    if (/[A-Za-z0-9\-._~]/.test(ch)) {
-      out += ch;
-    } else {
-      out += encodeURIComponent(ch);
-    }
-  }
-  return out;
 }
 
 /**

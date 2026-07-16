@@ -788,9 +788,10 @@ nested complex values, collections, and typed single/composite keys. Bodies
 that contain an exact integer or decimal use
 `application/json;IEEE754Compatible=true`; ordinary bodies keep
 `application/json`. The same preflight projection feeds independent edits and
-JSON `$batch` parts. Invalid values—including braced or malformed GUID keys—
-fail locally before any edit request, and diagnostics retain only a bounded
-property path, never the rejected value or request body.
+JSON `$batch` parts. Nesting, per-container breadth, and the aggregate value
+graph are hard-bounded. Invalid values—including braced or malformed GUID
+keys—fail locally before any edit request, and diagnostics retain only a
+bounded property path, never the rejected value or request body.
 
 `Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites
 the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` →

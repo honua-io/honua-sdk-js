@@ -65,6 +65,10 @@ const metadata = parseOdataMetadata(`
       <Key><PropertyRef Name="Id"/></Key>
       <Property Name="Id" Type="Edm.Single" Nullable="false"/>
     </EntityType>
+    <EntityType Name="DoubleKey">
+      <Key><PropertyRef Name="Id"/></Key>
+      <Property Name="Id" Type="Edm.Double" Nullable="false"/>
+    </EntityType>
     <EntityType Name="StringKey">
       <Key><PropertyRef Name="Name"/></Key>
       <Property Name="Name" Type="Edm.String" Nullable="false" MaxLength="256"/>
@@ -97,6 +101,7 @@ const metadata = parseOdataMetadata(`
       <EntitySet Name="Assets" EntityType="Example.Asset"/>
       <EntitySet Name="LongKeys" EntityType="Example.LongKey"/>
       <EntitySet Name="SingleKeys" EntityType="Example.SingleKey"/>
+      <EntitySet Name="DoubleKeys" EntityType="Example.DoubleKey"/>
       <EntitySet Name="StringKeys" EntityType="Example.StringKey"/>
       <EntitySet Name="GuidKeys" EntityType="Example.GuidKey"/>
       <EntitySet Name="DateKeys" EntityType="Example.DateKey"/>
@@ -240,6 +245,12 @@ describe("OData lossless write body encoding", () => {
       expect(error.message).not.toContain(String(input));
     },
   );
+
+  it.each([-0, "-0"])("rejects Edm.Double input %s whose sign JSON would erase", (input) => {
+    const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { Ratio: input }));
+    expect(error.code).toBe("invalid-value");
+    expect(error.path).toBe("$.Ratio");
+  });
 
   it.each([
     ["Id", "9223372036854775808"],
@@ -425,10 +436,21 @@ describe("OData metadata-typed key encoding", () => {
     },
   );
 
+  it.each([
+    [-0, "-0"],
+    ["-0", "-0"],
+    [0, "0"],
+  ] as const)("preserves the Edm.Double key %s lexical sign", (input, expected) => {
+    expect(encodeOdataEntityKey(metadata, "DoubleKeys", input)).toEqual({
+      literal: expected,
+      pathSegment: expected,
+    });
+  });
+
   it("escapes string literals and emits a single path-safe segment", () => {
     expect(encodeOdataEntityKey(metadata, "StringKeys", "O'Neil/a,b=c?#%")).toEqual({
       literal: "'O''Neil/a,b=c?#%'",
-      pathSegment: "%27O%27%27Neil%2Fa%2Cb%3Dc%3F%23%25%27",
+      pathSegment: "'O''Neil%2Fa%2Cb%3Dc%3F%23%25'",
     });
   });
 
@@ -440,7 +462,7 @@ describe("OData metadata-typed key encoding", () => {
       }),
     ).toEqual({
       literal: "Tenant='x/y,O''Neil',Id=9223372036854775807",
-      pathSegment: "Tenant%3D%27x%2Fy%2CO%27%27Neil%27%2CId%3D9223372036854775807",
+      pathSegment: "Tenant='x%2Fy%2CO''Neil',Id=9223372036854775807",
     });
   });
 
@@ -510,6 +532,37 @@ describe("OData metadata-typed key encoding", () => {
 });
 
 describe("OData codec adversarial bounds and redaction", () => {
+  it("rejects an oversized sparse collection before allocating or reading its entries", () => {
+    let invoked = false;
+    const balances: unknown[] = [];
+    Object.defineProperty(balances, "0", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        invoked = true;
+        return "collection-entry-secret";
+      },
+    });
+    balances.length = 10_001;
+
+    const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { Balances: balances }));
+    expect(error.code).toBe("resource-limit-exceeded");
+    expect(error.path).toBe("$.Balances");
+    expect(invoked).toBe(false);
+    expect(error.message).not.toContain("collection-entry-secret");
+  });
+
+  it("bounds the aggregate value graph even when a caller reuses a legal container", () => {
+    const values = new Array<null>(10_000).fill(null);
+    const error = encodingFailure(() =>
+      encodeOdataWriteBody(metadata, "Assets", { Extension: [values, values, values] }),
+    );
+
+    expect(error.code).toBe("resource-limit-exceeded");
+    expect(error.path).toMatch(/^\$\["<undeclared-property>"\]\[1\]\[\d+\]$/);
+    expect(error.path.length).toBeLessThan(100);
+  });
+
   it("bounds recursive complex values at the configured depth", () => {
     const body = {
       Root: {

@@ -631,8 +631,9 @@ values, and formats URL keys by their declared metadata types. A body receives
 `application/json;IEEE754Compatible=true` only when it contains a non-null
 Int64 or Decimal; JSON `$batch` carries that media type on the individual
 request part. Direct and atomic edits consume the same preflight projection.
-Malformed values and keys fail locally with a bounded, value-redacted path.
-When the option is omitted, the original body bytes, ordinary
+Nesting, container breadth, and aggregate value nodes are hard-bounded;
+malformed or over-budget values and keys fail locally with a bounded,
+value-redacted path. When the option is omitted, the original body bytes, ordinary
 `application/json` media type, and legacy key formatter are unchanged.
 
 When `EditEnvelope.rollbackOnFailure === true` AND `$metadata`

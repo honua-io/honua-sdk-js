@@ -6,6 +6,7 @@
  * content type, and key to an HTTP request.
  */
 
+import { encodeOdataKeyPredicatePath } from "./odata-key-path.js";
 import {
   type HonuaOdataEnumTypeInfo,
   type HonuaOdataFieldInfo,
@@ -16,6 +17,8 @@ import {
 
 const DEFAULT_MAX_DEPTH = 32;
 const MAX_CONFIGURED_DEPTH = 32;
+const MAX_CONTAINER_ITEMS = 10_000;
+const MAX_ENCODED_VALUE_NODES = 20_000;
 const MAX_ERROR_PATH_SEGMENT_CODE_POINTS = 64;
 const MAX_DECIMAL_LEXEME_CHARACTERS = 1_024;
 const MAX_TEMPORAL_LEXEME_CHARACTERS = 1_024;
@@ -58,6 +61,7 @@ export type HonuaOdataEdmEncodingErrorCode =
   | "invalid-value"
   | "max-depth-exceeded"
   | "missing-key"
+  | "resource-limit-exceeded"
   | "unknown-entity-set"
   | "unsupported-type";
 
@@ -79,7 +83,10 @@ export class HonuaOdataEdmEncodingError extends TypeError {
   }
 }
 
-/** Controls the hard recursion bound for complex, collection, and untyped values. */
+/**
+ * Controls the hard recursion bound for complex, collection, and untyped
+ * values. Fixed breadth and aggregate-node budgets also protect every call.
+ */
 export interface HonuaOdataEdmEncodingOptions {
   /** Maximum nested container depth. Defaults to and cannot exceed 32. */
   readonly maxDepth?: number;
@@ -123,6 +130,7 @@ interface OdataCodecModel {
 interface EncodingContext {
   readonly maxDepth: number;
   readonly ancestors: WeakSet<object>;
+  nodes: number;
   requiresIeee754Compatible: boolean;
 }
 
@@ -322,7 +330,7 @@ function encodingContext(options: HonuaOdataEdmEncodingOptions): EncodingContext
   ) {
     throw encodingError("invalid-options", ["options", "maxDepth"]);
   }
-  return { maxDepth, ancestors: new WeakSet(), requiresIeee754Compatible: false };
+  return { maxDepth, ancestors: new WeakSet(), nodes: 1, requiresIeee754Compatible: false };
 }
 
 function encodeStructuredValue(
@@ -341,6 +349,7 @@ function encodeStructuredValue(
     for (const name of objectKeys(value, path)) {
       const field = declared.get(name);
       const childPath = [...path, field ? field.name : UNDECLARED_PROPERTY_PATH_SEGMENT];
+      consumeValueNode(childPath, context);
       const input = ownDataProperty(value, name, childPath);
       const encoded = field
         ? encodeTypedValue(input, field, model, childPath, depth, context, field.nullable !== false)
@@ -375,9 +384,11 @@ function encodeTypedValue(
     enterContainer(value, path, childDepth, context);
     try {
       const itemField: HonuaOdataFieldInfo = { ...field, type: collectionType, nullable: true };
-      return arrayDataValues(value, path).map((item, index) =>
-        encodeTypedValue(item, itemField, model, [...path, index], childDepth, context, true),
-      );
+      return arrayDataValues(value, path).map((item, index) => {
+        const childPath = [...path, index];
+        consumeValueNode(childPath, context);
+        return encodeTypedValue(item, itemField, model, childPath, childDepth, context, true);
+      });
     } finally {
       context.ancestors.delete(value);
     }
@@ -418,7 +429,7 @@ function encodeTypedValue(
     case "Edm.Single":
       return singleJsonValue(value, path);
     case "Edm.Double":
-      return floatingJsonValue(value, path);
+      return doubleJsonValue(value, path);
     case "Edm.Guid":
       return guidValue(value, path);
     case "Edm.String":
@@ -478,9 +489,11 @@ function encodeUntypedValue(
     const childDepth = nextDepth(path, depth, context);
     enterContainer(value, path, childDepth, context);
     try {
-      return arrayDataValues(value, path).map((item, index) =>
-        encodeUntypedValue(item, [...path, index], childDepth, context),
-      );
+      return arrayDataValues(value, path).map((item, index) => {
+        const childPath = [...path, index];
+        consumeValueNode(childPath, context);
+        return encodeUntypedValue(item, childPath, childDepth, context);
+      });
     } finally {
       context.ancestors.delete(value);
     }
@@ -679,6 +692,16 @@ function singleJsonValue(value: unknown, path: readonly (string | number)[]): nu
   return encoded;
 }
 
+function doubleJsonValue(value: unknown, path: readonly (string | number)[]): number | string {
+  const encoded = floatingJsonValue(value, path);
+  if (typeof encoded === "number" && Object.is(encoded, -0)) {
+    // JSON.stringify(-0) emits 0. OData requires finite Double values to be
+    // JSON numbers, so failing locally is the only lossless representation.
+    throw encodingError("invalid-value", path);
+  }
+  return encoded;
+}
+
 function floatingKeyValue(value: unknown, path: readonly (string | number)[]): string {
   if (typeof value === "string") {
     if (value === "INF" || value === "-INF" || value === "NaN") return value;
@@ -688,6 +711,7 @@ function floatingKeyValue(value: unknown, path: readonly (string | number)[]): s
     return value;
   }
   const encoded = floatingJsonValue(value, path);
+  if (typeof encoded === "number" && Object.is(encoded, -0)) return "-0";
   return typeof encoded === "number" ? String(encoded) : encoded;
 }
 
@@ -1045,8 +1069,11 @@ function arrayDataValues(
   errorCode: HonuaOdataEdmEncodingErrorCode = "invalid-value",
 ): unknown[] {
   const length = dataProperty(value, "length", path, errorCode);
-  if (!Number.isSafeInteger(length) || (length as number) < 0 || (length as number) > 0xffff_ffff) {
+  if (!Number.isSafeInteger(length) || (length as number) < 0) {
     throw encodingError(errorCode, path);
+  }
+  if ((length as number) > MAX_CONTAINER_ITEMS) {
+    throw encodingError(errorCode === "invalid-value" ? "resource-limit-exceeded" : errorCode, path);
   }
   const output = new Array<unknown>(length as number);
   for (let index = 0; index < output.length; index += 1) {
@@ -1056,10 +1083,20 @@ function arrayDataValues(
 }
 
 function objectKeys(value: object, path: readonly (string | number)[]): string[] {
+  let keys: string[];
   try {
-    return Object.keys(value);
+    keys = Object.keys(value);
   } catch {
     throw encodingError("invalid-value", path);
+  }
+  if (keys.length > MAX_CONTAINER_ITEMS) throw encodingError("resource-limit-exceeded", path);
+  return keys;
+}
+
+function consumeValueNode(path: readonly (string | number)[], context: EncodingContext): void {
+  context.nodes += 1;
+  if (context.nodes > MAX_ENCODED_VALUE_NODES) {
+    throw encodingError("resource-limit-exceeded", path);
   }
 }
 
@@ -1091,10 +1128,7 @@ function defineEnumerableValue(target: Record<string, unknown>, name: string, va
 
 function encodePathSegment(value: string, path: readonly (string | number)[]): string {
   try {
-    return encodeURIComponent(value).replace(
-      /[!'()*]/g,
-      (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
-    );
+    return encodeOdataKeyPredicatePath(value);
   } catch {
     throw encodingError("invalid-value", path);
   }
@@ -1215,6 +1249,8 @@ function encodingErrorReason(code: HonuaOdataEdmEncodingErrorCode): string {
       return "the maximum nesting depth was exceeded";
     case "missing-key":
       return "a required key component is missing";
+    case "resource-limit-exceeded":
+      return "the value exceeds a supported resource limit";
     case "unknown-entity-set":
       return "the metadata snapshot does not declare the entity set";
     case "unsupported-type":

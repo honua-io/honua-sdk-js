@@ -2519,8 +2519,8 @@ function preparedOdataBody<T>(
   if (
     feature.geometry !== undefined &&
     feature.geometry !== null &&
-    attributes.body.Geometry === undefined &&
-    attributes.body.geometry === undefined
+    !Object.hasOwn(attributes.body, "Geometry") &&
+    !Object.hasOwn(attributes.body, "geometry")
   ) {
     const geometry = encodeOdataWriteBody(metadata, entitySet, { Geometry: feature.geometry });
     encoded = {
@@ -2541,11 +2541,11 @@ function canonicalKeyInput(
 ): unknown {
   if (keyFields.length <= 1) {
     const field = keyFields[0];
-    return (field ? attributes[field] : undefined) ?? id;
+    return (field ? ownPreparedValue(attributes, field) : undefined) ?? id;
   }
   const key: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const field of keyFields) {
-    const value = attributes[field] ?? (field === "ObjectId" ? id : undefined);
+    const value = ownPreparedValue(attributes, field) ?? (field === "ObjectId" ? id : undefined);
     if (value === undefined || value === null) return undefined;
     Object.defineProperty(key, field, {
       configurable: true,
@@ -2555,6 +2555,11 @@ function canonicalKeyInput(
     });
   }
   return key;
+}
+
+function ownPreparedValue(attributes: Readonly<Record<string, unknown>>, field: string): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(attributes, field);
+  return descriptor && "value" in descriptor ? descriptor.value : undefined;
 }
 
 /**
