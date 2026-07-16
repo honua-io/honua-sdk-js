@@ -458,7 +458,7 @@ function parseLiteral(value: JsonValue | undefined, path: string): LiteralNode {
   const object = expectObject(value, path);
   assertOnlyKeys(object, ["kind", "value"], path);
   expectExact(object.kind, "literal", `${path}.kind`);
-  if (!("value" in object)) throw invalid(`${path}.value`, "is required");
+  if (!Object.hasOwn(object, "value")) throw invalid(`${path}.value`, "is required");
   return { kind: "literal", value: object.value as JsonValue };
 }
 
@@ -673,7 +673,7 @@ function parseNativeFilter(object: JsonObject, path: string): JsonObject {
   const format = expectEnum(payload.format, `${path}.payload.format`, ["text", "xml", "json"] as const);
   if (format === "json") {
     assertOnlyKeys(payload, ["format", "value"], `${path}.payload`);
-    if (!("value" in payload)) throw invalid(`${path}.payload.value`, "is required");
+    if (!Object.hasOwn(payload, "value")) throw invalid(`${path}.payload.value`, "is required");
   } else {
     assertOnlyKeys(payload, ["format", "text"], `${path}.payload`);
     expectNonblankBoundedText(payload.text, `${path}.payload.text`);
@@ -1224,7 +1224,7 @@ function cloneBoundedJson(value: unknown, path: string, depth: number, state: Bo
     if (ownKeys.some((key) => typeof key === "symbol")) throw invalid(path, "must not contain symbol properties");
     const keys = ownKeys as string[];
     if (keys.length > MAX_SEMANTIC_QUERY_COLLECTION_ITEMS) throw invalid(path, "object has too many properties");
-    const out: Record<string, JsonValue> = {};
+    const out = Object.create(null) as Record<string, JsonValue>;
     for (const key of keys) {
       const keyBytes = TEXT_ENCODER.encode(key).byteLength;
       if (keyBytes > MAX_SEMANTIC_QUERY_TEXT_BYTES) throw invalid(`${path}.${key}`, "property name is too large");

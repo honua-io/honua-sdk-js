@@ -472,6 +472,24 @@ describe("CQL2 JSON semantic interchange", () => {
       semanticFilterFromCql2Json({ op: "=", args: [{ property: "status" }, "active"], extra: true }),
     ).toThrow(/outside the supported CQL2 form/);
   });
+
+  it("does not admit inherited CQL2 members when Object.prototype is polluted", () => {
+    let thrown: unknown;
+    Object.defineProperties(Object.prototype, {
+      op: { configurable: true, value: "isNull" },
+      args: { configurable: true, value: [{ property: "status" }] },
+    });
+    try {
+      semanticFilterFromCql2Json({});
+    } catch (error) {
+      thrown = error;
+    } finally {
+      Reflect.deleteProperty(Object.prototype, "op");
+      Reflect.deleteProperty(Object.prototype, "args");
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toMatch(/\.op is required/);
+  });
 });
 
 describe("deprecated raw-where migration", () => {

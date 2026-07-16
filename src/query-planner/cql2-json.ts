@@ -396,7 +396,7 @@ function importSpatial(
   const property = importProperty(args[0] as JsonValue, `${path}.args[0]`);
   const crs = requiredFilterCrs(context, path);
   const operand = object(args[1] as JsonValue, `${path}.args[1]`);
-  if ("bbox" in operand) {
+  if (Object.hasOwn(operand, "bbox")) {
     exactKeys(operand, ["bbox"], `${path}.args[1]`);
     if (op !== "s_intersects") throw cql2Unsupported(path, "only s_intersects maps a CQL2 BBox literal");
     const bounds = array(operand.bbox as JsonValue, `${path}.args[1].bbox`);
@@ -448,21 +448,22 @@ function importLiteral(value: JsonValue, field: LogicalField | undefined, path: 
     }
     return { kind: "literal" as const, value };
   }
-  if ("date" in value) {
-    exactKeys(value, ["date"], path);
+  const objectValue = value as JsonObject;
+  if (Object.hasOwn(objectValue, "date")) {
+    exactKeys(objectValue, ["date"], path);
     if (!field) throw cql2Unsupported(path, "tagged date comparison requires schema context");
     if (field.type.kind !== "date") throw cql2Invalid(path, "date literal does not match the schema field type");
-    const date = text(value.date, `${path}.date`);
+    const date = text(objectValue.date, `${path}.date`);
     if (!CQL2_DATE.test(date)) throw cql2Invalid(`${path}.date`, "must use the CQL2 full-date form");
     return { kind: "literal" as const, value: date };
   }
-  if ("timestamp" in value) {
-    exactKeys(value, ["timestamp"], path);
+  if (Object.hasOwn(objectValue, "timestamp")) {
+    exactKeys(objectValue, ["timestamp"], path);
     if (!field) throw cql2Unsupported(path, "tagged timestamp comparison requires schema context");
     if (field.type.kind !== "timestamp") {
       throw cql2Invalid(path, "timestamp literal does not match the schema field type");
     }
-    const timestamp = text(value.timestamp, `${path}.timestamp`);
+    const timestamp = text(objectValue.timestamp, `${path}.timestamp`);
     if (!CQL2_TIMESTAMP.test(timestamp)) {
       throw cql2Invalid(`${path}.timestamp`, "must use the CQL2 UTC Z form");
     }
@@ -473,13 +474,13 @@ function importLiteral(value: JsonValue, field: LogicalField | undefined, path: 
 
 function importTemporalLiteral(value: JsonValue, path: string): TemporalLiteralNode {
   const literal = object(value, path);
-  if ("date" in literal) {
+  if (Object.hasOwn(literal, "date")) {
     exactKeys(literal, ["date"], path);
     const date = text(literal.date, `${path}.date`);
     if (!CQL2_DATE.test(date)) throw cql2Invalid(`${path}.date`, "must use the CQL2 full-date form");
     return { kind: "temporal-literal", valueType: "date", value: date };
   }
-  if ("timestamp" in literal) {
+  if (Object.hasOwn(literal, "timestamp")) {
     exactKeys(literal, ["timestamp"], path);
     const timestamp = text(literal.timestamp, `${path}.timestamp`);
     if (!CQL2_TIMESTAMP.test(timestamp)) {
@@ -491,7 +492,7 @@ function importTemporalLiteral(value: JsonValue, path: string): TemporalLiteralN
       value: timestamp,
     };
   }
-  if ("interval" in literal) {
+  if (Object.hasOwn(literal, "interval")) {
     exactKeys(literal, ["interval"], path);
     const interval = array(literal.interval as JsonValue, `${path}.interval`);
     exactLength(interval, 2, `${path}.interval`);
@@ -662,7 +663,7 @@ function exactKeys(value: JsonObject, expected: readonly string[], path: string)
     if (!allowed.has(key)) throw cql2Invalid(path, "contains a member outside the supported CQL2 form");
   }
   for (const key of expected) {
-    if (!(key in value)) throw cql2Invalid(`${path}.${key}`, "is required");
+    if (!Object.hasOwn(value, key)) throw cql2Invalid(`${path}.${key}`, "is required");
   }
 }
 
