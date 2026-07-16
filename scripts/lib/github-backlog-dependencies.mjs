@@ -25,6 +25,7 @@ const MAX_LABEL_LENGTH = 100;
 const MAX_UPDATED_AT_LENGTH = 64;
 const UNSAFE_LABEL_PATTERN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const INVALID_TOKEN_CHARACTER_PATTERN = /[^A-Za-z0-9._~-]/u;
+const NONNEGATIVE_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)(?![\s\S])/u;
 const POSITIVE_INTEGER_PATTERN = /^[1-9][0-9]*(?![\s\S])/u;
 const UPDATED_AT_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?Z(?![\s\S])/u;
 
@@ -42,6 +43,7 @@ const METADATA_ERROR_MESSAGES = Object.freeze({
   "mutation-rejected": "GitHub rejected the bounded label mutation.",
   "not-found": "GitHub issue metadata is not readable.",
   "pagination-bound-exceeded": "The configured pagination bound was exceeded.",
+  "rate-limited": "GitHub API rate capacity is insufficient for safe reconciliation.",
   "response-bound-exceeded": "GitHub response exceeds the configured resource bounds.",
   "request-setup-failed": "GitHub request headers could not be created safely.",
   "unexpected-issue": "GitHub returned unexpected issue metadata.",
@@ -118,8 +120,10 @@ function validateRequestUrl(value, apiRoot) {
     metadataFail("invalid-request-url");
   }
   if (parts[2] !== "issues") metadataFail("invalid-request-url");
+  let issueNumber = null;
   if (parts.length === 4) {
-    if (positiveIntegerText(parts[3]) === null || url.search !== "") metadataFail("invalid-request-url");
+    issueNumber = positiveIntegerText(parts[3]);
+    if (issueNumber === null || url.search !== "") metadataFail("invalid-request-url");
   } else {
     const expected = new Map([
       ["state", "open"],
@@ -138,7 +142,24 @@ function validateRequestUrl(value, apiRoot) {
       metadataFail("invalid-request-url");
     }
   }
-  return { href: url.href, repository };
+  return { href: url.href, repository, issueNumber };
+}
+
+function responseIsRateLimited(response) {
+  let remaining;
+  let retryAfter;
+  try {
+    remaining = response.headers.get("x-ratelimit-remaining");
+    retryAfter = response.headers.get("retry-after");
+  } catch {
+    metadataFail("degraded-api");
+  }
+  if (remaining !== null) {
+    if (!NONNEGATIVE_INTEGER_PATTERN.test(remaining)) metadataFail("degraded-api");
+    const value = Number.parseInt(remaining, 10);
+    if (!Number.isSafeInteger(value)) metadataFail("degraded-api");
+  }
+  return remaining === "0" || retryAfter !== null;
 }
 
 function repositoryFromApiUrl(value, apiRoot) {
@@ -413,10 +434,13 @@ export async function githubBacklogRequest(url, options = {}) {
   ) {
     metadataFail("degraded-api");
   }
+  const rateLimited = responseIsRateLimited(response);
   if (!responseOk) {
+    if (rateLimited || responseStatus === 429) metadataFail("rate-limited", responseStatus);
     if (responseStatus === 404) metadataFail("not-found", 404);
     metadataFail("degraded-api", responseStatus);
   }
+  if (rateLimited) metadataFail("rate-limited", responseStatus);
   return boundedResponseJson(response, maxResponseBytes);
 }
 
@@ -428,7 +452,9 @@ export async function githubBacklogLabelRequest(url, options = {}) {
   const apiRootValue =
     options.apiRoot === undefined ? (process.env.GITHUB_API_URL ?? "https://api.github.com") : options.apiRoot;
   const apiRoot = normalizeApiRoot(apiRootValue);
-  const requestUrl = validateRequestUrl(url, apiRoot).href;
+  const validatedUrl = validateRequestUrl(url, apiRoot);
+  if (validatedUrl.issueNumber === null) metadataFail("invalid-request-url");
+  const requestUrl = validatedUrl.href;
   const labels = normalizedLabelNames(options.labels);
   const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
   if (!token) metadataFail("missing-token");
@@ -471,9 +497,11 @@ export async function githubBacklogLabelRequest(url, options = {}) {
   } catch {
     metadataFail("degraded-api");
   }
+  const rateLimited = responseIsRateLimited(response);
   if (responseOk !== true || responseStatus !== 200) {
     if (responseOk === false && Number.isSafeInteger(responseStatus)) {
-      metadataFail(responseStatus === 429 ? "degraded-api" : "mutation-rejected", responseStatus);
+      if (rateLimited || responseStatus === 429) metadataFail("rate-limited", responseStatus);
+      metadataFail("mutation-rejected", responseStatus);
     }
     metadataFail("degraded-api");
   }

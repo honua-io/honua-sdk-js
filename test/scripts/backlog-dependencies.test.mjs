@@ -204,6 +204,7 @@ describe("backlog dependency grammar", () => {
     for (const hiddenHtml of [
       "<pre>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n## End\n</pre>",
       "<script>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</script>",
+      "<script>\n</script not-an-end-tag>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</script>",
       "<style>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</style>",
       "<textarea>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</textarea>",
       "<table>\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n</table>\n",
@@ -213,6 +214,7 @@ describe("backlog dependency grammar", () => {
       "<?processing\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n?>",
       "<!DECLARATION\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n>",
       "<![CDATA[\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n]]>",
+      "<![CDATA[\nordinary > content\n## Backlog Dependencies\nMode: automatic\nDependencies: none\n]]>",
     ]) {
       expectDependencyError("missing-dependency-section", () =>
         parseBacklogDependencies(`## Specifica\n\nType: Feature\n\n${hiddenHtml}`, {
@@ -461,6 +463,7 @@ describe("pure backlog reconciliation planner", () => {
   });
 
   it("detects dependency cycles, self-cycles, and duplicate declarations", () => {
+    const siteRepository = "honua-io/honua-site";
     const snapshot = {
       repository,
       issues: [
@@ -472,6 +475,15 @@ describe("pure backlog reconciliation planner", () => {
           body: body("Mode: automatic\nDependencies:\n- #35\n- honua-io/honua-sdk-js#35"),
         }),
         issue(35, { target: false }),
+        issue(36, {
+          body: automatic([`${siteRepository}#120`]),
+          labels: ["ready-to-start"],
+        }),
+        issue(120, {
+          repository: siteRepository,
+          body: body(`Mode: automatic\nDependencies:\n- ${repository}#36`),
+          target: false,
+        }),
       ],
     };
     const plan = planBacklogReconciliation(snapshot);
@@ -481,6 +493,7 @@ describe("pure backlog reconciliation planner", () => {
         [30, "cycle"],
         [33, "cycle"],
         [34, "malformed"],
+        [36, "cycle"],
       ],
     );
     assert.equal(plan.dispositions[0].reason, "A dependency cycle was detected.");
@@ -494,6 +507,10 @@ describe("pure backlog reconciliation planner", () => {
     });
     assert.equal(plan.dispositions[2].proposedLabels, null);
     assert.match(plan.dispositions[2].reason, /duplicate-dependency/u);
+    assert.deepEqual(plan.dispositions[3].proposedLabels, {
+      remove: ["ready-to-start"],
+      add: ["blocked"],
+    });
   });
 
   it("fails closed for inaccessible, drifting, pull-request, and ambiguous readiness metadata", () => {
@@ -746,6 +763,23 @@ describe("bounded GitHub metadata reader", () => {
       assert.deepEqual(valid, { ok: true });
       assert.equal(fetchCalls, 1);
 
+      globalThis.fetch = async () =>
+        jsonResponse({ exhausted: true }, { "x-ratelimit-remaining": "0" });
+      await expectMetadataError(
+        "rate-limited",
+        githubBacklogRequest("https://api.github.com/repos/o/r/issues/1", { maxResponseBytes: 64 }),
+      );
+
+      globalThis.fetch = async () =>
+        new Response("{}", {
+          status: 429,
+          headers: { "content-type": "application/json", "retry-after": "60" },
+        });
+      await expectMetadataError(
+        "rate-limited",
+        githubBacklogRequest("https://api.github.com/repos/o/r/issues/1", { maxResponseBytes: 64 }),
+      );
+
       globalThis.fetch = async () => jsonResponse({ oversized: "x".repeat(32) });
       await expectMetadataError(
         "response-bound-exceeded",
@@ -946,6 +980,64 @@ describe("trusted backlog dependency apply", () => {
     assert.equal(github.mutations.length, 0);
   });
 
+  it("rejects transitive dependency-body drift even when the direct disposition is unchanged", async () => {
+    const dependencyRepository = "honua-io/backlog-dependency";
+    const github = memoryGitHub([
+      restIssue(10, {
+        body: automatic([`${dependencyRepository}#20`]),
+        labels: [{ name: "ready-to-start" }],
+      }),
+      restIssue(20, { repository: dependencyRepository, body: automatic() }),
+    ]);
+    let dependencyReads = 0;
+    const driftingRead = async (url, options) => {
+      if (url.endsWith(`/repos/${dependencyRepository}/issues/20`)) {
+        dependencyReads += 1;
+        if (dependencyReads === 3) {
+          const dependency = github.issues.get(`${dependencyRepository}#20`);
+          dependency.body = body("Mode: manual\nReason: Dependency sequencing changed during preflight.");
+          dependency.updated_at = "2026-07-15T03:00:01Z";
+        }
+      }
+      return github.read(url, options);
+    };
+
+    await assert.rejects(
+      applyGitHubBacklogReconciliation(
+        { repository, maxPages: 2, maxIssues: 20, maxDependencies: 10, concurrency: 1 },
+        { read: driftingRead, mutate: github.mutate },
+      ),
+      (error) => error instanceof BacklogDependencyApplyError && error.code === "preflight-drift",
+    );
+    assert.equal(dependencyReads, 4);
+    assert.equal(github.mutations.length, 0);
+  });
+
+  it("demotes readiness while preserving every unrelated label and is idempotent", async () => {
+    const github = memoryGitHub([
+      restIssue(10, {
+        body: automatic(["#20"]),
+        labels: [{ name: "priority/P2" }, { name: "ready-to-start" }, { name: "effort/S" }],
+      }),
+      restIssue(20, { state: "open", labels: [{ name: "phase/Beta" }] }),
+    ]);
+    const input = { repository, maxPages: 2, maxIssues: 20, maxDependencies: 10, concurrency: 1 };
+
+    const first = await applyGitHubBacklogReconciliation(input, {
+      read: github.read,
+      mutate: github.mutate,
+    });
+    assert.deepEqual(first.applied, [{ issue: "#10", remove: "ready-to-start", add: "blocked" }]);
+    assert.deepEqual(github.mutations[0].labels, ["blocked", "effort/S", "priority/P2"]);
+
+    const second = await applyGitHubBacklogReconciliation(input, {
+      read: github.read,
+      mutate: github.mutate,
+    });
+    assert.equal(second.appliedCount, 0);
+    assert.equal(github.mutations.length, 1);
+  });
+
   it("makes target metadata the final pre-mutation read and rejects last-read drift", async () => {
     const github = memoryGitHub([
       restIssue(10, { body: automatic(["#20"]), labels: [{ name: "blocked" }] }),
@@ -1015,7 +1107,29 @@ describe("trusted backlog dependency apply", () => {
           labels: ["blocked"],
         }),
       );
+      await expectMetadataError(
+        "invalid-request-url",
+        githubBacklogLabelRequest(
+          "https://api.github.com/repos/o/r/issues?state=open&sort=created&direction=asc&per_page=100&page=1",
+          { labels: ["blocked"] },
+        ),
+      );
       assert.equal(calls.length, 1);
+
+      globalThis.fetch = async () =>
+        new Response("{}", {
+          status: 403,
+          headers: {
+            "content-type": "application/json",
+            "x-ratelimit-remaining": "0",
+          },
+        });
+      await expectMetadataError(
+        "rate-limited",
+        githubBacklogLabelRequest(`https://api.github.com/repos/${repository}/issues/10`, {
+          labels: ["blocked"],
+        }),
+      );
     } finally {
       if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
       else process.env.GITHUB_TOKEN = originalToken;
@@ -1148,18 +1262,34 @@ describe("backlog dependency CLI and workflow", () => {
     );
     assert.match(workflow, /^  schedule:/mu);
     assert.match(workflow, /^  workflow_dispatch:/mu);
-    assert.doesNotMatch(workflow, /pull_request(?:_target)?:/u);
+    assert.doesNotMatch(
+      workflow,
+      /^  (?:pull_request(?:_target)?|push|workflow_run|repository_dispatch|issue_comment|issues):/mu,
+    );
     assert.match(workflow, /^permissions: \{\}$/mu);
     assert.equal(workflow.match(/^      issues: read$/gmu)?.length, 1);
     assert.equal(workflow.match(/^      issues: write$/gmu)?.length, 1);
-    assert.equal(workflow.match(/actions\/checkout@[0-9a-f]{40}/gu)?.length, 2);
-    assert.equal(workflow.match(/actions\/setup-node@[0-9a-f]{40}/gu)?.length, 2);
-    assert.doesNotMatch(workflow, /uses: actions\/(?:checkout|setup-node)@v/u);
+    assert.equal(workflow.match(/^      contents: read$/gmu)?.length, 2);
+    assert.deepEqual(
+      [...workflow.matchAll(/^[\t ]*-?[\t ]*uses:[\t ]*([^\s#]+)/gmu)].map((match) => match[1]),
+      [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e",
+      ],
+    );
     assert.equal(workflow.match(/ref: \$\{\{ github\.event\.repository\.default_branch \}\}/gu)?.length, 2);
     assert.equal(workflow.match(/path: trusted-policy/gu)?.length, 2);
     assert.equal(workflow.match(/persist-credentials: false/gu)?.length, 2);
     assert.equal(workflow.match(/working-directory: trusted-policy/gu)?.length, 2);
+    assert.equal(workflow.match(/^        run: \|$/gmu)?.length, 2);
+    assert.equal(workflow.match(/^        shell: bash$/gmu)?.length, 2);
+    assert.equal(workflow.match(/node scripts\/reconcile-backlog-dependencies\.mjs/gu)?.length, 2);
+    assert.equal(workflow.match(/^            --apply \\$/gmu)?.length, 1);
     assert.doesNotMatch(workflow, /github\.event\.pull_request|github\.sha|secrets:|gh issue comment/u);
+    assert.doesNotMatch(workflow, /\b(?:curl|wget|git|npm|npx|pnpm|yarn|bun|deno|python|ruby|perl|eval|source)\b/u);
+    assert.doesNotMatch(workflow, /(?:refs\/pull|pull\/\d|GITHUB_EVENT_PATH|repository:|\$\(.*(?:node|sh|bash))/u);
     assert.match(workflow, /^    if: github\.event_name == 'schedule' \|\| inputs\.mode == 'apply'$/mu);
 
     const ci = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");

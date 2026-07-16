@@ -78,7 +78,8 @@ refusal and a 15-second request timeout, require JSON, and apply fixed byte and 
 most 16 MiB per response. Plain HTTP is accepted only for a loopback test server. The total readable plus inaccessible
 graph is bounded by `--max-issues`; labels, bodies, pages, dependency fan-out, and concurrency have hard ceilings.
 Response bodies, request failures, manual reasons, unavailable reasons, labels, tokens, and filesystem paths are never
-copied into reports or errors.
+copied into reports or errors. Explicit exhausted-rate-limit headers, retry requests, HTTP 429 responses, and malformed
+rate metadata stop reconciliation before another read or write is admitted.
 
 For deterministic offline inspection, pass a stabilized JSON snapshot:
 
@@ -102,8 +103,10 @@ GITHUB_TOKEN=... npm run backlog:dependencies:apply -- --repository honua-io/hon
 
 The apply path consumes the same pure planner as dry-run mode. Before the first write, it loads and double-reads each
 candidate's exact transitive dependency graph and requires the targeted plan, issue body, labels, and dependency
-states to match the stabilized inventory. Immediately before each write it repeats that targeted double-read. Any
-drift, ambiguous labels, unreadable metadata, rate limit, degraded response, or changed disposition stops the run.
+states to match the stabilized inventory. The graph fingerprint includes every reachable issue body, state,
+pull-request identity, stability result, and inaccessible member, so an unchanged direct disposition cannot hide
+transitive dependency drift. Immediately before each write it repeats that targeted double-read. Any drift, ambiguous
+labels, unreadable metadata, rate limit, degraded response, or changed disposition stops the run.
 
 An admitted transition replaces the issue's label set in one bounded `PATCH`, changing exactly one of `blocked` and
 `ready-to-start` while preserving every unrelated label. The returned issue and a post-write double-read must prove
@@ -114,7 +117,9 @@ The `Backlog dependency reconciliation` workflow runs scheduled applies every si
 `dry-run` and `apply` modes. It checks out only the repository default branch into `trusted-policy`, disables checkout
 credentials, pins every action by commit, and never runs on pull-request events. The dry-run job has `contents: read`
 and `issues: read`; only the apply job receives `issues: write`. Both jobs write the bounded JSON report to the Actions
-log and job summary without adding issue comments.
+log and job summary without adding issue comments. CI allowlists the exact action identities and commits and rejects
+additional action, remote-fetch, package-manager, interpreter, or pull-ref execution surfaces in this trusted
+workflow.
 
 ## Admission evidence
 
@@ -122,7 +127,8 @@ On 2026-07-15 HST, two consecutive read-only runs against `honua-io/honua-sdk-js
 `abf3128c2e6ca7905ef2eb62571b4c2322619075` produced the same report SHA-256:
 `56c6672769dda2ba0c11a43adefa4cef9c8420ad634de9412ef5503b9338657a`. Both reports observed 58 open target issues,
 58 stabilized metadata records, 58 `missing` dispositions, zero other dispositions, and
-`mutationsPerformed: false`.
+`mutationsPerformed: false`. The terminal adversarial hardening pass reproduced the same pair of hashes and
+zero-mutation aggregates.
 
 The zero-mutation result is intentional and fail-closed: the existing backlog had not yet adopted the exact
 `## Backlog Dependencies` section. Maintainers must groom those issues to the documented automatic or manual form;

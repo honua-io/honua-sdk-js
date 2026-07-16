@@ -1,7 +1,12 @@
+import { createHash } from "node:crypto";
+
 import {
+  BacklogDependencyError,
   DEFAULT_MAX_BACKLOG_ISSUES,
   DEFAULT_MAX_DEPENDENCIES_PER_ISSUE,
+  backlogIssueKey,
   normalizeRepository,
+  parseBacklogDependencies,
   planBacklogReconciliation,
 } from "./backlog-dependencies.mjs";
 import {
@@ -44,8 +49,12 @@ function exactJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function sha256Json(value) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
 function issueFingerprint(issue) {
-  return JSON.stringify({
+  return sha256Json({
     repository: issue.repository,
     number: issue.number,
     state: issue.state,
@@ -63,6 +72,65 @@ function dispositionFingerprint(disposition) {
     dependencies: disposition.dependencies,
     proposedLabels: disposition.proposedLabels,
   });
+}
+
+function dependencyGraphFingerprint(snapshot, repository, number, maxDependencies) {
+  const issues = new Map(
+    snapshot.issues.map((issue) => [backlogIssueKey(issue.repository, issue.number), issue]),
+  );
+  const unavailable = new Set(
+    (snapshot.unavailable ?? []).map((issue) => backlogIssueKey(issue.repository, issue.number)),
+  );
+  const pending = [backlogIssueKey(repository, number)];
+  let pendingIndex = 0;
+  const seen = new Set();
+  const graph = [];
+
+  while (pendingIndex < pending.length) {
+    const key = pending[pendingIndex];
+    pendingIndex += 1;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    if (unavailable.has(key)) {
+      graph.push({ key, availability: "inaccessible" });
+      continue;
+    }
+    const issue = issues.get(key);
+    if (!issue) {
+      graph.push({ key, availability: "missing" });
+      continue;
+    }
+    const record = {
+      key,
+      availability: "readable",
+      state: issue.state,
+      body: issue.body,
+      isPullRequest: issue.isPullRequest,
+      stable: issue.stable,
+    };
+    graph.push(record);
+    if (issue.state !== "open" || issue.isPullRequest || !issue.stable) continue;
+
+    try {
+      const specification = parseBacklogDependencies(issue.body, {
+        repository: issue.repository,
+        issueNumber: issue.number,
+        maxDependencies,
+      });
+      if (specification.mode === "automatic") {
+        for (const dependency of specification.dependencies) {
+          if (!seen.has(dependency.key)) pending.push(dependency.key);
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof BacklogDependencyError)) throw error;
+      record.parseError = error.code;
+    }
+  }
+
+  graph.sort((left, right) => compareText(left.key, right.key));
+  return sha256Json(graph);
 }
 
 function findTarget(snapshot, repository, number) {
@@ -95,13 +163,19 @@ function replacementLabels(issue, transition) {
     .sort(compareText);
 }
 
-function candidateFrom(snapshot, disposition) {
+function candidateFrom(snapshot, disposition, plannerOptions) {
   const issue = findTarget(snapshot, disposition.repository, disposition.number);
   if (!issue) applyFail("unexpected-plan");
   return {
     disposition,
     dispositionFingerprint: dispositionFingerprint(disposition),
     issueFingerprint: issueFingerprint(issue),
+    graphFingerprint: dependencyGraphFingerprint(
+      snapshot,
+      disposition.repository,
+      disposition.number,
+      plannerOptions.maxDependencies,
+    ),
     transition: expectedTransition(disposition),
   };
 }
@@ -114,6 +188,12 @@ function verifyTargetedCandidate(snapshot, candidate, plannerOptions) {
   if (
     !issue ||
     issueFingerprint(issue) !== candidate.issueFingerprint ||
+    dependencyGraphFingerprint(
+      snapshot,
+      candidate.disposition.repository,
+      candidate.disposition.number,
+      plannerOptions.maxDependencies,
+    ) !== candidate.graphFingerprint ||
     dispositionFingerprint(disposition) !== candidate.dispositionFingerprint
   ) {
     applyFail("preflight-drift");
@@ -168,7 +248,7 @@ export async function applyGitHubBacklogReconciliation(input, adapters = {}) {
   const initialPlan = planBacklogReconciliation(initialSnapshot, plannerOptions);
   const candidates = initialPlan.dispositions
     .filter((disposition) => disposition.proposedLabels !== null)
-    .map((disposition) => candidateFrom(initialSnapshot, disposition));
+    .map((disposition) => candidateFrom(initialSnapshot, disposition, plannerOptions));
 
   // Prove every candidate is still eligible before the first mutation. This
   // prevents a known later failure from leaving an avoidable partial batch.

@@ -169,11 +169,11 @@ function openingRawHtmlBlock(line) {
 
   const rawText = /^(pre|script|style|textarea)(?:[\t />]|$)/iu.exec(prefix);
   if (rawText) {
-    return { kind: "terminator", terminator: new RegExp(`</${rawText[1]}[\\t >]`, "iu") };
+    return { kind: "terminator", terminator: new RegExp(`</${rawText[1]}[\\t ]*>`, "iu") };
   }
   if (prefix.startsWith("?")) return { kind: "terminator", terminator: /\?>/u };
-  if (/^![A-Z]/u.test(prefix)) return { kind: "terminator", terminator: />/u };
   if (prefix.startsWith("![CDATA[")) return { kind: "terminator", terminator: /\]\]>/u };
+  if (/^![A-Z]/u.test(prefix)) return { kind: "terminator", terminator: />/u };
 
   // Be conservative for standard and custom HTML tags, including malformed or
   // attribute-heavy candidates: an uncertain container must never admit work.
