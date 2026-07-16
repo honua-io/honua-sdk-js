@@ -367,6 +367,29 @@ describe("CQL2 JSON semantic interchange", () => {
     expect(() => semanticFilterToCql2Json(distance, options)).toThrow(/outside standard CQL2/);
   });
 
+  it("admits GeoJSON geometry bboxes without confusing them with CQL2 bbox literals", () => {
+    const options = { schema: schema(), protocol: "ogc-features" as const, filterCrs: crs84 };
+    const encoded = {
+      op: "s_intersects",
+      args: [{ property: "shape" }, { type: "Point", coordinates: [-157.86, 21.31], bbox: [-158, 21, -157, 22] }],
+    } as const;
+
+    const decoded = semanticFilterFromCql2Json(encoded, options);
+    expect(semanticFilterToCql2Json(decoded, options)).toEqual({
+      op: "s_intersects",
+      args: [{ property: "shape" }, { type: "Point", coordinates: [-157.86, 21.31] }],
+    });
+    expect(() =>
+      semanticFilterFromCql2Json(
+        {
+          ...encoded,
+          args: [{ property: "shape" }, { ...encoded.args[1], bbox: [-158, 21, -157] }],
+        },
+        options,
+      ),
+    ).toThrow(/bbox.*must contain 4 ordinates/);
+  });
+
   it("enforces the normative two-member CQL2 JSON GeometryCollection cardinality symmetrically", () => {
     const options = { schema: schema(), protocol: "ogc-features" as const, filterCrs: crs84 };
     const spatial = (geometries: ExecutableGeometryValue["geometry"][]) =>

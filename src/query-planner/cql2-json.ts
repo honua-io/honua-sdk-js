@@ -396,7 +396,7 @@ function importSpatial(
   const property = importProperty(args[0] as JsonValue, `${path}.args[0]`);
   const crs = requiredFilterCrs(context, path);
   const operand = object(args[1] as JsonValue, `${path}.args[1]`);
-  if (Object.hasOwn(operand, "bbox")) {
+  if (Object.hasOwn(operand, "bbox") && !Object.hasOwn(operand, "type")) {
     exactKeys(operand, ["bbox"], `${path}.args[1]`);
     if (op !== "s_intersects") throw cql2Unsupported(path, "only s_intersects maps a CQL2 BBox literal");
     const bounds = array(operand.bbox as JsonValue, `${path}.args[1].bbox`);
@@ -414,7 +414,10 @@ function importSpatial(
     kind: "spatial",
     operator: CQL2_TO_SPATIAL[op],
     property,
-    geometry: { state: "present", geometry: operand, crs, layout },
+    // GeoJSON permits an optional bbox on every geometry object. The
+    // protocol-neutral semantic contract intentionally stores canonical
+    // geometry only, so validate those extents above and discard them here.
+    geometry: { state: "present", geometry: geometryWithoutBboxes(operand), crs, layout },
   } as unknown as RuntimeSemanticFilter;
 }
 
@@ -521,7 +524,11 @@ function importProperty(value: JsonValue, path: string): { readonly kind: "prope
 function geometryLayout(geometry: JsonObject, path: string): "xy" | "xyz" {
   const type = text(geometry.type, `${path}.type`);
   if (type === "GeometryCollection") {
-    exactKeys(geometry, ["type", "geometries"], path);
+    exactKeys(
+      geometry,
+      Object.hasOwn(geometry, "bbox") ? ["type", "geometries", "bbox"] : ["type", "geometries"],
+      path,
+    );
     const geometries = array(geometry.geometries as JsonValue, `${path}.geometries`);
     if (geometries.length < MIN_CQL2_GEOMETRY_COLLECTION_ITEMS) {
       throw cql2Invalid(`${path}.geometries`, "must contain at least two geometries in CQL2 JSON");
@@ -538,20 +545,55 @@ function geometryLayout(geometry: JsonObject, path: string): "xy" | "xyz" {
     if (layouts.some((candidate) => candidate !== layout)) {
       throw cql2Invalid(`${path}.geometries`, "must use one coordinate layout throughout the collection");
     }
+    validateGeometryBbox(geometry, layout, path);
     return layout;
   }
   if (!["Point", "MultiPoint", "LineString", "MultiLineString", "Polygon", "MultiPolygon"].includes(type)) {
     throw cql2Unsupported(`${path}.type`, "uses an unsupported GeoJSON geometry type");
   }
-  exactKeys(geometry, ["type", "coordinates"], path);
+  exactKeys(
+    geometry,
+    Object.hasOwn(geometry, "bbox") ? ["type", "coordinates", "bbox"] : ["type", "coordinates"],
+    path,
+  );
   let position: JsonValue = geometry.coordinates as JsonValue;
   while (Array.isArray(position) && position.length > 0 && Array.isArray(position[0])) {
     position = position[0] as JsonValue;
   }
   if (!Array.isArray(position)) throw cql2Invalid(`${path}.coordinates`, "must contain coordinate positions");
-  if (position.length === 2) return "xy";
-  if (position.length === 3) return "xyz";
+  if (position.length === 2) {
+    validateGeometryBbox(geometry, "xy", path);
+    return "xy";
+  }
+  if (position.length === 3) {
+    validateGeometryBbox(geometry, "xyz", path);
+    return "xyz";
+  }
   throw cql2Unsupported(`${path}.coordinates`, "positions must contain two or three ordinates");
+}
+
+function validateGeometryBbox(geometry: JsonObject, layout: "xy" | "xyz", path: string): void {
+  if (!Object.hasOwn(geometry, "bbox")) return;
+  const bbox = array(geometry.bbox, `${path}.bbox`);
+  const expectedLength = layout === "xy" ? 4 : 6;
+  if (bbox.length !== expectedLength) {
+    throw cql2Invalid(`${path}.bbox`, `must contain ${expectedLength} ordinates for ${layout} geometry`);
+  }
+  bbox.forEach((ordinate, index) => {
+    if (typeof ordinate !== "number") throw cql2Invalid(`${path}.bbox[${index}]`, "must be a number");
+  });
+}
+
+function geometryWithoutBboxes(geometry: JsonObject): JsonObject {
+  if (geometry.type === "GeometryCollection") {
+    return {
+      type: "GeometryCollection",
+      geometries: (geometry.geometries as readonly JsonValue[]).map((entry) =>
+        geometryWithoutBboxes(entry as JsonObject),
+      ),
+    };
+  }
+  return { type: geometry.type as JsonValue, coordinates: geometry.coordinates as JsonValue };
 }
 
 function assertCql2GeometryCollectionCardinality(geometry: JsonObject, path: string): void {
