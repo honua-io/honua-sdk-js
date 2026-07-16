@@ -23,6 +23,18 @@ const metadata = parseOdataMetadata(`
       <Property Name="Amount" Type="Edm.Decimal" Precision="38" Scale="4"/>
       <Property Name="Next" Type="Example.Node"/>
     </ComplexType>
+    <EnumType Name="AssetStatus" UnderlyingType="Edm.Int16">
+      <Member Name="Active" Value="1"/>
+      <Member Name="Retired" Value="2"/>
+    </EnumType>
+    <EnumType Name="Permissions" UnderlyingType="Edm.Int64" IsFlags="true">
+      <Member Name="Read" Value="1"/>
+      <Member Name="Write" Value="2"/>
+      <Member Name="Admin" Value="4"/>
+    </EnumType>
+    <EnumType Name="BrokenFlags" IsFlags="true">
+      <Member Name="Implicit"/>
+    </EnumType>
     <EntityType Name="Asset">
       <Key><PropertyRef Name="Tenant"/><PropertyRef Name="Id"/></Key>
       <Property Name="Tenant" Type="Edm.String" Nullable="false"/>
@@ -36,6 +48,14 @@ const metadata = parseOdataMetadata(`
       <Property Name="Balances" Type="Collection(Edm.Decimal)" Precision="38" Scale="4"/>
       <Property Name="Root" Type="Example.Node"/>
       <Property Name="Nodes" Type="Collection(Example.Node)"/>
+      <Property Name="Payload" Type="Edm.Binary" MaxLength="5"/>
+      <Property Name="ObservedOn" Type="Edm.Date"/>
+      <Property Name="ObservedAt" Type="Edm.DateTimeOffset" Precision="3"/>
+      <Property Name="Elapsed" Type="Edm.Duration" Precision="3"/>
+      <Property Name="LocalTime" Type="Edm.TimeOfDay" Precision="3"/>
+      <Property Name="Status" Type="Example.AssetStatus"/>
+      <Property Name="Permissions" Type="Example.Permissions"/>
+      <Property Name="Broken" Type="Example.BrokenFlags"/>
     </EntityType>
     <EntityType Name="LongKey">
       <Key><PropertyRef Name="Id"/></Key>
@@ -49,11 +69,36 @@ const metadata = parseOdataMetadata(`
       <Key><PropertyRef Name="Id"/></Key>
       <Property Name="Id" Type="Edm.Guid" Nullable="false"/>
     </EntityType>
+    <EntityType Name="DateKey">
+      <Key><PropertyRef Name="Id"/></Key>
+      <Property Name="Id" Type="Edm.Date" Nullable="false"/>
+    </EntityType>
+    <EntityType Name="DateTimeKey">
+      <Key><PropertyRef Name="Id"/></Key>
+      <Property Name="Id" Type="Edm.DateTimeOffset" Nullable="false" Precision="3"/>
+    </EntityType>
+    <EntityType Name="DurationKey">
+      <Key><PropertyRef Name="Id"/></Key>
+      <Property Name="Id" Type="Edm.Duration" Nullable="false" Precision="3"/>
+    </EntityType>
+    <EntityType Name="BinaryKey">
+      <Key><PropertyRef Name="Id"/></Key>
+      <Property Name="Id" Type="Edm.Binary" Nullable="false" MaxLength="5"/>
+    </EntityType>
+    <EntityType Name="EnumKey">
+      <Key><PropertyRef Name="Id"/></Key>
+      <Property Name="Id" Type="Example.AssetStatus" Nullable="false"/>
+    </EntityType>
     <EntityContainer Name="Container">
       <EntitySet Name="Assets" EntityType="Example.Asset"/>
       <EntitySet Name="LongKeys" EntityType="Example.LongKey"/>
       <EntitySet Name="StringKeys" EntityType="Example.StringKey"/>
       <EntitySet Name="GuidKeys" EntityType="Example.GuidKey"/>
+      <EntitySet Name="DateKeys" EntityType="Example.DateKey"/>
+      <EntitySet Name="DateTimeKeys" EntityType="Example.DateTimeKey"/>
+      <EntitySet Name="DurationKeys" EntityType="Example.DurationKey"/>
+      <EntitySet Name="BinaryKeys" EntityType="Example.BinaryKey"/>
+      <EntitySet Name="EnumKeys" EntityType="Example.EnumKey"/>
     </EntityContainer>
   </Schema>
 `);
@@ -190,6 +235,103 @@ describe("OData lossless write body encoding", () => {
   });
 });
 
+describe("OData primitive and enum admission", () => {
+  it("admits canonical temporal, binary, and enum values without precision loss", () => {
+    expect(
+      encodeOdataWriteBody(metadata, "Assets", {
+        Payload: "T0RhdGE",
+        ObservedOn: "2024-02-29",
+        ObservedAt: "2024-02-29T23:59:60.123+23:59",
+        Elapsed: "+P1DT2H3M4.125S",
+        LocalTime: "23:59:60.123",
+        Status: "1",
+        Permissions: "7",
+      }).body,
+    ).toEqual({
+      Payload: "T0RhdGE",
+      ObservedOn: "2024-02-29",
+      ObservedAt: "2024-02-29T23:59:60.123+23:59",
+      Elapsed: "+P1DT2H3M4.125S",
+      LocalTime: "23:59:60.123",
+      Status: "Active",
+      Permissions: "Read,Write,Admin",
+    });
+  });
+
+  it.each(["P1D", "PT0S", "-P2DT3H", "+PT4M", "P1DT2H3M4.125S"])(
+    "admits the canonical day-time duration %s",
+    (value) => {
+      expect(encodeOdataWriteBody(metadata, "Assets", { Elapsed: value }).body.Elapsed).toBe(value);
+    },
+  );
+
+  it.each(["P", "PT", "P1DT", "P1M", "PT.5S", "P1DT2.1234S", "1D", "P1D2H"])(
+    "rejects malformed or over-precise day-time duration %s",
+    (value) => {
+      const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { Elapsed: value }));
+      expect(error.code).toBe("invalid-value");
+      expect(error.path).toBe("$.Elapsed");
+      expect(error.message).not.toContain(value);
+    },
+  );
+
+  it.each([
+    ["ObservedOn", "2023-02-29"],
+    ["ObservedOn", "1900-02-29"],
+    ["ObservedOn", "2024-02-30"],
+    ["ObservedOn", "2024-04-31"],
+    ["ObservedOn", "2024-13-01"],
+    ["ObservedAt", "2023-02-29T12:00:00Z"],
+    ["ObservedAt", "2024-01-01T12:00:00.1234Z"],
+    ["ObservedAt", "2024-01-01T24:00:00Z"],
+    ["ObservedAt", "2024-01-01T12:00:00+24:00"],
+    ["LocalTime", "12:00:00.1234"],
+  ])("rejects impossible or over-precise temporal %s value", (field, value) => {
+    const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { [field]: value }));
+    expect(error.code).toBe("invalid-value");
+    expect(error.path).toBe(`$.${field}`);
+    expect(error.message).not.toContain(value);
+  });
+
+  it.each(["", "TQ", "TQ==", "TWE", "TWE=", "TWFu", "T0RhdGE"])("admits canonical base64url binary %s", (value) => {
+    expect(encodeOdataWriteBody(metadata, "Assets", { Payload: value }).body.Payload).toBe(value);
+  });
+
+  it.each(["A", "AB", "ABC", "TQ=", "TWE==", "TWFu=", "TQ===", "T+/=", "T0RhdGEh"])(
+    "rejects non-canonical, malformed, or over-length binary %s",
+    (value) => {
+      const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { Payload: value }));
+      expect(error.code).toBe("invalid-value");
+      expect(error.path).toBe("$.Payload");
+      expect(error.message).not.toContain(value);
+    },
+  );
+
+  it("validates declared enum names and flag combinations", () => {
+    expect(
+      encodeOdataWriteBody(metadata, "Assets", {
+        Status: "Retired",
+        Permissions: "Read,Admin",
+      }).body,
+    ).toEqual({ Status: "Retired", Permissions: "Read,Admin" });
+  });
+
+  it.each([
+    ["Status", "Deleted", "invalid-value"],
+    ["Status", "Active,Retired", "invalid-value"],
+    ["Status", "32768", "invalid-value"],
+    ["Permissions", "Read,Read", "invalid-value"],
+    ["Permissions", "Read,Unknown", "invalid-value"],
+    ["Permissions", "-1", "invalid-value"],
+    ["Broken", "Implicit", "invalid-metadata"],
+  ])("rejects undeclared or invalid enum %s value", (field, value, code) => {
+    const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { [field]: value }));
+    expect(error.code).toBe(code);
+    expect(error.path).toBe(`$.${field}`);
+    expect(error.message).not.toContain(value);
+  });
+});
+
 describe("OData metadata-typed key encoding", () => {
   it.each([
     ["9223372036854775807", "9223372036854775807"],
@@ -228,6 +370,30 @@ describe("OData metadata-typed key encoding", () => {
   it("keeps canonical GUID keys unquoted", () => {
     const guid = "01234567-89AB-CDEF-0123-456789ABCDEF";
     expect(encodeOdataEntityKey(metadata, "GuidKeys", guid)).toEqual({ literal: guid, pathSegment: guid });
+  });
+
+  it.each([
+    ["DateKeys", "2024-02-29", "2024-02-29"],
+    ["DateTimeKeys", "2024-02-29T12:30:00.123Z", "2024-02-29T12:30:00.123Z"],
+    ["DurationKeys", "P1DT2H", "duration'P1DT2H'"],
+    ["BinaryKeys", "TQ==", "binary'TQ=='"],
+    ["EnumKeys", "Active", "Example.AssetStatus'Active'"],
+    ["EnumKeys", "1", "Example.AssetStatus'Active'"],
+  ])("formats an admitted %s primitive key", (entitySet, value, literal) => {
+    expect(encodeOdataEntityKey(metadata, entitySet, value).literal).toBe(literal);
+  });
+
+  it.each([
+    ["DateKeys", "2023-02-29"],
+    ["DateTimeKeys", "2024-02-30T12:00:00Z"],
+    ["DurationKeys", "P1DT"],
+    ["BinaryKeys", "AB"],
+    ["EnumKeys", "Unknown"],
+  ])("rejects a malformed %s primitive key locally", (entitySet, value) => {
+    const error = encodingFailure(() => encodeOdataEntityKey(metadata, entitySet, value));
+    expect(error.code).toBe("invalid-value");
+    expect(error.path).toBe("$.key.Id");
+    expect(error.message).not.toContain(value);
   });
 
   it.each([
@@ -294,6 +460,85 @@ describe("OData codec adversarial bounds and redaction", () => {
     expect(error.code).toBe("invalid-value");
     expect(invoked).toBe(false);
     expect(error.message).not.toContain("credential-value-that-must-not-appear");
+  });
+
+  it.each([
+    [
+      "getPrototypeOf",
+      () =>
+        new Proxy(
+          {},
+          {
+            getPrototypeOf() {
+              throw new Error("prototype-trap-secret");
+            },
+          },
+        ),
+    ],
+    [
+      "ownKeys",
+      () =>
+        new Proxy(
+          {},
+          {
+            ownKeys() {
+              throw new Error("own-keys-trap-secret");
+            },
+          },
+        ),
+    ],
+    [
+      "getOwnPropertyDescriptor",
+      () =>
+        new Proxy(
+          { Id: "1" },
+          {
+            getOwnPropertyDescriptor() {
+              throw new Error("descriptor-trap-secret");
+            },
+          },
+        ),
+    ],
+  ])("contains a body Proxy %s trap behind a fixed redacted error", (_trap, bodyFactory) => {
+    const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", bodyFactory()));
+    expect(error.code).toBe("invalid-value");
+    expect(error.message).not.toContain("trap-secret");
+    expect(error).not.toHaveProperty("cause");
+  });
+
+  it("rejects collection element accessors without evaluating them", () => {
+    let invoked = false;
+    const balances: unknown[] = [];
+    Object.defineProperty(balances, "0", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        invoked = true;
+        return "array-accessor-secret";
+      },
+    });
+    balances.length = 1;
+
+    const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { Balances: balances }));
+    expect(error.code).toBe("invalid-value");
+    expect(error.path).toBe("$.Balances[0]");
+    expect(invoked).toBe(false);
+    expect(error.message).not.toContain("array-accessor-secret");
+  });
+
+  it("contains metadata Proxy traps as fixed invalid-metadata failures", () => {
+    const trappedMetadata = new Proxy(metadata, {
+      get(target, property, receiver) {
+        if (property === "entitySets") throw new Error("metadata-trap-secret");
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const error = encodingFailure(() => encodeOdataWriteBody(trappedMetadata, "Assets", {}));
+    expect(error.code).toBe("invalid-metadata");
+    expect(error.path).toBe("$");
+    expect(error.message).not.toContain("metadata-trap-secret");
+    expect(error).not.toHaveProperty("cause");
   });
 
   it("escapes and bounds hostile property names in diagnostic paths", () => {
