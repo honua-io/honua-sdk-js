@@ -144,6 +144,11 @@ describe("source.supports()", () => {
     expect(source.descriptor.capabilityProfile).toBe(profile);
     expect([...source.capabilities]).toEqual(["query"]);
     expect([...dataset.sourceDescriptors[0]!.capabilities]).toEqual(["query"]);
+    expect(() => (source.capabilities as Set<Capability>).add("queryAggregate")).toThrow(TypeError);
+    expect(() => (dataset.sourceDescriptors[0]!.capabilities as Set<Capability>).add("queryAggregate")).toThrow(
+      TypeError,
+    );
+    expect([...source.capabilities]).toEqual(["query"]);
 
     expect(source.supports("query")).toBe(true);
     expect(source.supports("io.honua.capability.export")).toBe(true);

@@ -29,19 +29,24 @@ export function normalizeCapabilityDescriptor(descriptor: SourceDescriptor): Sou
   const effectivelySupported = new Set(
     profile.entries.filter((entry) => entry.effective === "supported").map((entry) => entry.id),
   );
-  const legacyCapabilities = new Set<Capability>();
+  const legacyCapabilities: Capability[] = [];
   for (const capability of CAPABILITIES) {
     if (descriptor.capabilities.has(capability) && effectivelySupported.has(capability)) {
-      legacyCapabilities.add(capability);
+      legacyCapabilities.push(capability);
     }
   }
   if (
-    descriptor.capabilities.size === legacyCapabilities.size &&
-    [...legacyCapabilities].every((capability) => descriptor.capabilities.has(capability))
+    descriptor.capabilities instanceof ImmutableProfileCapabilitySet &&
+    descriptor.capabilities.size === legacyCapabilities.length &&
+    legacyCapabilities.every((capability) => descriptor.capabilities.has(capability))
   ) {
     return descriptor;
   }
-  return { ...descriptor, capabilities: legacyCapabilities };
+  // The profile is authoritative after admission. Expose a mutation-resistant
+  // compatibility view even when its values happen to equal the caller's
+  // original Set; otherwise a cast back to Set could silently re-enable an
+  // operation after profile validation.
+  return { ...descriptor, capabilities: immutableProfileCapabilities(legacyCapabilities) };
 }
 
 /** @internal Install one descriptor-authoritative capability view on a source handle. */
@@ -79,6 +84,51 @@ interface CapabilityViewMember {
   readonly key: "descriptor" | "capabilities" | "supports" | "capabilityProfile";
   readonly value: unknown;
   readonly enumerable: boolean;
+}
+
+function immutableProfileCapabilities(values: readonly Capability[]): ReadonlySet<Capability> {
+  return Object.freeze(new ImmutableProfileCapabilitySet(values));
+}
+
+class ImmutableProfileCapabilitySet implements ReadonlySet<Capability> {
+  readonly #values: Set<Capability>;
+
+  public constructor(values: readonly Capability[]) {
+    this.#values = new Set(values);
+  }
+
+  public get size(): number {
+    return this.#values.size;
+  }
+
+  public has(value: Capability): boolean {
+    return this.#values.has(value);
+  }
+
+  public entries(): SetIterator<[Capability, Capability]> {
+    return this.#values.entries();
+  }
+
+  public keys(): SetIterator<Capability> {
+    return this.#values.keys();
+  }
+
+  public values(): SetIterator<Capability> {
+    return this.#values.values();
+  }
+
+  public forEach(
+    callbackfn: (value: Capability, value2: Capability, set: ReadonlySet<Capability>) => void,
+    thisArg?: unknown,
+  ): void {
+    for (const value of this.#values) callbackfn.call(thisArg, value, value, this);
+  }
+
+  public [Symbol.iterator](): SetIterator<Capability> {
+    return this.values();
+  }
+
+  public readonly [Symbol.toStringTag] = "Set";
 }
 
 function canInstallCapabilityMember(source: object, member: CapabilityViewMember): boolean {

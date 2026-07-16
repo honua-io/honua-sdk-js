@@ -5,6 +5,7 @@ import type { SourceDescriptor } from "../src/contract/types.js";
 import { createCapabilitySourceEndpointFingerprint } from "../src/source-capabilities.js";
 import {
   type SourceCapabilityConnectOptions,
+  type SourceCapabilityEvaluationOptions,
   connectWithSourceCapabilities,
   sourceCapabilityEndpointIdentity,
 } from "../src/source-capability-discovery.js";
@@ -68,6 +69,14 @@ describe("capability discovery endpoint binding", () => {
         locator: { ...odata.locator, url: "file:///tmp/v4" },
       }),
     ).toThrow(/HTTP/);
+    for (const entitySet of [".", ".."] as const) {
+      expect(() =>
+        sourceCapabilityEndpointIdentity({
+          ...odata,
+          locator: { ...odata.locator, entitySet },
+        }),
+      ).toThrow(/routable path identifier/);
+    }
   });
 });
 
@@ -273,6 +282,29 @@ describe("connectWithSourceCapabilities", () => {
         observationTtlMs: 0,
       }),
     ).rejects.toThrow(/positive safe integer/);
+    const validationOptions: SourceCapabilityConnectOptions = {
+      endpoint: "https://example.test/odata",
+      protocol: "odata",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    };
+    await expect(
+      connectWithSourceCapabilities(validationOptions, {
+        evaluatedAt: EVALUATED_AT,
+        environment: "" as never,
+      }),
+    ).rejects.toThrow(/environment/);
+    await expect(
+      connectWithSourceCapabilities(validationOptions, {
+        evaluatedAt: EVALUATED_AT,
+        observationTtlMs: null as never,
+      }),
+    ).rejects.toThrow(/positive safe integer/);
+    const accessorEvaluation = Object.defineProperty({ evaluatedAt: EVALUATED_AT }, "environment", {
+      enumerable: true,
+      get: () => "browser",
+    }) as SourceCapabilityEvaluationOptions;
+    await expect(connectWithSourceCapabilities(validationOptions, accessorEvaluation)).rejects.toThrow(/data property/);
     expect(fetchFn).not.toHaveBeenCalled();
   });
 });

@@ -117,8 +117,15 @@ function requiredEndpoint(value: unknown): string {
 }
 
 function requiredIdentifier(value: unknown, path: string): string {
-  if (typeof value !== "string" || value.length === 0 || value.trim() !== value || value.includes("/")) {
-    throw new TypeError(`${path} must be one non-empty trimmed path identifier`);
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.trim() !== value ||
+    value.includes("/") ||
+    value === "." ||
+    value === ".."
+  ) {
+    throw new TypeError(`${path} must be one non-empty trimmed routable path identifier`);
   }
   return value;
 }

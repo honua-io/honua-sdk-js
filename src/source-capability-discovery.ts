@@ -34,9 +34,14 @@ import {
 import { HONUA_DEFAULT_METADATA_CACHE_TTL_MS } from "./core/cache-state.js";
 import { HonuaDiscoveryError } from "./core/errors.js";
 import { sourceCapabilityEndpointIdentity } from "./source-capability-discovery-endpoint.js";
-import { evaluateCapabilityProfile } from "./source-capability-evaluation.js";
+import { evaluateCapabilityProfile, snapshotCapabilityEvaluationContext } from "./source-capability-evaluation.js";
 import { createCapabilityEvidenceProfile } from "./source-capability-evidence.js";
-import { isCapabilityIsoInstant } from "./source-capability-json.js";
+import {
+  assertPlainCapabilityObject,
+  isCapabilityIsoInstant,
+  snapshotCapabilityJson,
+} from "./source-capability-json.js";
+import { CAPABILITY_EVALUATION_CONTEXT_JSON_LIMITS } from "./source-capability-limits.js";
 import type {
   CapabilityEvaluationContext,
   CapabilityEvidence,
@@ -118,8 +123,9 @@ export async function connectWithSourceCapabilities(
   evaluation: SourceCapabilityEvaluationOptions,
 ): Promise<HonuaConnectionWithCapabilityProfiles> {
   assertCertifiedProtocol(options.protocol);
-  const projection = capabilityProjection(evaluation);
-  const capabilityPolicy = discoveryPolicy(evaluation.policy);
+  const safeEvaluation = normalizeEvaluationOptions(evaluation);
+  const projection = capabilityProjection(safeEvaluation);
+  const capabilityPolicy = discoveryPolicy(safeEvaluation.policy);
   return (await connectWithSourceSchemaProjection(
     { ...options, ...(capabilityPolicy ? { capabilityPolicy } : {}) },
     SOURCE_SCHEMA_V2_CONNECT_PROJECTION,
@@ -127,21 +133,41 @@ export async function connectWithSourceCapabilities(
   )) as HonuaConnectionWithCapabilityProfiles;
 }
 
-function capabilityProjection(evaluation: SourceCapabilityEvaluationOptions): ConnectSourceCapabilityProjection {
-  if (!isCapabilityIsoInstant(evaluation.evaluatedAt)) {
+function normalizeEvaluationOptions(evaluation: SourceCapabilityEvaluationOptions): SourceCapabilityEvaluationOptions {
+  const safe = snapshotCapabilityJson(
+    evaluation,
+    "Source capability evaluation",
+    CAPABILITY_EVALUATION_CONTEXT_JSON_LIMITS,
+  ) as SourceCapabilityEvaluationOptions;
+  assertPlainCapabilityObject(safe, "Source capability evaluation", [
+    "evaluatedAt",
+    "observationTtlMs",
+    "policy",
+    "environment",
+    "availablePeers",
+    "authorization",
+  ]);
+  if (!Object.hasOwn(safe, "evaluatedAt") || !isCapabilityIsoInstant(safe.evaluatedAt)) {
     throw new TypeError("Source capability evaluation evaluatedAt must be an ISO-8601 UTC instant");
   }
-  const observationTtlMs = evaluation.observationTtlMs ?? HONUA_DEFAULT_METADATA_CACHE_TTL_MS;
-  if (!Number.isSafeInteger(observationTtlMs) || observationTtlMs <= 0) {
+  if (
+    safe.observationTtlMs !== undefined &&
+    (!Number.isSafeInteger(safe.observationTtlMs) || safe.observationTtlMs <= 0)
+  ) {
     throw new TypeError("Source capability evaluation observationTtlMs must be a positive safe integer");
   }
-  const context: CapabilityEvaluationContext = {
+  return safe;
+}
+
+function capabilityProjection(evaluation: SourceCapabilityEvaluationOptions): ConnectSourceCapabilityProjection {
+  const observationTtlMs = evaluation.observationTtlMs ?? HONUA_DEFAULT_METADATA_CACHE_TTL_MS;
+  const context = snapshotCapabilityEvaluationContext({
     evaluatedAt: evaluation.evaluatedAt,
-    ...(evaluation.policy ? { policy: evaluation.policy } : {}),
-    ...(evaluation.environment ? { environment: evaluation.environment } : {}),
-    ...(evaluation.availablePeers ? { availablePeers: evaluation.availablePeers } : {}),
-    ...(evaluation.authorization ? { authorization: evaluation.authorization } : {}),
-  };
+    ...(evaluation.policy !== undefined ? { policy: evaluation.policy } : {}),
+    ...(evaluation.environment !== undefined ? { environment: evaluation.environment } : {}),
+    ...(evaluation.availablePeers !== undefined ? { availablePeers: evaluation.availablePeers } : {}),
+    ...(evaluation.authorization !== undefined ? { authorization: evaluation.authorization } : {}),
+  });
   const projection: ConnectSourceCapabilityProjection = {
     cacheIdentity: CAPABILITY_DISCOVERY_PROJECTION_IDENTITY,
     project(descriptor, resolution, projectionContext) {

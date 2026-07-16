@@ -38,11 +38,11 @@ import {
   type DiscoveryProvenance,
   type SourceDiscoveryInspection,
   createDiscoveryCacheIdentity,
-  immutableDiscoveredCapabilities,
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
 } from "./contract/discovery.js";
 import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
+import { normalizeCapabilityDescriptor } from "./contract/source-capability-support.js";
 import { createDataset } from "./contract/source.js";
 import type {
   CapabilityAwareSource,
@@ -490,16 +490,7 @@ function descriptorWithCapabilityProfile(
   descriptor: SourceDescriptor,
   capabilityProfile: CapabilityProfile,
 ): SourceDescriptor {
-  const supported = new Set(
-    capabilityProfile.entries.filter((entry) => entry.effective === "supported").map((entry) => entry.id),
-  );
-  return Object.freeze({
-    ...descriptor,
-    capabilities: immutableDiscoveredCapabilities(
-      [...descriptor.capabilities].filter((capability) => supported.has(capability)),
-    ),
-    capabilityProfile,
-  });
+  return Object.freeze(normalizeCapabilityDescriptor({ ...descriptor, capabilityProfile }));
 }
 
 /** Options for {@link discoverOgcProcesses}. */

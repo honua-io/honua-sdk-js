@@ -69,12 +69,7 @@ export function evaluateCapabilityProfile(
   if (runtime === undefined) {
     throw new TypeError("Capability evidence profile must be created or parsed by this SDK instance");
   }
-  const safeContext = snapshotCapabilityJson(
-    context,
-    "Capability evaluation context",
-    CAPABILITY_EVALUATION_CONTEXT_JSON_LIMITS,
-  ) as CapabilityEvaluationContext;
-  const normalizedContext = normalizeContext(safeContext);
+  const { normalized: normalizedContext } = snapshotAndNormalizeContext(context);
   let validUntil: { readonly instant: bigint; readonly text: IsoInstant } | undefined;
   const decisions = profile.entries.map((entry, index) => {
     const result = evaluateEntry(entry, runtime.entries[index]!, normalizedContext);
@@ -114,6 +109,23 @@ export function evaluateCapabilityProfile(
     `${CAPABILITY_PROFILE_FINGERPRINT_DOMAIN}\n${canonicalStringify(toJsonValue(fingerprintProjection))}`,
   ) as Sha256;
   return registerCapabilityProfile(deepFreezeCapability({ ...envelope, fingerprint }) as CapabilityProfile);
+}
+
+/** @internal Snapshot and validate dynamic inputs before an asynchronous discovery boundary. */
+export function snapshotCapabilityEvaluationContext(context: CapabilityEvaluationContext): CapabilityEvaluationContext {
+  return snapshotAndNormalizeContext(context).safe;
+}
+
+function snapshotAndNormalizeContext(context: CapabilityEvaluationContext): {
+  readonly safe: CapabilityEvaluationContext;
+  readonly normalized: NormalizedContext;
+} {
+  const safeContext = snapshotCapabilityJson(
+    context,
+    "Capability evaluation context",
+    CAPABILITY_EVALUATION_CONTEXT_JSON_LIMITS,
+  ) as CapabilityEvaluationContext;
+  return { safe: safeContext, normalized: normalizeContext(safeContext) };
 }
 
 function evaluateEntry(
