@@ -264,6 +264,54 @@ describe("createHonua application kernel facade", () => {
     await honua.dispose();
   });
 
+  it("owns optional delegated adapter resources through refresh and disposes each exactly once", async () => {
+    const initial = mockConnection(["initial"]);
+    const refreshed = mockConnection(["refreshed"]);
+    const disposeInitial = vi.fn(async () => undefined);
+    const disposeRefreshed = vi.fn(async () => undefined);
+    Object.assign(initial.connection, { [Symbol.asyncDispose]: disposeInitial });
+    Object.assign(refreshed.connection, { [Symbol.asyncDispose]: disposeRefreshed });
+    const calls: ConnectOptions[] = [];
+    const honua = createHonuaKernel({
+      connectDelegate: sequenceDelegate(calls, [initial.connection, refreshed.connection]),
+    });
+    const connection = await honua.connect("https://geo.example.test/ogc", { protocol: "ogc-features" });
+
+    await connection.inspect({ refresh: true });
+    expect(disposeInitial).not.toHaveBeenCalled();
+    expect(disposeRefreshed).not.toHaveBeenCalled();
+
+    const disposal = connection.dispose();
+    expect(connection.dispose()).toBe(disposal);
+    await disposal;
+    expect(disposeInitial).toHaveBeenCalledTimes(1);
+    expect(disposeRefreshed).toHaveBeenCalledTimes(1);
+    await honua.dispose();
+  });
+
+  it("does not deadlock when delegated adapter cleanup synchronously acknowledges owner disposal", async () => {
+    const raw = mockConnection(["parcels"]);
+    const owner: { connection?: Awaited<ReturnType<ReturnType<typeof createHonuaKernel>["connect"]>> } = {};
+    let cleanupAcknowledgement: Promise<void> | undefined;
+    const disposeAdapter = vi.fn(async () => {
+      cleanupAcknowledgement = owner.connection?.dispose();
+      await cleanupAcknowledgement;
+    });
+    Object.assign(raw.connection, { [Symbol.asyncDispose]: disposeAdapter });
+    const honua = createHonuaKernel({ connectDelegate: async () => raw.connection });
+    const connection = await honua.connect("https://geo.example.test/ogc", { protocol: "ogc-features" });
+    owner.connection = connection;
+
+    const disposal = connection.dispose();
+    await disposal;
+
+    expect(disposeAdapter).toHaveBeenCalledTimes(1);
+    expect(cleanupAcknowledgement).toBeDefined();
+    expect(Object.is(cleanupAcknowledgement, disposal)).toBe(false);
+    expect(connection.dispose()).toBe(disposal);
+    await honua.dispose();
+  });
+
   it("cancels refresh for the caller, preserves the prior snapshot, and aborts pending work on disposal", async () => {
     const initial = mockConnection(["parcels"]);
     const calls: ConnectOptions[] = [];
@@ -296,6 +344,8 @@ describe("createHonua application kernel facade", () => {
     await firstDisposal;
     await expect(connection.inspect()).rejects.toThrow("after disposal has started");
     expect(() => connection.source()).toThrow("after disposal has started");
+    expect(() => connection.dataset).toThrow("after disposal has started");
+    expect(() => connection.sourceDescriptors).toThrow("after disposal has started");
     await honua.dispose();
   });
 
@@ -314,6 +364,74 @@ describe("createHonua application kernel facade", () => {
     await expect(honua.connect("https://geo.example.test/other", { protocol: "ogc-features" })).rejects.toThrow(
       "after disposal has started",
     );
+  });
+
+  it("reads public locator and option snapshots without invoking Proxy get traps", async () => {
+    const raw = mockConnection(["parcels"]);
+    const calls: ConnectOptions[] = [];
+    const honua = createHonuaKernel({ connectDelegate: sequenceDelegate(calls, [raw.connection]) });
+    let propertyReads = 0;
+    const trackReads = <T extends object>(target: T): T =>
+      new Proxy(target, {
+        get() {
+          propertyReads += 1;
+          throw new Error("a Proxy get trap was invoked");
+        },
+      });
+    const locator = trackReads({ url: "https://geo.example.test/ogc", protocol: "ogc-features" as const });
+    const retryStatuses = trackReads([429, 503]);
+    const options = trackReads({
+      authorizationScopeFingerprint: "tenant:alpha/reader",
+      clientOptions: trackReads({
+        apiKey: "SECRET",
+        retry: trackReads({ maxRetries: 2, retryStatuses }),
+      }),
+    });
+
+    const connection = await honua.connect(locator, options);
+
+    expect(propertyReads).toBe(0);
+    expect(calls[0]?.endpoint).toBe("https://geo.example.test/ogc");
+    expect(calls[0]?.clientOptions?.retry?.retryStatuses).toEqual([429, 503]);
+    expect(Object.isFrozen(calls[0]?.clientOptions?.retry?.retryStatuses)).toBe(true);
+    await connection.dispose();
+    await honua.dispose();
+  });
+
+  it("rejects connect and inspect accessors without invoking them", async () => {
+    const raw = mockConnection(["parcels"]);
+    const calls: ConnectOptions[] = [];
+    const honua = createHonuaKernel({ connectDelegate: sequenceDelegate(calls, [raw.connection]) });
+    let connectGetterCalls = 0;
+    const connectOptions = {} as Record<string, unknown>;
+    Object.defineProperty(connectOptions, "clientOptions", {
+      enumerable: true,
+      get() {
+        connectGetterCalls += 1;
+        return { apiKey: "MUST-NOT-BE-READ" };
+      },
+    });
+
+    await expect(
+      honua.connect("https://geo.example.test/rejected", connectOptions as unknown as { protocol?: "auto" }),
+    ).rejects.toThrow("stable enumerable data fields");
+    expect(connectGetterCalls).toBe(0);
+    expect(calls).toHaveLength(0);
+
+    const connection = await honua.connect("https://geo.example.test/ogc", { protocol: "ogc-features" });
+    let inspectGetterCalls = 0;
+    const inspectOptions = {} as Record<string, unknown>;
+    Object.defineProperty(inspectOptions, "refresh", {
+      enumerable: true,
+      get() {
+        inspectGetterCalls += 1;
+        return true;
+      },
+    });
+    await expect(connection.inspect(inspectOptions)).rejects.toThrow("stable enumerable data fields");
+    expect(inspectGetterCalls).toBe(0);
+    expect(calls).toHaveLength(1);
+    await honua.dispose();
   });
 
   it("keeps an explicitly selected previous source when refresh no longer advertises it", async () => {
@@ -381,6 +499,54 @@ describe("createHonua application kernel facade", () => {
     expect(`${locatorFailure.message} ${JSON.stringify(locatorFailure)}`).not.toContain(locatorSecret);
     expect(delegate).toHaveBeenCalledTimes(2);
 
+    await honua.dispose();
+  });
+
+  it("sanitizes accessor-bearing delegated errors without invoking their accessors", async () => {
+    let getterCalls = 0;
+    const delegatedError = new Error("Delegated discovery failed safely.");
+    Object.defineProperty(delegatedError, "debug", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return "access_token=MUST-NOT-BE-READ";
+      },
+    });
+    const honua = createHonuaKernel({
+      connectDelegate: async () => {
+        throw delegatedError;
+      },
+    });
+
+    const failure = await rejected(honua.connect("https://geo.example.test/ogc", { protocol: "ogc-features" }));
+
+    expect(Object.is(failure, delegatedError)).toBe(false);
+    expect(failure.message).toBe("Delegated discovery failed safely.");
+    expect(getterCalls).toBe(0);
+    expect("debug" in failure).toBe(false);
+    await honua.dispose();
+  });
+
+  it("does not forward accessor-bearing non-Error rejection payloads", async () => {
+    let getterCalls = 0;
+    const rejection: Record<string, unknown> = {};
+    Object.defineProperty(rejection, "message", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return "access_token=MUST-NOT-BE-READ";
+      },
+    });
+    const honua = createHonuaKernel({
+      connectDelegate: async () => {
+        throw rejection;
+      },
+    });
+
+    const failure = await rejected(honua.connect("https://geo.example.test/ogc", { protocol: "ogc-features" }));
+
+    expect(failure.message).toBe("Honua operation failed.");
+    expect(getterCalls).toBe(0);
     await honua.dispose();
   });
 });

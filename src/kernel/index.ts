@@ -18,7 +18,10 @@ import {
   type KernelLifecycle,
   type KernelLifecycleOptions,
   createKernelLifecycle,
+  disposeKernelConnectionResult,
+  snapshotKernelConnectOptions,
 } from "./lifecycle.js";
+import { snapshotOwnDataArray, snapshotOwnDataObject } from "./stable-data.js";
 
 /** A source URL plus the discovery and source-selection hints that belong to it. */
 export interface ConnectLocator {
@@ -109,15 +112,18 @@ class HonuaKernelFacade implements HonuaKernel {
     locator: string | URL | ConnectLocator,
     options: HonuaKernelConnectOptions = {},
   ): Promise<HonuaKernelConnection<T>> {
+    this.lifecycle.assertActive("connect");
     const request = normalizeConnectRequest(locator, options);
-    let discovered: DiscoveredHonuaConnection;
+    let discovered: DiscoveredHonuaConnection | undefined;
     try {
       discovered = await this.lifecycle.connect(request.endpoint, request.initialOptions);
       throwIfAborted(this.lifecycle.signal);
       throwIfAborted(request.initialOptions.signal);
     } catch (error) {
+      if (discovered) await cleanupRejectedConnection(discovered, request.secrets);
       throw credentialSafeError(error, request.secrets);
     }
+    if (!discovered) throw new Error("Kernel discovery completed without a connection.");
 
     let managed: ManagedHonuaConnection<T>;
     try {
@@ -130,9 +136,15 @@ class HonuaKernelFacade implements HonuaKernel {
         secrets: request.secrets,
       });
     } catch (error) {
+      await cleanupRejectedConnection(discovered, request.secrets);
       throw credentialSafeError(error, request.secrets);
     }
-    return this.lifecycle.own(managed);
+    try {
+      return this.lifecycle.own(managed);
+    } catch (error) {
+      await managed.dispose();
+      throw credentialSafeError(error, request.secrets);
+    }
   }
 
   public dispose(): Promise<void> {
@@ -167,7 +179,10 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
   readonly #options: KernelConnectOptions;
   readonly #selectedSourceId: SourceId | undefined;
   readonly #secrets: readonly string[];
+  readonly #ownedDiscoveries = new Set<DiscoveredHonuaConnection>();
+  readonly #cleanupReentryCompletion = Promise.resolve();
   #current: ManagedConnectionState;
+  #invokingAdapterCleanup = false;
   #refreshGeneration = 0;
   #state: "active" | "disposing" | "disposed" = "active";
   #disposePromise: Promise<void> | undefined;
@@ -180,22 +195,29 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
     this.#selectedSourceId = init.selectedSourceId;
     this.#secrets = init.secrets;
     this.#current = createManagedConnectionState(init.discovered, init.endpoint, init.secrets);
+    this.#ownedDiscoveries.add(init.discovered);
     this.id = this.#current.inspection.id;
     assertSelectedSource(this.#selectedSourceId, this.#current.sourceIds);
   }
 
   public get dataset(): Dataset {
+    this.#assertActive("read the dataset");
     return this.#current.discovered.dataset;
   }
 
   public get sourceDescriptors(): readonly SourceDescriptor[] {
+    this.#assertActive("read source descriptors");
     return this.#current.sourceDescriptors;
   }
 
   public async inspect(options: InspectOptions = {}): Promise<ConnectionInspection> {
     this.#assertActive("inspect metadata");
-    throwIfAborted(options.signal);
-    if (options.refresh !== true) return this.#current.inspection;
+    const inspectOptions = snapshotOwnDataObject(options, "inspect() options");
+    // A Proxy reflection trap can synchronously dispose the connection.
+    this.#assertActive("inspect metadata");
+    const signal = inspectOptions.signal as AbortSignal | undefined;
+    throwIfAborted(signal);
+    if (inspectOptions.refresh !== true) return this.#current.inspection;
 
     const generation = ++this.#refreshGeneration;
     let discovered: DiscoveredHonuaConnection;
@@ -203,10 +225,10 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
       discovered = await this.#lifecycle.connect(this.#endpoint, {
         ...this.#options,
         refresh: true,
-        signal: combineAbortSignals(this.#abortController.signal, options.signal),
+        signal: combineAbortSignals(this.#abortController.signal, signal),
       });
       throwIfAborted(this.#abortController.signal);
-      throwIfAborted(options.signal);
+      throwIfAborted(signal);
     } catch (error) {
       throw credentialSafeError(error, this.#secrets);
     }
@@ -230,12 +252,20 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
       this.#assertActive("publish refreshed metadata");
       throwIfAborted(this.#abortController.signal);
     } catch (error) {
+      if (!this.#ownedDiscoveries.has(discovered)) {
+        await cleanupRejectedConnection(discovered, this.#secrets);
+      }
       throw credentialSafeError(error, this.#secrets);
     }
 
     // Latest-started refresh wins. A slower earlier request can complete for
     // its caller, but it never replaces a newer snapshot or revives stale data.
-    if (generation === this.#refreshGeneration) this.#current = refreshed;
+    if (generation === this.#refreshGeneration) {
+      this.#ownedDiscoveries.add(refreshed.discovered);
+      this.#current = refreshed;
+    } else if (!this.#ownedDiscoveries.has(refreshed.discovered)) {
+      await cleanupRejectedConnection(refreshed.discovered, this.#secrets);
+    }
     return this.#current.inspection;
   }
 
@@ -250,26 +280,61 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
   }
 
   public dispose(): Promise<void> {
-    if (this.#disposePromise) return this.#disposePromise;
+    if (this.#disposePromise) {
+      return this.#invokingAdapterCleanup ? this.#cleanupReentryCompletion : this.#disposePromise;
+    }
     this.#state = "disposing";
 
-    let resolveCompletion: () => void = () => undefined;
-    let rejectCompletion: (error: unknown) => void = () => undefined;
-    const completion = new Promise<void>((resolve, reject) => {
-      resolveCompletion = resolve;
-      rejectCompletion = reject;
+    let beginCleanup: () => void = () => undefined;
+    const cleanupGate = new Promise<void>((resolve) => {
+      beginCleanup = resolve;
     });
+    let synchronousFailure: unknown;
+    let hasSynchronousFailure = false;
+    const completion = cleanupGate
+      .then(async () => {
+        const failures: unknown[] = [];
+        const discoveries = [...this.#ownedDiscoveries];
+        this.#ownedDiscoveries.clear();
+        for (const discovery of discoveries) {
+          try {
+            this.#invokingAdapterCleanup = true;
+            let result: Promise<void>;
+            try {
+              result = disposeKernelConnectionResult(discovery);
+            } finally {
+              this.#invokingAdapterCleanup = false;
+            }
+            await result;
+          } catch (error) {
+            failures.push(error);
+          }
+        }
+        if (hasSynchronousFailure) failures.push(synchronousFailure);
+        if (failures.length > 0) {
+          throw new AggregateError(failures, "Honua connection adapter resource disposal failed");
+        }
+      })
+      .then(
+        () => {
+          this.#state = "disposed";
+        },
+        (error: unknown) => {
+          this.#state = "disposed";
+          throw credentialSafeError(error, this.#secrets);
+        },
+      );
     this.#disposePromise = completion;
 
     try {
       this.#refreshGeneration += 1;
       this.#abortController.abort(new HonuaAbortError("Honua connection was disposed"));
       this.#lifecycle.release(this);
-      this.#state = "disposed";
-      resolveCompletion();
     } catch (error) {
-      this.#state = "disposed";
-      rejectCompletion(credentialSafeError(error, this.#secrets));
+      synchronousFailure = error;
+      hasSynchronousFailure = true;
+    } finally {
+      beginCleanup();
     }
     return completion;
   }
@@ -297,17 +362,36 @@ function normalizeConnectRequest(
   locator: string | URL | ConnectLocator,
   options: HonuaKernelConnectOptions,
 ): NormalizedConnectRequest {
-  const structured = isStructuredLocator(locator) ? locator : undefined;
-  const endpointInput = structured ? structured.url : locator;
-  if (!(typeof endpointInput === "string" || endpointInput instanceof URL)) {
-    throw new HonuaDiscoveryError("invalid-endpoint", "kernel.connect() requires an absolute URL locator.");
-  }
-  const endpoint = validateConnectEndpoint(endpointInput);
-  const selectedSourceId = mergeSourceSelection(structured?.sourceId, options.sourceId);
-  const protocol = mergeLocatorOption("protocol", structured?.protocol, options.protocol);
-  const collectionId = mergeLocatorOption("collectionId", structured?.collectionId, options.collectionId);
-  const typeName = mergeLocatorOption("typeName", structured?.typeName, options.typeName);
-  const initialOptions = snapshotConnectOptions(options, { protocol, collectionId, typeName });
+  const optionSnapshot = snapshotOwnDataObject(options, "kernel.connect() options");
+  const locatorSnapshot = snapshotConnectLocator(locator);
+  const endpoint = validateConnectEndpoint(locatorSnapshot.endpoint);
+  const selectedSourceId = mergeSourceSelection(
+    locatorSnapshot.fields?.sourceId as SourceId | undefined,
+    optionSnapshot.sourceId as SourceId | undefined,
+  );
+  const protocol = mergeLocatorOption(
+    "protocol",
+    locatorSnapshot.fields?.protocol as ConnectProtocolHint | undefined,
+    optionSnapshot.protocol as ConnectProtocolHint | undefined,
+  );
+  const collectionId = mergeLocatorOption(
+    "collectionId",
+    locatorSnapshot.fields?.collectionId as string | undefined,
+    optionSnapshot.collectionId as string | undefined,
+  );
+  const typeName = mergeLocatorOption(
+    "typeName",
+    locatorSnapshot.fields?.typeName as string | undefined,
+    optionSnapshot.typeName as string | undefined,
+  );
+  const initialOptions = snapshotKernelConnectOptions(
+    Object.freeze({
+      ...optionSnapshot,
+      ...(protocol !== undefined ? { protocol } : {}),
+      ...(collectionId !== undefined ? { collectionId } : {}),
+      ...(typeName !== undefined ? { typeName } : {}),
+    }) as KernelConnectOptions,
+  );
   const { refresh: _refresh, signal: _signal, ...persistentOptions } = initialOptions;
   void _refresh;
   void _signal;
@@ -321,22 +405,33 @@ function normalizeConnectRequest(
   });
 }
 
-function isStructuredLocator(value: string | URL | ConnectLocator): value is ConnectLocator {
-  if (typeof value !== "object" || value === null || value instanceof URL) return false;
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
-    throw new HonuaDiscoveryError("invalid-endpoint", "Structured connect locators must be plain data objects.");
+function snapshotConnectLocator(value: string | URL | ConnectLocator): {
+  readonly endpoint: string;
+  readonly fields?: Readonly<Record<string, unknown>>;
+} {
+  if (typeof value === "string") return Object.freeze({ endpoint: value });
+  const url = serializeIntrinsicUrl(value);
+  if (url !== undefined) return Object.freeze({ endpoint: url });
+  try {
+    const fields = snapshotOwnDataObject(value, "Structured connect locator");
+    const endpoint = fields.url;
+    if (typeof endpoint === "string") return Object.freeze({ endpoint, fields });
+    const serialized = serializeIntrinsicUrl(endpoint);
+    if (serialized !== undefined) return Object.freeze({ endpoint: serialized, fields });
+  } catch {
+    // Public locator failures are deliberately stable and never forward Proxy
+    // trap messages that could include credentials.
   }
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key === "symbol") {
-      throw new HonuaDiscoveryError("invalid-endpoint", "Structured connect locators cannot contain symbol keys.");
-    }
-    const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-    if (!descriptor || "get" in descriptor) {
-      throw new HonuaDiscoveryError("invalid-endpoint", "Structured connect locators must contain stable data fields.");
-    }
+  throw new HonuaDiscoveryError("invalid-endpoint", "Structured connect locators must contain a stable URL field.");
+}
+
+function serializeIntrinsicUrl(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  try {
+    return URL.prototype.toString.call(value);
+  } catch {
+    return undefined;
   }
-  return true;
 }
 
 function mergeLocatorOption<T>(name: string, locatorValue: T | undefined, optionValue: T | undefined): T | undefined {
@@ -362,53 +457,22 @@ function mergeSourceSelection(
   return selected;
 }
 
-function snapshotConnectOptions(
-  options: HonuaKernelConnectOptions,
-  locator: {
-    readonly protocol?: ConnectProtocolHint;
-    readonly collectionId?: string;
-    readonly typeName?: string;
-  },
-): KernelConnectOptions {
-  const clientOptions = options.clientOptions
-    ? Object.freeze({
-        ...options.clientOptions,
-        ...(options.clientOptions.interceptors
-          ? { interceptors: Object.freeze([...options.clientOptions.interceptors]) }
-          : {}),
-        ...(options.clientOptions.retry ? { retry: Object.freeze({ ...options.clientOptions.retry }) } : {}),
-      })
-    : undefined;
-  const metadata = options.metadata ? Object.freeze({ ...options.metadata }) : undefined;
-  const geoparquet = options.geoparquet
-    ? Object.freeze({
-        ...options.geoparquet,
-        ...(options.geoparquet.urls ? { urls: Object.freeze([...options.geoparquet.urls]) } : {}),
-      })
-    : undefined;
-  return Object.freeze({
-    ...(locator.protocol ? { protocol: locator.protocol } : {}),
-    ...(locator.collectionId !== undefined ? { collectionId: locator.collectionId } : {}),
-    ...(locator.typeName !== undefined ? { typeName: locator.typeName } : {}),
-    ...(options.id !== undefined ? { id: options.id } : {}),
-    ...(options.authorizationScopeFingerprint !== undefined
-      ? { authorizationScopeFingerprint: options.authorizationScopeFingerprint }
-      : {}),
-    ...(options.client ? { client: options.client } : {}),
-    ...(clientOptions ? { clientOptions } : {}),
-    ...(options.refresh !== undefined ? { refresh: options.refresh } : {}),
-    ...(options.signal ? { signal: options.signal } : {}),
-    ...(metadata ? { metadata } : {}),
-    ...(options.resolveSource ? { resolveSource: options.resolveSource } : {}),
-    ...(geoparquet ? { geoparquet } : {}),
-  });
-}
-
 function credentialValues(options: KernelConnectOptions): readonly string[] {
   const values = [options.clientOptions?.apiKey, options.clientOptions?.bearerToken].filter(
     (value): value is string => typeof value === "string" && value.length > 0,
   );
   return Object.freeze([...new Set(values)]);
+}
+
+async function cleanupRejectedConnection(
+  connection: DiscoveredHonuaConnection,
+  secrets: readonly string[],
+): Promise<void> {
+  try {
+    await disposeKernelConnectionResult(connection);
+  } catch (error) {
+    throw credentialSafeError(error, secrets);
+  }
 }
 
 function createManagedConnectionState(
@@ -517,15 +581,21 @@ function cloneInspectionValue(
   }
   seen.add(value);
   try {
-    if (isReadonlySet(value)) {
-      return Object.freeze(
-        new ImmutableReadonlySet(
-          [...value].map((entry) => cloneInspectionValue(entry, secrets, seen, depth + 1) as string),
-        ),
-      );
+    const setValues = readonlySetValues(value);
+    if (setValues) {
+      const cloned: string[] = [];
+      for (let index = 0; index < setValues.length; index += 1) {
+        cloned.push(cloneInspectionValue(setValues[index], secrets, seen, depth + 1) as string);
+      }
+      return Object.freeze(new ImmutableReadonlySet(cloned));
     }
     if (Array.isArray(value)) {
-      return Object.freeze(value.map((entry) => cloneInspectionValue(entry, secrets, seen, depth + 1, propertyName)));
+      const entries = snapshotOwnDataArray(value, "Connection inspection array");
+      const cloned: unknown[] = [];
+      for (let index = 0; index < entries.length; index += 1) {
+        cloned.push(cloneInspectionValue(entries[index], secrets, seen, depth + 1, propertyName));
+      }
+      return Object.freeze(cloned);
     }
     const prototype = Object.getPrototypeOf(value);
     if (prototype !== Object.prototype && prototype !== null) {
@@ -596,19 +666,45 @@ class ImmutableReadonlySet<T> implements ReadonlySet<T> {
 
 Object.freeze(ImmutableReadonlySet.prototype);
 
-function isReadonlySet(value: object): value is ReadonlySet<unknown> {
-  if (value instanceof Set) return true;
+function readonlySetValues(value: object): readonly unknown[] | undefined {
   try {
-    const candidate = value as Partial<ReadonlySet<unknown>>;
-    return (
-      typeof candidate.size === "number" &&
-      typeof candidate.has === "function" &&
-      typeof candidate.values === "function" &&
-      typeof candidate[Symbol.iterator] === "function"
-    );
+    const iterator = Set.prototype.values.call(value) as SetIterator<unknown>;
+    return Object.freeze(Array.from(iterator));
   } catch {
-    return false;
+    // SDK capability sets use an immutable ReadonlySet implementation. Locate
+    // its declared methods through descriptors so accessors and Proxy get
+    // traps are never invoked merely to classify the value.
   }
+  try {
+    const values = stableDataMethod(value, "values");
+    const has = stableDataMethod(value, "has");
+    const iterator = stableDataMethod(value, Symbol.iterator);
+    if (!values || !has || !iterator || !stablePropertyExists(value, "size")) return undefined;
+    const result = Reflect.apply(values, value, []);
+    if (typeof result !== "object" || result === null) return undefined;
+    return Object.freeze(Array.from(result as Iterable<unknown>));
+  } catch {
+    return undefined;
+  }
+}
+
+function stableDataMethod(value: object, key: PropertyKey): ((...args: never[]) => unknown) | undefined {
+  const descriptor = stablePropertyDescriptor(value, key);
+  return descriptor && "value" in descriptor && typeof descriptor.value === "function" ? descriptor.value : undefined;
+}
+
+function stablePropertyExists(value: object, key: PropertyKey): boolean {
+  return stablePropertyDescriptor(value, key) !== undefined;
+}
+
+function stablePropertyDescriptor(value: object, key: PropertyKey): PropertyDescriptor | undefined {
+  let cursor: object | null = value;
+  for (let depth = 0; cursor && depth < 32; depth += 1) {
+    const descriptor = Reflect.getOwnPropertyDescriptor(cursor, key);
+    if (descriptor) return descriptor;
+    cursor = Object.getPrototypeOf(cursor) as object | null;
+  }
+  return undefined;
 }
 
 function identifierProperty(name: string | undefined): boolean {
@@ -645,16 +741,48 @@ function redactKnownSecrets(value: string, secrets: readonly string[]): string {
 }
 
 function credentialSafeError(error: unknown, secrets: readonly string[]): unknown {
-  if (!(error instanceof Error)) return error;
-  const sanitizedMessage = sanitizeInspectionString(error.message, secrets);
-  if (sanitizedMessage === error.message && !containsCredentialMaterial(error, secrets, new Set(), 0)) return error;
+  if (!(error instanceof Error)) {
+    return containsCredentialMaterial(error, secrets, new Set(), 0) ? new Error("Honua operation failed.") : error;
+  }
+  const message = stableStringProperty(error, "message");
+  const originalMessage = message.safe && message.value !== undefined ? message.value : "Honua operation failed.";
+  const sanitizedMessage = sanitizeInspectionString(originalMessage, secrets);
+  const unsafePayload = !message.safe || containsCredentialMaterial(error, secrets, new Set(), 0);
+  if (sanitizedMessage === originalMessage && !unsafePayload) return error;
   if (error instanceof HonuaDiscoveryError) {
-    return new HonuaDiscoveryError(error.code, sanitizedMessage, { redacted: true });
+    const code = stableStringProperty(error, "code");
+    if (code.safe && isDiscoveryErrorCode(code.value)) {
+      return new HonuaDiscoveryError(code.value, sanitizedMessage, { redacted: true });
+    }
   }
   if (error instanceof HonuaAbortError) return new HonuaAbortError(sanitizedMessage);
   const sanitized = new Error(sanitizedMessage);
-  sanitized.name = error.name;
+  const name = stableStringProperty(error, "name");
+  if (name.safe && name.value !== undefined) sanitized.name = name.value;
   return sanitized;
+}
+
+function stableStringProperty(value: object, key: PropertyKey): { readonly safe: boolean; readonly value?: string } {
+  try {
+    const descriptor = stablePropertyDescriptor(value, key);
+    if (!descriptor || !("value" in descriptor)) return { safe: false };
+    return typeof descriptor.value === "string" ? { safe: true, value: descriptor.value } : { safe: false };
+  } catch {
+    return { safe: false };
+  }
+}
+
+function isDiscoveryErrorCode(value: string | undefined): value is HonuaDiscoveryError["code"] {
+  return (
+    value === "ambiguous-protocol" ||
+    value === "ambiguous-source" ||
+    value === "invalid-endpoint" ||
+    value === "invalid-cache-identity" ||
+    value === "invalid-discovery-cache" ||
+    value === "invalid-capability" ||
+    value === "unsupported-protocol" ||
+    value === "protocol-mismatch"
+  );
 }
 
 function containsCredentialMaterial(
@@ -678,11 +806,8 @@ function containsCredentialMaterial(
   try {
     for (const key of Reflect.ownKeys(value)) {
       const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-      if (
-        descriptor &&
-        "value" in descriptor &&
-        containsCredentialMaterial(descriptor.value, secrets, seen, depth + 1)
-      ) {
+      if (!descriptor || !("value" in descriptor)) return true;
+      if (containsCredentialMaterial(descriptor.value, secrets, seen, depth + 1)) {
         return true;
       }
     }

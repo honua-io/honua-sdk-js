@@ -70,7 +70,7 @@ describe("kernel connect delegation", () => {
 
     expect(result).toBe(CONNECTION);
     expect(firstCalls).toHaveLength(1);
-    expect(firstCalls[0]?.endpoint).toBe(locator);
+    expect(firstCalls[0]?.endpoint).toBe("https://geo.example.test/a-later-adapter-path");
     expect(firstCalls[0]).toMatchObject({
       id: "future-source",
       protocol: "auto",
@@ -96,7 +96,7 @@ describe("kernel connect delegation", () => {
     await lifecycle.connect(withFormat);
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.endpoint).toBe(withFormat);
+    expect(calls[0]?.endpoint).toBe("https://geo.example.test/FeatureServer/0");
     expect(calls[0]?.protocol).toBe("auto");
     expect(calls[0]?.authorizationScopeFingerprint).toBe("anonymous");
     await lifecycle.dispose();
@@ -132,6 +132,90 @@ describe("kernel connect delegation", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.authorizationScopeFingerprint).toBe("tenant:alpha/role:reader");
     expect(calls[0]?.clientOptions?.apiKey).toBe(secret);
+    await lifecycle.dispose();
+  });
+
+  it("partitions caller-controlled GeoParquet profiling away from anonymous discovery", async () => {
+    const calls: ConnectOptions[] = [];
+    const lifecycle = createKernelLifecycle({ connectDelegate: recordingDelegate(calls) });
+    const profiler = { profile: vi.fn() };
+    const geoparquet = { profiler } as KernelConnectOptions["geoparquet"];
+
+    await expect(
+      lifecycle.connect("https://geo.example.test/parcels.parquet", { protocol: "geoparquet", geoparquet }),
+    ).rejects.toMatchObject({ code: "invalid-cache-identity" });
+    await expect(
+      lifecycle.connect("https://geo.example.test/parcels.parquet", {
+        protocol: "geoparquet",
+        authorizationScopeFingerprint: "anonymous",
+        geoparquet,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-cache-identity" });
+
+    await lifecycle.connect("https://geo.example.test/parcels.parquet", {
+      protocol: "geoparquet",
+      authorizationScopeFingerprint: "tenant:alpha/profiler:v1",
+      geoparquet,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.authorizationScopeFingerprint).toBe("tenant:alpha/profiler:v1");
+    expect(calls[0]?.geoparquet?.profiler).toBe(profiler);
+    await lifecycle.dispose();
+  });
+
+  it("snapshots nested options without invoking ordinary accessors or Proxy get traps", async () => {
+    const calls: ConnectOptions[] = [];
+    const lifecycle = createKernelLifecycle({ connectDelegate: recordingDelegate(calls) });
+    let propertyReads = 0;
+    const trackReads = <T extends object>(target: T): T =>
+      new Proxy(target, {
+        get() {
+          propertyReads += 1;
+          throw new Error("a property getter was invoked");
+        },
+      });
+    const before = vi.fn();
+    const interceptorTarget = { before };
+    const clientOptionsTarget = {
+      apiKey: "SECRET",
+      interceptors: trackReads([trackReads(interceptorTarget)]),
+      retry: trackReads({ maxRetries: 2, retryStatuses: trackReads([429, 503]) }),
+    };
+    const options = trackReads({
+      authorizationScopeFingerprint: "tenant:alpha/reader",
+      clientOptions: trackReads(clientOptionsTarget),
+      metadata: trackReads({ cache: "bypass" as const }),
+    });
+
+    await lifecycle.connect("https://geo.example.test/ogc", options);
+
+    expect(propertyReads).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(Object.is(calls[0]?.clientOptions, clientOptionsTarget)).toBe(false);
+    expect(Object.is(calls[0]?.clientOptions?.interceptors?.[0], interceptorTarget)).toBe(false);
+    expect(calls[0]?.clientOptions?.retry?.retryStatuses).toEqual([429, 503]);
+    expect(Object.isFrozen(calls[0]?.clientOptions?.retry?.retryStatuses)).toBe(true);
+    await lifecycle.dispose();
+  });
+
+  it("rejects accessor-bearing options without invoking the accessor or delegating", async () => {
+    const calls: ConnectOptions[] = [];
+    const lifecycle = createKernelLifecycle({ connectDelegate: recordingDelegate(calls) });
+    let getterCalls = 0;
+    const options = {} as KernelConnectOptions;
+    Object.defineProperty(options, "clientOptions", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return { apiKey: "MUST-NOT-BE-READ" };
+      },
+    });
+
+    await expect(lifecycle.connect("https://geo.example.test/ogc", options)).rejects.toThrow(
+      "stable enumerable data fields",
+    );
+    expect(getterCalls).toBe(0);
+    expect(calls).toHaveLength(0);
     await lifecycle.dispose();
   });
 
@@ -178,6 +262,35 @@ describe("kernel connect delegation", () => {
     await disposal;
     expect(caller.signal.reason).toEqual(new Error("caller-only"));
     await expect(lifecycle.connect("https://geo.example.test/late")).rejects.toThrow("after disposal has started");
+  });
+
+  it("rejects and cleans a late delegated result when the delegate ignores owner cancellation", async () => {
+    let resolve: (connection: HonuaConnection) => void = () => undefined;
+    const delegated = new Promise<HonuaConnection>((complete) => {
+      resolve = complete;
+    });
+    const dispose = vi.fn(async () => undefined);
+    const late = Object.assign({}, { [Symbol.asyncDispose]: dispose }) as unknown as HonuaConnection;
+    const lifecycle = createKernelLifecycle({ connectDelegate: async () => delegated });
+
+    const pending = lifecycle.connect("https://geo.example.test/late");
+    const disposal = lifecycle.dispose();
+    resolve(late);
+
+    await expect(pending).rejects.toBeInstanceOf(HonuaAbortError);
+    await disposal;
+    expect(dispose).toHaveBeenCalledTimes(1);
+
+    let reject: (error: unknown) => void = () => undefined;
+    const rejectedDelegate = new Promise<HonuaConnection>((_, fail) => {
+      reject = fail;
+    });
+    const rejectingLifecycle = createKernelLifecycle({ connectDelegate: async () => rejectedDelegate });
+    const rejectedPending = rejectingLifecycle.connect("https://geo.example.test/late-rejection");
+    const rejectingDisposal = rejectingLifecycle.dispose();
+    reject(new Error("late delegate failure"));
+    await expect(rejectedPending).rejects.toBeInstanceOf(HonuaAbortError);
+    await rejectingDisposal;
   });
 
   it("retains actionable multi-source ambiguity from the delegated discovery result", async () => {

@@ -10,6 +10,7 @@ import {
 } from "../connect.js";
 import type { DiscoveryCacheIdentity, DiscoveryCapabilityPolicy } from "../contract/discovery.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "../core/errors.js";
+import { snapshotOwnDataArray, snapshotOwnDataObject } from "./stable-data.js";
 
 const DEFAULT_DISCOVERY_CACHE_MAX_ENTRIES = 256;
 
@@ -78,12 +79,17 @@ export class KernelLifecycle implements AsyncDisposable {
   #disposePromise: Promise<void> | undefined;
 
   public constructor(options: KernelLifecycleOptions = {}) {
-    this.#connectDelegate = options.connectDelegate ?? discoverConnection;
+    const snapshot = snapshotOwnDataObject(options, "Kernel lifecycle options");
+    const connectDelegate = snapshot.connectDelegate;
+    if (connectDelegate !== undefined && typeof connectDelegate !== "function") {
+      throw new TypeError("connectDelegate must be a function.");
+    }
+    this.#connectDelegate = (connectDelegate as KernelConnectDelegate | undefined) ?? discoverConnection;
     this.policy = Object.freeze({
-      capabilities: normalizeCapabilityPolicy(options.capabilityPolicy),
+      capabilities: normalizeCapabilityPolicy(snapshot.capabilityPolicy),
     });
     const cache = new KernelDiscoveryCache(
-      normalizeCacheBound(options.discoveryCacheMaxEntries),
+      normalizeCacheBound(snapshot.discoveryCacheMaxEntries as number | undefined),
       this.#abortController.signal,
     );
     this.discoveryCache = cache;
@@ -107,18 +113,42 @@ export class KernelLifecycle implements AsyncDisposable {
    */
   public async connect(locator: string | URL, options: KernelConnectOptions = {}): Promise<HonuaConnection> {
     this.#assertActive("connect");
-    validateConnectEndpoint(locator);
-    const authorizationScopeFingerprint = resolveKernelAuthorizationScope(options);
-    const signal = combineAbortSignals(this.signal, options.signal);
-    return this.#connectDelegate({
-      ...options,
-      endpoint: locator,
-      protocol: options.protocol ?? "auto",
-      authorizationScopeFingerprint,
-      capabilityPolicy: this.policy.capabilities,
-      cache: this.discoveryCache,
-      signal,
-    });
+    const endpoint = normalizeKernelEndpoint(locator);
+    const snapshot = snapshotKernelConnectOptions(options);
+    // Reflection on caller-controlled objects can reenter disposal through a
+    // Proxy trap. Never delegate work after that transition.
+    this.#assertActive("connect");
+    const authorizationScopeFingerprint = resolveKernelAuthorizationScope(snapshot);
+    const signal = combineAbortSignals(this.signal, snapshot.signal);
+    let connection: HonuaConnection;
+    try {
+      connection = await this.#connectDelegate({
+        ...snapshot,
+        endpoint,
+        protocol: snapshot.protocol ?? "auto",
+        authorizationScopeFingerprint,
+        capabilityPolicy: this.policy.capabilities,
+        cache: this.discoveryCache,
+        signal,
+      });
+    } catch (error) {
+      if (signal.aborted || this.#state !== "active") throw new HonuaAbortError();
+      throw error;
+    }
+    if (signal.aborted || this.#state !== "active") {
+      try {
+        await disposeKernelConnectionResult(connection);
+      } catch {
+        throw new HonuaAbortError("Honua connection was cancelled and its delegated resource cleanup failed");
+      }
+      throw new HonuaAbortError();
+    }
+    return connection;
+  }
+
+  /** @internal Guard facade work before it reflects over caller-controlled input. */
+  public assertActive(operation: string): void {
+    this.#assertActive(operation);
   }
 
   /** Register a resource as owned by this kernel and return it unchanged. */
@@ -306,24 +336,73 @@ class KernelDiscoveryCache implements ConnectDiscoveryCache, Disposable {
 
 function cleanupFor(resource: KernelOwnedResource): KernelOwnedCleanup {
   if (typeof resource === "function") return resource;
-  if (Symbol.asyncDispose in resource && typeof resource[Symbol.asyncDispose] === "function") {
-    return () => resource[Symbol.asyncDispose]();
-  }
-  if ("dispose" in resource && typeof resource.dispose === "function") {
-    return () => resource.dispose();
-  }
-  if (Symbol.dispose in resource && typeof resource[Symbol.dispose] === "function") {
-    return () => resource[Symbol.dispose]();
-  }
+  const cleanup = optionalCleanupFor(resource);
+  if (cleanup) return cleanup;
   throw new TypeError("Kernel-owned resources must expose dispose, Symbol.dispose, or Symbol.asyncDispose.");
 }
 
-function normalizeCapabilityPolicy(policy: DiscoveryCapabilityPolicy | undefined): Readonly<DiscoveryCapabilityPolicy> {
+async function cleanupOptionalResource(resource: unknown): Promise<void> {
+  if ((typeof resource !== "object" || resource === null) && typeof resource !== "function") return;
+  const cleanup = optionalCleanupFor(resource as object);
+  if (cleanup) await cleanup();
+}
+
+function optionalCleanupFor(resource: object): KernelOwnedCleanup | undefined {
+  const asyncDispose = stableResourceMethod(resource, Symbol.asyncDispose);
+  if (asyncDispose) return () => Reflect.apply(asyncDispose, resource, []) as PromiseLike<void>;
+  const dispose = stableResourceMethod(resource, "dispose");
+  if (dispose) return () => Reflect.apply(dispose, resource, []) as void | PromiseLike<void>;
+  const symbolDispose = stableResourceMethod(resource, Symbol.dispose);
+  if (symbolDispose) return () => Reflect.apply(symbolDispose, resource, []) as void;
+  return undefined;
+}
+
+function stableResourceMethod(resource: object, key: PropertyKey): ((...args: never[]) => unknown) | undefined {
+  try {
+    let cursor: object | null = resource;
+    for (let depth = 0; cursor && depth < 32; depth += 1) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(cursor, key);
+      if (descriptor) {
+        return "value" in descriptor && typeof descriptor.value === "function" ? descriptor.value : undefined;
+      }
+      cursor = Object.getPrototypeOf(cursor) as object | null;
+    }
+    return undefined;
+  } catch {
+    throw new TypeError("Kernel resource disposal methods must be stable data properties.");
+  }
+}
+
+function normalizeCapabilityPolicy(policy: unknown): Readonly<DiscoveryCapabilityPolicy> {
+  if (policy === undefined) return Object.freeze({});
+  const snapshot = snapshotOwnDataObject(policy, "capabilityPolicy");
+  const allow = snapshotCapabilityList(snapshot.allow, "capabilityPolicy.allow");
+  const deny = snapshotCapabilityList(snapshot.deny, "capabilityPolicy.deny");
+  const acceptInferred = snapshot.acceptInferred;
+  if (acceptInferred !== undefined && typeof acceptInferred !== "boolean") {
+    throw new TypeError("capabilityPolicy.acceptInferred must be a boolean.");
+  }
   return Object.freeze({
-    ...(policy?.allow ? { allow: Object.freeze([...new Set(policy.allow)]) } : {}),
-    ...(policy?.deny ? { deny: Object.freeze([...new Set(policy.deny)]) } : {}),
-    ...(policy?.acceptInferred !== undefined ? { acceptInferred: policy.acceptInferred } : {}),
+    ...(allow ? { allow } : {}),
+    ...(deny ? { deny } : {}),
+    ...(acceptInferred !== undefined ? { acceptInferred } : {}),
   });
+}
+
+function snapshotCapabilityList(value: unknown, label: string): DiscoveryCapabilityPolicy["allow"] {
+  if (value === undefined) return undefined;
+  const input = snapshotOwnDataArray(value, label);
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (let index = 0; index < input.length; index += 1) {
+    const capability = input[index];
+    if (typeof capability !== "string") throw new TypeError(`${label} must contain capability names.`);
+    if (!seen.has(capability)) {
+      seen.add(capability);
+      unique.push(capability);
+    }
+  }
+  return Object.freeze(unique) as DiscoveryCapabilityPolicy["allow"];
 }
 
 function normalizeCacheBound(value: number | undefined): number {
@@ -368,10 +447,97 @@ function hasScopeSensitiveDiscoveryConfiguration(options: KernelConnectOptions):
     clientOptions?.bearerToken !== undefined ||
     clientOptions?.auth !== undefined ||
     clientOptions?.fetchFn !== undefined ||
-    (clientOptions?.interceptors !== undefined && clientOptions.interceptors.length > 0)
+    (clientOptions?.interceptors !== undefined && clientOptions.interceptors.length > 0) ||
+    options.geoparquet?.profiler !== undefined
   );
 }
 
 function combineAbortSignals(owner: AbortSignal, caller: AbortSignal | undefined): AbortSignal {
   return caller && caller !== owner ? AbortSignal.any([owner, caller]) : owner;
+}
+
+function normalizeKernelEndpoint(locator: string | URL): string {
+  if (typeof locator === "string") return validateConnectEndpoint(locator);
+  try {
+    return validateConnectEndpoint(URL.prototype.toString.call(locator));
+  } catch (error) {
+    if (error instanceof HonuaDiscoveryError) throw error;
+    throw new HonuaDiscoveryError("invalid-endpoint", "kernel.connect() requires an absolute HTTP(S) URL locator.");
+  }
+}
+
+/** @internal Stable, detached projection used by both the lifecycle and public facade. */
+export function snapshotKernelConnectOptions(options: KernelConnectOptions = {}): KernelConnectOptions {
+  const snapshot = snapshotOwnDataObject(options, "kernel.connect() options");
+  const clientOptions = snapshotClientOptions(snapshot.clientOptions);
+  const metadata = snapshot.metadata === undefined ? undefined : snapshotOwnDataObject(snapshot.metadata, "metadata");
+  const geoparquet = snapshotGeoParquetOptions(snapshot.geoparquet);
+  return Object.freeze({
+    ...(snapshot.protocol !== undefined ? { protocol: snapshot.protocol as ConnectProtocolHint } : {}),
+    ...(snapshot.collectionId !== undefined ? { collectionId: snapshot.collectionId as string } : {}),
+    ...(snapshot.typeName !== undefined ? { typeName: snapshot.typeName as string } : {}),
+    ...(snapshot.id !== undefined ? { id: snapshot.id as string } : {}),
+    ...(snapshot.authorizationScopeFingerprint !== undefined
+      ? { authorizationScopeFingerprint: snapshot.authorizationScopeFingerprint as string }
+      : {}),
+    ...(snapshot.client !== undefined ? { client: snapshot.client as ConnectOptions["client"] } : {}),
+    ...(clientOptions ? { clientOptions } : {}),
+    ...(snapshot.refresh !== undefined ? { refresh: snapshot.refresh as boolean } : {}),
+    ...(snapshot.signal !== undefined ? { signal: snapshot.signal as AbortSignal } : {}),
+    ...(metadata ? { metadata: metadata as ConnectOptions["metadata"] } : {}),
+    ...(snapshot.resolveSource !== undefined
+      ? { resolveSource: snapshot.resolveSource as ConnectOptions["resolveSource"] }
+      : {}),
+    ...(geoparquet ? { geoparquet } : {}),
+  });
+}
+
+/** @internal Dispose optional adapter resources without widening the standalone connection contract. */
+export async function disposeKernelConnectionResult(connection: HonuaConnection): Promise<void> {
+  await cleanupOptionalResource(connection);
+}
+
+function snapshotClientOptions(value: unknown): ConnectOptions["clientOptions"] {
+  if (value === undefined) return undefined;
+  const snapshot = snapshotOwnDataObject(value, "clientOptions");
+  const interceptors = snapshot.interceptors === undefined ? undefined : snapshotInterceptors(snapshot.interceptors);
+  const retry = snapshot.retry === undefined ? undefined : snapshotRetryOptions(snapshot.retry);
+  return Object.freeze({
+    ...snapshot,
+    ...(interceptors ? { interceptors } : {}),
+    ...(retry ? { retry } : {}),
+  }) as ConnectOptions["clientOptions"];
+}
+
+function snapshotInterceptors(value: unknown): NonNullable<ConnectOptions["clientOptions"]>["interceptors"] {
+  const input = snapshotOwnDataArray(value, "clientOptions.interceptors");
+  const interceptors: Record<string, unknown>[] = [];
+  for (let index = 0; index < input.length; index += 1) {
+    interceptors.push(
+      snapshotOwnDataObject(input[index], `clientOptions.interceptors[${index}]`) as Record<string, unknown>,
+    );
+  }
+  return Object.freeze(interceptors) as NonNullable<ConnectOptions["clientOptions"]>["interceptors"];
+}
+
+function snapshotRetryOptions(value: unknown): NonNullable<ConnectOptions["clientOptions"]>["retry"] {
+  const snapshot = snapshotOwnDataObject(value, "clientOptions.retry");
+  const retryStatuses =
+    snapshot.retryStatuses === undefined
+      ? undefined
+      : snapshotOwnDataArray(snapshot.retryStatuses, "clientOptions.retry.retryStatuses");
+  return Object.freeze({
+    ...snapshot,
+    ...(retryStatuses ? { retryStatuses } : {}),
+  }) as NonNullable<ConnectOptions["clientOptions"]>["retry"];
+}
+
+function snapshotGeoParquetOptions(value: unknown): ConnectOptions["geoparquet"] {
+  if (value === undefined) return undefined;
+  const snapshot = snapshotOwnDataObject(value, "geoparquet");
+  const urls = snapshot.urls === undefined ? undefined : snapshotOwnDataArray(snapshot.urls, "geoparquet.urls");
+  return Object.freeze({
+    ...snapshot,
+    ...(urls ? { urls } : {}),
+  }) as ConnectOptions["geoparquet"];
 }
