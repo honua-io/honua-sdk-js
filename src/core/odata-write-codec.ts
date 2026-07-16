@@ -7,6 +7,7 @@
  */
 
 import {
+  type HonuaOdataEnumTypeInfo,
   type HonuaOdataFieldInfo,
   type HonuaOdataMetadata,
   getOdataSourceSchemaProjectionDetails,
@@ -17,16 +18,20 @@ const DEFAULT_MAX_DEPTH = 32;
 const MAX_CONFIGURED_DEPTH = 32;
 const MAX_ERROR_PATH_SEGMENT_CODE_POINTS = 64;
 const MAX_DECIMAL_LEXEME_CHARACTERS = 1_024;
+const MAX_TEMPORAL_LEXEME_CHARACTERS = 1_024;
 
 const GUID_LEXEME = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const JSON_NUMBER_LEXEME = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
 const INTEGER_LEXEME = /^-?(?:0|[1-9]\d*)$/;
-const DATE_LEXEME = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_OF_DAY_LEXEME = /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,12})?$/;
+const ENUM_INTEGER_LEXEME = /^[+-]?\d{1,20}$/;
+const DATE_LEXEME = /^(-?(?:0\d{3}|[1-9]\d{3,}))-(\d{2})-(\d{2})$/;
+const TIME_OF_DAY_LEXEME = /^(?:[01]\d|2[0-3]):[0-5]\d(?::(?:[0-5]\d|60)(?:\.(\d{1,12}))?)?$/;
 const DATE_TIME_OFFSET_LEXEME =
-  /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,12})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
-const DURATION_LEXEME = /^-?P(?=\d|T\d)(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/;
-const BINARY_LEXEME = /^[A-Za-z0-9_-]*={0,2}$/;
+  /^(-?(?:0\d{3}|[1-9]\d{3,})-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d(?::(?:[0-5]\d|60)(?:\.(\d{1,12}))?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
+const DURATION_LEXEME = /^[+-]?P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)(?:\.(\d+))?S)?)?$/;
+const BASE64URL_LEXEME = /^[A-Za-z0-9_-]*$/;
+const BASE64URL_B16_LAST = /^[AEIMQUYcgkosw048]$/;
+const BASE64URL_B8_LAST = /^[AQgw]$/;
 const QUALIFIED_IDENTIFIER =
   /^[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]*(?:\.[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]*)*$/u;
 const SIMPLE_IDENTIFIER = /^[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]*$/u;
@@ -115,10 +120,14 @@ export function encodeOdataWriteBody(
   body: Readonly<Record<string, unknown>>,
   options: HonuaOdataEdmEncodingOptions = {},
 ): HonuaOdataEncodedWriteBody {
-  const context = encodingContext(options);
-  const model = codecModel(metadata, entitySet);
-  const encoded = encodeStructuredValue(body, model.fields, model, [], 0, context);
-  return { body: encoded, requiresIeee754Compatible: context.requiresIeee754Compatible };
+  try {
+    const context = encodingContext(options);
+    const model = codecModel(metadata, entitySet);
+    const encoded = encodeStructuredValue(body, model.fields, model, [], 0, context);
+    return { body: encoded, requiresIeee754Compatible: context.requiresIeee754Compatible };
+  } catch (error) {
+    rethrowEncodingError(error, "invalid-value", []);
+  }
 }
 
 /**
@@ -134,43 +143,55 @@ export function encodeOdataEntityKey(
   key: unknown,
   options: HonuaOdataEdmEncodingOptions = {},
 ): HonuaOdataEncodedEntityKey {
-  const context = encodingContext(options);
-  const model = codecModel(metadata, entitySet);
-  if (model.keys.length === 0) throw encodingError("invalid-metadata", ["key"]);
-  if (new Set(model.keys).size !== model.keys.length) throw encodingError("invalid-metadata", ["key"]);
+  try {
+    const context = encodingContext(options);
+    const model = codecModel(metadata, entitySet);
+    if (model.keys.length === 0) throw encodingError("invalid-metadata", ["key"]);
+    if (new Set(model.keys).size !== model.keys.length) throw encodingError("invalid-metadata", ["key"]);
 
-  const fields = new Map(model.fields.map((field) => [field.name, field]));
-  const keyFields = model.keys.map((name) => {
-    if (!simpleIdentifier(name)) throw encodingError("invalid-metadata", ["key"]);
-    const field = fields.get(name);
-    if (!field) throw encodingError("invalid-metadata", ["key", name]);
-    return field;
-  });
+    const fields = new Map(model.fields.map((field) => [field.name, field]));
+    const keyFields = model.keys.map((name) => {
+      if (!simpleIdentifier(name)) throw encodingError("invalid-metadata", ["key"]);
+      const field = fields.get(name);
+      if (!field) throw encodingError("invalid-metadata", ["key", name]);
+      return field;
+    });
 
-  let literal: string;
-  if (keyFields.length === 1) {
-    const field = keyFields[0]!;
-    const value = isRecord(key) ? ownDataProperty(key, field.name, ["key", field.name]) : key;
-    if (value === undefined || value === null) throw encodingError("missing-key", ["key", field.name]);
-    literal = encodeKeyPrimitive(value, field, model, ["key", field.name]);
-  } else {
-    if (!isRecord(key)) throw encodingError("missing-key", ["key"]);
-    literal = keyFields
-      .map((field) => {
-        const value = ownDataProperty(key, field.name, ["key", field.name]);
-        if (value === undefined || value === null) throw encodingError("missing-key", ["key", field.name]);
-        return `${field.name}=${encodeKeyPrimitive(value, field, model, ["key", field.name])}`;
-      })
-      .join(",");
+    let literal: string;
+    if (keyFields.length === 1) {
+      const field = keyFields[0]!;
+      const value = isRecord(key, ["key"]) ? ownDataProperty(key, field.name, ["key", field.name]) : key;
+      if (value === undefined || value === null) throw encodingError("missing-key", ["key", field.name]);
+      literal = encodeKeyPrimitive(value, field, model, ["key", field.name]);
+    } else {
+      if (!isRecord(key, ["key"])) throw encodingError("missing-key", ["key"]);
+      literal = keyFields
+        .map((field) => {
+          const value = ownDataProperty(key, field.name, ["key", field.name]);
+          if (value === undefined || value === null) throw encodingError("missing-key", ["key", field.name]);
+          return `${field.name}=${encodeKeyPrimitive(value, field, model, ["key", field.name])}`;
+        })
+        .join(",");
+    }
+
+    return { literal, pathSegment: encodePathSegment(literal, ["key"]) };
+  } catch (error) {
+    rethrowEncodingError(error, "invalid-value", ["key"]);
   }
-
-  return { literal, pathSegment: encodePathSegment(literal, ["key"]) };
 }
 
 function codecModel(metadata: HonuaOdataMetadata, requestedEntitySet: string): OdataCodecModel {
+  try {
+    return uncheckedCodecModel(metadata, requestedEntitySet);
+  } catch (error) {
+    rethrowEncodingError(error, "invalid-metadata", []);
+  }
+}
+
+function uncheckedCodecModel(metadata: HonuaOdataMetadata, requestedEntitySet: string): OdataCodecModel {
   const suffix = requestedEntitySet.slice(requestedEntitySet.lastIndexOf("/") + 1);
-  const entitySet = Object.hasOwn(metadata.entitySets, requestedEntitySet) ? requestedEntitySet : suffix;
-  const entityType = ownLookup(metadata.entitySets, entitySet);
+  const entitySets = metadata.entitySets;
+  const entityType = ownLookup(entitySets, requestedEntitySet) ?? ownLookup(entitySets, suffix);
   if (typeof entityType !== "string" || entityType.length === 0) throw encodingError("unknown-entity-set", []);
   const details = getOdataSourceSchemaProjectionDetails(metadata);
   const safety = getOdataSourceSchemaProjectionSafety(metadata);
@@ -197,8 +218,17 @@ function codecModel(metadata: HonuaOdataMetadata, requestedEntitySet: string): O
 }
 
 function encodingContext(options: HonuaOdataEdmEncodingOptions): EncodingContext {
-  const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
-  if (!Number.isSafeInteger(maxDepth) || maxDepth < 0 || maxDepth > MAX_CONFIGURED_DEPTH) {
+  if (typeof options !== "object" || options === null || Array.isArray(options)) {
+    throw encodingError("invalid-options", ["options"]);
+  }
+  const configuredDepth = dataProperty(options, "maxDepth", ["options", "maxDepth"], "invalid-options");
+  const maxDepth = configuredDepth === undefined ? DEFAULT_MAX_DEPTH : configuredDepth;
+  if (
+    typeof maxDepth !== "number" ||
+    !Number.isSafeInteger(maxDepth) ||
+    maxDepth < 0 ||
+    maxDepth > MAX_CONFIGURED_DEPTH
+  ) {
     throw encodingError("invalid-options", ["options", "maxDepth"]);
   }
   return { maxDepth, ancestors: new WeakSet(), requiresIeee754Compatible: false };
@@ -212,12 +242,12 @@ function encodeStructuredValue(
   depth: number,
   context: EncodingContext,
 ): Record<string, unknown> {
-  if (!isRecord(value)) throw encodingError("invalid-value", path);
+  if (!isRecord(value, path)) throw encodingError("invalid-value", path);
   enterContainer(value, path, depth, context);
   try {
     const declared = new Map(fields.map((field) => [field.name, field]));
     const output: Record<string, unknown> = {};
-    for (const name of Object.keys(value)) {
+    for (const name of objectKeys(value, path)) {
       const childPath = [...path, name];
       const input = ownDataProperty(value, name, childPath);
       const field = declared.get(name);
@@ -254,7 +284,7 @@ function encodeTypedValue(
     enterContainer(value, path, childDepth, context);
     try {
       const itemField: HonuaOdataFieldInfo = { ...field, type: collectionType, nullable: true };
-      return value.map((item, index) =>
+      return arrayDataValues(value, path).map((item, index) =>
         encodeTypedValue(item, itemField, model, [...path, index], childDepth, context, true),
       );
     } finally {
@@ -271,9 +301,10 @@ function encodeTypedValue(
     return encodeStructuredValue(value, complexFields, model, path, nextDepth(path, depth, context), context);
   }
 
-  if (ownLookup(model.enumTypes, localType)) {
-    if (typeof value !== "string" || value.length === 0) throw encodingError("invalid-value", path);
-    return value;
+  const enumType = ownLookup(model.enumTypes, localType);
+  if (enumType) {
+    if (!qualifiedIdentifier(field.type)) throw encodingError("invalid-metadata", path);
+    return enumValue(value, enumType, path);
   }
 
   const integerBounds = INTEGER_BOUNDS[field.type];
@@ -307,15 +338,15 @@ function encodeTypedValue(
       if (typeof value !== "boolean") throw encodingError("invalid-value", path);
       return value;
     case "Edm.Binary":
-      return validatedString(value, BINARY_LEXEME, path);
+      return binaryValue(value, field, path);
     case "Edm.Date":
-      return validatedString(value, DATE_LEXEME, path);
+      return dateValue(value, path);
     case "Edm.DateTimeOffset":
-      return validatedString(value, DATE_TIME_OFFSET_LEXEME, path);
+      return dateTimeOffsetValue(value, field, path);
     case "Edm.Duration":
-      return validatedString(value, DURATION_LEXEME, path);
+      return durationValue(value, field, path);
     case "Edm.TimeOfDay":
-      return validatedString(value, TIME_OF_DAY_LEXEME, path);
+      return timeOfDayValue(value, field, path);
     case "Edm.Geography":
     case "Edm.GeographyPoint":
     case "Edm.GeographyLineString":
@@ -354,12 +385,14 @@ function encodeUntypedValue(
     const childDepth = nextDepth(path, depth, context);
     enterContainer(value, path, childDepth, context);
     try {
-      return value.map((item, index) => encodeUntypedValue(item, [...path, index], childDepth, context));
+      return arrayDataValues(value, path).map((item, index) =>
+        encodeUntypedValue(item, [...path, index], childDepth, context),
+      );
     } finally {
       context.ancestors.delete(value);
     }
   }
-  if (isRecord(value)) {
+  if (isRecord(value, path)) {
     return encodeStructuredValue(value, [], emptyCodecModel(), path, nextDepth(path, depth, context), context);
   }
   throw encodingError("invalid-value", path);
@@ -382,11 +415,10 @@ function encodeKeyPrimitive(
   const integerBounds = INTEGER_BOUNDS[field.type];
   if (integerBounds) return exactInteger(value, integerBounds, path).toString();
 
-  if (ownLookup(model.enumTypes, stripNamespace(field.type))) {
-    if (!qualifiedIdentifier(field.type) || typeof value !== "string" || value.length === 0) {
-      throw encodingError("invalid-value", path);
-    }
-    return `${field.type}'${escapeOdataString(value)}'`;
+  const enumType = ownLookup(model.enumTypes, stripNamespace(field.type));
+  if (enumType) {
+    if (!qualifiedIdentifier(field.type)) throw encodingError("invalid-metadata", path);
+    return `${field.type}'${escapeOdataString(enumValue(value, enumType, path))}'`;
   }
 
   switch (field.type) {
@@ -408,15 +440,15 @@ function encodeKeyPrimitive(
       if (typeof value !== "boolean") throw encodingError("invalid-value", path);
       return value ? "true" : "false";
     case "Edm.Binary":
-      return `binary'${validatedString(value, BINARY_LEXEME, path)}'`;
+      return `binary'${binaryValue(value, field, path)}'`;
     case "Edm.Date":
-      return validatedString(value, DATE_LEXEME, path);
+      return dateValue(value, path);
     case "Edm.DateTimeOffset":
-      return validatedString(value, DATE_TIME_OFFSET_LEXEME, path);
+      return dateTimeOffsetValue(value, field, path);
     case "Edm.Duration":
-      return `duration'${validatedString(value, DURATION_LEXEME, path)}'`;
+      return `duration'${durationValue(value, field, path)}'`;
     case "Edm.TimeOfDay":
-      return validatedString(value, TIME_OF_DAY_LEXEME, path);
+      return timeOfDayValue(value, field, path);
     default:
       throw encodingError("unsupported-type", path);
   }
@@ -545,20 +577,275 @@ function guidValue(value: unknown, path: readonly (string | number)[]): string {
   return value;
 }
 
-function validatedString(value: unknown, pattern: RegExp, path: readonly (string | number)[]): string {
-  if (typeof value !== "string" || !pattern.test(value)) throw encodingError("invalid-value", path);
+function binaryValue(value: unknown, field: HonuaOdataFieldInfo, path: readonly (string | number)[]): string {
+  if (typeof value !== "string") throw encodingError("invalid-value", path);
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  const unpadded = padding === 0 ? value : value.slice(0, -padding);
+  if (!BASE64URL_LEXEME.test(unpadded)) throw encodingError("invalid-value", path);
+
+  const remainder = unpadded.length % 4;
+  if (
+    remainder === 1 ||
+    (padding === 1 && remainder !== 3) ||
+    (padding === 2 && remainder !== 2) ||
+    (remainder === 2 && !BASE64URL_B8_LAST.test(unpadded.at(-1) ?? "")) ||
+    (remainder === 3 && !BASE64URL_B16_LAST.test(unpadded.at(-1) ?? ""))
+  ) {
+    throw encodingError("invalid-value", path);
+  }
+
+  if (typeof field.maxLength === "number") {
+    if (!Number.isSafeInteger(field.maxLength) || field.maxLength < 0) {
+      throw encodingError("invalid-metadata", path);
+    }
+    if (Math.floor((unpadded.length * 3) / 4) > field.maxLength) {
+      throw encodingError("invalid-value", path);
+    }
+  }
   return value;
 }
 
-function ownDataProperty(
-  value: Readonly<Record<string, unknown>>,
+function dateValue(value: unknown, path: readonly (string | number)[]): string {
+  if (typeof value !== "string" || value.length > MAX_TEMPORAL_LEXEME_CHARACTERS) {
+    throw encodingError("invalid-value", path);
+  }
+  const match = DATE_LEXEME.exec(value);
+  if (!match || !validCalendarDate(match[1]!, match[2]!, match[3]!)) {
+    throw encodingError("invalid-value", path);
+  }
+  return value;
+}
+
+function dateTimeOffsetValue(value: unknown, field: HonuaOdataFieldInfo, path: readonly (string | number)[]): string {
+  if (typeof value !== "string" || value.length > MAX_TEMPORAL_LEXEME_CHARACTERS) {
+    throw encodingError("invalid-value", path);
+  }
+  const match = DATE_TIME_OFFSET_LEXEME.exec(value);
+  if (!match) throw encodingError("invalid-value", path);
+  dateValue(match[1], path);
+  validateTemporalPrecision(match[2], field, path);
+  return value;
+}
+
+function durationValue(value: unknown, field: HonuaOdataFieldInfo, path: readonly (string | number)[]): string {
+  if (typeof value !== "string" || value.length > MAX_TEMPORAL_LEXEME_CHARACTERS) {
+    throw encodingError("invalid-value", path);
+  }
+  const match = DURATION_LEXEME.exec(value);
+  const hasTimeDesignator = value.includes("T");
+  const hasTimeComponent = match?.[2] !== undefined || match?.[3] !== undefined || match?.[4] !== undefined;
+  if (!match || (match[1] === undefined && !hasTimeComponent) || (hasTimeDesignator && !hasTimeComponent)) {
+    throw encodingError("invalid-value", path);
+  }
+  validateTemporalPrecision(match[5], field, path);
+  return value;
+}
+
+function timeOfDayValue(value: unknown, field: HonuaOdataFieldInfo, path: readonly (string | number)[]): string {
+  if (typeof value !== "string" || value.length > MAX_TEMPORAL_LEXEME_CHARACTERS) {
+    throw encodingError("invalid-value", path);
+  }
+  const match = TIME_OF_DAY_LEXEME.exec(value);
+  if (!match) throw encodingError("invalid-value", path);
+  validateTemporalPrecision(match[1], field, path);
+  return value;
+}
+
+function validCalendarDate(year: string, monthLexeme: string, dayLexeme: string): boolean {
+  const month = Number(monthLexeme);
+  const day = Number(dayLexeme);
+  if (!Number.isSafeInteger(month) || month < 1 || month > 12 || !Number.isSafeInteger(day) || day < 1) {
+    return false;
+  }
+  const maximumDay =
+    month === 2 ? (isLeapYear(year) ? 29 : 28) : month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
+  return day <= maximumDay;
+}
+
+function isLeapYear(year: string): boolean {
+  const unsigned = year.startsWith("-") ? year.slice(1) : year;
+  const finalFourDigits = Number(unsigned.slice(-4));
+  return finalFourDigits % 4 === 0 && (finalFourDigits % 100 !== 0 || finalFourDigits % 400 === 0);
+}
+
+function validateTemporalPrecision(
+  fraction: string | undefined,
+  field: HonuaOdataFieldInfo,
+  path: readonly (string | number)[],
+): void {
+  const precision = field.precision ?? 0;
+  if (!Number.isSafeInteger(precision) || precision < 0 || precision > 12) {
+    throw encodingError("invalid-metadata", path);
+  }
+  if ((fraction?.length ?? 0) > precision) throw encodingError("invalid-value", path);
+}
+
+interface ValidatedEnumMember {
+  readonly name: string;
+  readonly value: bigint;
+}
+
+interface ValidatedEnumType {
+  readonly bounds: { readonly minimum: bigint; readonly maximum: bigint };
+  readonly isFlags: boolean;
+  readonly members: readonly ValidatedEnumMember[];
+}
+
+function enumValue(value: unknown, enumType: HonuaOdataEnumTypeInfo, path: readonly (string | number)[]): string {
+  if (typeof value !== "string" || value.length === 0) throw encodingError("invalid-value", path);
+  const validated = validatedEnumType(enumType, path);
+
+  if (ENUM_INTEGER_LEXEME.test(value)) {
+    let parsed: bigint;
+    try {
+      parsed = BigInt(value);
+    } catch {
+      throw encodingError("invalid-value", path);
+    }
+    if (parsed < validated.bounds.minimum || parsed > validated.bounds.maximum || (validated.isFlags && parsed < 0n)) {
+      throw encodingError("invalid-value", path);
+    }
+    return preferredEnumRepresentation(parsed, validated) ?? parsed.toString();
+  }
+
+  const names = value.split(",");
+  if ((!validated.isFlags && names.length !== 1) || new Set(names).size !== names.length) {
+    throw encodingError("invalid-value", path);
+  }
+  const declaredNames = new Set(validated.members.map((member) => member.name));
+  if (names.some((name) => !simpleIdentifier(name) || !declaredNames.has(name))) {
+    throw encodingError("invalid-value", path);
+  }
+  return names.join(",");
+}
+
+function validatedEnumType(enumType: HonuaOdataEnumTypeInfo, path: readonly (string | number)[]): ValidatedEnumType {
+  try {
+    if (typeof enumType !== "object" || enumType === null || Array.isArray(enumType)) {
+      throw encodingError("invalid-metadata", path);
+    }
+    const underlyingType = dataProperty(enumType, "underlyingType", path, "invalid-metadata");
+    const bounds = typeof underlyingType === "string" ? INTEGER_BOUNDS[underlyingType] : undefined;
+    const isFlags = dataProperty(enumType, "isFlags", path, "invalid-metadata");
+    const declarations = dataProperty(enumType, "members", path, "invalid-metadata");
+    const declaration = dataProperty(enumType, "declaration", path, "invalid-metadata");
+    if (!bounds || typeof isFlags !== "boolean" || !Array.isArray(declarations)) {
+      throw encodingError("invalid-metadata", path);
+    }
+    if (declaration !== undefined) {
+      if (typeof declaration !== "object" || declaration === null || Array.isArray(declaration)) {
+        throw encodingError("invalid-metadata", path);
+      }
+      const state = dataProperty(declaration, "state", path, "invalid-metadata");
+      if (state !== "valid") throw encodingError("invalid-metadata", path);
+      const valueMode = dataProperty(declaration, "valueMode", path, "invalid-metadata");
+      if (
+        (valueMode !== "explicit" && valueMode !== "implicit" && valueMode !== "mixed") ||
+        (isFlags && valueMode !== "explicit")
+      ) {
+        throw encodingError("invalid-metadata", path);
+      }
+    }
+
+    const members: ValidatedEnumMember[] = [];
+    const names = new Set<string>();
+    for (const member of arrayDataValues(declarations, path, "invalid-metadata")) {
+      if (typeof member !== "object" || member === null || Array.isArray(member)) {
+        throw encodingError("invalid-metadata", path);
+      }
+      const name = dataProperty(member, "name", path, "invalid-metadata");
+      const rawValue = dataProperty(member, "value", path, "invalid-metadata");
+      const parsed = metadataInteger(rawValue);
+      if (
+        typeof name !== "string" ||
+        !simpleIdentifier(name) ||
+        names.has(name) ||
+        parsed === undefined ||
+        parsed < bounds.minimum ||
+        parsed > bounds.maximum ||
+        (isFlags && parsed < 0n)
+      ) {
+        throw encodingError("invalid-metadata", path);
+      }
+      names.add(name);
+      members.push({ name, value: parsed });
+    }
+    if (members.length === 0) throw encodingError("invalid-metadata", path);
+    return { bounds, isFlags, members };
+  } catch (error) {
+    rethrowEncodingError(error, "invalid-metadata", path);
+  }
+}
+
+function metadataInteger(value: unknown): bigint | undefined {
+  if (typeof value === "number") return Number.isSafeInteger(value) ? BigInt(value) : undefined;
+  if (typeof value !== "string" || value.length > 20 || !/^[+-]?\d+$/.test(value)) return undefined;
+  try {
+    return BigInt(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function preferredEnumRepresentation(value: bigint, enumType: ValidatedEnumType): string | undefined {
+  const exact = enumType.members.find((member) => member.value === value);
+  if (exact) return exact.name;
+  if (!enumType.isFlags || value === 0n) return undefined;
+
+  let combined = 0n;
+  const names: string[] = [];
+  for (const member of enumType.members) {
+    if (member.value === 0n || (member.value & value) !== member.value) continue;
+    const next = combined | member.value;
+    if (next === combined) continue;
+    combined = next;
+    names.push(member.name);
+  }
+  return combined === value ? names.join(",") : undefined;
+}
+
+function ownDataProperty(value: object, name: string, path: readonly (string | number)[]): unknown {
+  return dataProperty(value, name, path, "invalid-value");
+}
+
+function dataProperty(
+  value: object,
   name: string,
   path: readonly (string | number)[],
+  errorCode: HonuaOdataEdmEncodingErrorCode,
 ): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (!descriptor) return undefined;
-  if (!("value" in descriptor)) throw encodingError("invalid-value", path);
-  return descriptor.value;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, name);
+    if (!descriptor) return undefined;
+    if (!("value" in descriptor)) throw encodingError(errorCode, path);
+    return descriptor.value;
+  } catch (error) {
+    rethrowEncodingError(error, errorCode, path);
+  }
+}
+
+function arrayDataValues(
+  value: readonly unknown[],
+  path: readonly (string | number)[],
+  errorCode: HonuaOdataEdmEncodingErrorCode = "invalid-value",
+): unknown[] {
+  const length = dataProperty(value, "length", path, errorCode);
+  if (!Number.isSafeInteger(length) || (length as number) < 0 || (length as number) > 0xffff_ffff) {
+    throw encodingError(errorCode, path);
+  }
+  const output = new Array<unknown>(length as number);
+  for (let index = 0; index < output.length; index += 1) {
+    output[index] = dataProperty(value, String(index), [...path, index], errorCode);
+  }
+  return output;
+}
+
+function objectKeys(value: object, path: readonly (string | number)[]): string[] {
+  try {
+    return Object.keys(value);
+  } catch {
+    throw encodingError("invalid-value", path);
+  }
 }
 
 function enterContainer(
@@ -631,13 +918,17 @@ function codePointLengthExceeds(value: string, maximum: number): boolean {
 }
 
 function ownLookup<T>(record: Readonly<Record<string, T>>, name: string): T | undefined {
-  return Object.hasOwn(record, name) ? record[name] : undefined;
+  return dataProperty(record, name, [], "invalid-metadata") as T | undefined;
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+function isRecord(value: unknown, path: readonly (string | number)[]): value is Readonly<Record<string, unknown>> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  } catch {
+    throw encodingError("invalid-value", path);
+  }
 }
 
 function emptyCodecModel(): OdataCodecModel {
@@ -656,6 +947,19 @@ function encodingError(
   path: readonly (string | number)[],
 ): HonuaOdataEdmEncodingError {
   return new HonuaOdataEdmEncodingError(code, renderPath(path));
+}
+
+function rethrowEncodingError(
+  error: unknown,
+  fallbackCode: HonuaOdataEdmEncodingErrorCode,
+  fallbackPath: readonly (string | number)[],
+): never {
+  let isKnownEncodingError = false;
+  try {
+    isKnownEncodingError = error instanceof HonuaOdataEdmEncodingError;
+  } catch {}
+  if (isKnownEncodingError) throw error;
+  throw encodingError(fallbackCode, fallbackPath);
 }
 
 function renderPath(path: readonly (string | number)[]): string {
