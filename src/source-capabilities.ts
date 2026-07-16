@@ -17,6 +17,8 @@ export {
   verifyCapabilityEvidenceProfileSource,
 } from "./source-capability-evidence.js";
 export { createCapabilitySourceEndpointFingerprint } from "./source-capability-endpoint.js";
+export { sourceCapabilityEndpointIdentity } from "./source-capability-discovery-endpoint.js";
+export type { CapabilityDiscoveryProtocol } from "./source-capability-discovery-endpoint.js";
 export { evaluateCapabilityProfile } from "./source-capability-evaluation.js";
 export { parseCapabilityProfile, serializeCapabilityProfile } from "./source-capability-transport.js";
 export * from "./source-capability-types.js";

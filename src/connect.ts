@@ -33,10 +33,12 @@ import {
   type DiscoveryCacheIdentity,
   type DiscoveryCapabilityEvidence,
   type DiscoveryCapabilityPolicy,
+  type DiscoveryCapabilityResolution,
   type DiscoveryDiagnostic,
   type DiscoveryProvenance,
   type SourceDiscoveryInspection,
   createDiscoveryCacheIdentity,
+  immutableDiscoveredCapabilities,
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
 } from "./contract/discovery.js";
@@ -68,6 +70,7 @@ import type {
   HonuaStacLandingResponse,
   OgcEndpointLayout,
 } from "./core/types.js";
+import type { CapabilityProfile } from "./source-capability-types.js";
 
 export interface ConnectSourceSchemaProjectionContext {
   readonly source: string;
@@ -101,6 +104,26 @@ export interface ConnectSourceSchemaProjection {
     profile: GeoParquetSourceProfile,
     context: ConnectSourceSchemaProjectionContext,
   ): SourceSchemaV2Envelope | undefined;
+}
+
+export interface ConnectSourceCapabilityProjectionContext {
+  /** Retrieval instant of the raw discovery snapshot, including cache hits. */
+  readonly observedAt: string;
+}
+
+/**
+ * Internal opt-in seam used by the focused capability-discovery entrypoint.
+ * The projection runs after raw discovery evidence has been validated and
+ * policy-resolved, and its evaluated profile is never written to the raw
+ * discovery cache.
+ */
+export interface ConnectSourceCapabilityProjection {
+  readonly cacheIdentity: string;
+  project(
+    descriptor: SourceDescriptor,
+    resolution: DiscoveryCapabilityResolution,
+    context: ConnectSourceCapabilityProjectionContext,
+  ): CapabilityProfile;
 }
 
 /** Schema version for values stored through {@link ConnectDiscoveryCache}. */
@@ -266,6 +289,7 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
 export async function connectWithSourceSchemaProjection(
   options: ConnectOptions,
   sourceSchemaProjection?: ConnectSourceSchemaProjection,
+  sourceCapabilityProjection?: ConnectSourceCapabilityProjection,
 ): Promise<HonuaConnection> {
   throwIfAborted(options.signal);
   const endpoint = validateConnectEndpoint(options.endpoint);
@@ -293,6 +317,12 @@ export async function connectWithSourceSchemaProjection(
   if (options.client && options.clientOptions) {
     throw new HonuaDiscoveryError("invalid-endpoint", "Pass either client or clientOptions to connect(), not both.");
   }
+  if (sourceCapabilityProjection && !sourceSchemaProjection) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "Capability-aware discovery requires the focused SourceSchemaV2 projection for source identity binding.",
+    );
+  }
 
   // GeoParquet's discovered profile/locator depends on inputs beyond the
   // endpoint URL (the additional file set and geometry-column override), so
@@ -300,15 +330,18 @@ export async function connectWithSourceSchemaProjection(
   // inputs for the same primary asset URL would collide on one cached snapshot.
   const assetVariant = geoParquetAssetVariant(target.protocol, options.geoparquet);
 
+  const focusedProjectionIdentity = [sourceSchemaProjection?.cacheIdentity, sourceCapabilityProjection?.cacheIdentity]
+    .filter((value): value is string => value !== undefined)
+    .join(":");
   const identity = await createDiscoveryCacheIdentity({
     endpoint: target.endpoint,
     protocol: target.protocol,
     authorizationScopeFingerprint: options.authorizationScopeFingerprint,
-    adapterVersion: sourceSchemaProjection
-      ? `${HONUA_CONNECT_ADAPTER_VERSION}:${sourceSchemaProjection.cacheIdentity}`
+    adapterVersion: focusedProjectionIdentity
+      ? `${HONUA_CONNECT_ADAPTER_VERSION}:${focusedProjectionIdentity}`
       : HONUA_CONNECT_ADAPTER_VERSION,
-    projectionVersion: sourceSchemaProjection
-      ? `${HONUA_CONNECT_PROJECTION_VERSION}:${sourceSchemaProjection.cacheIdentity}`
+    projectionVersion: focusedProjectionIdentity
+      ? `${HONUA_CONNECT_PROJECTION_VERSION}:${focusedProjectionIdentity}`
       : HONUA_CONNECT_PROJECTION_VERSION,
     ...(options.collectionId ? { collectionId: options.collectionId } : {}),
     ...(options.typeName ? { typeName: options.typeName } : {}),
@@ -385,8 +418,16 @@ export async function connectWithSourceSchemaProjection(
         ...(source.schemaV2 ? { schemaV2: source.schemaV2 } : {}),
         ...(source.title ? { attribution: source.title } : {}),
       };
+      const discovered = inspectDiscoveredSource(descriptor, resolution);
+      const projectedDescriptor = sourceCapabilityProjection
+        ? descriptorWithCapabilityProfile(
+            discovered.descriptor,
+            sourceCapabilityProjection.project(descriptor, resolution, { observedAt: snapshot.retrievedAt }),
+          )
+        : discovered.descriptor;
       return Object.freeze({
-        ...inspectDiscoveredSource(descriptor, resolution),
+        ...discovered,
+        descriptor: projectedDescriptor,
         ...(source.crs || source.extent
           ? {
               metadata: Object.freeze({
@@ -442,6 +483,22 @@ export async function connectWithSourceSchemaProjection(
       }
       return source;
     },
+  });
+}
+
+function descriptorWithCapabilityProfile(
+  descriptor: SourceDescriptor,
+  capabilityProfile: CapabilityProfile,
+): SourceDescriptor {
+  const supported = new Set(
+    capabilityProfile.entries.filter((entry) => entry.effective === "supported").map((entry) => entry.id),
+  );
+  return Object.freeze({
+    ...descriptor,
+    capabilities: immutableDiscoveredCapabilities(
+      [...descriptor.capabilities].filter((capability) => supported.has(capability)),
+    ),
+    capabilityProfile,
   });
 }
 

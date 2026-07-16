@@ -2,7 +2,9 @@
 
 > **Experimental.** `@honua/sdk-js/source-capabilities` is the canonical v2
 > claimed/observed/effective capability evaluator and source support-check
-> surface. It does not perform discovery or execution.
+> surface. Its evaluator-only graph does not perform discovery or execution;
+> the heavier GeoServices/OData integration is isolated in
+> `@honua/sdk-js/source-capability-discovery`.
 
 The v2 model keeps three statements separate:
 
@@ -87,7 +89,7 @@ identifiers. Only an exact `effective: "supported"` decision passes; unknown,
 unsupported, policy-disabled, peer-unavailable, authorization-required, and
 authorization-denied decisions all fail closed:
 
-```ts doc-test=skip reason="profile-aware discovery is delivered in the next capability slice"
+```ts doc-test=skip reason="source handle is supplied by the surrounding application"
 const source = dataset.source("parcels")!;
 
 if (source.supports("query")) {
@@ -102,9 +104,10 @@ console.log(decision?.effective, decision?.reasons);
 An attached profile must be evaluated or parsed by the same SDK instance and
 its `sourceFingerprint` must match the descriptor's `schemaV2` fingerprint.
 This prevents an internally valid profile from being replayed against a
-different schema identity. Endpoint binding remains part of the focused
-discovery integration boundary: cache parsing must continue to supply both
-expected source coordinates as described below.
+different schema identity. Focused discovery also reconstructs canonical
+GeoServices layer or OData entity-set coordinates from the descriptor and
+binds the profile to their endpoint fingerprint. Cache parsing must continue
+to supply both expected source coordinates as described below.
 
 For built-in identifiers, the legacy `ReadonlySet` is derived as the
 intersection of effective support and the adapter's existing capability
@@ -118,6 +121,50 @@ Sources without a v2 profile retain their exact legacy set behavior:
 extension identifiers. Existing third-party `SourceResolver` implementations
 do not need to add the method; the dataset decorates extensible results in
 place and uses a behavior-preserving facade for non-extensible results.
+
+## Focused GeoServices and OData discovery
+
+Use the separate integration entrypoint when discovery should attach a
+validated SourceSchemaV2 and an evaluated capability profile in one pass:
+
+```ts doc-test=compile
+import { connectWithSourceCapabilities } from "@honua/sdk-js/source-capability-discovery";
+
+async function openParcels() {
+  const connection = await connectWithSourceCapabilities(
+    {
+      endpoint: "https://example.test/arcgis/rest/services/Public/Parcels/FeatureServer/0",
+      protocol: "auto",
+      authorizationScopeFingerprint: "role:viewer:v1",
+    },
+    {
+      evaluatedAt: new Date().toISOString(),
+      environment: "browser",
+      policy: { deny: ["applyEdits"] },
+    },
+  );
+
+  const source = connection.source();
+  if (source.supports("query")) return source.queryAll();
+  return undefined;
+}
+```
+
+The integration is intentionally certified only for GeoServices FeatureServer
+/ MapServer and OData v4 in this slice. Other discovery families remain on
+their protocol rollout issues. Discovery caches retain raw metadata evidence
+and SourceSchemaV2, never evaluated truth. Every cache hit reconstructs the
+canonical descriptor endpoint, rebuilds the static profile, and reapplies the
+current clock, freshness window, policy, runtime environment, peers, and
+authorization context. The default observation lifetime is five minutes;
+applications may set `observationTtlMs` explicitly.
+
+`sourceCapabilityEndpointIdentity(descriptor)` is exported from both
+capability subpaths for cache replay verification. Nested GeoServices service
+folders are segment-encoded, already-resolved service URLs are checked for
+service/layer contradictions, and OData entity sets are bound as distinct
+resource paths. Query strings, fragments, URL user-info, credentials, and
+contradictory coordinates fail closed before hashing.
 
 `entries` and nested set-like values are sorted, deduplicated, cloned, and
 deeply frozen. Their normative order is the lexicographic unsigned-byte order

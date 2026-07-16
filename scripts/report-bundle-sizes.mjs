@@ -86,6 +86,12 @@ const TARGETS = [
     entry: "dist/src/source-capabilities.js",
     label: "`/source-capabilities` (static evidence ingestion + lightweight evaluator)",
   },
+  {
+    key: "/source-capability-discovery",
+    kind: "bundle",
+    entry: "dist/src/source-capability-discovery.js",
+    label: "`/source-capability-discovery` (GeoServices/OData schema-bound evaluation)",
+  },
   { key: "/plugin", kind: "bundle", entry: "dist/src/plugin/index.js", label: "`/plugin` (registry + certification, no heavy peers)" },
   { key: "/agent-tools", kind: "bundle", entry: "dist/src/agent-tools/index.js", label: "`/agent-tools`" },
   { key: "/agent-safety", kind: "bundle", entry: "dist/src/agent-safety/index.js", label: "`/agent-safety`" },
