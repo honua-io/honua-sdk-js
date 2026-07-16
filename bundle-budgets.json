@@ -51,12 +51,13 @@
     "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom.",
     "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation.",
     "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged.",
-    "'tree-shake:root-createHonua' guards the managed application-kernel facade (#532): importing only createHonua retains reviewed discovery plus instance lifecycle/inspection logic, while renderer, query-planner, plugin, and application-platform systems remain shakeable. The fixture explicitly rejects those systems plus Arrow and DuckDB inputs. The standalone root-connect fixture remains unchanged at 345.9 KiB minified / 89.0 KiB gzip. Root and browser ceilings were reset from the measured managed-facade totals (root 454,923 / 119,064; IIFE 455,539 / 119,255; ESM 454,215 / 119,031) to actual plus ~10% headroom."
+    "'tree-shake:root-createHonua' guards the managed application-kernel facade (#532): importing only createHonua retains reviewed discovery plus instance lifecycle/inspection logic, while renderer, query-planner, plugin, and application-platform systems remain shakeable. The fixture explicitly rejects those systems plus Arrow and DuckDB inputs. The standalone root-connect fixture remains unchanged at 345.9 KiB minified / 89.0 KiB gzip. Root and browser ceilings were reset from the measured managed-facade totals (root 454,923 / 119,064; IIFE 455,539 / 119,255; ESM 454,215 / 119,031) to actual plus ~10% headroom.",
+    "Root, browser, /source-schema, and tree-shake:root-connect ceilings were reset for bounded WMS/WMTS discovery (#551): capability parsing, credential-safe operation selection, exact raster request bindings, and fail-closed matrix validation measure root at 472,594 minified / 124,272 gzip, /source-schema at 686,260 / 143,840, browser IIFE at 473,257 / 124,499, browser ESM at 471,931 / 124,260, and root-connect at 393,558 / 102,079 bytes. Each exceeded ceiling is the measured exact-head size plus 10% headroom."
   ],
   "entrypoints": {
     ".": {
-      "min": 500416,
-      "gzip": 130971
+      "min": 519854,
+      "gzip": 136700
     },
     "/honua": {
       "min": 579760,
@@ -67,8 +68,8 @@
       "gzip": 74642
     },
     "/source-schema": {
-      "min": 679677,
-      "gzip": 137190
+      "min": 754886,
+      "gzip": 158224
     },
     "/source-capabilities": {
       "min": 263724,
@@ -155,20 +156,20 @@
       "gzip": 5687
     },
     "browser-iife": {
-      "min": 501093,
-      "gzip": 131181
+      "min": 520583,
+      "gzip": 136949
     },
     "browser-esm": {
-      "min": 499637,
-      "gzip": 130935
+      "min": 519125,
+      "gzip": 136686
     },
     "tree-shake:HonuaClient": {
       "min": 235231,
       "gzip": 59002
     },
     "tree-shake:root-connect": {
-      "min": 367787,
-      "gzip": 95076
+      "min": 432914,
+      "gzip": 112287
     },
     "tree-shake:source-capabilities-evaluate": {
       "min": 18332,

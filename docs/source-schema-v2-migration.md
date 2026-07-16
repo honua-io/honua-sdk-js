@@ -2,8 +2,9 @@
 
 Source schema v2 is an experimental, vendor-neutral discovery projection. It
 is available from the focused `@honua/sdk-js/source-schema` subpath and can
-enrich GeoServices, OData 4.0, and GeoParquet discovery. The legacy schema and
-the default lightweight `connect()` path remain unchanged during this rollout.
+enrich GeoServices, OData 4.0, GeoParquet, WMS 1.3.0, and WMTS 1.0.0 discovery.
+The legacy schema and the default lightweight `connect()` path continue to
+omit `schemaV2` during this rollout.
 
 Opt in without issuing a second metadata request:
 
@@ -188,11 +189,14 @@ placeholders.
 
 ## Rollout boundary
 
-Only the opt-in GeoServices, OData 4.0, and GeoParquet discovery projection
-populates `schemaV2` in this slice. Other protocols and default root `connect()`
-continue to expose their existing discovery shape until their scheduled
-migration issues land. Missing `schemaV2` means “not projected”; it must not be
-replaced with an empty schema or a fabricated fingerprint.
+The opt-in GeoServices, OData 4.0, GeoParquet, WMS, and WMTS discovery
+projection populates `schemaV2`. WMS intentionally projects no fields and
+unknown feature geometry because Capabilities does not advertise a portable
+FeatureInfo schema; WMTS projects an observed zero-field, no-geometry, closed
+schema. Other protocols and default root `connect()` continue to expose their
+existing discovery shape until their scheduled migration issues land. Missing
+`schemaV2` means “not projected”; it must not be replaced with an empty schema
+or a fabricated fingerprint.
 
 On the opt-in path, missing `schemaV2` is reserved for a protocol that did not
 advertise a field inventory. Invalid advertised metadata or an internal

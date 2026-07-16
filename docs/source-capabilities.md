@@ -3,7 +3,7 @@
 > **Experimental.** `@honua/sdk-js/source-capabilities` is the canonical v2
 > claimed/observed/effective capability evaluator and source support-check
 > surface. Its evaluator-only graph does not perform discovery or execution;
-> the heavier GeoServices/OData integration is isolated in
+> the heavier GeoServices/OData/WMS/WMTS integration is isolated in
 > `@honua/sdk-js/source-capability-discovery`.
 
 The v2 model keeps three statements separate:
@@ -105,7 +105,7 @@ An attached profile must be evaluated or parsed by the same SDK instance and
 its `sourceFingerprint` must match the descriptor's `schemaV2` fingerprint.
 This prevents an internally valid profile from being replayed against a
 different schema identity. Focused discovery also reconstructs canonical
-GeoServices layer or OData entity-set coordinates from the descriptor and
+GeoServices layer, OData entity-set, or WMS/WMTS service-and-layer coordinates from the descriptor and
 binds the profile to their endpoint fingerprint. Cache parsing must continue
 to supply both expected source coordinates as described below.
 
@@ -122,7 +122,7 @@ extension identifiers. Existing third-party `SourceResolver` implementations
 do not need to add the method; the dataset decorates extensible results in
 place and uses a behavior-preserving facade for non-extensible results.
 
-## Focused GeoServices and OData discovery
+## Focused GeoServices, OData, WMS, and WMTS discovery
 
 Use the separate integration entrypoint when discovery should attach a
 validated SourceSchemaV2 and an evaluated capability profile in one pass:
@@ -150,9 +150,15 @@ async function openParcels() {
 }
 ```
 
-The integration is intentionally certified only for GeoServices FeatureServer
-/ MapServer and OData v4 in this slice. Other discovery families remain on
-their protocol rollout issues. Discovery caches retain raw metadata evidence
+The integration is certified for GeoServices FeatureServer/MapServer, OData
+v4, WMS 1.3.0, and WMTS 1.0.0. WMS/WMTS capability documents are projected
+without a second metadata request: WMS produces a zero-field schema with
+unknown feature geometry because GetFeatureInfo does not advertise a portable
+field inventory; render-only WMTS produces an explicit zero-field, no-geometry,
+closed schema. The evaluated profile separates adapter claims from endpoint
+operation evidence, so raw WMS query remains observed-unsupported while a
+canonical Honua WMS binding may retain the existing FeatureInfo adapter.
+Discovery caches retain raw metadata evidence
 and SourceSchemaV2, never evaluated truth. Every cache hit reconstructs the
 canonical descriptor endpoint, rebuilds the static profile, and reapplies the
 current clock, freshness window, policy, runtime environment, peers, and
@@ -162,8 +168,9 @@ applications may set `observationTtlMs` explicitly.
 `sourceCapabilityEndpointIdentity(descriptor)` is exported from both
 capability subpaths for cache replay verification. Nested GeoServices service
 folders are segment-encoded, already-resolved service URLs are checked for
-service/layer contradictions, and OData entity sets are bound as distinct
-resource paths. Query strings, fragments, URL user-info, credentials, and
+service/layer contradictions, OData entity sets are bound as distinct resource
+paths, and WMS/WMTS profiles bind the capabilities endpoint plus exact layer id
+without retaining operation URLs. Query strings, fragments, URL user-info, credentials, and
 contradictory coordinates fail closed before hashing.
 
 `entries` and nested set-like values are sorted, deduplicated, cloned, and
@@ -313,8 +320,7 @@ prohibited in evidence references, peer ids, scope ids, and extension values.
 
 ## Delivery boundary
 
-This slice adds `source.supports()`, literal capability narrowing, verified
-profile attachment, and legacy/third-party compatibility. It does not yet wire
-GeoServices or OData discovery evidence into a v2 profile; that focused
-connection projection lands in the next slice. Existing sources without a
-profile retain their stable `ReadonlySet` capability behavior.
+The focused connection path attaches verified profiles for GeoServices, OData,
+WMS, and WMTS. Existing sources without a profile retain their stable
+`ReadonlySet` capability behavior; remaining protocol families continue on
+their own rollout issues.

@@ -100,21 +100,25 @@ entries accidentally.
 The root and `/honua` barrels expose the curated workflow: the four primary
 evidence/policy/resolution/cache-option types, error, and helper functions.
 `@honua/sdk-js/contract` additionally exports the version constants and the
-complete decision, diagnostic, provenance, cache-result, and inspection type
-vocabulary for adapter authors. This keeps the beginner surface bounded while
-preserving a fully typed protocol integration seam.
+complete decision, diagnostic, provenance, cache-result, inspection, operation,
+style, dimension, axis-order, and tile-matrix metadata vocabulary for adapter
+authors. The `/honua` barrel exposes those inspection metadata types alongside
+the WMS/WMTS parser records; the reviewed common root remains bounded. This
+keeps the beginner surface small while preserving a fully typed protocol
+integration seam.
 
-## Connect facade (OGC Features/Records/Tiles/Maps, STAC API, GeoServices, WFS, OData, and GeoParquet slices)
+## Connect facade (OGC Features/Records/Tiles/Maps, STAC API, GeoServices, WFS/WMS/WMTS, OData, and GeoParquet slices)
 
 The experimental `connect()` facade composes this truth contract for raw OGC
 API Features and STAC API landing pages, raw OGC API Records catalog roots, raw
-OGC API Tiles and Maps service roots (render-only sources),
-WFS 2.0 endpoints, OData v4 service
-roots, static-file GeoParquet assets, and canonical
+OGC API Tiles and Maps service roots (render-only sources), WFS 2.0 endpoints,
+WMS 1.3.0 and WMTS 1.0.0 capabilities/service URLs, OData v4 service roots,
+static-file GeoParquet assets, and canonical
 GeoServices `FeatureServer` / `MapServer` service or layer URLs. OGC, STAC,
-WFS, OData, Records, Tiles, Maps, and GeoParquet endpoints require an explicit
+WFS, WMS, WMTS, OData, Records, Tiles, Maps, and GeoParquet endpoints require an explicit
 `protocol: "ogc-features"`,
-`protocol: "stac"`, `protocol: "wfs"`, `protocol: "odata"`,
+`protocol: "stac"`, `protocol: "wfs"`, `protocol: "wms"`,
+`protocol: "wmts"`, `protocol: "odata"`,
 `protocol: "ogc-records"`, `protocol: "ogc-tiles"`, `protocol: "ogc-maps"`, or
 `protocol: "geoparquet"` hint. OGC API Processes is deliberately **not** a
 Source-backed protocol; `connect()` rejects `protocol: "ogc-processes"` and
@@ -226,6 +230,52 @@ fan-out and does not invent a field schema. Default CRS, WGS84 bounds, titles,
 and feature namespace bindings are parsed from `GetCapabilities`; the default
 CRS and namespace are retained on the WFS locator, while the bbox is not
 promoted to the filtered canonical extent capability.
+
+WMS and WMTS discovery each perform exactly one bounded `GetCapabilities`
+request. Standard `SERVICE`, `REQUEST=GetCapabilities`, and `VERSION` query
+parameters are normalized before cache identity; `protocol: "auto"` recognizes
+an explicit WMS/WMTS `SERVICE` query or a canonical Honua
+`/MapServer/WMS|WMTS` path without probing. Discovery accepts only WMS 1.3.0
+and WMTS 1.0.0. Each named layer becomes a source, or `typeName` selects one;
+`styleId` and WMTS `tileMatrixSetId` must match advertised identifiers.
+
+The inspection retains protocol version, formats, styles and legends,
+dimensions/defaults, CRS and WMS 1.3 axis order, operation methods/URLs, layer
+extent, and every linked WMTS matrix definition. Optional malformed entries
+become bounded `partialReasons`; malformed required structure or ambiguous
+layer/style selection fails discovery. Relative DCP and ResourceURL values are
+resolved against the service endpoint, then accepted only when they remain on
+the same origin and contain no URL credentials, fragment, or credential-shaped
+query parameter. Methods are retained only when at least one URL for that
+method survives validation.
+
+Effective raster support is execution-aware. WMS `render`/`tiles` requires a
+safe GET `GetMap` binding plus a supported image format. WMTS requires a safe
+GetTile KVP or ResourceURL binding, a uniquely selected style, a Web Mercator
+matrix set, and matrix identifiers that map exactly to MapLibre `{z}` levels.
+The reviewed binding is carried on `locator.raster`; the existing
+descriptor-to-MapLibre path consumes that exact URL/template, including safe
+non-credential query state and matrix-id prefixes. Discovery fails closed
+instead of granting raster capabilities when that path cannot execute the
+advertised binding.
+
+A raw third-party WMS source is render-only on the canonical `Source` surface:
+`GetFeatureInfo` support is inspected, but `query` is disabled because the
+existing canonical FeatureInfo adapter requires a resolved Honua `serviceId`.
+A canonical `/MapServer/WMS` connection retains that adapter and may enable
+point-query `GetFeatureInfo` when advertised. Raw WMTS remains render/tile-only;
+its protocol-specific FeatureInfo metadata does not invent a canonical spatial
+query. Capability misses throw `HonuaCapabilityNotSupportedError` before a late
+wire request.
+
+Capabilities documents use an SDK-local, per-client cache keyed by normalized
+capabilities URL, protocol, and authorization-scope digest. Fresh reads,
+ETag/Last-Modified revalidation, bounded stale-if-error, caller cancellation,
+deadline, and response-size limits share the common metadata policy. Cache
+`bypass` is a complete read/write bypass: it cannot reuse a fresh value,
+validator, or stale fallback. Caller-owned discovery snapshots additionally
+validate that executable raster bindings are present in the reviewed operation
+metadata and still match the selected WMTS matrix identifiers.
 
 OData v4 discovery performs exactly one `$metadata` (CSDL) request against the
 service base path carried by the endpoint (for example `/odata`); the client is

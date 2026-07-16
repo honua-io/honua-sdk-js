@@ -139,7 +139,6 @@ export type {
   PaginationSpec,
   Protocol,
   Query,
-  RasterRequestBinding,
   Result,
   SortSpec,
   Source,
