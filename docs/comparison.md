@@ -24,16 +24,16 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-16 at commit `10fe4df`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-16 at commit `b772a73`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 422.9 KiB | 110.6 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 423.1 KiB | 110.7 KiB |
 | Importing only `HonuaClient` (tree-shake guard) | 210.5 KiB | 53.2 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 33.3 KiB | 10.8 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 258.8 KiB | 68.3 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 259.0 KiB | 68.3 KiB |
 | ArcGIS compatibility layer (drop-in migration surface) | 978.1 KiB | 243.2 KiB |
 | Geocoding client | 25.1 KiB | 7.3 KiB |
 | Routing client | 18.7 KiB | 6.0 KiB |
@@ -53,7 +53,7 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 422.9 KiB ≈
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 423.1 KiB ≈
 1.41 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
 0.37 MB over the wire with gzip. Esri's totals also grow with widgets;
