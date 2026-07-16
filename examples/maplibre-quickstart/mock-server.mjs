@@ -10,12 +10,10 @@ const projectRoot = path.resolve(exampleRoot, "../..");
 const distRoot = path.resolve(exampleRoot, "dist");
 
 export const FIXTURE_BUILD_ENV = {
-  VITE_HONUA_QUICKSTART_BASE_URL: "",
-  VITE_HONUA_QUICKSTART_SERVICE_ID: "natural-earth",
-  VITE_HONUA_QUICKSTART_LAYER_ID: "0",
-  VITE_HONUA_QUICKSTART_WHERE: "1=1",
-  VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: "25",
-  VITE_HONUA_QUICKSTART_BASEMAP_STYLE: "/__honua-quickstart__/basemap-style.json",
+  VITE_HONUA_FIRST_MAP_BASEMAP_STYLE: "/__honua-quickstart__/basemap-style.json",
+  VITE_HONUA_FIRST_MAP_MAX_FEATURES: "25",
+  VITE_HONUA_FIRST_MAP_MODE: "fixture",
+  VITE_HONUA_FIRST_MAP_PROTOCOL: "auto",
 };
 
 function buildDemoIfNeeded(timeoutMs) {

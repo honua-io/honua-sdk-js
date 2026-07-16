@@ -292,6 +292,24 @@ function geoServicesResponse(url, baseline) {
   };
 }
 
+function filterGeoServicesResponse(url, baseline) {
+  if (url.searchParams.getAll("where").length > 1) {
+    throw Object.assign(new Error("GeoServices where may appear only once."), { status: 400 });
+  }
+  const where = url.searchParams.get("where")?.trim();
+  if (!where || /^\(?\s*1\s*=\s*1\s*\)?$/i.test(where)) return baseline;
+  const comparison = /^(STATUS|CATEGORY)\s*=\s*'((?:''|[^'])*)'$/i.exec(where);
+  if (!comparison) {
+    throw Object.assign(new Error("The fixture supports bounded STATUS or CATEGORY equality filters."), { status: 400 });
+  }
+  const field = comparison[1].toUpperCase();
+  const value = comparison[2].replaceAll("''", "'");
+  return {
+    ...baseline,
+    features: baseline.features.filter((feature) => feature.attributes?.[field] === value),
+  };
+}
+
 function assertOgcQueryParameters(url, allowedNames, description) {
   const allowed = new Set(allowedNames);
   for (const name of new Set(url.searchParams.keys())) {
@@ -456,7 +474,7 @@ function intersectsBbox(feature, bbox) {
 }
 
 function ogcItemsPage(run, url, baseline) {
-  assertOgcQueryParameters(url, ["bbox", "datetime", "f", "limit", "offset", "run"], "OGC items");
+  assertOgcQueryParameters(url, ["bbox", "crs", "datetime", "f", "limit", "offset", "run"], "OGC items");
   assertOgcResponseFormat(url, ["json", "geojson"], "OGC items");
   const formatValue = url.searchParams.get("f");
   const bboxValue = url.searchParams.get("bbox");
@@ -833,7 +851,7 @@ export function createFirstMapHandler(pack) {
       validateGeoServicesQuery(run, url);
       if (sendQueryScenarioFailure(res, run, "geoservices-feature-service")) return true;
 
-      const response = applyFeatureOverrides(clone(features), run);
+      const response = filterGeoServicesResponse(url, applyFeatureOverrides(clone(features), run));
       if (run.scenario === "paginated") {
         const page = paginatedResponse(run, url, response);
         sendScenarioJson(req, res, run, "geoservices-query", page.body, page.status);
