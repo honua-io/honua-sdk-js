@@ -51,21 +51,23 @@ describe("capability discovery endpoint binding", () => {
       ),
     ).toThrow(/layer contradicts/);
     expect(() =>
-      createCapabilitySourceEndpointFingerprint(
-        sourceCapabilityEndpointIdentity({
-          ...odata,
-          locator: { ...odata.locator, url: "https://u:p@example.test/v4" },
-        }),
-      ),
+      sourceCapabilityEndpointIdentity({
+        ...odata,
+        locator: { ...odata.locator, url: "https://u:p@example.test/v4" },
+      }),
     ).toThrow(/credentials/);
     expect(() =>
-      createCapabilitySourceEndpointFingerprint(
-        sourceCapabilityEndpointIdentity({
-          ...odata,
-          locator: { ...odata.locator, url: "https://example.test/v4?sig=x" },
-        }),
-      ),
+      sourceCapabilityEndpointIdentity({
+        ...odata,
+        locator: { ...odata.locator, url: "https://example.test/v4?sig=x" },
+      }),
     ).toThrow(/query or fragment/);
+    expect(() =>
+      sourceCapabilityEndpointIdentity({
+        ...odata,
+        locator: { ...odata.locator, url: "file:///tmp/v4" },
+      }),
+    ).toThrow(/HTTP/);
   });
 });
 

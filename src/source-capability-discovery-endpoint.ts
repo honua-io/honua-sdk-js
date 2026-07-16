@@ -1,5 +1,6 @@
 import type { SourceDescriptor } from "./contract/types.js";
 import { encodeServiceIdPath, trimTrailingSlashes } from "./core/path-utils.js";
+import { normalizeCapabilitySourceEndpoint } from "./source-capability-endpoint.js";
 import type { CapabilitySourceEndpointIdentity } from "./source-capability-types.js";
 
 /** Protocols whose descriptor-to-endpoint replay binding is certified by capability discovery. */
@@ -17,7 +18,7 @@ export function sourceCapabilityEndpointIdentity(
   if (protocol === "odata") {
     const entitySet = requiredIdentifier(locator.entitySet, "OData locator.entitySet");
     const root = requiredEndpoint(locator.url);
-    return Object.freeze({
+    return endpointIdentity({
       endpoint: `${trimTrailingSlashes(root)}/${encodeURIComponent(entitySet)}`,
       protocol,
       sourceId: descriptor.id,
@@ -30,7 +31,7 @@ export function sourceCapabilityEndpointIdentity(
       throw new TypeError("GeoServices locator.layerId must be a non-negative safe integer");
     }
     const serviceType = protocol === "geoservices-feature-service" ? "FeatureServer" : "MapServer";
-    return Object.freeze({
+    return endpointIdentity({
       endpoint: canonicalGeoServicesLayerEndpoint(locator.url, serviceId, serviceType, layerId as number),
       protocol,
       sourceId: descriptor.id,
@@ -39,6 +40,10 @@ export function sourceCapabilityEndpointIdentity(
   throw new TypeError(
     `Capability discovery endpoint binding is not certified for protocol "${String(protocol)}"; use the protocol rollout issue for that adapter.`,
   );
+}
+
+function endpointIdentity(identity: CapabilitySourceEndpointIdentity): CapabilitySourceEndpointIdentity {
+  return Object.freeze({ ...identity, endpoint: normalizeCapabilitySourceEndpoint(identity.endpoint) });
 }
 
 function canonicalGeoServicesLayerEndpoint(
