@@ -2,14 +2,73 @@
 
 `@honua/sdk-js/query-planner` includes the first bounded data-plane slice for large query
 results. It defines a dependency-free Honua batch envelope, an ownership
-transfer primitive, and a lazy bounded worker-session protocol. Arrow/GeoArrow adapters may populate its buffers and
-metadata, but the envelope does not define a standalone Arrow layout and is not
-independently interoperable without the originating adapter's layout contract.
+transfer primitive, a normative GeoArrow 0.2 mapping, and a lazy bounded
+worker-session protocol. The GeoArrow mapping is independently interpretable
+without loading an Arrow implementation; the optional Apache Arrow adapter is
+loaded only when explicitly requested.
 It does not decode Arrow or ship built-in filter/reprojection/aggregation
 operators. Applications register those operations in their worker module.
 
 The entrypoint is experimental while the broader planner, streaming, renderer,
 and realtime work in issue #394 is completed.
+
+## Normative GeoArrow batches
+
+`createGeoArrowBatch()` maps nullable Point, LineString, or Polygon values to
+the official GeoArrow 0.2 extension names and memory shapes. Both recommended
+separated coordinates and interleaved coordinates are supported. List and ring
+offsets are signed 32-bit values, coordinate values are float64, temporal
+columns are signed 64-bit Arrow timestamps, and string attributes use int32
+dictionary indices plus UTF-8 values.
+
+Every normative batch carries source, plan, schema, authorization-scope,
+ordering, and freshness identity. `authorizationScope` must be a non-secret
+fingerprint—never a token or credential. Identity is normalized with the batch,
+survives structured-clone ownership transfer, and prevents a cache or renderer
+from treating results produced under different source/auth/order contracts as
+equivalent.
+
+```ts doc-test=compile
+import { createGeoArrowBatch, decodeGeoArrowBatch } from "@honua/sdk-js/query-planner";
+
+const schemaId = "incidents@7";
+const { batch, metrics } = createGeoArrowBatch({
+  id: "incidents:0",
+  sequence: 0,
+  schemaId,
+  identity: {
+    sourceId: "incidents-live",
+    sourceVersion: "42",
+    schemaVersion: schemaId,
+    planId: "plan:sha256:abc",
+    authorizationScope: "auth-scope:sha256:def",
+    ordering: {
+      stable: true,
+      keys: [{ field: "feature_id", direction: "ascending", nulls: "last" }],
+    },
+    freshness: { observedAt: "2026-07-15T12:00:00Z" },
+  },
+  geometry: {
+    kind: "point",
+    coordinateLayout: "interleaved",
+    crs: "OGC:CRS84",
+    values: [[-157.86, 21.31], null],
+  },
+  temporal: { field: "observed_at", unit: "millisecond", timezone: "UTC", values: [1n, null] },
+  dictionary: { field: "status", values: ["open", null] },
+  featureIds: { field: "feature_id", values: new Uint32Array([101, 102]) },
+});
+
+console.log(metrics.copiedBytes); // exact semantic-to-buffer allocation
+console.log(decodeGeoArrowBatch(batch, { maxRows: 100 }).metrics.materializedRows); // 2
+```
+
+Semantic conversion is always bounded by rows, vertices, rings, unique
+dictionary values, descriptor bytes, backing bytes, and exact copied payload
+bytes. `inspectGeoArrowBatch()` returns typed-array views that alias the batch
+buffers and reports `copiedBytes: 0`. Object rows are created only by the
+explicit `decodeGeoArrowBatch()` call, which applies the same ceilings and
+reports `materializedRows`; there is no unbounded conversion mode.
 
 ## Create a batch without copying payload bytes
 
