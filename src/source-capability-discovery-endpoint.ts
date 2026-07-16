@@ -16,9 +16,8 @@ export function sourceCapabilityEndpointIdentity(
 ): CapabilitySourceEndpointIdentity {
   const { protocol, locator } = descriptor;
   if (protocol === "odata") {
-    const entitySet = requiredIdentifier(locator.entitySet, "OData locator.entitySet");
     return endpointIdentity({
-      endpoint: canonicalOdataEntityEndpoint(locator.url, entitySet),
+      endpoint: canonicalOdataEntityEndpoint(locator.url, odataEntityPath(locator)),
       protocol,
       sourceId: descriptor.id,
     });
@@ -41,13 +40,23 @@ export function sourceCapabilityEndpointIdentity(
   );
 }
 
-function canonicalOdataEntityEndpoint(rawEndpoint: string, entitySet: string): string {
+function canonicalOdataEntityEndpoint(rawEndpoint: string, entityPath: readonly string[]): string {
   const endpoint = requiredEndpoint(rawEndpoint);
   const parsed = new URL(endpoint);
   const advertisedPath = trimTrailingSlashes(parsed.pathname);
   const basePath = advertisedPath === "" ? "/odata" : advertisedPath;
-  parsed.pathname = `${basePath}/${encodeURIComponent(entitySet)}`;
+  parsed.pathname = `${basePath}/${entityPath.map((segment) => encodeURIComponent(segment)).join("/")}`;
   return parsed.toString();
+}
+
+function odataEntityPath(locator: SourceDescriptor["locator"]): readonly string[] {
+  if (typeof locator.entitySet === "string" && locator.entitySet !== "") {
+    return [requiredIdentifier(locator.entitySet, "OData locator.entitySet")];
+  }
+  if (typeof locator.layerId === "number" && Number.isFinite(locator.layerId)) {
+    return [`Layers(${locator.layerId})`, "Features"];
+  }
+  throw new TypeError("OData locator requires locator.entitySet or a finite locator.layerId");
 }
 
 function endpointIdentity(identity: CapabilitySourceEndpointIdentity): CapabilitySourceEndpointIdentity {

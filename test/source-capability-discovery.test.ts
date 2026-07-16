@@ -63,6 +63,25 @@ describe("capability discovery endpoint binding", () => {
       createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(explicitDefaultPath)),
     );
 
+    const layerScoped = {
+      ...odata,
+      id: "1",
+      locator: { url: "https://example.test", layerId: 1 },
+    };
+    expect(sourceCapabilityEndpointIdentity(layerScoped)).toEqual({
+      endpoint: "https://example.test/odata/Layers(1)/Features",
+      protocol: "odata",
+      sourceId: "1",
+    });
+    expect(createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(layerScoped))).toBe(
+      createCapabilitySourceEndpointFingerprint(
+        sourceCapabilityEndpointIdentity({
+          ...layerScoped,
+          locator: { url: "https://example.test/odata", layerId: 1 },
+        }),
+      ),
+    );
+
     expect(() =>
       sourceCapabilityEndpointIdentity(
         geoDescriptor("https://example.test/rest/services/Public/Parcels/FeatureServer/8", "Public/Parcels", 7),
