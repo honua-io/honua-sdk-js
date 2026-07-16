@@ -2545,6 +2545,99 @@ Existing v1 planning still serializes `where` as `{ kind: "source-native",
 expression }`, preserving compatibility until #527-#529 adopt semantic nodes.
 New code should use typed builders instead of the bridge.
 
+## Semantic DuckDB and Honua gRPC compilers
+
+`compileSemanticDuckDbQuery()` and `compileSemanticGrpcQuery()` are pure
+compiler boundaries for the validated semantic AST. They return a
+discriminated result: `compiled` contains a frozen artifact and its fidelity;
+`unsupported` contains a stable code, exact query path, and bounded diagnostic.
+Malformed queries, schemas, resource handles, or source identities still throw
+`HonuaQueryPlanningError` before an artifact is created.
+
+```ts doc-test=compile
+import type { SourceSchemaV2 } from "@honua/sdk-js/source-schema";
+import {
+  compileSemanticDuckDbQuery,
+  createGeoParquetResourceHandle,
+  createSemanticQueryBuilder,
+} from "@honua/sdk-js/query-planner";
+
+interface Incident {
+  id: number;
+  status: string;
+}
+
+declare const schema: SourceSchemaV2;
+
+const q = createSemanticQueryBuilder<Incident, "geoparquet", "non-spatial">();
+const query = q.features({
+  select: ["id", "status"] as const,
+  geometry: "omit",
+  filter: q.comparison("eq", q.property("status"), "open"),
+});
+const resource = createGeoParquetResourceHandle({
+  resolver: "io.honua.application",
+  id: "incidents",
+  authorizationContextId: "tenant:alpha",
+  resourceVersion: "snapshot:7",
+});
+const compilation = compileSemanticDuckDbQuery({ query, schema, resource });
+
+if (compilation.outcome === "compiled") {
+  console.log(compilation.fidelity, compilation.artifact.sqlTemplate);
+} else {
+  console.warn(compilation.diagnostics[0]);
+}
+```
+
+DuckDB artifacts contain a fixed `honua-resource://resolve-at-execution`
+placeholder, the opaque #587 resource handle, parameterized SQL, and ordered
+bind values. Raw locators and credentials never enter the SQL template. The
+`outputGeometry` contract accompanies every geometry-returning projection,
+even when no spatial predicate exists. It records the logical source field,
+physical source encoding, GeoJSON result field/encoding, executable CRS, and
+coordinate layout. The separate `spatial` array describes predicates only.
+Measured or unknown layouts fail closed because GeoJSON output cannot prove
+their semantics exact. Exact geometry predicates use DuckDB Spatial functions. A
+GeoParquet bbox-covering column may prefilter an exact bbox query, but the exact
+geometry predicate remains present to prevent false positives.
+
+Reducing an arbitrary `intersects` operand to its envelope is available only
+with `spatialStrategy: "bbox-envelope"`. That artifact has
+`fidelity: "approximate"`, a `spatial-envelope-reduction` loss, and a spatial
+entry whose strategy is `bbox-envelope`; it is never presented as exact.
+
+Honua gRPC artifacts are protobuf-runtime-free canonical descriptions of
+`honua.v1.FeatureService/QueryFeatures`. Projection, filter, sort, group, and
+statistic operands use public `SourceSchemaV2` field names; physical storage
+paths never enter the request. Generated `where` text is limited to the server's
+executable grammar: ASCII public identifiers, simple comparisons or
+`IS [NOT] NULL`, and top-level `AND`. Nested safe `AND` nodes are flattened, and
+inclusive range/temporal intervals become paired comparisons without adding
+parentheses. String literals are SQL-quoted as data; numeric literals must fit
+the server's non-exponent decimal grammar and decimal range.
+
+A request shape that cannot preserve the AST—such as `OR`, `NOT`, `IN`,
+case-insensitive `LIKE`, a fieldless statistic, a bbox without an envelope
+message, a coordinate epoch, or an unrepresentable CRS—returns an unsupported
+diagnostic instead of emitting a request the server parser will reject,
+manufacturing a polygon, dropping a node, or inserting a transform. The final
+`where` string also honors the server's 4,000-character and control-character
+admission limits.
+
+Protocol-native filters remain explicit trust-boundary escape hatches. A
+DuckDB native expression must be tagged `duckdb-sql`; a Honua request fragment
+must be tagged `honua-grpc`, contain exactly one `where` member, and pass the
+same server grammar, public-field, length, and control-character checks before
+an artifact is created. Artifacts expose `usesNativeFilter` so policy and
+inspection code can distinguish native code from compiler-escaped semantic
+values.
+
+Neither compiler imports DuckDB, `@bufbuild/protobuf`, or Connect runtimes.
+Execution and integration into the complete explain plan belong to the
+planner/facade tranche (#530); these functions only produce deterministic,
+credential-free artifacts.
+
 ## Remote pushdown
 
 The remote compilers target existing GeoServices FeatureServer, OGC API
@@ -7488,24 +7581,24 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-16 at commit `10fe4df`._
+_Generated 2026-07-16 at commit `b772a73`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 422.9 KiB | 425.3 KiB | 110.6 KiB | 112.5 KiB |
-| `/honua` | 523.0 KiB | 566.2 KiB | 137.7 KiB | 149.6 KiB |
-| `/contract` | 258.8 KiB | 287.3 KiB | 68.3 KiB | 72.9 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 631.0 KiB | 663.7 KiB | 129.3 KiB | 134.0 KiB |
-| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 252.9 KiB | 257.5 KiB | 31.0 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData schema-bound evaluation) | 662.9 KiB | 733.3 KiB | 137.7 KiB | 152.6 KiB |
+| `.` (root) | 423.1 KiB | 425.3 KiB | 110.7 KiB | 112.5 KiB |
+| `/honua` | 523.2 KiB | 566.2 KiB | 137.7 KiB | 149.6 KiB |
+| `/contract` | 259.0 KiB | 287.3 KiB | 68.3 KiB | 72.9 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 631.2 KiB | 663.7 KiB | 129.3 KiB | 134.0 KiB |
+| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 253.7 KiB | 257.5 KiB | 31.2 KiB | 33.2 KiB |
+| `/source-capability-discovery` (GeoServices/OData schema-bound evaluation) | 663.8 KiB | 733.3 KiB | 138.0 KiB | 152.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 53.2 KiB | 62.6 KiB | 16.5 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 51.4 KiB | 55.2 KiB | 14.8 KiB | 15.8 KiB |
 | `/nl-map-control` | 73.2 KiB | 84.5 KiB | 22.0 KiB | 25.3 KiB |
-| `/runtime` | 451.2 KiB | 458.7 KiB | 119.3 KiB | 131.7 KiB |
+| `/runtime` | 451.4 KiB | 458.7 KiB | 119.4 KiB | 131.7 KiB |
 | `/realtime` | 41.2 KiB | 49.3 KiB | 11.4 KiB | 13.5 KiB |
 | `/offline` | 36.6 KiB | 44.3 KiB | 11.1 KiB | 13.2 KiB |
-| `/query-planner` (worker runtime injected) | 399.7 KiB | 439.0 KiB | 71.7 KiB | 78.7 KiB |
+| `/query-planner` (worker runtime injected) | 429.4 KiB | 439.0 KiB | 79.8 KiB | 87.8 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 90.0 KiB | 100.0 KiB | 28.0 KiB | 30.8 KiB |
 | `/esri-compat` | 978.1 KiB | 1026.2 KiB | 243.2 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
@@ -7515,14 +7608,14 @@ _Generated 2026-07-16 at commit `10fe4df`._
 | `/auth` | 24.1 KiB | 30.6 KiB | 7.0 KiB | 8.7 KiB |
 | `/style` | 59.1 KiB | 69.0 KiB | 14.6 KiB | 17.2 KiB |
 | `/map` | 164.6 KiB | 182.2 KiB | 46.0 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 46.6 KiB | 53.6 KiB | 14.7 KiB | 16.8 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 46.9 KiB | 53.6 KiB | 14.8 KiB | 16.8 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 432.7 KiB | 446.7 KiB | 114.3 KiB | 117.2 KiB |
+| `/react` (react/react-dom external) | 432.9 KiB | 446.7 KiB | 114.4 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 423.5 KiB | 426.0 KiB | 110.8 KiB | 112.8 KiB |
-| browser ESM (`./browser`) | 422.2 KiB | 424.6 KiB | 110.6 KiB | 112.5 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 423.7 KiB | 426.0 KiB | 110.8 KiB | 112.8 KiB |
+| browser ESM (`./browser`) | 422.4 KiB | 424.6 KiB | 110.6 KiB | 112.5 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 210.5 KiB | 229.7 KiB | 53.2 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 345.7 KiB | 359.2 KiB | 89.0 KiB | 92.8 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 345.9 KiB | 359.2 KiB | 89.0 KiB | 92.8 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 225.3 KiB | 245.9 KiB | 56.6 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
