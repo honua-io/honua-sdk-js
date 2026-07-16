@@ -1,6 +1,7 @@
 import {
   type AgentApprovalUseConsumer,
   type AgentEnvelopeVerifier,
+  verifyAgentApproval,
   verifyAgentStepAuthorization,
 } from "@honua/sdk-js/agent-safety";
 import {
@@ -16,10 +17,12 @@ import {
   createNlMapControl,
   hashNlMapPlan,
 } from "@honua/sdk-js/nl-map-control";
-import { canonicalStringify, sha256, toJsonValue } from "@honua/sdk-js/query-planner";
+import { type JsonValue, canonicalStringify, sha256, toJsonValue } from "@honua/sdk-js/query-planner";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+
+import { snapshotMcpJson } from "./stable-json.js";
 
 const MCP_NL_MAP_RECEIPT_KIND = "honua.mcp-nl-map-receipt" as const;
 const PLAN_ID = /^nlplan_[0-9a-f]{16}$/;
@@ -47,6 +50,26 @@ const CREDENTIAL_TEXT =
   /\b(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]+|\b(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*[^\s,;]+/giu;
 const CURSOR_TEXT = /\b(?:cursor|resume[_ -]?token|watermark)\s*[:=]\s*[^\s,;]+/giu;
 const URL_TEXT = /https?:\/\/[^\s"'<>]+/giu;
+const PUBLIC_ERROR_CODES = new Set([
+  "aborted",
+  "approval-expired",
+  "approval-invalid",
+  "approval-required",
+  "authorization-scope-denied",
+  "cancelled",
+  "context-mismatch",
+  "fixture-mismatch",
+  "integrity-failed",
+  "invalid-input",
+  "invalid-options",
+  "plan-invalid",
+  "plan-required",
+  "policy-denied",
+  "refusal",
+  "retries-exhausted",
+  "signature-invalid",
+  "unsafe-output",
+]);
 
 export interface NlMapControlMcpRequestContext {
   readonly signal?: AbortSignal;
@@ -145,13 +168,19 @@ export function createNlMapControlMcpHost(options: CreateNlMapControlMcpHostOpti
   return Object.freeze({
     control,
     async propose(input: { readonly instruction: string }, context: NlMapControlMcpRequestContext = {}) {
-      context.signal?.throwIfAborted();
-      if (typeof input?.instruction !== "string" || input.instruction.trim().length === 0) {
+      const signal = requestSignal(context);
+      signal?.throwIfAborted();
+      const request = snapshotMcpObject(input, "proposeMapPlan input");
+      const instruction = request.instruction;
+      if (typeof instruction !== "string" || instruction.trim().length === 0 || instruction.length > 16_384) {
         throw new HonuaNlMapMcpError("invalid-input", "proposeMapPlan requires a non-empty instruction");
       }
-      const plan = await control.propose(input.instruction, {
-        ...(context.signal ? { signal: context.signal } : {}),
-      });
+      const plan = parseMcpPlan(
+        await control.propose(instruction, {
+          ...(signal ? { signal } : {}),
+        }),
+      );
+      signal?.throwIfAborted();
       assertMcpSafePlan(plan);
       return Object.freeze({ plan, approvalRequired: !plan.readOnly });
     },
@@ -159,22 +188,42 @@ export function createNlMapControlMcpHost(options: CreateNlMapControlMcpHostOpti
       input: { readonly plan: unknown; readonly approval?: unknown },
       context: NlMapControlMcpRequestContext = {},
     ) {
-      const plan = parseMcpPlan(input?.plan);
+      const signal = requestSignal(context);
+      signal?.throwIfAborted();
+      const request = snapshotMcpObject(input, "executeMapPlan input");
+      const plan = parseMcpPlan(request.plan);
       assertMcpSafePlan(plan);
-      const approval = input?.approval === undefined ? undefined : (input.approval as NlMapPlanApproval);
+      const approval = request.approval === undefined ? undefined : (request.approval as unknown as NlMapPlanApproval);
 
       if (approval !== undefined) {
+        const authorizationTime = now();
+        await verifyAgentApproval(
+          approval.dryRun,
+          approval.policy,
+          approval.approval,
+          approvalVerifier,
+          approval.context,
+          {
+            now: authorizationTime,
+            ...(signal ? { signal } : {}),
+          },
+        );
+        signal?.throwIfAborted();
         assertApprovalPlanIdentity(plan, approval);
-        const transportScopes = [...(context.transportAuthorizationScopes ?? [])];
-        const grantedScopes = resolveAuthorizationScopes
+
+        const transportScopes = requestAuthorizationScopes(context);
+        const grantedInput = resolveAuthorizationScopes
           ? await resolveAuthorizationScopes(transportScopes)
           : transportScopes;
+        signal?.throwIfAborted();
+        const grantedScopes = snapshotAuthorizationScopes(grantedInput, "resolved authorization scopes");
         assertAuthorizationScopes(approval, grantedScopes);
-        const authorizationTime = now();
+
         for (let index = 0; index < plan.steps.length; index += 1) {
-          context.signal?.throwIfAborted();
+          signal?.throwIfAborted();
           const step = plan.steps[index];
           const approvedStep = approval.dryRun.plan.steps[index];
+          const sourceId = authorizationSourceId(step, approvedStep.source.id);
           await verifyAgentStepAuthorization(
             approval.dryRun,
             approval.policy,
@@ -185,7 +234,7 @@ export function createNlMapControlMcpHost(options: CreateNlMapControlMcpHostOpti
             {
               tool: step.tool,
               effect: agentEffectForNlEffect(step.effect),
-              sourceId: approvedStep.source.id,
+              sourceId,
               queryPlan: approvedStep.queryPlan,
               fields: approvedStep.fields,
               parameters: toJsonValue((step.call as { readonly args?: Record<string, unknown> }).args ?? {}),
@@ -193,16 +242,16 @@ export function createNlMapControlMcpHost(options: CreateNlMapControlMcpHostOpti
             approvalUseConsumer,
             {
               now: authorizationTime,
-              ...(context.signal ? { signal: context.signal } : {}),
+              ...(signal ? { signal } : {}),
             },
           );
         }
       }
 
-      context.signal?.throwIfAborted();
+      signal?.throwIfAborted();
       const execution = await control.execute(plan, {
         ...(approval ? { approval } : {}),
-        ...(context.signal ? { signal: context.signal } : {}),
+        ...(signal ? { signal } : {}),
       });
       return executionResponse(execution);
     },
@@ -285,11 +334,76 @@ export function registerNlMapControlMcpTools(server: McpServer, host: NlMapContr
   );
 }
 
-function parseMcpPlan(input: unknown): NlMapPlan {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    throw new HonuaNlMapMcpError("invalid-input", "executeMapPlan requires a proposed plan");
+function snapshotMcpObject(
+  input: unknown,
+  label: string,
+  code: HonuaNlMapMcpError["code"] = "invalid-input",
+): Readonly<Record<string, JsonValue>> {
+  try {
+    const snapshot = snapshotMcpJson(input, label);
+    if (snapshot === null || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+      throw new TypeError(`${label} must be an object`);
+    }
+    return snapshot as Readonly<Record<string, JsonValue>>;
+  } catch {
+    throw new HonuaNlMapMcpError(code, `${label} is not safe bounded JSON`);
   }
-  const plan = input as NlMapPlan;
+}
+
+function requestSignal(context: NlMapControlMcpRequestContext): AbortSignal | undefined {
+  const value = requestContextProperty(context, "signal");
+  if (value === undefined) return undefined;
+  try {
+    if (!(value instanceof AbortSignal)) throw new TypeError("signal must be an AbortSignal");
+  } catch {
+    throw new HonuaNlMapMcpError("invalid-input", "MCP request context contains an invalid signal");
+  }
+  return value;
+}
+
+function requestAuthorizationScopes(context: NlMapControlMcpRequestContext): readonly string[] {
+  const value = requestContextProperty(context, "transportAuthorizationScopes");
+  return snapshotAuthorizationScopes(value ?? [], "transport authorization scopes");
+}
+
+function requestContextProperty(
+  context: NlMapControlMcpRequestContext,
+  key: keyof NlMapControlMcpRequestContext,
+): unknown {
+  try {
+    if (!context || typeof context !== "object" || Array.isArray(context)) {
+      throw new TypeError("context must be an object");
+    }
+    const prototype = Object.getPrototypeOf(context);
+    if (prototype !== Object.prototype && prototype !== null) throw new TypeError("context must be plain");
+    const descriptor = Reflect.getOwnPropertyDescriptor(context, key);
+    if (!descriptor) return undefined;
+    if (!("value" in descriptor) || !descriptor.enumerable) throw new TypeError("context property must be data");
+    return descriptor.value;
+  } catch {
+    throw new HonuaNlMapMcpError("invalid-input", "MCP request context could not be read safely");
+  }
+}
+
+function snapshotAuthorizationScopes(input: unknown, label: string): readonly string[] {
+  let snapshot: JsonValue;
+  try {
+    snapshot = snapshotMcpJson(input, label);
+  } catch {
+    throw new HonuaNlMapMcpError("invalid-input", `${label} are not safe bounded JSON`);
+  }
+  if (
+    !Array.isArray(snapshot) ||
+    snapshot.length > 128 ||
+    snapshot.some((scope) => typeof scope !== "string" || scope.length === 0 || hasControlCharacters(scope))
+  ) {
+    throw new HonuaNlMapMcpError("invalid-input", `${label} must be a bounded list of non-empty strings`);
+  }
+  return Object.freeze([...new Set(snapshot as readonly string[])].sort());
+}
+
+function parseMcpPlan(input: unknown): NlMapPlan {
+  const plan = snapshotMcpObject(input, "NL map plan") as unknown as NlMapPlan;
   if (
     plan.kind !== NL_MAP_PLAN_KIND ||
     plan.version !== NL_MAP_CONTROL_VERSION ||
@@ -336,7 +450,22 @@ function assertApprovalPlanIdentity(plan: NlMapPlan, approval: NlMapPlanApproval
     ) {
       throw new HonuaNlMapMcpError("invalid-input", "approval step identity does not match the supplied plan");
     }
+    authorizationSourceId(step, approved.source.id);
   }
+}
+
+function authorizationSourceId(step: NlMapPlan["steps"][number], approvedSourceId: string): string {
+  const sourceId = (step.call as { readonly args?: Readonly<Record<string, unknown>> }).args?.sourceId;
+  if (sourceId !== undefined) {
+    if (typeof sourceId !== "string" || sourceId.length === 0 || sourceId !== approvedSourceId) {
+      throw new HonuaNlMapMcpError(
+        "invalid-input",
+        "approval source binding does not match the supplied map operation",
+      );
+    }
+    return sourceId;
+  }
+  return approvedSourceId;
 }
 
 function assertAuthorizationScopes(approval: NlMapPlanApproval, grantedInput: readonly string[]): void {
@@ -353,50 +482,69 @@ function assertAuthorizationScopes(approval: NlMapPlanApproval, grantedInput: re
 }
 
 function assertMcpSafePlan(plan: NlMapPlan): void {
+  assertMcpSafeJson(plan, "NL map plan");
+}
+
+function assertMcpSafeJson(value: unknown, label: string): void {
   let original: string;
   let redacted: string;
   try {
-    original = canonicalStringify(toJsonValue(plan));
-    redacted = canonicalStringify(toJsonValue(redactForMcp(plan)));
+    original = canonicalStringify(toJsonValue(value));
+    redacted = canonicalStringify(toJsonValue(redactForMcp(value)));
   } catch {
-    throw new HonuaNlMapMcpError("invalid-input", "NL map plan is not safe canonical JSON");
+    throw new HonuaNlMapMcpError("invalid-input", `${label} is not safe canonical JSON`);
   }
   if (original !== redacted) {
     throw new HonuaNlMapMcpError(
       "unsafe-output",
-      "NL map plan contains credential, cursor, or endpoint material that cannot cross the MCP boundary",
+      `${label} contains credential, cursor, or endpoint material that cannot cross the MCP boundary`,
     );
   }
 }
 
 function executionResponse(execution: NlMapPlanExecution): McpNlMapExecutionResponse {
   const sdkReceipt = execution.receipt;
-  const unsignedReceipt = {
-    kind: MCP_NL_MAP_RECEIPT_KIND,
-    version: NL_MAP_CONTROL_VERSION,
-    planId: execution.planId,
-    planFingerprint: execution.planFingerprint,
-    mode: execution.mode,
-    outcome: execution.outcome,
-    ...(sdkReceipt.approvalDigest ? { approvalDigest: sdkReceipt.approvalDigest } : {}),
-    startedAt: sdkReceipt.startedAt,
-    completedAt: sdkReceipt.completedAt,
-    steps: sdkReceipt.steps,
-    sdkReceiptDigest: sdkReceipt.receiptDigest,
-  };
+  const unsignedReceipt = snapshotMcpObject(
+    {
+      kind: MCP_NL_MAP_RECEIPT_KIND,
+      version: NL_MAP_CONTROL_VERSION,
+      planId: execution.planId,
+      planFingerprint: execution.planFingerprint,
+      mode: execution.mode,
+      outcome: execution.outcome,
+      ...(sdkReceipt.approvalDigest ? { approvalDigest: sdkReceipt.approvalDigest } : {}),
+      startedAt: sdkReceipt.startedAt,
+      completedAt: sdkReceipt.completedAt,
+      steps: sdkReceipt.steps,
+      sdkReceiptDigest: sdkReceipt.receiptDigest,
+    },
+    "MCP execution receipt",
+    "unsafe-output",
+  );
+  assertMcpSafeJson(unsignedReceipt, "MCP execution receipt");
   const receiptDigest = sha256(canonicalStringify(toJsonValue(unsignedReceipt)));
-  const receipt: McpNlMapReceipt = Object.freeze({
-    ...unsignedReceipt,
-    id: `mcpreceipt_${receiptDigest.slice("sha256:".length, "sha256:".length + 16)}`,
-    receiptDigest,
-  });
-  return Object.freeze({
-    planId: execution.planId,
-    planFingerprint: execution.planFingerprint,
-    mode: execution.mode,
-    outcome: execution.outcome,
-    receipt,
-  });
+  const receipt = snapshotMcpObject(
+    {
+      ...unsignedReceipt,
+      id: `mcpreceipt_${receiptDigest.slice("sha256:".length, "sha256:".length + 16)}`,
+      receiptDigest,
+    },
+    "MCP execution receipt",
+    "unsafe-output",
+  ) as unknown as McpNlMapReceipt;
+  const response = snapshotMcpObject(
+    {
+      planId: execution.planId,
+      planFingerprint: execution.planFingerprint,
+      mode: execution.mode,
+      outcome: execution.outcome,
+      receipt,
+    },
+    "MCP execution response",
+    "unsafe-output",
+  ) as unknown as McpNlMapExecutionResponse;
+  assertMcpSafeJson(response, "MCP execution response");
+  return response;
 }
 
 function successResult(value: unknown): CallToolResult {
@@ -415,8 +563,14 @@ function errorResult(error: unknown, signal: AbortSignal): CallToolResult {
 }
 
 function safeErrorCode(error: unknown): string {
-  if (error && typeof error === "object" && "code" in error && typeof error.code === "string") {
-    return /^[a-z][a-z0-9-]{0,63}$/.test(error.code) ? error.code : "execution-refused";
+  try {
+    if (error && typeof error === "object") {
+      const descriptor = Reflect.getOwnPropertyDescriptor(error, "code");
+      const code = descriptor && "value" in descriptor ? descriptor.value : undefined;
+      if (typeof code === "string" && PUBLIC_ERROR_CODES.has(code)) return code;
+    }
+  } catch {
+    return "execution-refused";
   }
   return "execution-refused";
 }
@@ -436,6 +590,7 @@ function safeErrorMessage(code: string): string {
       return "The map-plan approval was denied or has already been used.";
     case "signature-invalid":
     case "integrity-failed":
+    case "context-mismatch":
     case "approval-invalid":
       return "The map-plan approval could not be verified.";
     case "plan-invalid":
@@ -461,6 +616,14 @@ function redactForMcp(value: unknown, key?: string): unknown {
 
 function normalizeKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/gu, "");
+}
+
+function hasControlCharacters(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 31 || code === 127) return true;
+  }
+  return false;
 }
 
 function redactText(value: string): string {

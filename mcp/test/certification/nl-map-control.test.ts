@@ -6,7 +6,12 @@ import {
   type AgentEnvelopeVerifier,
 } from "@honua/sdk-js/agent-safety";
 import type { HonuaAgentRuntime } from "@honua/sdk-js/agent-tools";
-import { type NlMapPlan, approveNlMapPlan, nlMapRuntimeBinding } from "@honua/sdk-js/nl-map-control";
+import {
+  type NlCompletionToolCall,
+  type NlMapPlan,
+  approveNlMapPlan,
+  nlMapRuntimeBinding,
+} from "@honua/sdk-js/nl-map-control";
 import { canonicalStringify, sha256, toJsonValue } from "@honua/sdk-js/query-planner";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -35,6 +40,14 @@ interface Harness {
   setNow(value: string): void;
   setScopes(value: readonly string[]): void;
   close(): Promise<void>;
+}
+
+interface HarnessOptions {
+  readonly toolCall?: NlCompletionToolCall;
+  readonly approvalVerifier?: AgentEnvelopeVerifier;
+  readonly resolveAuthorizationScopes?: (
+    transportScopes: readonly string[],
+  ) => readonly string[] | Promise<readonly string[]>;
 }
 
 const openHarnesses: Harness[] = [];
@@ -77,6 +90,7 @@ describe("MCP certification — NL map control", () => {
       },
     });
     expect(result.value.receipt.receiptDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(harness.store.consumedCount).toBe(1);
     expect(harness.effects).toHaveLength(1);
   });
 
@@ -97,22 +111,22 @@ describe("MCP certification — NL map control", () => {
     });
     expect(harness.effects).toHaveLength(0);
 
-    harness.setScopes(["map:control"]);
     const tamperedApproval = structuredClone(valid);
     (tamperedApproval.approval as { signature: string }).signature = "sha256:tampered";
     const tampered = await call(harness.client, "executeMapPlan", {
       plan: proposed.plan,
       approval: tamperedApproval,
     });
-    expect(tampered.isError).toBe(true);
+    expect(tampered).toMatchObject({ isError: true, value: { error: { code: "signature-invalid" } } });
     expect(harness.effects).toHaveLength(0);
 
+    harness.setScopes(["map:control"]);
     harness.setNow("2026-07-15T20:06:00.000Z");
     const expired = await call(harness.client, "executeMapPlan", {
       plan: proposed.plan,
       approval: await approve(proposed.plan, { approvalId: "expired-approval" }),
     });
-    expect(expired.isError).toBe(true);
+    expect(expired).toMatchObject({ isError: true, value: { error: { code: "approval-expired" } } });
     expect(harness.effects).toHaveLength(0);
 
     harness.setNow(NOW);
@@ -122,6 +136,37 @@ describe("MCP certification — NL map control", () => {
     const replay = await call(harness.client, "executeMapPlan", { plan: proposed.plan, approval: valid });
     expect(replay).toMatchObject({ isError: true, value: { error: { code: "policy-denied" } } });
     expect(harness.effects).toHaveLength(1);
+  });
+
+  it("binds a source-scoped plan to the exact signed source before consuming approval", async () => {
+    const harness = await createHarness({
+      toolCall: { name: "selectFeature", arguments: { sourceId: "source-b", id: 42 } },
+    });
+    harness.setScopes(["source:a"]);
+    const proposed = await propose(harness);
+    const approval = await approveNlMapPlan({
+      plan: proposed.plan,
+      actor: "mcp-certifier",
+      approver: "fixture-reviewer",
+      signer: testCrypto().signer,
+      // The lookup key can be source-b, but its signed binding must not authorize source-b as source-a.
+      bindings: {
+        "source-b": nlMapRuntimeBinding({
+          id: "source-a",
+          observedAt: NOW,
+          authorizationScope: ["source:a"],
+        }),
+      },
+      issuedAt: NOW,
+      expiresAt: EXPIRES,
+      now: NOW,
+    });
+
+    const result = await call(harness.client, "executeMapPlan", { plan: proposed.plan, approval });
+
+    expect(result).toMatchObject({ isError: true, value: { error: { code: "invalid-input" } } });
+    expect(harness.store.consumedCount).toBe(0);
+    expect(harness.effects).toHaveLength(0);
   });
 
   it("rejects tampered plan content and plan ids before consuming approval or mutating", async () => {
@@ -134,7 +179,7 @@ describe("MCP certification — NL map control", () => {
       plan: contentTamper,
       approval,
     });
-    expect(contentResult.isError).toBe(true);
+    expect(contentResult).toMatchObject({ isError: true, value: { error: { code: "invalid-input" } } });
 
     const identityTamper = structuredClone(proposed.plan);
     (identityTamper as { id: string }).id = "nlplan_0000000000000000";
@@ -142,7 +187,7 @@ describe("MCP certification — NL map control", () => {
       plan: identityTamper,
       approval,
     });
-    expect(identityResult.isError).toBe(true);
+    expect(identityResult).toMatchObject({ isError: true, value: { error: { code: "invalid-input" } } });
     expect(harness.store.consumedCount).toBe(0);
     expect(harness.effects).toHaveLength(0);
   });
@@ -169,6 +214,112 @@ describe("MCP certification — NL map control", () => {
     expect(harness.effects).toHaveLength(0);
   });
 
+  it("cancels while trusted transport scopes are resolving before any approval use", async () => {
+    let started!: () => void;
+    let release!: () => void;
+    const resolving = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const harness = await createHarness({
+      resolveAuthorizationScopes: async (scopes) => {
+        started();
+        await blocked;
+        return scopes;
+      },
+    });
+    const proposed = await propose(harness);
+    const approval = await approve(proposed.plan, { approvalId: "resolver-cancelled-approval" });
+    const abort = new AbortController();
+    const pending = harness.client.callTool(
+      { name: "executeMapPlan", arguments: { plan: proposed.plan, approval } },
+      undefined,
+      { signal: abort.signal },
+    );
+
+    await resolving;
+    abort.abort();
+    release();
+    await pending.catch(() => undefined);
+    await Promise.resolve();
+
+    expect(harness.store.consumedCount).toBe(0);
+    expect(harness.effects).toHaveLength(0);
+  });
+
+  it("snapshots direct foreign plans without invoking getters and fails closed on reflection traps", async () => {
+    const harness = await createHarness();
+    const proposed = await propose(harness);
+    let accessorReads = 0;
+    const accessorPlan = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(accessorPlan, "kind", {
+      enumerable: true,
+      get() {
+        accessorReads += 1;
+        return proposed.plan.kind;
+      },
+    });
+
+    await expect(harness.host.execute({ plan: accessorPlan })).rejects.toMatchObject({ code: "invalid-input" });
+    expect(accessorReads).toBe(0);
+
+    let proxyReads = 0;
+    const proxiedPlan = new Proxy(proposed.plan, {
+      get() {
+        proxyReads += 1;
+        throw new Error("plan get trap must not execute");
+      },
+    });
+    await expect(harness.host.execute({ plan: proxiedPlan })).rejects.toMatchObject({ code: "approval-required" });
+    expect(proxyReads).toBe(0);
+
+    const secret = "reflection-trap-secret";
+    const trappedPlan = new Proxy(Object.create(null) as Record<string, unknown>, {
+      ownKeys() {
+        throw new Error(secret);
+      },
+    });
+    const trapped = await harness.host.execute({ plan: trappedPlan }).catch((error: unknown) => error);
+    expect(trapped).toMatchObject({ code: "invalid-input" });
+    expect(String(trapped)).not.toContain(secret);
+    expect(harness.store.consumedCount).toBe(0);
+    expect(harness.effects).toHaveLength(0);
+  });
+
+  it("does not invoke or reflect an accessor-based verifier error code", async () => {
+    let codeReads = 0;
+    const secret = "verifier-secret-code";
+    const verifierFailure = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(verifierFailure, "code", {
+      enumerable: true,
+      get() {
+        codeReads += 1;
+        return secret;
+      },
+    });
+    const harness = await createHarness({
+      approvalVerifier: {
+        ...testCrypto().verifier,
+        verify: async () => {
+          throw verifierFailure;
+        },
+      },
+    });
+    const proposed = await propose(harness);
+    const result = await call(harness.client, "executeMapPlan", {
+      plan: proposed.plan,
+      approval: await approve(proposed.plan, { approvalId: "verifier-error-approval" }),
+    });
+
+    expect(result).toMatchObject({ isError: true, value: { error: { code: "execution-refused" } } });
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(codeReads).toBe(0);
+    expect(harness.store.consumedCount).toBe(0);
+    expect(harness.effects).toHaveLength(0);
+  });
+
   it("emits byte-identical redacted receipts bound to the plan", async () => {
     const firstHarness = await createHarness();
     const firstPlan = await propose(firstHarness);
@@ -190,6 +341,9 @@ describe("MCP certification — NL map control", () => {
     expect(serialized).not.toContain("credentials");
     expect(serialized).not.toContain("cursor");
     expect(first.value.receipt.planFingerprint).toBe(firstPlan.plan.fingerprint);
+    const { id, receiptDigest, ...unsignedReceipt } = first.value.receipt;
+    expect(receiptDigest).toBe(sha256(canonicalStringify(toJsonValue(unsignedReceipt))));
+    expect(id).toBe(`mcpreceipt_${receiptDigest.slice("sha256:".length, "sha256:".length + 16)}`);
   });
 
   it("refuses a proposal rather than returning credential-bearing endpoint or query values", async () => {
@@ -207,19 +361,30 @@ describe("MCP certification — NL map control", () => {
   });
 });
 
-async function createHarness(): Promise<Harness> {
+async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   let currentTime = NOW;
   let scopes: readonly string[] = ["map:control"];
   const effects: unknown[] = [];
   const runtime: HonuaAgentRuntime = {
     id: "mcp-nl-fixture",
-    listSources: () => [],
+    listSources: () => [
+      {
+        id: "source-b",
+        title: "Source B",
+        protocol: "geoservices-feature-service",
+        capabilities: ["query"],
+      },
+    ],
     listLayers: () => [],
     getSelection: () => [],
     getViewport: () => ({ center: [-157.8583, 21.3069], zoom: 9 }),
     setViewport: (viewport) => {
       effects.push({ op: "setViewport", viewport });
       return viewport;
+    },
+    selectFeature: (target) => {
+      effects.push({ op: "selectFeature", target });
+      return [target];
     },
   };
   const crypto = testCrypto();
@@ -228,17 +393,27 @@ async function createHarness(): Promise<Harness> {
     control: {
       tools: { runtime, context: { includeSafeExamples: false } },
       llm: async () => ({
-        toolCalls: [{ name: "setViewport", arguments: { center: [-157.8583, 21.3069], zoom: 12 } }],
+        toolCalls: [options.toolCall ?? { name: "setViewport", arguments: { center: [-157.8583, 21.3069], zoom: 12 } }],
       }),
       policy: { actor: "mcp-certifier", now: () => currentTime },
-      approvalVerifier: crypto.verifier,
+      approvalVerifier: options.approvalVerifier ?? crypto.verifier,
       receiptSigner: testCrypto("receipt-secret").signer,
     },
     approvalUseConsumer: store,
-    resolveAuthorizationScopes: () => scopes,
+    ...(options.resolveAuthorizationScopes ? { resolveAuthorizationScopes: options.resolveAuthorizationScopes } : {}),
   });
   const server = createServer(asClient(createMockClient()), { nlMapControl: host });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const transportSend = clientTransport.send.bind(clientTransport);
+  clientTransport.send = (message, sendOptions) =>
+    transportSend(message, {
+      ...sendOptions,
+      authInfo: {
+        token: "fixture-access-token",
+        clientId: "nl-map-control-certifier",
+        scopes: [...scopes],
+      },
+    });
   const client = new Client({ name: "nl-map-control-certifier", version: "1.0.0" });
   await server.connect(serverTransport);
   await client.connect(clientTransport);
