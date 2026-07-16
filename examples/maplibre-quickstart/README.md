@@ -7,8 +7,13 @@ connect → discover → explain → query → mount
 ```
 
 It composes the accepted north-star journey from the SDK's public, protocol-neutral `Dataset → Source → Query → Result`
-contract, the experimental deterministic query planner, and a small MapLibre mounting function. The future application
-kernel facade remains design-stage; this sample does not pretend that facade has shipped.
+contract, the managed `createHonua()` lifecycle, the deterministic query planner, and a small MapLibre mounting function.
+
+The copyable S1 workflow core lives in [`src/workflow.ts`](./src/workflow.ts). It accepts the validated public endpoint
+configuration from [`src/first-map-config.ts`](./src/first-map-config.ts), connects and inspects through `createHonua()`,
+requires an explicit source when discovery is ambiguous, and returns a typed bounded strategy handoff. It does not
+construct presentation DOM or a map; the interaction shell consumes that handoff in the next delivery slice. Fixture,
+authentication-required, unsupported-capability, and malformed-endpoint outcomes stay distinct.
 
 The result is more than a map. The page makes endpoint provenance, snapshot/live freshness, authorization mode,
 capabilities, SDK/server/data versions, query fingerprint, pushdown, fidelity, cache behavior, and degradation visible.
@@ -64,16 +69,15 @@ enter the browser bundle or runtime evidence.
 
 ## Runtime contract
 
-The workflow uses only stable subpath imports plus the explicitly experimental planner subpath:
+The S1 core imports `createHonua()` and its public contract types from `@honua/sdk-js`, then calls
+`explainDataToMapStrategy()` from `@honua/sdk-js/map`. It has no internal import, Honua account, application shell, or
+server dependency. GeoServices uses structural `auto` recognition; OGC API Features is selected explicitly because the
+kernel never guesses by probing an unrelated protocol.
 
-- `@honua/sdk-js/honua` for `HonuaClient` and GeoServices geometry conversion.
-- `@honua/sdk-js/contract` for `createDataset`, `SourceDescriptor`, `Query`, and `Result`.
-- `@honua/sdk-js/query-planner` for `explainQuery()` and `executeQueryPlan()`.
-- `@honua/sdk-js/exploration` and `@honua/sdk-js/interactions` for linked views.
-
-It does not use the deprecated package-root convenience surface.
-
-For a GeoServices layer, the initial workflow performs:
+S1 performs discovery and inspection only. For a GeoServices layer that is one metadata request; for OGC API Features
+it is the advertised landing, conformance, and collections sequence. No feature request occurs before the returned
+bounded mount handoff is consumed. The existing presentation adapter still performs its legacy compatibility, metadata,
+and query sequence until the S2 shell moves onto this core:
 
 - `GET /api/v1/admin/capabilities`
 - `GET /rest/services/{serviceId}/FeatureServer/{layerId}?f=json`
@@ -100,7 +104,7 @@ Required fixture validation is independent of a live environment:
 
 ```bash
 npm run demo:quickstart:typecheck
-npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts test/quickstart-linked-exploration.test.ts
+npm test -- test/first-map-workflow.test.ts test/quickstart-config.test.ts test/quickstart-data.test.ts
 npm run demo:quickstart:build
 npm run test:playwright:quickstart
 ```
