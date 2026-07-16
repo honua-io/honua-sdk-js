@@ -33,7 +33,8 @@ npm run samples:run -- verify --sample migration-workbench --sdk-mode packed
 
 The catalog exposes this as the planned `arcgis-migration` golden candidate.
 It remains a lab—not a qualified golden card—until current screenshot,
-performance, semantic, and required live receipts satisfy the golden profile.
+performance, semantic, and required live receipts satisfy the golden profile;
+gallery qualification is tracked by #550.
 
 ## How it differs from the other targets
 
