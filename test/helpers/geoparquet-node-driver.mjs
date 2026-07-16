@@ -35,6 +35,7 @@ export async function createNodeDuckDbDriver() {
   const conn = db.connect();
   conn.query("INSTALL spatial; LOAD spatial;");
   return {
+    geometryCapabilities: { spatialExtension: true },
     async run(sql) {
       conn.query(sql);
     },

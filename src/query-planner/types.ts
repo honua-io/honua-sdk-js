@@ -2,6 +2,9 @@ import type {
   AggregationSpec,
   Capability,
   CapabilityPolicy,
+  GeoParquetGeometryEncoding,
+  GeoParquetGeometryExecution,
+  GeoParquetGeometryUnsupportedReason,
   Protocol,
   Query,
   Result,
@@ -65,8 +68,18 @@ export interface QueryIrSourceIdentity {
   readonly capabilities: readonly Capability[];
 }
 
-/** Physical geometry encoding of a GeoParquet column, per the DuckDB SQL compiler. */
-export type DuckDbGeometryEncoding = "wkb" | "native" | "geojson";
+/** Executable geometry representation accepted by the DuckDB SQL compiler. */
+export type DuckDbGeometryEncoding = GeoParquetGeometryExecution;
+
+export interface QueryIrGeoparquetGeometryIdentity {
+  readonly column: string;
+  readonly primary: boolean;
+  readonly geometryEncoding: GeoParquetGeometryEncoding;
+  readonly geometryExecution?: DuckDbGeometryEncoding;
+  readonly spatialRuntimeAvailable: boolean;
+  readonly unsupportedReason?: GeoParquetGeometryUnsupportedReason;
+  readonly bboxColumn?: string;
+}
 
 /**
  * Deterministic GeoParquet addressing carried on the IR so the DuckDB SQL
@@ -79,8 +92,13 @@ export interface QueryIrGeoparquetIdentity {
   readonly sources: readonly string[];
   /** Geometry column name, when the source is spatial. */
   readonly geometryColumn?: string;
-  /** Physical encoding of the geometry column (defaults to `wkb`). */
-  readonly geometryEncoding?: DuckDbGeometryEncoding;
+  /** Exact descriptive identity of the primary geometry column. */
+  readonly geometryEncoding?: GeoParquetGeometryEncoding;
+  /** Reviewed installed-runtime representation. Never inferred by the planner. */
+  readonly geometryExecution?: DuckDbGeometryEncoding;
+  readonly geometrySpatialRuntimeAvailable?: boolean;
+  readonly geometryUnsupportedReason?: GeoParquetGeometryUnsupportedReason;
+  readonly geometries?: readonly QueryIrGeoparquetGeometryIdentity[];
   /** Optional GeoParquet 1.1 bbox-covering struct column for row-group pruning. */
   readonly bboxColumn?: string;
 }
@@ -189,7 +207,8 @@ export interface DuckDbCompiledQueryV1 {
   /** Parquet file URL(s) / glob(s) the SQL reads. */
   readonly sources: readonly string[];
   readonly geometryColumn?: string;
-  readonly geometryEncoding?: DuckDbGeometryEncoding;
+  readonly geometryEncoding?: GeoParquetGeometryEncoding;
+  readonly geometryExecution?: DuckDbGeometryEncoding;
   /** True when a non-envelope spatial filter was reduced to its bounding box. */
   readonly bboxApproximated?: boolean;
 }

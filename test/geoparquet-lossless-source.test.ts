@@ -61,6 +61,7 @@ function harness(options: HarnessOptions): {
 } {
   const scans: string[] = [];
   const driver: DuckDbDriver = {
+    geometryCapabilities: { spatialExtension: true },
     async run() {},
     async query(sql) {
       if (sql.startsWith("DESCRIBE")) return [...(options.describe ?? LOSSLESS_DESCRIBE)];
@@ -271,6 +272,7 @@ describe("GeoParquet lossless-json source wiring", () => {
     });
     const scans: string[] = [];
     const driver: DuckDbDriver = {
+      geometryCapabilities: { spatialExtension: true },
       async run() {},
       async query(sql) {
         if (sql.startsWith("DESCRIBE")) return [...(await describeRows)];

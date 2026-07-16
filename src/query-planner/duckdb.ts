@@ -13,6 +13,7 @@
  */
 
 import type { AggregationSpec } from "../contract/types.js";
+import type { GeoParquetGeometryEncoding, GeoParquetGeometryExecution } from "../contract/types.js";
 import {
   type CompileOptions,
   type GeometryColumnPlan,
@@ -55,10 +56,79 @@ export function compileDuckDbQuery(source: QueryIrSourceIdentity, query: Canonic
     );
   }
 
+  const unsupportedGeometry = geoparquet.geometries?.find(
+    (geometry) => geometry.unsupportedReason !== undefined || geometry.geometryExecution === undefined,
+  );
+  const declaredPrimaries = geoparquet.geometries?.filter((geometry) => geometry.primary) ?? [];
+  if (
+    geoparquet.geometries &&
+    (declaredPrimaries.length !== 1 ||
+      declaredPrimaries[0]?.column !== geoparquet.geometryColumn ||
+      declaredPrimaries[0]?.geometryEncoding !== geoparquet.geometryEncoding ||
+      declaredPrimaries[0]?.geometryExecution !== geoparquet.geometryExecution ||
+      declaredPrimaries[0]?.spatialRuntimeAvailable !== geoparquet.geometrySpatialRuntimeAvailable ||
+      declaredPrimaries[0]?.bboxColumn !== geoparquet.bboxColumn)
+  ) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "GeoParquet metadata does not identify one deterministic primary geometry.",
+      { context: { reason: "metadata-invalid" } },
+    );
+  }
+  if (unsupportedGeometry || geoparquet.geometryUnsupportedReason !== undefined) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "GeoParquet geometry is descriptive-only and cannot be planned by the configured runtime.",
+      {
+        context: {
+          reason:
+            unsupportedGeometry?.unsupportedReason ?? geoparquet.geometryUnsupportedReason ?? "layout-unsupported",
+        },
+      },
+    );
+  }
+  const incompatibleGeometry = geoparquet.geometries?.find(
+    (geometry) =>
+      geometry.geometryExecution !== undefined &&
+      !compatibleGeometryExecution(geometry.geometryEncoding, geometry.geometryExecution),
+  );
+  if (incompatibleGeometry) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "GeoParquet geometry identity does not match the reviewed execution path.",
+      { context: { reason: "encoding-unsupported" } },
+    );
+  }
+  if (geoparquet.geometryColumn) {
+    if (!geoparquet.geometryEncoding || !geoparquet.geometryExecution) {
+      throw new HonuaQueryPlanningError(
+        "unsupported-query",
+        "GeoParquet planning requires explicit descriptive and executable geometry identities.",
+        { context: { reason: "layout-unsupported" } },
+      );
+    }
+    if (!compatibleGeometryExecution(geoparquet.geometryEncoding, geoparquet.geometryExecution)) {
+      throw new HonuaQueryPlanningError(
+        "unsupported-query",
+        "GeoParquet geometry identity does not match the reviewed execution path.",
+        { context: { reason: "encoding-unsupported" } },
+      );
+    }
+    const projectsGeometry = query.aggregation === undefined && query.returnGeometry !== false;
+    const needsDecodedSpatialPredicate = query.spatialFilter !== undefined && geoparquet.bboxColumn === undefined;
+    if (geoparquet.geometrySpatialRuntimeAvailable !== true && (projectsGeometry || needsDecodedSpatialPredicate)) {
+      throw new HonuaQueryPlanningError(
+        "unsupported-query",
+        "GeoParquet query requires spatial SQL functions that are unavailable in the reviewed runtime.",
+        { context: { reason: "spatial-runtime-unavailable" } },
+      );
+    }
+  }
+
   const geometry: GeometryColumnPlan | undefined = geoparquet.geometryColumn
     ? {
         column: geoparquet.geometryColumn,
-        encoding: geoparquet.geometryEncoding ?? "wkb",
+        encoding: geoparquet.geometryExecution!,
         ...(geoparquet.bboxColumn ? { bboxColumn: geoparquet.bboxColumn } : {}),
       }
     : undefined;
@@ -78,7 +148,13 @@ export function compileDuckDbQuery(source: QueryIrSourceIdentity, query: Canonic
       compiler: "duckdb-sql-v1",
       sql: compiled.sql,
       sources: geoparquet.sources,
-      ...(geometry ? { geometryColumn: geometry.column, geometryEncoding: geometry.encoding } : {}),
+      ...(geometry
+        ? {
+            geometryColumn: geometry.column,
+            geometryEncoding: geoparquet.geometryEncoding!,
+            geometryExecution: geometry.encoding,
+          }
+        : {}),
       ...(compiled.bboxApproximated ? { bboxApproximated: true } : {}),
     };
   } catch (error) {
@@ -87,4 +163,15 @@ export function compileDuckDbQuery(source: QueryIrSourceIdentity, query: Canonic
       `DuckDB query cannot be compiled deterministically: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+function compatibleGeometryExecution(
+  identity: GeoParquetGeometryEncoding,
+  execution: GeoParquetGeometryExecution,
+): boolean {
+  if (identity.startsWith("geoparquet-1.1-native-")) return false;
+  if (identity === "duckdb-native") return execution === "duckdb-native";
+  if (identity === "geojson-compat") return execution === "geojson-compat";
+  if (identity === "wkb-compat") return execution === "wkb";
+  return execution === "wkb" || execution === "duckdb-native";
 }

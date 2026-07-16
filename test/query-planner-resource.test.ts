@@ -514,7 +514,12 @@ function geoparquetDescriptor(): SourceDescriptor {
     protocol: "geoparquet",
     locator: {
       url: "https://data.example.test/parcels.parquet",
-      geoparquet: { geometryColumn: "geometry", geometryEncoding: "wkb" },
+      geoparquet: {
+        geometryColumn: "geometry",
+        geometryEncoding: "geoparquet-1.1-wkb",
+        geometryExecution: "wkb",
+        geometrySpatialRuntimeAvailable: true,
+      },
     },
     capabilities: capabilities(["query", "queryAggregate", "stream"]),
     schema: { primaryKey: "id" },

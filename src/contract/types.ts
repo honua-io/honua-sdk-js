@@ -271,6 +271,57 @@ export type DatasetId = string;
 export type FeatureId = number | string;
 
 /**
+ * Exact, descriptive identity of a geometry column seen by the GeoParquet
+ * adapter. This identity is deliberately separate from the SQL execution
+ * encoding: DuckDB can rehydrate versioned WKB as a native `GEOMETRY`, while
+ * GeoParquet 1.1 native coordinate arrays still require a dedicated decoder.
+ */
+export type GeoParquetGeometryEncoding =
+  | "geoparquet-1.0-wkb"
+  | "geoparquet-1.1-wkb"
+  | "geoparquet-1.1-native-point"
+  | "geoparquet-1.1-native-linestring"
+  | "geoparquet-1.1-native-polygon"
+  | "geoparquet-1.1-native-multipoint"
+  | "geoparquet-1.1-native-multilinestring"
+  | "geoparquet-1.1-native-multipolygon"
+  | "duckdb-native"
+  | "geojson-compat"
+  | "wkb-compat";
+
+/** Geometry representation the current DuckDB SQL path can execute. */
+export type GeoParquetGeometryExecution = "wkb" | "duckdb-native" | "geojson-compat";
+
+/** Stable, redacted reason an identified geometry is not executable. */
+export type GeoParquetGeometryUnsupportedReason =
+  | "metadata-invalid"
+  | "version-unsupported"
+  | "encoding-unsupported"
+  | "dimensions-unsupported"
+  | "layout-unsupported"
+  | "native-decoder-unavailable"
+  | "spatial-runtime-unavailable"
+  | "runtime-peer-unavailable";
+
+/** Per-column GeoParquet metadata retained on a discovered locator. */
+export interface GeoParquetLocatorGeometry {
+  readonly column: string;
+  readonly primary: boolean;
+  readonly encoding: GeoParquetGeometryEncoding;
+  readonly execution?: GeoParquetGeometryExecution;
+  /** Whether spatial SQL functions were present in the profiling runtime. */
+  readonly spatialRuntimeAvailable: boolean;
+  readonly unsupportedReason?: GeoParquetGeometryUnsupportedReason;
+  readonly specVersion?: "1.0.0" | "1.1.0";
+  readonly bboxColumn?: string;
+  readonly geometryTypes?: readonly string[];
+  readonly crsState?: "absent" | "null" | "value" | "missing-metadata" | "invalid-metadata";
+  readonly crsValue?: unknown;
+  readonly coordinateEpoch?: number;
+  readonly coordinateOrder?: "xy";
+}
+
+/**
  * Protocol-specific endpoint information. Field-compatible with the server
  * `SourceBinding.locator` shape documented in
  * `docs/source-binding-alignment.md` (a Honua SDK `SourceDescriptor` may be
@@ -352,13 +403,19 @@ export interface SourceLocator {
     urls?: readonly string[];
     /** Explicit geometry column name (overrides metadata detection). */
     geometryColumn?: string;
+    /** Exact descriptive identity of the primary geometry column. */
+    geometryEncoding?: GeoParquetGeometryEncoding;
+    /** Reviewed DuckDB execution path for the primary geometry column. */
+    geometryExecution?: GeoParquetGeometryExecution;
+    /** Whether the reviewed runtime can decode/project geometry with spatial SQL. */
+    geometrySpatialRuntimeAvailable?: boolean;
+    /** Stable reason the primary geometry is descriptive-only. */
+    geometryUnsupportedReason?: GeoParquetGeometryUnsupportedReason;
     /**
-     * Physical geometry encoding (`wkb` GeoParquet BLOB, `native` Parquet
-     * GEOMETRY/GEOGRAPHY, or `geojson` string). Read by the deterministic query
-     * planner (`@honua/sdk-js/query-planner`) to compile DuckDB SQL without a
-     * profiling round-trip. Defaults to `wkb`.
+     * All geometry columns in physical file order. Discovery retains this even
+     * though the v1 query result shape projects only the primary geometry.
      */
-    geometryEncoding?: "wkb" | "native" | "geojson";
+    geometries?: readonly GeoParquetLocatorGeometry[];
     /**
      * Optional GeoParquet 1.1 bbox-covering struct column (e.g. `bbox`) used by
      * the query planner to push an envelope filter down to row-group pruning.

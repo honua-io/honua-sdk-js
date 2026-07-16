@@ -8,7 +8,14 @@ const GEOPARQUET_ENDPOINT = "https://fixtures.test/places-geoparquet.parquet";
 
 const GEO_PROFILE: GeoParquetSourceProfile = {
   columns: ["id", "name", "category", "population"],
-  geometry: { column: "geometry", encoding: "wkb", bboxColumn: "bbox" },
+  geometry: {
+    column: "geometry",
+    primary: true,
+    encoding: "geoparquet-1.1-wkb",
+    execution: "wkb",
+    spatialRuntimeAvailable: true,
+    bboxColumn: "bbox",
+  },
   crs: "OGC:CRS84",
   rowEstimate: 8,
 };
@@ -81,7 +88,12 @@ describe("connect() — GeoParquet / static-file discovery", () => {
     // locator so the runtime resolves without a second profiling round-trip.
     expect(descriptor.locator).toMatchObject({
       url: GEOPARQUET_ENDPOINT,
-      geoparquet: { geometryColumn: "geometry", geometryEncoding: "wkb", bboxColumn: "bbox" },
+      geoparquet: {
+        geometryColumn: "geometry",
+        geometryEncoding: "geoparquet-1.1-wkb",
+        geometryExecution: "wkb",
+        bboxColumn: "bbox",
+      },
     });
     expect(connection.inspection.sources[0]?.metadata?.crs).toEqual(["OGC:CRS84"]);
   });
@@ -206,7 +218,16 @@ describe("connect() — GeoParquet / static-file discovery", () => {
 
     // Same primary URL but an explicit geometry-column override ⇒ different
     // discovered profile/locator, so it must NOT reuse the base snapshot.
-    const overridden = fakeProfiler({ columns: ["id"], geometry: { column: "geom", encoding: "native" } });
+    const overridden = fakeProfiler({
+      columns: ["id"],
+      geometry: {
+        column: "geom",
+        primary: true,
+        encoding: "duckdb-native",
+        execution: "duckdb-native",
+        spatialRuntimeAvailable: true,
+      },
+    });
     const overriddenConn = await connect({
       endpoint: GEOPARQUET_ENDPOINT,
       protocol: "geoparquet",

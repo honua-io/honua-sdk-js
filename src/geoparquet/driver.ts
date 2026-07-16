@@ -8,6 +8,8 @@
  * @module
  */
 
+import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
+
 /** One result row as a plain object keyed by output column name. */
 export type DuckRow = Record<string, unknown>;
 
@@ -16,12 +18,20 @@ export interface DuckDbQueryOptions {
   readonly signal?: AbortSignal;
 }
 
+/** Installed geometry facilities exposed by a DuckDB driver. */
+export interface DuckDbGeometryCapabilities {
+  /** Whether the spatial extension and its geometry SQL functions are loaded. */
+  readonly spatialExtension: boolean;
+}
+
 /**
  * Minimal DuckDB surface the GeoParquet `Source` needs. A driver owns exactly
  * one DuckDB instance + connection; `close()` disposes both (and, in the
  * browser, terminates the shared Web Worker).
  */
 export interface DuckDbDriver {
+  /** Effective installed runtime truth used during footer profiling. */
+  readonly geometryCapabilities: DuckDbGeometryCapabilities;
   /** Run a statement for its side effect (e.g. `LOAD spatial`). */
   run(sql: string): Promise<void>;
   /** Run a query and materialize every row as a plain object. Prefer `streamQuery` for progressive work. */
@@ -57,6 +67,8 @@ export interface BrowserDriverOptions {
   readonly logLevel?: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "NONE";
   /** Load DuckDB's spatial extension. Disable when bbox covering columns are sufficient. Defaults to true. */
   readonly loadSpatial?: boolean;
+  /** Alternate optional-peer loader for controlled runtimes and tests. */
+  readonly moduleLoader?: () => Promise<typeof import("@duckdb/duckdb-wasm")>;
   /** Optional self-hosted DuckDB extension repository base URL. */
   readonly extensionRepository?: string;
   /** Extensions to install and load before use (for example `parquet`). */
@@ -75,7 +87,9 @@ export interface BrowserDriverOptions {
  * extension by default (needed for `ST_Intersects` / `ST_AsGeoJSON`); bbox-only
  * deployments may disable it.
  *
- * @throws if `@duckdb/duckdb-wasm` is not installed.
+ * @throws {HonuaCapabilityNotSupportedError} with
+ * `context.reason === "runtime-peer-unavailable"` when the optional peer cannot
+ * be loaded.
  */
 export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = {}): Promise<DuckDbDriver> {
   const initializationSignal = options.signal;
@@ -83,13 +97,11 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
   if (initializationSignal?.aborted) throw initializationAbortError();
   let duckdb: typeof import("@duckdb/duckdb-wasm");
   try {
-    duckdb = await import("@duckdb/duckdb-wasm");
-  } catch (cause) {
-    throw new Error(
-      "geoparquet: @duckdb/duckdb-wasm is an optional peer dependency and is not installed. " +
-        "Install it with `npm i @duckdb/duckdb-wasm` to use the geoparquet Source.",
-      { cause: cause instanceof Error ? cause : undefined },
-    );
+    duckdb = await (options.moduleLoader ? options.moduleLoader() : import("@duckdb/duckdb-wasm"));
+  } catch {
+    throw new HonuaCapabilityNotSupportedError("geoparquet-runtime", "geoparquet", undefined, {
+      context: { reason: "runtime-peer-unavailable" },
+    });
   }
   if (initializationSignal?.aborted) throw initializationAbortError();
 
@@ -193,6 +205,9 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
   }
 
   return {
+    geometryCapabilities: {
+      spatialExtension: options.loadSpatial !== false || options.preloadExtensions?.includes("spatial") === true,
+    },
     async run(sql) {
       await conn.query(sql);
     },

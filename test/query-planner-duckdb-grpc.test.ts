@@ -16,7 +16,12 @@ function geoparquetDescriptor(): SourceDescriptor {
     protocol: "geoparquet",
     locator: {
       url: "https://data.example.test/parcels.parquet",
-      geoparquet: { geometryColumn: "geometry", geometryEncoding: "wkb" },
+      geoparquet: {
+        geometryColumn: "geometry",
+        geometryEncoding: "geoparquet-1.1-wkb",
+        geometryExecution: "wkb",
+        geometrySpatialRuntimeAvailable: true,
+      },
     },
     capabilities: capabilities(["query", "queryAggregate", "stream"]),
     schema: { primaryKey: "id" },
@@ -137,6 +142,117 @@ describe("DuckDB SQL compiler", () => {
       expect.objectContaining({ code: "unsupported-query" }),
     );
   });
+
+  it.each(["version-unsupported", "encoding-unsupported", "dimensions-unsupported"] as const)(
+    "rejects %s geometry metadata before producing a DuckDB request",
+    (reason) => {
+      const blocked: SourceDescriptor = {
+        ...geoparquetDescriptor(),
+        locator: {
+          url: "https://data.example.test/blocked.parquet",
+          geoparquet: {
+            geometryColumn: "geometry",
+            geometryEncoding: "geoparquet-1.1-wkb",
+            geometryUnsupportedReason: reason,
+          },
+        },
+      };
+      expect(() => explainQuery({ descriptor: blocked, query: { spatialFilter: envelope } })).toThrowError(
+        expect.objectContaining({
+          name: "HonuaQueryPlanningError",
+          code: "unsupported-query",
+          context: { reason },
+        }),
+      );
+    },
+  );
+
+  it("requires an explicit executable identity instead of defaulting geometry to WKB", () => {
+    const missingExecution: SourceDescriptor = {
+      ...geoparquetDescriptor(),
+      locator: {
+        url: "https://data.example.test/missing-execution.parquet",
+        geoparquet: { geometryColumn: "geometry", geometryEncoding: "geoparquet-1.1-wkb" },
+      },
+    };
+    expect(() => explainQuery({ descriptor: missingExecution, query: {} })).toThrowError(
+      expect.objectContaining({ context: { reason: "layout-unsupported" } }),
+    );
+  });
+
+  it("preserves DuckDB-native SQL when versioned WKB was rehydrated by the runtime", () => {
+    const rehydrated: SourceDescriptor = {
+      ...geoparquetDescriptor(),
+      locator: {
+        url: "https://data.example.test/rehydrated.parquet",
+        geoparquet: {
+          geometryColumn: "geometry",
+          geometryEncoding: "geoparquet-1.1-wkb",
+          geometryExecution: "duckdb-native",
+          geometrySpatialRuntimeAvailable: true,
+        },
+      },
+    };
+    const plan = explainQuery({ descriptor: rehydrated, query: { spatialFilter: envelope } });
+    const step = plan.steps[0];
+    if (!step || step.engine !== "remote" || step.compiled.compiler !== "duckdb-sql-v1") {
+      throw new Error("expected DuckDB remote step");
+    }
+    expect(step.compiled).toMatchObject({
+      geometryEncoding: "geoparquet-1.1-wkb",
+      geometryExecution: "duckdb-native",
+    });
+    expect(step.compiled.sql).toContain('ST_Intersects("geometry", ST_MakeEnvelope(-158, 20, -157, 21))');
+    expect(step.compiled.sql).toContain('ST_AsGeoJSON("geometry") AS "geometry"');
+    expect(step.compiled.sql).not.toContain("ST_GeomFromWKB");
+  });
+
+  it("does not accept a GeoParquet 1.1 native identity as DuckDB-native execution", () => {
+    const native: SourceDescriptor = {
+      ...geoparquetDescriptor(),
+      locator: {
+        url: "https://data.example.test/native.parquet",
+        geoparquet: {
+          geometryColumn: "geometry",
+          geometryEncoding: "geoparquet-1.1-native-point",
+          geometryExecution: "duckdb-native",
+          geometrySpatialRuntimeAvailable: true,
+        },
+      },
+    };
+    expect(() => explainQuery({ descriptor: native, query: {} })).toThrowError(
+      expect.objectContaining({ context: { reason: "encoding-unsupported" } }),
+    );
+  });
+
+  it("plans bbox-only attributes without spatial functions and blocks geometry projection", () => {
+    const bboxOnly: SourceDescriptor = {
+      ...geoparquetDescriptor(),
+      locator: {
+        url: "https://data.example.test/bbox-only.parquet",
+        geoparquet: {
+          geometryColumn: "geometry",
+          geometryEncoding: "geoparquet-1.1-wkb",
+          geometryExecution: "wkb",
+          geometrySpatialRuntimeAvailable: false,
+          bboxColumn: "bbox",
+        },
+      },
+    };
+    const plan = explainQuery({
+      descriptor: bboxOnly,
+      query: { spatialFilter: envelope, returnGeometry: false },
+    });
+    const step = plan.steps[0];
+    if (!step || step.engine !== "remote" || step.compiled.compiler !== "duckdb-sql-v1") {
+      throw new Error("expected DuckDB remote step");
+    }
+    expect(step.compiled.sql).toContain('"bbox".xmin <= -157');
+    expect(step.compiled.sql).not.toContain("ST_");
+    expect(() => explainQuery({ descriptor: bboxOnly, query: { spatialFilter: envelope } })).toThrowError(
+      expect.objectContaining({ context: { reason: "spatial-runtime-unavailable" } }),
+    );
+  });
 });
 
 describe("gRPC FeatureService compiler", () => {
@@ -228,7 +344,8 @@ describe("plan determinism across the new compilers", () => {
     expect(a.ir.source.geoparquet).toMatchObject({
       sources: ["https://data.example.test/parcels.parquet"],
       geometryColumn: "geometry",
-      geometryEncoding: "wkb",
+      geometryEncoding: "geoparquet-1.1-wkb",
+      geometryExecution: "wkb",
     });
   });
 

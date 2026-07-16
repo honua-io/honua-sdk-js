@@ -138,6 +138,26 @@ function geoparquetIdentity(
     sources,
     ...(geometryColumn ? { geometryColumn } : {}),
     ...(geoparquet?.geometryEncoding ? { geometryEncoding: geoparquet.geometryEncoding } : {}),
+    ...(geoparquet?.geometryExecution ? { geometryExecution: geoparquet.geometryExecution } : {}),
+    ...(geoparquet?.geometrySpatialRuntimeAvailable !== undefined
+      ? { geometrySpatialRuntimeAvailable: geoparquet.geometrySpatialRuntimeAvailable }
+      : {}),
+    ...(geoparquet?.geometryUnsupportedReason
+      ? { geometryUnsupportedReason: geoparquet.geometryUnsupportedReason }
+      : {}),
+    ...(geoparquet?.geometries
+      ? {
+          geometries: geoparquet.geometries.map((geometry) => ({
+            column: geometry.column,
+            primary: geometry.primary,
+            geometryEncoding: geometry.encoding,
+            ...(geometry.execution ? { geometryExecution: geometry.execution } : {}),
+            spatialRuntimeAvailable: geometry.spatialRuntimeAvailable,
+            ...(geometry.unsupportedReason ? { unsupportedReason: geometry.unsupportedReason } : {}),
+            ...(geometry.bboxColumn ? { bboxColumn: geometry.bboxColumn } : {}),
+          })),
+        }
+      : {}),
     ...(geoparquet?.bboxColumn ? { bboxColumn: geoparquet.bboxColumn } : {}),
   };
 }

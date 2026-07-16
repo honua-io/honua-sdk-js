@@ -812,7 +812,14 @@ function geoParquetProfileFields(
     if (!fields.some((field) => field.name === geometry.column)) {
       fields.push({
         name: geometry.column,
-        type: geometry.encoding === "native" ? "GEOMETRY" : geometry.encoding === "geojson" ? "VARCHAR" : "BLOB",
+        type:
+          geometry.execution === "duckdb-native"
+            ? "GEOMETRY"
+            : geometry.encoding === "geojson-compat"
+              ? "VARCHAR"
+              : geometry.encoding.startsWith("geoparquet-1.1-native-")
+                ? "GEOPARQUET_NATIVE"
+                : "BLOB",
       });
     }
   }

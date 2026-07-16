@@ -448,7 +448,9 @@ describe("source schema v2 discovery adapters", () => {
         ],
         geometry: {
           column: "geometry",
-          encoding: "wkb",
+          primary: true,
+          encoding: "wkb-compat",
+          spatialRuntimeAvailable: true,
           metadataState: "missing",
           geometryTypesState: "missing",
           crsState: "missing-metadata",
@@ -563,7 +565,10 @@ describe("source schema v2 discovery adapters", () => {
         fields: [{ name: "geometry", type: "GEOMETRY", nullable: true }],
         geometry: {
           column: "geometry",
-          encoding: "native",
+          primary: true,
+          encoding: "duckdb-native",
+          execution: "duckdb-native",
+          spatialRuntimeAvailable: true,
           metadataState: "valid",
           geometryTypesState: "valid",
           geometryTypes: [],
@@ -579,7 +584,10 @@ describe("source schema v2 discovery adapters", () => {
         fields: [{ name: "geometry", type: "GEOMETRY", nullable: true }],
         geometry: {
           column: "geometry",
-          encoding: "native",
+          primary: true,
+          encoding: "duckdb-native",
+          unsupportedReason: "metadata-invalid",
+          spatialRuntimeAvailable: true,
           metadataState: "invalid",
           geometryTypesState: "invalid",
           crsState: "invalid-metadata",
@@ -610,7 +618,9 @@ describe("source schema v2 discovery adapters", () => {
       fields: [{ name: "name", type: "VARCHAR" }],
       geometry: {
         column: "geometry",
-        encoding: "wkb" as const,
+        primary: true,
+        encoding: "wkb-compat" as const,
+        spatialRuntimeAvailable: true,
         metadataState: "missing" as const,
         geometryTypesState: "missing" as const,
         crsState: "missing-metadata" as const,
@@ -713,8 +723,8 @@ describe("source schema v2 discovery adapters", () => {
     expect(profile("1.0.0").geometry?.metadataState).toBe("invalid");
     expect(profile("1.1.0").geometry).toMatchObject({
       metadataState: "valid",
-      encoding: "native",
-      runtimeSupported: false,
+      encoding: "geoparquet-1.1-native-point",
+      unsupportedReason: "native-decoder-unavailable",
     });
 
     const wkbProfile = (version: string) =>
@@ -749,11 +759,11 @@ describe("source schema v2 discovery adapters", () => {
 
     expect(profile("WKB", ["Point"], "STRUCT<x DOUBLE, y DOUBLE>").geometry).toMatchObject({
       metadataState: "invalid",
-      runtimeSupported: false,
+      unsupportedReason: "layout-unsupported",
     });
     expect(profile("point", ["Polygon"], "STRUCT<x DOUBLE, y DOUBLE>").geometry).toMatchObject({
       metadataState: "invalid",
-      runtimeSupported: false,
+      unsupportedReason: "encoding-unsupported",
     });
   });
 
@@ -796,7 +806,10 @@ describe("source schema v2 discovery adapters", () => {
         columns: { geometry: { encoding, geometry_types: [geometryType] } },
       }),
     });
-    expect(profile.geometry).toMatchObject({ metadataState: "valid", runtimeSupported: false });
+    expect(profile.geometry).toMatchObject({
+      metadataState: "valid",
+      unsupportedReason: "native-decoder-unavailable",
+    });
   });
 
   it.each([

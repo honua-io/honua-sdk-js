@@ -7,7 +7,11 @@
  * @module
  */
 
-import type { GeometryColumnPlan, GeometryEncoding } from "../core/geoparquet-sql.js";
+import type {
+  GeoParquetGeometryEncoding,
+  GeoParquetGeometryExecution,
+  GeoParquetGeometryUnsupportedReason,
+} from "../contract/types.js";
 
 export interface DescribeRow {
   readonly column_name: string;
@@ -22,9 +26,23 @@ export interface SourceProfileField {
   readonly nullable?: boolean;
 }
 
-export interface SourceProfileGeometry extends GeometryColumnPlan {
-  /** False when DuckDB exposed a raw GeoArrow nested value that this SQL compiler cannot execute safely. */
-  readonly runtimeSupported?: boolean;
+export interface SourceProfileGeometry {
+  /** Geometry column name in physical file order. */
+  readonly column: string;
+  /** Whether this is the GeoParquet document's declared primary column. */
+  readonly primary: boolean;
+  /** Exact descriptive identity; never inferred from an ambiguous `native` token. */
+  readonly encoding: GeoParquetGeometryEncoding;
+  /** DuckDB SQL representation reviewed against the installed runtime. */
+  readonly execution?: GeoParquetGeometryExecution;
+  /** Whether spatial SQL functions are installed for decode/project operations. */
+  readonly spatialRuntimeAvailable: boolean;
+  /** Stable reason this descriptive geometry cannot be executed. */
+  readonly unsupportedReason?: GeoParquetGeometryUnsupportedReason;
+  /** Supported GeoParquet metadata version, when the document supplied one. */
+  readonly specVersion?: "1.0.0" | "1.1.0";
+  /** Optional GeoParquet 1.1 bbox covering column. */
+  readonly bboxColumn?: string;
   /**
    * Whether the containing GeoParquet document passed the bounded 1.0/1.1
    * projection checks required by this normalizer. This is deliberately not a
@@ -46,6 +64,8 @@ export interface SourceProfileGeometry extends GeometryColumnPlan {
   readonly epochState?: "absent" | "valid" | "invalid";
   /** Invalid raw epoch retained as bounded native evidence by schema v2. */
   readonly epochValue?: unknown;
+  /** GeoParquet and compatibility encodings carry coordinate tuples as x then y. */
+  readonly coordinateOrder?: "xy";
 }
 
 export interface SourceProfile {
@@ -111,18 +131,59 @@ const MAX_GEOPARQUET_METADATA_DEPTH = 32;
 const MAX_GEOPARQUET_METADATA_NODES = 100_000;
 
 /**
- * Encoding is derived from the DuckDB DESCRIBE column type, not the GeoParquet
- * `geo.encoding` field. DuckDB's `read_parquet` rehydrates a GeoParquet WKB
- * column back into a native `GEOMETRY`, so the SQL expression must key off what
- * DuckDB actually hands back (`GEOMETRY` ⇒ use directly; `BLOB` ⇒
- * `ST_GeomFromWKB`; `JSON`/`VARCHAR` ⇒ `ST_GeomFromGeoJSON`).
+ * Exact SQL representation DuckDB exposed. Substring matching is deliberately
+ * avoided: a hostile nested type containing `GEOMETRY` must not be promoted to
+ * an executable geometry value.
  */
-function encodingFromColumnType(type: string): GeometryEncoding | undefined {
-  const t = type.toUpperCase();
-  if (t.includes("GEOMETRY") || t.includes("GEOGRAPHY")) return "native";
-  if (t.includes("BLOB") || t.includes("BYTEA") || t.includes("BINARY")) return "wkb";
-  if (t.includes("JSON") || t.includes("VARCHAR") || t.includes("TEXT")) return "geojson";
+function executionFromColumnType(type: string): GeoParquetGeometryExecution | undefined {
+  const normalized = type.trim().toUpperCase();
+  if (normalized === "GEOMETRY" || normalized === "GEOGRAPHY") return "duckdb-native";
+  if (normalized === "BLOB" || normalized === "BYTEA" || normalized === "BINARY" || normalized === "VARBINARY") {
+    return "wkb";
+  }
+  if (normalized === "JSON" || normalized === "VARCHAR" || normalized === "TEXT") return "geojson-compat";
   return undefined;
+}
+
+function compatibilityIdentity(execution: GeoParquetGeometryExecution | undefined): GeoParquetGeometryEncoding {
+  switch (execution) {
+    case "duckdb-native":
+      return "duckdb-native";
+    case "geojson-compat":
+      return "geojson-compat";
+    case "wkb":
+    case undefined:
+      return "wkb-compat";
+  }
+}
+
+function metadataIdentity(version: unknown, encoding: unknown): GeoParquetGeometryEncoding | undefined {
+  if (encoding === "WKB") {
+    if (version === "1.0.0") return "geoparquet-1.0-wkb";
+    if (version === "1.1.0") return "geoparquet-1.1-wkb";
+    return undefined;
+  }
+  if (version !== "1.1.0" || typeof encoding !== "string") return undefined;
+  switch (encoding) {
+    case "point":
+      return "geoparquet-1.1-native-point";
+    case "linestring":
+      return "geoparquet-1.1-native-linestring";
+    case "polygon":
+      return "geoparquet-1.1-native-polygon";
+    case "multipoint":
+      return "geoparquet-1.1-native-multipoint";
+    case "multilinestring":
+      return "geoparquet-1.1-native-multilinestring";
+    case "multipolygon":
+      return "geoparquet-1.1-native-multipolygon";
+    default:
+      return undefined;
+  }
+}
+
+function isGeoParquetNativeIdentity(encoding: GeoParquetGeometryEncoding): boolean {
+  return encoding.startsWith("geoparquet-1.1-native-");
 }
 
 /** Common geometry column names used to infer a column when there is no
@@ -258,6 +319,10 @@ export interface BuildProfileInput {
   readonly geometryColumnOverride?: string;
   /** Footer row estimate. */
   readonly rowEstimate?: number;
+  /** Capabilities of the installed driver/runtime that performed discovery. */
+  readonly geometryRuntime?: {
+    readonly spatialExtension: boolean;
+  };
 }
 
 /**
@@ -269,6 +334,7 @@ export interface BuildProfileInput {
  */
 export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
   const { describe, geoJson, geometryColumnOverride, rowEstimate } = input;
+  const spatialRuntimeAvailable = input.geometryRuntime?.spatialExtension === true;
   const allColumns = describe.map((r) => r.column_name);
   const rowsByName = new Map<string, DescribeRow>();
   const rowsByLowerName = new Map<string, DescribeRow>();
@@ -304,18 +370,20 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
   const declaredMetadata = isGeoColumnsMetadata(geo?.columns) ? geo.columns : undefined;
   const declaredPrimary =
     typeof geo?.primary_column === "string" && geo.primary_column !== "" ? geo.primary_column : undefined;
-  const declaredGeometryColumns = Object.keys(declaredMetadata ?? {}).filter((column) => rowFor(column));
+  const declaredGeometryColumns = describe
+    .map((row) => row.column_name)
+    .filter(
+      (column) =>
+        column === declaredPrimary || (declaredMetadata !== undefined && Object.hasOwn(declaredMetadata, column)),
+    );
   const primaryRow = declaredPrimary ? rowFor(declaredPrimary) : undefined;
-  const metadataValid = geo ? validGeoMetadataProjectionSlice(geo, rowsByName, rowsByLowerName) : false;
+  const metadataFailure = geo ? geoMetadataProjectionFailure(geo, rowsByName, rowsByLowerName) : undefined;
+  const metadataValid = geo !== undefined && metadataFailure === undefined;
 
   if (geo && (primaryRow || declaredGeometryColumns.length > 0)) {
     // GeoParquet metadata is authoritative for *which* column and the CRS; the
     // physical encoding still comes from the DuckDB column type.
-    const declaredColumns = [
-      ...(primaryRow && declaredPrimary ? [declaredPrimary] : []),
-      ...declaredGeometryColumns.filter((column) => column !== declaredPrimary),
-    ];
-    geometries = declaredColumns.flatMap((column) => {
+    geometries = declaredGeometryColumns.flatMap((column) => {
       const row = rowFor(column);
       return row
         ? [
@@ -325,6 +393,10 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
               row,
               declaredMetadata?.[column],
               metadataValid ? "valid" : "invalid",
+              geo.version,
+              column === declaredPrimary,
+              metadataFailure,
+              spatialRuntimeAvailable,
             ),
           ]
         : [];
@@ -343,19 +415,30 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
     const heuristicRow = describe.find((r) => GEOMETRY_COLUMN_NAMES.has(r.column_name.toLowerCase()));
     const chosen = geometryColumnOverride ? rowFor(geometryColumnOverride) : (nativeRow ?? heuristicRow);
     if (chosen) {
-      const encoding = encodingFromColumnType(chosen.column_type) ?? "wkb";
+      const execution = executionFromColumnType(chosen.column_type);
+      const encoding = compatibilityIdentity(execution);
       const bboxColumn = findBboxColumn(rowsByName, rowsByLowerName, chosen);
       const metadataState =
         geoDocumentState === "invalid" || (geoDocumentState === "parsed" && !metadataValid) ? "invalid" : "missing";
+      const unsupportedReason: GeoParquetGeometryUnsupportedReason | undefined =
+        metadataState === "invalid"
+          ? (metadataFailure ?? "metadata-invalid")
+          : execution === undefined
+            ? "layout-unsupported"
+            : undefined;
       geometry = {
         column: chosen.column_name,
+        primary: true,
         encoding,
-        ...(encodingFromColumnType(chosen.column_type) === undefined ? { runtimeSupported: false } : {}),
+        ...(unsupportedReason === undefined && execution ? { execution } : {}),
+        spatialRuntimeAvailable,
+        ...(unsupportedReason ? { unsupportedReason } : {}),
         ...(bboxColumn ? { bboxColumn } : {}),
         metadataState,
         geometryTypesState: metadataState,
         crsState: metadataState === "invalid" ? "invalid-metadata" : "missing-metadata",
         epochState: "absent",
+        ...(metadataState === "missing" ? { coordinateOrder: "xy" as const } : {}),
       };
       geometries = [geometry];
     }
@@ -392,6 +475,10 @@ function geometryPlanFromGeoMetadata(
   row: DescribeRow,
   columnMetadata: GeoColumnMeta | undefined,
   metadataState: "valid" | "invalid",
+  version: unknown,
+  primary: boolean,
+  metadataFailure: GeoParquetGeometryUnsupportedReason | undefined,
+  spatialRuntimeAvailable: boolean,
 ): SourceProfileGeometry {
   const metadata = isGeoColumnMetadata(columnMetadata) ? columnMetadata : undefined;
   const bboxColumn =
@@ -416,13 +503,24 @@ function geometryPlanFromGeoMetadata(
             : "value"
           : "absent";
   const epoch = inspectEpoch(metadata);
-  const detectedEncoding = encodingFromColumnType(row.column_type);
-  const declaredNativeEncoding = metadataState === "valid" && metadata?.encoding !== "WKB";
-  const runtimeSupported = detectedEncoding !== undefined && (!declaredNativeEncoding || detectedEncoding === "native");
+  const deliveredExecution = executionFromColumnType(row.column_type);
+  const encoding = metadataIdentity(version, metadata?.encoding) ?? compatibilityIdentity(deliveredExecution);
+  const unsupportedReason: GeoParquetGeometryUnsupportedReason | undefined =
+    metadataState === "invalid"
+      ? (metadataFailure ?? "metadata-invalid")
+      : isGeoParquetNativeIdentity(encoding)
+        ? "native-decoder-unavailable"
+        : deliveredExecution === undefined
+          ? "layout-unsupported"
+          : undefined;
   return {
     column: row.column_name,
-    encoding: detectedEncoding ?? (declaredNativeEncoding ? "native" : "wkb"),
-    ...(runtimeSupported ? {} : { runtimeSupported: false }),
+    primary,
+    encoding,
+    ...(unsupportedReason === undefined && deliveredExecution ? { execution: deliveredExecution } : {}),
+    spatialRuntimeAvailable,
+    ...(unsupportedReason ? { unsupportedReason } : {}),
+    ...(version === "1.0.0" || version === "1.1.0" ? { specVersion: version } : {}),
     ...(bboxColumn ? { bboxColumn } : {}),
     metadataState,
     geometryTypesState,
@@ -432,6 +530,7 @@ function geometryPlanFromGeoMetadata(
     epochState: epoch.state,
     ...(epoch.coordinateEpoch === undefined ? {} : { coordinateEpoch: epoch.coordinateEpoch }),
     ...(epoch.state === "invalid" ? { epochValue: epoch.value } : {}),
+    ...(metadataState === "valid" ? { coordinateOrder: "xy" as const } : {}),
   };
 }
 
@@ -475,6 +574,46 @@ function boundedGeoMetadataGraph(root: unknown): boolean {
  * advertised as whole-document conformance because CRS objects are preserved
  * as native evidence and validated by the focused PROJJSON runtime later.
  */
+function geoMetadataProjectionFailure(
+  geo: GeoMeta,
+  rowsByName: ReadonlyMap<string, DescribeRow>,
+  rowsByLowerName: ReadonlyMap<string, DescribeRow>,
+): GeoParquetGeometryUnsupportedReason | undefined {
+  if (typeof geo.version !== "string") return "metadata-invalid";
+  const version = GEOPARQUET_SUPPORTED_VERSION.exec(geo.version);
+  if (!version) return "version-unsupported";
+  const encodings = version[1] === "1.0.0" ? GEOPARQUET_1_0_ENCODINGS : GEOPARQUET_1_1_ENCODINGS;
+  if (typeof geo.primary_column !== "string" || geo.primary_column === "" || !isGeoColumnsMetadata(geo.columns)) {
+    return "metadata-invalid";
+  }
+  const entries = Object.entries(geo.columns);
+  if (entries.length === 0 || !Object.hasOwn(geo.columns, geo.primary_column)) return "metadata-invalid";
+  for (const [column, metadata] of entries) {
+    if (!isGeoColumnMetadata(metadata)) return "metadata-invalid";
+    if (typeof metadata.encoding !== "string" || !encodings.has(metadata.encoding)) {
+      return "encoding-unsupported";
+    }
+    const geometryTypes = inspectGeometryTypes(metadata);
+    if (geometryTypes.state !== "valid") {
+      const declared = Array.isArray(metadata.geometry_types) ? metadata.geometry_types : [];
+      if (declared.some((value) => typeof value === "string" && /(?:^|\s)(?:M|ZM)$/.test(value))) {
+        return "dimensions-unsupported";
+      }
+      return "metadata-invalid";
+    }
+    const values = geometryTypes.values ?? [];
+    const hasZ = values.some((value) => value.endsWith(" Z"));
+    const hasXy = values.some((value) => !value.endsWith(" Z"));
+    if (metadata.encoding !== "WKB" && hasZ && hasXy) return "dimensions-unsupported";
+    const row = rowsByName.get(column);
+    if (!row || !geoParquetEncodingMatchesPhysicalType(metadata.encoding, row.column_type, values)) {
+      return "layout-unsupported";
+    }
+    if (!geoParquetEncodingMatchesGeometryTypes(metadata.encoding, values)) return "encoding-unsupported";
+  }
+  return validGeoMetadataProjectionSlice(geo, rowsByName, rowsByLowerName) ? undefined : "metadata-invalid";
+}
+
 function validGeoMetadataProjectionSlice(
   geo: GeoMeta,
   rowsByName: ReadonlyMap<string, DescribeRow>,
@@ -550,7 +689,7 @@ function geoParquetEncodingMatchesPhysicalType(
   geometryTypes: readonly string[],
 ): boolean {
   const delivered = exactGeometryEncodingFromColumnType(columnType);
-  if (delivered === "native") return true;
+  if (delivered === "duckdb-native") return true;
   if (encoding === "WKB") return delivered === "wkb";
   const expectedDepth =
     encoding === "point"
@@ -573,13 +712,7 @@ function geoParquetEncodingMatchesPhysicalType(
   return true;
 }
 
-function exactGeometryEncodingFromColumnType(columnType: string): GeometryEncoding | undefined {
-  const type = columnType.trim().toUpperCase();
-  if (type === "GEOMETRY" || type === "GEOGRAPHY") return "native";
-  if (type === "BLOB" || type === "BYTEA" || type === "BINARY" || type === "VARBINARY") return "wkb";
-  if (type === "JSON" || type === "VARCHAR" || type === "TEXT") return "geojson";
-  return undefined;
-}
+const exactGeometryEncodingFromColumnType = executionFromColumnType;
 
 interface NativeCoordinateType {
   readonly listDepth: number;

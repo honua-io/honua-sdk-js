@@ -196,7 +196,9 @@ export const geoparquet: GeoparquetSourceLocator = {
   ],
   hivePartitioning: true,
   geometryColumn: "geometry",
-  geometryEncoding: "wkb",
+  geometryEncoding: "geoparquet-1.1-wkb",
+  geometryExecution: "wkb",
+  geometrySpatialRuntimeAvailable: true,
   bboxColumn: "bbox",
 };
 

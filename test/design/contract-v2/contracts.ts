@@ -201,7 +201,20 @@ export interface GeoparquetSourceLocator {
   readonly assets: NonEmptyReadonlyArray<ResourceReference>;
   readonly hivePartitioning?: boolean;
   readonly geometryColumn?: string;
-  readonly geometryEncoding?: "wkb" | "native" | "geojson";
+  readonly geometryEncoding?:
+    | "geoparquet-1.0-wkb"
+    | "geoparquet-1.1-wkb"
+    | "geoparquet-1.1-native-point"
+    | "geoparquet-1.1-native-linestring"
+    | "geoparquet-1.1-native-polygon"
+    | "geoparquet-1.1-native-multipoint"
+    | "geoparquet-1.1-native-multilinestring"
+    | "geoparquet-1.1-native-multipolygon"
+    | "duckdb-native"
+    | "geojson-compat"
+    | "wkb-compat";
+  readonly geometryExecution?: "wkb" | "duckdb-native" | "geojson-compat";
+  readonly geometrySpatialRuntimeAvailable?: boolean;
   readonly bboxColumn?: string;
   readonly extensions?: ExtensionMap;
 }

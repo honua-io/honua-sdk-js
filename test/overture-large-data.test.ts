@@ -198,6 +198,7 @@ describe("Overture large-data flagship", () => {
       markCloseStarted = resolve;
     });
     const driver: DuckDbDriver = {
+      geometryCapabilities: { spatialExtension: true },
       async run() {},
       async query() {
         materialized = true;
@@ -252,6 +253,7 @@ describe("Overture large-data flagship", () => {
     await runtime.dispose();
     expect(initializationSignal?.aborted).toBe(true);
     resolveDriver({
+      geometryCapabilities: { spatialExtension: true },
       async run() {},
       async query() {
         return [];

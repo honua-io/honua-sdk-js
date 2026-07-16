@@ -109,12 +109,13 @@ export function parquetSourceExpr(urls: readonly string[]): string {
  *
  * - `wkb`: GeoParquet 1.0/1.1 well-known-binary BLOB — wrap with
  *   `ST_GeomFromWKB(...)`.
- * - `native`: Parquet-native `GEOMETRY` / `GEOGRAPHY` logical type (Parquet
- *   2.11, Mar 2025) — DuckDB reads it as a `GEOMETRY`, used directly.
- * - `geojson`: GeoParquet `GeoJSON` encoding (string) — wrap with
+ * - `duckdb-native`: DuckDB delivered a `GEOMETRY` / `GEOGRAPHY` value, used
+ *   directly. This is an execution representation, not a GeoParquet encoding
+ *   claim.
+ * - `geojson-compat`: a compatibility JSON string — wrap with
  *   `ST_GeomFromGeoJSON(...)`.
  */
-export type GeometryEncoding = "wkb" | "native" | "geojson";
+export type GeometryEncoding = "wkb" | "duckdb-native" | "geojson-compat";
 
 export interface GeometryColumnPlan {
   /** Geometry column name in the parquet file. */
@@ -138,9 +139,9 @@ export function geometryExpr(plan: GeometryColumnPlan): string {
   switch (plan.encoding) {
     case "wkb":
       return `ST_GeomFromWKB(${col})`;
-    case "geojson":
+    case "geojson-compat":
       return `ST_GeomFromGeoJSON(${col})`;
-    case "native":
+    case "duckdb-native":
       return col;
   }
 }

@@ -24,8 +24,10 @@ npm i @duckdb/duckdb-wasm apache-arrow
 
 The engine is reached through a dynamic `import()`, so there is no static
 dependency edge from the core SDK. If the peer is missing, constructing a query
-throws a clear "install `@duckdb/duckdb-wasm`" error rather than failing
-opaquely.
+throws `HonuaCapabilityNotSupportedError` with the stable
+`runtime-peer-unavailable` reason. Install `@duckdb/duckdb-wasm` to enable the
+entrypoint; raw loader messages and causes are not copied across the public
+error boundary.
 
 ## Quickstart
 
@@ -160,20 +162,38 @@ verbatim. The trust boundary on `where` is the caller's, identical to a
 GeoServices `where` clause. The compiler is covered by snapshot tests in
 `test/geoparquet-sql.test.ts`.
 
-## Both metadata styles
+## Geometry identity and executable truth
 
-The source handles both geometry storage conventions, detected from the parquet
-footer and cached per source-URL set:
+Footer profiling records two separate facts for each geometry column:
 
-1. **GeoParquet 1.0 / 1.1 metadata files** — the `geo` key-value JSON is parsed
-   for the primary geometry column, CRS, and (1.1) the `bbox` covering column.
-2. **Parquet-native geometry** — a `GEOMETRY` / `GEOGRAPHY` column type
-   (Parquet 2.11, March 2025), a raw WKB `BLOB`, or a GeoJSON string column,
-   inferred from the DuckDB column type and conventional geometry column names.
+- `encoding` is the descriptive identity declared by metadata or a bounded
+  compatibility identity.
+- `execution` is the representation DuckDB actually delivered to the current
+  driver (`wkb`, `duckdb-native`, or `geojson-compat`). It is present only when
+  that representation is safe for the SQL compiler.
 
-The physical encoding (`GEOMETRY` used directly, `BLOB` wrapped in
-`ST_GeomFromWKB`, string wrapped in `ST_GeomFromGeoJSON`) is keyed off the type
-DuckDB actually returns, so both styles produce an identical `Result` shape.
+The descriptive identities are explicit: `geoparquet-1.0-wkb`,
+`geoparquet-1.1-wkb`, `duckdb-native`, `wkb-compat`, `geojson-compat`, and the
+six `geoparquet-1.1-native-*` geometry identities. A versioned WKB column may
+have `execution: "duckdb-native"` because DuckDB rehydrated it as `GEOMETRY`;
+that does not rewrite its GeoParquet identity. Conversely, GeoParquet 1.1
+native coordinate-array metadata remains descriptive-only with
+`native-decoder-unavailable`. Native decoding, S2, and S3 are intentionally not
+claimed in this slice.
+
+All geometry columns are retained in physical file order. Following the
+[GeoParquet 1.1 metadata contract](https://geoparquet.org/releases/v1.1.0/),
+the profile also retains the declared primary column and, per column, geometry
+types, CRS state and value, coordinate epoch, x/y payload order, and a
+validated bbox covering. Only the primary geometry is projected into the v1
+`Result` shape; secondary geometries remain visible in `describe()` and schema
+v2.
+
+Discovery and direct execution fail closed on metadata outside the reviewed
+GeoParquet 1.0.0/1.1.0 projection. Stable reasons distinguish unsupported
+versions, encodings, dimensions, layouts, malformed metadata, missing native
+decoders, missing peers, and unavailable spatial SQL. Hostile metadata values
+are never copied into public error messages or contexts.
 
 ## `describe()`
 
@@ -183,7 +203,11 @@ Reach the metadata through the typed escape hatch:
 const handle = places.protocol("geoparquet")!;
 const description = await handle.describe();
 // { schema: HonuaFieldInfo[], geometryColumns: ["geometry"],
-//   geometryEncoding: "wkb" | "native" | "geojson", crs: "OGC:CRS84",
+//   geometries: [{ column: "geometry", primary: true,
+//     encoding: "geoparquet-1.1-wkb", execution: "duckdb-native",
+//     specVersion: "1.1.0", coordinateOrder: "xy", ... }],
+//   geometryEncoding: "geoparquet-1.1-wkb",
+//   geometryExecution: "duckdb-native", crs: "OGC:CRS84",
 //   rowEstimate: 12345 }  ← rowEstimate from the parquet footer, no table scan
 
 const rows = await handle.sql("SELECT count(*) FROM read_parquet('...')"); // raw escape hatch
@@ -218,9 +242,13 @@ const summary = await places.queryAggregate({
 - `Source.stream()` uses DuckDB-WASM Arrow record batches when the driver
   supports them; `Source.query()` intentionally materializes its bounded result.
   `Query.signal` is forwarded to the browser driver's `cancelSent()` path.
-- Browser deployments can set `loadSpatial: false` when a GeoParquet `bbox`
-  covering is sufficient, and can pin `extensionRepository` plus
-  `preloadExtensions` to keep Parquet execution self-hosted.
+- Browser deployments can set `loadSpatial: false` only for query shapes that
+  do not decode geometry: attribute-only queries, or spatial filters served by
+  a validated GeoParquet `bbox` covering, must also set
+  `returnGeometry: false`. Geometry projection or a spatial filter without a
+  covering fails before SQL with `spatial-runtime-unavailable`. Deployments can
+  pin `extensionRepository` plus `preloadExtensions` to keep Parquet execution
+  self-hosted.
 - Browser deployments reading large remote objects can set
   `filesystem: { reliableHeadRequests: true, allowFullHttpReads: false }` to
   require range-capable HTTP I/O and fail closed instead of allowing
@@ -228,8 +256,12 @@ const summary = await places.queryAggregate({
 
 ## Capability honesty
 
-`geoparquet` advertises `{ query, queryAggregate, stream }`. Everything else is
-an honest miss that throws `HonuaCapabilityNotSupportedError`:
+After successful footer profiling, `geoparquet` advertises
+`{ query, queryAggregate, stream }`. A declared geometry with an unsupported
+version, encoding, dimensionality, layout, or decoder fails discovery before
+those capabilities are published. Query shapes that require an unavailable
+spatial runtime fail before a data request. Everything else is an honest miss
+that throws `HonuaCapabilityNotSupportedError`:
 `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, and
 `attachments`. The source is read-only (static files) and exposes no
 server-side ids/extent endpoint. There is no realtime path.

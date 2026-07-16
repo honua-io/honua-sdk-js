@@ -2,8 +2,16 @@
 
 import type { ConnectDiscoverySourceSnapshot, ConnectOptions, ConnectSourceSchemaProjection } from "./connect.js";
 import type { DiscoveryCacheIdentity, DiscoveryCapabilityEvidence, DiscoveryProvenance } from "./contract/discovery.js";
-import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES, type SourceLocator } from "./contract/types.js";
-import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
+import {
+  type Capability,
+  type GeoParquetGeometryEncoding as ContractGeoParquetGeometryEncoding,
+  type GeoParquetGeometryExecution,
+  type GeoParquetGeometryUnsupportedReason,
+  type GeoParquetLocatorGeometry,
+  PROTOCOL_DEFAULT_CAPABILITIES,
+  type SourceLocator,
+} from "./contract/types.js";
+import { HonuaAbortError, HonuaCapabilityNotSupportedError, HonuaDiscoveryError } from "./core/errors.js";
 
 /**
  * GeoParquet's canonical adapter surface. Discovery evidence is scoped to this
@@ -12,8 +20,8 @@ import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
  */
 const GEOPARQUET_ADAPTER_SCOPE: readonly Capability[] = Object.freeze([...PROTOCOL_DEFAULT_CAPABILITIES.geoparquet]);
 
-/** Physical geometry encoding reported by a GeoParquet footer read. */
-export type GeoParquetGeometryEncoding = "wkb" | "native" | "geojson";
+/** Exact descriptive identity reported by a GeoParquet footer read. */
+export type GeoParquetGeometryEncoding = ContractGeoParquetGeometryEncoding;
 
 /** Detected geometry column plan from a GeoParquet footer read. */
 export interface GeoParquetGeometryPlan {
@@ -21,8 +29,14 @@ export interface GeoParquetGeometryPlan {
   readonly column: string;
   /** How the geometry is physically stored. */
   readonly encoding: GeoParquetGeometryEncoding;
-  /** False when metadata is valid but the active SQL runtime did not materialize an executable geometry value. */
-  readonly runtimeSupported?: boolean;
+  /** Whether this is the metadata document's declared primary column. */
+  readonly primary: boolean;
+  /** Reviewed SQL representation available in the installed runtime. */
+  readonly execution?: GeoParquetGeometryExecution;
+  readonly spatialRuntimeAvailable: boolean;
+  /** Stable reason the geometry is descriptive-only. */
+  readonly unsupportedReason?: GeoParquetGeometryUnsupportedReason;
+  readonly specVersion?: "1.0.0" | "1.1.0";
   /** Optional GeoParquet 1.1 bbox-covering struct column used for row-group pruning. */
   readonly bboxColumn?: string;
   /**
@@ -40,6 +54,7 @@ export interface GeoParquetGeometryPlan {
   readonly coordinateEpoch?: number;
   readonly epochState?: "absent" | "valid" | "invalid";
   readonly epochValue?: unknown;
+  readonly coordinateOrder?: "xy";
 }
 
 export interface GeoParquetFieldProfile {
@@ -119,7 +134,22 @@ export async function discoverGeoParquetSources(
   const additionalUrls = normalizeAdditionalUrls(options.geoparquet?.urls);
   const sources = [endpoint, ...additionalUrls];
 
-  const profile = await profiler.profile(sources, geometryColumnOverride);
+  let profile: GeoParquetSourceProfile;
+  try {
+    profile = await profiler.profile(sources, geometryColumnOverride);
+  } catch (cause) {
+    throwIfAborted(options.signal);
+    if (cause instanceof HonuaAbortError) throw cause;
+    const reason =
+      cause instanceof HonuaCapabilityNotSupportedError && cause.context.reason === "runtime-peer-unavailable"
+        ? "runtime-peer-unavailable"
+        : undefined;
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "GeoParquet metadata could not be read with the configured runtime.",
+      reason ? { reason } : undefined,
+    );
+  }
   throwIfAborted(options.signal);
   if (!profile || !Array.isArray(profile.columns)) {
     throw new HonuaDiscoveryError("invalid-endpoint", "GeoParquet metadata reader returned no readable schema.");
@@ -142,11 +172,44 @@ export async function discoverGeoParquetSources(
     }),
   ]);
 
-  const geometry = profile.geometry?.runtimeSupported === false ? undefined : profile.geometry;
+  const geometries = profile.geometries ?? (profile.geometry ? [profile.geometry] : []);
+  const declaredPrimaries = geometries.filter((geometry) => geometry.primary);
+  if (
+    geometries.length > 0 &&
+    (!profile.geometry ||
+      declaredPrimaries.length !== 1 ||
+      !samePrimaryGeometry(declaredPrimaries[0]!, profile.geometry))
+  ) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "GeoParquet metadata does not declare one deterministic primary geometry.",
+      {
+        reason: "metadata-invalid",
+      },
+    );
+  }
+  const unsupported = geometries.find((geometry) => !geometry.execution || geometry.unsupportedReason !== undefined);
+  if (unsupported) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "GeoParquet geometry is not executable by the configured runtime.",
+      { reason: unsupported.unsupportedReason ?? "layout-unsupported" },
+    );
+  }
+  const geometry = profile.geometry;
+  const locatorGeometries = geometries.map(locatorGeometry);
   const geoparquetLocator: NonNullable<SourceLocator["geoparquet"]> = {
     ...(additionalUrls.length > 0 ? { urls: Object.freeze([...additionalUrls]) } : {}),
-    ...(geometry ? { geometryColumn: geometry.column, geometryEncoding: geometry.encoding } : {}),
+    ...(geometry
+      ? {
+          geometryColumn: geometry.column,
+          geometryEncoding: geometry.encoding,
+          geometryExecution: geometry.execution,
+          geometrySpatialRuntimeAvailable: geometry.spatialRuntimeAvailable,
+        }
+      : {}),
     ...(geometry?.bboxColumn ? { bboxColumn: geometry.bboxColumn } : {}),
+    ...(locatorGeometries.length > 0 ? { geometries: Object.freeze(locatorGeometries) } : {}),
   };
   const locator: SourceLocator = Object.freeze({
     url: endpoint,
@@ -166,6 +229,35 @@ export async function discoverGeoParquetSources(
   });
 
   return Object.freeze({ retrievedAt, evidence: Object.freeze([]), sources: Object.freeze([source]) });
+}
+
+function samePrimaryGeometry(left: GeoParquetGeometryPlan, right: GeoParquetGeometryPlan): boolean {
+  return (
+    left.column === right.column &&
+    left.encoding === right.encoding &&
+    left.execution === right.execution &&
+    left.spatialRuntimeAvailable === right.spatialRuntimeAvailable &&
+    left.unsupportedReason === right.unsupportedReason &&
+    left.bboxColumn === right.bboxColumn
+  );
+}
+
+function locatorGeometry(geometry: GeoParquetGeometryPlan): GeoParquetLocatorGeometry {
+  return Object.freeze({
+    column: geometry.column,
+    primary: geometry.primary,
+    encoding: geometry.encoding,
+    ...(geometry.execution ? { execution: geometry.execution } : {}),
+    spatialRuntimeAvailable: geometry.spatialRuntimeAvailable,
+    ...(geometry.unsupportedReason ? { unsupportedReason: geometry.unsupportedReason } : {}),
+    ...(geometry.specVersion ? { specVersion: geometry.specVersion } : {}),
+    ...(geometry.bboxColumn ? { bboxColumn: geometry.bboxColumn } : {}),
+    ...(geometry.geometryTypes ? { geometryTypes: Object.freeze([...geometry.geometryTypes]) } : {}),
+    ...(geometry.crsState ? { crsState: geometry.crsState } : {}),
+    ...(geometry.crsValue === undefined ? {} : { crsValue: geometry.crsValue }),
+    ...(geometry.coordinateEpoch === undefined ? {} : { coordinateEpoch: geometry.coordinateEpoch }),
+    ...(geometry.coordinateOrder ? { coordinateOrder: geometry.coordinateOrder } : {}),
+  });
 }
 
 function normalizeAdditionalUrls(urls: readonly string[] | undefined): readonly string[] {

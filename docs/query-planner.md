@@ -254,9 +254,13 @@ column when declared); non-envelope geometries are reduced to their bounding box
 and reported with `bboxApproximated: true`. Geometry is projected as GeoJSON via
 `ST_AsGeoJSON`. Output-CRS requests fail closed (no portable DuckDB reprojection),
 and a spatial filter without a resolvable geometry column is rejected. The
-geometry column and encoding come from `locator.geoparquet.geometryColumn` /
-`geometryEncoding` (default `wkb`) or a descriptor geometry field, so planning
-never needs a profiling round-trip.
+geometry column, exact descriptive identity, reviewed DuckDB representation,
+and spatial-runtime availability come from
+`locator.geoparquet.geometryColumn`, `geometryEncoding`,
+`geometryExecution`, and `geometrySpatialRuntimeAvailable`. The planner never
+defaults an unreviewed geometry to WKB. It rejects unsupported metadata or a
+query shape that needs unavailable spatial functions before producing SQL, so
+planning never needs a profiling round-trip or speculative materialization.
 
 `grpc` sources compile to `honua-grpc-query-features-v1`, a faithful,
 protobuf-free description of the `honua.v1.FeatureService/QueryFeatures` unary

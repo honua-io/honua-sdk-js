@@ -43,6 +43,8 @@ import type {
   CapabilityPolicy,
   DegradedReason,
   FeatureId,
+  GeoParquetGeometryEncoding,
+  GeoParquetGeometryUnsupportedReason,
   Protocol,
   Query,
   ResolveSourceContext,
@@ -72,7 +74,13 @@ import {
   deriveDuckDbAggregateOutputFields,
   duckDbLosslessTransportKind,
 } from "./lossless-decoder.js";
-import { type DescribeRow, type SourceProfile, type SourceProfileField, buildSourceProfile } from "./metadata.js";
+import {
+  type DescribeRow,
+  type SourceProfile,
+  type SourceProfileField,
+  type SourceProfileGeometry,
+  buildSourceProfile,
+} from "./metadata.js";
 export * from "./driver.js";
 export * from "./lossless-decoder.js";
 export * from "./metadata.js";
@@ -211,6 +219,7 @@ export class GeoparquetRuntime {
       ...(geoJson ? { geoJson } : {}),
       ...(geometryColumnOverride ? { geometryColumnOverride } : {}),
       ...(rowEstimate !== undefined ? { rowEstimate } : {}),
+      geometryRuntime: driver.geometryCapabilities,
     });
   }
 
@@ -613,10 +622,16 @@ function fieldsFromDescribe(describe: readonly DescribeRow[]): HonuaFieldInfo[] 
 export interface GeoparquetDescription {
   /** Field schema, mirroring `HonuaFieldInfo`. */
   readonly schema: readonly HonuaFieldInfo[];
-  /** Geometry column name(s) (currently one; array for forward-compat). */
+  /** Geometry column names in physical file order. */
   readonly geometryColumns: readonly string[];
-  /** How the geometry is stored. */
-  readonly geometryEncoding?: GeometryColumnPlan["encoding"];
+  /** Full descriptive and executable truth for every declared geometry column. */
+  readonly geometries: readonly SourceProfileGeometry[];
+  /** Exact descriptive identity of the primary geometry. */
+  readonly geometryEncoding?: GeoParquetGeometryEncoding;
+  /** Reviewed SQL representation of the primary geometry, when executable. */
+  readonly geometryExecution?: GeometryColumnPlan["encoding"];
+  /** Stable reason the primary geometry is descriptive-only. */
+  readonly geometryUnsupportedReason?: GeoParquetGeometryUnsupportedReason;
   /** CRS identifier. */
   readonly crs?: string;
   /** Footer-derived row estimate. */
@@ -700,11 +715,72 @@ export function geoparquetSource<T = Record<string, unknown>>(
   let decoderProfileIdentity: string | undefined;
   const decoderCache = new Map<string, DuckDbLosslessRowDecoder>();
 
-  async function compileOptions(signal?: AbortSignal): Promise<{ profile: SourceProfile; opts: CompileOptions }> {
+  function executableGeometry(profile: SourceProfile, capability: Capability): GeometryColumnPlan | undefined {
+    const geometries = profile.geometries ?? (profile.geometry ? [profile.geometry] : []);
+    const primaries = geometries.filter((geometry) => geometry.primary);
+    if (
+      geometries.length > 0 &&
+      (!profile.geometry || primaries.length !== 1 || !sameProfileGeometry(primaries[0]!, profile.geometry))
+    ) {
+      throw new HonuaCapabilityNotSupportedError(capability, descriptor.protocol, descriptor.id, {
+        context: { reason: "metadata-invalid" },
+      });
+    }
+    const unsupported = geometries.find((geometry) => !geometry.execution || geometry.unsupportedReason !== undefined);
+    if (unsupported) {
+      throw new HonuaCapabilityNotSupportedError(capability, descriptor.protocol, descriptor.id, {
+        context: { reason: unsupported.unsupportedReason ?? "layout-unsupported" },
+      });
+    }
+    if (!profile.geometry) return undefined;
+    if (!profile.geometry.execution) {
+      throw new HonuaCapabilityNotSupportedError(capability, descriptor.protocol, descriptor.id, {
+        context: { reason: profile.geometry.unsupportedReason ?? "layout-unsupported" },
+      });
+    }
+    return {
+      column: profile.geometry.column,
+      encoding: profile.geometry.execution,
+      ...(profile.geometry.bboxColumn ? { bboxColumn: profile.geometry.bboxColumn } : {}),
+    };
+  }
+
+  function sameProfileGeometry(left: SourceProfileGeometry, right: SourceProfileGeometry): boolean {
+    return (
+      left.column === right.column &&
+      left.encoding === right.encoding &&
+      left.execution === right.execution &&
+      left.spatialRuntimeAvailable === right.spatialRuntimeAvailable &&
+      left.unsupportedReason === right.unsupportedReason &&
+      left.bboxColumn === right.bboxColumn
+    );
+  }
+
+  function assertSpatialRuntime(
+    profile: SourceProfile,
+    request: Query<T> | undefined,
+    geometry: GeometryColumnPlan | undefined,
+    capability: Capability,
+  ): void {
+    if (!profile.geometry || !geometry || profile.geometry.spatialRuntimeAvailable) return;
+    const projectsGeometry = request?.aggregation === undefined && request?.returnGeometry !== false;
+    const needsDecodedSpatialPredicate = request?.spatialFilter !== undefined && geometry.bboxColumn === undefined;
+    if (!projectsGeometry && !needsDecodedSpatialPredicate) return;
+    throw new HonuaCapabilityNotSupportedError(capability, descriptor.protocol, descriptor.id, {
+      context: { reason: "spatial-runtime-unavailable" },
+    });
+  }
+
+  async function compileOptions(
+    request?: Query<T>,
+    capability: Capability = "query",
+  ): Promise<{ profile: SourceProfile; opts: CompileOptions }> {
+    const signal = request?.signal;
     throwIfQueryAborted(signal);
     const profile = await awaitQueryAbortable(runtime.profile(sources, geometryColumnOverride), signal);
     throwIfQueryAborted(signal);
-    const geometry = profile.geometry?.runtimeSupported === false ? undefined : profile.geometry;
+    const geometry = executableGeometry(profile, capability);
+    assertSpatialRuntime(profile, request, geometry, capability);
     const opts: CompileOptions = {
       sources,
       geometryAlias: GEOPARQUET_ALIAS,
@@ -772,12 +848,16 @@ export function geoparquetSource<T = Record<string, unknown>>(
       const driver = await runtime.query(describeSql(sources));
       const describe = driver as unknown as DescribeRow[];
       const profile = await runtime.profile(sources, geometryColumnOverride);
+      const geometries = profile.geometries ?? (profile.geometry ? [profile.geometry] : []);
       return {
         schema: fieldsFromDescribe(describe),
-        geometryColumns: profile.geometry ? [profile.geometry.column] : [],
-        ...(profile.geometry?.runtimeSupported === false || !profile.geometry
-          ? {}
-          : { geometryEncoding: profile.geometry.encoding }),
+        geometryColumns: geometries.map((geometry) => geometry.column),
+        geometries,
+        ...(profile.geometry ? { geometryEncoding: profile.geometry.encoding } : {}),
+        ...(profile.geometry?.execution ? { geometryExecution: profile.geometry.execution } : {}),
+        ...(profile.geometry?.unsupportedReason
+          ? { geometryUnsupportedReason: profile.geometry.unsupportedReason }
+          : {}),
         ...(profile.crs ? { crs: profile.crs } : {}),
         ...(profile.rowEstimate !== undefined ? { rowEstimate: profile.rowEstimate } : {}),
       };
@@ -792,7 +872,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
   async function runQuery(request: Query<T> | undefined): Promise<Result<T>> {
     ensureCapability(descriptor, caps, "query");
     throwIfQueryAborted(request?.signal);
-    const { profile, opts } = await compileOptions(request?.signal);
+    const { profile, opts } = await compileOptions(request, request?.aggregation ? "queryAggregate" : "query");
     if (request?.aggregation) {
       return runAggregate({ ...(request as Query<T>), aggregation: request.aggregation }, profile);
     }
@@ -826,16 +906,20 @@ export function geoparquetSource<T = Record<string, unknown>>(
     ensureCapability(descriptor, caps, "queryAggregate");
     throwIfQueryAborted(request.signal);
     const compiledOptions = profile
-      ? {
-          profile,
-          opts: {
-            sources,
-            geometryAlias: GEOPARQUET_ALIAS,
-            ...(profile.geometry && profile.geometry.runtimeSupported !== false ? { geometry: profile.geometry } : {}),
-            ...(profile.columns.length > 0 ? { columns: profile.columns } : {}),
-          } satisfies CompileOptions,
-        }
-      : await compileOptions(request.signal);
+      ? (() => {
+          const geometry = executableGeometry(profile, "queryAggregate");
+          assertSpatialRuntime(profile, request, geometry, "queryAggregate");
+          return {
+            profile,
+            opts: {
+              sources,
+              geometryAlias: GEOPARQUET_ALIAS,
+              ...(geometry ? { geometry } : {}),
+              ...(profile.columns.length > 0 ? { columns: profile.columns } : {}),
+            } satisfies CompileOptions,
+          };
+        })()
+      : await compileOptions(request, "queryAggregate");
     const compiled = compileAggregate(request, compiledOptions.opts);
     const losslessFields =
       resultEncoding === "lossless-json"
@@ -894,7 +978,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
         yield await runAggregate({ ...(request as Query<T>), aggregation: request.aggregation });
         return;
       }
-      const { profile, opts } = await compileOptions(request?.signal);
+      const { profile, opts } = await compileOptions(request, "stream");
       const wantGeometry = request?.returnGeometry !== false && opts.geometry !== undefined;
       const compiled = compileQuery(request ?? {}, opts);
       const losslessFields =

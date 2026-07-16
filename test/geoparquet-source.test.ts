@@ -207,6 +207,7 @@ describe("geoparquet profile safety", () => {
       '{"version":"1.1.0","primary_column":"__proto__","columns":{"__proto__":{"encoding":"WKB","geometry_types":["Point"]},"constructor":{"encoding":"WKB","geometry_types":["Point"]}}}';
     const runtime = new GeoparquetRuntime({
       driverFactory: async () => ({
+        geometryCapabilities: { spatialExtension: true },
         async run() {},
         async query(sql: string) {
           if (sql.startsWith("DESCRIBE")) {
@@ -237,6 +238,7 @@ describe("geoparquet profile safety", () => {
   it("merges compatible per-file geometry types and bboxes across a partitioned relation", async () => {
     const runtime = new GeoparquetRuntime({
       driverFactory: async () => ({
+        geometryCapabilities: { spatialExtension: true },
         async run() {},
         async query(sql: string) {
           if (sql.startsWith("DESCRIBE")) {
@@ -280,6 +282,7 @@ describe("geoparquet profile safety", () => {
   it("rejects a malformed bbox even when another file omits bbox metadata", async () => {
     const runtime = new GeoparquetRuntime({
       driverFactory: async () => ({
+        geometryCapabilities: { spatialExtension: true },
         async run() {},
         async query(sql: string) {
           if (sql.startsWith("DESCRIBE")) {
@@ -319,6 +322,7 @@ describe("geoparquet profile safety", () => {
   it("rejects incompatible CRS metadata across a multi-file relation", async () => {
     const runtime = new GeoparquetRuntime({
       driverFactory: async () => ({
+        geometryCapabilities: { spatialExtension: true },
         async run() {},
         async query(sql: string) {
           if (sql.startsWith("DESCRIBE")) {
@@ -377,6 +381,7 @@ describe("geoparquet profile safety", () => {
     });
     const runtime = new GeoparquetRuntime({
       driverFactory: async () => ({
+        geometryCapabilities: { spatialExtension: true },
         async run() {},
         async query(sql: string) {
           if (sql.startsWith("DESCRIBE")) {
