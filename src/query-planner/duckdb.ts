@@ -89,6 +89,16 @@ export interface SemanticDuckDbSpatialCompilation {
   readonly crs: ExecutableCrsBinding;
 }
 
+/** Traceable geometry contract for rows returned by the compiled SELECT. */
+export interface SemanticDuckDbOutputGeometry {
+  readonly sourceField: string;
+  readonly sourceEncoding: DuckDbGeometryEncoding;
+  readonly resultField: "geometry";
+  readonly resultEncoding: "geojson";
+  readonly crs: ExecutableCrsBinding;
+  readonly layout: "xy" | "xyz";
+}
+
 /** Parameterized DuckDB artifact over an opaque #587 resource handle. */
 export interface SemanticDuckDbCompiledQueryV1 {
   readonly compiler: "duckdb-semantic-query-v1";
@@ -98,6 +108,7 @@ export interface SemanticDuckDbCompiledQueryV1 {
   readonly resource: GeoParquetResourceHandleV1;
   readonly sqlTemplate: string;
   readonly parameters: readonly SemanticSqlParameter[];
+  readonly outputGeometry?: SemanticDuckDbOutputGeometry;
   readonly spatial: readonly SemanticDuckDbSpatialCompilation[];
   readonly usesNativeFilter: boolean;
 }
@@ -258,7 +269,7 @@ export function compileSemanticDuckDbQuery<TRecord, TSpatiality extends SourceSp
     const groupBy = query.kind === "aggregate" ? duckDbGroupBy(query, state) : "";
     const orderBy = duckDbOrderBy(query, state);
     const page = duckDbPage(query);
-    const sqlTemplate = `SELECT ${projection} FROM ${parquetSourceExpr([RESOURCE_SQL_PLACEHOLDER])}${
+    const sqlTemplate = `SELECT ${projection.sql} FROM ${parquetSourceExpr([RESOURCE_SQL_PLACEHOLDER])}${
       filter ? ` WHERE ${filter}` : ""
     }${groupBy}${orderBy}${page}`;
     const artifact: SemanticDuckDbCompiledQueryV1 = {
@@ -269,6 +280,7 @@ export function compileSemanticDuckDbQuery<TRecord, TSpatiality extends SourceSp
       resource,
       sqlTemplate,
       parameters: state.parameters,
+      ...(projection.outputGeometry ? { outputGeometry: projection.outputGeometry } : {}),
       spatial: state.spatial,
       usesNativeFilter: state.usesNativeFilter,
     };
@@ -323,7 +335,12 @@ function verifyDuckDbGeometrySource(
   };
 }
 
-function duckDbProjection(query: RuntimeDuckDbQuery, state: DuckDbSemanticState): string {
+interface DuckDbProjectionCompilation {
+  readonly sql: string;
+  readonly outputGeometry?: SemanticDuckDbOutputGeometry;
+}
+
+function duckDbProjection(query: RuntimeDuckDbQuery, state: DuckDbSemanticState): DuckDbProjectionCompilation {
   if (query.kind === "aggregate") {
     if (query.outputCrs) {
       semanticUnsupported(
@@ -343,7 +360,7 @@ function duckDbProjection(query: RuntimeDuckDbQuery, state: DuckDbSemanticState)
       const aggregate = duckDbAggregateFunction(metric.fn, operand);
       parts.push(`${aggregate} AS ${duckDbIdentifier(metric.as, `$.metrics[${index}].as`)}`);
     });
-    return parts.join(", ");
+    return { sql: parts.join(", ") };
   }
 
   const geometryField = selectedDuckDbGeometryField(query, state);
@@ -366,18 +383,39 @@ function duckDbProjection(query: RuntimeDuckDbQuery, state: DuckDbSemanticState)
   });
   if (geometryField) {
     const geometry = requiredDuckDbGeometry(state, geometryField.name, "$.geometry");
+    const geometrySchema = sourceGeometryField(state.schema, geometryField.name, "$.geometry");
+    const crs = executableDuckDbCrs(geometrySchema.crs, "$.geometry");
+    if (geometrySchema.layout !== "xy" && geometrySchema.layout !== "xyz") {
+      semanticUnsupported(
+        "unsupported-geometry",
+        "$.geometry",
+        "DuckDB GeoJSON output requires a known xy or xyz source geometry layout",
+      );
+    }
     assertDuckDbOutputCrs(query, geometryField, state);
     parts.push(
       `ST_AsGeoJSON(${duckDbGeometryExpression(geometryField, geometry, "$.geometry")}) AS ${quoteIdentifier("geometry")}`,
     );
-  } else if (query.outputCrs) {
+    return {
+      sql: parts.join(", "),
+      outputGeometry: {
+        sourceField: geometryField.name,
+        sourceEncoding: geometry.encoding,
+        resultField: "geometry",
+        resultEncoding: "geojson",
+        crs,
+        layout: geometrySchema.layout,
+      },
+    };
+  }
+  if (query.outputCrs) {
     semanticUnsupported(
       "unsupported-projection",
       "$.outputCrs",
       "DuckDB cannot apply an output CRS when geometry is omitted",
     );
   }
-  return parts.length > 0 ? parts.join(", ") : `1 AS ${quoteIdentifier("__honua_row")}`;
+  return { sql: parts.length > 0 ? parts.join(", ") : `1 AS ${quoteIdentifier("__honua_row")}` };
 }
 
 function selectedDuckDbGeometryField(

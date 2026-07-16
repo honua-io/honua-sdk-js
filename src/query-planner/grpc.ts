@@ -19,7 +19,6 @@ import type {
   CrsDefinition,
   ExecutableCrsBinding,
   ExecutableGeometryValue,
-  JsonPrimitive,
   JsonValue,
   LogicalField,
   Position,
@@ -258,6 +257,14 @@ export function compileSemanticGrpcQuery<TRecord, TSpatiality extends SourceSpat
     const aggregation = query.kind === "aggregate" ? grpcSemanticAggregation(query, state) : {};
     const page = query.page;
     verifyGrpcPage(page);
+    const where = parts.where;
+    if (where && where.length > 4_000) {
+      semanticUnsupported(
+        "unsupported-node",
+        "$.filter",
+        "Honua gRPC where clauses are limited to 4000 characters by the server",
+      );
+    }
     const outSr = query.outputCrs ? grpcSpatialReference(query.outputCrs, "$.outputCrs") : undefined;
     if (outSr && query.kind === "features" && !projection.returnGeometry) {
       semanticUnsupported(
@@ -283,7 +290,7 @@ export function compileSemanticGrpcQuery<TRecord, TSpatiality extends SourceSpat
       method: "QueryFeatures",
       serviceId: source.serviceId,
       layerId: source.layerId,
-      ...(parts.where ? { where: parts.where } : {}),
+      ...(where ? { where } : {}),
       ...(projection.outFields ? { outFields: projection.outFields } : {}),
       returnGeometry: query.kind === "aggregate" ? false : projection.returnGeometry,
       ...(outSr ? { outSr } : {}),
@@ -367,7 +374,7 @@ function grpcProjection(
       }
       return;
     }
-    outFields.push(grpcFieldPath(field, `$.select[${index}]`));
+    outFields.push(grpcPublicFieldName(field, state, `$.select[${index}]`));
   });
   if (outFields.length === 0) {
     semanticUnsupported(
@@ -402,7 +409,7 @@ function grpcOrderBy(query: RuntimeGrpcQuery, state: GrpcSemanticState): string 
         );
       }
       const field = semanticSchemaField(state.schema, sort.field as string, `$.sort[${index}].field`);
-      return `${grpcSqlIdentifier(field, `$.sort[${index}].field`)}${sort.direction === "desc" ? " DESC" : " ASC"}`;
+      return `${grpcPublicFieldName(field, state, `$.sort[${index}].field`)}${sort.direction === "desc" ? " DESC" : " ASC"}`;
     })
     .join(", ");
 }
@@ -411,36 +418,63 @@ function grpcSemanticAggregation(
   query: Extract<RuntimeGrpcQuery, { readonly kind: "aggregate" }>,
   state: GrpcSemanticState,
 ): Pick<SemanticGrpcCompiledQueryV1, "outStatistics" | "groupBy"> {
+  const outputNames = new Set<string>();
+  const groupBy = query.groupBy.map((name, index) => {
+    const publicName = grpcPublicFieldName(
+      semanticSchemaField(state.schema, name as string, `$.groupBy[${index}]`),
+      state,
+      `$.groupBy[${index}]`,
+    );
+    const folded = publicName.toLowerCase();
+    if (outputNames.has(folded)) {
+      semanticUnsupported(
+        "unsupported-source",
+        `$.groupBy[${index}]`,
+        "QueryFeatures result fields must be unique under server case folding",
+      );
+    }
+    outputNames.add(folded);
+    return publicName;
+  });
+  const outStatistics = query.metrics.map((metric, index) => {
+    const field = metric.field
+      ? semanticSchemaField(state.schema, metric.field as string, `$.metrics[${index}].field`)
+      : undefined;
+    if (!field) {
+      semanticUnsupported(
+        "unsupported-node",
+        `$.metrics[${index}].field`,
+        "Honua gRPC statistics require a named public source field",
+      );
+    }
+    const statisticType = {
+      count: "STATISTIC_TYPE_COUNT",
+      sum: "STATISTIC_TYPE_SUM",
+      avg: "STATISTIC_TYPE_AVG",
+      min: "STATISTIC_TYPE_MIN",
+      max: "STATISTIC_TYPE_MAX",
+      stddev: "STATISTIC_TYPE_STDDEV",
+      variance: "STATISTIC_TYPE_VAR",
+    }[metric.fn] as GrpcStatisticType;
+    const outputName = grpcOutputFieldName(metric.as, `$.metrics[${index}].as`);
+    const folded = outputName.toLowerCase();
+    if (outputNames.has(folded)) {
+      semanticUnsupported(
+        "unsupported-source",
+        `$.metrics[${index}].as`,
+        "QueryFeatures result fields must be unique under server case folding",
+      );
+    }
+    outputNames.add(folded);
+    return {
+      statisticType,
+      onStatisticField: grpcPublicFieldName(field, state, `$.metrics[${index}].field`),
+      outStatisticFieldName: outputName,
+    };
+  });
   return {
-    outStatistics: query.metrics.map((metric, index) => {
-      const field = metric.field
-        ? semanticSchemaField(state.schema, metric.field as string, `$.metrics[${index}].field`)
-        : undefined;
-      const statisticType = {
-        count: "STATISTIC_TYPE_COUNT",
-        sum: "STATISTIC_TYPE_SUM",
-        avg: "STATISTIC_TYPE_AVG",
-        min: "STATISTIC_TYPE_MIN",
-        max: "STATISTIC_TYPE_MAX",
-        stddev: "STATISTIC_TYPE_STDDEV",
-        variance: "STATISTIC_TYPE_VAR",
-      }[metric.fn] as GrpcStatisticType;
-      return {
-        statisticType,
-        onStatisticField: field ? grpcFieldPath(field, `$.metrics[${index}].field`) : "*",
-        outStatisticFieldName: metric.as,
-      };
-    }),
-    ...(query.groupBy.length > 0
-      ? {
-          groupBy: query.groupBy.map((name, index) =>
-            grpcFieldPath(
-              semanticSchemaField(state.schema, name as string, `$.groupBy[${index}]`),
-              `$.groupBy[${index}]`,
-            ),
-          ),
-        }
-      : {}),
+    outStatistics,
+    ...(groupBy.length > 0 ? { groupBy } : {}),
   };
 }
 
@@ -460,7 +494,7 @@ function compileGrpcFilterParts(filter: RuntimeGrpcFilter, state: GrpcSemanticSt
       }
     });
     return {
-      ...(where.length > 0 ? { where: where.length === 1 ? where[0] : `(${where.join(" AND ")})` } : {}),
+      ...(where.length > 0 ? { where: where.join(" AND ") } : {}),
       ...(spatial ? { spatial } : {}),
     };
   }
@@ -482,69 +516,77 @@ function compileGrpcAttributeFilter(filter: RuntimeGrpcFilter, state: GrpcSemant
     case "comparison": {
       const field = semanticSchemaField(state.schema, filter.left.name, `${path}.left.name`);
       const operator = { eq: "=", ne: "<>", lt: "<", lte: "<=", gt: ">", gte: ">=" }[filter.operator];
-      return `${grpcSqlIdentifier(field, `${path}.left.name`)} ${operator} ${grpcSqlLiteral(
+      return `${grpcWhereFieldName(field, state, `${path}.left.name`)} ${operator} ${grpcWhereLiteral(
         filter.right.value,
         field,
         `${path}.right.value`,
       )}`;
     }
-    case "list": {
-      const field = semanticSchemaField(state.schema, filter.operand.name, `${path}.operand.name`);
-      return `${grpcSqlIdentifier(field, `${path}.operand.name`)} IN (${filter.values
-        .map((literal, index) => grpcSqlLiteral(literal.value, field, `${path}.values[${index}].value`))
-        .join(", ")})`;
-    }
+    case "list":
+      return semanticUnsupported("unsupported-node", path, "Honua gRPC where clauses do not support IN expressions");
     case "range": {
       const field = semanticSchemaField(state.schema, filter.operand.name, `${path}.operand.name`);
-      return `${grpcSqlIdentifier(field, `${path}.operand.name`)} BETWEEN ${grpcSqlLiteral(
-        filter.lower.value,
-        field,
-        `${path}.lower.value`,
-      )} AND ${grpcSqlLiteral(filter.upper.value, field, `${path}.upper.value`)}`;
+      const name = grpcWhereFieldName(field, state, `${path}.operand.name`);
+      const lower = grpcWhereLiteral(filter.lower.value, field, `${path}.lower.value`);
+      const upper = grpcWhereLiteral(filter.upper.value, field, `${path}.upper.value`);
+      return `${name} >= ${lower} AND ${name} <= ${upper}`;
     }
     case "null": {
       const field = semanticSchemaField(state.schema, filter.operand.name, `${path}.operand.name`);
-      return `${grpcSqlIdentifier(field, `${path}.operand.name`)} IS ${filter.operator === "is-not-null" ? "NOT " : ""}NULL`;
+      return `${grpcWhereFieldName(field, state, `${path}.operand.name`)} IS ${
+        filter.operator === "is-not-null" ? "NOT " : ""
+      }NULL`;
     }
     case "pattern": {
       const field = semanticSchemaField(state.schema, filter.operand.name, `${path}.operand.name`);
-      const value = grpcQuotedString(filter.pattern);
       if (filter.caseSensitive === false) {
-        return `LOWER(${grpcSqlIdentifier(field, `${path}.operand.name`)}) LIKE LOWER(${value})`;
+        semanticUnsupported(
+          "unsupported-node",
+          `${path}.caseSensitive`,
+          "Honua gRPC where clauses cannot preserve case-insensitive LIKE semantics",
+        );
       }
-      return `${grpcSqlIdentifier(field, `${path}.operand.name`)} LIKE ${value}`;
+      return `${grpcWhereFieldName(field, state, `${path}.operand.name`)} LIKE ${grpcQuotedString(
+        filter.pattern,
+        `${path}.pattern`,
+      )}`;
     }
-    case "boolean":
-      return `(${filter.args
+    case "boolean": {
+      if (filter.operator !== "and") {
+        semanticUnsupported("unsupported-node", path, "Honua gRPC where clauses support only AND composition");
+      }
+      return filter.args
         .map((entry, index) => compileGrpcAttributeFilter(entry as RuntimeGrpcFilter, state, `${path}.args[${index}]`))
-        .join(` ${filter.operator.toUpperCase()} `)})`;
+        .join(" AND ");
+    }
     case "not":
-      return `NOT (${compileGrpcAttributeFilter(filter.arg as RuntimeGrpcFilter, state, `${path}.arg`)})`;
+      return semanticUnsupported("unsupported-node", path, "Honua gRPC where clauses do not support NOT composition");
     case "temporal": {
       const field = semanticSchemaField(state.schema, filter.operand.name, `${path}.operand.name`);
+      const name = grpcWhereFieldName(field, state, `${path}.operand.name`);
       if (filter.operator === "before" || filter.operator === "after") {
-        return `${grpcSqlIdentifier(field, `${path}.operand.name`)} ${filter.operator === "before" ? "<" : ">"} ${grpcSqlLiteral(
+        return `${name} ${filter.operator === "before" ? "<" : ">"} ${grpcWhereLiteral(
           filter.value.value as string,
           field,
           `${path}.value.value`,
         )}`;
       }
       const interval = filter.value.value as readonly [string, string];
-      return `${grpcSqlIdentifier(field, `${path}.operand.name`)} BETWEEN ${grpcSqlLiteral(
-        interval[0],
-        field,
-        `${path}.value.value[0]`,
-      )} AND ${grpcSqlLiteral(interval[1], field, `${path}.value.value[1]`)}`;
+      const lower = grpcWhereLiteral(interval[0], field, `${path}.value.value[0]`);
+      const upper = grpcWhereLiteral(interval[1], field, `${path}.value.value[1]`);
+      return `${name} >= ${lower} AND ${name} <= ${upper}`;
     }
-    case "native":
+    case "native": {
+      const where = grpcNativeWhere(filter.payload.value, state, path);
       state.usesNativeFilter = true;
-      return grpcNativeWhere(filter.payload.value, path);
+      return where;
+    }
     case "spatial":
       semanticUnsupported("unsupported-node", path, "Spatial filters require the QueryFeatures spatial_filter field");
   }
 }
 
-function grpcNativeWhere(value: JsonValue, path: string): string {
+function grpcNativeWhere(value: JsonValue, state: GrpcSemanticState, path: string): string {
   if (value === null || Array.isArray(value) || typeof value !== "object") {
     semanticUnsupported(
       "unsupported-native-filter",
@@ -561,7 +603,7 @@ function grpcNativeWhere(value: JsonValue, path: string): string {
       "honua-grpc native filter payload must be an object containing one non-empty where string",
     );
   }
-  return where;
+  return verifiedGrpcNativeWhere(where, state, path);
 }
 
 function compileGrpcSpatial(
@@ -743,7 +785,68 @@ function primaryGeometryField(schema: SourceSchemaV2): string | undefined {
     : undefined;
 }
 
-function grpcSqlLiteral(value: JsonValue, field: LogicalField, path: string): string {
+const GRPC_SERVER_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const GRPC_SERVER_NUMBER = /^-?\d+(?:\.\d+)?$/;
+const GRPC_SERVER_COMPARISON =
+  /^([a-zA-Z_][a-zA-Z0-9_]*)\s*(NOT\s+LIKE|LIKE|>=|<=|!=|<>|=|>|<)\s*('(?:''|[^'])*'|-?\d+(?:\.\d+)?)$/i;
+const GRPC_SERVER_NULL_CHECK = /^([a-zA-Z_][a-zA-Z0-9_]*)\s+IS\s+(?:NOT\s+)?NULL$/i;
+const GRPC_SERVER_TRUE_LITERAL = /^(?:1\s*=\s*1|TRUE)$/i;
+const DOTNET_DECIMAL_MAX = 79_228_162_514_264_337_593_543_950_335n;
+
+// FeatureQueryBuilder rejects these tokens before it parameterizes the legacy
+// where grammar. Public fields with one of these exact names therefore cannot
+// be represented consistently across the server's PostgreSQL readers.
+const GRPC_SERVER_FORBIDDEN_WHERE_FIELDS = new Set([
+  "and",
+  "union",
+  "select",
+  "insert",
+  "update",
+  "delete",
+  "drop",
+  "create",
+  "alter",
+  "exec",
+  "execute",
+  "xp_",
+  "sp_",
+  "information_schema",
+  "copy",
+  "truncate",
+  "grant",
+  "revoke",
+  "vacuum",
+  "analyze",
+  "explain",
+  "do",
+  "raise",
+  "perform",
+  "notify",
+  "listen",
+  "pg_read_file",
+  "pg_write_file",
+  "pg_ls_dir",
+  "pg_stat_file",
+  "lo_import",
+  "lo_export",
+  "pg_sleep",
+  "current_setting",
+  "set_config",
+  "pg_advisory_lock",
+  "pg_advisory_unlock",
+  "dblink",
+  "dblink_connect",
+  "pg_terminate_backend",
+  "pg_cancel_backend",
+  "pg_reload_conf",
+  "query_to_xml",
+  "xpath",
+  "returning",
+  "chr",
+  "convert_from",
+]);
+
+function grpcWhereLiteral(value: JsonValue, field: LogicalField, path: string): string {
   if (value === null || Array.isArray(value) || typeof value === "object") {
     semanticUnsupported(
       "unsupported-field-type",
@@ -753,25 +856,26 @@ function grpcSqlLiteral(value: JsonValue, field: LogicalField, path: string): st
   }
   switch (field.type.kind) {
     case "boolean":
-      if (typeof value !== "boolean") break;
-      return value ? "TRUE" : "FALSE";
+      return semanticUnsupported(
+        "unsupported-field-type",
+        path,
+        "Honua gRPC server where clauses do not carry boolean literals portably",
+      );
     case "integer":
-      if (typeof value === "number") return String(value);
-      if (typeof value === "string" && /^[+-]?\d+$/.test(value)) return value;
+      if (typeof value === "number" || typeof value === "string") return grpcServerNumber(value, path);
       break;
     case "float":
-      if (typeof value === "number") return String(value);
+      if (typeof value === "number") return grpcServerNumber(value, path);
       break;
     case "decimal":
-      if (typeof value === "number") return String(value);
-      if (typeof value === "string" && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)) return value;
+      if (typeof value === "number" || typeof value === "string") return grpcServerNumber(value, path);
       break;
     case "string":
     case "uuid":
     case "date":
     case "time":
     case "timestamp":
-      if (typeof value === "string") return grpcQuotedString(value);
+      if (typeof value === "string") return grpcQuotedString(value, path);
       break;
     case "duration":
     case "binary":
@@ -794,34 +898,167 @@ function grpcSqlLiteral(value: JsonValue, field: LogicalField, path: string): st
   );
 }
 
-function grpcQuotedString(value: string): string {
-  if (value.includes("\u0000")) {
-    throw new HonuaQueryPlanningError("invalid-query", "Semantic gRPC literal contains a NUL byte");
+function grpcServerNumber(value: number | string, path: string): string {
+  const token = typeof value === "number" ? String(value) : value;
+  if (!GRPC_SERVER_NUMBER.test(token) || !grpcServerDecimalFits(token)) {
+    semanticUnsupported(
+      "unsupported-field-type",
+      path,
+      "Honua gRPC numeric literals must fit the server decimal grammar without exponent or sign prefixes",
+    );
+  }
+  return token;
+}
+
+function grpcServerDecimalFits(token: string): boolean {
+  const unsigned = token.startsWith("-") ? token.slice(1) : token;
+  const [whole = "", fraction = ""] = unsigned.split(".");
+  const significantFraction = fraction.replace(/0+$/, "");
+  if (significantFraction.length > 28) return false;
+  const coefficientText = `${whole}${significantFraction}`.replace(/^0+/, "") || "0";
+  if (coefficientText.length > 29) return false;
+  return BigInt(coefficientText) <= DOTNET_DECIMAL_MAX;
+}
+
+function grpcQuotedString(value: string, path: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: mirrors server char.IsControl admission
+  if (/[\u0000-\u001f\u007f-\u009f]/.test(value)) {
+    semanticUnsupported(
+      "unsupported-field-type",
+      path,
+      "Honua gRPC where string literals cannot contain control characters",
+    );
   }
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-function grpcSqlIdentifier(field: LogicalField, path: string): string {
-  return field.path
-    .map((segment) => {
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: SQL identifiers cannot contain control bytes
-      if (/[\u0000-\u001f\u007f]/.test(segment)) {
-        semanticUnsupported("unsupported-source", path, "QueryFeatures cannot represent the physical field identifier");
-      }
-      return `"${segment.replace(/"/g, '""')}"`;
-    })
-    .join(".");
+function grpcPublicFieldName(field: LogicalField, state: GrpcSemanticState, path: string): string {
+  if (!GRPC_SERVER_IDENTIFIER.test(field.name)) {
+    semanticUnsupported(
+      "unsupported-source",
+      path,
+      "QueryFeatures requires an ASCII public field name accepted by the server",
+    );
+  }
+  const folded = field.name.toLowerCase();
+  if (state.schema.fields.filter((candidate) => candidate.name.toLowerCase() === folded).length !== 1) {
+    semanticUnsupported(
+      "unsupported-source",
+      path,
+      "QueryFeatures cannot resolve case-insensitively ambiguous public field names",
+    );
+  }
+  return field.name;
 }
 
-function grpcFieldPath(field: LogicalField, path: string): string {
-  for (const segment of field.path) {
-    // QueryFeatures carries physical projection paths as one dot-delimited
-    // string, so a literal dot or control byte in a segment is not losslessly
-    // representable even though the SQL where grammar can quote that segment.
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: protobuf field paths cannot contain control bytes
-    if (segment.includes(".") || /[\u0000-\u001f\u007f]/.test(segment)) {
-      semanticUnsupported("unsupported-source", path, "QueryFeatures cannot represent the physical field path");
+function grpcWhereFieldName(field: LogicalField, state: GrpcSemanticState, path: string): string {
+  const name = grpcPublicFieldName(field, state, path);
+  if (GRPC_SERVER_FORBIDDEN_WHERE_FIELDS.has(name.toLowerCase())) {
+    semanticUnsupported(
+      "unsupported-source",
+      path,
+      "QueryFeatures cannot represent this public field in server where grammar",
+    );
+  }
+  return name;
+}
+
+function grpcOutputFieldName(value: string, path: string): string {
+  if (!GRPC_SERVER_IDENTIFIER.test(value)) {
+    semanticUnsupported(
+      "unsupported-source",
+      path,
+      "QueryFeatures statistic aliases require an ASCII server field identifier",
+    );
+  }
+  return value;
+}
+
+function verifiedGrpcNativeWhere(value: string, state: GrpcSemanticState, path: string): string {
+  const wherePath = `${path}.payload.value.where`;
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: mirrors server char.IsControl admission
+  if (value.length > 4_000 || /[\u0000-\u001f\u007f-\u009f]/.test(value)) {
+    semanticUnsupported(
+      "unsupported-native-filter",
+      wherePath,
+      "honua-grpc native where text exceeds the server admission boundary",
+    );
+  }
+  const where = value.trim();
+  const clauses = splitGrpcServerAnd(where);
+  if (clauses.length === 1 && GRPC_SERVER_TRUE_LITERAL.test(clauses[0]?.trim() ?? "")) return where;
+  if (clauses.length === 0) {
+    semanticUnsupported(
+      "unsupported-native-filter",
+      wherePath,
+      "honua-grpc native where text is not server-executable",
+    );
+  }
+  for (const clause of clauses) {
+    const trimmed = clause.trim();
+    const nullMatch = GRPC_SERVER_NULL_CHECK.exec(trimmed);
+    const comparisonMatch = GRPC_SERVER_COMPARISON.exec(trimmed);
+    const fieldName = nullMatch?.[1] ?? comparisonMatch?.[1];
+    if (!fieldName || GRPC_SERVER_TRUE_LITERAL.test(trimmed)) {
+      semanticUnsupported(
+        "unsupported-native-filter",
+        wherePath,
+        "honua-grpc native where text is not server-executable",
+      );
+    }
+    const field = state.schema.fields.find((candidate) => candidate.name === fieldName);
+    if (!field) {
+      semanticUnsupported(
+        "unsupported-native-filter",
+        wherePath,
+        "honua-grpc native where fields must use exact public schema names",
+      );
+    }
+    grpcWhereFieldName(field, state, wherePath);
+    const literal = comparisonMatch?.[3];
+    if (literal && !literal.startsWith("'") && !grpcServerDecimalFits(literal)) {
+      semanticUnsupported(
+        "unsupported-native-filter",
+        wherePath,
+        "honua-grpc native where text is not server-executable",
+      );
     }
   }
-  return field.path.join(".");
+  return where;
+}
+
+function splitGrpcServerAnd(value: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let index = 0; index < value.length; index++) {
+    const character = value[index] as string;
+    if (character === "'") {
+      if (inQuotes && value[index + 1] === "'") {
+        current += "''";
+        index++;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      current += character;
+      continue;
+    }
+    if (!inQuotes && value.slice(index, index + 3).toUpperCase() === "AND") {
+      const previous = index > 0 ? (value[index - 1] as string) : " ";
+      const next = index + 3 < value.length ? (value[index + 3] as string) : " ";
+      if (!grpcServerIdentifierCharacter(previous) && !grpcServerIdentifierCharacter(next)) {
+        parts.push(current);
+        current = "";
+        index += 2;
+        continue;
+      }
+    }
+    current += character;
+  }
+  if (current.length > 0) parts.push(current);
+  return parts;
+}
+
+function grpcServerIdentifierCharacter(value: string): boolean {
+  return /[a-zA-Z0-9_]/.test(value);
 }

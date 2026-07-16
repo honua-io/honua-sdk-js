@@ -223,8 +223,12 @@ if (compilation.outcome === "compiled") {
 DuckDB artifacts contain a fixed `honua-resource://resolve-at-execution`
 placeholder, the opaque #587 resource handle, parameterized SQL, and ordered
 bind values. Raw locators and credentials never enter the SQL template. The
-physical geometry encoding and executable CRS are retained in spatial
-diagnostics. Exact geometry predicates use DuckDB Spatial functions. A
+`outputGeometry` contract accompanies every geometry-returning projection,
+even when no spatial predicate exists. It records the logical source field,
+physical source encoding, GeoJSON result field/encoding, executable CRS, and
+coordinate layout. The separate `spatial` array describes predicates only.
+Measured or unknown layouts fail closed because GeoJSON output cannot prove
+their semantics exact. Exact geometry predicates use DuckDB Spatial functions. A
 GeoParquet bbox-covering column may prefilter an exact bbox query, but the exact
 geometry predicate remains present to prevent false positives.
 
@@ -234,19 +238,30 @@ with `spatialStrategy: "bbox-envelope"`. That artifact has
 entry whose strategy is `bbox-envelope`; it is never presented as exact.
 
 Honua gRPC artifacts are protobuf-runtime-free canonical descriptions of
-`honua.v1.FeatureService/QueryFeatures`. They preserve field mapping,
-projection, sorting, paging, statistics, geometry payload, relationship, and
-CRS while escaping every semantic literal as data. A request shape that cannot
-preserve the AST—such as a bbox without an envelope message, spatial predicates
-inside `OR`/`NOT`, a coordinate epoch, or an unrepresentable CRS—returns an
-unsupported diagnostic instead of manufacturing a polygon, dropping a node,
-or inserting a transform.
+`honua.v1.FeatureService/QueryFeatures`. Projection, filter, sort, group, and
+statistic operands use public `SourceSchemaV2` field names; physical storage
+paths never enter the request. Generated `where` text is limited to the server's
+executable grammar: ASCII public identifiers, simple comparisons or
+`IS [NOT] NULL`, and top-level `AND`. Nested safe `AND` nodes are flattened, and
+inclusive range/temporal intervals become paired comparisons without adding
+parentheses. String literals are SQL-quoted as data; numeric literals must fit
+the server's non-exponent decimal grammar and decimal range.
+
+A request shape that cannot preserve the AST—such as `OR`, `NOT`, `IN`,
+case-insensitive `LIKE`, a fieldless statistic, a bbox without an envelope
+message, a coordinate epoch, or an unrepresentable CRS—returns an unsupported
+diagnostic instead of emitting a request the server parser will reject,
+manufacturing a polygon, dropping a node, or inserting a transform. The final
+`where` string also honors the server's 4,000-character and control-character
+admission limits.
 
 Protocol-native filters remain explicit trust-boundary escape hatches. A
 DuckDB native expression must be tagged `duckdb-sql`; a Honua request fragment
-must be tagged `honua-grpc` and currently contains exactly one `where` member.
-Artifacts expose `usesNativeFilter` so policy and inspection code can
-distinguish native code from compiler-escaped semantic values.
+must be tagged `honua-grpc`, contain exactly one `where` member, and pass the
+same server grammar, public-field, length, and control-character checks before
+an artifact is created. Artifacts expose `usesNativeFilter` so policy and
+inspection code can distinguish native code from compiler-escaped semantic
+values.
 
 Neither compiler imports DuckDB, `@bufbuild/protobuf`, or Connect runtimes.
 Execution and integration into the complete explain plan belong to the

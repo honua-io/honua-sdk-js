@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type {
@@ -18,6 +20,7 @@ import {
 import type {
   SemanticCompilationResult,
   SemanticDuckDbCompiledQueryV1,
+  SemanticDuckDbOutputGeometry,
   SemanticGrpcCompiledQueryV1,
   SemanticQuery,
   TemporalValue,
@@ -28,7 +31,9 @@ import { createSourceSchemaV2 } from "../src/source-schema.js";
 interface Incident {
   readonly id: number;
   readonly status: string;
+  readonly active: boolean;
   readonly amount: number;
+  readonly ratio: number;
   readonly preciseAmount: string;
   readonly observedAt: TemporalValue<"instant">;
   readonly shape: ExecutableGeometryValue;
@@ -139,6 +144,7 @@ function field(name: string, type: LogicalField["type"], overrides: Partial<Logi
 function schema(
   statusPath = 'status"raw',
   timestampUnit: "second" | "millisecond" | "microsecond" | "nanosecond" = "microsecond",
+  geometryLayout: "xy" | "xyz" | "xym" | "xyzm" | "unknown" = "xy",
 ): SourceSchemaV2 {
   return createSourceSchemaV2({
     fields: [
@@ -152,7 +158,9 @@ function schema(
         },
       ),
       field("status", { kind: "string" }, { path: [statusPath] }),
+      field("active", { kind: "boolean" }),
       field("amount", { kind: "decimal", precision: 12, scale: 2, jsonEncoding: "number" }),
+      field("ratio", { kind: "float", bits: 64 }),
       field(
         "preciseAmount",
         { kind: "decimal", precision: 18, scale: 4, jsonEncoding: "string" },
@@ -178,7 +186,7 @@ function schema(
           field: "shape",
           geometryTypes: { state: "mixed", types: ["Point", "Polygon"] },
           crs: epsg4326,
-          layout: "xy",
+          layout: geometryLayout,
           allowsEmpty: false,
         },
       ],
@@ -193,6 +201,17 @@ function schema(
         source: "honua.v1.FeatureService/QueryFeatures",
       },
     ],
+  });
+}
+
+function nonSpatialSchema(fields: readonly LogicalField[]): SourceSchemaV2 {
+  return createSourceSchemaV2({
+    fields,
+    key: { state: "none" },
+    geometry: { state: "none", reason: "no-geometry-fields" },
+    temporal: { state: "none" },
+    openContent: "closed",
+    provenance: [{ method: "declared", protocol: "grpc", source: "honua.v1.FeatureService/QueryFeatures" }],
   });
 }
 
@@ -278,21 +297,177 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
       method: "QueryFeatures",
       serviceId: "incidents",
       layerId: 0,
-      outFields: ["id_col", 'status"raw', "precise_amount"],
+      outFields: ["id", "status", "preciseAmount"],
       returnGeometry: false,
-      orderBy: '"amount" DESC',
+      orderBy: "amount DESC",
       resultOffset: 7,
       resultRecordCount: 25,
       usesNativeFilter: false,
     });
     expect(hostileGrpc.where).toBe(
-      '("status""raw" = \'x\'\' OR 1=1 --\' AND "precise_amount" = 1234567890123.5000 AND "observed_at" > \'2026-07-14T12:34:56.123456Z\')',
+      "status = 'x'' OR 1=1 --' AND preciseAmount = 1234567890123.5000 AND observedAt > '2026-07-14T12:34:56.123456Z'",
     );
     expect(hostileGrpc.where?.replace("x'' OR 1=1 --", "open")).toBe(safeGrpc.where);
     expect(Object.keys(hostileGrpc).filter((key) => key !== "where" && key !== "queryFingerprint")).toEqual(
       Object.keys(safeGrpc).filter((key) => key !== "where" && key !== "queryFingerprint"),
     );
     expect(Object.isFrozen(hostileGrpc)).toBe(true);
+  });
+
+  it("emits public field names in the exact bounded grammar accepted by Honua Server", () => {
+    const query = createSemanticQueryBuilder<Incident, "grpc", "primary-geometry">();
+    const result = compileSemanticGrpcQuery({
+      query: query.features({
+        select: ["id", "status", "preciseAmount"] as const,
+        geometry: "omit",
+        filter: query.and(
+          query.comparison("eq", query.property("status"), "open"),
+          query.and(
+            query.between(query.property("amount"), 10, 20),
+            query.isNull(query.property("preciseAmount"), "is-not-null"),
+          ),
+          query.like(query.property("status"), "op%", { caseSensitive: true }),
+          query.temporal(
+            "during",
+            query.property("observedAt"),
+            temporalLiteral("interval", ["2026-07-14T00:00:00Z", "2026-07-15T00:00:00Z"]),
+          ),
+        ),
+        sort: [{ field: "amount", direction: "asc", nulls: "native" }],
+      }),
+      schema: schema(),
+      source: { serviceId: "incidents", layerId: 0 },
+    });
+    const artifact = compiled(result);
+
+    expect(artifact.outFields).toEqual(["id", "status", "preciseAmount"]);
+    expect(artifact.orderBy).toBe("amount ASC");
+    expect(artifact.where).toBe(
+      "status = 'open' AND amount >= 10 AND amount <= 20 AND preciseAmount IS NOT NULL AND status LIKE 'op%' AND observedAt >= '2026-07-14T00:00:00Z' AND observedAt <= '2026-07-15T00:00:00Z'",
+    );
+    const comparison =
+      /^[a-zA-Z_][a-zA-Z0-9_]*\s*(?:NOT\s+LIKE|LIKE|>=|<=|!=|<>|=|>|<)\s*(?:'(?:''|[^'])*'|-?\d+(?:\.\d+)?)$/i;
+    const nullCheck = /^[a-zA-Z_][a-zA-Z0-9_]*\s+IS\s+(?:NOT\s+)?NULL$/i;
+    for (const clause of artifact.where?.split(" AND ") ?? []) {
+      expect(comparison.test(clause) || nullCheck.test(clause)).toBe(true);
+    }
+    expect(artifact.where).not.toContain('"');
+    expect(artifact.where).not.toContain("(");
+    expect(artifact.where?.length).toBeLessThanOrEqual(4_000);
+  });
+
+  it("fails closed for semantic nodes and literals outside the server where grammar", () => {
+    const query = createSemanticQueryBuilder<Incident, "grpc", "primary-geometry">();
+    const statusOpen = query.comparison("eq", query.property("status"), "open");
+    const cases = [
+      { filter: query.inList(query.property("status"), ["open", "closed"]), path: "$.filter" },
+      {
+        filter: query.or(statusOpen, query.comparison("eq", query.property("status"), "closed")),
+        path: "$.filter",
+      },
+      { filter: query.not(statusOpen), path: "$.filter" },
+      { filter: query.like(query.property("status"), "op%", { caseSensitive: false }), path: "$.filter.caseSensitive" },
+      { filter: query.comparison("eq", query.property("active"), true), path: "$.filter.right.value" },
+      { filter: query.comparison("eq", query.property("ratio"), 1e21), path: "$.filter.right.value" },
+      { filter: query.comparison("eq", query.property("status"), "open\nclosed"), path: "$.filter.right.value" },
+    ] as const;
+
+    for (const entry of cases) {
+      expect(
+        compileSemanticGrpcQuery({
+          query: query.features({ geometry: "omit", filter: entry.filter as never }),
+          schema: schema(),
+          source: { serviceId: "incidents", layerId: 0 },
+        }),
+      ).toMatchObject({ outcome: "unsupported", diagnostics: [{ path: entry.path }] });
+    }
+
+    expect(
+      compileSemanticGrpcQuery({
+        query: query.features({
+          geometry: "omit",
+          filter: query.comparison("eq", query.property("status"), "x".repeat(4_000)),
+        }),
+        schema: schema(),
+        source: { serviceId: "incidents", layerId: 0 },
+      }),
+    ).toMatchObject({ outcome: "unsupported", diagnostics: [{ code: "unsupported-node", path: "$.filter" }] });
+  });
+
+  it("rejects public names and aggregate shapes the server cannot resolve", () => {
+    interface UnsafeRecord {
+      readonly "unsafe-name": string;
+    }
+    const unsafeQuery = createSemanticQueryBuilder<UnsafeRecord, "grpc", "non-spatial">();
+    const unsafe = compileSemanticGrpcQuery({
+      query: unsafeQuery.features({ select: ["unsafe-name"] as const, geometry: "omit" }),
+      schema: nonSpatialSchema([field("unsafe-name", { kind: "string" }, { path: ["safe_storage_name"] })]),
+      source: { serviceId: "unsafe", layerId: 0 },
+    });
+    expect(unsafe).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-source", path: "$.select[0]" }],
+    });
+
+    interface AmbiguousRecord {
+      readonly Status: string;
+      readonly status: string;
+    }
+    const ambiguousQuery = createSemanticQueryBuilder<AmbiguousRecord, "grpc", "non-spatial">();
+    const ambiguous = compileSemanticGrpcQuery({
+      query: ambiguousQuery.features({ select: ["status"] as const, geometry: "omit" }),
+      schema: nonSpatialSchema([
+        field("Status", { kind: "string" }, { path: ["status_upper"] }),
+        field("status", { kind: "string" }, { path: ["status_lower"] }),
+      ]),
+      source: { serviceId: "ambiguous", layerId: 0 },
+    });
+    expect(ambiguous).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-source", path: "$.select[0]" }],
+    });
+
+    interface ReservedRecord {
+      readonly select: string;
+    }
+    const reservedQuery = createSemanticQueryBuilder<ReservedRecord, "grpc", "non-spatial">();
+    const reserved = compileSemanticGrpcQuery({
+      query: reservedQuery.features({
+        geometry: "omit",
+        filter: reservedQuery.comparison("eq", reservedQuery.property("select"), "value"),
+      }),
+      schema: nonSpatialSchema([field("select", { kind: "string" })]),
+      source: { serviceId: "reserved", layerId: 0 },
+    });
+    expect(reserved).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-source", path: "$.filter.left.name" }],
+    });
+
+    const aggregate = createSemanticQueryBuilder<Incident, "grpc", "primary-geometry">();
+    expect(
+      compileSemanticGrpcQuery({
+        query: aggregate.aggregate({ groupBy: [], metrics: [{ fn: "count", as: "rows" }] as const }),
+        schema: schema(),
+        source: { serviceId: "incidents", layerId: 0 },
+      }),
+    ).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-node", path: "$.metrics[0].field" }],
+    });
+    expect(
+      compileSemanticGrpcQuery({
+        query: aggregate.aggregate({
+          groupBy: ["status"] as const,
+          metrics: [{ fn: "count", field: "id", as: "Status" }] as const,
+        }),
+        schema: schema(),
+        source: { serviceId: "incidents", layerId: 0 },
+      }),
+    ).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-source", path: "$.metrics[0].as" }],
+    });
   });
 
   it("preserves equivalent aggregation, grouping, filtering, and paging semantics", () => {
@@ -327,15 +502,15 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     expect(duckArtifact.sqlTemplate).toContain('WHERE "status""raw" = ? GROUP BY "status""raw"');
     expect(duckArtifact.sqlTemplate).toContain('ORDER BY "status""raw" ASC LIMIT 10');
     expect(grpcArtifact).toMatchObject({
-      where: '"status""raw" = \'open\'',
+      where: "status = 'open'",
       returnGeometry: false,
-      orderBy: '"status""raw" ASC',
+      orderBy: "status ASC",
       resultRecordCount: 10,
-      groupBy: ['status"raw'],
+      groupBy: ["status"],
       outStatistics: [
         {
           statisticType: "STATISTIC_TYPE_COUNT",
-          onStatisticField: "id_col",
+          onStatisticField: "id",
           outStatisticFieldName: "incidents",
         },
         {
@@ -369,6 +544,14 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
       fidelity: "exact",
       losses: [],
       artifact: {
+        outputGeometry: {
+          sourceField: "shape",
+          sourceEncoding: "wkb",
+          resultField: "geometry",
+          resultEncoding: "geojson",
+          crs: epsg4326,
+          layout: "xy",
+        },
         spatial: [{ path: "$.filter", field: "shape", encoding: "wkb", strategy: "exact", crs: epsg4326 }],
         parameters: [{ position: 1, role: "geometry", logicalType: "geometry-json" }],
       },
@@ -392,6 +575,57 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
         },
       },
     });
+  });
+
+  it("retains output geometry encoding and CRS even when no spatial predicate exists", () => {
+    const query = createSemanticQueryBuilder<Incident, "geoparquet", "primary-geometry">();
+    const artifact = compiled(
+      compileSemanticDuckDbQuery({
+        query: query.features({ select: ["id"] as const, geometry: "include" }),
+        schema: schema(),
+        resource,
+        geometry: { field: "shape", encoding: "wkb" },
+      }),
+    );
+
+    expect(artifact.spatial).toEqual([]);
+    expect(artifact.outputGeometry).toEqual({
+      sourceField: "shape",
+      sourceEncoding: "wkb",
+      resultField: "geometry",
+      resultEncoding: "geojson",
+      crs: epsg4326,
+      layout: "xy",
+    });
+    expect(Object.isFrozen(artifact.outputGeometry)).toBe(true);
+    expect(artifact.sqlTemplate).toContain('ST_AsGeoJSON(ST_GeomFromWKB("geom""wkb")) AS "geometry"');
+
+    const omitted = compiled(
+      compileSemanticDuckDbQuery({
+        query: query.features({ select: ["id"] as const, geometry: "omit" }),
+        schema: schema(),
+        resource,
+        geometry: { field: "shape", encoding: "wkb" },
+      }),
+    );
+    expect(omitted).not.toHaveProperty("outputGeometry");
+  });
+
+  it("does not label measured or unknown DuckDB GeoJSON output layouts as exact", () => {
+    const query = createSemanticQueryBuilder<Incident, "geoparquet", "primary-geometry">();
+    for (const layout of ["xym", "xyzm", "unknown"] as const) {
+      expect(
+        compileSemanticDuckDbQuery({
+          query: query.features({ select: ["id"] as const, geometry: "include" }),
+          schema: schema('status"raw', "microsecond", layout),
+          resource,
+          geometry: { field: "shape", encoding: "wkb" },
+        }),
+      ).toMatchObject({
+        outcome: "unsupported",
+        diagnostics: [{ code: "unsupported-geometry", path: "$.geometry" }],
+      });
+    }
   });
 
   it("makes every opt-in geometry-envelope reduction an explicit fidelity loss", () => {
@@ -542,6 +776,38 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     expect(compiled(duckResult).sqlTemplate).toContain("WHERE (amount > 0)");
     expect(compiled(grpcResult)).toMatchObject({ usesNativeFilter: true, where: "amount > 0" });
 
+    const quotedAnd = grpc(
+      honua.features({
+        geometry: "omit",
+        filter: honua.native("honua-grpc", {
+          format: "json",
+          value: { where: "status = 'x'' AND y' AND amount > 0" },
+        }),
+      }),
+    );
+    expect(compiled(quotedAnd)).toMatchObject({
+      usesNativeFilter: true,
+      where: "status = 'x'' AND y' AND amount > 0",
+    });
+
+    for (const where of [
+      '"amount" > 0',
+      "amount IN (1, 2)",
+      "amount > 0 OR amount < 2",
+      "amount > 1e3",
+      "unknown > 0",
+      "amount > 0\n",
+    ]) {
+      expect(
+        grpc(
+          honua.features({
+            geometry: "omit",
+            filter: honua.native("honua-grpc", { format: "json", value: { where } }),
+          }),
+        ),
+      ).toMatchObject({ outcome: "unsupported", diagnostics: [{ code: "unsupported-native-filter" }] });
+    }
+
     expect(() =>
       compileSemanticGrpcQuery({
         query: {
@@ -588,15 +854,14 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
 
     const honua = createSemanticQueryBuilder<Incident, "grpc", "primary-geometry">();
     expect(
-      compileSemanticGrpcQuery({
-        query: honua.features({ select: ["status"] as const, geometry: "omit" }),
-        schema: schema("status.raw"),
-        source: { serviceId: "incidents", layerId: 0 },
-      }),
-    ).toMatchObject({
-      outcome: "unsupported",
-      diagnostics: [{ code: "unsupported-source", path: "$.select[0]" }],
-    });
+      compiled(
+        compileSemanticGrpcQuery({
+          query: honua.features({ select: ["status"] as const, geometry: "omit" }),
+          schema: schema("status.raw"),
+          source: { serviceId: "incidents", layerId: 0 },
+        }),
+      ),
+    ).toMatchObject({ outFields: ["status"] });
 
     expect(
       compileSemanticDuckDbQuery({
@@ -615,11 +880,25 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     const grpcResult = grpc();
     expectTypeOf(duckResult).toEqualTypeOf<SemanticCompilationResult<SemanticDuckDbCompiledQueryV1>>();
     expectTypeOf(grpcResult).toEqualTypeOf<SemanticCompilationResult<SemanticGrpcCompiledQueryV1>>();
+    expectTypeOf<
+      NonNullable<SemanticDuckDbCompiledQueryV1["outputGeometry"]>
+    >().toEqualTypeOf<SemanticDuckDbOutputGeometry>();
     expect(Object.isFrozen(duckResult)).toBe(true);
     expect(Object.isFrozen(grpcResult)).toBe(true);
     if (duckResult.outcome === "compiled") {
       expect(Object.isFrozen(duckResult.artifact.parameters)).toBe(true);
       expect(Object.isFrozen(duckResult.artifact.resource)).toBe(true);
+    }
+  });
+
+  it("keeps protobuf, Connect, and DuckDB runtimes out of the semantic compiler graph", async () => {
+    const runtimePeerImport = /(?:from\s+|import\s*\(\s*)["'](?:@bufbuild|@connectrpc|@duckdb)\//;
+    for (const sourceUrl of [
+      new URL("../src/query-planner/duckdb.ts", import.meta.url),
+      new URL("../src/query-planner/grpc.ts", import.meta.url),
+      new URL("../src/query-planner/semantic-compiler.ts", import.meta.url),
+    ]) {
+      expect(await readFile(sourceUrl, "utf8")).not.toMatch(runtimePeerImport);
     }
   });
 });

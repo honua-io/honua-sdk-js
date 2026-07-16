@@ -135,6 +135,7 @@ export type {
   SemanticDuckDbCompileOptions,
   SemanticDuckDbCompiledQueryV1,
   SemanticDuckDbGeometrySource,
+  SemanticDuckDbOutputGeometry,
   SemanticDuckDbSpatialCompilation,
 } from "./duckdb.js";
 export type {
