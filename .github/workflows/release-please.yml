@@ -57,6 +57,7 @@ jobs:
     permissions:
       checks: write
       contents: read
+      issues: read
       pull-requests: read
     steps:
       # Release Please updates its PR in the preceding trusted push job. Emit

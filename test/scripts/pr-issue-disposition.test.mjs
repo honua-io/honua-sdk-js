@@ -171,7 +171,7 @@ describe("pull request issue disposition policy", () => {
     );
     assert.match(
       workflow,
-      /^  release-please-disposition:\n    needs: release-please\n    runs-on: ubuntu-latest\n    permissions:\n      checks: write\n      contents: read\n      pull-requests: read$/mu,
+      /^  release-please-disposition:\n    needs: release-please\n    runs-on: ubuntu-latest\n    permissions:\n      checks: write\n      contents: read\n      issues: read\n      pull-requests: read$/mu,
     );
     assert.equal(actionUses.length, usesLines.length);
     assert.ok(actionUses.length > 0);
