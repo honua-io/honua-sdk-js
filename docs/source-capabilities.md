@@ -231,7 +231,10 @@ current-source authorization: pass both expected source coordinates when
 parsing for current use. Semantic fingerprints intentionally exclude clock-only
 freshness state; fingerprints are content addresses, not signatures, so
 authenticate the surrounding channel when origin or timestamp authenticity
-matters. Parsing verifies that a supplied evaluation instant reproduces the
+matters. Only locally created profiles and profiles parsed with both expected
+source coordinates retain the private endpoint-binding proof required for
+attachment to a `SourceDescriptor`; an unbound audit parse cannot be replayed
+onto a source. Parsing verifies that a supplied evaluation instant reproduces the
 transported decision; it does not attest who supplied that clock input.
 
 ## Sensitive caller data

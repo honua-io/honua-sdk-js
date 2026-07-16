@@ -108,7 +108,10 @@ export function evaluateCapabilityProfile(
   const fingerprint = sha256(
     `${CAPABILITY_PROFILE_FINGERPRINT_DOMAIN}\n${canonicalStringify(toJsonValue(fingerprintProjection))}`,
   ) as Sha256;
-  return registerCapabilityProfile(deepFreezeCapability({ ...envelope, fingerprint }) as CapabilityProfile);
+  return registerCapabilityProfile(
+    deepFreezeCapability({ ...envelope, fingerprint }) as CapabilityProfile,
+    runtime.sourceDescriptorMatches,
+  );
 }
 
 /** @internal Snapshot and validate dynamic inputs before an asynchronous discovery boundary. */

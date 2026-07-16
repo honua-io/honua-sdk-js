@@ -1,7 +1,8 @@
 import { type ResolvedCrsDefinition, validateSourceCrsDefinition } from "./contract/schema.js";
-import { CAPABILITIES } from "./contract/types.js";
+import { CAPABILITIES, type SourceDescriptor } from "./contract/types.js";
 import { canonicalStringify, sha256, toJsonValue } from "./query-planner/canonical.js";
 import type { JsonValue } from "./query-planner/types.js";
+import { sourceCapabilityEndpointIdentity } from "./source-capability-discovery-endpoint.js";
 import { createCapabilitySourceEndpointFingerprint } from "./source-capability-endpoint.js";
 import {
   assertExactCapabilityKeys,
@@ -20,6 +21,7 @@ import {
 } from "./source-capability-limits.js";
 import {
   type CapabilityEvidenceRuntimeEntry,
+  type CapabilitySourceDescriptorMatcher,
   capabilityEvidenceRuntimeIndex as capabilityProfileRuntimeIndex,
   registerCapabilityEvidenceProfile,
 } from "./source-capability-registry.js";
@@ -142,12 +144,17 @@ export function createCapabilityEvidenceProfile(
   return createBoundCapabilityEvidenceProfile(entries, {
     sourceFingerprint: safeOptions.sourceFingerprint,
     sourceEndpointFingerprint: createCapabilitySourceEndpointFingerprint(safeOptions.sourceEndpoint),
+    sourceEndpoint: safeOptions.sourceEndpoint,
   });
 }
 
 function createBoundCapabilityEvidenceProfile(
   entries: readonly CapabilityEvidenceEntry[],
-  binding: { readonly sourceFingerprint?: Sha256; readonly sourceEndpointFingerprint: Sha256 },
+  binding: {
+    readonly sourceFingerprint?: Sha256;
+    readonly sourceEndpointFingerprint: Sha256;
+    readonly sourceEndpoint?: CapabilitySourceEndpointIdentity;
+  },
 ): CapabilityEvidenceProfile {
   const safeEntries = snapshotCapabilityJson(
     entries,
@@ -157,6 +164,10 @@ function createBoundCapabilityEvidenceProfile(
   if (!Array.isArray(safeEntries)) throw new TypeError("Capability evidence entries must be an array");
   assertMaximumCount(safeEntries.length, MAX_CAPABILITY_ENTRIES, "Capability evidence entries");
   validateSha256(binding.sourceEndpointFingerprint, "Capability source endpoint fingerprint");
+  const sourceDescriptorMatches =
+    binding.sourceEndpoint === undefined
+      ? undefined
+      : createSourceDescriptorMatcher(binding.sourceEndpointFingerprint);
 
   const ids = new Set<string>();
   const normalizedEntries = safeEntries.map((entry, index) => {
@@ -229,7 +240,20 @@ function createBoundCapabilityEvidenceProfile(
   }));
   return registerCapabilityEvidenceProfile(profile, {
     entries: deepFreezeCapability(runtimeEntries),
+    ...(sourceDescriptorMatches === undefined ? {} : { sourceDescriptorMatches }),
   });
+}
+
+function createSourceDescriptorMatcher(expectedFingerprint: Sha256): CapabilitySourceDescriptorMatcher {
+  return (descriptor: Pick<SourceDescriptor, "id" | "protocol" | "locator">): boolean => {
+    const identity =
+      descriptor.protocol === "geoservices-feature-service" ||
+      descriptor.protocol === "geoservices-map-service" ||
+      descriptor.protocol === "odata"
+        ? sourceCapabilityEndpointIdentity(descriptor)
+        : { endpoint: descriptor.locator.url, protocol: descriptor.protocol, sourceId: descriptor.id };
+    return createCapabilitySourceEndpointFingerprint(identity) === expectedFingerprint;
+  };
 }
 
 /** Parse a strict, content-addressed static evidence envelope. */
@@ -271,6 +295,7 @@ export function parseCapabilityEvidenceProfile(
   const profile = createBoundCapabilityEvidenceProfile(record.entries as readonly CapabilityEvidenceEntry[], {
     sourceFingerprint: record.sourceFingerprint,
     sourceEndpointFingerprint: record.sourceEndpointFingerprint,
+    ...(expectedBinding === undefined ? {} : { sourceEndpoint: expectedBinding.sourceEndpoint }),
   });
   if (profile.fingerprint !== record.fingerprint) {
     throw new TypeError("Capability evidence profile fingerprint does not match its normalized static envelope");

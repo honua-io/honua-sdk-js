@@ -15,6 +15,8 @@ import {
   type CapabilityId,
   createCapabilityEvidenceProfile,
   evaluateCapabilityProfile,
+  parseCapabilityProfile,
+  serializeCapabilityProfile,
 } from "../../src/source-capabilities.js";
 
 import { makeMockClient } from "./shared.js";
@@ -23,6 +25,11 @@ const SOURCE_FINGERPRINT = `sha256:${"a".repeat(64)}` as const;
 const OBSERVED_AT = "2026-07-01T00:00:00Z";
 const EXPIRES_AT = "2026-08-01T00:00:00Z";
 const EVALUATED_AT = "2026-07-15T00:00:00Z";
+const SOURCE_ENDPOINT = {
+  endpoint: "https://mock/rest/services/Parcels/FeatureServer/0",
+  protocol: "geoservices-feature-service",
+  sourceId: "parcels",
+} as const;
 
 function observedEntry(
   id: CapabilityId,
@@ -60,11 +67,7 @@ function evaluatedProfile() {
     ],
     {
       sourceFingerprint: SOURCE_FINGERPRINT,
-      sourceEndpoint: {
-        endpoint: "https://mock/rest/services/Parcels/FeatureServer/0",
-        protocol: "geoservices-feature-service",
-        sourceId: "parcels",
-      },
+      sourceEndpoint: SOURCE_ENDPOINT,
     },
   );
   return evaluateCapabilityProfile(evidence, {
@@ -374,5 +377,30 @@ describe("source.supports()", () => {
         sources: [replayed],
       }),
     ).toThrow(/does not match its endpoint fingerprint/);
+  });
+
+  it("requires transported profiles to verify their source endpoint before descriptor admission", () => {
+    const wire = serializeCapabilityProfile(evaluatedProfile());
+    const unbound = parseCapabilityProfile(wire);
+    expect(() =>
+      createDataset({
+        id: "parcels",
+        client: makeMockClient({ routes: [] }),
+        skipCompatibilityCheck: true,
+        sources: [descriptor(["query"], unbound)],
+      }),
+    ).toThrow(/does not match its endpoint fingerprint/);
+
+    const verified = parseCapabilityProfile(wire, {
+      expectedSourceFingerprint: SOURCE_FINGERPRINT,
+      expectedSourceEndpoint: SOURCE_ENDPOINT,
+    });
+    const source = createDataset({
+      id: "parcels",
+      client: makeMockClient({ routes: [] }),
+      skipCompatibilityCheck: true,
+      sources: [descriptor(["query"], verified)],
+    }).source("parcels")!;
+    expect(source.supports("query")).toBe(true);
   });
 });
