@@ -1,8 +1,8 @@
 # Backlog dependency reconciliation
 
-The backlog dependency dry run reads issue state and proposes readiness-label changes. It never edits an issue,
-changes a label, closes work, or interprets pull-request merge state. A dependency is satisfied only when the exact
-referenced GitHub issue is closed.
+The backlog dependency reconciler reads issue state and proposes readiness-label changes. Dry-run mode never edits an
+issue, changes a label, closes work, or interprets pull-request merge state. A dependency is satisfied only when the
+exact referenced GitHub issue is closed.
 
 ## Dependency grammar
 
@@ -89,8 +89,29 @@ npm run backlog:dependencies:dry-run -- \
   --json
 ```
 
-The report always says `mutationsPerformed: false`. Workflow wiring and the label-only apply path belong to issue
-#600 S2 and must consume the reviewed planner without adding a second parser. S1 does not add a GitHub workflow or
-mutation entrypoint. Its offline snapshot input must be a non-symlink regular UTF-8 file no larger than 16 MiB, and
-the reader rejects size/identity drift while reading it. The S1 read-only stabilization pass is not a substitute for
-S2's immediate pre-mutation double-read.
+The report always says `mutationsPerformed: false`. An offline snapshot must be a non-symlink regular UTF-8 file no
+larger than 16 MiB, and the reader rejects size or identity drift while reading it.
+
+## Trusted apply
+
+Apply mode accepts live GitHub metadata only:
+
+```bash
+GITHUB_TOKEN=... npm run backlog:dependencies:apply -- --repository honua-io/honua-sdk-js --json
+```
+
+The apply path consumes the same pure planner as dry-run mode. Before the first write, it loads and double-reads each
+candidate's exact transitive dependency graph and requires the targeted plan, issue body, labels, and dependency
+states to match the stabilized inventory. Immediately before each write it repeats that targeted double-read. Any
+drift, ambiguous labels, unreadable metadata, rate limit, degraded response, or changed disposition stops the run.
+
+An admitted transition replaces the issue's label set in one bounded `PATCH`, changing exactly one of `blocked` and
+`ready-to-start` while preserving every unrelated label. The returned issue and a post-write double-read must prove
+the expected stable postcondition. The command never edits issue bodies, priority, phase, roadmap, effort, parentage,
+state, or comments. A second run is a no-op once the planned readiness transition has landed.
+
+The `Backlog dependency reconciliation` workflow runs scheduled applies every six hours and offers explicit manual
+`dry-run` and `apply` modes. It checks out only the repository default branch into `trusted-policy`, disables checkout
+credentials, pins every action by commit, and never runs on pull-request events. The dry-run job has `contents: read`
+and `issues: read`; only the apply job receives `issues: write`. Both jobs write the bounded JSON report to the Actions
+log and job summary without adding issue comments.

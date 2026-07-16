@@ -7,14 +7,20 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  BacklogDependencyApplyError,
+  applyGitHubBacklogReconciliation,
+} from "../../scripts/lib/apply-backlog-dependencies.mjs";
+import {
   BacklogDependencyError,
   parseBacklogDependencies,
   planBacklogReconciliation,
 } from "../../scripts/lib/backlog-dependencies.mjs";
 import {
   GitHubBacklogMetadataError,
+  githubBacklogLabelRequest,
   githubBacklogRequest,
   loadGitHubBacklogSnapshot,
+  loadGitHubBacklogTargetSnapshot,
 } from "../../scripts/lib/github-backlog-dependencies.mjs";
 
 const repository = "honua-io/honua-sdk-js";
@@ -80,6 +86,55 @@ function jsonResponse(payload, headers = {}) {
     status: 200,
     headers: { "content-type": "application/json; charset=utf-8", ...headers },
   });
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function memoryGitHub(initialIssues) {
+  const issues = new Map();
+  for (const initial of initialIssues) {
+    const issueRepository = initial.repository_url.split("/repos/").at(-1).toLowerCase();
+    issues.set(`${issueRepository}#${initial.number}`, cloneJson(initial));
+  }
+  const mutations = [];
+  let revision = 0;
+
+  function issueFromUrl(url) {
+    const parsed = new URL(url);
+    const match = /\/repos\/([^/]+)\/([^/]+)\/issues\/([1-9][0-9]*)$/u.exec(parsed.pathname);
+    if (!match) return null;
+    return issues.get(`${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}#${match[3]}`) ?? null;
+  }
+
+  async function read(url) {
+    const parsed = new URL(url);
+    if (parsed.search) {
+      const match = /\/repos\/([^/]+)\/([^/]+)\/issues$/u.exec(parsed.pathname);
+      assert.ok(match, `Unexpected list URL: ${url}`);
+      const issueRepository = `${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}`.toLowerCase();
+      return [...issues.entries()]
+        .filter(([key, value]) => key.startsWith(`${issueRepository}#`) && value.state === "open")
+        .map(([, value]) => cloneJson(value))
+        .sort((left, right) => left.number - right.number);
+    }
+    const value = issueFromUrl(url);
+    if (!value) throw new GitHubBacklogMetadataError("not-found", 404);
+    return cloneJson(value);
+  }
+
+  async function mutate(url, options) {
+    const value = issueFromUrl(url);
+    if (!value) throw new GitHubBacklogMetadataError("not-found", 404);
+    mutations.push({ url, labels: [...options.labels] });
+    value.labels = options.labels.map((name) => ({ name }));
+    revision += 1;
+    value.updated_at = `2026-07-15T03:00:${String(revision).padStart(2, "0")}Z`;
+    return cloneJson(value);
+  }
+
+  return { issues, mutations, read, mutate };
 }
 
 describe("backlog dependency grammar", () => {
@@ -824,7 +879,154 @@ describe("bounded GitHub metadata reader", () => {
   });
 });
 
-describe("read-only dry-run CLI", () => {
+describe("trusted backlog dependency apply", () => {
+  it("changes one eligible synthetic issue exactly once and makes the second run a no-op", async () => {
+    const github = memoryGitHub([
+      restIssue(10, {
+        body: automatic(["#20"]),
+        labels: [{ name: "priority/P2" }, { name: "blocked" }],
+      }),
+      restIssue(20, { state: "closed", labels: [{ name: "phase/Beta" }] }),
+    ]);
+    const input = { repository, maxPages: 2, maxIssues: 20, maxDependencies: 10, concurrency: 1 };
+
+    const targeted = await loadGitHubBacklogTargetSnapshot({ ...input, issueNumber: 10 }, github.read);
+    assert.equal(targeted.metadata.doubleRead, true);
+    assert.equal(targeted.metadata.targeted, true);
+    assert.equal(targeted.issues.length, 2);
+
+    const first = await applyGitHubBacklogReconciliation(input, {
+      read: github.read,
+      mutate: github.mutate,
+    });
+    assert.equal(first.mode, "apply");
+    assert.equal(first.mutationsPerformed, true);
+    assert.equal(first.appliedCount, 1);
+    assert.deepEqual(first.applied, [{ issue: "#10", remove: "blocked", add: "ready-to-start" }]);
+    assert.equal(github.mutations.length, 1);
+    assert.deepEqual(github.mutations[0].labels, ["priority/P2", "ready-to-start"]);
+
+    const second = await applyGitHubBacklogReconciliation(input, {
+      read: github.read,
+      mutate: github.mutate,
+    });
+    assert.equal(second.mode, "apply");
+    assert.equal(second.mutationsPerformed, false);
+    assert.equal(second.appliedCount, 0);
+    assert.deepEqual(second.applied, []);
+    assert.equal(github.mutations.length, 1);
+  });
+
+  it("double-reads the transitive graph again and performs no write when a dependency drifts", async () => {
+    const github = memoryGitHub([
+      restIssue(10, { body: automatic(["#20"]), labels: [{ name: "blocked" }] }),
+      restIssue(20, { state: "closed" }),
+    ]);
+    let dependencyReads = 0;
+    const driftingRead = async (url, options) => {
+      if (url.endsWith("/issues/20")) {
+        dependencyReads += 1;
+        if (dependencyReads === 5) {
+          const dependency = github.issues.get(`${repository}#20`);
+          dependency.state = "open";
+          dependency.updated_at = "2026-07-15T03:00:01Z";
+        }
+      }
+      return github.read(url, options);
+    };
+
+    await assert.rejects(
+      applyGitHubBacklogReconciliation(
+        { repository, maxPages: 2, maxIssues: 20, maxDependencies: 10, concurrency: 1 },
+        { read: driftingRead, mutate: github.mutate },
+      ),
+      (error) => error instanceof BacklogDependencyApplyError && error.code === "preflight-drift",
+    );
+    assert.equal(dependencyReads, 6);
+    assert.equal(github.mutations.length, 0);
+  });
+
+  it("makes target metadata the final pre-mutation read and rejects last-read drift", async () => {
+    const github = memoryGitHub([
+      restIssue(10, { body: automatic(["#20"]), labels: [{ name: "blocked" }] }),
+      restIssue(20, { state: "closed" }),
+    ]);
+    let targetReads = 0;
+    const driftingRead = async (url, options) => {
+      if (url.endsWith("/issues/10")) {
+        targetReads += 1;
+        if (targetReads === 7) {
+          const target = github.issues.get(`${repository}#10`);
+          target.body = automatic();
+          target.updated_at = "2026-07-15T03:00:01Z";
+        }
+      }
+      return github.read(url, options);
+    };
+
+    await assert.rejects(
+      applyGitHubBacklogReconciliation(
+        { repository, maxPages: 2, maxIssues: 20, maxDependencies: 10, concurrency: 1 },
+        { read: driftingRead, mutate: github.mutate },
+      ),
+      (error) => error instanceof BacklogDependencyApplyError && error.code === "preflight-drift",
+    );
+    assert.equal(targetReads, 7);
+    assert.equal(github.mutations.length, 0);
+  });
+
+  it("origin-locks one atomic PATCH and rejects ambiguous label payloads before fetch", async () => {
+    const originalToken = process.env.GITHUB_TOKEN;
+    const originalGhToken = process.env.GH_TOKEN;
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+    try {
+      process.env.GH_TOKEN = "";
+      process.env.GITHUB_TOKEN = `ghp_${"a".repeat(40)}`;
+      globalThis.fetch = async (url, options) => {
+        calls.push({ url, options });
+        return jsonResponse(
+          restIssue(10, {
+            labels: [{ name: "priority/P2" }, { name: "ready-to-start" }],
+            updated_at: "2026-07-15T03:00:01Z",
+          }),
+        );
+      };
+
+      await githubBacklogLabelRequest(`https://api.github.com/repos/${repository}/issues/10`, {
+        labels: ["priority/P2", "ready-to-start"],
+      });
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].options.method, "PATCH");
+      assert.equal(calls[0].options.redirect, "error");
+      assert.deepEqual(JSON.parse(calls[0].options.body), {
+        labels: ["priority/P2", "ready-to-start"],
+      });
+
+      await expectMetadataError(
+        "invalid-label-mutation",
+        githubBacklogLabelRequest(`https://api.github.com/repos/${repository}/issues/10`, {
+          labels: ["blocked", "blocked"],
+        }),
+      );
+      await expectMetadataError(
+        "invalid-request-url",
+        githubBacklogLabelRequest("https://attacker.invalid/repos/o/r/issues/10", {
+          labels: ["blocked"],
+        }),
+      );
+      assert.equal(calls.length, 1);
+    } finally {
+      if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+      else process.env.GITHUB_TOKEN = originalToken;
+      if (originalGhToken === undefined) delete process.env.GH_TOKEN;
+      else process.env.GH_TOKEN = originalGhToken;
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("backlog dependency CLI and workflow", () => {
   it("prints byte-deterministic JSON and never reports a mutation", () => {
     const args = [
       cli,
@@ -921,6 +1123,8 @@ describe("read-only dry-run CLI", () => {
       for (const args of [
         ["--repository", repository, "--repository", repository],
         ["--repository", repository, "--json", "--json"],
+        ["--repository", repository, "--apply", "--apply"],
+        ["--repository", repository, "--apply", "--metadata", path.join(fixtureRoot, "stable-snapshot.json")],
         ["--repository", repository, "--metadata", oversizedPath],
         ["--repository", repository, "--metadata", invalidUtf8Path],
         ["--repository", repository, "--metadata", symlinkPath],
@@ -930,28 +1134,42 @@ describe("read-only dry-run CLI", () => {
         const result = spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: "utf8" });
         assert.equal(result.status, 1, `${args.join(" ")}\n${result.stdout}\n${result.stderr}`);
         assert.equal(result.stdout, "");
-        assert.match(result.stderr, /Backlog dependency dry run failed:/u);
+        assert.match(result.stderr, /Backlog dependency reconciliation failed:/u);
       }
     } finally {
       fs.rmSync(tempDirectory, { recursive: true, force: true });
     }
   });
 
-  it("keeps the S1 dry run out of GitHub workflow execution", () => {
-    const workflow = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
-    assert.doesNotMatch(workflow, /backlog:dependencies|backlog-dependencies/u);
+  it("keeps the trusted workflow pinned, least-privilege, and isolated from pull-request code", () => {
+    const workflow = fs.readFileSync(
+      path.join(root, ".github/workflows/backlog-dependency-reconciliation.yml"),
+      "utf8",
+    );
+    assert.match(workflow, /^  schedule:/mu);
+    assert.match(workflow, /^  workflow_dispatch:/mu);
+    assert.doesNotMatch(workflow, /pull_request(?:_target)?:/u);
+    assert.match(workflow, /^permissions: \{\}$/mu);
+    assert.equal(workflow.match(/^      issues: read$/gmu)?.length, 1);
+    assert.equal(workflow.match(/^      issues: write$/gmu)?.length, 1);
+    assert.equal(workflow.match(/actions\/checkout@[0-9a-f]{40}/gu)?.length, 2);
+    assert.equal(workflow.match(/actions\/setup-node@[0-9a-f]{40}/gu)?.length, 2);
+    assert.doesNotMatch(workflow, /uses: actions\/(?:checkout|setup-node)@v/u);
+    assert.equal(workflow.match(/ref: \$\{\{ github\.event\.repository\.default_branch \}\}/gu)?.length, 2);
+    assert.equal(workflow.match(/path: trusted-policy/gu)?.length, 2);
+    assert.equal(workflow.match(/persist-credentials: false/gu)?.length, 2);
+    assert.equal(workflow.match(/working-directory: trusted-policy/gu)?.length, 2);
+    assert.doesNotMatch(workflow, /github\.event\.pull_request|github\.sha|secrets:|gh issue comment/u);
+    assert.match(workflow, /^    if: github\.event_name == 'schedule' \|\| inputs\.mode == 'apply'$/mu);
+
+    const ci = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
+    assert.equal(ci.match(/node --test test\/scripts\/backlog-dependencies\.test\.mjs/gu)?.length, 2);
   });
 
-  it("rejects an apply flag and contains no GitHub mutation verbs", () => {
-    const apply = spawnSync(process.execPath, [cli, "--repository", repository, "--apply"], {
-      cwd: root,
-      encoding: "utf8",
-    });
-    assert.equal(apply.status, 1);
-    assert.match(apply.stderr, /invalid-argument/u);
-
+  it("keeps dry-run reads separate from the single bounded PATCH implementation", () => {
     const reader = fs.readFileSync(path.join(root, "scripts/lib/github-backlog-dependencies.mjs"), "utf8");
-    assert.doesNotMatch(reader, /\b(?:PATCH|POST|PUT|DELETE)\b/u);
+    assert.equal(reader.match(/method: "PATCH"/gu)?.length, 1);
+    assert.doesNotMatch(reader, /\b(?:POST|PUT|DELETE)\b/u);
     assert.match(reader, /method: "GET"/u);
   });
 });

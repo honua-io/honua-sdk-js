@@ -11,11 +11,13 @@ import {
   normalizeRepository,
   planBacklogReconciliation,
 } from "./lib/backlog-dependencies.mjs";
+import { BacklogDependencyApplyError, applyGitHubBacklogReconciliation } from "./lib/apply-backlog-dependencies.mjs";
 import { GitHubBacklogMetadataError, loadGitHubBacklogSnapshot } from "./lib/github-backlog-dependencies.mjs";
 
 const CLI_ERROR_MESSAGES = Object.freeze({
   "invalid-argument": "Command arguments are invalid.",
   "invalid-positive-integer": "A numeric option requires a positive safe integer.",
+  "metadata-apply-forbidden": "Apply mode requires fresh live GitHub metadata.",
   "invalid-snapshot": "Metadata snapshot could not be read safely.",
   "snapshot-repository-mismatch": "Metadata snapshot repository does not match the requested repository.",
 });
@@ -42,7 +44,7 @@ class BacklogDependencyCliError extends Error {
 function usage() {
   return (
     "Usage: node scripts/reconcile-backlog-dependencies.mjs --repository owner/repo " +
-    "[--metadata snapshot.json] [--json] [--max-pages N] [--max-issues N] " +
+    "[--metadata snapshot.json] [--apply] [--json] [--max-pages N] [--max-issues N] " +
     "[--max-dependencies N] [--concurrency N]"
   );
 }
@@ -55,7 +57,7 @@ function positiveInteger(value) {
 }
 
 function parseArguments(argv) {
-  const options = { json: false };
+  const options = { apply: false, json: false };
   const seen = new Set();
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -63,6 +65,12 @@ function parseArguments(argv) {
       if (seen.has(argument)) throw new BacklogDependencyCliError("invalid-argument");
       seen.add(argument);
       options.json = true;
+      continue;
+    }
+    if (argument === "--apply") {
+      if (seen.has(argument)) throw new BacklogDependencyCliError("invalid-argument");
+      seen.add(argument);
+      options.apply = true;
       continue;
     }
     if (argument === "--help") {
@@ -85,6 +93,7 @@ function parseArguments(argv) {
   for (const name of ["maxPages", "maxIssues", "maxDependencies", "concurrency"]) {
     if (options[name] !== undefined) options[name] = positiveInteger(options[name]);
   }
+  if (options.apply && options.metadata) throw new BacklogDependencyCliError("metadata-apply-forbidden");
   return options;
 }
 
@@ -155,9 +164,9 @@ function readSnapshot(filePath, repository) {
 
 function formatHuman(plan) {
   const lines = [
-    `Backlog dependency dry run: ${plan.repository}`,
+    `Backlog dependency ${plan.mode}: ${plan.repository}`,
     `Targets: ${plan.targetCount}; stabilized issue metadata: ${plan.metadataIssueCount}`,
-    "Mutations performed: no",
+    `Mutations performed: ${plan.mutationsPerformed ? "yes" : "no"}`,
     "",
     "Disposition counts:",
   ];
@@ -166,6 +175,7 @@ function formatHuman(plan) {
   for (const item of plan.dispositions) {
     lines.push(`- ${item.issue}: ${item.kind} — ${item.reason}`);
   }
+  if (plan.mode === "apply") lines.push("", `Applied readiness transitions: ${plan.appliedCount}`);
   return `${lines.join("\n")}\n`;
 }
 
@@ -175,19 +185,24 @@ async function main() {
     process.stdout.write(`${usage()}\n`);
     return;
   }
-  const snapshot = options.metadata
-    ? readSnapshot(options.metadata, options.repository)
-    : await loadGitHubBacklogSnapshot({
-        repository: options.repository,
-        maxPages: options.maxPages,
-        maxIssues: options.maxIssues,
-        maxDependencies: options.maxDependencies,
-        concurrency: options.concurrency,
-      });
-  const plan = planBacklogReconciliation(snapshot, {
-    maxDependencies: options.maxDependencies ?? DEFAULT_MAX_DEPENDENCIES_PER_ISSUE,
-    maxIssues: options.maxIssues ?? DEFAULT_MAX_BACKLOG_ISSUES,
-  });
+  const liveInput = {
+    repository: options.repository,
+    maxPages: options.maxPages,
+    maxIssues: options.maxIssues,
+    maxDependencies: options.maxDependencies,
+    concurrency: options.concurrency,
+  };
+  const plan = options.apply
+    ? await applyGitHubBacklogReconciliation(liveInput)
+    : planBacklogReconciliation(
+        options.metadata
+          ? readSnapshot(options.metadata, options.repository)
+          : await loadGitHubBacklogSnapshot(liveInput),
+        {
+          maxDependencies: options.maxDependencies ?? DEFAULT_MAX_DEPENDENCIES_PER_ISSUE,
+          maxIssues: options.maxIssues ?? DEFAULT_MAX_BACKLOG_ISSUES,
+        },
+      );
   process.stdout.write(options.json ? `${JSON.stringify(plan, null, 2)}\n` : formatHuman(plan));
 }
 
@@ -197,8 +212,9 @@ try {
   const knownError =
     error instanceof BacklogDependencyCliError ||
     error instanceof BacklogDependencyError ||
+    error instanceof BacklogDependencyApplyError ||
     error instanceof GitHubBacklogMetadataError;
-  const detail = knownError ? `${error.code}: ${error.message}` : "unexpected-error: Dry run failed safely.";
-  process.stderr.write(`Backlog dependency dry run failed: ${detail}\n`);
+  const detail = knownError ? `${error.code}: ${error.message}` : "unexpected-error: Reconciliation failed safely.";
+  process.stderr.write(`Backlog dependency reconciliation failed: ${detail}\n`);
   process.exitCode = 1;
 }

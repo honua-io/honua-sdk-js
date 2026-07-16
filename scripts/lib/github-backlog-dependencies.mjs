@@ -33,11 +33,13 @@ const METADATA_ERROR_MESSAGES = Object.freeze({
   "duplicate-metadata": "GitHub returned duplicate issue metadata.",
   "invalid-api-root": "GitHub API root is invalid.",
   "invalid-bound": "A configured metadata bound is invalid.",
+  "invalid-label-mutation": "GitHub label mutation metadata is invalid.",
   "invalid-request-url": "GitHub request URL is outside the configured API root.",
   "invalid-token": "GitHub token has an invalid format.",
   "issue-bound-exceeded": "The configured issue metadata bound was exceeded.",
   "malformed-metadata": "GitHub returned malformed issue metadata.",
-  "missing-token": "A GitHub token is required for a live dry run.",
+  "missing-token": "A GitHub token is required for live reconciliation.",
+  "mutation-rejected": "GitHub rejected the bounded label mutation.",
   "not-found": "GitHub issue metadata is not readable.",
   "pagination-bound-exceeded": "The configured pagination bound was exceeded.",
   "response-bound-exceeded": "GitHub response exceeds the configured resource bounds.",
@@ -173,6 +175,26 @@ function normalizedLabels(labels) {
       seen.has(name)
     ) {
       metadataFail("malformed-metadata");
+    }
+    seen.add(name);
+    result.push(name);
+  }
+  return result.sort(compareText);
+}
+
+function normalizedLabelNames(labels) {
+  if (!Array.isArray(labels) || labels.length > MAX_LABELS) metadataFail("invalid-label-mutation");
+  const result = [];
+  const seen = new Set();
+  for (const name of labels) {
+    if (
+      typeof name !== "string" ||
+      name.length === 0 ||
+      name.length > MAX_LABEL_LENGTH ||
+      UNSAFE_LABEL_PATTERN.test(name) ||
+      seen.has(name)
+    ) {
+      metadataFail("invalid-label-mutation");
     }
     seen.add(name);
     result.push(name);
@@ -398,6 +420,66 @@ export async function githubBacklogRequest(url, options = {}) {
   return boundedResponseJson(response, maxResponseBytes);
 }
 
+/** Replace an issue's labels through one bounded, origin-locked GitHub request. */
+export async function githubBacklogLabelRequest(url, options = {}) {
+  if (options === null || typeof options !== "object" || Array.isArray(options)) {
+    metadataFail("invalid-label-mutation");
+  }
+  const apiRootValue =
+    options.apiRoot === undefined ? (process.env.GITHUB_API_URL ?? "https://api.github.com") : options.apiRoot;
+  const apiRoot = normalizeApiRoot(apiRootValue);
+  const requestUrl = validateRequestUrl(url, apiRoot).href;
+  const labels = normalizedLabelNames(options.labels);
+  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
+  if (!token) metadataFail("missing-token");
+  if (token.length > 1024 || INVALID_TOKEN_CHARACTER_PATTERN.test(token)) metadataFail("invalid-token");
+
+  let headers;
+  let body;
+  try {
+    headers = new Headers();
+    headers.set("Accept", "application/vnd.github+json");
+    headers.set("Authorization", `Bearer ${token}`);
+    headers.set("Content-Type", "application/json");
+    headers.set("User-Agent", "honua-backlog-dependency-apply");
+    headers.set("X-GitHub-Api-Version", "2022-11-28");
+    body = JSON.stringify({ labels });
+  } catch {
+    metadataFail("request-setup-failed");
+  }
+
+  let response;
+  try {
+    const timeoutSignal = AbortSignal.timeout(15_000);
+    const signal = options.signal === undefined ? timeoutSignal : AbortSignal.any([options.signal, timeoutSignal]);
+    response = await fetch(requestUrl, {
+      method: "PATCH",
+      redirect: "error",
+      signal,
+      headers,
+      body,
+    });
+  } catch {
+    metadataFail("degraded-api");
+  }
+
+  let responseOk;
+  let responseStatus;
+  try {
+    responseOk = response.ok;
+    responseStatus = response.status;
+  } catch {
+    metadataFail("degraded-api");
+  }
+  if (responseOk !== true || responseStatus !== 200) {
+    if (responseOk === false && Number.isSafeInteger(responseStatus)) {
+      metadataFail(responseStatus === 429 ? "degraded-api" : "mutation-rejected", responseStatus);
+    }
+    metadataFail("degraded-api");
+  }
+  return boundedResponseJson(response, MAX_API_RESPONSE_BYTES);
+}
+
 async function readTargetIssues({ apiRoot, repository, maxPages, maxIssues, request }) {
   const [owner, name] = repository.split("/");
   const issues = new Map();
@@ -516,6 +598,25 @@ async function stabilizeIssues({ apiRoot, issues, concurrency, request }) {
   return stabilized;
 }
 
+async function verifyTargetAfterGraph({ apiRoot, stabilized, targetKey, request }) {
+  const index = stabilized.findIndex((issue) => issue.key === targetKey);
+  if (index < 0) metadataFail("unexpected-issue");
+  const target = stabilized[index];
+  try {
+    const payload = await sanitizedRequest(request, issueApiUrl(apiRoot, target.repository, target.number), apiRoot);
+    const current = parseIssuePayload(payload, apiRoot, target);
+    if (target.stable && snapshotFingerprint(target) === snapshotFingerprint(current)) return stabilized;
+  } catch (error) {
+    if (!inaccessibleError(error)) throw error;
+  }
+  stabilized[index] = {
+    ...target,
+    stable: false,
+    driftReason: "Issue metadata changed during the required double-read.",
+  };
+  return stabilized;
+}
+
 async function loadGitHubBacklogSnapshotUnsafe(input, request) {
   const repository = normalizeRepository(input?.repository);
   const maxPages = positiveBound(input?.maxPages, DEFAULT_MAX_PAGES, HARD_MAX_PAGES);
@@ -562,10 +663,98 @@ async function loadGitHubBacklogSnapshotUnsafe(input, request) {
   };
 }
 
+async function loadGitHubBacklogTargetSnapshotUnsafe(input, request) {
+  const repository = normalizeRepository(input?.repository);
+  const issueNumber = input?.issueNumber;
+  const expected = { key: backlogIssueKey(repository, issueNumber) };
+  const maxIssues = positiveBound(input?.maxIssues, DEFAULT_MAX_BACKLOG_ISSUES, MAX_SUPPORTED_BACKLOG_ISSUES);
+  const maxDependencies = positiveBound(
+    input?.maxDependencies,
+    DEFAULT_MAX_DEPENDENCIES_PER_ISSUE,
+    HARD_MAX_DEPENDENCIES,
+  );
+  const concurrency = positiveBound(input?.concurrency, DEFAULT_CONCURRENCY, HARD_MAX_CONCURRENCY);
+  const apiRootValue = input?.apiRoot;
+  const apiRoot = normalizeApiRoot(
+    apiRootValue === undefined ? (process.env.GITHUB_API_URL ?? "https://api.github.com") : apiRootValue,
+  );
+
+  const payload = await sanitizedRequest(request, issueApiUrl(apiRoot, repository, issueNumber), apiRoot);
+  const target = parseIssuePayload(payload, apiRoot, expected);
+  target.target = true;
+  const issues = new Map([[target.key, target]]);
+  const unavailable = new Map();
+  await expandDependencyGraph({
+    apiRoot,
+    issues,
+    unavailable,
+    maxIssues,
+    maxDependencies,
+    request,
+  });
+  const stabilized = await stabilizeIssues({ apiRoot, issues, concurrency, request });
+  await verifyTargetAfterGraph({ apiRoot, stabilized, targetKey: target.key, request });
+  return {
+    repository,
+    issues: stabilized
+      .map(({ key: _key, updatedAt: _updatedAt, ...issue }) => issue)
+      .sort((left, right) =>
+        compareText(backlogIssueKey(left.repository, left.number), backlogIssueKey(right.repository, right.number)),
+      ),
+    unavailable: [...unavailable.values()].sort((left, right) =>
+      compareText(backlogIssueKey(left.repository, left.number), backlogIssueKey(right.repository, right.number)),
+    ),
+    metadata: {
+      doubleRead: true,
+      targeted: true,
+      maxIssues,
+      maxDependencies,
+      concurrency,
+    },
+  };
+}
+
 /** Load a bounded dependency graph and re-read every accessible issue before planning. */
 export async function loadGitHubBacklogSnapshot(input, request = githubBacklogRequest) {
   try {
     return await loadGitHubBacklogSnapshotUnsafe(input, request);
+  } catch (error) {
+    if (error instanceof GitHubBacklogMetadataError) metadataFail(error.code, error.status);
+    if (error instanceof BacklogDependencyError) throw new BacklogDependencyError(error.code);
+    metadataFail("degraded-api");
+  }
+}
+
+/** Load one target's transitive dependency graph and double-read it before planning. */
+export async function loadGitHubBacklogTargetSnapshot(input, request = githubBacklogRequest) {
+  try {
+    return await loadGitHubBacklogTargetSnapshotUnsafe(input, request);
+  } catch (error) {
+    if (error instanceof GitHubBacklogMetadataError) metadataFail(error.code, error.status);
+    if (error instanceof BacklogDependencyError) throw new BacklogDependencyError(error.code);
+    metadataFail("degraded-api");
+  }
+}
+
+/** Atomically replace one issue's full label set and validate the returned issue metadata. */
+export async function replaceGitHubBacklogIssueLabels(input, request = githubBacklogLabelRequest) {
+  try {
+    const repository = normalizeRepository(input?.repository);
+    const issueNumber = input?.issueNumber;
+    const expected = { key: backlogIssueKey(repository, issueNumber) };
+    const labels = normalizedLabelNames(input?.labels);
+    const apiRootValue = input?.apiRoot;
+    const apiRoot = normalizeApiRoot(
+      apiRootValue === undefined ? (process.env.GITHUB_API_URL ?? "https://api.github.com") : apiRootValue,
+    );
+    const payload = await request(issueApiUrl(apiRoot, repository, issueNumber), {
+      apiRoot: apiRoot.href,
+      labels,
+    });
+    const issue = parseIssuePayload(payload, apiRoot, expected);
+    if (JSON.stringify(issue.labels) !== JSON.stringify(labels)) metadataFail("mutation-rejected");
+    const { key: _key, updatedAt: _updatedAt, ...result } = issue;
+    return result;
   } catch (error) {
     if (error instanceof GitHubBacklogMetadataError) metadataFail(error.code, error.status);
     if (error instanceof BacklogDependencyError) throw new BacklogDependencyError(error.code);
