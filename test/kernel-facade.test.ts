@@ -3,12 +3,7 @@ import type { ConnectOptions, HonuaConnection } from "../src/connect.js";
 import type { SourceDiscoveryInspection } from "../src/contract/discovery.js";
 import type { Dataset, Source, SourceDescriptor, SourceId } from "../src/contract/types.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "../src/core/errors.js";
-import {
-  type ConnectLocator,
-  type HonuaKernelOptions,
-  createHonua,
-  createHonuaKernel,
-} from "../src/kernel/index.js";
+import { type ConnectLocator, type HonuaKernelOptions, createHonua, createHonuaKernel } from "../src/kernel/index.js";
 import type { KernelConnectDelegate } from "../src/kernel/lifecycle.js";
 
 interface MockConnection {
