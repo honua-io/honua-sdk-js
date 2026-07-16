@@ -100,6 +100,10 @@
       "types": "./dist/src/source-capability-discovery.d.ts",
       "default": "./dist/src/source-capability-discovery.js"
     },
+    "./stac-discovery": {
+      "types": "./dist/src/stac-discovery.d.ts",
+      "default": "./dist/src/stac-discovery.js"
+    },
     "./query-planner": {
       "types": "./dist/src/query-planner/index.d.ts",
       "default": "./dist/src/query-planner/index.js"

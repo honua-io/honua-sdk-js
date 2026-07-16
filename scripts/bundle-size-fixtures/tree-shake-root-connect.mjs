@@ -1,9 +1,9 @@
 /**
  * Tree-shaking regression fixture for lightweight default discovery.
  *
- * The experimental SourceSchemaV2 runtime and generated PROJJSON validator are
- * intentionally reachable only through `/source-schema`; importing root
- * `connect` must not retain that focused validation stack.
+ * Experimental SourceSchemaV2 validation and static STAC graph/probe discovery
+ * are intentionally reachable only through focused subpaths. Importing root
+ * `connect` must not retain those opt-in runtimes.
  */
 import { connect } from "../../dist/src/index.js";
 

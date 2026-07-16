@@ -536,6 +536,12 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "stac-static-discovery-fixtures",
+      "kind": "fixture",
+      "path": "test/stac-discovery.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "wfs-fixtures",
       "kind": "fixture",
       "path": "test/contract/wfs-backend-agnostic.test.ts",
@@ -1392,6 +1398,23 @@
       ]
     },
     {
+      "id": "stac-static-asset-discovery",
+      "label": "Static STAC asset discovery",
+      "protocol": "stac",
+      "operations": [
+        "discovery"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "experimental",
+      "backendNeeded": "Any static STAC Catalog, Collection, or Item",
+      "api": "discoverStaticStac() from @honua/sdk-js/stac-discovery",
+      "notes": "Traverses bounded static links and emits fail-closed COG, GeoParquet, PMTiles, tile, and metadata candidates for explicit inspection before adapter execution.",
+      "evidence": [
+        "stac-static-discovery-fixtures"
+      ]
+    },
+    {
       "id": "odata-standalone",
       "label": "OData v4",
       "protocol": "odata",
@@ -1720,6 +1743,10 @@
       },
       {
         "subpath": "./source-capability-discovery",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./stac-discovery",
         "status": "experimental"
       },
       {

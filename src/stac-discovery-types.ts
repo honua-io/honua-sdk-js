@@ -130,7 +130,7 @@ export interface StacAssetCandidate {
   readonly providers: readonly StacProvider[];
   readonly provenance: readonly MetadataProvenance[];
   /** Bounded namespaced STAC fields retained without interpreting unknown extensions. */
-  readonly extensions: Readonly<Record<string, unknown>>;
+  readonly extensions: StacJsonObject;
 }
 
 export interface StacDiscoveredDocument {

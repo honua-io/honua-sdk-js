@@ -28,6 +28,7 @@ export type {
   StacDiscoveryLimits,
   StacDocumentType,
   StacLicense,
+  StacJsonObject,
   StacProvider,
   StaticStacDiscoveryResult,
   StaticStacDiscoveryStatistics,

@@ -92,6 +92,12 @@ const TARGETS = [
     entry: "dist/src/source-capability-discovery.js",
     label: "`/source-capability-discovery` (GeoServices/OData schema-bound evaluation)",
   },
+  {
+    key: "/stac-discovery",
+    kind: "bundle",
+    entry: "dist/src/stac-discovery.js",
+    label: "`/stac-discovery` (bounded static graph + asset evidence probes)",
+  },
   { key: "/plugin", kind: "bundle", entry: "dist/src/plugin/index.js", label: "`/plugin` (registry + certification, no heavy peers)" },
   { key: "/agent-tools", kind: "bundle", entry: "dist/src/agent-tools/index.js", label: "`/agent-tools`" },
   { key: "/agent-safety", kind: "bundle", entry: "dist/src/agent-safety/index.js", label: "`/agent-safety`" },
@@ -161,7 +167,8 @@ const TARGETS = [
     key: "tree-shake:root-connect",
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-root-connect.mjs",
-    label: "tree-shake guard (`{ connect }` from root, source-schema runtime excluded)",
+    label: "tree-shake guard (`{ connect }` from root, opt-in discovery runtimes excluded)",
+    forbiddenInputs: ["dist/src/stac-discovery"],
   },
   {
     key: "tree-shake:source-capabilities-evaluate",

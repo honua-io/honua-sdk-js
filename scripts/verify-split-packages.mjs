@@ -136,6 +136,7 @@ import {
   connectWithSourceCapabilities,
   sourceCapabilityEndpointIdentity,
 } from "@honua/sdk/source-capability-discovery";
+import { discoverStaticStac } from "@honua/sdk/stac-discovery";
 import {
   HONUA_CONTROL_PLANE_BASE_PATH,
   createHonuaControlPlane,
@@ -372,6 +373,8 @@ if (typeof createSourceSchemaV2 !== "function")
   throw new Error("createSourceSchemaV2 export missing from @honua/sdk/source-schema");
 if (typeof connectWithSourceCapabilities !== "function")
   throw new Error("connectWithSourceCapabilities export missing from @honua/sdk/source-capability-discovery");
+if (typeof discoverStaticStac !== "function")
+  throw new Error("discoverStaticStac export missing from @honua/sdk/stac-discovery");
 if (
   sourceCapabilityEndpointIdentity({
     id: "Assets",

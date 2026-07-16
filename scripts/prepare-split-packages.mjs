@@ -155,6 +155,18 @@ function createSdkPackage() {
     path.join(packageRoot, "source-capability-discovery.d.ts"),
   );
   for (const moduleName of [
+    "stac-discovery",
+    "stac-discovery-types",
+    "stac-discovery-transport",
+    "stac-discovery-parquet",
+    "stac-discovery-normalization",
+    "stac-discovery-classification",
+    "stac-discovery-runtime",
+  ]) {
+    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.js`), path.join(packageRoot, `${moduleName}.js`));
+    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.d.ts`), path.join(packageRoot, `${moduleName}.d.ts`));
+  }
+  for (const moduleName of [
     "source-capability-types",
     "source-capability-json",
     "source-capability-limits",
@@ -205,6 +217,10 @@ function createSdkPackage() {
       "./source-capability-discovery": {
         types: "./source-capability-discovery.d.ts",
         default: "./source-capability-discovery.js",
+      },
+      "./stac-discovery": {
+        types: "./stac-discovery.d.ts",
+        default: "./stac-discovery.js",
       },
       "./internal/source-capability-profile-verifier": {
         types: "./source-capability-profile-verifier.d.ts",

@@ -50,7 +50,8 @@
     "/source-capability-discovery has its first dedicated guard for #525 slice 3. It intentionally owns the heavy SourceSchemaV2 validator plus GeoServices/OData connect graph while /source-capabilities remains evaluator-only and tree-shakeable. The initial 682,644 minified / 142,099 gzip measurement is budgeted at measured actual plus 10% headroom.",
     "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom.",
     "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation.",
-    "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged."
+    "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged.",
+    "/stac-discovery gained its first dedicated guard for #552: bounded static graph traversal, normalized legal/spatial/temporal provenance, credential-safe transport, honored-range enforcement, structural GeoParquet footer parsing, and fail-closed asset evidence probes measure 64,170 minified / 18,817 gzip bytes. Both ceilings are measured actual plus 10% headroom. A forbidden-input tree-shake guard keeps the opt-in runtime out of root connect."
   ],
   "entrypoints": {
     ".": {
@@ -76,6 +77,10 @@
     "/source-capability-discovery": {
       "min": 750909,
       "gzip": 156309
+    },
+    "/stac-discovery": {
+      "min": 70587,
+      "gzip": 20699
     },
     "/plugin": {
       "min": 64080,
