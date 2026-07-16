@@ -373,17 +373,23 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
 
 /** Error thrown when `IJobRun.results()` resolves a non-success terminal. */
 export class HonuaJobFailedError extends HonuaSdkError {
-  public readonly status: JobStatus;
-  public readonly errorCode: string | undefined;
-  public readonly details: unknown;
+  public declare readonly status: JobStatus;
+  public declare readonly errorCode: string | undefined;
+  public declare readonly details: unknown;
 
   public constructor(message: string, status: JobStatus, errorCode?: string, details?: unknown) {
     super(
       "core.job-failed",
       message,
-      withHonuaErrorClassification({ context: { status, errorCode } }, "core", "protocol", false),
+      withHonuaErrorClassification(
+        { context: { status, errorCode } },
+        "core.job-failed",
+        "HonuaJobFailedError",
+        "core",
+        "protocol",
+        false,
+      ),
     );
-    this.name = "HonuaJobFailedError";
     this.status = status;
     this.errorCode = errorCode;
     this.details = details;

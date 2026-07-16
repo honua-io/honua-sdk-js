@@ -249,8 +249,10 @@ export type OfflineRegionErrorCode =
  * `.code`; `.sdkCode` provides a stable common-envelope recovery class.
  */
 export class HonuaOfflineRegionError extends HonuaSdkError {
+  public declare readonly code: OfflineRegionErrorCode;
+
   public constructor(
-    public readonly code: OfflineRegionErrorCode,
+    code: OfflineRegionErrorCode,
     message: string,
     options: { readonly cause?: unknown; readonly resourceId?: string; readonly path?: string } = {},
   ) {
@@ -262,19 +264,21 @@ export class HonuaOfflineRegionError extends HonuaSdkError {
       message,
       withHonuaErrorReasonClassification(
         cause === undefined ? {} : { cause },
+        sdkCode,
+        "HonuaOfflineRegionError",
         "offline",
         category,
         retryable,
         offlineRegionContextReason(code),
       ),
     );
-    this.name = "HonuaOfflineRegionError";
+    this.code = code;
     this.resourceId = ownDataProperty(options, "resourceId") as string | undefined;
     this.path = ownDataProperty(options, "path") as string | undefined;
   }
 
-  public readonly resourceId?: string;
-  public readonly path?: string;
+  public declare readonly resourceId?: string;
+  public declare readonly path?: string;
 }
 
 const OFFLINE_REGION_ERROR_CODES = {

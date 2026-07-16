@@ -171,10 +171,13 @@ export type AutomaticMapLibreErrorCode =
   | "disposed";
 
 export class HonuaAutomaticMapLibreStrategyError extends HonuaSdkError {
+  public declare readonly code: AutomaticMapLibreErrorCode;
+  public declare readonly detail?: Readonly<Record<string, unknown>> | undefined;
+
   public constructor(
-    public readonly code: AutomaticMapLibreErrorCode,
+    code: AutomaticMapLibreErrorCode,
     message: string,
-    public readonly detail?: Readonly<Record<string, unknown>>,
+    detail?: Readonly<Record<string, unknown>> | undefined,
     options: HonuaErrorOptions = {},
   ) {
     super(
@@ -182,6 +185,8 @@ export class HonuaAutomaticMapLibreStrategyError extends HonuaSdkError {
       message,
       withHonuaErrorClassification(
         options,
+        AUTOMATIC_MAPLIBRE_ERROR_CODES[code],
+        "HonuaAutomaticMapLibreStrategyError",
         "map",
         code === "no-eligible-strategy"
           ? "capability"
@@ -194,7 +199,8 @@ export class HonuaAutomaticMapLibreStrategyError extends HonuaSdkError {
         mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
       ),
     );
-    this.name = "HonuaAutomaticMapLibreStrategyError";
+    this.code = code;
+    this.detail = detail;
   }
 }
 

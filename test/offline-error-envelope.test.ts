@@ -1,4 +1,6 @@
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
+import { isRetryableNetworkOrTimeoutHonuaError } from "../src/core/error-base.js";
 import {
   HONUA_ERROR_CODE_REGISTRY,
   type HonuaErrorCategory,
@@ -104,6 +106,64 @@ describe("offline tagged SDK errors", () => {
     }
     expect(retryableProtocolCause.retryable).toBe(true);
     expect(retryableProtocolCause.category).toBe("protocol");
+  });
+
+  it("admits retryable cross-realm causes only with a string name and plain-object context", () => {
+    const crossRealmContext = runInNewContext("({ safe: 'kept' })") as Record<string, unknown>;
+    const tagged = Object.assign(Object.create(null), {
+      kind: "honua.sdk.error.v1",
+      name: "HonuaNetworkError",
+      sdkCode: "core.network",
+      domain: "core",
+      category: "network",
+      retryable: true,
+      context: crossRealmContext,
+    }) as Record<string, unknown>;
+
+    expect(isRetryableNetworkOrTimeoutHonuaError(tagged)).toBe(true);
+    for (const error of [
+      new HonuaOfflineRegionError("resource-load-failed", "load failed", { cause: tagged }),
+      new HonuaReplicaSyncError("transport-failure", "sync failed", { cause: tagged }),
+    ]) {
+      expect(error).toMatchObject({ sdkCode: "offline.transport.transient", retryable: true });
+    }
+
+    class ContextSubclass {}
+    const invalid = [
+      { ...tagged, name: undefined },
+      { ...tagged, name: { value: "HonuaNetworkError" } },
+      { ...tagged, context: [] },
+      { ...tagged, context: new Date() },
+      { ...tagged, context: new ContextSubclass() },
+    ];
+    for (const cause of invalid) {
+      expect(isRetryableNetworkOrTimeoutHonuaError(cause)).toBe(false);
+      expect(new HonuaOfflineRegionError("resource-load-failed", "load failed", { cause })).toMatchObject({
+        sdkCode: "offline.transport.failure",
+        retryable: false,
+      });
+    }
+
+    let nameAccessorInvoked = false;
+    const accessorTagged = { ...tagged };
+    Object.defineProperty(accessorTagged, "name", {
+      enumerable: true,
+      get() {
+        nameAccessorInvoked = true;
+        return "HonuaNetworkError";
+      },
+    });
+    let prototypeTrapInvoked = false;
+    const hostileContext = new Proxy(Object.create(null) as Record<string, unknown>, {
+      getPrototypeOf() {
+        prototypeTrapInvoked = true;
+        throw new Error("prototype trap must fail closed");
+      },
+    });
+    expect(isRetryableNetworkOrTimeoutHonuaError(accessorTagged)).toBe(false);
+    expect(isRetryableNetworkOrTimeoutHonuaError({ ...tagged, context: hostileContext })).toBe(false);
+    expect(nameAccessorInvoked).toBe(false);
+    expect(prototypeTrapInvoked).toBe(true);
   });
 
   it("classifies every replica synchronization legacy code without changing its local guards", () => {

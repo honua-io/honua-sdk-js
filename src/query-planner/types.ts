@@ -389,22 +389,23 @@ export type QueryPlanningErrorCode =
   | "unsafe-materialization";
 
 export class HonuaQueryPlanningError extends HonuaSdkError {
-  public constructor(
-    public readonly code: QueryPlanningErrorCode,
-    message: string,
-    options: HonuaErrorOptions = {},
-  ) {
+  public declare readonly code: QueryPlanningErrorCode;
+
+  public constructor(code: QueryPlanningErrorCode, message: string, options: HonuaErrorOptions = {}) {
+    const sdkCode = `query.planning.${code}` as const;
     super(
-      `query.planning.${code}`,
+      sdkCode,
       message,
       withHonuaErrorClassification(
         options,
+        sdkCode,
+        "HonuaQueryPlanningError",
         "query",
         code === "invalid-query" || code === "unsafe-materialization" ? "validation" : "capability",
         false,
       ),
     );
-    this.name = "HonuaQueryPlanningError";
+    this.code = code;
   }
 }
 
@@ -419,22 +420,23 @@ export type QueryPlanExecutionErrorCode =
   | "resource-execution-failed";
 
 export class HonuaQueryPlanExecutionError extends HonuaSdkError {
-  public constructor(
-    public readonly code: QueryPlanExecutionErrorCode,
-    message: string,
-    options: HonuaErrorOptions = {},
-  ) {
+  public declare readonly code: QueryPlanExecutionErrorCode;
+
+  public constructor(code: QueryPlanExecutionErrorCode, message: string, options: HonuaErrorOptions = {}) {
+    const sdkCode = `query.execution.${code}` as const;
     super(
-      `query.execution.${code}`,
+      sdkCode,
       message,
       withHonuaErrorClassification(
         options,
+        sdkCode,
+        "HonuaQueryPlanExecutionError",
         "query",
         code.endsWith("failed") ? "internal" : code[0] === "r" ? "authentication" : "validation",
         false,
       ),
     );
-    this.name = "HonuaQueryPlanExecutionError";
+    this.code = code;
   }
 }
 

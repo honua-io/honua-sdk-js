@@ -75,8 +75,18 @@ export interface WmtsCapabilityTileMatrix {
 
 export class HonuaWmtsCapabilitiesParseError extends HonuaSdkError {
   public constructor(message: string) {
-    super("core.wmts-capabilities-parse", message, withHonuaErrorClassification({}, "core", "protocol", false));
-    this.name = "HonuaWmtsCapabilitiesParseError";
+    super(
+      "core.wmts-capabilities-parse",
+      message,
+      withHonuaErrorClassification(
+        {},
+        "core.wmts-capabilities-parse",
+        "HonuaWmtsCapabilitiesParseError",
+        "core",
+        "protocol",
+        false,
+      ),
+    );
   }
 }
 

@@ -52,8 +52,8 @@ export interface HonuaRuntimeDiagnostic {
 }
 
 export class HonuaRuntimeDiagnosticError extends HonuaSdkError {
-  public readonly diagnostics: readonly HonuaRuntimeDiagnostic[];
-  public override readonly cause: unknown;
+  public declare readonly diagnostics: readonly HonuaRuntimeDiagnostic[];
+  public declare readonly cause: unknown;
 
   public constructor(
     message: string,
@@ -66,6 +66,8 @@ export class HonuaRuntimeDiagnosticError extends HonuaSdkError {
       message,
       withHonuaErrorClassification(
         honuaErrorOptionsWithCause(metadata, cause),
+        "runtime.diagnostic",
+        "HonuaRuntimeDiagnosticError",
         "runtime",
         "validation",
         false,
@@ -75,7 +77,6 @@ export class HonuaRuntimeDiagnosticError extends HonuaSdkError {
         }),
       ),
     );
-    this.name = "HonuaRuntimeDiagnosticError";
     this.diagnostics = diagnostics;
     this.cause = cause;
   }

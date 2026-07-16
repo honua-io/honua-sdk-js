@@ -46,10 +46,10 @@ export type HonuaMapPackageErrorStage =
  * `docs/composition.md`.
  */
 export class HonuaMapPackageError extends HonuaSdkError {
-  public readonly packageId: string | undefined;
-  public readonly stage: HonuaMapPackageErrorStage;
-  public readonly detail: unknown;
-  public override readonly cause: unknown;
+  public declare readonly packageId: string | undefined;
+  public declare readonly stage: HonuaMapPackageErrorStage;
+  public declare readonly detail: unknown;
+  public declare readonly cause: unknown;
 
   public constructor(
     message: string,
@@ -65,6 +65,8 @@ export class HonuaMapPackageError extends HonuaSdkError {
       message,
       withHonuaErrorClassification(
         options,
+        MAP_PACKAGE_ERROR_CODES[options.stage],
+        "HonuaMapPackageError",
         "runtime",
         options.stage === "fetch"
           ? "network"
@@ -78,7 +80,6 @@ export class HonuaMapPackageError extends HonuaSdkError {
         }),
       ),
     );
-    this.name = "HonuaMapPackageError";
     this.packageId = options.packageId;
     this.stage = options.stage;
     this.detail = options.detail;

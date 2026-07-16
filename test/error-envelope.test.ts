@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { withHonuaErrorClassification } from "../src/core/error-base.js";
 import { HONUA_ERROR_RUNTIME_CLASSIFICATIONS } from "../src/core/error-classifications.js";
 import { HonuaExplorationContextError, HonuaWfsExceptionError } from "../src/core/errors.js";
 import { HonuaJobFailedError } from "../src/core/ogc-processes.js";
@@ -539,6 +540,8 @@ describe("tagged SDK error envelope", () => {
     expect(isHonuaError({ ...tagged, category: "internal" })).toBe(false);
     expect(isHonuaError({ ...tagged, sdkCode: "unknown.code" })).toBe(false);
     expect(isHonuaError({ ...tagged, context: [] })).toBe(false);
+    expect(isHonuaError({ ...tagged, context: new Date() })).toBe(false);
+    expect(isHonuaError({ ...tagged, context: new (class ContextSubclass {})() })).toBe(false);
   });
 
   it("does not invoke hostile guard getters or serialize custom error names", () => {
@@ -583,13 +586,26 @@ describe("tagged SDK error envelope", () => {
     expect(getterInvoked).toBe(false);
 
     const cause = new TypeError("secret cause");
-    Object.defineProperty(cause, "name", { configurable: true, value: "CauseCredentialSecret" });
+    Object.defineProperty(cause, "name", { configurable: true, value: "HonuaUnregisteredWidgetError" });
     const error = new HonuaNetworkError("secret outer message", cause);
-    Object.defineProperty(error, "name", { configurable: true, value: "OuterCredentialSecret" });
+    Object.defineProperty(error, "name", { configurable: true, value: "HonuaUnregisteredWidgetError" });
     const serialized = serializeHonuaError(error);
     expect(serialized.name).toBe("Error");
     expect(serialized.cause?.name).toBe("Error");
-    expect(JSON.stringify(serialized)).not.toContain("CredentialSecret");
+    expect(JSON.stringify(serialized)).not.toContain("HonuaUnregisteredWidgetError");
+  });
+
+  it("binds leaf classifications to their constructor code", () => {
+    class MismatchedCodeError extends HonuaSdkError {
+      public constructor() {
+        super(
+          "core.cancelled",
+          "mismatched",
+          withHonuaErrorClassification({}, "core.network", "HonuaSdkError", "core", "network", true),
+        );
+      }
+    }
+    expect(() => new MismatchedCodeError()).toThrowError(/Invalid Honua error classification/);
   });
 
   it("exports an immutable code registry", () => {

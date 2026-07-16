@@ -98,8 +98,18 @@ export interface WmsCapabilityDimension {
  */
 export class HonuaWmsCapabilitiesParseError extends HonuaSdkError {
   public constructor(message: string) {
-    super("core.wms-capabilities-parse", message, withHonuaErrorClassification({}, "core", "protocol", false));
-    this.name = "HonuaWmsCapabilitiesParseError";
+    super(
+      "core.wms-capabilities-parse",
+      message,
+      withHonuaErrorClassification(
+        {},
+        "core.wms-capabilities-parse",
+        "HonuaWmsCapabilitiesParseError",
+        "core",
+        "protocol",
+        false,
+      ),
+    );
   }
 }
 

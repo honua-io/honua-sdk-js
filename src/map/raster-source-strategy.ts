@@ -36,10 +36,13 @@ export interface MapLibreRasterDiagnostic {
 }
 
 export class HonuaMapLibreRasterStrategyError extends HonuaSdkError {
+  public declare readonly code: MapLibreRasterStrategyErrorCode;
+  public declare readonly detail?: Readonly<Record<string, unknown>> | undefined;
+
   public constructor(
-    public readonly code: MapLibreRasterStrategyErrorCode,
+    code: MapLibreRasterStrategyErrorCode,
     message: string,
-    public readonly detail?: Readonly<Record<string, unknown>>,
+    detail?: Readonly<Record<string, unknown>> | undefined,
     options: HonuaErrorOptions = {},
   ) {
     super(
@@ -47,6 +50,8 @@ export class HonuaMapLibreRasterStrategyError extends HonuaSdkError {
       message,
       withHonuaErrorClassification(
         options,
+        MAPLIBRE_RASTER_ERROR_CODES[code],
+        "HonuaMapLibreRasterStrategyError",
         "map",
         code === "unsupported-strategy" || code === "capability-mismatch"
           ? "capability"
@@ -57,7 +62,8 @@ export class HonuaMapLibreRasterStrategyError extends HonuaSdkError {
         mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
       ),
     );
-    this.name = "HonuaMapLibreRasterStrategyError";
+    this.code = code;
+    this.detail = detail;
   }
 }
 

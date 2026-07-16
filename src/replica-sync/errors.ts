@@ -29,8 +29,8 @@ export type ReplicaSyncErrorCode =
   | "transport-failure";
 
 export class HonuaReplicaSyncError extends HonuaSdkError {
-  public readonly code: ReplicaSyncErrorCode;
-  public readonly details: unknown;
+  public declare readonly code: ReplicaSyncErrorCode;
+  public declare readonly details: unknown;
 
   public constructor(
     code: ReplicaSyncErrorCode,
@@ -44,13 +44,14 @@ export class HonuaReplicaSyncError extends HonuaSdkError {
       message,
       withHonuaErrorReasonClassification(
         cause === undefined ? {} : { cause },
+        sdkCode,
+        "HonuaReplicaSyncError",
         "offline",
         replicaSyncErrorCategory(sdkCode),
         sdkCode === "offline.transport.transient",
         replicaSyncContextReason(code),
       ),
     );
-    this.name = "HonuaReplicaSyncError";
     this.code = code;
     this.details = ownDataProperty(options, "details");
   }

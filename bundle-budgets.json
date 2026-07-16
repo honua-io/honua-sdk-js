@@ -46,8 +46,8 @@
     "/query-planner was reset for versioned opaque GeoParquet resource handles and the lifecycle-scoped resolver registry (#587): strict scope/expiry/cancellation checks, bounded private locator resolution, and fixed redacted errors measure 101,266 minified / 29,409 gzip bytes. Both ceilings are measured actual plus 10% headroom. /geoparquet's exceeded minified ceiling was likewise reset after the shared resource-resolution error codes added 9 bytes to that entrypoint; its gzip ceiling remained unchanged.",
     "/query-planner was reset for the typed semantic-query S1 runtime (#526): bounded untrusted parsing, complete SourceSchemaV2 field/type/domain validation, exact decimal and temporal admission, immutable typed builders, and native-dialect checks measure 380,453 minified / 66,427 gzip bytes. The opt-in subpath ceiling is the measured exact-head size plus 10% headroom; root, /honua, browser, and protocol-specific entrypoints remain unchanged.",
     "/query-planner was reset at the completed semantic-query S2 boundary (#526): deterministic canonical identity, strict lossless CQL2 JSON 1.0 interchange with prototype-pollution resistance, and the explicit raw-where compatibility bridge measure 408,678 minified / 73,290 gzip bytes. Both ceilings are the measured exact-head size plus 10% headroom; the codec remains opt-in, and root, /honua, browser, and protocol-specific budget ceilings remain unchanged.",
-    "The six #583 error-envelope targets were reset downward after leaf-owned classifications removed the complete runtime table, descriptive registry, and serializer from focused imports. Minified ceilings use measured actual plus ~10%; gzip ceilings use the lower of normal 10% headroom and the contractual 25%-reduction cap. Dedicated leaf, registry, and serializer fixtures prove intentional retained-module boundaries.",
-    "The #583 compatibility hardening preserves bounded nested JSON-safe geometry/map context and separately bundled cause classifications without restoring the full registry or serializer. Final focused evidence is 22,350 minified / 8,325 gzip bytes for the MapLibre workflow (45 bytes below its 8,370-byte contractual cap) and 4,270 / 1,629 bytes for the leaf fixture (within its existing ceiling)."
+    "The six #583 error-envelope targets were reset downward after leaf-owned classifications removed the complete runtime table, descriptive registry, and serializer from focused imports. Regular entrypoint ceilings retain normal ~10% headroom; an independent fixed-baseline evaluator keeps the contractual 25%-reduction caps authoritative. Dedicated leaf, registry, and serializer fixtures prove intentional retained-module boundaries.",
+    "The #583 admission hardening preserves bounded JSON-safe sanitizer behavior, rejects spoofed cross-realm contexts, and binds leaf classifications to canonical codes without restoring the full registry or serializer. Final generated evidence is 8,130 gzip bytes for the MapLibre workflow (240 bytes below its 8,370-byte contractual cap) and 3,660 minified / 1,453 gzip bytes for the leaf fixture (within its existing ceiling)."
   ],
   "entrypoints": {
     ".": {
@@ -115,16 +115,16 @@
       "gzip": 8476
     },
     "/geocoding": {
-      "min": 17572,
-      "gzip": 5736
+      "min": 18905,
+      "gzip": 6438
     },
     "/routing": {
-      "min": 10411,
-      "gzip": 4165
+      "min": 11555,
+      "gzip": 4776
     },
     "/auth": {
-      "min": 16437,
-      "gzip": 5304
+      "min": 17741,
+      "gzip": 6013
     },
     "/style": {
       "min": 70674,

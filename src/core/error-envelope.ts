@@ -16,6 +16,7 @@ import {
   type SerializedHonuaErrorCause,
   emptyContext,
   errorNameWithoutGetters,
+  isPlainHonuaErrorContext,
   isRecord,
   ownDataProperty,
   sanitizeErrorName,
@@ -26,6 +27,8 @@ import {
 import { HONUA_ERROR_RUNTIME_CLASSIFICATIONS } from "./error-classifications.js";
 import type { HonuaErrorCode } from "./error-code-registry.js";
 import type { HonuaError } from "./errors.js";
+
+type MutableSerializedHonuaError = { -readonly [Key in keyof SerializedHonuaError]: SerializedHonuaError[Key] };
 
 export {
   HONUA_ERROR_KIND,
@@ -64,18 +67,19 @@ export function serializeHonuaError(error: HonuaSdkError): SerializedHonuaError 
   const operationId = sanitizeIdentifier(ownDataProperty(error, "operationId"));
   const requestId = sanitizeIdentifier(ownDataProperty(error, "requestId"));
   const context = ownDataProperty(error, "context");
-  return {
+  const serialized: MutableSerializedHonuaError = {
     kind: HONUA_ERROR_KIND,
     name: sanitizeErrorName(ownDataProperty(error, "name")),
     domain,
     code: sdkCode,
     category,
     retryable,
-    ...(operationId ? { operationId } : {}),
-    ...(requestId ? { requestId } : {}),
-    context: isRecord(context) && !Array.isArray(context) ? sanitizeHonuaErrorContext(context) : emptyContext(),
-    ...(cause ? { cause } : {}),
+    context: isPlainHonuaErrorContext(context) ? sanitizeHonuaErrorContext(context) : emptyContext(),
   };
+  if (operationId) serialized.operationId = operationId;
+  if (requestId) serialized.requestId = requestId;
+  if (cause) serialized.cause = cause;
+  return serialized;
 }
 
 /** Cross-realm type guard backed by the public tag and complete governed code registry. */
@@ -93,8 +97,7 @@ export function isHonuaSdkError(error: unknown): error is HonuaSdkError {
       ownDataProperty(error, "retryable") === retryable &&
       ownDataProperty(error, "category") === category &&
       typeof name === "string" &&
-      isRecord(context) &&
-      !Array.isArray(context)
+      isPlainHonuaErrorContext(context)
     );
   } catch {
     return false;

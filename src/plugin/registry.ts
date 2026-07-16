@@ -273,8 +273,8 @@ function pluginReasonCode(code: unknown): KnownPluginRegistryErrorCode | "PLUGIN
  * cause. Raw causes and cleanup failures remain local to the instance.
  */
 export class HonuaPluginRegistryError extends HonuaSdkError {
-  readonly code: string;
-  readonly cleanupErrors: readonly unknown[];
+  declare readonly code: string;
+  declare readonly cleanupErrors: readonly unknown[];
 
   constructor(code: string, options: { cause?: unknown; cleanupErrors?: readonly unknown[] } = {}) {
     const cause = ownDataProperty(options, "cause");
@@ -284,13 +284,14 @@ export class HonuaPluginRegistryError extends HonuaSdkError {
       typeof code === "string" ? code : "PLUGIN_UNKNOWN",
       withHonuaErrorReasonClassification(
         cause === undefined ? {} : { cause },
+        sdkCode,
+        "HonuaPluginRegistryError",
         "plugin",
         pluginErrorCategory(sdkCode),
         false,
         pluginReasonCode(code),
       ),
     );
-    this.name = "HonuaPluginRegistryError";
     this.code = code;
     const cleanupErrors = ownDataProperty(options, "cleanupErrors");
     this.cleanupErrors = Object.freeze(Array.isArray(cleanupErrors) ? [...cleanupErrors] : []);

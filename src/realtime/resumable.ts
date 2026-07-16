@@ -147,11 +147,9 @@ export interface ResumableRealtimeSubscription<TFeature = unknown> {
  * does not reconnect a transport or request a replacement snapshot.
  */
 export class HonuaRealtimeResumeError extends HonuaSdkError {
-  public constructor(
-    public readonly code: ResumableRealtimeReasonCode,
-    message: string,
-    options?: ErrorOptions,
-  ) {
+  public declare readonly code: ResumableRealtimeReasonCode;
+
+  public constructor(code: ResumableRealtimeReasonCode, message: string, options?: ErrorOptions) {
     const sdkCode = realtimeResumeSdkCode(code);
     const [category, retryable] = realtimeResumeClassification(sdkCode);
     super(
@@ -159,13 +157,15 @@ export class HonuaRealtimeResumeError extends HonuaSdkError {
       message,
       withHonuaErrorReasonClassification(
         options ?? {},
+        sdkCode,
+        "HonuaRealtimeResumeError",
         "realtime",
         category,
         retryable,
         realtimeResumeContextReason(code),
       ),
     );
-    this.name = "HonuaRealtimeResumeError";
+    this.code = code;
   }
 }
 

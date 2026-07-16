@@ -125,9 +125,15 @@ export class HonuaTemporalPlaybackError extends HonuaSdkError {
     super(
       "map.temporal-playback.invalid-option",
       message,
-      withHonuaErrorClassification({}, "map", "validation", false),
+      withHonuaErrorClassification(
+        {},
+        "map.temporal-playback.invalid-option",
+        "HonuaTemporalPlaybackError",
+        "map",
+        "validation",
+        false,
+      ),
     );
-    this.name = "HonuaTemporalPlaybackError";
   }
 }
 

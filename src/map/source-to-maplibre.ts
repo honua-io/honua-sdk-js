@@ -72,24 +72,31 @@ export type MapLibreSourceAdapterErrorCode =
 
 /** A stable, machine-readable adapter failure. */
 export class HonuaMapLibreSourceAdapterError extends HonuaSdkError {
+  public declare readonly code: MapLibreSourceAdapterErrorCode;
+  public declare readonly detail?: Readonly<Record<string, unknown>> | undefined;
+
   public constructor(
-    public readonly code: MapLibreSourceAdapterErrorCode,
+    code: MapLibreSourceAdapterErrorCode,
     message: string,
-    public readonly detail?: Readonly<Record<string, unknown>>,
+    detail?: Readonly<Record<string, unknown>> | undefined,
     options: HonuaErrorOptions = {},
   ) {
+    const sdkCode = `map.source-adapter.${code}` as const;
     super(
-      `map.source-adapter.${code}`,
+      sdkCode,
       message,
       withHonuaErrorClassification(
         options,
+        sdkCode,
+        "HonuaMapLibreSourceAdapterError",
         "map",
         code === "unsupported-plan" ? "capability" : code === "map-mutation-failed" ? "internal" : "validation",
         false,
         mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
       ),
     );
-    this.name = "HonuaMapLibreSourceAdapterError";
+    this.code = code;
+    this.detail = detail;
   }
 }
 

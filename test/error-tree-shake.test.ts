@@ -3,6 +3,7 @@ import * as esbuild from "esbuild";
 import { describe, expect, it } from "vitest";
 
 import { ERROR_LEAF_FORBIDDEN_MODULES, errorModulePolicyFailures } from "../scripts/lib/error-tree-shake.mjs";
+import { sanitizeHonuaErrorContext } from "../src/core/error-base.js";
 import { serializeHonuaError } from "../src/core/error-envelope.js";
 import { HonuaGeometryError } from "../src/core/errors.js";
 import { HonuaMapLibreSourceAdapterError } from "../src/map/source-to-maplibre.js";
@@ -105,12 +106,86 @@ describe("error tree-shake fixtures", () => {
         attemptedLayerIds: ["incidents-point", "incidents-polygon"],
         failures: [{ stage: "remove-layer", count: 1 }],
       },
-      endpoint: "[REDACTED]",
-      callback: "[REDACTED]",
+      endpoint: "https://maps.example.test/source?api_key=%5BREDACTED%5D",
+      callback: "https://maps.example.test/return?key=%5BREDACTED%5D",
     });
     expect(geometry.toJSON()).toEqual(serializeHonuaError(geometry));
     expect(map.toJSON()).toEqual(serializeHonuaError(map));
     expect(JSON.stringify([geometry, map])).not.toMatch(/geometry-token-secret|map-token-secret|message secret/);
+  });
+
+  it("keeps leaf context sanitization in exact parity with the canonical boundary", () => {
+    const capturedAt = new Date("2026-07-13T00:00:00.000Z");
+    Object.defineProperties(capturedAt, {
+      toISOString: { value: () => "date-override-secret" },
+      valueOf: { value: () => "date-value-secret" },
+    });
+    const errorValue = new Error("error-message-secret");
+    Object.defineProperty(errorValue, "name", { value: "HonuaUnregisteredWidgetError" });
+    const context = {
+      bigintValue: 9_007_199_254_740_993n,
+      missingValue: undefined,
+      capturedAt,
+      invalidDate: new Date(Number.NaN),
+      errorValue,
+      registeredErrorValue: new HonuaMapLibreSourceAdapterError("invalid-option", "registered-message-secret"),
+      binaryValue: new Uint8Array([1, 2, 3]),
+      urlObject: new URL("https://url-user:url-pass@example.test/items?cursor=url-object-secret"),
+      serviceUrl:
+        "https://url-user:url-pass@example.test/items?access_token=url-token-secret&cursor=url-cursor-secret&limit=10#fragment",
+      invalidEndpoint: "/items?cursor=relative-cursor-secret",
+      cursor: "direct-cursor-secret",
+      form: "owner=form-owner-secret",
+      cacheDirectory: "/home/cache-directory-secret",
+      note: "cursor=embedded-cursor-secret safe=true",
+      callback: () => "callback-secret",
+      marker: Symbol("symbol-secret"),
+    };
+    const leaf = new HonuaGeometryError("malformed-geometry", "message-secret", context);
+
+    expect(leaf.toJSON().context).toEqual(sanitizeHonuaErrorContext(context));
+    expect(leaf.toJSON().context).toMatchObject({
+      bigintValue: "9007199254740993",
+      missingValue: "[UNDEFINED]",
+      capturedAt: "2026-07-13T00:00:00.000Z",
+      invalidDate: "[INVALID_DATE]",
+      errorValue: { name: "Error" },
+      registeredErrorValue: { name: "HonuaMapLibreSourceAdapterError" },
+      binaryValue: "[BINARY]",
+      invalidEndpoint: "[REDACTED]",
+      urlObject: {},
+      cursor: "[REDACTED]",
+      form: "[REDACTED]",
+      cacheDirectory: "[REDACTED]",
+      note: "cursor=[REDACTED] safe=true",
+      callback: "[UNSERIALIZABLE]",
+      marker: "[UNSERIALIZABLE]",
+    });
+    expect(leaf.toJSON().context.serviceUrl).toContain("limit=10");
+    const json = JSON.stringify(leaf);
+    for (const secret of [
+      "date-override-secret",
+      "date-value-secret",
+      "error-message-secret",
+      "registered-message-secret",
+      "HonuaUnregisteredWidgetError",
+      "url-user",
+      "url-pass",
+      "url-object-secret",
+      "url-token-secret",
+      "url-cursor-secret",
+      "relative-cursor-secret",
+      "direct-cursor-secret",
+      "form-owner-secret",
+      "cache-directory-secret",
+      "embedded-cursor-secret",
+      "callback-secret",
+      "symbol-secret",
+      "message-secret",
+      "#fragment",
+    ]) {
+      expect(json).not.toContain(secret);
+    }
   });
 
   it("bounds cyclic context without invoking accessors", () => {

@@ -126,10 +126,14 @@ export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = /* @__PURE__ */ Object.freeze
   "plugin.internal": runtimeClassification("plugin", "internal", false),
 } as const satisfies Record<HonuaErrorCode, HonuaErrorRuntimeClassification>);
 
-function runtimeClassification(
-  domain: HonuaErrorDomain,
-  category: HonuaErrorCategory,
-  retryable: boolean,
-): HonuaErrorRuntimeClassification {
+/** @internal Exact checked classification used to govern leaf-owned tuples. */
+export type HonuaErrorRuntimeClassificationFor<Code extends HonuaErrorCode> =
+  (typeof HONUA_ERROR_RUNTIME_CLASSIFICATIONS)[Code];
+
+function runtimeClassification<
+  const Domain extends HonuaErrorDomain,
+  const Category extends HonuaErrorCategory,
+  const Retryable extends boolean,
+>(domain: Domain, category: Category, retryable: Retryable): readonly [Domain, Category, Retryable] {
   return Object.freeze([domain, category, retryable]);
 }

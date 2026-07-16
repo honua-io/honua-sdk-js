@@ -139,10 +139,13 @@ export type DataToMapBridgeErrorCode =
 
 /** A stable, machine-readable bridge failure. @experimental */
 export class HonuaDataToMapBridgeError extends HonuaSdkError {
+  public declare readonly code: DataToMapBridgeErrorCode;
+  public declare readonly detail?: Readonly<Record<string, unknown>> | undefined;
+
   public constructor(
-    public readonly code: DataToMapBridgeErrorCode,
+    code: DataToMapBridgeErrorCode,
     message: string,
-    public readonly detail?: Readonly<Record<string, unknown>>,
+    detail?: Readonly<Record<string, unknown>> | undefined,
     options: HonuaErrorOptions = {},
   ) {
     super(
@@ -150,6 +153,8 @@ export class HonuaDataToMapBridgeError extends HonuaSdkError {
       message,
       withHonuaErrorClassification(
         options,
+        DATA_TO_MAP_ERROR_CODES[code],
+        "HonuaDataToMapBridgeError",
         "map",
         code === "map-mutation-failed"
           ? "internal"
@@ -160,7 +165,8 @@ export class HonuaDataToMapBridgeError extends HonuaSdkError {
         mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
       ),
     );
-    this.name = "HonuaDataToMapBridgeError";
+    this.code = code;
+    this.detail = detail;
   }
 }
 
