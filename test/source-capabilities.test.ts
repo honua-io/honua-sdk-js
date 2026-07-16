@@ -1154,7 +1154,8 @@ describe("source capability profile", () => {
     );
     const serialized = serializeCapabilityEvidenceProfile(createCapabilityEvidenceProfile([evidenceEntry("query")]));
     const duplicateKeySentinel = "DUPLICATE_OBJECT_KEY_SENTINEL";
-    const duplicateName = serialized.replace("{", `{"${duplicateKeySentinel}":true,"${duplicateKeySentinel}":false,`);
+    expect(serialized.startsWith("{")).toBe(true);
+    const duplicateName = `{"${duplicateKeySentinel}":true,"${duplicateKeySentinel}":false,${serialized.slice(1)}`;
     let duplicateError: unknown;
     try {
       parseCapabilityEvidenceProfile(duplicateName);
