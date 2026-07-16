@@ -250,6 +250,67 @@ describe("odata / lossless write integration", () => {
     expect(editHits).toBe(0);
   });
 
+  it.each([false, true])(
+    "rejects conflicting single-key ids and body keys before any %s edit request",
+    async (rollbackOnFailure) => {
+      let editHits = 0;
+      const source = buildSource("Records", [
+        [
+          /\/odata\/(?:Records|\$batch)/,
+          () => {
+            editHits += 1;
+            return new Response(null, { status: 204 });
+          },
+        ],
+      ]);
+
+      await expect(
+        source.applyEdits({
+          adds: [{ attributes: { Id: "9", Amount: "1.000000000" } }],
+          updates: [{ id: "1", attributes: { Id: "2", Amount: "2.000000000" } }],
+          rollbackOnFailure,
+        }),
+      ).rejects.toMatchObject({ code: "invalid-value", path: "$.key" });
+      expect(editHits).toBe(0);
+    },
+  );
+
+  it.each([
+    { kind: "direct composite update", rollbackOnFailure: false, operation: "update" as const },
+    { kind: "batch composite update", rollbackOnFailure: true, operation: "update" as const },
+    { kind: "direct composite delete", rollbackOnFailure: false, operation: "delete" as const },
+    { kind: "batch composite delete", rollbackOnFailure: true, operation: "delete" as const },
+  ])("fails closed on $kind scalar identity ambiguity before transport", async ({ operation, rollbackOnFailure }) => {
+    let editHits = 0;
+    const source = buildSource("Assets", [
+      [
+        /\/odata\/(?:Assets|\$batch)/,
+        () => {
+          editHits += 1;
+          return new Response(null, { status: 204 });
+        },
+      ],
+    ]);
+
+    const common = {
+      adds: [{ attributes: { Tenant: "safe", Id: "1", Amount: "1.000000000" } }],
+      rollbackOnFailure,
+    };
+    const edit =
+      operation === "update"
+        ? source.applyEdits({
+            ...common,
+            updates: [{ id: "reported-id", attributes: { Tenant: "north", Id: "7", Amount: "2.000000000" } }],
+          })
+        : source.applyEdits({ ...common, deletes: ["Tenant='north',Id=7"] });
+
+    await expect(edit).rejects.toMatchObject({
+      code: operation === "update" ? "invalid-value" : "missing-key",
+      path: "$.key",
+    });
+    expect(editHits).toBe(0);
+  });
+
   it("resolves prepared keys without consulting polluted prototypes", async () => {
     let invoked = false;
     const previous = Object.getOwnPropertyDescriptor(Object.prototype, "Id");

@@ -15,12 +15,7 @@
 
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
-import {
-  type HonuaOdataEncodedEntityKey,
-  type HonuaOdataEncodedWriteBody,
-  encodeOdataEntityKey,
-  encodeOdataWriteBody,
-} from "../core/odata-write-codec.js";
+import type { HonuaOdataEncodedEntityKey, HonuaOdataEncodedWriteBody } from "../core/odata-write-codec.js";
 import {
   type HonuaOdataAdvertisedCapabilities,
   type HonuaOdataBatchOperation,
@@ -2262,6 +2257,16 @@ export interface OdataSourceOptions {
   readonly writeEncoding?: OdataWriteEncoding;
 }
 
+type OdataWriteCodec = typeof import("../core/odata-write-codec.js");
+
+let odataWriteCodecPromise: Promise<OdataWriteCodec> | undefined;
+
+/** Load the opt-in codec once; legacy sources never evaluate this import. */
+function loadOdataWriteCodec(): Promise<OdataWriteCodec> {
+  odataWriteCodecPromise ??= import("../core/odata-write-codec.js");
+  return odataWriteCodecPromise;
+}
+
 /**
  * Adapter factory for an OData v4 entity set.
  *
@@ -2418,7 +2423,13 @@ export function odataSource<T>(
       const keyFields = await negotiation.keyFields(descriptor.id);
       const prepared =
         writeEncoding === "lossless-json"
-          ? prepareLosslessOdataEdits(entity, envelope, keyFields, await negotiation.metadata())
+          ? prepareLosslessOdataEdits(
+              entity,
+              envelope,
+              keyFields,
+              await negotiation.metadata(),
+              await loadOdataWriteCodec(),
+            )
           : undefined;
 
       // Atomic path: when the caller asks for rollback-on-failure AND the
@@ -2491,21 +2502,28 @@ function prepareLosslessOdataEdits<T>(
   envelope: EditEnvelope<T>,
   keyFields: ReadonlyArray<string>,
   metadata: HonuaOdataMetadata,
+  codec: OdataWriteCodec,
 ): PreparedOdataEdits {
   const urlKeys = urlKeyFields(entity.entitySet, keyFields);
-  const adds = (envelope.adds ?? []).map((add) => preparedOdataBody(metadata, entity.entitySet, add));
+  const adds = (envelope.adds ?? []).map((add) => preparedOdataBody(metadata, entity.entitySet, add, codec));
   const updates = (envelope.updates ?? []).map((update) => {
-    const prepared = preparedOdataBody(metadata, entity.entitySet, update);
-    const key = encodeOdataEntityKey(metadata, entity.entitySet, canonicalKeyInput(update.id, prepared.body, urlKeys), {
-      keyFields: urlKeys,
-    });
+    const prepared = preparedOdataBody(metadata, entity.entitySet, update, codec);
+    const key = preparedOdataUpdateKey(metadata, entity.entitySet, update.id, prepared.body, urlKeys, codec);
     return { ...prepared, key };
   });
-  const deletes = (envelope.deletes ?? []).map((id) => ({
-    key: encodeOdataEntityKey(metadata, entity.entitySet, canonicalKeyInput(id, {}, urlKeys), {
-      keyFields: urlKeys,
-    }),
-  }));
+  const deletes = (envelope.deletes ?? []).map((id) => {
+    if (urlKeys.length > 1) {
+      // The generic contract carries only a scalar FeatureId. Lossless
+      // composite addressing requires named components, so do not interpret
+      // an ad-hoc string expression or risk targeting a different entity.
+      throw new codec.HonuaOdataEdmEncodingError("missing-key", "$.key");
+    }
+    return {
+      key: codec.encodeOdataEntityKey(metadata, entity.entitySet, id, {
+        keyFields: urlKeys,
+      }),
+    };
+  });
   return { adds, updates, deletes };
 }
 
@@ -2513,8 +2531,13 @@ function preparedOdataBody<T>(
   metadata: HonuaOdataMetadata,
   entitySet: string,
   feature: { attributes: T; geometry?: Record<string, unknown> | null },
+  codec: OdataWriteCodec,
 ): PreparedOdataBody {
-  const attributes = encodeOdataWriteBody(metadata, entitySet, feature.attributes as Readonly<Record<string, unknown>>);
+  const attributes = codec.encodeOdataWriteBody(
+    metadata,
+    entitySet,
+    feature.attributes as Readonly<Record<string, unknown>>,
+  );
   let encoded: HonuaOdataEncodedWriteBody = attributes;
   if (
     feature.geometry !== undefined &&
@@ -2522,7 +2545,7 @@ function preparedOdataBody<T>(
     !Object.hasOwn(attributes.body, "Geometry") &&
     !Object.hasOwn(attributes.body, "geometry")
   ) {
-    const geometry = encodeOdataWriteBody(metadata, entitySet, { Geometry: feature.geometry });
+    const geometry = codec.encodeOdataWriteBody(metadata, entitySet, { Geometry: feature.geometry });
     encoded = {
       body: { ...attributes.body, ...geometry.body },
       requiresIeee754Compatible: attributes.requiresIeee754Compatible || geometry.requiresIeee754Compatible,
@@ -2534,19 +2557,45 @@ function preparedOdataBody<T>(
   };
 }
 
-function canonicalKeyInput(
+function preparedOdataUpdateKey(
+  metadata: HonuaOdataMetadata,
+  entitySet: string,
   id: FeatureId | undefined,
   attributes: Readonly<Record<string, unknown>>,
   keyFields: ReadonlyArray<string>,
-): unknown {
-  if (keyFields.length <= 1) {
-    const field = keyFields[0];
-    return (field ? ownPreparedValue(attributes, field) : undefined) ?? id;
+  codec: OdataWriteCodec,
+): HonuaOdataEncodedEntityKey {
+  if (keyFields.length === 1) {
+    const field = keyFields[0]!;
+    const attributeValue = ownPreparedValue(attributes, field);
+    const attributeKey =
+      attributeValue === undefined || attributeValue === null
+        ? undefined
+        : codec.encodeOdataEntityKey(metadata, entitySet, attributeValue, { keyFields });
+    const idKey =
+      id === undefined || id === null ? undefined : codec.encodeOdataEntityKey(metadata, entitySet, id, { keyFields });
+    if (
+      attributeKey &&
+      idKey &&
+      (attributeKey.literal !== idKey.literal || attributeKey.pathSegment !== idKey.pathSegment)
+    ) {
+      throw new codec.HonuaOdataEdmEncodingError("invalid-value", "$.key");
+    }
+    return attributeKey ?? idKey ?? codec.encodeOdataEntityKey(metadata, entitySet, undefined, { keyFields });
+  }
+  if (keyFields.length === 0) {
+    return codec.encodeOdataEntityKey(metadata, entitySet, id, { keyFields });
+  }
+  if (id !== undefined && id !== null) {
+    // A scalar generic id cannot prove equivalence to a named composite key.
+    // Reject it even when the body carries all components so the adapter never
+    // targets one identity while reporting another.
+    throw new codec.HonuaOdataEdmEncodingError("invalid-value", "$.key");
   }
   const key: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const field of keyFields) {
-    const value = ownPreparedValue(attributes, field) ?? (field === "ObjectId" ? id : undefined);
-    if (value === undefined || value === null) return undefined;
+    const value = ownPreparedValue(attributes, field);
+    if (value === undefined || value === null) continue;
     Object.defineProperty(key, field, {
       configurable: true,
       enumerable: true,
@@ -2554,7 +2603,7 @@ function canonicalKeyInput(
       value,
     });
   }
-  return key;
+  return codec.encodeOdataEntityKey(metadata, entitySet, key, { keyFields });
 }
 
 function ownPreparedValue(attributes: Readonly<Record<string, unknown>>, field: string): unknown {

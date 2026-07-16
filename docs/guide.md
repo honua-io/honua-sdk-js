@@ -793,6 +793,17 @@ graph are hard-bounded. Invalid values—including braced or malformed GUID
 keys—fail locally before any edit request, and diagnostics retain only a
 bounded property path, never the rejected value or request body.
 
+The lossless codec is loaded lazily on the first opted-in edit; sources that
+keep the default legacy encoding do not load its runtime. For a single-key
+update, `feature.id` and the corresponding body attribute may both be present
+only when metadata encoding proves they identify the same row. A mismatch
+fails the whole envelope before transport. Composite updates must carry every
+named key component in `attributes` and omit the ambiguous scalar `feature.id`.
+The unchanged generic `deletes: FeatureId[]` contract cannot represent named
+composite components, so lossless composite deletes fail locally; use the
+native typed OData surface until the generic edit contract gains structured
+feature identity.
+
 `Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites
 the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` →
 `eq`, plus the SQL comparison operators `>=` / `<=` / `>` / `<` → `ge` /

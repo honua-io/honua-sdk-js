@@ -636,6 +636,15 @@ malformed or over-budget values and keys fail locally with a bounded,
 value-redacted path. When the option is omitted, the original body bytes, ordinary
 `application/json` media type, and legacy key formatter are unchanged.
 
+The codec module is lazy and memoized, so legacy/default writes do not load it.
+Lossless updates reject a scalar `feature.id` that disagrees with the
+metadata-encoded single key in `attributes`, and reject scalar ids altogether
+for composite updates because equivalence to the named components cannot be
+proved. The generic `deletes: FeatureId[]` envelope cannot carry a structured
+composite identity; opted-in composite deletes therefore fail before any
+direct or `$batch` request. Legacy preformatted composite delete expressions
+remain available only on the unchanged legacy encoding path.
+
 When `EditEnvelope.rollbackOnFailure === true` AND `$metadata`
 advertises `Capabilities.BatchSupported`, the adapter collapses the
 envelope into a single `$batch` request whose every operation carries
