@@ -166,22 +166,34 @@ interface HonuaOdataSourceSchemaProjectionDetails {
 export function getOdataSourceSchemaProjectionSafety(
   metadata: HonuaOdataMetadata,
 ): HonuaOdataSourceSchemaProjectionSafety | undefined {
-  return (
-    metadata as HonuaOdataMetadata & {
-      readonly [ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY]?: HonuaOdataSourceSchemaProjectionSafety;
-    }
-  )[ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY];
+  return odataProjectionEvidence<HonuaOdataSourceSchemaProjectionSafety>(
+    metadata,
+    ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY,
+  );
 }
 
 /** @internal Read rich CSDL state without changing the legacy string-keyed metadata shape. */
 export function getOdataSourceSchemaProjectionDetails(
   metadata: HonuaOdataMetadata,
 ): HonuaOdataSourceSchemaProjectionDetails | undefined {
-  return (
-    metadata as HonuaOdataMetadata & {
-      readonly [ODATA_SOURCE_SCHEMA_PROJECTION_DETAILS]?: HonuaOdataSourceSchemaProjectionDetails;
-    }
-  )[ODATA_SOURCE_SCHEMA_PROJECTION_DETAILS];
+  return odataProjectionEvidence<HonuaOdataSourceSchemaProjectionDetails>(
+    metadata,
+    ODATA_SOURCE_SCHEMA_PROJECTION_DETAILS,
+  );
+}
+
+function odataProjectionEvidence<T>(metadata: HonuaOdataMetadata, key: symbol): T | undefined {
+  let descriptor: PropertyDescriptor | undefined;
+  try {
+    descriptor = Object.getOwnPropertyDescriptor(metadata, key);
+  } catch {
+    throw new TypeError("OData metadata projection evidence is inaccessible");
+  }
+  if (!descriptor) return undefined;
+  if (!("value" in descriptor)) {
+    throw new TypeError("OData metadata projection evidence must be a data property");
+  }
+  return descriptor.value as T | undefined;
 }
 
 /** Per-field metadata carried by {@link HonuaOdataMetadata.fields}. */

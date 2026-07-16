@@ -61,6 +61,10 @@ const metadata = parseOdataMetadata(`
       <Key><PropertyRef Name="Id"/></Key>
       <Property Name="Id" Type="Edm.Int64" Nullable="false"/>
     </EntityType>
+    <EntityType Name="SingleKey">
+      <Key><PropertyRef Name="Id"/></Key>
+      <Property Name="Id" Type="Edm.Single" Nullable="false"/>
+    </EntityType>
     <EntityType Name="StringKey">
       <Key><PropertyRef Name="Name"/></Key>
       <Property Name="Name" Type="Edm.String" Nullable="false" MaxLength="256"/>
@@ -92,6 +96,7 @@ const metadata = parseOdataMetadata(`
     <EntityContainer Name="Container">
       <EntitySet Name="Assets" EntityType="Example.Asset"/>
       <EntitySet Name="LongKeys" EntityType="Example.LongKey"/>
+      <EntitySet Name="SingleKeys" EntityType="Example.SingleKey"/>
       <EntitySet Name="StringKeys" EntityType="Example.StringKey"/>
       <EntitySet Name="GuidKeys" EntityType="Example.GuidKey"/>
       <EntitySet Name="DateKeys" EntityType="Example.DateKey"/>
@@ -111,6 +116,22 @@ function encodingFailure(run: () => unknown): HonuaOdataEdmEncodingError {
     return error as HonuaOdataEdmEncodingError;
   }
   throw new Error("expected OData encoding to fail");
+}
+
+function metadataWithFields(fields: readonly { readonly name: string; readonly type: string }[]): typeof metadata {
+  return {
+    entitySets: { Assets: "Asset" },
+    keys: { Asset: [] },
+    fields: { Asset: fields },
+    capabilities: {},
+  } as typeof metadata;
+}
+
+function copyMetadataDescriptors(): typeof metadata {
+  return Object.defineProperties(
+    Object.create(Object.getPrototypeOf(metadata)) as typeof metadata,
+    Object.getOwnPropertyDescriptors(metadata),
+  );
 }
 
 describe("OData lossless write body encoding", () => {
@@ -197,6 +218,30 @@ describe("OData lossless write body encoding", () => {
   });
 
   it.each([
+    [0.5, 0.5],
+    [-3.25, -3.25],
+    [16_777_216, 16_777_216],
+    [3.4028234663852886e38, 3.4028234663852886e38],
+    [1.401298464324817e-45, 1.401298464324817e-45],
+    ["0.5", 0.5],
+  ] as const)("admits exact Edm.Single binary32 input %s across a JSON round trip", (input, expected) => {
+    const encoded = encodeOdataWriteBody(metadata, "Assets", { Score: input }).body.Score;
+    expect(Object.is(encoded, expected)).toBe(true);
+    const roundTripped = JSON.parse(JSON.stringify(encoded)) as number;
+    expect(Object.is(Math.fround(roundTripped), expected)).toBe(true);
+  });
+
+  it.each([0.1, "0.1", 16_777_217, "16777217", 3.4028236e38, 1e-46])(
+    "rejects Edm.Single input %s that would round or overflow in binary32",
+    (input) => {
+      const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { Score: input }));
+      expect(error.code).toBe("invalid-value");
+      expect(error.path).toBe("$.Score");
+      expect(error.message).not.toContain(String(input));
+    },
+  );
+
+  it.each([
     ["Id", "9223372036854775808"],
     ["Id", "-9223372036854775809"],
     ["Id", "01"],
@@ -241,7 +286,7 @@ describe("OData primitive and enum admission", () => {
       encodeOdataWriteBody(metadata, "Assets", {
         Payload: "T0RhdGE",
         ObservedOn: "2024-02-29",
-        ObservedAt: "2024-02-29T23:59:60.123+23:59",
+        ObservedAt: "2024-02-29T23:59:59.123+14:00",
         Elapsed: "+P1DT2H3M4.125S",
         LocalTime: "23:59:60.123",
         Status: "1",
@@ -250,7 +295,7 @@ describe("OData primitive and enum admission", () => {
     ).toEqual({
       Payload: "T0RhdGE",
       ObservedOn: "2024-02-29",
-      ObservedAt: "2024-02-29T23:59:60.123+23:59",
+      ObservedAt: "2024-02-29T23:59:59.123+14:00",
       Elapsed: "+P1DT2H3M4.125S",
       LocalTime: "23:59:60.123",
       Status: "Active",
@@ -264,6 +309,15 @@ describe("OData primitive and enum admission", () => {
       expect(encodeOdataWriteBody(metadata, "Assets", { Elapsed: value }).body.Elapsed).toBe(value);
     },
   );
+
+  it.each([
+    "2024-01-01T12:00:00Z",
+    "2024-01-01T12:00:00+13:59",
+    "2024-01-01T12:00:00+14:00",
+    "2024-01-01T12:00:00-14:00",
+  ])("admits DateTimeOffset value %s within the XSD timezone bound", (value) => {
+    expect(encodeOdataWriteBody(metadata, "Assets", { ObservedAt: value }).body.ObservedAt).toBe(value);
+  });
 
   it.each(["P", "PT", "P1DT", "P1M", "PT.5S", "P1DT2.1234S", "1D", "P1D2H"])(
     "rejects malformed or over-precise day-time duration %s",
@@ -284,6 +338,10 @@ describe("OData primitive and enum admission", () => {
     ["ObservedAt", "2023-02-29T12:00:00Z"],
     ["ObservedAt", "2024-01-01T12:00:00.1234Z"],
     ["ObservedAt", "2024-01-01T24:00:00Z"],
+    ["ObservedAt", "2024-01-01T23:59:60Z"],
+    ["ObservedAt", "2024-01-01T12:00:00+14:01"],
+    ["ObservedAt", "2024-01-01T12:00:00-14:01"],
+    ["ObservedAt", "2024-01-01T12:00:00+15:00"],
     ["ObservedAt", "2024-01-01T12:00:00+24:00"],
     ["LocalTime", "12:00:00.1234"],
   ])("rejects impossible or over-precise temporal %s value", (field, value) => {
@@ -344,6 +402,27 @@ describe("OData metadata-typed key encoding", () => {
     });
   });
 
+  it.each([
+    [0.5, "0.5"],
+    ["16777216", "16777216"],
+    ["INF", "INF"],
+  ] as const)("formats admitted Edm.Single binary32 key %s", (input, expected) => {
+    expect(encodeOdataEntityKey(metadata, "SingleKeys", input)).toEqual({
+      literal: expected,
+      pathSegment: expected,
+    });
+  });
+
+  it.each([0.1, "0.1", 16_777_217, "16777217", 3.4028236e38, 1e-46])(
+    "rejects Edm.Single key %s that is outside the exact binary32 value space",
+    (input) => {
+      const error = encodingFailure(() => encodeOdataEntityKey(metadata, "SingleKeys", input));
+      expect(error.code).toBe("invalid-value");
+      expect(error.path).toBe("$.key.Id");
+      expect(error.message).not.toContain(String(input));
+    },
+  );
+
   it("escapes string literals and emits a single path-safe segment", () => {
     expect(encodeOdataEntityKey(metadata, "StringKeys", "O'Neil/a,b=c?#%")).toEqual({
       literal: "'O''Neil/a,b=c?#%'",
@@ -386,6 +465,8 @@ describe("OData metadata-typed key encoding", () => {
   it.each([
     ["DateKeys", "2023-02-29"],
     ["DateTimeKeys", "2024-02-30T12:00:00Z"],
+    ["DateTimeKeys", "2024-01-01T23:59:60Z"],
+    ["DateTimeKeys", "2024-01-01T12:00:00+14:01"],
     ["DurationKeys", "P1DT"],
     ["BinaryKeys", "AB"],
     ["EnumKeys", "Unknown"],
@@ -526,29 +607,160 @@ describe("OData codec adversarial bounds and redaction", () => {
     expect(error.message).not.toContain("array-accessor-secret");
   });
 
-  it("contains metadata Proxy traps as fixed invalid-metadata failures", () => {
+  it("reads metadata through own descriptors without invoking Proxy getters", () => {
+    let invoked = false;
     const trappedMetadata = new Proxy(metadata, {
       get(target, property, receiver) {
-        if (property === "entitySets") throw new Error("metadata-trap-secret");
+        if (property === "entitySets" || typeof property === "symbol") {
+          invoked = true;
+          throw new Error("metadata-trap-secret");
+        }
         return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(encodeOdataWriteBody(trappedMetadata, "Assets", {})).toEqual({
+      body: {},
+      requiresIeee754Compatible: false,
+    });
+    expect(invoked).toBe(false);
+  });
+
+  it("rejects a root metadata accessor without invoking or exposing it", () => {
+    let invoked = false;
+    const trappedMetadata = copyMetadataDescriptors();
+    Object.defineProperty(trappedMetadata, "entitySets", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        invoked = true;
+        throw new Error("metadata-root-accessor-secret");
       },
     });
 
     const error = encodingFailure(() => encodeOdataWriteBody(trappedMetadata, "Assets", {}));
     expect(error.code).toBe("invalid-metadata");
     expect(error.path).toBe("$");
-    expect(error.message).not.toContain("metadata-trap-secret");
+    expect(invoked).toBe(false);
+    expect(error.message).not.toContain("metadata-root-accessor-secret");
     expect(error).not.toHaveProperty("cause");
   });
 
-  it("escapes and bounds hostile property names in diagnostic paths", () => {
-    const hostileName = `line\nbreak-${"x".repeat(500)}`;
-    const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { [hostileName]: 1n }));
+  it("rejects projection-evidence accessors without invoking them", () => {
+    const detailsSymbol = Object.getOwnPropertySymbols(metadata).find((key) => key.description?.includes("details"));
+    expect(detailsSymbol).toBeDefined();
+    let invoked = false;
+    const descriptors = Object.getOwnPropertyDescriptors(metadata);
+    Reflect.deleteProperty(descriptors, detailsSymbol!);
+    const trappedMetadata = Object.defineProperties(
+      Object.create(Object.getPrototypeOf(metadata)) as typeof metadata,
+      descriptors,
+    );
+    Object.defineProperty(trappedMetadata, detailsSymbol!, {
+      configurable: true,
+      get() {
+        invoked = true;
+        throw new Error("projection-accessor-secret");
+      },
+    });
+
+    const error = encodingFailure(() => encodeOdataWriteBody(trappedMetadata, "Assets", {}));
+    expect(error.code).toBe("invalid-metadata");
+    expect(invoked).toBe(false);
+    expect(error.message).not.toContain("projection-accessor-secret");
+  });
+
+  it("rejects field metadata accessors and inherited declarations without invoking them", () => {
+    let accessorInvoked = false;
+    const accessorField = { name: "Id" } as { name: string; type?: string };
+    Object.defineProperty(accessorField, "type", {
+      enumerable: true,
+      get() {
+        accessorInvoked = true;
+        throw new Error("field-accessor-secret");
+      },
+    });
+    const accessorError = encodingFailure(() =>
+      encodeOdataWriteBody(metadataWithFields([accessorField as { name: string; type: string }]), "Assets", {}),
+    );
+    expect(accessorError.code).toBe("invalid-metadata");
+    expect(accessorInvoked).toBe(false);
+    expect(accessorError.message).not.toContain("field-accessor-secret");
+
+    let inheritedInvoked = false;
+    const inherited = Object.create({
+      get type() {
+        inheritedInvoked = true;
+        throw new Error("field-prototype-secret");
+      },
+    }) as { name: string; type: string };
+    Object.defineProperty(inherited, "name", { enumerable: true, value: "Id" });
+    const inheritedError = encodingFailure(() => encodeOdataWriteBody(metadataWithFields([inherited]), "Assets", {}));
+    expect(inheritedError.code).toBe("invalid-metadata");
+    expect(inheritedInvoked).toBe(false);
+    expect(inheritedError.message).not.toContain("field-prototype-secret");
+  });
+
+  it("ignores Object.prototype pollution when admitting field metadata", () => {
+    let invoked = false;
+    const previous = Object.getOwnPropertyDescriptor(Object.prototype, "type");
+    Object.defineProperty(Object.prototype, "type", {
+      configurable: true,
+      get() {
+        invoked = true;
+        throw new Error("polluted-field-type-secret");
+      },
+    });
+    try {
+      const error = encodingFailure(() =>
+        encodeOdataWriteBody(metadataWithFields([{ name: "Id" } as { name: string; type: string }]), "Assets", {}),
+      );
+      expect(error.code).toBe("invalid-metadata");
+      expect(invoked).toBe(false);
+      expect(error.message).not.toContain("polluted-field-type-secret");
+    } finally {
+      if (previous) Object.defineProperty(Object.prototype, "type", previous);
+      else Reflect.deleteProperty(Object.prototype, "type");
+    }
+  });
+
+  it("redacts attacker-controlled undeclared property names from diagnostics", () => {
+    const credentialName = `authorization-Bearer-${"secret".repeat(100)}`;
+    const error = encodingFailure(() => encodeOdataWriteBody(metadata, "Assets", { [credentialName]: 1n }));
 
     expect(error.code).toBe("invalid-value");
-    expect(error.message).not.toContain("\n");
+    expect(error.path).toBe('$["<undeclared-property>"]');
+    expect(error.path.length).toBeLessThan(100);
+    expect(error.message).not.toContain("authorization");
+    expect(error.message).not.toContain("secret");
+  });
+
+  it("preserves dangerous own data keys without changing output prototypes", () => {
+    const body = JSON.parse(
+      '{"__proto__":{"polluted":"no"},"constructor":"own-constructor","prototype":"own-prototype"}',
+    ) as Record<string, unknown>;
+    const encoded = encodeOdataWriteBody(metadata, "Assets", body).body;
+
+    expect(Object.getPrototypeOf(encoded)).toBe(Object.prototype);
+    expect(Object.hasOwn(encoded, "__proto__")).toBe(true);
+    expect(encoded.__proto__).toEqual({ polluted: "no" });
+    expect(encoded.constructor).toBe("own-constructor");
+    expect(encoded.prototype).toBe("own-prototype");
+    expect((Object.prototype as { polluted?: unknown }).polluted).toBeUndefined();
+  });
+
+  it("still bounds declared metadata property names in diagnostic paths", () => {
+    const longName = "x".repeat(200);
+    const error = encodingFailure(() =>
+      encodeOdataWriteBody(metadataWithFields([{ name: longName, type: "Edm.Stream" }]), "Assets", {
+        [longName]: "credential-value-that-must-not-appear",
+      }),
+    );
+
+    expect(error.code).toBe("unsupported-type");
     expect(error.path.length).toBeLessThan(100);
     expect(error.path).toContain("…");
+    expect(error.message).not.toContain("credential-value-that-must-not-appear");
   });
 
   it.each([-1, 1.5, 33, Number.POSITIVE_INFINITY])("rejects an unbounded maxDepth option", (maxDepth) => {
