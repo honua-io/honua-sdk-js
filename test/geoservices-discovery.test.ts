@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { connect, discoverGeoServices } from "../src/connect.js";
+import { connect } from "../src/connect.js";
 import { HonuaAbortError } from "../src/core/errors.js";
+import { discoverGeoServices } from "../src/geoservices-discovery.js";
 
 const imageMetadata = fixture("image-server.json");
 const geometryMetadata = fixture("geometry-server.json");
@@ -284,6 +285,41 @@ describe("GeoServices service discovery", () => {
         },
       }),
     ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+
+    await expect(
+      discoverGeoServices({
+        endpoint: "https://example.test/rest/services/Analysis/Tools/GPServer",
+        clientOptions: { fetchFn: vi.fn(async () => json({ tasks: "Viewshed" })) },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+  });
+
+  it("fails closed when ImageServer metadata proves identity but no operation support", async () => {
+    const result = await discoverGeoServices({
+      endpoint: "https://example.test/rest/services/Imagery/Empty/ImageServer",
+      clientOptions: { fetchFn: vi.fn(async () => json({ name: "Empty imagery", fields: [] })) },
+    });
+
+    expect(result.state).toBe("partial");
+    expect([...result.sources[0]!.descriptor.capabilities]).toEqual([]);
+    expect(result.operations).toEqual([]);
+    expect(result.diagnostics.map((entry) => entry.code)).toEqual(expect.arrayContaining(["metadata-unavailable"]));
+  });
+
+  it("forwards explicit metadata refresh and cache-bypass directives", async () => {
+    const requests: Request[] = [];
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(new Request(input, init));
+      return json(geometryMetadata);
+    });
+    const endpoint = "https://example.test/rest/services/Utilities/Geometry/GeometryServer";
+
+    await discoverGeoServices({ endpoint, refresh: true, clientOptions: { fetchFn } });
+    await discoverGeoServices({ endpoint, metadata: { cache: "bypass" }, clientOptions: { fetchFn } });
+
+    expect(requests[0]!.headers.get("Cache-Control")).toBe("no-cache");
+    expect(requests[1]!.headers.get("Cache-Control")).toBe("no-store");
+    expect(requests[1]!.headers.get("Pragma")).toBe("no-cache");
   });
 
   it("preserves common identity and operation semantics across facade/native descriptions", async () => {

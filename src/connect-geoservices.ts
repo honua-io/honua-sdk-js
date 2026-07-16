@@ -11,8 +11,9 @@ import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES, type SourceSchema } fro
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import type { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
-import type { HonuaLayerMetadata, HonuaServiceMetadata } from "./core/types.js";
+import type { HonuaFieldInfo, HonuaLayerMetadata, HonuaServiceMetadata } from "./core/types.js";
 import { parseGeoServicesEndpoint } from "./geoservices-endpoint.js";
+import { getGeoServicesMetadata } from "./geoservices-metadata.js";
 
 export interface ConnectTarget {
   readonly endpoint: string;
@@ -39,6 +40,12 @@ export interface GeoServicesDiscoveryOptions {
 export interface GeoServicesDiscoveryResult {
   readonly retrievedAt: string;
   readonly sources: readonly ConnectDiscoverySourceSnapshot[];
+}
+
+/** @internal Raw ImageServer metadata retained only for the richer service projection. */
+export interface GeoServicesImageSourceDiscoveryResult extends GeoServicesDiscoveryResult {
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly securedStatusCode?: number;
 }
 
 export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint): ConnectTarget {
@@ -285,6 +292,43 @@ export async function discoverGeoServicesSources(
   return Object.freeze({ retrievedAt, sources: Object.freeze(sources) });
 }
 
+/**
+ * Discover one ImageServer raster-catalog Source without retaining the
+ * GeometryServer/GPServer operation graph in the root connect() bundle.
+ *
+ * @internal
+ */
+export async function discoverGeoServicesImageSources(
+  client: HonuaClient,
+  target: ConnectTarget,
+  options: GeoServicesDiscoveryOptions,
+): Promise<GeoServicesImageSourceDiscoveryResult> {
+  if (target.protocol !== "geoservices-image-service" || !target.serviceId) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer discovery requires an image service id.");
+  }
+  const retrievedAt = new Date().toISOString();
+  const provenance = Object.freeze([Object.freeze({ source: target.endpoint, retrievedAt })]);
+  const outcome = await getGeoServicesMetadata(client, target.clientBaseUrl, target.endpoint, options);
+  throwIfAborted(options.signal);
+  if (outcome.kind === "secured") {
+    const reason = `ImageServer metadata requires authorization (HTTP ${outcome.statusCode}); no operation support was inferred.`;
+    const evidence: readonly DiscoveryCapabilityEvidence[] = Object.freeze([
+      Object.freeze({ kind: "unavailable" as const, scope: IMAGE_SERVICE_SCOPE, reason, provenance }),
+    ]);
+    return Object.freeze({
+      retrievedAt,
+      sources: Object.freeze([imageSourceSnapshot(target, undefined, evidence)]),
+      securedStatusCode: outcome.statusCode,
+    });
+  }
+  const evidence = imageCapabilityEvidence(outcome.value, provenance);
+  return Object.freeze({
+    retrievedAt,
+    sources: Object.freeze([imageSourceSnapshot(target, outcome.value, evidence)]),
+    metadata: outcome.value,
+  });
+}
+
 function validateLayerSummaries(
   summaries: readonly { readonly id: number; readonly name: string }[],
   protocol: ConnectResolvedProtocol,
@@ -365,6 +409,189 @@ function sourceSnapshot(
   });
 }
 
+function imageSourceSnapshot(
+  target: ConnectTarget,
+  metadata: Readonly<Record<string, unknown>> | undefined,
+  evidence: readonly DiscoveryCapabilityEvidence[],
+): ConnectDiscoverySourceSnapshot {
+  const serviceId = target.serviceId;
+  if (!serviceId) throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer discovery requires a service id.");
+  const schema = metadata ? imageSourceSchema(metadata) : undefined;
+  return Object.freeze({
+    id: target.layerId === undefined ? serviceId : String(target.layerId),
+    locator: Object.freeze({
+      url: target.clientBaseUrl,
+      serviceId,
+      ...(target.layerId !== undefined ? { layerId: target.layerId } : {}),
+    }),
+    title: metadata ? (readImageString(metadata, "name") ?? serviceId.split("/").at(-1)) : serviceId,
+    ...(metadata
+      ? {
+          description: readImageString(metadata, "serviceDescription") ?? readImageString(metadata, "description"),
+        }
+      : {}),
+    ...(schema ? { schema } : {}),
+    evidence,
+  });
+}
+
+function imageCapabilityEvidence(
+  metadata: Readonly<Record<string, unknown>>,
+  provenance: readonly DiscoveryProvenance[],
+): readonly DiscoveryCapabilityEvidence[] {
+  const rawCapabilities = readImageOwn(metadata, "capabilities");
+  if (rawCapabilities !== undefined && typeof rawCapabilities !== "string") {
+    throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer capabilities metadata must be a string.");
+  }
+  const advertised = new Set(
+    (rawCapabilities ?? "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const operations = imageOperationNames(metadata);
+  const advancedValue = readImageOwn(metadata, "advancedQueryCapabilities");
+  if (advancedValue !== undefined && !isImageRecord(advancedValue)) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "ImageServer advancedQueryCapabilities metadata must be an object.",
+    );
+  }
+  const tileInfo = readImageOwn(metadata, "tileInfo");
+  if (tileInfo !== undefined && !isImageRecord(tileInfo)) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer tileInfo metadata must be an object.");
+  }
+  const capabilities: Capability[] = [];
+  if (advertised.has("catalog") || advertised.has("query") || operations.names.has("query")) {
+    capabilities.push("queryExtent", "queryObjectIds");
+    if (advancedValue && readImageOwn(advancedValue, "supportsPagination") === true) capabilities.push("query");
+  }
+  if (advertised.has("image") || operations.names.has("exportimage")) capabilities.push("image", "render");
+  if (tileInfo || operations.names.has("tile")) capabilities.push("tiles");
+  if (typeof rawCapabilities !== "string" && !operations.present && !tileInfo) {
+    return Object.freeze([
+      Object.freeze({
+        kind: "unavailable" as const,
+        scope: IMAGE_SERVICE_SCOPE,
+        reason: "ImageServer metadata did not advertise capabilities, operations, or tile metadata.",
+        provenance,
+      }),
+    ]);
+  }
+  return Object.freeze([
+    Object.freeze({
+      kind: "metadata" as const,
+      capabilities: Object.freeze([...new Set(capabilities)]),
+      scope: IMAGE_SERVICE_SCOPE,
+      provenance,
+    }),
+  ]);
+}
+
+function imageOperationNames(metadata: Readonly<Record<string, unknown>>): {
+  readonly names: ReadonlySet<string>;
+  readonly present: boolean;
+} {
+  const names = new Set<string>();
+  let present = false;
+  for (const key of ["supportedOperations", "operations"] as const) {
+    const raw = readImageOwn(metadata, key);
+    if (raw === undefined) continue;
+    present = true;
+    if (!Array.isArray(raw) || raw.length > 1_000) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `ImageServer ${key} metadata must be a bounded operation array.`,
+      );
+    }
+    for (const entry of raw) {
+      const value =
+        typeof entry === "string"
+          ? boundedImageString(entry, `${key} operation`)
+          : (readImageString(requireImageRecord(entry, `${key} operation`), "name") ??
+            readImageString(requireImageRecord(entry, `${key} operation`), "id"));
+      if (!value) {
+        throw new HonuaDiscoveryError("invalid-endpoint", `ImageServer ${key} operation is missing a name.`);
+      }
+      names.add(value.toLowerCase().replace(/[^a-z0-9]/g, ""));
+    }
+  }
+  return { names, present };
+}
+
+function imageSourceSchema(metadata: Readonly<Record<string, unknown>>): SourceSchema | undefined {
+  const raw = readImageOwn(metadata, "fields");
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length > 10_000) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer fields metadata must be a bounded array.");
+  }
+  const fields: HonuaFieldInfo[] = raw.map((entry) => {
+    const field = requireImageRecord(entry, "ImageServer field");
+    const name = readImageString(field, "name");
+    const type = readImageString(field, "type");
+    if (!name || !type) throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer fields require name and type.");
+    const lengthValue = readImageOwn(field, "length");
+    if (lengthValue !== undefined && (!Number.isSafeInteger(lengthValue) || (lengthValue as number) < 0)) {
+      throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer field length must be a non-negative integer.");
+    }
+    const nullable = readImageOwn(field, "nullable");
+    const editable = readImageOwn(field, "editable");
+    if (nullable !== undefined && typeof nullable !== "boolean") {
+      throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer field nullable must be boolean.");
+    }
+    if (editable !== undefined && typeof editable !== "boolean") {
+      throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer field editable must be boolean.");
+    }
+    return Object.freeze({
+      name,
+      type,
+      ...(readImageString(field, "alias") ? { alias: readImageString(field, "alias") } : {}),
+      ...(lengthValue !== undefined ? { length: lengthValue as number } : {}),
+      ...(nullable !== undefined ? { nullable } : {}),
+      ...(editable !== undefined ? { editable } : {}),
+    });
+  });
+  const primaryKey = readImageString(metadata, "objectIdField") ?? readImageString(metadata, "objectIdFieldName");
+  return Object.freeze({ fields: Object.freeze(fields), ...(primaryKey ? { primaryKey } : {}) });
+}
+
+function requireImageRecord(value: unknown, label: string): Readonly<Record<string, unknown>> {
+  if (!isImageRecord(value)) throw new HonuaDiscoveryError("invalid-endpoint", `${label} must be an object.`);
+  return value;
+}
+
+function isImageRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function readImageOwn(record: Readonly<Record<string, unknown>>, key: string): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(record, key);
+  if (!descriptor) return undefined;
+  if ("get" in descriptor) {
+    throw new HonuaDiscoveryError("invalid-endpoint", `ImageServer metadata property "${key}" must be data.`);
+  }
+  return descriptor.value;
+}
+
+function readImageString(record: Readonly<Record<string, unknown>>, key: string): string | undefined {
+  const value = readImageOwn(record, key);
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") {
+    throw new HonuaDiscoveryError("invalid-endpoint", `ImageServer metadata property "${key}" must be a string.`);
+  }
+  return boundedImageString(value, key);
+}
+
+function boundedImageString(value: string, label: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 16_384) {
+    throw new HonuaDiscoveryError("invalid-endpoint", `ImageServer ${label} must be a bounded non-empty string.`);
+  }
+  return trimmed;
+}
+
 function layerEvidence(
   target: ConnectTarget,
   metadata: HonuaLayerMetadata,
@@ -413,6 +640,14 @@ const FEATURE_LAYER_SCOPE: readonly Capability[] = Object.freeze([
 const MAP_LAYER_SCOPE: readonly Capability[] = Object.freeze(
   [...PROTOCOL_DEFAULT_CAPABILITIES["geoservices-map-service"]].filter((capability) => capability !== "tiles"),
 );
+const IMAGE_SERVICE_SCOPE: readonly Capability[] = Object.freeze([
+  "query",
+  "queryExtent",
+  "queryObjectIds",
+  "image",
+  "render",
+  "tiles",
+]);
 
 const FEATURE_SERVICE_SCOPE: readonly Capability[] = Object.freeze(["queryObjectIds", "applyEdits"]);
 const MAP_SERVICE_SCOPE: readonly Capability[] = Object.freeze(["queryObjectIds", "render", "tiles"]);

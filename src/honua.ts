@@ -25,7 +25,6 @@ export {
   HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
   HONUA_CONNECT_PROJECTION_VERSION,
   connect,
-  discoverGeoServices,
   discoverOgcProcesses,
 } from "./connect.js";
 export type {
@@ -38,6 +37,14 @@ export type {
   ConnectProtocolHint,
   ConnectResolvedProtocol,
   GeoParquetSourceProfiler,
+  HonuaConnection,
+  HonuaConnectionInspection,
+  OgcProcessDiscoverySummary,
+  OgcProcessesDiscoveryOptions,
+  OgcProcessesDiscoveryResult,
+} from "./connect.js";
+export { discoverGeoServices } from "./geoservices-discovery.js";
+export type {
   GeoServicesAuthenticationDescriptor,
   GeoServicesAuthenticationRequirement,
   GeoServicesCrsDescriptor,
@@ -52,14 +59,8 @@ export type {
   GeoServicesOperationDescriptor,
   GeoServicesOperationExecution,
   GeoServicesServiceDescriptor,
-  GeoServicesServiceKind,
-  GeoServicesServiceProtocol,
-  HonuaConnection,
-  HonuaConnectionInspection,
-  OgcProcessDiscoverySummary,
-  OgcProcessesDiscoveryOptions,
-  OgcProcessesDiscoveryResult,
-} from "./connect.js";
+} from "./geoservices-discovery.js";
+export type { GeoServicesServiceKind, GeoServicesServiceProtocol } from "./geoservices-endpoint.js";
 export {
   MIGRATION_EVIDENCE_STATES,
   MIGRATION_MANIFEST_ARTIFACT_KIND,

@@ -110,8 +110,8 @@ The experimental `connect()` facade composes this truth contract for raw OGC
 API Features and STAC API landing pages, raw OGC API Records catalog roots, raw
 OGC API Tiles and Maps service roots (render-only sources),
 WFS 2.0 endpoints, OData v4 service
-roots, static-file GeoParquet assets, and canonical
-GeoServices `FeatureServer` / `MapServer` service or layer URLs. OGC, STAC,
+roots, static-file GeoParquet assets, and canonical GeoServices
+`FeatureServer` / `MapServer` / `ImageServer` service or layer URLs. OGC, STAC,
 WFS, OData, Records, Tiles, Maps, and GeoParquet endpoints require an explicit
 `protocol: "ogc-features"`,
 `protocol: "stac"`, `protocol: "wfs"`, `protocol: "odata"`,
@@ -120,7 +120,7 @@ WFS, OData, Records, Tiles, Maps, and GeoParquet endpoints require an explicit
 Source-backed protocol; `connect()` rejects `protocol: "ogc-processes"` and
 directs callers to `discoverOgcProcesses()`, which returns a
 capability/metadata result rather than a `Source` (see below).
-Canonical GeoServices URLs may use
+Canonical source-backed GeoServices URLs may use
 `protocol: "auto"`: classification comes entirely from the URL path and makes
 no network request. An ambiguous auto target throws `HonuaDiscoveryError` with
 code `ambiguous-protocol` before cache hooks, authentication, or network
@@ -192,6 +192,54 @@ At a service root, if one optional layer metadata request fails, service-level
 evidence retains known-safe operations and the affected source reports
 `partial-discovery`; no adapter default is silently substituted. Layer fields
 and the object-id primary key are projected into the common source schema.
+
+### Service-shaped GeoServices discovery
+
+`discoverGeoServices()` accepts canonical `FeatureServer`, `MapServer`,
+`ImageServer`, `GeometryServer`, and `GPServer` service URLs. It uses the same
+strict endpoint classifier as `connect()`, including nested folder/service ids,
+optional numeric layer/catalog ids, selected GP task names, and removal of a
+pasted JSON-format query. Other query parameters, credentials, fragments, and
+non-canonical layouts fail before metadata is requested.
+
+```ts doc-test=compile
+import { discoverGeoServices } from "@honua/sdk-js/honua";
+
+const discovery = await discoverGeoServices({
+  endpoint:
+    "https://sampleserver.example/arcgis/rest/services/Analysis/Visibility/GPServer",
+});
+
+// GPServer and GeometryServer operations are intentionally not Sources.
+for (const task of discovery.operations) {
+  console.log(task.id, task.execution, task.availability, task.href);
+}
+```
+
+Every result carries a common service identity, credential-free authentication
+evidence, advertised formats, CRS definitions, numeric limits, provenance, and
+structured diagnostics. `ImageServer` is source-backed because its raster
+catalog already has a reviewed `Source` adapter; its effective capabilities are
+the intersection of explicit metadata and that adapter, never the ImageServer
+defaults. `GeometryServer` and `GPServer` instead return immutable operation
+descriptors and an empty `sources` array, so neither can masquerade as a feature
+collection. Image edit, attachment, relationship, and stream capabilities are
+never inferred.
+
+Geometry operations are derived only from advertised operation metadata.
+GPServer discovery reads the advertised task list with a maximum concurrency of
+four, then classifies each task as synchronous `execute`, asynchronous
+`submitJob` plus job-lifecycle URL templates, or unknown. Discovery never calls
+an operation, submits a job, polls status, or reads a dynamic result. Relative
+operation links must resolve inside the credential-free service root;
+cross-origin links and identity-bearing query strings are rejected.
+
+HTTP 401/403 and GeoServices 498/499 token errors preserve the normalized
+service identity with `authentication-required` and `partial-discovery`
+diagnostics instead of inventing operations. A failed GP task metadata request
+similarly yields an `unavailable` task descriptor while retaining successful
+siblings. `signal`, `refresh`, metadata cache headers, retry, and transport/auth
+options follow the same client contract as `connect()`.
 
 At an OGC service root, all advertised collections become `Dataset` source
 descriptors; at a GeoServices root, advertised layers and tables do. A layer
@@ -355,16 +403,16 @@ alter object prototypes. A bound violation fails without a network fallback.
 Cache hooks must not persist access tokens, API keys, or raw authorization
 material.
 
-This slice is intentionally not universal-connect completion: static STAC and
-the GeoServices Image/Geometry/GP services still fail as unsupported rather than
-falling through to heuristic detection.
+This slice is intentionally not universal-connect completion: GeometryServer
+and GPServer remain operation-shaped and therefore fail through `connect()`;
+callers use `discoverGeoServices()` instead. No protocol falls through to
+heuristic detection.
 
 ## Remaining #391 work
 
 - Static asset classification for GeoParquet via `auto` (structural URL
   recognition) and an explicit ambiguity-recovery contract; today GeoParquet
   requires an explicit `protocol: "geoparquet"` hint plus a metadata reader.
-- GeoServices ImageServer, GeometryServer, and GPServer metadata projections.
 - Remaining protocol adapters, normalized schema/queryables, partial metadata
   diagnostics, and the owning `createHonua()` disposal lifecycle.
 - Cross-language semantic descriptor fixtures and scheduled third-party smoke.

@@ -1,6 +1,10 @@
 /** Metadata-only discovery for the five canonical GeoServices service kinds. */
 
-import { type ConnectTarget, discoverGeoServicesSources } from "./connect-geoservices.js";
+import {
+  type ConnectTarget,
+  discoverGeoServicesImageSources,
+  discoverGeoServicesSources,
+} from "./connect-geoservices.js";
 import type { ConnectDiscoverySourceSnapshot } from "./connect.js";
 import {
   type DiscoveryCapabilityEvidence,
@@ -9,18 +13,18 @@ import {
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
 } from "./contract/discovery.js";
-import type { Capability, SourceDescriptor, SourceSchema } from "./contract/types.js";
-import { honuaMetadataRequestHeaders } from "./core/cache-state.js";
+import type { SourceDescriptor } from "./contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import { HonuaClient } from "./core/client.js";
-import { HonuaAbortError, HonuaDiscoveryError, HonuaHttpError } from "./core/errors.js";
-import type { HonuaClientOptions, HonuaFieldInfo } from "./core/types.js";
+import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
+import type { HonuaClientOptions } from "./core/types.js";
 import {
   type GeoServicesServiceKind,
   type GeoServicesServiceProtocol,
   type NormalizedGeoServicesEndpoint,
   normalizeGeoServicesEndpoint,
 } from "./geoservices-endpoint.js";
+import { getGeoServicesMetadata } from "./geoservices-metadata.js";
 
 /** Whether metadata established that credentials are required. */
 export type GeoServicesAuthenticationRequirement = "required" | "not-required" | "unknown";
@@ -144,18 +148,6 @@ export interface GeoServicesDiscoveryOptions {
   readonly metadata?: Omit<HonuaMetadataRequestOptions, "signal" | "refresh">;
 }
 
-interface MetadataAvailable {
-  readonly kind: "available";
-  readonly value: Readonly<Record<string, unknown>>;
-}
-
-interface MetadataSecured {
-  readonly kind: "secured";
-  readonly statusCode: number;
-}
-
-type MetadataOutcome = MetadataAvailable | MetadataSecured;
-
 interface InternalGeoServicesDiscovery {
   readonly service: GeoServicesServiceDescriptor;
   readonly retrievedAt: string;
@@ -185,14 +177,6 @@ const UNKNOWN_AUTHENTICATION: GeoServicesAuthenticationDescriptor = Object.freez
   evidence: "none",
   schemes: Object.freeze([]),
 });
-const IMAGE_SCOPE: readonly Capability[] = Object.freeze([
-  "query",
-  "queryExtent",
-  "queryObjectIds",
-  "image",
-  "render",
-  "tiles",
-]);
 const IMAGE_SDK_OPERATIONS = new Set(["query", "exportimage", "identify", "tile"]);
 const GEOMETRY_SDK_OPERATIONS = new Set(["project", "buffer", "simplify", "intersect", "union", "clip", "difference"]);
 
@@ -295,16 +279,16 @@ async function discoverImageService(
   target: NormalizedGeoServicesEndpoint,
   options: Pick<GeoServicesDiscoveryOptions, "signal" | "refresh" | "metadata">,
 ): Promise<InternalGeoServicesDiscovery> {
-  const retrievedAt = new Date().toISOString();
+  const discovered = await discoverGeoServicesImageSources(client, sourceTarget(target), options);
+  const { retrievedAt } = discovered;
   const provenance = Object.freeze([Object.freeze({ source: target.endpoint, retrievedAt })]);
-  const outcome = await getMetadata(client, target, target.endpoint, options);
   throwIfAborted(options.signal);
-  if (outcome.kind === "secured") {
-    const reason = `ImageServer metadata requires authorization (HTTP ${outcome.statusCode}); no operation support was inferred.`;
-    const evidence: readonly DiscoveryCapabilityEvidence[] = Object.freeze([
-      Object.freeze({ kind: "unavailable" as const, scope: IMAGE_SCOPE, reason, provenance }),
-    ]);
-    const source = imageSourceSnapshot(target, undefined, evidence);
+  const source = discovered.sources[0];
+  if (!source)
+    throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer discovery returned no Source descriptor.");
+  const evidence = source.evidence ?? Object.freeze([]);
+  if (discovered.securedStatusCode !== undefined) {
+    const reason = `ImageServer metadata requires authorization (HTTP ${discovered.securedStatusCode}); no operation support was inferred.`;
     const diagnostics: readonly GeoServicesDiscoveryDiagnostic[] = Object.freeze([
       diagnostic("authentication-required", reason),
       diagnostic("partial-discovery", "ImageServer identity is known from the URL but metadata is unavailable."),
@@ -312,7 +296,7 @@ async function discoverImageService(
     return Object.freeze({
       service: baseServiceDescriptor(target, {
         sourceBacked: true,
-        authentication: securedAuthentication(outcome.statusCode),
+        authentication: securedAuthentication(discovered.securedStatusCode),
       }),
       retrievedAt,
       sourceSnapshots: Object.freeze([source]),
@@ -323,14 +307,13 @@ async function discoverImageService(
     });
   }
 
-  const metadata = outcome.value;
+  const metadata = discovered.metadata;
+  if (!metadata) throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer metadata was not retained.");
   const formats = formatsFromMetadata(metadata);
   const crs = crsFromMetadata(metadata);
   const limits = limitsFromMetadata(metadata);
   const authentication = authenticationFromMetadata(metadata, target.serviceUrl);
   const operationsMetadata = readOperationMetadata(metadata);
-  const evidence = imageEvidence(metadata, operationsMetadata, provenance);
-  const source = imageSourceSnapshot(target, metadata, evidence);
   const sourceId = source.id;
   const operationNames = new Set(operationsMetadata.map((operation) => canonicalOperationId(operation.name)));
   const capabilities = metadataTokens(metadata);
@@ -628,57 +611,6 @@ function unavailableGpTask(
   });
 }
 
-function imageSourceSnapshot(
-  target: NormalizedGeoServicesEndpoint,
-  metadata: Readonly<Record<string, unknown>> | undefined,
-  evidence: readonly DiscoveryCapabilityEvidence[],
-): ConnectDiscoverySourceSnapshot {
-  const id = target.layerId === undefined ? target.serviceId : String(target.layerId);
-  const schema = metadata ? sourceSchemaFromMetadata(metadata) : undefined;
-  return Object.freeze({
-    id,
-    locator: Object.freeze({
-      url: target.clientBaseUrl,
-      serviceId: target.serviceId,
-      ...(target.layerId !== undefined ? { layerId: target.layerId } : {}),
-    }),
-    title: metadata ? (stringValue(metadata, "name") ?? target.serviceId.split("/").at(-1)) : target.serviceId,
-    ...(metadata
-      ? {
-          description: stringValue(metadata, "serviceDescription") ?? stringValue(metadata, "description"),
-        }
-      : {}),
-    ...(schema ? { schema } : {}),
-    evidence,
-  });
-}
-
-function imageEvidence(
-  metadata: Readonly<Record<string, unknown>>,
-  operations: readonly OperationMetadata[],
-  provenance: readonly DiscoveryProvenance[],
-): readonly DiscoveryCapabilityEvidence[] {
-  const advertised = metadataTokens(metadata);
-  const operationNames = new Set(operations.map((operation) => canonicalOperationId(operation.name).toLowerCase()));
-  const capabilities: Capability[] = [];
-  const catalog = advertised.has("catalog") || advertised.has("query") || operationNames.has("query");
-  if (catalog) {
-    capabilities.push("queryExtent", "queryObjectIds");
-    const advanced = readOptional(metadata, "advancedQueryCapabilities");
-    if (isRecord(advanced) && readOptional(advanced, "supportsPagination") === true) capabilities.push("query");
-  }
-  if (advertised.has("image") || operationNames.has("exportimage")) capabilities.push("image", "render");
-  if (isRecord(readOptional(metadata, "tileInfo")) || operationNames.has("tile")) capabilities.push("tiles");
-  return Object.freeze([
-    Object.freeze({
-      kind: "metadata" as const,
-      capabilities: Object.freeze(uniqueCapabilities(capabilities)),
-      scope: IMAGE_SCOPE,
-      provenance,
-    }),
-  ]);
-}
-
 function inspectSourceSnapshot(
   protocol: GeoServicesServiceProtocol,
   source: ConnectDiscoverySourceSnapshot,
@@ -742,40 +674,8 @@ async function getMetadata(
   target: NormalizedGeoServicesEndpoint,
   endpoint: string,
   options: Pick<GeoServicesDiscoveryOptions, "signal" | "refresh" | "metadata">,
-): Promise<MetadataOutcome> {
-  throwIfAborted(options.signal);
-  try {
-    const value = await client.request<unknown>({
-      method: "GET",
-      path: clientRelativePath(target.clientBaseUrl, endpoint),
-      responseFormat: "json",
-      headers: honuaMetadataRequestHeaders({
-        refresh: options.refresh === true,
-        bypass: options.metadata?.cache === "bypass",
-      }),
-      ...(options.signal ? { signal: options.signal } : {}),
-    });
-    throwIfAborted(options.signal);
-    const body = requireRecord(value, "GeoServices metadata");
-    const serviceError = readOptional(body, "error");
-    if (isRecord(serviceError)) {
-      const code = finiteIntegerValue(serviceError, "code");
-      if (code !== undefined && [401, 403, 498, 499].includes(code)) {
-        return Object.freeze({ kind: "secured" as const, statusCode: code });
-      }
-      throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices metadata returned an error object.", {
-        code,
-        message: stringValue(serviceError, "message"),
-      });
-    }
-    return Object.freeze({ kind: "available" as const, value: body });
-  } catch (error) {
-    if (options.signal?.aborted || error instanceof HonuaAbortError) throw error;
-    if (error instanceof HonuaHttpError && [401, 403, 498, 499].includes(error.statusCode)) {
-      return Object.freeze({ kind: "secured" as const, statusCode: error.statusCode });
-    }
-    throw error;
-  }
+): ReturnType<typeof getGeoServicesMetadata> {
+  return getGeoServicesMetadata(client, target.clientBaseUrl, endpoint, options);
 }
 
 function readOperationMetadata(metadata: Readonly<Record<string, unknown>>): readonly OperationMetadata[] {
@@ -884,22 +784,6 @@ function resolveOperationHref(
   }
   if (resolved.search) resolved.search = "";
   return resolved.toString().replace(/\/$/, "");
-}
-
-function clientRelativePath(clientBaseUrl: string, endpoint: string): string {
-  const base = new URL(clientBaseUrl);
-  const target = new URL(endpoint);
-  if (base.origin !== target.origin) {
-    throw new HonuaDiscoveryError(
-      "invalid-endpoint",
-      "GeoServices metadata endpoint does not match the client origin.",
-    );
-  }
-  const basePath = base.pathname === "/" ? "" : base.pathname.replace(/\/$/, "");
-  if (basePath && target.pathname !== basePath && !target.pathname.startsWith(`${basePath}/`)) {
-    throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices metadata endpoint does not match the client root.");
-  }
-  return target.pathname.slice(basePath.length) || "/";
 }
 
 function formatsFromMetadata(metadata: Readonly<Record<string, unknown>>): GeoServicesFormatDescriptor {
@@ -1040,32 +924,6 @@ function gpLifecycle(taskHref: string): GeoServicesOperationDescriptor["jobLifec
   });
 }
 
-function sourceSchemaFromMetadata(metadata: Readonly<Record<string, unknown>>): SourceSchema | undefined {
-  const raw = readOptional(metadata, "fields");
-  if (raw === undefined) return undefined;
-  if (!Array.isArray(raw))
-    throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer fields metadata must be an array.");
-  const fields: HonuaFieldInfo[] = raw.map((entry) => {
-    const field = requireRecord(entry, "ImageServer field");
-    const name = stringValue(field, "name");
-    const type = stringValue(field, "type");
-    const length = nonNegativeIntegerValue(field, "length");
-    const nullable = readOptional(field, "nullable");
-    const editable = readOptional(field, "editable");
-    if (!name || !type) throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer fields require name and type.");
-    return Object.freeze({
-      name,
-      type,
-      ...(stringValue(field, "alias") ? { alias: stringValue(field, "alias") } : {}),
-      ...(length !== undefined ? { length } : {}),
-      ...(typeof nullable === "boolean" ? { nullable } : {}),
-      ...(typeof editable === "boolean" ? { editable } : {}),
-    });
-  });
-  const primaryKey = stringValue(metadata, "objectIdField") ?? stringValue(metadata, "objectIdFieldName");
-  return Object.freeze({ fields: Object.freeze(fields), ...(primaryKey ? { primaryKey } : {}) });
-}
-
 function readMethods(metadata: Readonly<Record<string, unknown>>): readonly ("GET" | "POST")[] | undefined {
   const raw = readOptional(metadata, "methods");
   if (raw === undefined) return undefined;
@@ -1199,10 +1057,6 @@ function nonNegativeIntegerValue(record: Readonly<Record<string, unknown>>, key:
 
 function uniqueStrings(values: readonly string[]): string[] {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right));
-}
-
-function uniqueCapabilities(values: readonly Capability[]): Capability[] {
-  return [...new Set(values)];
 }
 
 function evidenceProvenance(evidence: readonly DiscoveryCapabilityEvidence[]): readonly DiscoveryProvenance[] {

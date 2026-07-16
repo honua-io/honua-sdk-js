@@ -14,27 +14,12 @@ import {
   type GeoParquetSourceProfiler,
   discoverGeoParquetSources,
 } from "./connect-geoparquet.js";
-import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
-import { discoverGeoServicesWithClient } from "./geoservices-discovery.js";
-import { normalizeGeoServicesEndpoint } from "./geoservices-endpoint.js";
-export { discoverGeoServices } from "./geoservices-discovery.js";
-export type {
-  GeoServicesAuthenticationDescriptor,
-  GeoServicesAuthenticationRequirement,
-  GeoServicesCrsDescriptor,
-  GeoServicesDiscoveryDiagnostic,
-  GeoServicesDiscoveryDiagnosticCode,
-  GeoServicesDiscoveryOptions,
-  GeoServicesDiscoveryResult,
-  GeoServicesDiscoveryState,
-  GeoServicesFormatDescriptor,
-  GeoServicesLimitDescriptor,
-  GeoServicesOperationAvailability,
-  GeoServicesOperationDescriptor,
-  GeoServicesOperationExecution,
-  GeoServicesServiceDescriptor,
-} from "./geoservices-discovery.js";
-export type { GeoServicesServiceKind, GeoServicesServiceProtocol } from "./geoservices-endpoint.js";
+import {
+  type ConnectTarget,
+  discoverGeoServicesImageSources,
+  discoverGeoServicesSources,
+  resolveConnectTarget,
+} from "./connect-geoservices.js";
 export type { GeoParquetSourceProfiler } from "./connect-geoparquet.js";
 import { discoverOdataSources } from "./connect-odata.js";
 import {
@@ -760,16 +745,15 @@ async function discoverGeoServicesImage(
   target: ConnectTarget,
   options: ConnectOptions,
 ): Promise<ConnectDiscoverySnapshot> {
-  const classified = normalizeGeoServicesEndpoint(target.endpoint);
-  const discovered = await discoverGeoServicesWithClient(client, classified, options);
+  const discovered = await discoverGeoServicesImageSources(client, target, options);
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
     endpoint: identity.endpoint,
     protocol: "geoservices-image-service",
     retrievedAt: discovered.retrievedAt,
-    evidence: discovered.evidence,
-    sources: discovered.sourceSnapshots,
+    evidence: Object.freeze(discovered.sources.flatMap((source) => [...(source.evidence ?? [])])),
+    sources: discovered.sources,
   });
 }
 

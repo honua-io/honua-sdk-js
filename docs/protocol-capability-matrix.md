@@ -137,6 +137,9 @@ The Image Service adapter wraps Honua Server's ImageServer endpoints
 (see `feature-server-matrix.md`'s sibling
 `image-server-matrix.md`). `Source.query()` returns the raster catalog
 as canonical features (one row per raster, footprint geometry on each).
+Canonical raw ImageServer URLs can also be passed to `connect()` or
+`discoverGeoServices()`. Discovery derives catalog/query, image, and tile
+availability from service metadata and never substitutes the adapter defaults.
 `Source.queryAll()` drains pages from the catalog endpoint internally
 (`resultOffset` / `resultRecordCount`) and uses a `limit + 1` lookahead
 row to stamp `exceededTransferLimit: true` when the cap is hit, mirroring
@@ -177,6 +180,11 @@ default), `GET` keeps params in the query string. Operations the server
 does not implement (`autoComplete`, `convexHull`, `cut`, `densify`,
 etc.) intentionally have no wrapper.
 
+For raw endpoint orientation, `discoverGeoServices()` projects only the
+advertised operation list, formats, CRS, limits, and authentication hints. It
+returns no `Source`; `connect()` rejects GeometryServer before authentication
+or network work instead of creating a feature-shaped placeholder.
+
 ### GeoServices GP Service
 GP Services run async tasks rather than hosting features. The default
 capabilities advertise only `geoprocess`; the canonical
@@ -196,6 +204,10 @@ GeoServices GPServer also participates in the unified process runner:
 `HonuaProcessRunner` that submits GP parameters and exposes the same
 `IJobRun` lifecycle as OGC API Processes and geospatial-grpc
 ProcessService clients.
+
+`discoverGeoServices()` is the non-executing raw GPServer discovery path. It
+describes synchronous versus asynchronous tasks and job-lifecycle URL templates
+without submitting or polling a job, and it returns no feature `Source`.
 
 ### Geospatial gRPC Process Service
 The open `honua-io/geospatial-grpc` protocol defines
