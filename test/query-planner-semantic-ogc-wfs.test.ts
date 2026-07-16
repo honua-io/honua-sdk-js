@@ -90,14 +90,18 @@ function field(name: string, type: LogicalField["type"], path = name): LogicalFi
   };
 }
 
-function schema(statusPath = "status", extraFields: readonly LogicalField[] = []): SourceSchemaV2 {
+function schema(
+  statusPath = "status",
+  extraFields: readonly LogicalField[] = [],
+  observedAtType: LogicalField["type"] = { kind: "timestamp", unit: "microsecond", timezone: "utc" },
+): SourceSchemaV2 {
   return createSourceSchemaV2({
     fields: [
       { ...field("id", { kind: "integer", bits: 32, signed: true, jsonEncoding: "number" }), roles: [] },
       field("status", { kind: "string" }, statusPath),
       field("severity", { kind: "integer", bits: 16, signed: true, jsonEncoding: "number" }),
       field("reportedDate", { kind: "date" }),
-      { ...field("observedAt", { kind: "timestamp", unit: "microsecond", timezone: "utc" }), roles: ["time-instant"] },
+      { ...field("observedAt", observedAtType), roles: ["time-instant"] },
       field("shape", { kind: "geometry" }),
       ...extraFields,
     ],
@@ -525,6 +529,73 @@ describe("semantic OGC API Features CQL2 compiler", () => {
     }
   });
 
+  it("requires UTC Z timestamps at every CQL2 temporal literal path", () => {
+    const offsetSchema = schema("status", [], {
+      kind: "timestamp",
+      unit: "microsecond",
+      timezone: "offset",
+    });
+    const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
+    const instant = builder.features({
+      geometry: "include",
+      filter: builder.temporal(
+        "after",
+        builder.property("observedAt"),
+        temporalLiteral("instant", "2026-07-15T12:34:56-10:00"),
+      ),
+    });
+    const intervals = [
+      {
+        value: ["2026-07-15T00:00:00-10:00", "2026-07-16T00:00:00Z"] as const,
+        path: "$.filter.value.value[0]",
+      },
+      {
+        value: ["2026-07-15T00:00:00Z", "2026-07-16T00:00:00-10:00"] as const,
+        path: "$.filter.value.value[1]",
+      },
+    ];
+
+    for (const preferredFilterLanguage of ["cql2-json", "cql2-text"] as const) {
+      expect(compile(instant, { preferredFilterLanguage, sourceSchema: offsetSchema })).toMatchObject({
+        outcome: "unsupported",
+        diagnostics: [{ code: "unsupported-field-type", path: "$.filter.value.value" }],
+      });
+      for (const interval of intervals) {
+        const temporalQuery = builder.features({
+          geometry: "include",
+          filter: builder.temporal(
+            "time-intersects",
+            builder.property("observedAt"),
+            temporalLiteral("interval", interval.value),
+          ),
+        });
+        expect(compile(temporalQuery, { preferredFilterLanguage, sourceSchema: offsetSchema })).toMatchObject({
+          outcome: "unsupported",
+          diagnostics: [{ code: "unsupported-field-type", path: interval.path }],
+        });
+      }
+    }
+  });
+
+  it("rejects semantic during because CQL2 requires an interval-valued first operand", () => {
+    const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
+    const temporalQuery = builder.features({
+      geometry: "include",
+      filter: builder.temporal(
+        "during",
+        builder.property("observedAt"),
+        temporalLiteral("interval", ["2026-07-15T00:00:00Z", "2026-07-16T00:00:00Z"]),
+      ),
+    });
+
+    for (const preferredFilterLanguage of ["cql2-json", "cql2-text"] as const) {
+      expect(compile(temporalQuery, { preferredFilterLanguage })).toMatchObject({
+        outcome: "unsupported",
+        diagnostics: [{ code: "unsupported-node", path: "$.filter.operator" }],
+      });
+    }
+  });
+
   it("requires Part 2 plus collection evidence before emitting non-default filter and output CRS", () => {
     const withoutPart2 = fullConformance.filter((entry) => entry !== part2CrsConformance);
     expect(compile(query("open"), { conformsTo: withoutPart2 })).toMatchObject({
@@ -740,6 +811,27 @@ describe("semantic WFS 2.0 FES compiler", () => {
     expect(reordered.requestFingerprint).toBe(artifact.requestFingerprint);
   });
 
+  it("fingerprints conservative globally safe FES operand evidence", () => {
+    const builder = createSemanticQueryBuilder<Incident, "wfs", "primary-geometry">();
+    const evidenceQuery = builder.features({ geometry: "omit" });
+    const baseline = compiled(compileWfs(evidenceQuery));
+    const withoutPoint = compiled(
+      compileWfs(evidenceQuery, {
+        capabilities: { ...fullWfsCapabilities, geometryOperands: ["gml:Envelope"] },
+      }),
+    );
+    const withoutInstant = compiled(
+      compileWfs(evidenceQuery, {
+        capabilities: { ...fullWfsCapabilities, temporalOperands: ["gml:TimePeriod"] },
+      }),
+    );
+
+    expect(withoutPoint.capabilityFingerprint).not.toBe(baseline.capabilityFingerprint);
+    expect(withoutInstant.capabilityFingerprint).not.toBe(baseline.capabilityFingerprint);
+    expect(withoutPoint.requestFingerprint).not.toBe(baseline.requestFingerprint);
+    expect(withoutInstant.requestFingerprint).not.toBe(baseline.requestFingerprint);
+  });
+
   it("compiles singleton booleans without logical capability evidence and uses full SORTBY tokens", () => {
     const builder = createSemanticQueryBuilder<Incident, "wfs", "primary-geometry">();
     const singleton = builder.features({
@@ -910,6 +1002,24 @@ describe("semantic WFS 2.0 FES compiler", () => {
     expect(() => compileWfs(wfsQuery("open"), { namespaces: { fes: "https://attacker.invalid" } })).toThrow(
       "options.source.namespaces.fes is not a safe XML namespace prefix",
     );
+
+    for (const inheritedPrefix of ["toString", "__proto__"]) {
+      expect(
+        compileWfs(wfsQuery("open"), {
+          sourceSchema: wfsSchema([`${inheritedPrefix}:status`]),
+          namespaces: wfsNamespaces,
+        }),
+      ).toMatchObject({
+        outcome: "unsupported",
+        diagnostics: [
+          {
+            code: "unsupported-source",
+            path: "$.filter.args[0].left.name.nativePath[0]",
+            message: expect.stringContaining("has no namespace binding"),
+          },
+        ],
+      });
+    }
   });
 
   it("isolates the matching native FES escape hatch and rejects unencoded distance semantics", () => {

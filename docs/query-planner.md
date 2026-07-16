@@ -142,8 +142,12 @@ console.log(cql2, restored);
 
 The supported subset includes property/literal comparisons, `and`/`or`/`not`,
 null tests, lists, numeric ranges, case-sensitive and `casei` patterns,
-standard topological/non-wrapping-bbox predicates, and the four semantic
-temporal predicates. CQL2 carries spatial CRS outside its JSON expression, so
+standard topological/non-wrapping-bbox predicates, and exact temporal
+predicates. CQL2 temporal timestamp literals and interval endpoints must use a
+UTC `Z` instant; offset timestamps fail closed rather than being normalized.
+Semantic `during` also fails closed: its property operand is instant-valued,
+while CQL2 `T_DURING` requires an interval-valued first operand. CQL2 carries
+spatial CRS outside its JSON expression, so
 spatial import/export requires an explicit executable `filterCrs` binding and
 verifies every operand against it. JSON-number-encoded decimal fields preserve
 their supported CQL2 scalar representation; string-encoded high-precision
@@ -180,9 +184,15 @@ operators and operands, and filter/output CRS identifiers. Every generated
 operator and GML operand must be advertised. Missing evidence returns an
 `unsupported` result at the exact query path; it never becomes an empty filter,
 `TRUE`, an envelope approximation, or a dropped relationship.
+Because FES capabilities can advertise operands per operator, the flat
+`geometryOperands` and `temporalOperands` evidence arrays are conservative,
+globally applicable safe intersections: an operand belongs in an array only
+when discovery proved it usable for every compiled operator that may consume
+that array. Flattening operator-local unions into these arrays is unsafe.
 WFS KVP sorting uses the normative `ASC` and `DESC` tokens. Singleton semantic
 `and`/`or` nodes compile directly to their child, so they do not require or emit
-a logical wrapper. `time-intersects` remains unsupported for WFS: FES
+a logical wrapper. WFS `During` remains supported for its instant-property and
+period-literal relationship. `time-intersects` remains unsupported for WFS: FES
 `AnyInteracts` requires a period-valued property, while the semantic temporal
 operand contract identifies an instant-valued date or timestamp field.
 

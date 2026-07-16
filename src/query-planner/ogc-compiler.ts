@@ -504,7 +504,7 @@ function assertFesPathSegment(value: string, namespaces: NormalizedNamespaceBind
   const colon = value.indexOf(":");
   if (colon >= 0) {
     const prefix = value.slice(0, colon);
-    if (namespaces.bindings[prefix] === undefined) {
+    if (!Object.hasOwn(namespaces.bindings, prefix)) {
       semanticUnsupported(
         "unsupported-source",
         path,

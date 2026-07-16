@@ -46,8 +46,10 @@ export interface Wfs20FilterCapabilitiesEvidence {
   /** Presence of `fes:LogicalOperators` in scalar capabilities. */
   readonly logicalOperators: boolean;
   readonly comparisonOperators: readonly string[];
+  /** Geometry operands safe for every compiled spatial operator (the conservative intersection of operator-local evidence). */
   readonly geometryOperands: readonly string[];
   readonly spatialOperators: readonly string[];
+  /** Temporal operands safe for every compiled temporal operator (the conservative intersection of operator-local evidence). */
   readonly temporalOperands: readonly string[];
   readonly temporalOperators: readonly string[];
   /** CRS identifiers explicitly discovered as usable by spatial filter operands. */

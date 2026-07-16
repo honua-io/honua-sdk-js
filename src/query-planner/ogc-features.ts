@@ -439,6 +439,7 @@ function compileCql2JsonNode(
     case "spatial":
       return compileCql2JsonSpatial(filter, state, path);
     case "temporal":
+      rejectCql2During(filter.operator, path);
       requireCqlConformance(state.conformance, "cql2/1.0", "temporal-functions", path);
       return {
         op: TEMPORAL_JSON[filter.operator],
@@ -504,6 +505,7 @@ function compileCql2TextNode(
     case "spatial":
       return compileCql2TextSpatial(filter, state, path);
     case "temporal":
+      rejectCql2During(filter.operator, path);
       requireCqlConformance(state.conformance, "cql2/1.0", "temporal-functions", path);
       return `${TEMPORAL_TEXT[filter.operator]}(${cql2TextProperty(
         state.schema,
@@ -651,18 +653,66 @@ function requireCql2ScalarField(field: LogicalField, path: string): void {
 }
 
 function cql2JsonTemporal(value: TemporalLiteralNode, path: string): JsonValue {
-  if (value.valueType === "date") return { date: value.value };
-  if (value.valueType === "instant") return { timestamp: value.value };
-  return { interval: [...value.value] };
+  if (value.valueType === "date") {
+    requireCql2Date(value.value, `${path}.value`);
+    return { date: value.value };
+  }
+  if (value.valueType === "instant") {
+    requireCql2Timestamp(value.value, `${path}.value`);
+    return { timestamp: value.value };
+  }
+  const interval = value as Extract<TemporalLiteralNode, { readonly valueType: "interval" }>;
+  interval.value.forEach((endpoint, index) => requireCql2IntervalEndpoint(endpoint, `${path}.value[${index}]`));
+  return { interval: [...interval.value] };
 }
 
 function cql2TextTemporal(value: TemporalLiteralNode, path: string): string {
-  if (value.valueType === "date") return `DATE(${cql2StringLiteral(value.value, `${path}.value`)})`;
-  if (value.valueType === "instant") return `TIMESTAMP(${cql2StringLiteral(value.value, `${path}.value`)})`;
-  return `INTERVAL(${cql2StringLiteral(value.value[0], `${path}.value[0]`)}, ${cql2StringLiteral(
-    value.value[1],
+  if (value.valueType === "date") {
+    requireCql2Date(value.value, `${path}.value`);
+    return `DATE(${cql2StringLiteral(value.value, `${path}.value`)})`;
+  }
+  if (value.valueType === "instant") {
+    requireCql2Timestamp(value.value, `${path}.value`);
+    return `TIMESTAMP(${cql2StringLiteral(value.value, `${path}.value`)})`;
+  }
+  const interval = value as Extract<TemporalLiteralNode, { readonly valueType: "interval" }>;
+  interval.value.forEach((endpoint, index) => requireCql2IntervalEndpoint(endpoint, `${path}.value[${index}]`));
+  return `INTERVAL(${cql2StringLiteral(interval.value[0], `${path}.value[0]`)}, ${cql2StringLiteral(
+    interval.value[1],
     `${path}.value[1]`,
   )})`;
+}
+
+function rejectCql2During(operator: keyof typeof TEMPORAL_TEXT, path: string): void {
+  if (operator === "during") {
+    semanticUnsupported(
+      "unsupported-node",
+      `${path}.operator`,
+      "CQL2 T_DURING requires an interval-valued first operand; semantic temporal properties are instant-valued",
+    );
+  }
+}
+
+function requireCql2Date(value: string, path: string): void {
+  if (!CQL2_DATE.test(value)) {
+    semanticUnsupported("unsupported-field-type", path, "CQL2 temporal dates require a full-date literal");
+  }
+}
+
+function requireCql2Timestamp(value: string, path: string): void {
+  if (!CQL2_TIMESTAMP.test(value)) {
+    semanticUnsupported("unsupported-field-type", path, "CQL2 temporal timestamps require a UTC Z instant");
+  }
+}
+
+function requireCql2IntervalEndpoint(value: string, path: string): void {
+  if (!CQL2_DATE.test(value) && !CQL2_TIMESTAMP.test(value)) {
+    semanticUnsupported(
+      "unsupported-field-type",
+      path,
+      "CQL2 temporal interval endpoints require a full-date or UTC Z timestamp",
+    );
+  }
 }
 
 function cql2TextProperty(schema: SourceSchemaV2, name: string, path: string): string {
