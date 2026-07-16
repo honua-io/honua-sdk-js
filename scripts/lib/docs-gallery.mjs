@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { inflateSync } from "node:zlib";
 import {
   validateSiteConsumerFixture,
   validateSiteProjection,
@@ -624,7 +625,9 @@ function verifiedPngDimensions(bytes, label) {
   let offset = 8;
   let chunkCount = 0;
   let dimensions = null;
+  const imageData = [];
   let sawImageData = false;
+  let imageDataEnded = false;
   let sawEnd = false;
   while (offset < bytes.byteLength) {
     invariant(++chunkCount <= 4_096, `${label} contains too many PNG chunks`);
@@ -661,22 +664,45 @@ function verifiedPngDimensions(bytes, label) {
           validBitDepths[colorType]?.includes(bitDepth) &&
           bytes[dataStart + 10] === 0 &&
           bytes[dataStart + 11] === 0 &&
-          (bytes[dataStart + 12] === 0 || bytes[dataStart + 12] === 1),
+          bytes[dataStart + 12] === 0,
         `${label} has unsupported PNG image metadata`,
       );
-      dimensions = { width, height };
+      dimensions = { width, height, bitDepth, colorType };
     } else if (type === "IDAT") {
-      invariant(dimensions !== null && !sawEnd, `${label} has PNG image data outside its image body`);
+      invariant(
+        dimensions !== null && !imageDataEnded && !sawEnd,
+        `${label} has PNG image data outside its image body`,
+      );
       sawImageData = true;
+      imageData.push(bytes.subarray(dataStart, dataEnd));
     } else if (type === "IEND") {
       invariant(dataLength === 0 && dimensions !== null && sawImageData && !sawEnd, `${label} has an invalid PNG IEND`);
       sawEnd = true;
       invariant(chunkEnd === bytes.byteLength, `${label} contains bytes after PNG IEND`);
+    } else if (sawImageData) {
+      imageDataEnded = true;
     }
     offset = chunkEnd;
   }
   invariant(dimensions && sawImageData && sawEnd, `${label} is an incomplete PNG`);
-  return dimensions;
+  const samplesPerPixel = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[dimensions.colorType];
+  const rowBytes = Math.ceil((dimensions.width * samplesPerPixel * dimensions.bitDepth) / 8);
+  const inflatedBytes = (rowBytes + 1) * dimensions.height;
+  invariant(
+    Number.isSafeInteger(inflatedBytes) && inflatedBytes > 0 && inflatedBytes <= 64 * 1024 * 1024,
+    `${label} exceeds the decoded PNG size boundary`,
+  );
+  let pixels;
+  try {
+    pixels = inflateSync(Buffer.concat(imageData), { maxOutputLength: inflatedBytes + 1 });
+  } catch {
+    throw new Error(`Gallery projection integrity: ${label} has invalid compressed PNG image data`);
+  }
+  invariant(pixels.byteLength === inflatedBytes, `${label} has an invalid decompressed PNG pixel length`);
+  for (let row = 0; row < dimensions.height; row += 1) {
+    invariant(pixels[row * (rowBytes + 1)] <= 4, `${label} has an invalid PNG scanline filter`);
+  }
+  return { width: dimensions.width, height: dimensions.height };
 }
 
 function escapeHtml(value) {

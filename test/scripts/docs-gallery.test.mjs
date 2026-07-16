@@ -87,6 +87,20 @@ function solidGrayscalePng(width, height, shade) {
   ]);
 }
 
+function truncatedGrayscalePng(width, height) {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 0;
+  return Buffer.concat([
+    Buffer.from("89504e470d0a1a0a", "hex"),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(Buffer.alloc(1))),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
 function visualEvidenceForProjection(value) {
   const evidence = structuredClone(visualEvidence);
   evidence.projection = {
@@ -186,8 +200,8 @@ function qualifiedVisualFixture() {
   sample.validationProfile = "golden-browser";
 
   const runId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-  const observedAt = "2099-01-01T00:00:00.000Z";
-  const expiresAt = "2099-01-08T00:00:00.000Z";
+  const observedAt = new Date(Date.now() - 60_000).toISOString();
+  const expiresAt = new Date(Date.parse(observedAt) + 7 * 24 * 60 * 60 * 1000).toISOString();
   const screenshots = [
     ["desktop", { width: 1280, height: 720 }],
     ["mobile", { width: 390, height: 844 }],
@@ -701,6 +715,19 @@ test("rejects corrupt PNG receipts and screenshots whose pixels contradict the d
     () => verifyGalleryVisualAssets(corruptGallery, (sourcePath) => corrupt.assets.get(sourcePath)),
     /invalid IEND CRC/,
   );
+
+  const truncated = qualifiedVisualFixture();
+  replaceScreenshotBytes(
+    truncated.evidence,
+    truncated.assets,
+    "desktop",
+    truncatedGrayscalePng(1280, 720),
+  );
+  const truncatedGallery = await verifiedGallery(truncated.projection, { evidence: truncated.evidence });
+  await assert.rejects(
+    () => verifyGalleryVisualAssets(truncatedGallery, (sourcePath) => truncated.assets.get(sourcePath)),
+    /invalid decompressed PNG pixel length/,
+  );
 });
 
 test("fails publication when qualified golden visual evidence is missing or incomplete", async () => {
@@ -724,6 +751,39 @@ test("fails publication when qualified golden visual evidence is missing or inco
   await assert.rejects(
     () => verifiedGallery(fixture.projection, { evidence: stale }),
     /visual evidence is stale/,
+  );
+
+  const staleSemantic = structuredClone(fixture.evidence);
+  staleSemantic.qualifiedGoldenJourneys[0].semanticEvidence[0].expiresAt = "2020-01-01T00:00:00.000Z";
+  await assert.rejects(
+    () => verifiedGallery(fixture.projection, { evidence: staleSemantic }),
+    /packed-build semantic evidence is stale/,
+  );
+
+  const aggregateDrift = structuredClone(fixture.evidence);
+  aggregateDrift.qualifiedGoldenJourneys[0].semanticEvidence[0].expiresAt = new Date(
+    Date.parse(aggregateDrift.qualifiedGoldenJourneys[0].expiresAt) - 60_000,
+  ).toISOString();
+  await assert.rejects(
+    () => verifiedGallery(fixture.projection, { evidence: aggregateDrift }),
+    /visual evidence aggregate window drift/,
+  );
+
+  const wrongLiveSample = structuredClone(fixture.evidence);
+  wrongLiveSample.qualifiedGoldenJourneys[0].liveEvidence.evidencePath =
+    "samples/evidence/other-sample/runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/artifacts/live-evidence.json";
+  await assert.rejects(
+    () => verifiedGallery(fixture.projection, { evidence: wrongLiveSample }),
+    /live visual evidence path binding drift/,
+  );
+
+  const liveWindowDrift = structuredClone(fixture.evidence);
+  liveWindowDrift.qualifiedGoldenJourneys[0].liveEvidence.expiresAt = new Date(
+    Date.parse(liveWindowDrift.qualifiedGoldenJourneys[0].liveEvidence.expiresAt) - 60_000,
+  ).toISOString();
+  await assert.rejects(
+    () => verifiedGallery(fixture.projection, { evidence: liveWindowDrift }),
+    /live visual evidence receipt window drift/,
   );
 });
 

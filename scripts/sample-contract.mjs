@@ -3171,13 +3171,20 @@ export async function validateSiteVisualEvidence(evidence, projection, options =
   }
   const now = Date.parse(options.now ?? new Date().toISOString());
   invariant(Number.isFinite(now), "site visual evidence validation time is invalid");
+  const maximumFutureSkewMs = 5 * 60 * 1000;
+  const maximumFreshnessMs = 7 * 24 * 60 * 60 * 1000;
   for (const entry of entries) {
     invariant(
       JSON.stringify(entry.semanticEvidence.map((item) => item.gate)) === JSON.stringify(SITE_VISUAL_GATE_ORDER),
       `${entry.sampleId}: site visual evidence semantic gates are incomplete or out of order`,
     );
+    const observedAt = Date.parse(entry.observedAt);
+    const expiresAt = Date.parse(entry.expiresAt);
     invariant(
-      Date.parse(entry.expiresAt) > now && Date.parse(entry.expiresAt) > Date.parse(entry.observedAt),
+      observedAt <= now + maximumFutureSkewMs &&
+        expiresAt > now &&
+        expiresAt > observedAt &&
+        expiresAt - observedAt <= maximumFreshnessMs,
       `${entry.sampleId}: site visual evidence is stale or has an invalid observation window`,
     );
     for (let index = 0; index < SAMPLE_SCREENSHOT_VARIANTS.length; index += 1) {
@@ -3193,12 +3200,55 @@ export async function validateSiteVisualEvidence(evidence, projection, options =
       );
     }
     for (const item of entry.semanticEvidence) {
+      const itemObservedAt = Date.parse(item.observedAt);
+      const itemExpiresAt = Date.parse(item.expiresAt);
       invariant(
         item.receiptPath === `samples/evidence/${entry.sampleId}/receipts/${item.gate}.v1.json` &&
           item.reportPath.startsWith(`samples/evidence/${entry.sampleId}/runs/`),
         `${entry.sampleId}: ${item.gate} semantic evidence path binding drift`,
       );
+      invariant(
+        itemObservedAt <= now + maximumFutureSkewMs &&
+          itemExpiresAt > now &&
+          itemExpiresAt > itemObservedAt &&
+          itemExpiresAt - itemObservedAt <= maximumFreshnessMs,
+        `${entry.sampleId}: ${item.gate} semantic evidence is stale or has an invalid observation window`,
+      );
     }
+    const expectedObservedAt = new Date(
+      Math.max(...entry.semanticEvidence.map((item) => Date.parse(item.observedAt))),
+    ).toISOString();
+    const expectedExpiresAt = new Date(
+      Math.min(...entry.semanticEvidence.map((item) => Date.parse(item.expiresAt))),
+    ).toISOString();
+    invariant(
+      entry.observedAt === expectedObservedAt && entry.expiresAt === expectedExpiresAt,
+      `${entry.sampleId}: site visual evidence aggregate window drift`,
+    );
+    const liveReceipt = entry.semanticEvidence.find((item) => item.gate === "live");
+    const liveObservedAt = Date.parse(entry.liveEvidence.observedAt);
+    const liveExpiresAt = Date.parse(entry.liveEvidence.expiresAt);
+    const provenanceObservedAt = Date.parse(entry.liveEvidence.provenance.observedAt);
+    invariant(
+      entry.liveEvidence.evidencePath.startsWith(`samples/evidence/${entry.sampleId}/runs/`) &&
+        entry.liveEvidence.evidencePath.endsWith("/artifacts/live-evidence.json"),
+      `${entry.sampleId}: live visual evidence path binding drift`,
+    );
+    invariant(
+      liveObservedAt <= now + maximumFutureSkewMs &&
+        liveExpiresAt > now &&
+        liveExpiresAt > liveObservedAt &&
+        liveExpiresAt - liveObservedAt <= maximumFreshnessMs &&
+        provenanceObservedAt <= now + maximumFutureSkewMs &&
+        provenanceObservedAt <= liveObservedAt + maximumFutureSkewMs,
+      `${entry.sampleId}: live visual evidence is stale or has an invalid observation window`,
+    );
+    invariant(
+      liveReceipt &&
+        entry.liveEvidence.expiresAt === liveReceipt.expiresAt &&
+        Math.abs(liveObservedAt - Date.parse(liveReceipt.observedAt)) <= maximumFutureSkewMs,
+      `${entry.sampleId}: live visual evidence receipt window drift`,
+    );
     if (entry.journeyId === "incident-operations") {
       invariant(
         entry.liveEvidence.realtime?.observationWindowMs > 0,

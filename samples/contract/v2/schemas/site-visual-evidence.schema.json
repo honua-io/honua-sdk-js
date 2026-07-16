@@ -198,7 +198,10 @@
         "status": { "const": "executed" },
         "observedAt": { "$ref": "#/$defs/dateTime" },
         "expiresAt": { "$ref": "#/$defs/dateTime" },
-        "evidencePath": { "type": "string" },
+        "evidencePath": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/artifacts/live-evidence\\.json$"
+        },
         "provenance": {
           "type": "object",
           "required": ["state", "observedAt", "attribution"],

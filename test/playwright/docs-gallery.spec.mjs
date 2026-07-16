@@ -15,6 +15,26 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const docsRoot = path.join(repositoryRoot, "dist/docs-site");
 const hostedBasePath = "/honua-sdk-js/docs/";
 const sourceRevision = "a".repeat(40);
+const galleryProjection = JSON.parse(
+  fs.readFileSync(path.join(repositoryRoot, "samples/dist/honua-site-samples.v2.json"), "utf8"),
+);
+const galleryVisualEvidence = JSON.parse(
+  fs.readFileSync(path.join(repositoryRoot, "samples/dist/honua-site-visual-evidence.v1.json"), "utf8"),
+);
+const publicTracks = new Set(["golden", "recipe", "lab"]);
+const publicSamples = galleryProjection.samples.filter((sample) => publicTracks.has(sample.track));
+const endpointSample = publicSamples.find((sample) => sample.id === "endpoint-to-map");
+if (!endpointSample) throw new Error("The stable endpoint-to-map gallery sample is missing from the site projection");
+const requiredSameOriginPaths = new Set([
+  `${hostedBasePath}gallery.html`,
+  `${hostedBasePath}assets/style.css`,
+  `${hostedBasePath}assets/gallery.js`,
+]);
+const allowedVisualPaths = new Set(
+  galleryVisualEvidence.qualifiedGoldenJourneys.flatMap((entry) =>
+    entry.screenshots.map((screenshot) => `${hostedBasePath}${screenshot.publicationPath}`),
+  ),
+);
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -68,11 +88,9 @@ test("gallery is accessible, deterministic, relocatable, and interactive after g
   expect(navigation?.status()).toBe(200);
   expect(navigation?.headers()["content-security-policy"]).toContain("default-src 'self'");
   await expect(page.getByRole("heading", { name: "Demo gallery", level: 1 })).toBeVisible();
-  await expect(page.locator("[data-gallery-result-count]")).toHaveText("32");
-  await expect(page.locator("[data-gallery-card]")).toHaveCount(32);
-  await expect(page.locator('[data-sample-id="migration-workbench"]')).toContainText(
-    "Canonical deterministic ArcGIS migration evidence workbench",
-  );
+  await expect(page.locator("[data-gallery-result-count]")).toHaveText(String(publicSamples.length));
+  await expect(page.locator("[data-gallery-card]")).toHaveCount(publicSamples.length);
+  await expect(page.locator(`[data-sample-id="${endpointSample.id}"]`)).toContainText(endpointSample.title);
   await expect(page.locator('[data-sample-id="realtime-incident-dashboard"]')).toContainText(
     "Realtime Incident Operations",
   );
@@ -100,15 +118,12 @@ test("gallery is accessible, deterministic, relocatable, and interactive after g
   const protocol = page.locator("[data-gallery-protocol]");
   const clear = page.locator("[data-gallery-clear]");
   await search.focus();
-  await search.pressSequentially("migration workbench");
+  await search.pressSequentially("endpoint to map");
   await expect(page.locator("[data-gallery-result-count]")).toHaveText("1");
-  await expect(page.locator('[data-gallery-card]:not([hidden])')).toHaveAttribute(
-    "data-sample-id",
-    "migration-workbench",
-  );
+  await expect(page.locator('[data-gallery-card]:not([hidden])')).toHaveAttribute("data-sample-id", endpointSample.id);
   await page.keyboard.press("Tab");
   await expect(capability).toBeFocused();
-  await capability.selectOption("migration");
+  await capability.selectOption("map");
   await page.keyboard.press("Tab");
   await expect(protocol).toBeFocused();
   await protocol.selectOption("geoservices");
@@ -117,7 +132,7 @@ test("gallery is accessible, deterministic, relocatable, and interactive after g
   await expect(clear).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(search).toBeFocused();
-  await expect(page.locator("[data-gallery-result-count]")).toHaveText("32");
+  await expect(page.locator("[data-gallery-result-count]")).toHaveText(String(publicSamples.length));
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("search", { name: "Filter demo gallery" })).toBeVisible();
@@ -154,13 +169,13 @@ test("gallery is accessible, deterministic, relocatable, and interactive after g
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
   expect(externalRequests).toEqual([]);
-  expect(new Set(sameOriginPaths)).toEqual(
-    new Set([
-      `${hostedBasePath}gallery.html`,
-      `${hostedBasePath}assets/style.css`,
-      `${hostedBasePath}assets/gallery.js`,
-    ]),
-  );
+  const observedSameOriginPaths = new Set(sameOriginPaths);
+  for (const requiredPath of requiredSameOriginPaths) expect(observedSameOriginPaths).toContain(requiredPath);
+  expect(
+    [...observedSameOriginPaths].filter(
+      (requestPath) => !requiredSameOriginPaths.has(requestPath) && !allowedVisualPaths.has(requestPath),
+    ),
+  ).toEqual([]);
 });
 
 function buildDocsSite() {
