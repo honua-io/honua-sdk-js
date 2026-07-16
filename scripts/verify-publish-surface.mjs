@@ -14,6 +14,8 @@
  *   2. Split packages: every `@honua/...` package documented in
  *      `docs/split-packages.md` must exist under `dist/packages/`, and each
  *      split package's own `exports` must resolve to real files on disk.
+ *   3. Root and split tarballs must contain no executable filenames or magic
+ *      signatures, even when the repository has an ignored build cache.
  *
  * Prerequisites: `npm run build`, `npm run build:browser`, and
  * `npm run build:split-packages` have all run. Wired into CI and into the
@@ -25,8 +27,27 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { scanBinaryArtifactFiles } from "./lib/binary-artifact-policy.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
+
+function packFilePaths(directory) {
+  const report = JSON.parse(
+    execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
+      cwd: directory,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    }),
+  );
+  return new Set((report[0]?.files ?? []).map((file) => file.path));
+}
+
+function rejectBinaryArtifacts(label, root, files) {
+  for (const violation of scanBinaryArtifactFiles({ root, paths: [...files] })) {
+    failures.push(`${label} contains forbidden binary artifact "${violation.file}" (${violation.reason})`);
+  }
+}
 
 function collectExportFiles(pkg) {
   const wanted = new Set();
@@ -51,13 +72,8 @@ function collectExportFiles(pkg) {
 
 // --- 1. Root tarball contents vs package.json surface -----------------------
 const rootPkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-const packJson = execFileSync("npm", ["pack", "--dry-run", "--json"], {
-  cwd: ROOT,
-  encoding: "utf8",
-  maxBuffer: 64 * 1024 * 1024,
-});
-const packed = JSON.parse(packJson);
-const tarballFiles = new Set((packed[0]?.files ?? []).map((f) => f.path));
+const tarballFiles = packFilePaths(ROOT);
+rejectBinaryArtifacts("root tarball", ROOT, tarballFiles);
 
 for (const file of collectExportFiles(rootPkg)) {
   if (!tarballFiles.has(file)) {
@@ -88,6 +104,7 @@ for (const name of documented) {
     continue;
   }
   const base = path.join(packagesRoot, built.dir);
+  rejectBinaryArtifacts(`split package ${name}`, base, packFilePaths(base));
   for (const file of collectExportFiles(built.pkg)) {
     if (!fs.existsSync(path.join(base, file))) {
       failures.push(`split package ${name}: exports reference "${file}" but the file is absent from ${built.dir}/`);

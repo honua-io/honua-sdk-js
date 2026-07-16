@@ -9,6 +9,8 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
   const pageErrors = [];
   const consoleErrors = [];
   const externalRequests = [];
+  const externalExtensionRequests = [];
+  const localExtensionRequests = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -16,8 +18,15 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
 
   const server = await startOvertureFixtureServer();
   const fixtureOrigin = new URL(server.url).origin;
+  await page.route("https://extensions.duckdb.org/**", (route) => route.abort("blockedbyclient"));
+  await page.route("https://cdn.jsdelivr.net/**", (route) => route.abort("blockedbyclient"));
   page.on("request", (request) => {
-    if (new URL(request.url()).origin !== fixtureOrigin) externalRequests.push(request.url());
+    const requestUrl = new URL(request.url());
+    if (requestUrl.origin !== fixtureOrigin) externalRequests.push(request.url());
+    if (requestUrl.hostname === "extensions.duckdb.org" || requestUrl.hostname === "cdn.jsdelivr.net")
+      externalExtensionRequests.push(request.url());
+    if (requestUrl.origin === fixtureOrigin && requestUrl.pathname.includes("/duckdb/extensions/"))
+      localExtensionRequests.push(request.url());
   });
 
   try {
@@ -36,12 +45,21 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     await expect(page.locator("#result-body tr")).toHaveCount(8);
     await expect(page.locator("#result-summary")).toContainText("GERS ids preserved");
     await expect(page.locator("#result-points circle")).toHaveCount(8);
+    expect(await page.evaluate(() => window.__HONUA_OVERTURE__?.parquetRuntime)).toEqual({
+      duckDbVersion: "v1.4.3",
+      parquetScanRows: 8,
+      readParquetRows: 8,
+    });
     await expect(page.getByLabel("Data lane")).toBeVisible();
     await expect(page.getByLabel("AOI · xmin,ymin,xmax,ymax")).toBeEditable();
     await page.getByLabel("Data lane").focus();
     await page.keyboard.press("Tab");
     await expect(page.getByLabel("Category")).toBeFocused();
     expect(externalRequests).toEqual([]);
+    expect(externalExtensionRequests).toEqual([]);
+    expect(localExtensionRequests).toEqual([
+      `${fixtureOrigin}/duckdb/extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm`,
+    ]);
 
     const fixtureExecution = await page.evaluate(() => window.__HONUA_OVERTURE__?.lastEvidence);
     expect(fixtureExecution).toBeDefined();
@@ -121,6 +139,10 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
       .toBe(true);
 
     expect(externalRequests).toEqual([]);
+    expect(externalExtensionRequests).toEqual([]);
+    expect(new Set(localExtensionRequests)).toEqual(
+      new Set([`${fixtureOrigin}/duckdb/extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm`]),
+    );
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
   } finally {

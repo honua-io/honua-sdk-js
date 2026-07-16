@@ -106,6 +106,12 @@ describe("prepared SDK artifact contract", () => {
       expect(scripts[gated], gated).toMatch(/^npm run check:test-build-ownership --silent(?: &&|$)/);
     }
 
+    for (const playwright of ["test:playwright", "test:playwright:prepared"]) {
+      expect(scripts[playwright], playwright).toContain(
+        "node examples/overture-geoparquet/prepare-duckdb-extension.mjs",
+      );
+    }
+
     const ci = fs.readFileSync(path.join(getProjectRoot(), ".github", "workflows", "ci.yml"), "utf8");
     const jsSdkJob = ci.slice(ci.indexOf("  js-sdk:"), ci.indexOf("  mcp-sdk:"));
     expect(jsSdkJob.match(/run: npm run build\s*$/gm)).toHaveLength(1);
