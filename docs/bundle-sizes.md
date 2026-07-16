@@ -8,19 +8,19 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-16 at commit `05506e2`._
+_Generated 2026-07-16 at commit `a5a8548`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 419.8 KiB | 425.3 KiB | 109.7 KiB | 112.5 KiB |
-| `/honua` | 519.9 KiB | 566.2 KiB | 136.8 KiB | 149.6 KiB |
-| `/contract` | 256.1 KiB | 287.3 KiB | 67.3 KiB | 72.9 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 627.9 KiB | 663.7 KiB | 128.4 KiB | 134.0 KiB |
+| `.` (root) | 437.2 KiB | 480.9 KiB | 114.8 KiB | 126.3 KiB |
+| `/honua` | 537.4 KiB | 566.2 KiB | 142.0 KiB | 149.6 KiB |
+| `/contract` | 273.5 KiB | 287.3 KiB | 72.4 KiB | 72.9 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 645.3 KiB | 663.7 KiB | 133.5 KiB | 134.0 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 53.2 KiB | 62.6 KiB | 16.5 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 51.4 KiB | 55.2 KiB | 14.8 KiB | 15.8 KiB |
 | `/nl-map-control` | 73.2 KiB | 84.5 KiB | 22.0 KiB | 25.3 KiB |
-| `/runtime` | 448.1 KiB | 458.7 KiB | 118.3 KiB | 131.7 KiB |
+| `/runtime` | 465.4 KiB | 511.7 KiB | 123.2 KiB | 131.7 KiB |
 | `/realtime` | 41.2 KiB | 49.3 KiB | 11.4 KiB | 13.5 KiB |
 | `/offline` | 36.6 KiB | 44.3 KiB | 11.1 KiB | 13.2 KiB |
 | `/query-planner` (worker runtime injected) | 399.7 KiB | 439.0 KiB | 71.7 KiB | 78.7 KiB |
@@ -35,12 +35,12 @@ _Generated 2026-07-16 at commit `05506e2`._
 | `/map` | 164.6 KiB | 182.2 KiB | 46.0 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 43.1 KiB | 51.1 KiB | 13.6 KiB | 14.6 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 429.6 KiB | 446.7 KiB | 113.2 KiB | 117.2 KiB |
+| `/react` (react/react-dom external) | 447.0 KiB | 491.4 KiB | 118.2 KiB | 130.0 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 420.5 KiB | 426.0 KiB | 110.0 KiB | 112.8 KiB |
-| browser ESM (`./browser`) | 419.2 KiB | 424.6 KiB | 109.7 KiB | 112.5 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 437.8 KiB | 481.6 KiB | 115.0 KiB | 126.5 KiB |
+| browser ESM (`./browser`) | 436.5 KiB | 480.2 KiB | 114.8 KiB | 126.3 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 210.5 KiB | 229.7 KiB | 53.2 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 342.6 KiB | 359.2 KiB | 88.1 KiB | 92.8 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 360.0 KiB | 395.8 KiB | 93.2 KiB | 102.5 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 225.3 KiB | 245.9 KiB | 56.6 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 33.3 KiB | 37.7 KiB | 10.8 KiB | 12.0 KiB |
