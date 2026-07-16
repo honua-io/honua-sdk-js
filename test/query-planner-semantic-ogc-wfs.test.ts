@@ -31,6 +31,9 @@ interface Incident {
   readonly id: number;
   readonly status: string;
   readonly severity: number;
+  readonly payload: string;
+  readonly localTime: string;
+  readonly elapsed: string;
   readonly reportedDate: TemporalValue<"date">;
   readonly observedAt: TemporalValue<"instant">;
   readonly shape: ExecutableGeometryValue;
@@ -87,7 +90,7 @@ function field(name: string, type: LogicalField["type"], path = name): LogicalFi
   };
 }
 
-function schema(statusPath = "status"): SourceSchemaV2 {
+function schema(statusPath = "status", extraFields: readonly LogicalField[] = []): SourceSchemaV2 {
   return createSourceSchemaV2({
     fields: [
       { ...field("id", { kind: "integer", bits: 32, signed: true, jsonEncoding: "number" }), roles: [] },
@@ -96,6 +99,7 @@ function schema(statusPath = "status"): SourceSchemaV2 {
       field("reportedDate", { kind: "date" }),
       { ...field("observedAt", { kind: "timestamp", unit: "microsecond", timezone: "utc" }), roles: ["time-instant"] },
       field("shape", { kind: "geometry" }),
+      ...extraFields,
     ],
     key: { state: "none" },
     geometry: {
@@ -124,6 +128,7 @@ const baseConformance = [
 
 const fullConformance = [
   ...baseConformance,
+  "http://www.opengis.net/spec/ogcapi-features-2/1.0/conf/crs",
   "http://www.opengis.net/spec/cql2/1.0/conf/cql2-json",
   "http://www.opengis.net/spec/cql2/1.0/conf/cql2-text",
   "http://www.opengis.net/spec/cql2/1.0/conf/advanced-comparison-operators",
@@ -134,6 +139,51 @@ const fullConformance = [
 ] as const;
 
 const epsg4326Uri = "http://www.opengis.net/def/crs/EPSG/0/4326";
+const part2CrsConformance = "http://www.opengis.net/spec/ogcapi-features-2/1.0/conf/crs";
+
+function longitudeLatitudeUriCrs(uri: string): ExecutableCrsBinding {
+  const axes = [
+    { name: "longitude", abbreviation: "Lon", direction: "east" as const, unit: "degree" },
+    { name: "latitude", abbreviation: "Lat", direction: "north" as const, unit: "degree" },
+  ] as const;
+  return {
+    definition: {
+      kind: "uri",
+      uri,
+      definitionAxisOrder: { state: "known", source: "crs-definition", axes },
+    },
+    coordinateOrder: { state: "known", source: "encoding", axes },
+    provenance: { method: "declared" },
+  };
+}
+
+const crs84h: ExecutableCrsBinding = {
+  definition: {
+    kind: "authority",
+    authority: "OGC",
+    version: "0",
+    code: "CRS84h",
+    definitionAxisOrder: {
+      state: "known",
+      source: "crs-definition",
+      axes: [
+        { name: "longitude", abbreviation: "Lon", direction: "east", unit: "degree" },
+        { name: "latitude", abbreviation: "Lat", direction: "north", unit: "degree" },
+        { name: "ellipsoidal height", abbreviation: "h", direction: "up", unit: "metre" },
+      ],
+    },
+  },
+  coordinateOrder: {
+    state: "known",
+    source: "encoding",
+    axes: [
+      { name: "longitude", abbreviation: "x", direction: "east", unit: "degree" },
+      { name: "latitude", abbreviation: "y", direction: "north", unit: "degree" },
+      { name: "height", abbreviation: "z", direction: "up", unit: "metre" },
+    ],
+  },
+  provenance: { method: "declared" },
+};
 
 interface EquivalenceFixture {
   readonly version: 1;
@@ -152,7 +202,6 @@ const equivalenceFixture = JSON.parse(
 function query(status: string): SemanticQuery<Incident, "ogc-features", "primary-geometry"> {
   const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
   return builder.features({
-    select: ["id", "status"] as const,
     geometry: "include",
     filter: builder.and(
       builder.comparison("eq", builder.property("status"), status),
@@ -169,15 +218,13 @@ function query(status: string): SemanticQuery<Incident, "ogc-features", "primary
         geometry: point,
       }),
     ),
-    sort: [{ field: "id", direction: "desc", nulls: "native" }],
-    page: { kind: "offset", offset: 5, limit: 25 },
+    page: { kind: "first", limit: 25 },
   });
 }
 
 function richQuery(status: string): SemanticQuery<Incident, "ogc-features", "primary-geometry"> {
   const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
   return builder.features({
-    select: ["id", "status"] as const,
     geometry: "include",
     filter: builder.and(
       builder.comparison("eq", builder.property("status"), status),
@@ -207,6 +254,8 @@ function compile(
     readonly preferredFilterLanguage?: "cql2-json" | "cql2-text";
     readonly conformsTo?: readonly string[];
     readonly sourceSchema?: SourceSchemaV2;
+    readonly supportedFilterCrs?: readonly string[];
+    readonly supportedOutputCrs?: readonly string[];
   } = {},
 ) {
   return compileSemanticOgcApiFeaturesQuery({
@@ -215,7 +264,8 @@ function compile(
     source: { collectionId: "incidents" },
     conformance: {
       conformsTo: options.conformsTo ?? fullConformance,
-      supportedFilterCrs: [epsg4326Uri],
+      supportedFilterCrs: options.supportedFilterCrs ?? [epsg4326Uri],
+      supportedOutputCrs: options.supportedOutputCrs ?? [],
     },
     ...(options.preferredFilterLanguage ? { preferredFilterLanguage: options.preferredFilterLanguage } : {}),
   });
@@ -386,9 +436,6 @@ describe("semantic OGC API Features CQL2 compiler", () => {
       collectionId: "incidents",
       filterLang: "cql2-json",
       filterCrs: epsg4326Uri,
-      properties: ["id", "status"],
-      sortby: "-id",
-      offset: 5,
       limit: 25,
       usesNativeFilter: false,
     });
@@ -401,6 +448,181 @@ describe("semantic OGC API Features CQL2 compiler", () => {
     const reordered = compiled(compile(query("open"), { conformsTo: [...fullConformance].reverse() }));
     expect(reordered.capabilityFingerprint).toBe(compiled(compile(query("open"))).capabilityFingerprint);
     expect(reordered.requestFingerprint).toBe(compiled(compile(query("open"))).requestFingerprint);
+  });
+
+  it("fails closed for Core-undefined projection, sorting, and client offsets while preserving limit", () => {
+    const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
+    const projection = builder.features({ select: ["id"] as const, geometry: "include" });
+    expect(compile(projection)).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-projection", path: "$.select" }],
+    });
+
+    const sort = builder.features({
+      geometry: "include",
+      sort: [{ field: "id", direction: "asc", nulls: "native" }],
+    });
+    expect(compile(sort)).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-sort", path: "$.sort" }],
+    });
+
+    const offset = builder.features({ geometry: "include", page: { kind: "offset", offset: 1, limit: 7 } });
+    expect(compile(offset)).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-node", path: "$.page.offset" }],
+    });
+
+    const artifact = compiled(compile(builder.features({ geometry: "include", page: { kind: "first", limit: 7 } })));
+    expect(artifact.limit).toBe(7);
+    expect(artifact).not.toHaveProperty("properties");
+    expect(artifact).not.toHaveProperty("sortby");
+    expect(artifact).not.toHaveProperty("offset");
+  });
+
+  it("compiles singleton semantic booleans directly in both CQL2 encodings", () => {
+    const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
+    const singleton = builder.features({
+      geometry: "include",
+      filter: builder.and(builder.comparison("eq", builder.property("status"), "open")),
+    });
+    const json = compiled(compile(singleton));
+    expect(JSON.parse(json.filter ?? "")).toEqual({ op: "=", args: [{ property: "status" }, "open"] });
+
+    const text = compiled(compile(singleton, { preferredFilterLanguage: "cql2-text" }));
+    expect(text.filter).toBe("status = 'open'");
+  });
+
+  it("rejects logical scalar kinds with no exact CQL2 JSON or text representation", () => {
+    const sourceSchema = schema("status", [
+      field("payload", { kind: "binary", encoding: "base64" }),
+      field("localTime", { kind: "time", unit: "millisecond" }),
+      field("elapsed", { kind: "duration", unit: "second" }),
+    ]);
+    const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
+    const cases = [
+      builder.features({
+        geometry: "include",
+        filter: builder.comparison("eq", builder.property("payload"), "AQ=="),
+      }),
+      builder.features({
+        geometry: "include",
+        filter: builder.comparison("eq", builder.property("localTime"), "12:34:56.123"),
+      }),
+      builder.features({
+        geometry: "include",
+        filter: builder.comparison("eq", builder.property("elapsed"), "PT1S"),
+      }),
+    ];
+
+    for (const scalarQuery of cases) {
+      for (const preferredFilterLanguage of ["cql2-json", "cql2-text"] as const) {
+        expect(compile(scalarQuery, { preferredFilterLanguage, sourceSchema })).toMatchObject({
+          outcome: "unsupported",
+          diagnostics: [{ code: "unsupported-field-type", path: "$.filter.right.value" }],
+        });
+      }
+    }
+  });
+
+  it("requires Part 2 plus collection evidence before emitting non-default filter and output CRS", () => {
+    const withoutPart2 = fullConformance.filter((entry) => entry !== part2CrsConformance);
+    expect(compile(query("open"), { conformsTo: withoutPart2 })).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-crs", path: "$.filter.crs" }],
+    });
+    expect(compiled(compile(query("open"))).filterCrs).toBe(epsg4326Uri);
+
+    const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
+    const outputQuery = builder.features({ geometry: "include", outputCrs: epsg4326.definition });
+    expect(
+      compile(outputQuery, {
+        conformsTo: withoutPart2,
+        supportedOutputCrs: [epsg4326Uri],
+      }),
+    ).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-crs", path: "$.outputCrs" }],
+    });
+    expect(compiled(compile(outputQuery, { supportedOutputCrs: [epsg4326Uri] }))).toMatchObject({ crs: epsg4326Uri });
+  });
+
+  it("omits only the exact official default filter and output CRS identities", () => {
+    const withoutPart2 = fullConformance.filter((entry) => entry !== part2CrsConformance);
+    const builder = createSemanticQueryBuilder<Incident, "ogc-features", "primary-geometry">();
+    const spatialQuery = (geometry: ExecutableGeometryValue) =>
+      builder.features({
+        geometry: "include",
+        filter: defineSpatialNode<Incident, "primary-geometry">({
+          kind: "spatial",
+          operator: "intersects",
+          property: builder.property("shape"),
+          geometry,
+        }),
+      });
+
+    for (const uri of [
+      "https://attacker.example/def/crs/OGC/1.3/CRS84",
+      "http://www.opengis.net:8080/def/crs/OGC/1.3/CRS84",
+    ]) {
+      const binding = longitudeLatitudeUriCrs(uri);
+      const geometry: ExecutableGeometryValue = {
+        state: "present",
+        geometry: { type: "Point", coordinates: [-157.86, 21.31] },
+        crs: binding,
+        layout: "xy",
+      };
+      expect(
+        compile(spatialQuery(geometry), {
+          conformsTo: withoutPart2,
+          supportedFilterCrs: [uri],
+        }),
+      ).toMatchObject({
+        outcome: "unsupported",
+        diagnostics: [{ code: "unsupported-crs", path: "$.filter.crs" }],
+      });
+    }
+
+    const crs84 = longitudeLatitudeUriCrs("http://www.opengis.net/def/crs/OGC/1.3/CRS84");
+    const twoDimensionalPoint: ExecutableGeometryValue = {
+      state: "present",
+      geometry: { type: "Point", coordinates: [-157.86, 21.31] },
+      crs: crs84,
+      layout: "xy",
+    };
+    expect(
+      compiled(
+        compile(spatialQuery(twoDimensionalPoint), {
+          conformsTo: withoutPart2,
+          supportedFilterCrs: [],
+        }),
+      ),
+    ).not.toHaveProperty("filterCrs");
+
+    const threeDimensionalPoint: ExecutableGeometryValue = {
+      state: "present",
+      geometry: { type: "Point", coordinates: [-157.86, 21.31, 12] },
+      crs: crs84h,
+      layout: "xyz",
+    };
+    const crs84hArtifact = compiled(
+      compile(spatialQuery(threeDimensionalPoint), {
+        conformsTo: withoutPart2,
+        supportedFilterCrs: [],
+      }),
+    );
+    expect(crs84hArtifact).not.toHaveProperty("filterCrs");
+    expect(crs84hArtifact.filter).toContain('"coordinates":[-157.86,21.31,12]');
+
+    for (const outputCrs of [crs84.definition, crs84h.definition]) {
+      const defaultOutput = compiled(
+        compile(builder.features({ geometry: "include", outputCrs }), {
+          conformsTo: withoutPart2,
+          supportedOutputCrs: [],
+        }),
+      );
+      expect(defaultOutput).not.toHaveProperty("crs");
+    }
   });
 
   it("emits escaped CQL2 text while keeping values and Unicode as data", () => {
@@ -480,7 +702,7 @@ describe("semantic WFS 2.0 FES compiler", () => {
       typeName: "inc:Incident",
       namespaces: wfsNamespaces,
       propertyName: ["inc:id", "inc:properties/inc:status", "inc:shape"],
-      sortBy: "inc:id D",
+      sortBy: "inc:id DESC",
       startIndex: 5,
       count: 25,
       srsName: epsg4326Uri,
@@ -516,6 +738,39 @@ describe("semantic WFS 2.0 FES compiler", () => {
     );
     expect(reordered.capabilityFingerprint).toBe(artifact.capabilityFingerprint);
     expect(reordered.requestFingerprint).toBe(artifact.requestFingerprint);
+  });
+
+  it("compiles singleton booleans without logical capability evidence and uses full SORTBY tokens", () => {
+    const builder = createSemanticQueryBuilder<Incident, "wfs", "primary-geometry">();
+    const singleton = builder.features({
+      geometry: "include",
+      filter: builder.or(builder.comparison("eq", builder.property("status"), "open")),
+      sort: [{ field: "id", direction: "asc", nulls: "native" }],
+    });
+    const artifact = compiled(
+      compileWfs(singleton, {
+        capabilities: { ...fullWfsCapabilities, logicalOperators: false },
+      }),
+    );
+    expect(artifact.sortBy).toBe("inc:id ASC");
+    expect(artifact.filter).toContain("<fes:PropertyIsEqualTo");
+    expect(artifact.filter).not.toContain("<fes:Or>");
+  });
+
+  it("rejects time-intersects because semantic temporal fields are instant-valued", () => {
+    const builder = createSemanticQueryBuilder<Incident, "wfs", "primary-geometry">();
+    const temporalQuery = builder.features({
+      geometry: "include",
+      filter: builder.temporal(
+        "time-intersects",
+        builder.property("observedAt"),
+        temporalLiteral("interval", ["2026-07-15T00:00:00Z", "2026-07-16T00:00:00Z"]),
+      ),
+    });
+    expect(compileWfs(temporalQuery)).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-node", path: "$.filter.operator" }],
+    });
   });
 
   it("preserves bbox and planar-distance relationships with definition-axis coordinates", () => {

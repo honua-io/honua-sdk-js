@@ -350,21 +350,26 @@ export function cql2StringLiteral(value: string, path: string): string {
   let output = "";
   for (const character of value) {
     const code = character.codePointAt(0) as number;
+    const controlEscape = CQL2_CONTROL_ESCAPES[code];
     if (character === "\\") output += "\\\\";
     else if (character === "'") output += "''";
-    else if (code === 0x07) output += "\\a";
-    else if (code === 0x08) output += "\\b";
-    else if (code === 0x09) output += "\\t";
-    else if (code === 0x0a) output += "\\n";
-    else if (code === 0x0b) output += "\\v";
-    else if (code === 0x0c) output += "\\f";
-    else if (code === 0x0d) output += "\\r";
+    else if (controlEscape !== undefined) output += controlEscape;
     else if (code < 0x20 || code === 0x7f) {
       semanticUnsupported("unsupported-node", path, `CQL2 text cannot preserve control character U+${hex(code)}`);
     } else output += character;
   }
   return `'${output}'`;
 }
+
+const CQL2_CONTROL_ESCAPES: Readonly<Record<number, string>> = Object.freeze({
+  7: "\\a",
+  8: "\\b",
+  9: "\\t",
+  10: "\\n",
+  11: "\\v",
+  12: "\\f",
+  13: "\\r",
+});
 
 /** @internal Escape XML 1.0 character data after rejecting unrepresentable code points. */
 export function xmlText(value: string, path: string): string {

@@ -91,7 +91,9 @@ export function compileWfsQuery(source: QueryIrSourceIdentity, query: CanonicalQ
     ...(filters.length > 0 ? { filter: serializeFes(filters, { typeName: source.typeName }) } : {}),
     ...(propertyName ? { propertyName } : {}),
     ...(query.orderBy && query.orderBy.length > 0
-      ? { sortBy: query.orderBy.map((sort) => `${sort.field} ${sort.direction === "desc" ? "D" : "A"}`).join(",") }
+      ? {
+          sortBy: query.orderBy.map((sort) => `${sort.field} ${sort.direction === "desc" ? "DESC" : "ASC"}`).join(","),
+        }
       : {}),
     ...(query.pagination?.offset !== undefined ? { startIndex: query.pagination.offset } : {}),
     ...(query.pagination?.limit !== undefined ? { count: query.pagination.limit } : {}),

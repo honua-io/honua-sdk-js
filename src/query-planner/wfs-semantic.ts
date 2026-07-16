@@ -395,6 +395,13 @@ function compileFesNode(filter: SemanticOnlyWfsFilter, state: FesCompilerState, 
     case "spatial":
       return compileFesSpatial(filter, state, path);
     case "temporal": {
+      if (filter.operator === "time-intersects") {
+        semanticUnsupported(
+          "unsupported-node",
+          `${path}.operator`,
+          "FES AnyInteracts requires a period-valued property, but semantic temporal fields are instant-valued",
+        );
+      }
       const operator = FES_TEMPORAL[filter.operator];
       requireTemporal(state, operator, path);
       const operand = filter.value.valueType === "interval" ? "gml:TimePeriod" : "gml:TimeInstant";
@@ -729,7 +736,7 @@ function wfsSort(query: RuntimeWfsQuery, state: FesCompilerState): string | unde
         );
       }
       const property = fesValueReference(state.schema, sort.field, state.namespaces, `$.sort[${index}].field`);
-      return `${property} ${sort.direction === "desc" ? "D" : "A"}`;
+      return `${property} ${sort.direction === "desc" ? "DESC" : "ASC"}`;
     })
     .join(",");
 }

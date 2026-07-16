@@ -147,7 +147,10 @@ temporal predicates. CQL2 carries spatial CRS outside its JSON expression, so
 spatial import/export requires an explicit executable `filterCrs` binding and
 verifies every operand against it. JSON-number-encoded decimal fields preserve
 their supported CQL2 scalar representation; string-encoded high-precision
-numbers remain unsupported. Both import and export enforce the normative CQL2
+numbers remain unsupported. Compiler literals are limited to exact CQL2 scalar
+semantics: string, number, boolean, date, and timestamp. Logical binary, time,
+duration, JSON, collection, and structural fields are not re-labelled as CQL2
+strings. Both import and export enforce the normative CQL2
 JSON schema's two-member minimum for `GeometryCollection`. Distance extensions,
 native expressions, property-property comparisons, arithmetic/custom
 functions, measured geometry layouts, and wrapping bounding boxes fail closed
@@ -162,6 +165,12 @@ protocol name: the caller supplies the concrete collection's discovered
 basic CQL2, encoding, and optional operator conformance classes used by the
 query. When both encodings are advertised, JSON is the deterministic default;
 an explicit preference is accepted only when that encoding was discovered.
+OGC API Features Core standardizes `limit`, but not a `properties` projection,
+`sortby`, or a caller-supplied numeric `offset`. The standards-strict semantic
+compiler therefore rejects `select`, `sort`, and offset paging at `$.select`,
+`$.sort`, and `$.page.offset`; it never emits those extension-shaped parameters
+without a future, explicit extension-evidence contract. First-page `limit`
+remains portable and is preserved.
 
 `compileSemanticWfsQuery()` compiles the same semantic nodes to namespace-safe
 [FES 2.0 XML](https://docs.ogc.org/is/09-026r2/09-026r2.html). Its evidence is a
@@ -171,6 +180,11 @@ operators and operands, and filter/output CRS identifiers. Every generated
 operator and GML operand must be advertised. Missing evidence returns an
 `unsupported` result at the exact query path; it never becomes an empty filter,
 `TRUE`, an envelope approximation, or a dropped relationship.
+WFS KVP sorting uses the normative `ASC` and `DESC` tokens. Singleton semantic
+`and`/`or` nodes compile directly to their child, so they do not require or emit
+a logical wrapper. `time-intersects` remains unsupported for WFS: FES
+`AnyInteracts` requires a period-valued property, while the semantic temporal
+operand contract identifies an instant-valued date or timestamp field.
 
 ```ts doc-test=compile
 import type { SourceSchemaV2 } from "@honua/sdk-js/source-schema";
@@ -235,8 +249,16 @@ receive deterministic IDs.
 
 Spatial values carry executable CRS bindings. The compilers reorder payload
 coordinates into known CRS-definition axis order only when axis directions and
-units match losslessly, stamp the resulting CRS URI, and require that URI in
-discovered source metadata. Unknown axes, coordinate epochs, required unit or
+units match losslessly and stamp the resulting CRS URI. For OGC API Features,
+every non-default output `crs` and `filter-crs` additionally requires the
+explicit Part 2 CRS conformance class and the exact URI in the collection's
+discovered CRS metadata. An explicit exact-default output CRS is satisfied by
+omitting `crs`; it does not invent a Part 2 requirement. The only default
+identities that can be omitted are
+`http://www.opengis.net/def/crs/OGC/1.3/CRS84` for two-dimensional coordinates
+and `http://www.opengis.net/def/crs/OGC/0/CRS84h` for three-dimensional
+coordinates; suffix matches, alternate ports, and lookalike hosts are not
+defaults. Unknown axes, coordinate epochs, required unit or
 datum transforms, mixed CQL2 filter CRS, and measured geometry or bounding-box
 layouts fail closed. No compiler relabels coordinates or treats a measure as a
 third spatial ordinate.
@@ -413,6 +435,12 @@ For an OGC API Features source, the same `explainQuery()` call selects
 `Query.where` is identified as CQL2 text; projection, sorting, pagination,
 CRS, and envelope-intersects filters compile to `properties`, `sortby`,
 `limit`/`offset`, `crs`, and `bbox` respectively:
+
+This v1 compatibility compiler models source-native/vendor-extension request
+shapes and does not claim that `properties`, `sortby`, or numeric `offset` are
+OGC API Features Core parameters. New typed integrations should use
+`compileSemanticOgcApiFeaturesQuery()`, whose standards-strict behavior rejects
+those semantics until concrete extension evidence can be supplied.
 
 ```ts doc-test=compile
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";

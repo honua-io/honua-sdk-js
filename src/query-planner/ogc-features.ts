@@ -79,10 +79,7 @@ export interface SemanticOgcApiFeaturesCompiledQueryV1 {
   readonly filter?: string;
   readonly filterLang?: Cql2FilterLanguage;
   readonly filterCrs?: string;
-  readonly properties?: readonly string[];
-  readonly sortby?: string;
   readonly crs?: string;
-  readonly offset?: number;
   readonly limit?: number;
   readonly usesNativeFilter: boolean;
 }
@@ -226,9 +223,16 @@ export function compileSemanticOgcApiFeaturesQuery<TRecord, TSpatiality extends 
       : options.nativeFilterCrs && query.filter?.kind === "native"
         ? compiledOgcFilterCrs(options.nativeFilterCrs, conformance, "options.nativeFilterCrs")
         : undefined;
-    const properties = ogcSemanticProjection(query, schema);
-    const sortby = ogcSemanticSort(query, schema);
+    validateOgcSemanticProjection(query, schema);
+    rejectOgcSemanticSort(query);
     const page = query.page;
+    if (page?.kind === "offset") {
+      semanticUnsupported(
+        "unsupported-node",
+        "$.page.offset",
+        "OGC API Features Core does not define a client-supplied offset parameter",
+      );
+    }
     const crs = query.outputCrs ? compiledOgcOutputCrs(query.outputCrs, conformance, "$.outputCrs") : undefined;
     const queryFingerprint = hashSemanticQuery(query, { schema, protocol: "ogc-features" });
     const preimage = {
@@ -240,10 +244,7 @@ export function compileSemanticOgcApiFeaturesQuery<TRecord, TSpatiality extends 
       collectionId: source.collectionId,
       ...(filter !== undefined ? { filter, filterLang: language } : {}),
       ...(filterCrs ? { filterCrs } : {}),
-      ...(properties ? { properties } : {}),
-      ...(sortby ? { sortby } : {}),
       ...(crs ? { crs } : {}),
-      ...(page?.kind === "offset" ? { offset: page.offset } : {}),
       ...(page?.limit !== undefined ? { limit: page.limit } : {}),
       usesNativeFilter: state?.usesNativeFilter ?? false,
     };
@@ -377,6 +378,9 @@ function compileCql2JsonNode(
       };
     }
     case "boolean":
+      if (filter.args.length === 1) {
+        return compileCql2JsonNode(filter.args[0], state, `${path}.args[0]`);
+      }
       return {
         op: filter.operator,
         args: filter.args.map((entry, index) =>
@@ -458,6 +462,9 @@ function compileCql2TextNode(
       return `${property} ${COMPARISON_TEXT[filter.operator]} ${cql2TextLiteral(filter.right.value, field, `${path}.right.value`)}`;
     }
     case "boolean":
+      if (filter.args.length === 1) {
+        return compileCql2TextNode(filter.args[0], state, `${path}.args[0]`);
+      }
       return `(${filter.args
         .map((entry, index) => compileCql2TextNode(entry, state, `${path}.args[${index}]`))
         .join(` ${filter.operator.toUpperCase()} `)})`;
@@ -571,6 +578,7 @@ function compileCql2TextSpatial(
 }
 
 function cql2JsonLiteral(value: JsonValue, field: LogicalField, path: string): JsonValue {
+  requireCql2ScalarField(field, path);
   if (field.type.kind === "date") {
     if (typeof value !== "string" || !CQL2_DATE.test(value)) {
       semanticUnsupported("unsupported-field-type", path, "CQL2 date comparisons require a full-date string");
@@ -597,6 +605,7 @@ function cql2JsonLiteral(value: JsonValue, field: LogicalField, path: string): J
 }
 
 function cql2TextLiteral(value: JsonValue, field: LogicalField, path: string): string {
+  requireCql2ScalarField(field, path);
   if (field.type.kind === "date") {
     if (typeof value !== "string" || !CQL2_DATE.test(value)) {
       semanticUnsupported("unsupported-field-type", path, "CQL2 date comparisons require a full-date string");
@@ -619,6 +628,26 @@ function cql2TextLiteral(value: JsonValue, field: LogicalField, path: string): s
   if (typeof value === "number") return ogcNumber(value, path);
   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
   semanticUnsupported("unsupported-field-type", path, "CQL2 scalar literals must be string, number, or boolean");
+}
+
+function requireCql2ScalarField(field: LogicalField, path: string): void {
+  switch (field.type.kind) {
+    case "boolean":
+    case "integer":
+    case "float":
+    case "decimal":
+    case "string":
+    case "uuid":
+    case "date":
+    case "timestamp":
+      return;
+    default:
+      semanticUnsupported(
+        "unsupported-field-type",
+        path,
+        `CQL2 has no exact scalar representation for logical field type ${field.type.kind}`,
+      );
+  }
 }
 
 function cql2JsonTemporal(value: TemporalLiteralNode, path: string): JsonValue {
@@ -693,6 +722,7 @@ function compiledOgcFilterCrs(
   const dimensions = binding.coordinateOrder.axes.length >= 3 ? 3 : 2;
   const plan = ogcAxisPlan(binding, dimensions, `${path}.crs`);
   if (isDefaultFilterCrs(plan.srsName, dimensions)) return undefined;
+  requireOgcPart2Crs(conformance, `${path}.crs`);
   if (!conformance.supportedFilterCrs.includes(plan.srsName)) {
     semanticUnsupported(
       "unsupported-crs",
@@ -707,15 +737,27 @@ function compiledOgcOutputCrs(
   definition: Parameters<typeof ogcCrsUri>[0],
   conformance: NormalizedOgcConformance,
   path: string,
-): string {
+): string | undefined {
   const uri = ogcCrsUri(definition, path);
+  if (isDefaultOutputCrs(uri)) return undefined;
+  requireOgcPart2Crs(conformance, path);
   if (!conformance.supportedOutputCrs.includes(uri)) {
     semanticUnsupported("unsupported-crs", path, `output CRS ${uri} was not present in discovered source metadata`);
   }
   return uri;
 }
 
-function ogcSemanticProjection(query: RuntimeOgcQuery, schema: SourceSchemaV2): readonly string[] | undefined {
+function requireOgcPart2Crs(conformance: NormalizedOgcConformance, path: string): void {
+  if (!hasConformanceClass(conformance.conformsTo, "ogcapi-features-2/1.0", "crs")) {
+    semanticUnsupported(
+      "unsupported-crs",
+      path,
+      "OGC API Features CRS parameters require explicitly discovered Part 2 CRS conformance",
+    );
+  }
+}
+
+function validateOgcSemanticProjection(query: RuntimeOgcQuery, schema: SourceSchemaV2): void {
   if (query.kind === "aggregate") {
     semanticUnsupported("unsupported-node", "$.kind", "OGC API Features has no portable remote aggregation");
   }
@@ -739,31 +781,23 @@ function ogcSemanticProjection(query: RuntimeOgcQuery, schema: SourceSchemaV2): 
       );
     }
   }
-  return query.select?.map((name, index) => cql2FieldName(schema, name, `$.select[${index}]`));
+  if (query.select && query.select.length > 0) {
+    semanticUnsupported(
+      "unsupported-projection",
+      "$.select",
+      "OGC API Features Core does not define a portable properties projection parameter",
+    );
+  }
 }
 
-function ogcSemanticSort(query: RuntimeOgcQuery, schema: SourceSchemaV2): string | undefined {
-  if (!query.sort || query.sort.length === 0) return undefined;
-  return query.sort
-    .map((sort, index) => {
-      if (sort.nulls !== undefined && sort.nulls !== "native") {
-        semanticUnsupported(
-          "unsupported-sort",
-          `$.sort[${index}].nulls`,
-          "OGC API Features sortby cannot request explicit null placement",
-        );
-      }
-      const field = cql2FieldName(schema, sort.field, `$.sort[${index}].field`);
-      if (!SAFE_SORT_FIELD.test(field)) {
-        semanticUnsupported(
-          "unsupported-sort",
-          `$.sort[${index}].field`,
-          `sortby cannot safely represent property ${JSON.stringify(field)}`,
-        );
-      }
-      return `${sort.direction === "desc" ? "-" : "+"}${field}`;
-    })
-    .join(",");
+function rejectOgcSemanticSort(query: RuntimeOgcQuery): void {
+  if (query.sort && query.sort.length > 0) {
+    semanticUnsupported(
+      "unsupported-sort",
+      "$.sort",
+      "OGC API Features Core does not define a portable sortby parameter",
+    );
+  }
 }
 
 function assertCql2JsonGeometry(value: ReturnType<typeof geometryInDefinitionOrder>, path: string): void {
@@ -787,18 +821,21 @@ function assertCql2JsonGeometry(value: ReturnType<typeof geometryInDefinitionOrd
 }
 
 function isDefaultFilterCrs(uri: string, dimensions: number): boolean {
-  const normalized = uri.toLowerCase().replace(/\/+$/, "");
   return dimensions === 3
-    ? normalized.endsWith("/def/crs/ogc/1.3/crs84h")
-    : normalized.endsWith("/def/crs/ogc/1.3/crs84");
+    ? uri === "http://www.opengis.net/def/crs/OGC/0/CRS84h"
+    : uri === "http://www.opengis.net/def/crs/OGC/1.3/CRS84";
+}
+
+function isDefaultOutputCrs(uri: string): boolean {
+  return (
+    uri === "http://www.opengis.net/def/crs/OGC/1.3/CRS84" || uri === "http://www.opengis.net/def/crs/OGC/0/CRS84h"
+  );
 }
 
 function hasControl(value: string): boolean {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: source identifiers cannot contain controls
   return /[\u0000-\u001f\u007f]/.test(value);
 }
-
-const SAFE_SORT_FIELD = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
 
 function compileBbox(spatialFilter: NonNullable<CanonicalQuery["spatialFilter"]>, sourceId: string): string {
   if (spatialFilter.geometryType !== "esriGeometryEnvelope") {
