@@ -158,9 +158,21 @@ describe("pull request issue disposition policy", () => {
 
   it("emits Release Please checks only from pinned code on a trusted trunk push", () => {
     const workflow = fs.readFileSync(path.join(root, ".github/workflows/release-please.yml"), "utf8");
+    const usesLines = workflow.split("\n").filter((line) => /^\s*(?:-\s*)?uses:/u.test(line));
+    const actionUses = [...workflow.matchAll(/^\s*(?:-\s*)?uses:\s+([^\s#]+)(?:\s+#.*)?$/gmu)].map(
+      (match) => match[1],
+    );
     assert.match(workflow, /^  push:\n    branches:\n      - trunk$/mu);
     assert.doesNotMatch(workflow, /pull_request(?:_target)?:/u);
     assert.match(workflow, /^  checks: write$/mu);
+    assert.equal(actionUses.length, usesLines.length);
+    assert.ok(actionUses.length > 0);
+    for (const actionUse of actionUses) {
+      assert.match(actionUse, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}$/u);
+    }
+    assert.ok(
+      actionUses.includes("googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7"),
+    );
     assert.match(workflow, /actions\/checkout@[0-9a-f]{40}/u);
     assert.match(workflow, /actions\/setup-node@[0-9a-f]{40}/u);
     assert.match(workflow, /ref: \$\{\{ github\.sha \}\}/u);
