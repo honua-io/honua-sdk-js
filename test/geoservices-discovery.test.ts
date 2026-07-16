@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import { connect } from "../src/connect.js";
+import { HonuaClient } from "../src/core/client.js";
 import { HonuaAbortError } from "../src/core/errors.js";
 import { discoverGeoServices } from "../src/geoservices-discovery.js";
 
@@ -57,7 +58,7 @@ describe("GeoServices service discovery", () => {
       },
       authentication: { requirement: "not-required", evidence: "metadata" },
     });
-    expect(result.service.crs).toEqual([{ authority: "EPSG", code: 102100, latestCode: 3857 }]);
+    expect(result.service.crs).toEqual([{ wkid: 102100, latestWkid: 3857, authority: "EPSG", code: 3857 }]);
     expect(result.sources).toHaveLength(1);
     const source = result.sources[0]!.descriptor;
     expect(source.id).toBe("Elevation/Oahu");
@@ -108,9 +109,18 @@ describe("GeoServices service discovery", () => {
   });
 
   it("returns GeometryServer operations as non-Source descriptors and resolves relative URLs", async () => {
+    const requests: Request[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test/arcgis",
+      fetchFn: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        return request.url.endsWith("/project") ? json({ geometries: [] }) : json(geometryMetadata);
+      }),
+    });
     const result = await discoverGeoServices({
       endpoint: "https://example.test/arcgis/rest/services/Utilities/Geometry/GeometryServer/",
-      clientOptions: { fetchFn: vi.fn(async () => json(geometryMetadata)) },
+      client,
     });
 
     expect(result.service).toMatchObject({
@@ -143,6 +153,32 @@ describe("GeoServices service discovery", () => {
       sdkSupported: true,
     });
     expect(result.operations.every((operation) => !("capabilities" in operation))).toBe(true);
+
+    await client.geometryService().project({
+      geometries: { geometryType: "esriGeometryPoint", geometries: [{ x: -157.8, y: 21.3 }] },
+      inSr: 4326,
+      outSr: 3857,
+    });
+    expect(requests.map((request) => [new URL(request.url).pathname, request.method])).toEqual([
+      ["/arcgis/rest/services/Utilities/Geometry/GeometryServer", "GET"],
+      ["/arcgis/rest/services/Utilities/Geometry/GeometryServer/project", "POST"],
+    ]);
+  });
+
+  it("does not claim SDK execution for an alternate GeometryServer binding and canonicalizes uppercase names", async () => {
+    const result = await discoverGeoServices({
+      endpoint: "https://example.test/arcgis/rest/services/Custom/Geometry/GeometryServer",
+      clientOptions: { fetchFn: vi.fn(async () => json({ supportedOperations: ["PROJECT"] })) },
+    });
+
+    expect(result.operations).toEqual([
+      expect.objectContaining({
+        id: "project",
+        operation: "project",
+        href: "https://example.test/arcgis/rest/services/Custom/Geometry/GeometryServer/project",
+        sdkSupported: false,
+      }),
+    ]);
   });
 
   it("discovers GPServer task execution modes without starting jobs", async () => {

@@ -40,9 +40,14 @@ export interface GeoServicesAuthenticationDescriptor {
 
 /** Normalized GeoServices spatial-reference evidence. */
 export interface GeoServicesCrsDescriptor {
+  /** Native ArcGIS/Esri well-known id exactly as advertised. */
+  readonly wkid?: number;
+  /** Newer well-known id advertised alongside a legacy native id. */
+  readonly latestWkid?: number;
+  /** Authority is present only when metadata establishes an EPSG identity. */
   readonly authority?: "EPSG";
+  /** Authority code; never populated from an unqualified legacy Esri WKID. */
   readonly code?: number;
-  readonly latestCode?: number;
   readonly wkt?: string;
 }
 
@@ -179,6 +184,10 @@ const UNKNOWN_AUTHENTICATION: GeoServicesAuthenticationDescriptor = Object.freez
 });
 const IMAGE_SDK_OPERATIONS = new Set(["query", "exportimage", "identify", "tile"]);
 const GEOMETRY_SDK_OPERATIONS = new Set(["project", "buffer", "simplify", "intersect", "union", "clip", "difference"]);
+const KNOWN_CANONICAL_OPERATION_IDS: Readonly<Record<string, string>> = Object.freeze({
+  exportimage: "exportImage",
+  submitjob: "submitJob",
+});
 
 /**
  * Discover a canonical FeatureServer, MapServer, ImageServer, GeometryServer,
@@ -400,15 +409,22 @@ async function discoverGeometryService(
     advertised
       .map((operation) => {
         const id = canonicalOperationId(operation.name);
+        const href = resolveOperationHref(target.serviceUrl, operation.href, id);
+        const methods = operation.methods ?? ["GET", "POST"];
+        const adapterHref = resolveOperationHref(target.serviceUrl, undefined, id);
         return operationDescriptor({
           id,
           kind: "geometry",
           operation: id,
           title: operation.title,
-          href: resolveOperationHref(target.serviceUrl, operation.href, id),
-          methods: operation.methods ?? ["GET", "POST"],
+          href,
+          methods,
           execution: "synchronous",
-          sdkSupported: GEOMETRY_SDK_OPERATIONS.has(id.toLowerCase()),
+          sdkSupported:
+            target.serviceId === "Utilities/Geometry" &&
+            href === adapterHref &&
+            methods.length > 0 &&
+            GEOMETRY_SDK_OPERATIONS.has(id.toLowerCase()),
           formats,
           crs,
           limits,
@@ -811,19 +827,44 @@ function crsFromMetadata(metadata: Readonly<Record<string, unknown>>): readonly 
   const unique = new Map<string, GeoServicesCrsDescriptor>();
   for (const candidate of candidates) {
     if (!isRecord(candidate)) continue;
-    const code = finiteIntegerValue(candidate, "wkid");
-    const latestCode = finiteIntegerValue(candidate, "latestWkid");
+    const wkid = finiteIntegerValue(candidate, "wkid");
+    const latestWkid = finiteIntegerValue(candidate, "latestWkid");
     const wkt = stringValue(candidate, "wkt");
-    if (code === undefined && latestCode === undefined && !wkt) continue;
+    if (wkid === undefined && latestWkid === undefined && !wkt) continue;
+    const epsgCode = validatedEpsgCode(candidate, wkid, latestWkid);
     const descriptor = Object.freeze({
-      ...(code !== undefined || latestCode !== undefined ? { authority: "EPSG" as const } : {}),
-      ...(code !== undefined ? { code } : {}),
-      ...(latestCode !== undefined ? { latestCode } : {}),
+      ...(wkid !== undefined ? { wkid } : {}),
+      ...(latestWkid !== undefined ? { latestWkid } : {}),
+      ...(epsgCode !== undefined ? { authority: "EPSG" as const, code: epsgCode } : {}),
       ...(wkt ? { wkt } : {}),
     });
     unique.set(JSON.stringify(descriptor), descriptor);
   }
   return Object.freeze([...unique.values()]);
+}
+
+const VERIFIED_DIRECT_EPSG_CODES = new Set([3857, 4269, 4326]);
+const VERIFIED_ESRI_LEGACY_EPSG_ALIASES = new Map([
+  [102100, 3857],
+  [102113, 3857],
+]);
+
+function validatedEpsgCode(
+  metadata: Readonly<Record<string, unknown>>,
+  wkid: number | undefined,
+  latestWkid: number | undefined,
+): number | undefined {
+  const authority = stringValue(metadata, "authority")?.toUpperCase();
+  if (authority === "EPSG") return latestWkid ?? wkid;
+  if (wkid !== undefined) {
+    const verifiedAlias = VERIFIED_ESRI_LEGACY_EPSG_ALIASES.get(wkid);
+    if (verifiedAlias !== undefined && latestWkid === verifiedAlias) return verifiedAlias;
+    if (VERIFIED_DIRECT_EPSG_CODES.has(wkid) && (latestWkid === undefined || latestWkid === wkid)) return wkid;
+  }
+  if (wkid === undefined && latestWkid !== undefined && VERIFIED_DIRECT_EPSG_CODES.has(latestWkid)) {
+    return latestWkid;
+  }
+  return undefined;
 }
 
 function limitsFromMetadata(metadata: Readonly<Record<string, unknown>>): GeoServicesLimitDescriptor {
@@ -993,6 +1034,10 @@ function canonicalOperationId(value: string): string {
   if (words.length === 0) throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices operation name is invalid.");
   if (words.length === 1) {
     const word = words[0] as string;
+    if (word === word.toUpperCase() || word === word.toLowerCase()) {
+      const normalized = word.toLowerCase();
+      return KNOWN_CANONICAL_OPERATION_IDS[normalized] ?? normalized;
+    }
     return `${word.charAt(0).toLowerCase()}${word.slice(1)}`;
   }
   return `${words[0]?.toLowerCase()}${words
