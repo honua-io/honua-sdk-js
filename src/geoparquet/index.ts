@@ -35,11 +35,13 @@
  * @module
  */
 
+import { addCapabilitySupport, normalizeCapabilityDescriptor } from "../contract/source-capability-support.js";
 import type {
   AdapterKind,
   AggregationSpec,
   Capabilities,
   Capability,
+  CapabilityAwareSource,
   CapabilityPolicy,
   DegradedReason,
   FeatureId,
@@ -549,7 +551,8 @@ function ensureCapability(descriptor: SourceDescriptor, caps: Capabilities, capa
 export function geoparquetSource<T = Record<string, unknown>>(
   descriptor: SourceDescriptor,
   options: GeoparquetSourceOptions = {},
-): Source<T> {
+): CapabilityAwareSource<T> {
+  descriptor = normalizeCapabilityDescriptor(descriptor);
   const sources = sourcesFromDescriptor(descriptor);
   const geometryColumnOverride = descriptor.locator.geoparquet?.geometryColumn;
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.geoparquet;
@@ -729,7 +732,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
       return adapterRegistry[kind] as never;
     },
   };
-  return source;
+  return addCapabilitySupport(source, descriptor);
 }
 
 // ── Resolver (createDataset integration) ──────────────────────

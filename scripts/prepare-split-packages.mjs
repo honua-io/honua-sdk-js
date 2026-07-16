@@ -136,8 +136,24 @@ function createSdkPackage() {
   copyFile(path.join(DIST_SRC_ROOT, "connect.d.ts"), path.join(packageRoot, "connect.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "source-schema.js"), path.join(packageRoot, "source-schema.js"));
   copyFile(path.join(DIST_SRC_ROOT, "source-schema.d.ts"), path.join(packageRoot, "source-schema.d.ts"));
+  copyFile(
+    path.join(DIST_SRC_ROOT, "source-schema-connect-projection.js"),
+    path.join(packageRoot, "source-schema-connect-projection.js"),
+  );
+  copyFile(
+    path.join(DIST_SRC_ROOT, "source-schema-connect-projection.d.ts"),
+    path.join(packageRoot, "source-schema-connect-projection.d.ts"),
+  );
   copyFile(path.join(DIST_SRC_ROOT, "source-capabilities.js"), path.join(packageRoot, "source-capabilities.js"));
   copyFile(path.join(DIST_SRC_ROOT, "source-capabilities.d.ts"), path.join(packageRoot, "source-capabilities.d.ts"));
+  copyFile(
+    path.join(DIST_SRC_ROOT, "source-capability-discovery.js"),
+    path.join(packageRoot, "source-capability-discovery.js"),
+  );
+  copyFile(
+    path.join(DIST_SRC_ROOT, "source-capability-discovery.d.ts"),
+    path.join(packageRoot, "source-capability-discovery.d.ts"),
+  );
   for (const moduleName of [
     "source-capability-types",
     "source-capability-json",
@@ -145,6 +161,7 @@ function createSdkPackage() {
     "source-capability-registry",
     "source-capability-security",
     "source-capability-endpoint",
+    "source-capability-discovery-endpoint",
     "source-capability-evidence",
     "source-capability-evaluation",
     "source-capability-transport",
@@ -183,6 +200,10 @@ function createSdkPackage() {
       "./source-capabilities": {
         types: "./source-capabilities.d.ts",
         default: "./source-capabilities.js",
+      },
+      "./source-capability-discovery": {
+        types: "./source-capability-discovery.d.ts",
+        default: "./source-capability-discovery.js",
       },
       "./deckgl": {
         types: "./deckgl/index.d.ts",

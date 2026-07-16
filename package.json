@@ -96,6 +96,10 @@
       "types": "./dist/src/source-capabilities.d.ts",
       "default": "./dist/src/source-capabilities.js"
     },
+    "./source-capability-discovery": {
+      "types": "./dist/src/source-capability-discovery.d.ts",
+      "default": "./dist/src/source-capability-discovery.js"
+    },
     "./query-planner": {
       "types": "./dist/src/query-planner/index.d.ts",
       "default": "./dist/src/query-planner/index.js"

@@ -640,6 +640,11 @@ function immutableCapabilities(values: readonly Capability[]): Capabilities {
   return Object.freeze(new ImmutableCapabilitySet(values));
 }
 
+/** @internal Preserve discovery's mutation-resistant legacy set representation. */
+export function immutableDiscoveredCapabilities(values: Iterable<Capability>): Capabilities {
+  return immutableCapabilities([...values]);
+}
+
 class ImmutableCapabilitySet implements ReadonlySet<Capability> {
   readonly #values: Set<Capability>;
 

@@ -117,6 +117,10 @@ import { HONUA_PLUGIN_MANIFEST_VERSION, validateHonuaPluginManifest } from "@hon
 import { createSourceSchemaV2 } from "@honua/sdk/source-schema";
 import { createCapabilityEvidenceProfile, evaluateCapabilityProfile } from "@honua/sdk/source-capabilities";
 import {
+  connectWithSourceCapabilities,
+  sourceCapabilityEndpointIdentity,
+} from "@honua/sdk/source-capability-discovery";
+import {
   HONUA_CONTROL_PLANE_BASE_PATH,
   createHonuaControlPlane,
 } from "@honua/app-platform/control-plane";
@@ -347,6 +351,16 @@ if (HONUA_PLUGIN_MANIFEST_VERSION !== 1 || typeof validateHonuaPluginManifest !=
   throw new Error("plugin certification exports missing from @honua/sdk/plugin");
 if (typeof createSourceSchemaV2 !== "function")
   throw new Error("createSourceSchemaV2 export missing from @honua/sdk/source-schema");
+if (typeof connectWithSourceCapabilities !== "function")
+  throw new Error("connectWithSourceCapabilities export missing from @honua/sdk/source-capability-discovery");
+if (
+  sourceCapabilityEndpointIdentity({
+    id: "Assets",
+    protocol: "odata",
+    locator: { url: "https://example.test/odata", entitySet: "Assets" },
+  }).endpoint !== "https://example.test/odata/Assets"
+)
+  throw new Error("source capability endpoint replay helper missing from split @honua/sdk");
 const capabilityProfile = evaluateCapabilityProfile(
   createCapabilityEvidenceProfile(
     [

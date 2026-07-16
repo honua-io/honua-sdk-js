@@ -67,10 +67,8 @@ import {
 import { HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
-import { isRegisteredCapabilityProfile } from "../source-capability-registry.js";
-import type { CapabilityId, CapabilityProfile } from "../source-capability-types.js";
 import { HonuaPmtilesArchive, stripPmtilesScheme } from "./pmtiles.js";
-import { sourceSchemaV2EnvelopeFingerprint } from "./schema-envelope.js";
+import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
 import {
   type AdapterFor,
   type AdapterKind,
@@ -217,125 +215,6 @@ export function createDataset(options: CreateDatasetOptions): Dataset {
       return client.supportsFeature(feature).catch(() => false);
     },
   };
-}
-
-const BUILT_IN_CAPABILITY_IDS: ReadonlySet<string> = new Set(CAPABILITIES);
-
-/**
- * Make the legacy set an adapter-safe compatibility view of an attached v2
- * profile. A profile may downgrade a built-in operation but cannot promote an
- * operation that the descriptor's adapter surface did not already expose.
- */
-function normalizeCapabilityDescriptor(descriptor: SourceDescriptor): SourceDescriptor {
-  const profile = descriptor.capabilityProfile;
-  if (profile === undefined) return descriptor;
-  if (!isRegisteredCapabilityProfile(profile)) {
-    throw new TypeError(`Source "${descriptor.id}" capabilityProfile must be evaluated or parsed by this SDK instance`);
-  }
-  if (descriptor.schemaV2 === undefined) {
-    throw new TypeError(`Source "${descriptor.id}" capabilityProfile requires a matching schemaV2 identity`);
-  }
-  const schemaFingerprint = sourceSchemaV2EnvelopeFingerprint(descriptor.schemaV2);
-  if (profile.sourceFingerprint !== schemaFingerprint) {
-    throw new TypeError(`Source "${descriptor.id}" capabilityProfile does not match its schemaV2 fingerprint`);
-  }
-
-  const effectivelySupported = new Set(
-    profile.entries.filter((entry) => entry.effective === "supported").map((entry) => entry.id),
-  );
-  const legacyCapabilities = new Set<Capability>();
-  for (const capability of CAPABILITIES) {
-    if (descriptor.capabilities.has(capability) && effectivelySupported.has(capability)) {
-      legacyCapabilities.add(capability);
-    }
-  }
-  if (
-    descriptor.capabilities.size === legacyCapabilities.size &&
-    [...legacyCapabilities].every((capability) => descriptor.capabilities.has(capability))
-  ) {
-    return descriptor;
-  }
-  return { ...descriptor, capabilities: legacyCapabilities };
-}
-
-/** Add the canonical synchronous support check without breaking legacy resolver shapes. */
-function addCapabilitySupport<T>(source: Source<T>, descriptor: SourceDescriptor): CapabilityAwareSource<T> {
-  const profile = descriptor.capabilityProfile;
-  const supported =
-    profile === undefined
-      ? undefined
-      : new Set(profile.entries.filter((entry) => entry.effective === "supported").map((entry) => entry.id));
-  const supports = ((capability: CapabilityId): boolean => {
-    if (typeof capability !== "string") return false;
-    if (supported === undefined) {
-      return BUILT_IN_CAPABILITY_IDS.has(capability) && source.capabilities.has(capability as Capability);
-    }
-    if (!supported.has(capability)) return false;
-    return !BUILT_IN_CAPABILITY_IDS.has(capability) || source.capabilities.has(capability as Capability);
-  }) as CapabilityAwareSource<T>["supports"];
-
-  if (canInstallCapabilityMember(source, "supports", supports)) {
-    if (profile === undefined || canInstallCapabilityMember(source, "capabilityProfile", profile)) {
-      return source as CapabilityAwareSource<T>;
-    }
-  }
-  return capabilitySupportFacade(source, profile, supports);
-}
-
-function canInstallCapabilityMember(source: object, key: "supports" | "capabilityProfile", value: unknown): boolean {
-  const current = Object.getOwnPropertyDescriptor(source, key);
-  if (current && !current.configurable) {
-    return "value" in current && current.value === value;
-  }
-  if (!Object.isExtensible(source) && current === undefined) return false;
-  Object.defineProperty(source, key, {
-    value,
-    configurable: true,
-    enumerable: false,
-    writable: false,
-  });
-  return true;
-}
-
-function capabilitySupportFacade<T>(
-  source: Source<T>,
-  profile: CapabilityProfile | undefined,
-  supports: CapabilityAwareSource<T>["supports"],
-): CapabilityAwareSource<T> {
-  const existingSupports = Object.getOwnPropertyDescriptor(source, "supports");
-  if (
-    existingSupports &&
-    !existingSupports.configurable &&
-    (!("value" in existingSupports) || existingSupports.value !== supports)
-  ) {
-    throw new TypeError("Source resolver returned a non-configurable supports member that the SDK cannot verify");
-  }
-  const existingProfile = Object.getOwnPropertyDescriptor(source, "capabilityProfile");
-  if (
-    profile !== undefined &&
-    existingProfile &&
-    !existingProfile.configurable &&
-    (!("value" in existingProfile) || existingProfile.value !== profile)
-  ) {
-    throw new TypeError(
-      "Source resolver returned a non-configurable capabilityProfile that does not match its descriptor",
-    );
-  }
-
-  const boundMethods = new Map<PropertyKey, unknown>();
-  return new Proxy(source, {
-    get(target, key) {
-      if (key === "supports") return supports;
-      if (key === "capabilityProfile" && profile !== undefined) return profile;
-      const value = Reflect.get(target, key, target);
-      if (typeof value !== "function") return value;
-      const cached = boundMethods.get(key);
-      if (cached) return cached;
-      const bound = value.bind(target);
-      boundMethods.set(key, bound);
-      return bound;
-    },
-  }) as CapabilityAwareSource<T>;
 }
 
 // ── Built-in resolver ─────────────────────────────────────────
