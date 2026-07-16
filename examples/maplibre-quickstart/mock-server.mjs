@@ -41,7 +41,7 @@ export async function startQuickstartFixtureServer({ build = true, buildTimeoutM
   return startSampleFixtureHarness({
     sampleId: "first-map",
     staticRoot: distRoot,
-    defaultRunId: "first-map",
+    defaultRunId: "default",
   });
 }
 
