@@ -175,6 +175,99 @@ Existing v1 planning still serializes `where` as `{ kind: "source-native",
 expression }`, preserving compatibility until #527-#529 adopt semantic nodes.
 New code should use typed builders instead of the bridge.
 
+## Semantic DuckDB and Honua gRPC compilers
+
+`compileSemanticDuckDbQuery()` and `compileSemanticGrpcQuery()` are pure
+compiler boundaries for the validated semantic AST. They return a
+discriminated result: `compiled` contains a frozen artifact and its fidelity;
+`unsupported` contains a stable code, exact query path, and bounded diagnostic.
+Malformed queries, schemas, resource handles, or source identities still throw
+`HonuaQueryPlanningError` before an artifact is created.
+
+```ts doc-test=compile
+import type { SourceSchemaV2 } from "@honua/sdk-js/source-schema";
+import {
+  compileSemanticDuckDbQuery,
+  createGeoParquetResourceHandle,
+  createSemanticQueryBuilder,
+} from "@honua/sdk-js/query-planner";
+
+interface Incident {
+  id: number;
+  status: string;
+}
+
+declare const schema: SourceSchemaV2;
+
+const q = createSemanticQueryBuilder<Incident, "geoparquet", "non-spatial">();
+const query = q.features({
+  select: ["id", "status"] as const,
+  geometry: "omit",
+  filter: q.comparison("eq", q.property("status"), "open"),
+});
+const resource = createGeoParquetResourceHandle({
+  resolver: "io.honua.application",
+  id: "incidents",
+  authorizationContextId: "tenant:alpha",
+  resourceVersion: "snapshot:7",
+});
+const compilation = compileSemanticDuckDbQuery({ query, schema, resource });
+
+if (compilation.outcome === "compiled") {
+  console.log(compilation.fidelity, compilation.artifact.sqlTemplate);
+} else {
+  console.warn(compilation.diagnostics[0]);
+}
+```
+
+DuckDB artifacts contain a fixed `honua-resource://resolve-at-execution`
+placeholder, the opaque #587 resource handle, parameterized SQL, and ordered
+bind values. Raw locators and credentials never enter the SQL template. The
+`outputGeometry` contract accompanies every geometry-returning projection,
+even when no spatial predicate exists. It records the logical source field,
+physical source encoding, GeoJSON result field/encoding, executable CRS, and
+coordinate layout. The separate `spatial` array describes predicates only.
+Measured or unknown layouts fail closed because GeoJSON output cannot prove
+their semantics exact. Exact geometry predicates use DuckDB Spatial functions. A
+GeoParquet bbox-covering column may prefilter an exact bbox query, but the exact
+geometry predicate remains present to prevent false positives.
+
+Reducing an arbitrary `intersects` operand to its envelope is available only
+with `spatialStrategy: "bbox-envelope"`. That artifact has
+`fidelity: "approximate"`, a `spatial-envelope-reduction` loss, and a spatial
+entry whose strategy is `bbox-envelope`; it is never presented as exact.
+
+Honua gRPC artifacts are protobuf-runtime-free canonical descriptions of
+`honua.v1.FeatureService/QueryFeatures`. Projection, filter, sort, group, and
+statistic operands use public `SourceSchemaV2` field names; physical storage
+paths never enter the request. Generated `where` text is limited to the server's
+executable grammar: ASCII public identifiers, simple comparisons or
+`IS [NOT] NULL`, and top-level `AND`. Nested safe `AND` nodes are flattened, and
+inclusive range/temporal intervals become paired comparisons without adding
+parentheses. String literals are SQL-quoted as data; numeric literals must fit
+the server's non-exponent decimal grammar and decimal range.
+
+A request shape that cannot preserve the AST—such as `OR`, `NOT`, `IN`,
+case-insensitive `LIKE`, a fieldless statistic, a bbox without an envelope
+message, a coordinate epoch, or an unrepresentable CRS—returns an unsupported
+diagnostic instead of emitting a request the server parser will reject,
+manufacturing a polygon, dropping a node, or inserting a transform. The final
+`where` string also honors the server's 4,000-character and control-character
+admission limits.
+
+Protocol-native filters remain explicit trust-boundary escape hatches. A
+DuckDB native expression must be tagged `duckdb-sql`; a Honua request fragment
+must be tagged `honua-grpc`, contain exactly one `where` member, and pass the
+same server grammar, public-field, length, and control-character checks before
+an artifact is created. Artifacts expose `usesNativeFilter` so policy and
+inspection code can distinguish native code from compiler-escaped semantic
+values.
+
+Neither compiler imports DuckDB, `@bufbuild/protobuf`, or Connect runtimes.
+Execution and integration into the complete explain plan belong to the
+planner/facade tranche (#530); these functions only produce deterministic,
+credential-free artifacts.
+
 ## Remote pushdown
 
 The remote compilers target existing GeoServices FeatureServer, OGC API

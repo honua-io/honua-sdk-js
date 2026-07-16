@@ -49,7 +49,8 @@
     "/source-capabilities was reset after #525 slice 1 review required complete ResolvedCrsDefinition and official PROJJSON v0.7 validation plus bounded, pollution-safe, freshness-aware capability evaluation. The final audit adds credential-safe structural identifiers, redacted rejection paths, canonical-JSON UTF-8 set ordering, and a normalized credential-free source-endpoint digest that prevents same-schema cross-endpoint replay. The full experimental subpath now measures 30,918 gzip bytes; only its exceeded gzip ceiling is reset to 34,010 bytes (measured actual plus 10% headroom). The named evaluateCapabilityProfile fixture remains isolated from the endpoint and CRS/PROJJSON validators.",
     "/source-capability-discovery has its first dedicated guard for #525 slice 3. It intentionally owns the heavy SourceSchemaV2 validator plus GeoServices/OData connect graph while /source-capabilities remains evaluator-only and tree-shakeable. The initial 682,644 minified / 142,099 gzip measurement is budgeted at measured actual plus 10% headroom.",
     "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom.",
-    "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation."
+    "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation.",
+    "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged."
   ],
   "entrypoints": {
     ".": {
@@ -106,7 +107,7 @@
     },
     "/query-planner": {
       "min": 449546,
-      "gzip": 80619
+      "gzip": 89935
     },
     "/scene-workspace": {
       "min": 102449,
