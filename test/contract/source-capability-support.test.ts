@@ -362,4 +362,17 @@ describe("source.supports()", () => {
       }),
     ).toThrow(/does not match its schemaV2 fingerprint/);
   });
+
+  it("rejects a registered profile replayed against another endpoint with the same schema identity", () => {
+    const replayed = descriptor(["query"]);
+    replayed.locator = { url: "https://other.example.test", serviceId: "Parcels", layerId: 0 };
+    expect(() =>
+      createDataset({
+        id: "parcels",
+        client: makeMockClient({ routes: [] }),
+        skipCompatibilityCheck: true,
+        sources: [replayed],
+      }),
+    ).toThrow(/does not match its endpoint fingerprint/);
+  });
 });

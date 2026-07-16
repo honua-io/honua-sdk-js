@@ -423,9 +423,10 @@ export interface SourceDescriptor {
    * a derived compatibility view for built-in capability identifiers.
    *
    * Profiles must be produced or parsed by
-   * `@honua/sdk-js/source-capabilities` and match this descriptor's `schemaV2`
-   * fingerprint. Protocol discovery attaches them in the focused
-   * capability-aware connection path.
+   * `@honua/sdk-js/source-capabilities` and match both this descriptor's
+   * `schemaV2` fingerprint and its canonical protocol endpoint identity.
+   * Protocol discovery attaches them in the focused capability-aware
+   * connection path.
    */
   capabilityProfile?: CapabilityProfile;
   analytics?: SourceAnalyticsCapabilities;

@@ -1,3 +1,5 @@
+import { sourceCapabilityEndpointIdentity } from "../source-capability-discovery-endpoint.js";
+import { createCapabilitySourceEndpointFingerprint } from "../source-capability-endpoint.js";
 import { isRegisteredCapabilityProfile } from "../source-capability-registry.js";
 import type { CapabilityId, CapabilityProfile } from "../source-capability-types.js";
 import { sourceSchemaV2EnvelopeFingerprint } from "./schema-envelope.js";
@@ -24,6 +26,16 @@ export function normalizeCapabilityDescriptor(descriptor: SourceDescriptor): Sou
   const schemaFingerprint = sourceSchemaV2EnvelopeFingerprint(descriptor.schemaV2);
   if (profile.sourceFingerprint !== schemaFingerprint) {
     throw new TypeError(`Source "${descriptor.id}" capabilityProfile does not match its schemaV2 fingerprint`);
+  }
+  const endpointIdentity =
+    descriptor.protocol === "geoservices-feature-service" ||
+    descriptor.protocol === "geoservices-map-service" ||
+    descriptor.protocol === "odata"
+      ? sourceCapabilityEndpointIdentity(descriptor)
+      : { endpoint: descriptor.locator.url, protocol: descriptor.protocol, sourceId: descriptor.id };
+  const endpointFingerprint = createCapabilitySourceEndpointFingerprint(endpointIdentity);
+  if (profile.sourceEndpointFingerprint !== endpointFingerprint) {
+    throw new TypeError(`Source "${descriptor.id}" capabilityProfile does not match its endpoint fingerprint`);
   }
 
   const effectivelySupported = new Set(
