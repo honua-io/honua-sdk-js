@@ -22,7 +22,7 @@ const MIME_TYPES = {
 
 function buildDemoIfNeeded() {
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(npmCommand, ["run", "demo:overture:build", "--silent"], {
+  const result = spawnSync(npmCommand, ["run", "demo:overture:build:offline", "--silent"], {
     cwd: projectRoot,
     stdio: "inherit",
     env: createFixtureBuildEnvironment(),

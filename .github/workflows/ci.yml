@@ -276,6 +276,11 @@ jobs:
       - name: Example typechecks
         run: npm run demo:examples:typecheck
 
+      - name: Acquire pinned Overture extension and prove offline build
+        run: |
+          npm run demo:overture:prepare
+          npm run demo:overture:build:offline
+
       - name: Primitive demo matrix
         run: npm run demo:primitive-matrix
 

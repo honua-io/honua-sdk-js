@@ -4,7 +4,7 @@ import { GeoparquetRuntime, createBrowserDuckDbDriver, geoparquetResolver } from
 
 import { OverturePlanRejectedError, parseAoi, planOvertureQuery } from "./planner.js";
 import { fixtureRangeEvidence, probeAwsRanges } from "./range-evidence.js";
-import { OVERTURE_POLICY, SOURCE_MANIFESTS } from "./source-manifests.js";
+import { FIXTURE_MANIFEST, OVERTURE_POLICY, SOURCE_MANIFESTS } from "./source-manifests.js";
 import type {
   Bbox,
   OvertureExecutionEvidence,
@@ -36,9 +36,16 @@ interface ExplorerApi {
   status: string;
   lastCount: number;
   engineStartCount: number;
+  parquetRuntime?: ParquetRuntimeProof;
   lastEvidence?: OvertureExecutionEvidence;
   runQuery(lane?: OvertureLane, aoi?: Bbox): Promise<void>;
   cancel(): void;
+}
+
+interface ParquetRuntimeProof {
+  readonly duckDbVersion: string;
+  readonly parquetScanRows: number;
+  readonly readParquetRows: number;
 }
 
 declare global {
@@ -253,11 +260,48 @@ function createQuery(plan: OvertureQueryPlan, signal: AbortSignal): Query<Record
   return query;
 }
 
+function requiredRowCount(rows: readonly Record<string, unknown>[], tableFunction: string): number {
+  const value = rows[0]?.row_count;
+  const count = typeof value === "bigint" || typeof value === "number" ? Number(value) : Number.NaN;
+  if (!Number.isSafeInteger(count)) {
+    throw new Error(`DuckDB ${tableFunction} capability probe did not return a safe row count.`);
+  }
+  return count;
+}
+
+async function probeParquetFunctions(runtime: GeoparquetRuntime, signal: AbortSignal): Promise<ParquetRuntimeProof> {
+  const versionRows = await runtime.query('SELECT version() AS "duckdb_version"', { signal });
+  const scanRows = await runtime.query(`SELECT count(*)::INTEGER AS "row_count" FROM parquet_scan('${FIXTURE_NAME}')`, {
+    signal,
+  });
+  const readRows = await runtime.query(`SELECT count(*)::INTEGER AS "row_count" FROM read_parquet('${FIXTURE_NAME}')`, {
+    signal,
+  });
+  const duckDbVersion = versionRows[0]?.duckdb_version;
+  if (typeof duckDbVersion !== "string" || duckDbVersion.length === 0) {
+    throw new Error("DuckDB capability probe did not return an engine version.");
+  }
+  const parquetScanRows = requiredRowCount(scanRows, "parquet_scan");
+  const readParquetRows = requiredRowCount(readRows, "read_parquet");
+  if (parquetScanRows !== FIXTURE_MANIFEST.totalRows || readParquetRows !== FIXTURE_MANIFEST.totalRows) {
+    throw new Error(
+      `Parquet capability probe expected ${FIXTURE_MANIFEST.totalRows} fixture rows; ` +
+        `parquet_scan returned ${parquetScanRows} and read_parquet returned ${readParquetRows}.`,
+    );
+  }
+  return { duckDbVersion, parquetScanRows, readParquetRows };
+}
+
 async function executePlan(
   plan: OvertureQueryPlan,
   range: OvertureRangeEvidence,
   signal: AbortSignal,
-): Promise<{ rows: OverturePlaceRow[]; engineMs: number; estimatedResultBytes: number }> {
+): Promise<{
+  rows: OverturePlaceRow[];
+  engineMs: number;
+  estimatedResultBytes: number;
+  parquetRuntime?: ParquetRuntimeProof;
+}> {
   const runtime = new GeoparquetRuntime({
     driverFactory: ({ signal: initializationSignal } = { signal }) =>
       createBrowserDuckDbDriver({
@@ -280,6 +324,7 @@ async function executePlan(
         signal,
       },
     );
+    const parquetRuntime = plan.lane === "fixture" ? await probeParquetFunctions(runtime, signal) : undefined;
     const resolver = geoparquetResolver({ runtime });
     const dataset = createDataset({
       id: `overture-${plan.lane}`,
@@ -313,7 +358,7 @@ async function executePlan(
         estimatedResultBytes += rowBytes;
       }
     }
-    return { rows, engineMs: performance.now() - engineStarted, estimatedResultBytes };
+    return { rows, engineMs: performance.now() - engineStarted, estimatedResultBytes, parquetRuntime };
   } finally {
     await runtime.dispose();
     if (activeRuntime === runtime) activeRuntime = undefined;
@@ -425,6 +470,7 @@ async function bootstrap(): Promise<void> {
           rows = executed.rows;
           engineExecutionMs = executed.engineMs;
           estimatedResultBytes = executed.estimatedResultBytes;
+          if (executed.parquetRuntime) api.parquetRuntime = executed.parquetRuntime;
           resultCache.set(plan.cacheKey, { rows, range, estimatedResultBytes });
           while (resultCache.size > 3) resultCache.delete(resultCache.keys().next().value!);
         }

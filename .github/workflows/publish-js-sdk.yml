@@ -108,6 +108,9 @@ jobs:
 
       - name: Publish split packages
         run: |
+          # Tags must satisfy the same source-tree executable policy as PRs;
+          # do not rely only on the scheduled external Scorecard scan.
+          npm run security:binary-artifacts
           npm run build:split-packages:prepared --silent
           # build:split-packages cleans dist/, so (re)build the browser bundle
           # afterwards. Without this the root package publishes without

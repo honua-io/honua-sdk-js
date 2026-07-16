@@ -43,7 +43,7 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/maplibre-quickstart/mock-server.mjs", "demo:quickstart:build"],
   ["examples/mcp-gis-assistant/mock-server.mjs", "demo:mcp-gis-assistant:build"],
   ["examples/oauth-signin/mock-server.mjs", "demo:oauth-signin:build"],
-  ["examples/overture-geoparquet/mock-server.mjs", "demo:overture:build"],
+  ["examples/overture-geoparquet/mock-server.mjs", "demo:overture:build:offline"],
   ["examples/planning-permitting-workbench/mock-server.mjs", "demo:planning-workbench:build"],
   ["examples/pmtiles-static/mock-server.mjs", "demo:pmtiles-static:build"],
   ["examples/react-quickstart/mock-server.mjs", "demo:react-quickstart:build"],
@@ -213,6 +213,8 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "demo:kepler:smoke",
   "demo:node-backend:smoke",
   "demo:node-backend:typecheck",
+  "demo:overture:build:offline",
+  "demo:overture:prepare",
   "demo:spatial-analytics:evidence",
   "test:migration:real-samples",
   "test:playwright:ai-spatial-builder",
@@ -229,6 +231,7 @@ const BOUNDED_VALIDATION_SEGMENTS = [
   /^npm run build --silent$/,
   /^node examples\/(?:ai-spatial-app-builder|spatial-analytics-workbench)\/evidence-check\.mjs$/,
   /^node examples\/node-backend-quickstart\/dist\/smoke\.js$/,
+  /^node examples\/overture-geoparquet\/prepare-duckdb-extension\.mjs$/,
   /^node scripts\/ensure-kepler-demo-deps\.mjs$/,
   /^playwright test test\/playwright\/[a-z0-9.-]+\.spec\.mjs$/,
   /^tsc -p examples\/[a-z0-9-]+\/tsconfig(?:\.build)?\.json(?: --noEmit)?$/,
@@ -2218,7 +2221,7 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
                 buildCandidates.length === 1 &&
                 buildCandidates[0].length === 3 &&
                 buildCandidates[0][0] === "run" &&
-                /^demo:[a-z0-9-]+:build$/.test(buildCandidates[0][1]) &&
+                /^demo:[a-z0-9-]+:build(?::offline)?$/.test(buildCandidates[0][1]) &&
                 buildCandidates[0][2] === "--silent",
               `${file}: unsupported fixture build invocation`,
             );

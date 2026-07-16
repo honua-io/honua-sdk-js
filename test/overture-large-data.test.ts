@@ -265,13 +265,31 @@ describe("Overture large-data flagship", () => {
     await vi.waitFor(() => expect(closeCalls).toBe(1));
   });
 
-  it("pins the deterministic fixture and self-hosted Parquet extension by digest", () => {
+  it("pins the deterministic fixture and package-sourced DuckDB executables by digest", () => {
     expect(digest("examples/overture-geoparquet/public/overture-places.parquet")).toBe(
       FIXTURE_MANIFEST.objects[0]?.etag.replace("sha256:", ""),
     );
-    expect(digest("examples/overture-geoparquet/vendor/extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm")).toBe(
-      "22765c8f7dc741cda2b571a66ac7bb355295d7d69a6c37e5315b265672984f55",
+    const duckDbPackage = JSON.parse(fs.readFileSync("node_modules/@duckdb/duckdb-wasm/package.json", "utf8")) as {
+      version?: string;
+    };
+    expect(duckDbPackage.version).toBe("1.32.0");
+    const packageLock = JSON.parse(fs.readFileSync("package-lock.json", "utf8")) as {
+      packages?: Record<string, { version?: string; resolved?: string; integrity?: string }>;
+    };
+    expect(packageLock.packages?.["node_modules/@duckdb/duckdb-wasm"]).toMatchObject({
+      version: "1.32.0",
+      resolved: "https://registry.npmjs.org/@duckdb/duckdb-wasm/-/duckdb-wasm-1.32.0.tgz",
+      integrity: "sha512-IewXTNYEjsZCPE9weUWgtjGxUlMRo7qhX0GF6tq/KjK8bnY+RAl4cyUdYUfcdzbyb4b9ZxPC+FOsCcxgaKFWMg==",
+    });
+    expect(digest("node_modules/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm")).toBe(
+      "4c221bfa59c11f24dbd750e70c90b9252eca6eec5633936e6a2ec766e55fd879",
     );
+    expect(digest("node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js")).toBe(
+      "f8ab72b6b90b3ad83077d47426d4a99d5d9a4c7e07cba1a2be37d655adc7c1ab",
+    );
+    expect(
+      fs.existsSync("examples/overture-geoparquet/vendor/extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm"),
+    ).toBe(false);
   });
 });
 
