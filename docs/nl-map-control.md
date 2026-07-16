@@ -148,10 +148,13 @@ optional approval bundle — the same plan-only, envelope-gated contract as
 the in-app API. `@honua/mcp-server` hosts these definitions through
 `createNlMapControlMcpHost` and `createServer(client, { nlMapControl })`. The
 MCP boundary additionally requires an atomic approval-use consumer, matches
-transport authorization scopes to the approved source bindings, propagates
-cancellation, and refuses credential/cursor/endpoint-bearing plans before
-mutation. Its content-addressed execution receipt omits the raw instruction and
-tool result payloads while retaining the exact plan and SDK receipt digests.
+transport authorization scopes to the exact signed source binding, verifies the
+approval before inspecting its requested scopes, propagates cancellation, and
+refuses credential/cursor/endpoint-bearing plans before mutation. Plans and
+approvals are snapshotted as bounded JSON without invoking accessors before any
+asynchronous authorization callback. Its content-addressed execution receipt
+omits the raw instruction and tool result payloads while retaining the exact
+plan and SDK receipt digests.
 
 ## Errors
 

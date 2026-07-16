@@ -153,6 +153,7 @@ npm run certify
 
 # CI entry points (also runnable locally):
 npm run test:certification            # gate: runs harness tests + certifier, exits non-zero on failure
+npm run test:certification:nl-map-control # gate: approval/scope/replay/cancellation/receipt security matrix
 npm run test:certification:artifact   # evidence: writes artifacts, always exits 0
 ```
 
