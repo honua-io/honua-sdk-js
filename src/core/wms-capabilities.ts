@@ -25,6 +25,8 @@ export interface WmsCapabilities {
   readonly layers: ReadonlyArray<WmsCapabilityLayer>;
   readonly formats: WmsCapabilitiesFormats;
   readonly request: WmsCapabilitiesRequestSupport;
+  /** Optional metadata entries ignored because they were malformed. */
+  readonly warnings: readonly string[];
 }
 
 export interface WmsCapabilitiesService {
@@ -102,7 +104,8 @@ export function parseWmsCapabilities(xml: string): WmsCapabilities {
     if (root.localName !== "WMS_Capabilities" && root.localName !== "WMT_MS_Capabilities") {
       throw new Error("missing <WMS_Capabilities> root element (received WMS Capabilities XML?)");
     }
-    const version = xmlAttribute(root, "version") ?? "1.3.0";
+    const version = xmlAttribute(root, "version") ?? "";
+    const warnings: string[] = [];
     const serviceNode = xmlChild(root, "Service");
     const service = compactObject<WmsCapabilitiesService>({
       title: xmlText(xmlChild(serviceNode, "Title")),
@@ -123,8 +126,10 @@ export function parseWmsCapabilities(xml: string): WmsCapabilities {
       getLegendGraphic: operation("GetLegendGraphic") !== undefined,
       operations,
     });
-    const layers = Object.freeze(xmlChildren(capability, "Layer").map((layer) => parseLayer(layer, emptyInheritance(), 0)));
-    return Object.freeze({ version, service, layers, formats, request });
+    const layers = Object.freeze(
+      xmlChildren(capability, "Layer").map((layer) => parseLayer(layer, emptyInheritance(), 0, warnings)),
+    );
+    return Object.freeze({ version, service, layers, formats, request, warnings: Object.freeze(unique(warnings)) });
   } catch (cause) {
     if (cause instanceof HonuaWmsCapabilitiesParseError) throw cause;
     const message = cause instanceof Error ? cause.message : "WMS Capabilities XML is malformed";
@@ -184,7 +189,12 @@ function emptyInheritance(): LayerInheritance {
   });
 }
 
-function parseLayer(node: CapabilitiesXmlElement, inherited: LayerInheritance, depth: number): WmsCapabilityLayer {
+function parseLayer(
+  node: CapabilitiesXmlElement,
+  inherited: LayerInheritance,
+  depth: number,
+  warnings: string[],
+): WmsCapabilityLayer {
   // The shared XML reader already enforces 32 document levels. This separate
   // semantic limit keeps a capabilities document from constructing a deeper
   // recursive public layer object through wrapper elements.
@@ -193,13 +203,25 @@ function parseLayer(node: CapabilitiesXmlElement, inherited: LayerInheritance, d
     .concat(xmlChildren(node, "SRS"))
     .flatMap((candidate) => xmlText(candidate)?.split(/\s+/).filter(Boolean) ?? []);
   const crs = Object.freeze(unique([...inherited.crs, ...localCrs]));
-  const bbox = Object.freeze(mergeByKey(inherited.bbox, parseBoundingBoxes(node), (entry) => entry.crs));
-  const styles = Object.freeze(mergeByKey(inherited.styles, parseStyles(node), (entry) => entry.name));
-  const dimensions = Object.freeze(mergeByKey(inherited.dimensions, parseDimensions(node), (entry) => entry.name));
+  const bbox = Object.freeze(mergeByKey(inherited.bbox, parseBoundingBoxes(node, warnings), (entry) => entry.crs));
+  const styles = Object.freeze(mergeByKey(inherited.styles, parseStyles(node, warnings), (entry) => entry.name));
+  const dimensions = Object.freeze(
+    mergeByKey(inherited.dimensions, parseDimensions(node, warnings), (entry) => entry.name),
+  );
   const queryableValue = xmlAttribute(node, "queryable")?.toLowerCase();
-  const queryable = queryableValue === "1" || queryableValue === "true" ? true : queryableValue === "0" || queryableValue === "false" ? false : inherited.queryable;
+  if (queryableValue !== undefined && !["0", "1", "false", "true"].includes(queryableValue)) {
+    warnings.push("WMS layer queryable metadata was malformed and inherited conservatively.");
+  }
+  const queryable =
+    queryableValue === "1" || queryableValue === "true"
+      ? true
+      : queryableValue === "0" || queryableValue === "false"
+        ? false
+        : inherited.queryable;
   const next: LayerInheritance = { crs, bbox, styles, dimensions, queryable };
-  const children = Object.freeze(xmlChildren(node, "Layer").map((child) => parseLayer(child, next, depth + 1)));
+  const children = Object.freeze(
+    xmlChildren(node, "Layer").map((child) => parseLayer(child, next, depth + 1, warnings)),
+  );
   return Object.freeze({
     name: xmlText(xmlChild(node, "Name")) ?? "",
     ...optional("title", xmlText(xmlChild(node, "Title"))),
@@ -213,7 +235,7 @@ function parseLayer(node: CapabilitiesXmlElement, inherited: LayerInheritance, d
   });
 }
 
-function parseBoundingBoxes(node: CapabilitiesXmlElement): readonly WmsCapabilityBoundingBox[] {
+function parseBoundingBoxes(node: CapabilitiesXmlElement, warnings: string[]): readonly WmsCapabilityBoundingBox[] {
   const out: WmsCapabilityBoundingBox[] = [];
   for (const bbox of xmlChildren(node, "BoundingBox")) {
     const crs = xmlAttribute(bbox, "CRS") ?? xmlAttribute(bbox, "SRS");
@@ -221,8 +243,18 @@ function parseBoundingBoxes(node: CapabilitiesXmlElement): readonly WmsCapabilit
     const miny = finiteNumber(xmlAttribute(bbox, "miny"));
     const maxx = finiteNumber(xmlAttribute(bbox, "maxx"));
     const maxy = finiteNumber(xmlAttribute(bbox, "maxy"));
-    if (crs && minx !== undefined && miny !== undefined && maxx !== undefined && maxy !== undefined && minx <= maxx && miny <= maxy) {
+    if (
+      crs &&
+      minx !== undefined &&
+      miny !== undefined &&
+      maxx !== undefined &&
+      maxy !== undefined &&
+      minx <= maxx &&
+      miny <= maxy
+    ) {
       out.push(Object.freeze({ crs, minx, miny, maxx, maxy }));
+    } else {
+      warnings.push("WMS BoundingBox metadata was malformed and ignored.");
     }
   }
   const geographic = xmlChild(node, "EX_GeographicBoundingBox");
@@ -231,17 +263,29 @@ function parseBoundingBoxes(node: CapabilitiesXmlElement): readonly WmsCapabilit
     const miny = finiteNumber(xmlText(xmlChild(geographic, "southBoundLatitude")));
     const maxx = finiteNumber(xmlText(xmlChild(geographic, "eastBoundLongitude")));
     const maxy = finiteNumber(xmlText(xmlChild(geographic, "northBoundLatitude")));
-    if (minx !== undefined && miny !== undefined && maxx !== undefined && maxy !== undefined && minx <= maxx && miny <= maxy) {
+    if (
+      minx !== undefined &&
+      miny !== undefined &&
+      maxx !== undefined &&
+      maxy !== undefined &&
+      minx <= maxx &&
+      miny <= maxy
+    ) {
       out.push(Object.freeze({ crs: "CRS:84", minx, miny, maxx, maxy }));
+    } else {
+      warnings.push("WMS EX_GeographicBoundingBox metadata was malformed and ignored.");
     }
   }
   return out;
 }
 
-function parseStyles(node: CapabilitiesXmlElement): readonly WmsCapabilityStyle[] {
+function parseStyles(node: CapabilitiesXmlElement, warnings: string[]): readonly WmsCapabilityStyle[] {
   return xmlChildren(node, "Style").flatMap((style) => {
     const name = xmlText(xmlChild(style, "Name"));
-    if (!name) return [];
+    if (!name) {
+      warnings.push("WMS Style metadata without a name was ignored.");
+      return [];
+    }
     const legend = xmlChild(style, "LegendURL");
     const resource = xmlChild(legend, "OnlineResource");
     return [
@@ -255,13 +299,21 @@ function parseStyles(node: CapabilitiesXmlElement): readonly WmsCapabilityStyle[
   });
 }
 
-function parseDimensions(node: CapabilitiesXmlElement): readonly WmsCapabilityDimension[] {
+function parseDimensions(node: CapabilitiesXmlElement, warnings: string[]): readonly WmsCapabilityDimension[] {
   const candidates = [...xmlChildren(node, "Dimension"), ...xmlChildren(node, "Extent")];
   return candidates.flatMap((dimension) => {
     const name = xmlAttribute(dimension, "name");
-    if (!name) return [];
+    if (!name) {
+      warnings.push("WMS Dimension metadata without a name was ignored.");
+      return [];
+    }
     const raw = xmlText(dimension);
-    const values = raw ? raw.split(",").map((value) => value.trim()).filter(Boolean) : [];
+    const values = raw
+      ? raw
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : [];
     return [
       Object.freeze({
         name,

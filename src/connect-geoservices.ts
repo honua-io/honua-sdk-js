@@ -41,8 +41,10 @@ export interface GeoServicesDiscoveryResult {
 }
 
 export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint): ConnectTarget {
+  const rasterService = parseWmsWmtsTarget(endpoint, hint);
   const geoservices = parseGeoServicesTarget(endpoint);
   if (hint === "auto") {
+    if (rasterService) return rasterService;
     if (geoservices) return geoservices;
     throw new HonuaDiscoveryError(
       "ambiguous-protocol",
@@ -58,11 +60,33 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
           "ogc-records",
           "ogc-tiles",
           "ogc-maps",
+          "wms",
+          "wmts",
           "geoservices-feature-service",
           "geoservices-map-service",
         ],
       },
     );
+  }
+  if (hint === "wms" || hint === "wmts") {
+    if (geoservices) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `The canonical GeoServices URL resolves to "${geoservices.protocol}", not "${hint}".`,
+        { endpoint, protocol: hint, resolvedProtocol: geoservices.protocol },
+      );
+    }
+    if (!rasterService) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `The endpoint cannot be normalized as a ${hint.toUpperCase()} service URL.`,
+        {
+          endpoint,
+          protocol: hint,
+        },
+      );
+    }
+    return rasterService;
   }
   if (hint === "ogc-features" || hint === "stac") {
     if (geoservices) {
@@ -164,11 +188,69 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
         "ogc-records",
         "ogc-tiles",
         "ogc-maps",
+        "wms",
+        "wmts",
         "geoservices-feature-service",
         "geoservices-map-service",
       ],
     },
   );
+}
+
+function parseWmsWmtsTarget(endpoint: string, hint: ConnectProtocolHint): ConnectTarget | undefined {
+  const parsed = new URL(endpoint);
+  const service = [...parsed.searchParams].find(([name]) => name.toLowerCase() === "service")?.[1].toLowerCase();
+  const lastSegment = parsed.pathname.split("/").filter(Boolean).at(-1)?.toLowerCase();
+  const structural =
+    service === "wms" || service === "wmts"
+      ? service
+      : lastSegment === "wms" || lastSegment === "wmts"
+        ? lastSegment
+        : undefined;
+  const protocol = hint === "wms" || hint === "wmts" ? hint : hint === "auto" ? structural : undefined;
+  if (protocol !== "wms" && protocol !== "wmts") return undefined;
+  if (structural && structural !== protocol) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      `The endpoint identifies ${structural.toUpperCase()}, not ${protocol.toUpperCase()}.`,
+      {
+        endpoint: redactedRasterEndpoint(parsed),
+        protocol,
+        advertisedService: structural,
+      },
+    );
+  }
+  parsed.search = "";
+  parsed.hash = "";
+  while (parsed.pathname.length > 1 && parsed.pathname.endsWith("/")) parsed.pathname = parsed.pathname.slice(0, -1);
+  const normalized = parsed.toString().replace(/\/$/, "");
+  const serviceId = parseRasterServiceId(parsed.pathname, protocol);
+  return {
+    endpoint: normalized,
+    clientBaseUrl: parsed.origin,
+    protocol,
+    ...(serviceId ? { serviceId } : {}),
+  };
+}
+
+function parseRasterServiceId(pathname: string, protocol: "wms" | "wmts"): string | undefined {
+  const match = /^\/(?:[^/]+\/)*rest\/services\/(.+)\/MapServer\/(WMS|WMTS)$/i.exec(pathname);
+  if (!match || match[2]?.toLowerCase() !== protocol) return undefined;
+  try {
+    const segments = match[1]!.split("/").map(decodeURIComponent);
+    return segments.every((segment) => segment && segment !== "." && segment !== "..") ? segments.join("/") : undefined;
+  } catch {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      `${protocol.toUpperCase()} service path contains invalid encoding.`,
+    );
+  }
+}
+
+function redactedRasterEndpoint(endpoint: URL): string {
+  const copy = new URL(endpoint);
+  copy.search = "";
+  return copy.toString();
 }
 
 export async function discoverGeoServicesSources(

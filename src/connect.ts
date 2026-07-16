@@ -29,13 +29,16 @@ export type {
   OgcProcessesDiscoveryResult,
 } from "./connect-ogc.js";
 import { discoverWfsSources } from "./connect-wfs.js";
+import { discoverWmsWmtsSources } from "./connect-wms-wmts.js";
 import {
   type DiscoveryCacheIdentity,
   type DiscoveryCapabilityEvidence,
   type DiscoveryCapabilityPolicy,
   type DiscoveryCapabilityResolution,
   type DiscoveryDiagnostic,
+  type DiscoveryOperationMetadata,
   type DiscoveryProvenance,
+  type DiscoverySourceMetadata,
   type SourceDiscoveryInspection,
   createDiscoveryCacheIdentity,
   inspectDiscoveredSource,
@@ -104,6 +107,14 @@ export interface ConnectSourceSchemaProjection {
     profile: GeoParquetSourceProfile,
     context: ConnectSourceSchemaProjectionContext,
   ): SourceSchemaV2Envelope | undefined;
+  wms(
+    metadata: DiscoverySourceMetadata,
+    context: ConnectSourceSchemaProjectionContext & { readonly protocol: "wms" },
+  ): SourceSchemaV2Envelope;
+  wmts(
+    metadata: DiscoverySourceMetadata,
+    context: ConnectSourceSchemaProjectionContext & { readonly protocol: "wmts" },
+  ): SourceSchemaV2Envelope;
 }
 
 export interface ConnectSourceCapabilityProjectionContext {
@@ -166,6 +177,8 @@ export interface ConnectDiscoverySourceSnapshot {
   readonly schema?: SourceSchema;
   /** Lightweight identity envelope for an opt-in v2 schema cache payload. */
   readonly schemaV2?: SourceSchemaV2Envelope;
+  /** Validated protocol metadata retained for inspection and cache replay. */
+  readonly metadata?: DiscoverySourceMetadata;
   readonly evidence?: readonly DiscoveryCapabilityEvidence[];
 }
 
@@ -193,14 +206,23 @@ export interface ConnectDiscoverySnapshot {
 }
 
 export interface ConnectOptions {
-  /** OGC API, STAC API, WFS 2.0, or canonical GeoServices service/layer URL. */
+  /** OGC API, STAC API, WFS 2.0, WMS/WMTS, or canonical GeoServices URL. */
   readonly endpoint: string | URL;
   /** Protocol hint. `auto` recognizes canonical GeoServices URL structure without probing. */
   readonly protocol: ConnectProtocolHint;
   /** Restrict discovery to one collection while retaining the service root URL. */
   readonly collectionId?: string;
-  /** Restrict WFS discovery to one advertised namespace-qualified feature type. */
+  /** Restrict WFS discovery to one feature type or WMS/WMTS discovery to one named layer. */
   readonly typeName?: string;
+  /** Restrict WMS/WMTS discovery to one advertised style. */
+  readonly styleId?: string;
+  /** Restrict WMTS discovery to one advertised tile matrix set. */
+  readonly tileMatrixSetId?: string;
+  /** Hard bounds for the one capabilities response; caller values may only lower SDK maxima. */
+  readonly capabilitiesLimits?: {
+    readonly maxBytes?: number;
+    readonly timeoutMs?: number;
+  };
   /** Optional dataset id; defaults to the redacted normalized endpoint. */
   readonly id?: string;
   /** Stable ACL/audience fingerprint. Never pass a bearer token or API key. */
@@ -265,6 +287,8 @@ export const CONNECT_SOURCE_PROTOCOLS = [
   "ogc-records",
   "ogc-tiles",
   "ogc-maps",
+  "wms",
+  "wmts",
   "geoservices-feature-service",
   "geoservices-map-service",
 ] as const satisfies readonly Protocol[];
@@ -292,7 +316,7 @@ export async function connectWithSourceSchemaProjection(
   sourceCapabilityProjection?: ConnectSourceCapabilityProjection,
 ): Promise<HonuaConnection> {
   throwIfAborted(options.signal);
-  const endpoint = validateConnectEndpoint(options.endpoint);
+  const endpoint = validateConnectEndpoint(options.endpoint, options.protocol);
   const target = resolveConnectTarget(endpoint, options.protocol);
   if (
     options.collectionId !== undefined &&
@@ -308,11 +332,31 @@ export async function connectWithSourceSchemaProjection(
       "collectionId is only valid for OGC API Features or STAC API connections; select a GeoServices layer in the endpoint URL.",
     );
   }
-  if (target.protocol !== "wfs" && options.typeName !== undefined) {
-    throw new HonuaDiscoveryError("invalid-endpoint", "typeName is only valid for WFS connections.");
+  if (
+    target.protocol !== "wfs" &&
+    target.protocol !== "wms" &&
+    target.protocol !== "wmts" &&
+    options.typeName !== undefined
+  ) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "typeName is only valid for WFS, WMS, or WMTS connections.");
   }
   if (options.typeName !== undefined && (!options.typeName.trim() || options.typeName.trim() !== options.typeName)) {
-    throw new HonuaDiscoveryError("invalid-endpoint", "WFS typeName must be a non-empty, trimmed identifier.");
+    throw new HonuaDiscoveryError("invalid-endpoint", "typeName must be a non-empty, trimmed identifier.");
+  }
+  if (options.styleId !== undefined && target.protocol !== "wms" && target.protocol !== "wmts") {
+    throw new HonuaDiscoveryError("invalid-endpoint", "styleId is only valid for WMS or WMTS connections.");
+  }
+  if (options.styleId !== undefined && (!options.styleId.trim() || options.styleId.trim() !== options.styleId)) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "styleId must be a non-empty, trimmed identifier.");
+  }
+  if (options.tileMatrixSetId !== undefined && target.protocol !== "wmts") {
+    throw new HonuaDiscoveryError("invalid-endpoint", "tileMatrixSetId is only valid for WMTS connections.");
+  }
+  if (
+    options.tileMatrixSetId !== undefined &&
+    (!options.tileMatrixSetId.trim() || options.tileMatrixSetId.trim() !== options.tileMatrixSetId)
+  ) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "tileMatrixSetId must be a non-empty, trimmed identifier.");
   }
   if (options.client && options.clientOptions) {
     throw new HonuaDiscoveryError("invalid-endpoint", "Pass either client or clientOptions to connect(), not both.");
@@ -345,6 +389,8 @@ export async function connectWithSourceSchemaProjection(
       : HONUA_CONNECT_PROJECTION_VERSION,
     ...(options.collectionId ? { collectionId: options.collectionId } : {}),
     ...(options.typeName ? { typeName: options.typeName } : {}),
+    ...(options.styleId ? { styleId: options.styleId } : {}),
+    ...(options.tileMatrixSetId ? { tileMatrixSetId: options.tileMatrixSetId } : {}),
     ...(target.serviceId ? { serviceId: target.serviceId } : {}),
     ...(target.layerId !== undefined ? { layerId: target.layerId } : {}),
     ...(assetVariant ? { assetVariant } : {}),
@@ -364,6 +410,8 @@ export async function connectWithSourceSchemaProjection(
         target,
         options.collectionId,
         options.typeName,
+        options.styleId,
+        options.tileMatrixSetId,
         sourceSchemaProjection,
       );
       cacheStatus = "hit";
@@ -389,7 +437,9 @@ export async function connectWithSourceSchemaProjection(
                     ? await discoverOgcTiles(client, identity, target, options)
                     : target.protocol === "ogc-maps"
                       ? await discoverOgcMaps(client, identity, target, options)
-                      : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
+                      : target.protocol === "wms" || target.protocol === "wmts"
+                        ? await discoverWmsWmtsSources(client, identity, target, options, sourceSchemaProjection)
+                        : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
     if (
       options.cache &&
       (!sourceSchemaProjection ||
@@ -425,12 +475,27 @@ export async function connectWithSourceSchemaProjection(
             sourceCapabilityProjection.project(descriptor, resolution, { observedAt: snapshot.retrievedAt }),
           )
         : discovered.descriptor;
+      const partialReasons = source.metadata?.partialReasons ?? [];
+      const diagnostics =
+        partialReasons.length > 0 &&
+        !discovered.diagnostics.some((diagnostic) => diagnostic.code === "partial-discovery")
+          ? uniqueDiagnostics([
+              ...discovered.diagnostics,
+              Object.freeze({
+                code: "partial-discovery" as const,
+                severity: "warning" as const,
+                message: `${snapshot.protocol.toUpperCase()} metadata retained ${partialReasons.length} structured partial-discovery reason${partialReasons.length === 1 ? "" : "s"}.`,
+              }),
+            ])
+          : discovered.diagnostics;
       return Object.freeze({
         ...discovered,
         descriptor: projectedDescriptor,
-        ...(source.crs || source.extent
+        diagnostics,
+        ...(source.metadata || source.crs || source.extent
           ? {
               metadata: Object.freeze({
+                ...(source.metadata ?? {}),
                 ...(source.crs ? { crs: source.crs } : {}),
                 ...(source.extent ? { extent: source.extent } : {}),
               }),
@@ -569,7 +634,7 @@ function geoParquetAssetVariant(
 }
 
 /** @internal Shared by the kernel authorization gate; not exported from public barrels. */
-export function validateConnectEndpoint(input: string | URL): string {
+export function validateConnectEndpoint(input: string | URL, hint: ConnectProtocolHint = "auto"): string {
   let endpoint: URL;
   try {
     endpoint = new URL(input.toString());
@@ -586,7 +651,13 @@ export function validateConnectEndpoint(input: string | URL): string {
         (name.toLowerCase() === "f" || name.toLowerCase() === "format") &&
         (value.toLowerCase() === "json" || value.toLowerCase() === "pjson"),
     );
-  if (endpoint.username || endpoint.password || (endpoint.search && !formatQueryIsRemovable) || endpoint.hash) {
+  const capabilitiesQueryIsAllowed = isWmsWmtsCapabilitiesQuery(endpoint.searchParams, hint);
+  if (
+    endpoint.username ||
+    endpoint.password ||
+    (endpoint.search && !formatQueryIsRemovable && !capabilitiesQueryIsAllowed) ||
+    endpoint.hash
+  ) {
     throw new HonuaDiscoveryError(
       "invalid-endpoint",
       "connect() endpoints must not contain credentials, identity-bearing query parameters, or fragments; configure authentication through clientOptions.",
@@ -598,6 +669,23 @@ export function validateConnectEndpoint(input: string | URL): string {
   }
   const normalized = endpoint.toString();
   return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
+}
+
+function isWmsWmtsCapabilitiesQuery(params: URLSearchParams, hint: ConnectProtocolHint): boolean {
+  if (params.size === 0 || (hint !== "auto" && hint !== "wms" && hint !== "wmts")) return false;
+  const values = new Map<string, string>();
+  for (const [rawName, rawValue] of params) {
+    const name = rawName.toLowerCase();
+    if (values.has(name) || (name !== "service" && name !== "request" && name !== "version")) return false;
+    values.set(name, rawValue);
+  }
+  const service = values.get("service")?.toLowerCase();
+  const request = values.get("request")?.toLowerCase();
+  if (service !== "wms" && service !== "wmts") return false;
+  if (hint !== "auto" && hint !== service) return false;
+  if (request !== undefined && request !== "getcapabilities") return false;
+  const version = values.get("version");
+  return version === undefined || (service === "wms" ? version === "1.3.0" : version === "1.0.0");
 }
 
 function assertClientEndpoint(client: HonuaClient, endpoint: string): void {
@@ -1103,14 +1191,14 @@ function validBbox(value: unknown): value is number[] {
   );
 }
 
-function immutableStrings(values: readonly string[], label: string): readonly string[] {
+function immutableStrings(values: unknown, label: string): readonly string[] {
   if (!Array.isArray(values) || values.some((value) => typeof value !== "string" || !value.trim())) {
     throw new HonuaDiscoveryError("invalid-endpoint", `${label} must contain non-empty strings.`);
   }
-  return Object.freeze([...values]);
+  return Object.freeze([...values] as string[]);
 }
 
-function immutableString(value: string, label: string): string {
+function immutableString(value: unknown, label: string): string {
   if (typeof value !== "string" || !value.trim()) {
     throw new HonuaDiscoveryError("invalid-endpoint", `${label} must be a non-empty string.`);
   }
@@ -1173,6 +1261,8 @@ function validateSnapshot(
   target: ConnectTarget,
   collectionId: string | undefined,
   typeName: string | undefined,
+  styleId: string | undefined,
+  tileMatrixSetId: string | undefined,
   sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): ConnectDiscoverySnapshot {
   const projectionApplies = Boolean(sourceSchemaProjection && sourceSchemaProjectionApplies(target.protocol));
@@ -1243,13 +1333,25 @@ function validateSnapshot(
     const sourceEvidence = source.evidence
       ? validateCachedEvidence(target.protocol, source.evidence, false)
       : undefined;
+    if ((target.protocol === "wms" || target.protocol === "wmts") && source.metadata === undefined) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        `Cached ${target.protocol.toUpperCase()} source lacks discovery metadata.`,
+      );
+    }
+    const metadata =
+      source.metadata !== undefined ? validateCachedDiscoveryMetadata(source.metadata, target.endpoint) : undefined;
+    if (metadata && (target.protocol === "wms" || target.protocol === "wmts")) {
+      validateCachedRasterMetadataBinding(source.locator, metadata, target.protocol, sourceEvidence ?? sharedEvidence);
+    }
     return Object.freeze({
       id: source.id,
-      locator: Object.freeze({ ...source.locator }),
+      locator: freezeCachedLocator(source.locator),
       ...(source.title ? { title: source.title } : {}),
       ...(source.description ? { description: source.description } : {}),
       ...(source.crs ? { crs: immutableStrings(source.crs, "Cached source crs") } : {}),
       ...(source.extent ? { extent: validateCachedDiscoveryExtent(source.extent) } : {}),
+      ...(metadata ? { metadata } : {}),
       ...(source.schema
         ? {
             schema: Object.freeze({
@@ -1270,9 +1372,29 @@ function validateSnapshot(
     );
   }
   if (typeName && (sources.length !== 1 || String(sources[0]?.locator.typeName ?? "") !== typeName)) {
-    throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache snapshot does not match the WFS type.", {
-      typeName,
-    });
+    throw new HonuaDiscoveryError(
+      "invalid-discovery-cache",
+      "Discovery cache snapshot does not match the selected type/layer.",
+      {
+        typeName,
+      },
+    );
+  }
+  if (styleId && (sources.length !== 1 || sources[0]?.locator.styleId !== styleId)) {
+    throw new HonuaDiscoveryError(
+      "invalid-discovery-cache",
+      "Discovery cache snapshot does not match the selected style.",
+      {
+        styleId,
+      },
+    );
+  }
+  if (tileMatrixSetId && (sources.length !== 1 || sources[0]?.locator.tileMatrixSetId !== tileMatrixSetId)) {
+    throw new HonuaDiscoveryError(
+      "invalid-discovery-cache",
+      "Discovery cache snapshot does not match the selected tile matrix set.",
+      { tileMatrixSetId },
+    );
   }
   return Object.freeze({ ...owned, evidence: sharedEvidence, sources: Object.freeze(sources) });
 }
@@ -1281,6 +1403,8 @@ function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boole
   return (
     protocol === "odata" ||
     protocol === "geoparquet" ||
+    protocol === "wms" ||
+    protocol === "wmts" ||
     protocol === "geoservices-feature-service" ||
     protocol === "geoservices-map-service"
   );
@@ -1482,6 +1606,41 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
     }
     return;
   }
+  if (target.protocol === "wms" || target.protocol === "wmts") {
+    assertCachedKeys(
+      locator as unknown as Record<string, unknown>,
+      ["url", "serviceId", "typeName", "styleId", "tileMatrixSetId"],
+      `${target.protocol.toUpperCase()} source locator`,
+    );
+    if (locator.url !== target.endpoint || locator.typeName !== sourceId) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        `Cached ${target.protocol.toUpperCase()} source locator does not match the service endpoint.`,
+      );
+    }
+    if (locator.serviceId !== target.serviceId) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached raster-service id does not match the endpoint.");
+    }
+    if (
+      locator.styleId !== undefined &&
+      (typeof locator.styleId !== "string" || !locator.styleId || locator.styleId.trim() !== locator.styleId)
+    ) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached raster style id is invalid.");
+    }
+    if (target.protocol === "wms" && locator.tileMatrixSetId !== undefined) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached WMS locator contains WMTS metadata.");
+    }
+    if (
+      target.protocol === "wmts" &&
+      locator.tileMatrixSetId !== undefined &&
+      (typeof locator.tileMatrixSetId !== "string" ||
+        !locator.tileMatrixSetId ||
+        locator.tileMatrixSetId.trim() !== locator.tileMatrixSetId)
+    ) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached WMTS tile matrix set id is invalid.");
+    }
+    return;
+  }
   if (target.protocol === "odata") {
     if (
       locator.url !== target.endpoint ||
@@ -1540,7 +1699,71 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
   }
 }
 
-function validateCachedDiscoveryExtent(extent: ConnectDiscoveryExtent): ConnectDiscoveryExtent {
+function freezeCachedLocator(locator: SourceLocator): SourceLocator {
+  return Object.freeze({ ...locator });
+}
+
+function validateCachedRasterMetadataBinding(
+  locator: SourceLocator,
+  metadata: DiscoverySourceMetadata,
+  protocol: "wms" | "wmts",
+  evidence: readonly DiscoveryCapabilityEvidence[],
+): void {
+  const expectedVersion = protocol === "wms" ? "1.3.0" : "1.0.0";
+  if (metadata.protocolVersion !== expectedVersion) {
+    cacheMetadataError(`Cached ${protocol.toUpperCase()} metadata version is not ${expectedVersion}.`);
+  }
+  const styleIds = metadata.styles?.map((style) => style.id) ?? [];
+  if (new Set(styleIds).size !== styleIds.length) {
+    cacheMetadataError(`Cached ${protocol.toUpperCase()} style identifiers must be unique.`);
+  }
+  if (locator.styleId !== undefined && !styleIds.includes(locator.styleId)) {
+    cacheMetadataError(`Cached ${protocol.toUpperCase()} locator style was not advertised.`);
+  }
+  const matrixSetIds = metadata.tileMatrixSets?.map((matrixSet) => matrixSet.id) ?? [];
+  if (new Set(matrixSetIds).size !== matrixSetIds.length) {
+    cacheMetadataError("Cached WMTS tile matrix set identifiers must be unique.");
+  }
+  if (locator.tileMatrixSetId !== undefined && !matrixSetIds.includes(locator.tileMatrixSetId)) {
+    cacheMetadataError("Cached WMTS locator tile matrix set was not advertised.");
+  }
+  const resolved = resolveDiscoveryCapabilities(protocol, evidence).capabilities;
+  if (protocol === "wms") {
+    const render = metadata.operations?.render?.available === true;
+    const query = metadata.operations?.featureInfo?.available === true;
+    if (render !== resolved.has("render") || render !== resolved.has("tiles") || query !== resolved.has("query")) {
+      cacheMetadataError("Cached WMS operations contradict cached capability evidence.");
+    }
+  } else {
+    const tiles = metadata.operations?.tiles?.available === true;
+    if (tiles !== resolved.has("render") || tiles !== resolved.has("tiles")) {
+      cacheMetadataError("Cached WMTS tile operation contradicts cached capability evidence.");
+    }
+    validateCachedTemplateOperation(metadata.operations?.tiles, ["TileMatrix", "TileRow", "TileCol"], "tile");
+    validateCachedTemplateOperation(
+      metadata.operations?.featureInfo,
+      ["TileMatrix", "TileRow", "TileCol", "I", "J"],
+      "FeatureInfo",
+    );
+  }
+}
+
+function validateCachedTemplateOperation(
+  operation: DiscoveryOperationMetadata | undefined,
+  required: readonly string[],
+  label: string,
+): void {
+  if (!operation?.methods.includes("TEMPLATE")) return;
+  const templates = operation.urls.filter((url) => url.includes("{") || url.includes("}"));
+  if (
+    templates.length === 0 ||
+    templates.some((template) => required.some((placeholder) => !template.includes(`{${placeholder}}`)))
+  ) {
+    cacheMetadataError(`Cached WMTS ${label} template lacks required placeholders.`);
+  }
+}
+
+function validateCachedDiscoveryExtent(extent: unknown): ConnectDiscoveryExtent {
   if (!isPlainObject(extent)) {
     throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source extent must be an object.");
   }
@@ -1560,6 +1783,299 @@ function validateCachedDiscoveryExtent(extent: ConnectDiscoveryExtent): ConnectD
     }
     throw cause;
   }
+}
+
+function validateCachedDiscoveryMetadata(value: DiscoverySourceMetadata, endpoint: string): DiscoverySourceMetadata {
+  if (!isPlainObject(value)) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source metadata must be an object.");
+  }
+  assertCachedKeys(
+    value,
+    [
+      "crs",
+      "extent",
+      "protocolVersion",
+      "formats",
+      "styles",
+      "dimensions",
+      "operations",
+      "axisOrders",
+      "tileMatrixSets",
+      "partialReasons",
+    ],
+    "source metadata",
+  );
+  const crs = value.crs !== undefined ? immutableStrings(value.crs, "Cached source metadata crs") : undefined;
+  const extent = value.extent !== undefined ? validateCachedDiscoveryExtent(value.extent) : undefined;
+  const protocolVersion =
+    value.protocolVersion !== undefined
+      ? immutableString(value.protocolVersion, "Cached source metadata protocolVersion")
+      : undefined;
+  const formats = value.formats !== undefined ? validateCachedFormats(value.formats) : undefined;
+  const styles =
+    value.styles !== undefined
+      ? Object.freeze(
+          checkedArray(value.styles, "Cached source metadata styles", 512).map((style) => {
+            if (!isPlainObject(style)) cacheMetadataError("Cached source style must be an object.");
+            assertCachedKeys(style, ["id", "title", "isDefault", "legendUrl", "legendFormat"], "source style");
+            if (typeof style.isDefault !== "boolean")
+              cacheMetadataError("Cached source style isDefault must be boolean.");
+            return Object.freeze({
+              id: immutableString(style.id, "Cached source style id"),
+              ...(style.title !== undefined
+                ? { title: immutableString(style.title, "Cached source style title") }
+                : {}),
+              isDefault: style.isDefault,
+              ...(style.legendUrl !== undefined
+                ? { legendUrl: validateCachedMetadataUrl(style.legendUrl, "style legend", endpoint) }
+                : {}),
+              ...(style.legendFormat !== undefined
+                ? { legendFormat: immutableString(style.legendFormat, "Cached source style legendFormat") }
+                : {}),
+            });
+          }),
+        )
+      : undefined;
+  const dimensions =
+    value.dimensions !== undefined
+      ? Object.freeze(
+          checkedArray(value.dimensions, "Cached source metadata dimensions", 512).map((dimension) => {
+            if (!isPlainObject(dimension)) cacheMetadataError("Cached source dimension must be an object.");
+            assertCachedKeys(dimension, ["id", "units", "default", "current", "values"], "source dimension");
+            if (dimension.current !== undefined && typeof dimension.current !== "boolean") {
+              cacheMetadataError("Cached source dimension current must be boolean.");
+            }
+            return Object.freeze({
+              id: immutableString(dimension.id, "Cached source dimension id"),
+              ...(dimension.units !== undefined
+                ? { units: immutableString(dimension.units, "Cached source dimension units") }
+                : {}),
+              ...(dimension.default !== undefined
+                ? { default: immutableString(dimension.default, "Cached source dimension default") }
+                : {}),
+              ...(dimension.current !== undefined ? { current: dimension.current } : {}),
+              values: immutableStrings(
+                checkedArray(dimension.values, "Cached source dimension values", 10_000),
+                "Cached source dimension values",
+              ),
+            });
+          }),
+        )
+      : undefined;
+  const operations = value.operations !== undefined ? validateCachedOperations(value.operations, endpoint) : undefined;
+  const axisOrders =
+    value.axisOrders !== undefined
+      ? Object.freeze(
+          checkedArray(value.axisOrders, "Cached source metadata axisOrders", 512).map((axis) => {
+            if (!isPlainObject(axis)) cacheMetadataError("Cached axis order must be an object.");
+            assertCachedKeys(axis, ["crs", "order"], "axis order");
+            if (axis.order !== "xy" && axis.order !== "yx" && axis.order !== "unknown") {
+              cacheMetadataError("Cached axis order is invalid.");
+            }
+            return Object.freeze({ crs: immutableString(axis.crs, "Cached axis order crs"), order: axis.order });
+          }),
+        )
+      : undefined;
+  const tileMatrixSets =
+    value.tileMatrixSets !== undefined
+      ? Object.freeze(
+          checkedArray(value.tileMatrixSets, "Cached source metadata tileMatrixSets", 256).map((matrixSet) => {
+            if (!isPlainObject(matrixSet)) cacheMetadataError("Cached tile matrix set must be an object.");
+            assertCachedKeys(matrixSet, ["id", "crs", "wellKnownScaleSet", "matrices"], "tile matrix set");
+            const matrices = Object.freeze(
+              checkedArray(matrixSet.matrices, "Cached tile matrix set matrices", 2048).map((matrix) => {
+                if (!isPlainObject(matrix)) cacheMetadataError("Cached tile matrix must be an object.");
+                assertCachedKeys(
+                  matrix,
+                  ["id", "scaleDenominator", "matrixWidth", "matrixHeight", "tileWidth", "tileHeight", "topLeftCorner"],
+                  "tile matrix",
+                );
+                const topLeftCorner = checkedArray(matrix.topLeftCorner, "Cached tile matrix topLeftCorner", 2);
+                if (
+                  topLeftCorner.length !== 2 ||
+                  topLeftCorner.some((entry) => typeof entry !== "number" || !Number.isFinite(entry))
+                ) {
+                  cacheMetadataError("Cached tile matrix topLeftCorner must contain two finite numbers.");
+                }
+                for (const key of [
+                  "scaleDenominator",
+                  "matrixWidth",
+                  "matrixHeight",
+                  "tileWidth",
+                  "tileHeight",
+                ] as const) {
+                  if (typeof matrix[key] !== "number" || !Number.isFinite(matrix[key]) || matrix[key] <= 0) {
+                    cacheMetadataError(`Cached tile matrix ${key} must be a positive finite number.`);
+                  }
+                }
+                return Object.freeze({
+                  id: immutableString(matrix.id, "Cached tile matrix id"),
+                  scaleDenominator: positiveCachedNumber(matrix.scaleDenominator, "scaleDenominator"),
+                  matrixWidth: positiveCachedInteger(matrix.matrixWidth, "matrixWidth"),
+                  matrixHeight: positiveCachedInteger(matrix.matrixHeight, "matrixHeight"),
+                  tileWidth: positiveCachedInteger(matrix.tileWidth, "tileWidth"),
+                  tileHeight: positiveCachedInteger(matrix.tileHeight, "tileHeight"),
+                  topLeftCorner: Object.freeze([topLeftCorner[0] as number, topLeftCorner[1] as number] as const),
+                });
+              }),
+            );
+            return Object.freeze({
+              id: immutableString(matrixSet.id, "Cached tile matrix set id"),
+              ...(matrixSet.crs !== undefined
+                ? { crs: immutableString(matrixSet.crs, "Cached tile matrix set crs") }
+                : {}),
+              ...(matrixSet.wellKnownScaleSet !== undefined
+                ? {
+                    wellKnownScaleSet: immutableString(
+                      matrixSet.wellKnownScaleSet,
+                      "Cached tile matrix set wellKnownScaleSet",
+                    ),
+                  }
+                : {}),
+              matrices,
+            });
+          }),
+        )
+      : undefined;
+  const partialReasons =
+    value.partialReasons !== undefined
+      ? immutableStrings(
+          checkedArray(value.partialReasons, "Cached source metadata partialReasons", 512),
+          "Cached source metadata partialReasons",
+        )
+      : undefined;
+  return Object.freeze({
+    ...(crs ? { crs } : {}),
+    ...(extent ? { extent } : {}),
+    ...(protocolVersion ? { protocolVersion } : {}),
+    ...(formats ? { formats } : {}),
+    ...(styles ? { styles } : {}),
+    ...(dimensions ? { dimensions } : {}),
+    ...(operations ? { operations } : {}),
+    ...(axisOrders ? { axisOrders } : {}),
+    ...(tileMatrixSets ? { tileMatrixSets } : {}),
+    ...(partialReasons ? { partialReasons } : {}),
+  });
+}
+
+function validateCachedFormats(value: unknown) {
+  if (!isPlainObject(value)) cacheMetadataError("Cached source formats must be an object.");
+  assertCachedKeys(value, ["render", "featureInfo", "legend"], "source formats");
+  return Object.freeze({
+    ...(value.render !== undefined ? { render: immutableStrings(value.render, "Cached render formats") } : {}),
+    ...(value.featureInfo !== undefined
+      ? { featureInfo: immutableStrings(value.featureInfo, "Cached featureInfo formats") }
+      : {}),
+    ...(value.legend !== undefined ? { legend: immutableStrings(value.legend, "Cached legend formats") } : {}),
+  });
+}
+
+function validateCachedOperations(value: unknown, endpoint: string) {
+  if (!isPlainObject(value)) cacheMetadataError("Cached source operations must be an object.");
+  assertCachedKeys(value, ["render", "tiles", "featureInfo", "legend"], "source operations");
+  const operation = (entry: unknown, label: string) => {
+    if (!isPlainObject(entry)) cacheMetadataError(`Cached ${label} operation must be an object.`);
+    assertCachedKeys(entry, ["available", "methods", "urls", "formats", "reason"], `${label} operation`);
+    if (typeof entry.available !== "boolean")
+      cacheMetadataError(`Cached ${label} operation available must be boolean.`);
+    const methods = checkedArray(entry.methods, `Cached ${label} operation methods`, 3);
+    if (methods.some((method) => method !== "GET" && method !== "POST" && method !== "TEMPLATE")) {
+      cacheMetadataError(`Cached ${label} operation method is invalid.`);
+    }
+    const urls = checkedArray(entry.urls, `Cached ${label} operation urls`, 16).map((url) =>
+      validateCachedMetadataUrl(url, `${label} operation`, endpoint),
+    );
+    const formats = immutableStrings(
+      checkedArray(entry.formats, `Cached ${label} operation formats`, 128),
+      `Cached ${label} operation formats`,
+    );
+    if (entry.reason !== undefined && (typeof entry.reason !== "string" || !entry.reason.trim())) {
+      cacheMetadataError(`Cached ${label} operation reason is invalid.`);
+    }
+    if (entry.available && (urls.length === 0 || formats.length === 0 || methods.length === 0)) {
+      cacheMetadataError(`Cached available ${label} operation lacks a URL, method, or format.`);
+    }
+    if (methods.includes("TEMPLATE") && !urls.some((url) => url.includes("{") && url.includes("}"))) {
+      cacheMetadataError(`Cached ${label} template operation lacks placeholders.`);
+    }
+    return Object.freeze({
+      available: entry.available,
+      methods: Object.freeze([...methods] as Array<"GET" | "POST" | "TEMPLATE">),
+      urls: Object.freeze(urls),
+      formats,
+      ...(entry.reason ? { reason: entry.reason } : {}),
+    });
+  };
+  return Object.freeze({
+    ...(value.render !== undefined ? { render: operation(value.render, "render") } : {}),
+    ...(value.tiles !== undefined ? { tiles: operation(value.tiles, "tiles") } : {}),
+    ...(value.featureInfo !== undefined ? { featureInfo: operation(value.featureInfo, "featureInfo") } : {}),
+    ...(value.legend !== undefined ? { legend: operation(value.legend, "legend") } : {}),
+  });
+}
+
+function checkedArray(value: unknown, label: string, maximum: number): readonly unknown[] {
+  if (!Array.isArray(value) || value.length > maximum) {
+    cacheMetadataError(`${label} must be an array with at most ${maximum} entries.`);
+  }
+  return value;
+}
+
+function positiveCachedNumber(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    cacheMetadataError(`Cached tile matrix ${label} must be a positive finite number.`);
+  }
+  return value;
+}
+
+function positiveCachedInteger(value: unknown, label: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) <= 0) {
+    cacheMetadataError(`Cached tile matrix ${label} must be a positive safe integer.`);
+  }
+  return value as number;
+}
+
+function validateCachedMetadataUrl(value: unknown, label: string, endpoint: string): string {
+  if (typeof value !== "string" || !value.trim()) cacheMetadataError(`Cached ${label} URL must be a string.`);
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    cacheMetadataError(`Cached ${label} URL must be absolute.`);
+  }
+  if (
+    (parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+    parsed.username ||
+    parsed.password ||
+    parsed.hash
+  ) {
+    cacheMetadataError(`Cached ${label} URL is unsafe.`);
+  }
+  if (parsed.origin !== new URL(endpoint).origin) {
+    cacheMetadataError(`Cached ${label} URL must remain on the discovery endpoint origin.`);
+  }
+  for (const name of parsed.searchParams.keys()) {
+    if (
+      /^(?:access_token|api_?key|apikey|authorization|bearer|client_secret|code|id_token|jwt|key|password|sas|session|sig|signature|subscription-key|token|x-api-key|x-goog-signature)$/i.test(
+        name,
+      )
+    ) {
+      cacheMetadataError(`Cached ${label} URL contains credential-bearing query state.`);
+    }
+  }
+  parsed.searchParams.sort();
+  return parsed.toString().replace(/%7B([A-Za-z_][A-Za-z0-9_.:-]{0,127})%7D/gi, (_match, name: string) => `{${name}}`);
+}
+
+function assertCachedKeys(value: Record<string, unknown>, allowed: readonly string[], label: string): void {
+  const allowedKeys = new Set(allowed);
+  if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
+    cacheMetadataError(`Cached ${label} contains unknown fields.`);
+  }
+}
+
+function cacheMetadataError(message: string): never {
+  throw new HonuaDiscoveryError("invalid-discovery-cache", message);
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

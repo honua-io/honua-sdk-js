@@ -157,12 +157,17 @@ export function xmlText(node: CapabilitiesXmlElement | undefined): string | unde
 }
 
 function appendText(node: MutableCapabilitiesXmlElement | undefined, value: string, family: string): void {
-  if (!node || value.length === 0) return;
-  appendDecodedText(node, decodeXmlText(value), family);
+  if (value.length === 0) return;
+  if (!node) {
+    if (value.trim().length > 0) throw new Error(`${family} Capabilities contains text outside its root element`);
+    return;
+  }
+  appendDecodedText(node, decodeCapabilitiesText(value, family), family);
 }
 
 function appendDecodedText(node: MutableCapabilitiesXmlElement | undefined, value: string, family: string): void {
   if (!node || value.length === 0) return;
+  assertXmlCharacters(value, family);
   if (utf8Length(node.text) + utf8Length(value) > OGC_CAPABILITIES_XML_LIMITS.maxTextBytes) {
     throw new Error(`${family} Capabilities element text exceeds the bounded text limit`);
   }
@@ -175,6 +180,7 @@ function parseOpeningTag(body: string, family: string): { name: string; attribut
   const name = body.slice(0, cursor);
   if (!validXmlName(name)) throw new Error(`${family} Capabilities contains an invalid element name`);
   const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
+  const attributeLocals = new Set<string>();
   let count = 0;
   while (cursor < body.length) {
     while (cursor < body.length && isWhitespace(body.charCodeAt(cursor))) cursor += 1;
@@ -193,16 +199,26 @@ function parseOpeningTag(body: string, family: string): { name: string; attribut
     }
     const end = body.indexOf(quote, cursor + 1);
     if (end < 0) throw new Error(`${family} Capabilities attribute "${attributeName}" is unterminated`);
-    const value = decodeXmlText(body.slice(cursor + 1, end));
+    const rawValue = body.slice(cursor + 1, end);
+    if (rawValue.includes("<")) {
+      throw new Error(`${family} Capabilities attribute "${attributeName}" contains an unescaped '<'`);
+    }
+    const value = decodeCapabilitiesText(rawValue, family);
     if (utf8Length(value) > OGC_CAPABILITIES_XML_LIMITS.maxAttributeBytes) {
       throw new Error(`${family} Capabilities attribute "${attributeName}" exceeds the bounded value limit`);
     }
     if (Object.hasOwn(attributes, attributeName)) {
       throw new Error(`${family} Capabilities repeats attribute "${attributeName}"`);
     }
-    attributes[attributeName] = value;
     const local = localName(attributeName);
-    if (!attributeName.startsWith("xmlns") && !Object.hasOwn(attributes, local)) attributes[local] = value;
+    if (!attributeName.startsWith("xmlns") && attributeLocals.has(local)) {
+      throw new Error(`${family} Capabilities repeats namespace-local attribute "${local}"`);
+    }
+    attributes[attributeName] = value;
+    if (!attributeName.startsWith("xmlns")) {
+      attributeLocals.add(local);
+      if (attributeName !== local) attributes[local] = value;
+    }
     count += 1;
     if (count > OGC_CAPABILITIES_XML_LIMITS.maxAttributesPerElement) {
       throw new Error(`${family} Capabilities element exceeds the bounded attribute count`);
@@ -210,6 +226,61 @@ function parseOpeningTag(body: string, family: string): { name: string; attribut
     cursor = end + 1;
   }
   return { name, attributes };
+}
+
+function decodeCapabilitiesText(value: string, family: string): string {
+  let cursor = 0;
+  while (cursor < value.length) {
+    const ampersand = value.indexOf("&", cursor);
+    if (ampersand < 0) break;
+    const semicolon = value.indexOf(";", ampersand + 1);
+    const nestedAmpersand = value.indexOf("&", ampersand + 1);
+    if (semicolon < 0 || (nestedAmpersand >= 0 && nestedAmpersand < semicolon)) {
+      throw new Error(`${family} Capabilities contains an unterminated XML entity reference`);
+    }
+    const entity = value.slice(ampersand + 1, semicolon);
+    if (!validEntityReference(entity)) {
+      throw new Error(`${family} Capabilities contains unsupported XML entity "&${entity};"`);
+    }
+    cursor = semicolon + 1;
+  }
+  const decoded = decodeXmlText(value);
+  assertXmlCharacters(decoded, family);
+  return decoded;
+}
+
+function validEntityReference(entity: string): boolean {
+  if (entity === "lt" || entity === "gt" || entity === "amp" || entity === "apos" || entity === "quot") {
+    return true;
+  }
+  const numeric =
+    entity.startsWith("#x") || entity.startsWith("#X")
+      ? /^[0-9A-Fa-f]+$/.test(entity.slice(2))
+        ? Number.parseInt(entity.slice(2), 16)
+        : Number.NaN
+      : entity.startsWith("#") && /^\d+$/.test(entity.slice(1))
+        ? Number.parseInt(entity.slice(1), 10)
+        : Number.NaN;
+  return Number.isSafeInteger(numeric) && validXmlCodePoint(numeric);
+}
+
+function assertXmlCharacters(value: string, family: string): void {
+  for (const character of value) {
+    if (!validXmlCodePoint(character.codePointAt(0)!)) {
+      throw new Error(`${family} Capabilities contains a character forbidden by XML 1.0`);
+    }
+  }
+}
+
+function validXmlCodePoint(value: number): boolean {
+  return (
+    value === 0x09 ||
+    value === 0x0a ||
+    value === 0x0d ||
+    (value >= 0x20 && value <= 0xd7ff) ||
+    (value >= 0xe000 && value <= 0xfffd) ||
+    (value >= 0x10000 && value <= 0x10ffff)
+  );
 }
 
 function findTagEnd(xml: string, start: number): number {

@@ -16,6 +16,8 @@ export interface WmtsCapabilities {
   readonly layers: ReadonlyArray<WmtsCapabilityLayer>;
   readonly tileMatrixSets: ReadonlyArray<WmtsCapabilityTileMatrixSet>;
   readonly operations: readonly WmtsCapabilityOperation[];
+  /** Optional metadata entries ignored because they were malformed. */
+  readonly warnings: readonly string[];
 }
 
 export interface WmtsCapabilitiesService {
@@ -92,21 +94,25 @@ export function parseWmtsCapabilities(xml: string): WmtsCapabilities {
   try {
     const root = parseCapabilitiesXml(xml, "WMTS");
     if (root.localName !== "Capabilities") throw new Error("missing <Capabilities> root element");
+    const warnings: string[] = [];
     const serviceNode = xmlChild(root, "ServiceIdentification");
     const contents = xmlChild(root, "Contents");
     const service = compactObject<WmtsCapabilitiesService>({
       title: xmlText(xmlChild(serviceNode, "Title")),
       abstract: xmlText(xmlChild(serviceNode, "Abstract")),
     });
-    const layers = Object.freeze(xmlChildren(contents, "Layer").flatMap(parseLayer));
-    const tileMatrixSets = Object.freeze(xmlChildren(contents, "TileMatrixSet").flatMap(parseTileMatrixSet));
+    const layers = Object.freeze(xmlChildren(contents, "Layer").flatMap((layer) => parseLayer(layer, warnings)));
+    const tileMatrixSets = Object.freeze(
+      xmlChildren(contents, "TileMatrixSet").flatMap((matrixSet) => parseTileMatrixSet(matrixSet, warnings)),
+    );
     const operations = Object.freeze(parseOperations(xmlChild(root, "OperationsMetadata")));
     return Object.freeze({
-      version: xmlAttribute(root, "version") ?? "1.0.0",
+      version: xmlAttribute(root, "version") ?? "",
       service,
       layers,
       tileMatrixSets,
       operations,
+      warnings: Object.freeze(unique(warnings)),
     });
   } catch (cause) {
     if (cause instanceof HonuaWmtsCapabilitiesParseError) throw cause;
@@ -143,10 +149,13 @@ function parseOperations(node: CapabilitiesXmlElement | undefined): WmtsCapabili
   });
 }
 
-function parseLayer(node: CapabilitiesXmlElement): WmtsCapabilityLayer[] {
+function parseLayer(node: CapabilitiesXmlElement, warnings: string[]): WmtsCapabilityLayer[] {
   const identifier = xmlText(xmlChild(node, "Identifier"));
-  if (!identifier) return [];
-  const bbox = parseWgs84BoundingBox(xmlChild(node, "WGS84BoundingBox"));
+  if (!identifier) {
+    warnings.push("WMTS Layer metadata without an identifier was ignored.");
+    return [];
+  }
+  const bbox = parseWgs84BoundingBox(xmlChild(node, "WGS84BoundingBox"), warnings);
   return [
     Object.freeze({
       identifier,
@@ -154,23 +163,28 @@ function parseLayer(node: CapabilitiesXmlElement): WmtsCapabilityLayer[] {
       ...optional("abstract", xmlText(xmlChild(node, "Abstract"))),
       formats: Object.freeze(unique(xmlChildren(node, "Format").flatMap((entry) => xmlText(entry) ?? []))),
       infoFormats: Object.freeze(unique(xmlChildren(node, "InfoFormat").flatMap((entry) => xmlText(entry) ?? []))),
-      styles: Object.freeze(xmlChildren(node, "Style").flatMap(parseStyle)),
-      dimensions: Object.freeze(xmlChildren(node, "Dimension").flatMap(parseDimension)),
+      styles: Object.freeze(xmlChildren(node, "Style").flatMap((style) => parseStyle(style, warnings))),
+      dimensions: Object.freeze(
+        xmlChildren(node, "Dimension").flatMap((dimension) => parseDimension(dimension, warnings)),
+      ),
       tileMatrixSetIds: Object.freeze(
         unique(
           xmlChildren(node, "TileMatrixSetLink").flatMap((link) => xmlText(xmlChild(link, "TileMatrixSet")) ?? []),
         ),
       ),
-      resourceTemplates: Object.freeze(parseResources(node, "tile")),
-      featureInfoTemplates: Object.freeze(parseResources(node, "FeatureInfo")),
+      resourceTemplates: Object.freeze(parseResources(node, "tile", warnings)),
+      featureInfoTemplates: Object.freeze(parseResources(node, "FeatureInfo", warnings)),
       ...(bbox ? { bbox } : {}),
     }),
   ];
 }
 
-function parseStyle(node: CapabilitiesXmlElement): WmtsCapabilityStyle[] {
+function parseStyle(node: CapabilitiesXmlElement, warnings: string[]): WmtsCapabilityStyle[] {
   const identifier = xmlText(xmlChild(node, "Identifier"));
-  if (!identifier) return [];
+  if (!identifier) {
+    warnings.push("WMTS Style metadata without an identifier was ignored.");
+    return [];
+  }
   const legend = xmlChild(node, "LegendURL");
   const isDefault = xmlAttribute(node, "isDefault")?.toLowerCase();
   return [
@@ -184,9 +198,12 @@ function parseStyle(node: CapabilitiesXmlElement): WmtsCapabilityStyle[] {
   ];
 }
 
-function parseDimension(node: CapabilitiesXmlElement): WmtsCapabilityDimension[] {
+function parseDimension(node: CapabilitiesXmlElement, warnings: string[]): WmtsCapabilityDimension[] {
   const identifier = xmlText(xmlChild(node, "Identifier"));
-  if (!identifier) return [];
+  if (!identifier) {
+    warnings.push("WMTS Dimension metadata without an identifier was ignored.");
+    return [];
+  }
   const current = xmlText(xmlChild(node, "Current"))?.toLowerCase();
   return [
     Object.freeze({
@@ -198,28 +215,46 @@ function parseDimension(node: CapabilitiesXmlElement): WmtsCapabilityDimension[]
   ];
 }
 
-function parseResources(node: CapabilitiesXmlElement, resourceType: "tile" | "FeatureInfo"): WmtsCapabilityResourceUrl[] {
+function parseResources(
+  node: CapabilitiesXmlElement,
+  resourceType: "tile" | "FeatureInfo",
+  warnings: string[],
+): WmtsCapabilityResourceUrl[] {
   return xmlChildren(node, "ResourceURL").flatMap((resource) => {
     if (xmlAttribute(resource, "resourceType")?.toLowerCase() !== resourceType.toLowerCase()) return [];
     const template = xmlAttribute(resource, "template");
-    if (!template) return [];
-    return [Object.freeze({ format: xmlAttribute(resource, "format") ?? "", template })];
+    const format = xmlAttribute(resource, "format");
+    if (!template || !format) {
+      warnings.push(`WMTS ${resourceType} ResourceURL metadata without a format or template was ignored.`);
+      return [];
+    }
+    return [Object.freeze({ format, template })];
   });
 }
 
 function parseWgs84BoundingBox(
   node: CapabilitiesXmlElement | undefined,
+  warnings: string[],
 ): { readonly west: number; readonly south: number; readonly east: number; readonly north: number } | undefined {
+  if (!node) return undefined;
   const lower = coordinatePair(xmlText(xmlChild(node, "LowerCorner")));
   const upper = coordinatePair(xmlText(xmlChild(node, "UpperCorner")));
-  if (!lower || !upper || lower[0] > upper[0] || lower[1] > upper[1]) return undefined;
+  if (!lower || !upper || lower[0] > upper[0] || lower[1] > upper[1]) {
+    warnings.push("WMTS WGS84BoundingBox metadata was malformed and ignored.");
+    return undefined;
+  }
   return Object.freeze({ west: lower[0], south: lower[1], east: upper[0], north: upper[1] });
 }
 
-function parseTileMatrixSet(node: CapabilitiesXmlElement): WmtsCapabilityTileMatrixSet[] {
+function parseTileMatrixSet(node: CapabilitiesXmlElement, warnings: string[]): WmtsCapabilityTileMatrixSet[] {
   const identifier = xmlText(xmlChild(node, "Identifier"));
-  const matrices = Object.freeze(xmlChildren(node, "TileMatrix").flatMap(parseTileMatrix));
-  if (!identifier || matrices.length === 0) return [];
+  const matrices = Object.freeze(
+    xmlChildren(node, "TileMatrix").flatMap((matrix) => parseTileMatrix(matrix, warnings)),
+  );
+  if (!identifier || matrices.length === 0) {
+    warnings.push("WMTS TileMatrixSet metadata without an identifier or valid matrices was ignored.");
+    return [];
+  }
   return [
     Object.freeze({
       identifier,
@@ -230,7 +265,7 @@ function parseTileMatrixSet(node: CapabilitiesXmlElement): WmtsCapabilityTileMat
   ];
 }
 
-function parseTileMatrix(node: CapabilitiesXmlElement): WmtsCapabilityTileMatrix[] {
+function parseTileMatrix(node: CapabilitiesXmlElement, warnings: string[]): WmtsCapabilityTileMatrix[] {
   const identifier = xmlText(xmlChild(node, "Identifier"));
   const scaleDenominator = positiveNumber(xmlText(xmlChild(node, "ScaleDenominator")));
   const tileWidth = positiveSafeInteger(xmlText(xmlChild(node, "TileWidth")));
@@ -247,6 +282,7 @@ function parseTileMatrix(node: CapabilitiesXmlElement): WmtsCapabilityTileMatrix
     matrixHeight === undefined ||
     !topLeftCorner
   ) {
+    warnings.push("WMTS TileMatrix metadata with invalid numeric fields was ignored.");
     return [];
   }
   return [
