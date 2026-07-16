@@ -363,6 +363,24 @@ describe("OData metadata-typed key encoding", () => {
     });
   });
 
+  it("encodes a metadata-typed navigation-key subset in the requested order", () => {
+    expect(encodeOdataEntityKey(metadata, "Assets", { Id: "9223372036854775807" }, { keyFields: ["Id"] })).toEqual({
+      literal: "9223372036854775807",
+      pathSegment: "9223372036854775807",
+    });
+  });
+
+  it.each([{ keyFields: ["Id", "Tenant"] }, { keyFields: ["Amount"] }, { keyFields: [] }])(
+    "rejects an invalid navigation-key override $keyFields",
+    ({ keyFields }) => {
+      const error = encodingFailure(() =>
+        encodeOdataEntityKey(metadata, "Assets", { Id: "1", Tenant: "north" }, { keyFields }),
+      );
+      expect(error.code).toBe("invalid-options");
+      expect(error.path).toBe("$.options.keyFields");
+    },
+  );
+
   it("accepts the unqualified suffix of a navigation-shaped entity-set path", () => {
     expect(encodeOdataEntityKey(metadata, "Layers(7)/LongKeys", { Id: "17" }).literal).toBe("17");
   });

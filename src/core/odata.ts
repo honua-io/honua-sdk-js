@@ -124,6 +124,17 @@ export interface HonuaOdataBatchOptions {
   signal?: AbortSignal;
 }
 
+/** Transport options for one OData add or update request. */
+export interface HonuaOdataWriteRequestOptions {
+  signal?: AbortSignal;
+  /**
+   * Request media type. The canonical source adapter sets the OData
+   * `IEEE754Compatible` parameter after metadata-driven lossless encoding.
+   * Defaults to ordinary `application/json`.
+   */
+  contentType?: string;
+}
+
 /** SDK-shaped projection of an OData CSDL `$metadata` document. */
 export interface HonuaOdataMetadata {
   /** Entity-set name → declared entity type. */
@@ -429,11 +440,11 @@ export class HonuaOdataEntitySet {
   /** Insert a row via `POST /<entitySet>`. */
   public async add<T = Record<string, unknown>>(
     body: Record<string, unknown>,
-    options: { signal?: AbortSignal } = {},
+    options: HonuaOdataWriteRequestOptions = {},
   ): Promise<T> {
     const path = this.entitySetPath();
     return this.requestJson<T>("POST", path, undefined, options.signal, JSON.stringify(body), {
-      "Content-Type": "application/json",
+      "Content-Type": options.contentType ?? "application/json",
     });
   }
 
@@ -447,11 +458,11 @@ export class HonuaOdataEntitySet {
   public async update<T = Record<string, unknown>>(
     key: string,
     body: Record<string, unknown>,
-    options: { signal?: AbortSignal } = {},
+    options: HonuaOdataWriteRequestOptions = {},
   ): Promise<T | undefined> {
     const path = `${this.entitySetPath()}(${encodeOdataKey(key)})`;
     return this.requestJson<T | undefined>("PATCH", path, undefined, options.signal, JSON.stringify(body), {
-      "Content-Type": "application/json",
+      "Content-Type": options.contentType ?? "application/json",
     });
   }
 
