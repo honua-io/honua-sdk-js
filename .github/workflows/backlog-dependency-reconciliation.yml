@@ -1,0 +1,105 @@
+name: Backlog dependency reconciliation
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Reconciliation mode
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+
+permissions: {}
+
+concurrency:
+  group: backlog-dependency-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  dry-run:
+    name: Backlog dependency dry run
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'dry-run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Check out trusted policy
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted-policy
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20.19.0"
+
+      - name: Reconcile without mutations
+        working-directory: trusted-policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/backlog-dependency-report.json"
+          node scripts/reconcile-backlog-dependencies.mjs \
+            --repository "$GITHUB_REPOSITORY" \
+            --json | tee "$report"
+          {
+            echo "## Backlog dependency dry run"
+            echo
+            echo '```json'
+            cat "$report"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    name: Backlog dependency apply
+    if: github.event_name == 'schedule' || inputs.mode == 'apply'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out trusted policy
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted-policy
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20.19.0"
+
+      - name: Apply planner-approved readiness transitions
+        working-directory: trusted-policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/backlog-dependency-report.json"
+          node scripts/reconcile-backlog-dependencies.mjs \
+            --repository "$GITHUB_REPOSITORY" \
+            --apply \
+            --json | tee "$report"
+          {
+            echo "## Backlog dependency apply"
+            echo
+            echo '```json'
+            cat "$report"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
