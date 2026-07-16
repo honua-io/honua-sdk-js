@@ -6,6 +6,15 @@ import {
   capabilities,
 } from "../contract/types.js";
 import { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
+import {
+  createCacheDecision,
+  createPlanValidity,
+  createPlanWarnings,
+  createQueryPlanProvenance,
+  createStepDiagnostics,
+  summarizeFidelity,
+  summarizePlanBounds,
+} from "./diagnostics.js";
 import { compileDuckDbQuery, compileDuckDbQueryV2 } from "./duckdb.js";
 import { compileGeoServicesQuery } from "./geoservices.js";
 import { compileGrpcQuery } from "./grpc.js";
@@ -23,6 +32,7 @@ import {
   HonuaQueryPlanningError,
   type LocalAggregatePlanStep,
   MAX_LOCAL_MATERIALIZATION_ROWS,
+  QUERY_PLAN_DIAGNOSTICS_VERSION,
   QUERY_PLAN_KIND,
   QUERY_PLAN_V2_VERSION,
   QUERY_PLAN_VERSION,
@@ -49,9 +59,9 @@ export function explainQuery<T>(
   const capabilityPolicy = options.capabilityPolicy ?? "strict";
   const fallback = normalizeFallback(options.fallback);
   const estimates = normalizeEstimates(options.estimates);
-  let steps: readonly VersionedQueryPlanStep[];
+  const executionMode = normalizeExecutionMode(options.executionMode);
+  let baseSteps: readonly VersionedQueryPlanStepBase[];
   let pushdown: QueryExecutionPlan["pushdown"];
-  const warnings: string[] = [];
 
   if (ir.query.aggregation && !ir.source.capabilities.includes("queryAggregate")) {
     if (capabilityPolicy !== "degraded" || fallback.mode === "disabled") {
@@ -75,13 +85,12 @@ export function explainQuery<T>(
       options.descriptor.schema?.primaryKey,
       { preserveGeometry: ogcFallback, adapterOwnsLookahead: ogcFallback },
     );
-    steps = [
+    baseSteps = [
       {
         id: "remote-input",
         engine: "remote",
         operation: "queryAll",
         pushdown: "partial",
-        fidelity: "exact",
         reason: `Push filters and projection to ${remoteEngineName(ir.source.protocol)}, fetching at most ${fallback.maxRows + 1} rows as an overflow sentinel.`,
         requests: estimates.requests ?? 1,
         query: inputQuery,
@@ -92,7 +101,6 @@ export function explainQuery<T>(
         engine: "client",
         operation: "aggregate",
         pushdown: "none",
-        fidelity: "exact",
         reason: `queryAggregate is unavailable; compute only after enforcing the ${fallback.maxRows}-row local ceiling.`,
         inputStepId: "remote-input",
         aggregation: ir.query.aggregation,
@@ -101,12 +109,6 @@ export function explainQuery<T>(
       },
     ];
     pushdown = "partial";
-    warnings.push("Execution is degraded and will be rejected if the bounded input ceiling is exceeded.");
-    if (ir.source.protocol === "ogc-features") {
-      warnings.push(
-        "OGC API Features may transfer geometry because /items has no portable geometry-suppression parameter.",
-      );
-    }
   } else {
     const capability = ir.query.aggregation ? "queryAggregate" : "query";
     if (!ir.source.capabilities.includes(capability)) {
@@ -116,13 +118,12 @@ export function explainQuery<T>(
       );
     }
     const spatialAggregation = ir.query.aggregation !== undefined && ir.query.spatialFilter !== undefined;
-    steps = [
+    baseSteps = [
       {
         id: "remote-query",
         engine: "remote",
         operation: ir.query.aggregation ? "queryAggregate" : "query",
         pushdown: "full",
-        fidelity: "exact",
         reason: spatialAggregation
           ? `${remoteEngineName(ir.source.protocol)} executes the spatial aggregation server-side: the spatial filter constrains the grouped statistics without materializing features.`
           : `${remoteEngineName(ir.source.protocol)} can execute the complete canonical query remotely.`,
@@ -134,6 +135,14 @@ export function explainQuery<T>(
     pushdown = "full";
   }
 
+  const provenance = createQueryPlanProvenance(options.descriptor, ir.source, options);
+  const steps = baseSteps.map((step) => ({ ...step, ...createStepDiagnostics(step, estimates, provenance) }));
+  const { fidelity, losses } = summarizeFidelity(steps);
+  const bounds = summarizePlanBounds(steps);
+  const cache = createCacheDecision(options.cache);
+  const validity = createPlanValidity(ir, provenance, capabilityPolicy, fallback, executionMode);
+  const warnings = createPlanWarnings(baseSteps, ir.source);
+
   const unsigned = {
     kind: QUERY_PLAN_KIND,
     version: ir.version === "2.0" ? QUERY_PLAN_V2_VERSION : QUERY_PLAN_VERSION,
@@ -141,8 +150,13 @@ export function explainQuery<T>(
     capabilityPolicy,
     fallback,
     pushdown,
-    fidelity: "exact" as const,
-    cache: "bypass" as const,
+    diagnosticsVersion: QUERY_PLAN_DIAGNOSTICS_VERSION,
+    fidelity,
+    losses,
+    bounds,
+    cache,
+    provenance,
+    validity,
     estimates,
     steps,
     warnings,
@@ -183,10 +197,14 @@ function compileRemoteQuery(
   }
 }
 
-type VersionedRemoteQueryPlanStep = Omit<RemoteQueryPlanStep, "compiled"> & {
+type VersionedRemoteQueryPlanStepBase = Omit<
+  RemoteQueryPlanStep,
+  "compiled" | "fidelity" | "losses" | "bounds" | "provenance"
+> & {
   readonly compiled: RemoteCompiledQueryV1 | DuckDbCompiledQueryV2;
 };
-type VersionedQueryPlanStep = VersionedRemoteQueryPlanStep | LocalAggregatePlanStep;
+type LocalAggregatePlanStepBase = Omit<LocalAggregatePlanStep, "fidelity" | "losses" | "bounds" | "provenance">;
+type VersionedQueryPlanStepBase = VersionedRemoteQueryPlanStepBase | LocalAggregatePlanStepBase;
 
 function isGeoParquetV2Source(
   source: QueryIrSourceIdentity | QueryIrSourceIdentityV2,
@@ -417,6 +435,15 @@ function rebuildGeoParquetQueryPlanV2(plan: QueryExecutionPlanV2): QueryExecutio
     },
     capabilities: capabilities(sourceCapabilities),
     ...(primaryKey ? { schema: { primaryKey } } : {}),
+    ...(plan.provenance.schema.state === "known" && plan.provenance.schema.basis === "schema-v2"
+      ? {
+          schemaV2: {
+            kind: "honua.source-schema",
+            version: "2.0",
+            fingerprint: plan.provenance.schema.fingerprint,
+          },
+        }
+      : {}),
   };
   return explainQuery({
     descriptor,
@@ -428,7 +455,30 @@ function rebuildGeoParquetQueryPlanV2(plan: QueryExecutionPlanV2): QueryExecutio
     ...(sourceVersion ? { sourceVersion } : {}),
     authorizationScope: source.authorizationScope,
     estimates: plan.estimates,
+    cache: persistedCacheOptions(plan.cache),
+    discovery: persistedDiscoveryContext(plan.provenance.discovery),
+    executionMode: plan.validity.executionMode,
   });
+}
+
+function persistedCacheOptions(cache: QueryExecutionPlan["cache"]): NonNullable<ExplainQueryOptions["cache"]> {
+  return {
+    policy: cache.policy,
+    freshness: cache.freshness,
+    ...(cache.validator ? { validator: { kind: cache.validator.kind, fingerprint: cache.validator.fingerprint } } : {}),
+  };
+}
+
+function persistedDiscoveryContext(
+  discovery: QueryExecutionPlan["provenance"]["discovery"],
+): NonNullable<ExplainQueryOptions["discovery"]> {
+  return {
+    state: discovery.state,
+    ...(discovery.sourceFingerprint ? { sourceFingerprint: discovery.sourceFingerprint } : {}),
+    ...(discovery.validator
+      ? { validator: { kind: discovery.validator.kind, fingerprint: discovery.validator.fingerprint } }
+      : {}),
+  };
 }
 
 function parsePlanCapabilities(value: unknown): readonly Capability[] {
@@ -504,6 +554,7 @@ function isPlanEnvelope(value: unknown): value is QueryExecutionPlan {
   return (
     plan.kind === QUERY_PLAN_KIND &&
     (plan.version === QUERY_PLAN_VERSION || plan.version === QUERY_PLAN_V2_VERSION) &&
+    plan.diagnosticsVersion === QUERY_PLAN_DIAGNOSTICS_VERSION &&
     typeof plan.id === "string" &&
     typeof plan.fingerprint === "string" &&
     /^sha256:[0-9a-f]{64}$/.test(plan.fingerprint) &&
@@ -512,6 +563,14 @@ function isPlanEnvelope(value: unknown): value is QueryExecutionPlan {
     Array.isArray(plan.steps) &&
     Array.isArray(plan.warnings)
   );
+}
+
+function normalizeExecutionMode(value: ExplainQueryOptions["executionMode"]): "snapshot" | "delta" {
+  if (value === undefined) return "snapshot";
+  if (value !== "snapshot" && value !== "delta") {
+    throw new HonuaQueryPlanningError("invalid-query", "executionMode is invalid");
+  }
+  return value;
 }
 
 function invalidPersistedPlan(): HonuaQueryPlanExecutionError {
