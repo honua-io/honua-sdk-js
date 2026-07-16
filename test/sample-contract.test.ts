@@ -176,6 +176,20 @@ describe("sample publication contract", () => {
     delete malformedProjection.samples[0].lifecycle.state;
     await expect(validateSiteProjection(malformedProjection)).rejects.toThrow("JSON Schema validation failed");
 
+    const maliciousRoute = structuredClone(projection);
+    maliciousRoute.routes[0].route = "../stolen.html";
+    await expect(validateSiteProjection(maliciousRoute)).rejects.toThrow("JSON Schema validation failed");
+
+    const orphanedRoute = structuredClone(projection);
+    orphanedRoute.routes[0].sampleId = "forged-sample";
+    await expect(validateSiteProjection(orphanedRoute)).rejects.toThrow(
+      "site projection route analyst-workbench references unknown SDK sample forged-sample",
+    );
+
+    const duplicateRoute = structuredClone(projection);
+    duplicateRoute.routes[1].id = duplicateRoute.routes[0].id;
+    await expect(validateSiteProjection(duplicateRoute)).rejects.toThrow("site projection route IDs must be unique");
+
     const sensitiveProjection = structuredClone(projection);
     sensitiveProjection.externalReplacements[0].url = "https://example.test/replacement?clientSecret=secret";
     await expect(validateSiteProjection(sensitiveProjection)).rejects.toThrow(

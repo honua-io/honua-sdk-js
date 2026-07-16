@@ -288,6 +288,7 @@
     "docs:site": "node scripts/build-docs-site.mjs",
     "docs:site:build": "npm run docs:api && npm run docs:site",
     "docs:site:gallery:test": "node --test test/scripts/docs-gallery.test.mjs",
+    "docs:site:gallery:browser": "playwright test test/playwright/docs-gallery.spec.mjs",
     "docs:site:linkcheck": "node scripts/check-docs-site-links.mjs",
     "docs:site:versions": "node scripts/check-docs-versions-site.mjs",
     "verify:llms": "node scripts/generate-llms-txt.mjs --check",

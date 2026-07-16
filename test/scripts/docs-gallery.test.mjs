@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import test from "node:test";
+import { deflateSync } from "node:zlib";
 import { JSDOM } from "jsdom";
 
 import {
@@ -39,6 +40,51 @@ const repositorySourceResolver = (sample) => {
 
 function stableBytes(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+const PNG_CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < table.length; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
+
+function pngCrc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) crc = PNG_CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type, data) {
+  const typeBytes = Buffer.from(type, "ascii");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.byteLength);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(pngCrc32(Buffer.concat([typeBytes, data])));
+  return Buffer.concat([length, typeBytes, data, crc]);
+}
+
+function solidGrayscalePng(width, height, shade) {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 0;
+  const scanlines = Buffer.alloc((width + 1) * height);
+  for (let row = 0; row < height; row += 1) {
+    scanlines.fill(shade, row * (width + 1) + 1, (row + 1) * (width + 1));
+  }
+  return Buffer.concat([
+    Buffer.from("89504e470d0a1a0a", "hex"),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(scanlines)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
 }
 
 function visualEvidenceForProjection(value) {
@@ -142,15 +188,11 @@ function qualifiedVisualFixture() {
   const runId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const observedAt = "2099-01-01T00:00:00.000Z";
   const expiresAt = "2099-01-08T00:00:00.000Z";
-  const imageBytes = {
-    desktop: Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.from("desktop-fixture")]),
-    mobile: Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.from("mobile-fixture")]),
-  };
   const screenshots = [
     ["desktop", { width: 1280, height: 720 }],
     ["mobile", { width: 390, height: 844 }],
   ].map(([variant, viewport]) => {
-    const bytes = imageBytes[variant];
+    const bytes = solidGrayscalePng(viewport.width, viewport.height, variant === "desktop" ? 0x55 : 0xaa);
     const digest = createHash("sha256").update(bytes).digest("hex");
     return {
       variant,
@@ -160,6 +202,7 @@ function qualifiedVisualFixture() {
       viewport,
       bytes: bytes.byteLength,
       sha256: digest,
+      fixtureBytes: bytes,
     };
   });
   const gates = [
@@ -209,8 +252,18 @@ function qualifiedVisualFixture() {
       },
     },
   ];
-  const assets = new Map(screenshots.map((screenshot) => [screenshot.sourcePath, imageBytes[screenshot.variant]]));
+  const assets = new Map(screenshots.map((screenshot) => [screenshot.sourcePath, screenshot.fixtureBytes]));
+  for (const screenshot of screenshots) delete screenshot.fixtureBytes;
   return { projection: qualifiedProjection, evidence, assets };
+}
+
+function replaceScreenshotBytes(evidence, assets, variant, bytes) {
+  const screenshot = evidence.qualifiedGoldenJourneys[0].screenshots.find((entry) => entry.variant === variant);
+  const digest = createHash("sha256").update(bytes).digest("hex");
+  screenshot.bytes = bytes.byteLength;
+  screenshot.sha256 = digest;
+  screenshot.publicationPath = `assets/gallery-evidence/${screenshot.sourcePath.split("/")[2]}/${variant}-${digest.slice(0, 16)}.png`;
+  assets.set(screenshot.sourcePath, bytes);
 }
 
 function occurrenceCount(value, pattern) {
@@ -520,7 +573,7 @@ test("fails closed on missing quality profiles and forged golden qualification r
 
 test("rejects a schema-valid empty public portfolio with the explicit zero-card error", async () => {
   const emptyProjection = structuredClone(projection);
-  emptyProjection.samples = [];
+  for (const sample of emptyProjection.samples) sample.track = "fixture";
 
   await assert.rejects(() => verifiedGallery(emptyProjection), {
     name: "Error",
@@ -620,6 +673,33 @@ test("publishes content-addressed desktop/mobile and semantic evidence only for 
   await assert.rejects(
     () => verifyGalleryVisualAssets(gallery, () => Buffer.from("tampered")),
     /screenshot bytes do not match visual evidence/,
+  );
+});
+
+test("rejects corrupt PNG receipts and screenshots whose pixels contradict the declared viewport", async () => {
+  const wrongViewport = qualifiedVisualFixture();
+  replaceScreenshotBytes(
+    wrongViewport.evidence,
+    wrongViewport.assets,
+    "desktop",
+    solidGrayscalePng(1279, 720, 0x55),
+  );
+  const wrongViewportGallery = await verifiedGallery(wrongViewport.projection, {
+    evidence: wrongViewport.evidence,
+  });
+  await assert.rejects(
+    () => verifyGalleryVisualAssets(wrongViewportGallery, (sourcePath) => wrongViewport.assets.get(sourcePath)),
+    /PNG dimensions do not match its declared viewport/,
+  );
+
+  const corrupt = qualifiedVisualFixture();
+  const corruptBytes = Buffer.from(corrupt.assets.values().next().value);
+  corruptBytes[corruptBytes.byteLength - 1] ^= 0xff;
+  replaceScreenshotBytes(corrupt.evidence, corrupt.assets, "desktop", corruptBytes);
+  const corruptGallery = await verifiedGallery(corrupt.projection, { evidence: corrupt.evidence });
+  await assert.rejects(
+    () => verifyGalleryVisualAssets(corruptGallery, (sourcePath) => corrupt.assets.get(sourcePath)),
+    /invalid IEND CRC/,
   );
 });
 

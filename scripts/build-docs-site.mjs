@@ -36,11 +36,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "dist", "docs-site");
 const API_SRC = path.join(ROOT, "dist", "docs-api");
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
-const SITE_PROJECTION = path.join(ROOT, SITE_PROJECTION_PATH);
 const SITE_VISUAL_EVIDENCE_PATH = "samples/dist/honua-site-visual-evidence.v1.json";
-const SITE_VISUAL_EVIDENCE = path.join(ROOT, SITE_VISUAL_EVIDENCE_PATH);
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
-const SITE_CONSUMER_FIXTURE = path.join(ROOT, SITE_CONSUMER_FIXTURE_PATH);
+const GALLERY_INPUT_BUDGETS = Object.freeze({
+  projection: 2 * 1024 * 1024,
+  visualEvidence: 4 * 1024 * 1024,
+  consumerFixture: 256 * 1024,
+  client: 64 * 1024,
+});
+const GALLERY_CLIENT_PATH = "scripts/lib/docs-gallery-client.mjs";
 
 const SITE_TITLE = "@honua/sdk-js";
 const SITE_URL = "https://honua-io.github.io/honua-sdk-js/";
@@ -365,9 +369,23 @@ ${scripts}
 // ---------------------------------------------------------------------------
 
 async function loadGalleryModel() {
-  const projectionBytes = fs.readFileSync(SITE_PROJECTION, "utf8");
-  const visualEvidenceBytes = fs.readFileSync(SITE_VISUAL_EVIDENCE, "utf8");
-  const consumerBytes = fs.readFileSync(SITE_CONSUMER_FIXTURE, "utf8");
+  const [projectionBuffer, visualEvidenceBuffer, consumerBuffer] = await Promise.all([
+    readCanonicalBoundedFile(ROOT, SITE_PROJECTION_PATH, {
+      label: "gallery site projection",
+      maxBytes: GALLERY_INPUT_BUDGETS.projection,
+    }),
+    readCanonicalBoundedFile(ROOT, SITE_VISUAL_EVIDENCE_PATH, {
+      label: "gallery visual evidence",
+      maxBytes: GALLERY_INPUT_BUDGETS.visualEvidence,
+    }),
+    readCanonicalBoundedFile(ROOT, SITE_CONSUMER_FIXTURE_PATH, {
+      label: "gallery consumer fixture",
+      maxBytes: GALLERY_INPUT_BUDGETS.consumerFixture,
+    }),
+  ]);
+  const projectionBytes = projectionBuffer.toString("utf8");
+  const visualEvidenceBytes = visualEvidenceBuffer.toString("utf8");
+  const consumerBytes = consumerBuffer.toString("utf8");
   const consumerFixture = parseJsonDocument(consumerBytes, SITE_CONSUMER_FIXTURE_PATH);
   const integrity = await verifyGalleryProjectionIntegrity({
     projectionBytes,
@@ -490,6 +508,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .demo-card-details{border-top:1px solid var(--border);padding-top:.55rem}
 .demo-card-details .demo-facts{margin:.75rem 0 .2rem}
 .site-footer{border-top:1px solid var(--border);margin-top:2rem;padding:1.5rem;text-align:center;color:var(--muted);font-size:.85rem}
+.site-footer a{text-decoration:underline;text-underline-offset:.15em}
 @media (max-width:820px){.layout{flex-direction:column;padding:0 1rem}.sidebar{position:static;flex-basis:auto;max-height:none;width:100%;border-bottom:1px solid var(--border)}}
 @media (max-width:520px){.demo-facts{grid-template-columns:1fr}.demo-facts dd{margin-bottom:.35rem}}
 `;
@@ -605,7 +624,11 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
 
   // Assets.
   writeFile("assets/style.css", STYLE_CSS);
-  writeFile("assets/gallery.js", fs.readFileSync(path.join(ROOT, "scripts/lib/docs-gallery-client.mjs"), "utf8"));
+  const galleryClient = await readCanonicalBoundedFile(ROOT, GALLERY_CLIENT_PATH, {
+    label: "gallery browser client",
+    maxBytes: GALLERY_INPUT_BUDGETS.client,
+  });
+  writeFile("assets/gallery.js", galleryClient);
   // Disable Jekyll so paths beginning with `_` (if any) survive Pages.
   writeFile(".nojekyll", "");
 
