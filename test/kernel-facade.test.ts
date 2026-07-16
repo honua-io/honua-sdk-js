@@ -361,6 +361,31 @@ describe("createHonua application kernel facade", () => {
     await honua.dispose();
   });
 
+  it("disposes a delegated refresh result when cancellation wins after the delegate resolves", async () => {
+    const initial = mockConnection(["parcels"]);
+    const late = mockConnection(["late"]);
+    const lateResult = deferred<HonuaConnection>();
+    const disposeLate = vi.fn(async () => undefined);
+    Object.assign(late.connection, { [Symbol.asyncDispose]: disposeLate });
+    const calls: ConnectOptions[] = [];
+    const honua = createHonuaKernel({
+      connectDelegate: sequenceDelegate(calls, [initial.connection, lateResult.promise]),
+    });
+    const connection = await honua.connect("https://geo.example.test/ogc", { protocol: "ogc-features" });
+    const stable = await connection.inspect();
+    const caller = new AbortController();
+    const refresh = connection.inspect({ refresh: true, signal: caller.signal });
+
+    lateResult.resolve(late.connection);
+    caller.abort();
+
+    await expect(refresh).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(disposeLate).toHaveBeenCalledTimes(1);
+    expect(await connection.inspect()).toBe(stable);
+    await honua.dispose();
+    expect(disposeLate).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects connect/disposal races even when a delegate ignores cancellation", async () => {
     const pending = deferred<HonuaConnection>();
     const calls: ConnectOptions[] = [];

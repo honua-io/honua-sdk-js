@@ -228,7 +228,7 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
     if (inspectOptions.refresh !== true) return this.#current.inspection;
 
     const generation = ++this.#refreshGeneration;
-    let discovered: DiscoveredHonuaConnection;
+    let discovered: DiscoveredHonuaConnection | undefined;
     try {
       discovered = await this.#lifecycle.connect(this.#endpoint, {
         ...this.#options,
@@ -238,8 +238,12 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
       throwIfAborted(this.#abortController.signal);
       throwIfAborted(signal);
     } catch (error) {
+      if (discovered && !this.#ownedDiscoveries.has(discovered)) {
+        await cleanupRejectedConnection(discovered, this.#secrets);
+      }
       throw credentialSafeError(error, this.#secrets);
     }
+    if (!discovered) throw new Error("Kernel refresh completed without a connection.");
 
     let refreshed: ManagedConnectionState;
     try {
