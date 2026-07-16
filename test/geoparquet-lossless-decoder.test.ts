@@ -314,6 +314,24 @@ describe("GeoParquet lossless DuckDB value decoder", () => {
       code: "GEOPARQUET_LOSSLESS_PRECISION_LOSS",
     },
     {
+      label: "ambiguous Arrow microsecond timestamp number",
+      type: "TIMESTAMP",
+      value: Number.MAX_SAFE_INTEGER / 1_000,
+      code: "GEOPARQUET_LOSSLESS_PRECISION_LOSS",
+    },
+    {
+      label: "timestamp outside DuckDB physical int64 units",
+      type: "TIMESTAMP_NS",
+      value: 1n << 63n,
+      code: "GEOPARQUET_LOSSLESS_INVALID_VALUE",
+    },
+    {
+      label: "timestamp string outside DuckDB physical int64 units",
+      type: "TIMESTAMP",
+      value: "+999999-12-31 23:59:59.999999",
+      code: "GEOPARQUET_LOSSLESS_INVALID_VALUE",
+    },
+    {
       label: "timezone-less TIME wrapper for TIME WITH TIME ZONE",
       type: "TIME WITH TIME ZONE",
       value: 12_345_678n,
@@ -438,6 +456,11 @@ describe("GeoParquet lossless DuckDB value decoder", () => {
     expectFailure(() => compileDuckDbLosslessValueDecoder("DECIMAL(4,5)"), "GEOPARQUET_LOSSLESS_INVALID_TYPE");
     expectFailure(() => decodeDuckDbLosslessValue("INTERVAL", "P1D"), "GEOPARQUET_LOSSLESS_UNSUPPORTED_TYPE");
     expectFailure(() => decodeDuckDbLosslessValue("INTERVAL", null), "GEOPARQUET_LOSSLESS_UNSUPPORTED_TYPE");
+    const rowError = expectFailure(
+      () => compileDuckDbLosslessRowDecoder([{ name: "duration", type: "INTERVAL" }]),
+      "GEOPARQUET_LOSSLESS_UNSUPPORTED_TYPE",
+    );
+    expect(rowError.path).toBe("$.fields[0]");
   });
 
   it("does not retain or report rejected scalar values", () => {
@@ -457,6 +480,7 @@ describe("DuckDB aggregate output type derivation", () => {
     { name: "small", type: "INTEGER" },
     { name: "large", type: "BIGINT" },
     { name: "unsigned", type: "UBIGINT" },
+    { name: "very_unsigned", type: "UHUGEINT" },
     { name: "amount", type: "DECIMAL(20,5)" },
     { name: "observed_at", type: "TIMESTAMP_NS" },
     { name: "ratio", type: "REAL" },
@@ -470,6 +494,7 @@ describe("DuckDB aggregate output type derivation", () => {
         { fn: "sum", field: "small" },
         { fn: "sum", field: "large", alias: "large_total" },
         { fn: "sum", field: "unsigned" },
+        { fn: "sum", field: "very_unsigned" },
         { fn: "sum", field: "amount" },
         { fn: "min", field: "observed_at" },
         { fn: "max", field: "large" },
@@ -485,6 +510,7 @@ describe("DuckDB aggregate output type derivation", () => {
       { name: "sum_small", type: "HUGEINT", source: "metric" },
       { name: "large_total", type: "HUGEINT", source: "metric" },
       { name: "sum_unsigned", type: "HUGEINT", source: "metric" },
+      { name: "sum_very_unsigned", type: "DOUBLE", source: "metric" },
       { name: "sum_amount", type: "DECIMAL(38,5)", source: "metric" },
       { name: "min_observed_at", type: "TIMESTAMP_NS", source: "metric" },
       { name: "max_large", type: "BIGINT", source: "metric" },

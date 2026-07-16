@@ -191,6 +191,19 @@ describe("GeoParquet lossless-json source wiring", () => {
     await resolver.dispose();
   });
 
+  it("rejects every non-canonical result encoding through direct and resolver construction", async () => {
+    for (const resultEncoding of [null, "", "LOSSLESS", 1]) {
+      expect(() => geoparquetSource(descriptor(), { resultEncoding: resultEncoding as never })).toThrowError(
+        /resultEncoding must be "legacy" or "lossless-json"/,
+      );
+      const resolver = geoparquetResolver({ resultEncoding: resultEncoding as never });
+      expect(() => resolver(descriptor(), {} as never)).toThrowError(
+        /resultEncoding must be "legacy" or "lossless-json"/,
+      );
+      await resolver.dispose();
+    }
+  });
+
   it("invalidates compiled decoders when the effective profile changes", async () => {
     let row: DuckRow = { value: 7 };
     const h = harness({
@@ -251,6 +264,38 @@ describe("GeoParquet lossless-json source wiring", () => {
     await h.runtime.dispose();
   });
 
+  it("stops waiting on a shared profile when the caller aborts", async () => {
+    let releaseDescribe!: (rows: readonly DuckRow[]) => void;
+    const describeRows = new Promise<readonly DuckRow[]>((resolve) => {
+      releaseDescribe = resolve;
+    });
+    const scans: string[] = [];
+    const driver: DuckDbDriver = {
+      async run() {},
+      async query(sql) {
+        if (sql.startsWith("DESCRIBE")) return [...(await describeRows)];
+        if (sql.includes("parquet_kv_metadata")) return [];
+        if (sql.includes("parquet_file_metadata")) return [{ row_estimate: 1n }];
+        scans.push(sql);
+        return [{ value: "unreachable" }];
+      },
+      async registerFileBuffer() {},
+      async close() {},
+    };
+    const runtime = new GeoparquetRuntime({ driverFactory: async () => driver });
+    const source = geoparquetSource(descriptor(), { runtime, resultEncoding: "lossless-json" });
+    const abort = new AbortController();
+    const pending = source.query({ returnGeometry: false, signal: abort.signal });
+    abort.abort();
+
+    await expect(pending).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(scans).toEqual([]);
+
+    releaseDescribe([{ column_name: "value", column_type: "VARCHAR", null: "NO" }]);
+    await runtime.profile([URL]);
+    await runtime.dispose();
+  });
+
   it("stops a stream between batches without decoding the next batch", async () => {
     const abort = new AbortController();
     let accessed = false;
@@ -282,9 +327,11 @@ describe("GeoParquet lossless-json source wiring", () => {
   it("fails unknown opt-in projections before scanning", async () => {
     const h = harness({ query: () => [LOSSLESS_FEATURE_ROW] });
     const source = geoparquetSource(descriptor(), { runtime: h.runtime, resultEncoding: "lossless-json" });
-    await expect(source.query({ outFields: ["missing"], returnGeometry: false })).rejects.toThrow(
-      /absent from the effective schema/,
-    );
+    await expect(source.query({ outFields: ["missing"], returnGeometry: false })).rejects.toMatchObject({
+      code: "GEOPARQUET_LOSSLESS_INVALID_TYPE",
+      path: "$.outFields[0]",
+      declaredType: "ROW",
+    });
     expect(h.scans).toEqual([]);
     await h.runtime.dispose();
   });

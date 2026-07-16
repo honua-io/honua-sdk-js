@@ -109,20 +109,23 @@ The opt-in applies consistently to `query()`, `queryAll()`, `stream()`, and
 | safe integers, finite floating point, booleans, text, null | native JSON scalar |
 
 Aggregate decoding uses DuckDB's **output** types, not its input column types:
-`count` is `BIGINT`, integer `sum` is `HUGEINT`, decimal `sum` is
-`DECIMAL(38, scale)`, and grouped keys retain their source types. Consequently,
-exact counts and sums are strings in lossless mode, even when their current
-values happen to fit in a JavaScript safe integer.
+`count` is `BIGINT`, integer `sum` through `UBIGINT` is `HUGEINT`, decimal
+`sum` is `DECIMAL(38, scale)`, and grouped keys retain their source types.
+DuckDB's `sum(UHUGEINT)` exception is a `DOUBLE` and is decoded as that
+effective result type. Consequently, exact counts and exact widened sums are
+strings in lossless mode, even when their current values happen to fit in a
+JavaScript safe integer.
 
 The source casts exact root scalars to text in an outer projection over the
 already-compiled query. This prevents Arrow from rounding a value first and
 does not add another `read_parquet` scan. Nested Arrow values are decoded at a
 bounded, accessor-free boundary; ambiguous wrappers, unsafe numbers, cycles,
 or excessive depth/width throw `DuckDbLosslessDecodeError` instead of silently
-changing data. The compiled decoder cache is tied to both the effective
+changing data. The bounded compiled-decoder cache is tied to both the effective
 `DESCRIBE` profile and the optional `SourceSchemaV2` fingerprint and is cleared
 when either identity changes. `Query.signal` is checked around profile, query,
-batch, and row decoding boundaries.
+batch, and row decoding boundaries; aborting one caller stops its wait without
+cancelling a shared profile build needed by other sources.
 
 Lossless mode guarantees that `JSON.stringify(result)` does not encounter a
 `bigint`, typed array, `Map`, or `Date`. It does not change geometry output or

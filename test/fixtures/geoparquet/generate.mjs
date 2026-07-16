@@ -11,7 +11,7 @@
 //   3. lossless-values.parquet — exact wide integer, decimal, temporal,
 //      binary, list, and struct values used by the opt-in JSON result tests.
 //
-// Both carry the same 8 Oahu "places" with stable GERS-style ids so the
+// The first two carry the same 8 Oahu "places" with stable GERS-style ids so the
 // example and tests can assert on them. Regenerate with:
 //   node test/fixtures/geoparquet/generate.mjs
 //

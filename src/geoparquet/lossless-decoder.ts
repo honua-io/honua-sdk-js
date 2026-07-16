@@ -136,9 +136,18 @@ export function compileDuckDbLosslessRowDecoder(fields: readonly SourceProfileFi
       throw new DuckDbLosslessDecodeError("GEOPARQUET_LOSSLESS_INVALID_TYPE", `$.fields[${index}]`, "ROW");
     }
     names.add(field.name);
+    let decoder: DuckDbLosslessValueDecoder;
+    try {
+      decoder = compileDuckDbLosslessValueDecoder(field.type);
+    } catch (error) {
+      if (error instanceof DuckDbLosslessDecodeError) {
+        throw new DuckDbLosslessDecodeError(error.code, `$.fields[${index}]`, error.declaredType);
+      }
+      throw error;
+    }
     return Object.freeze({
       field: Object.freeze({ ...field }),
-      decoder: compileDuckDbLosslessValueDecoder(field.type),
+      decoder,
     });
   });
   const frozenFields = Object.freeze(compiled.map(({ field }) => field));
@@ -284,6 +293,9 @@ function aggregateMetricType(
       return "DOUBLE";
     case "sum":
       if (parsed.kind === "decimal") return `DECIMAL(38,${parsed.scale})`;
+      // DuckDB promotes every built-in integer sum through UBIGINT to
+      // HUGEINT, but UHUGEINT is the deliberate exception and returns DOUBLE.
+      if (parsed.kind === "scalar" && parsed.name === "UHUGEINT") return "DOUBLE";
       if (parsed.kind === "scalar" && isIntegerName(parsed.name)) return "HUGEINT";
       if (parsed.kind === "scalar" && isFloatingName(parsed.name)) return "DOUBLE";
       aggregateFailure(path, "SUM_INPUT_TYPE_UNSUPPORTED");
@@ -421,6 +433,8 @@ const TEXT_TYPES = new Set([
 ]);
 const BINARY_TYPES = new Set(["BINARY", "BLOB", "BYTEA", "VARBINARY"]);
 const FLOATING_TYPES = new Set(["DOUBLE", "FLOAT", "REAL"]);
+const SIGNED_64_MINIMUM = -(1n << 63n);
+const SIGNED_64_MAXIMUM = (1n << 63n) - 1n;
 
 function isFloatingName(name: string): boolean {
   return FLOATING_TYPES.has(name);
@@ -592,7 +606,7 @@ function temporalUnits(
   path: string,
   allowDate: boolean,
 ): bigint {
-  if (typeof value === "bigint") return value;
+  if (typeof value === "bigint") return validateTemporalRange(value, state, path);
   let milliseconds: number | undefined;
   if (typeof value === "number") milliseconds = value;
   else if (allowDate) milliseconds = dateMilliseconds(value);
@@ -601,7 +615,14 @@ function temporalUnits(
   const exponent = precision - 3;
   const scaled = exponent >= 0 ? milliseconds * 10 ** exponent : milliseconds / 10 ** -exponent;
   if (!Number.isSafeInteger(scaled)) failure(state, "GEOPARQUET_LOSSLESS_PRECISION_LOSS", path);
-  return BigInt(scaled);
+  const exact = BigInt(scaled);
+  if (exponent > 0) {
+    const divisor = 10 ** exponent;
+    if (Number(exact - 1n) / divisor === milliseconds || Number(exact + 1n) / divisor === milliseconds) {
+      failure(state, "GEOPARQUET_LOSSLESS_PRECISION_LOSS", path);
+    }
+  }
+  return validateTemporalRange(exact, state, path);
 }
 
 function normalizeTimeString(
@@ -641,15 +662,22 @@ function normalizeTimestampString(
   const fraction = normalizeFraction(match[7] ?? "", type.precision, state, path);
   const zone = match[8];
   if (type.zoned !== (zone !== undefined)) invalidValue(state, path, value);
+  const perSecond = 10n ** BigInt(type.precision);
+  const days = daysFromCivil(date.year, date.month, date.day);
+  const localUnits = (days * 86_400n + BigInt(hour * 3_600 + minute * 60 + second)) * perSecond + fraction;
 
   if (!type.zoned) {
+    validateTemporalRange(localUnits, state, path);
     return `${formatCivilDate(date)}T${formatClock(hour, minute, second, fraction, type.precision)}`;
   }
-  const perSecond = 10n ** BigInt(type.precision);
   const offsetSeconds = parseOffsetSeconds(zone!, state, path);
-  const days = daysFromCivil(date.year, date.month, date.day);
-  const units = (days * 86_400n + BigInt(hour * 3_600 + minute * 60 + second - offsetSeconds)) * perSecond + fraction;
+  const units = validateTemporalRange(localUnits - BigInt(offsetSeconds) * perSecond, state, path);
   return formatEpochTimestamp(units, type.precision, true);
+}
+
+function validateTemporalRange(units: bigint, state: DecodeState, path: string): bigint {
+  if (units < SIGNED_64_MINIMUM || units > SIGNED_64_MAXIMUM) invalidValue(state, path, units);
+  return units;
 }
 
 function normalizeFraction(digits: string, precision: number, state: DecodeState, path: string): bigint {

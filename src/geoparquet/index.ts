@@ -65,6 +65,7 @@ import {
 } from "../core/geoparquet-sql.js";
 import type { EsriFieldType, HonuaExtent, HonuaFieldInfo, HonuaTypedFeature } from "../core/types.js";
 import {
+  DuckDbLosslessDecodeError,
   type DuckDbLosslessJsonValue,
   type DuckDbLosslessRowDecoder,
   compileDuckDbLosslessRowDecoder,
@@ -101,6 +102,7 @@ const MAX_GEO_METADATA_TOTAL_BYTES = 8 * 1024 * 1024;
 const MAX_GEO_METADATA_DOCUMENTS = 10_000;
 const MAX_GEO_METADATA_DEPTH = 32;
 const MAX_GEO_METADATA_NODES = 100_000;
+const MAX_LOSSLESS_DECODER_CACHE_ENTRIES = 32;
 
 /** Lifecycle options supplied while a fresh {@link DuckDbDriver} is initialized. */
 export interface DuckDbDriverFactoryOptions {
@@ -469,14 +471,45 @@ function rowToFeature<T>(row: DuckRow, wantGeometry: boolean): HonuaTypedFeature
 
 function throwIfQueryAborted(signal: AbortSignal | undefined, cause?: unknown): void {
   if (!signal?.aborted) return;
-  throw new HonuaAbortError("GeoParquet query was aborted", {
+  throw queryAbortError(cause);
+}
+
+function queryAbortError(cause?: unknown): HonuaAbortError {
+  return new HonuaAbortError("GeoParquet query was aborted", {
     ...(cause instanceof Error ? { cause } : {}),
   });
 }
 
+function awaitQueryAbortable<T>(pending: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return pending;
+  if (signal.aborted) {
+    void pending.catch(() => undefined);
+    throw queryAbortError();
+  }
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", abort);
+      callback();
+    };
+    const abort = () => finish(() => reject(queryAbortError()));
+    signal.addEventListener("abort", abort, { once: true });
+    pending.then(
+      (value) => finish(() => resolve(value)),
+      (cause: unknown) => finish(() => reject(signal.aborted ? queryAbortError(cause) : cause)),
+    );
+  });
+}
+
+function losslessProjectionFailure(path: string, declaredType = "ROW"): never {
+  throw new DuckDbLosslessDecodeError("GEOPARQUET_LOSSLESS_INVALID_TYPE", path, declaredType);
+}
+
 function requireLosslessFields(profile: SourceProfile): readonly SourceProfileField[] {
   if (!profile.fields) {
-    throw new Error("geoparquet: lossless-json requires an effective DESCRIBE schema");
+    losslessProjectionFailure("$.profile.fields");
   }
   return profile.fields;
 }
@@ -488,9 +521,9 @@ function featureOutputFields(
 ): readonly SourceProfileField[] {
   const fields = requireLosslessFields(profile);
   const byName = new Map<string, SourceProfileField>();
-  for (const field of fields) {
+  for (const [index, field] of fields.entries()) {
     if (byName.has(field.name)) {
-      throw new Error("geoparquet: lossless-json effective schema contains a duplicate field");
+      losslessProjectionFailure(`$.profile.fields[${index}]`, field.type);
     }
     byName.set(field.name, field);
   }
@@ -498,9 +531,9 @@ function featureOutputFields(
     request?.outFields && request.outFields.length > 0
       ? request.outFields.filter((name) => name !== profile.geometry?.column)
       : profile.columns;
-  const output = requested.map((name) => {
+  const output = requested.map((name, index) => {
     const field = byName.get(name);
-    if (!field) throw new Error("geoparquet: lossless-json projection is absent from the effective schema");
+    if (!field) losslessProjectionFailure(`$.outFields[${index}]`);
     return field;
   });
   if (wantGeometry) output.push({ name: GEOPARQUET_ALIAS, type: "VARCHAR", nullable: true });
@@ -517,7 +550,7 @@ function losslessTransportSql(sql: string, fields: readonly SourceProfileField[]
     return transport === "text" ? `CAST(${identifier} AS VARCHAR) AS ${identifier}` : identifier;
   });
   if (projections.length === 0) {
-    throw new Error("geoparquet: lossless-json requires at least one projected field");
+    losslessProjectionFailure("$.outFields");
   }
   return `SELECT ${projections.join(", ")} FROM (${sql}) AS "__honua_lossless"`;
 }
@@ -658,7 +691,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
   const geometryColumnOverride = descriptor.locator.geoparquet?.geometryColumn;
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.geoparquet;
   const sourceDescriptor: SourceDescriptor = { ...descriptor, capabilities: caps };
-  const resultEncoding = options.resultEncoding ?? "legacy";
+  const resultEncoding = options.resultEncoding === undefined ? "legacy" : options.resultEncoding;
   if (resultEncoding !== "legacy" && resultEncoding !== "lossless-json") {
     throw new TypeError('geoparquet: resultEncoding must be "legacy" or "lossless-json"');
   }
@@ -669,7 +702,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
 
   async function compileOptions(signal?: AbortSignal): Promise<{ profile: SourceProfile; opts: CompileOptions }> {
     throwIfQueryAborted(signal);
-    const profile = await runtime.profile(sources, geometryColumnOverride);
+    const profile = await awaitQueryAbortable(runtime.profile(sources, geometryColumnOverride), signal);
     throwIfQueryAborted(signal);
     const geometry = profile.geometry?.runtimeSupported === false ? undefined : profile.geometry;
     const opts: CompileOptions = {
@@ -692,8 +725,16 @@ export function geoparquetSource<T = Record<string, unknown>>(
     }
     const projectionIdentity = JSON.stringify(fields.map((field) => [field.name, field.type, field.nullable ?? null]));
     const cached = decoderCache.get(projectionIdentity);
-    if (cached) return cached;
+    if (cached) {
+      decoderCache.delete(projectionIdentity);
+      decoderCache.set(projectionIdentity, cached);
+      return cached;
+    }
     const compiled = compileDuckDbLosslessRowDecoder(fields);
+    if (decoderCache.size >= MAX_LOSSLESS_DECODER_CACHE_ENTRIES) {
+      const oldest = decoderCache.keys().next().value;
+      if (oldest !== undefined) decoderCache.delete(oldest);
+    }
     decoderCache.set(projectionIdentity, compiled);
     return compiled;
   }
@@ -980,7 +1021,7 @@ export function geoparquetResolver(options: GeoparquetResolverOptions = {}): Geo
     if (descriptor.protocol !== ("geoparquet" satisfies Protocol)) return undefined;
     return geoparquetSource(descriptor, {
       runtime,
-      ...(options.resultEncoding ? { resultEncoding: options.resultEncoding } : {}),
+      ...(options.resultEncoding !== undefined ? { resultEncoding: options.resultEncoding } : {}),
     });
   };
   return Object.assign(fn, { runtime, dispose: () => runtime.dispose() });
