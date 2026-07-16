@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type Capability,
+  PROTOCOL_DEFAULT_CAPABILITIES,
   type Source,
   type SourceDescriptor,
   capabilities,
@@ -229,6 +230,30 @@ describe("source.supports()", () => {
     await expect(
       source.queryAggregate({ aggregation: { metrics: [{ fn: "count", field: "*" }] } }),
     ).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+  });
+
+  it("preserves protocol defaults when JavaScript descriptors omit capabilities", () => {
+    const feature = geoServicesFeatureSource(
+      {
+        id: "default-feature",
+        protocol: "geoservices-feature-service",
+        locator: { url: "https://mock", serviceId: "Parcels", layerId: 0 },
+      } as unknown as SourceDescriptor,
+      makeMockClient({ routes: [] }),
+      "strict",
+    );
+    const parquet = geoparquetSource({
+      id: "default-parquet",
+      protocol: "geoparquet",
+      locator: { url: "https://mock/parcels.parquet" },
+    } as unknown as SourceDescriptor);
+
+    expect(feature.descriptor.capabilities).toBe(PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"]);
+    expect(feature.capabilities).toBe(feature.descriptor.capabilities);
+    expect(feature.supports("query")).toBe(true);
+    expect(parquet.descriptor.capabilities).toBe(PROTOCOL_DEFAULT_CAPABILITIES.geoparquet);
+    expect(parquet.capabilities).toBe(parquet.descriptor.capabilities);
+    expect(parquet.supports("query")).toBe(true);
   });
 
   it("preserves legacy set semantics and decorates third-party resolver results in place", () => {

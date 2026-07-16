@@ -3248,7 +3248,7 @@ function makeSource<T>(
     protocol: lookupAdapter,
     adapter: lookupAdapter,
   };
-  return addCapabilitySupport(source, descriptor);
+  return addCapabilitySupport(source, source.descriptor);
 }
 
 /**

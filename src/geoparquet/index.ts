@@ -796,7 +796,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
       return adapterRegistry[kind] as never;
     },
   };
-  return addCapabilitySupport(source, descriptor);
+  return addCapabilitySupport(source, source.descriptor);
 }
 
 // ── Resolver (createDataset integration) ──────────────────────
