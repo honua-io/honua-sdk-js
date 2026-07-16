@@ -48,7 +48,8 @@
     "/query-planner was reset at the completed semantic-query S2 boundary (#526): deterministic canonical identity, strict lossless CQL2 JSON 1.0 interchange with prototype-pollution resistance, and the explicit raw-where compatibility bridge measure 408,678 minified / 73,290 gzip bytes. Both ceilings are the measured exact-head size plus 10% headroom; the codec remains opt-in, and root, /honua, browser, and protocol-specific budget ceilings remain unchanged.",
     "/source-capabilities was reset after #525 slice 1 review required complete ResolvedCrsDefinition and official PROJJSON v0.7 validation plus bounded, pollution-safe, freshness-aware capability evaluation. The final audit adds credential-safe structural identifiers, redacted rejection paths, canonical-JSON UTF-8 set ordering, and a normalized credential-free source-endpoint digest that prevents same-schema cross-endpoint replay. The full experimental subpath now measures 30,918 gzip bytes; only its exceeded gzip ceiling is reset to 34,010 bytes (measured actual plus 10% headroom). The named evaluateCapabilityProfile fixture remains isolated from the endpoint and CRS/PROJJSON validators.",
     "/source-capability-discovery has its first dedicated guard for #525 slice 3. It intentionally owns the heavy SourceSchemaV2 validator plus GeoServices/OData connect graph while /source-capabilities remains evaluator-only and tree-shakeable. The initial 682,644 minified / 142,099 gzip measurement is budgeted at measured actual plus 10% headroom.",
-    "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom."
+    "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom.",
+    "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation."
   ],
   "entrypoints": {
     ".": {
@@ -168,8 +169,8 @@
       "gzip": 95076
     },
     "tree-shake:source-capabilities-evaluate": {
-      "min": 16533,
-      "gzip": 5682
+      "min": 18332,
+      "gzip": 6372
     },
     "/react": {
       "min": 457456,
