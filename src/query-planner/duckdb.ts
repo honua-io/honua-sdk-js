@@ -367,21 +367,33 @@ function duckDbProjection(query: RuntimeDuckDbQuery, state: DuckDbSemanticState)
   const names =
     query.select ?? state.schema.fields.filter((field) => field.type.kind !== "geometry").map((field) => field.name);
   const parts: string[] = [];
+  let geometryAliasCollisionPath: string | undefined;
   names.forEach((name, index) => {
-    const field = semanticSchemaField(state.schema, name as string, `$.select[${index}]`);
+    const path = `$.select[${index}]`;
+    const field = semanticSchemaField(state.schema, name as string, path);
     if (field.type.kind === "geometry") {
       if (!geometryField || field.name !== geometryField.name) {
         semanticUnsupported(
           "unsupported-projection",
-          `$.select[${index}]`,
+          path,
           "DuckDB semantic results expose only the selected top-level geometry",
         );
       }
       return;
     }
-    parts.push(aliasedDuckDbField(state.schema, field.name, `$.select[${index}]`));
+    if (field.name.toLowerCase() === "geometry") {
+      geometryAliasCollisionPath = query.select ? path : "$.geometry";
+    }
+    parts.push(aliasedDuckDbField(state.schema, field.name, path));
   });
   if (geometryField) {
+    if (geometryAliasCollisionPath) {
+      semanticUnsupported(
+        "unsupported-projection",
+        geometryAliasCollisionPath,
+        'DuckDB cannot project an attribute using the reserved geometry result alias "geometry" while returning geometry',
+      );
+    }
     const geometry = requiredDuckDbGeometry(state, geometryField.name, "$.geometry");
     const geometrySchema = sourceGeometryField(state.schema, geometryField.name, "$.geometry");
     const crs = executableDuckDbCrs(geometrySchema.crs, "$.geometry");
@@ -593,10 +605,88 @@ function compileDuckDbFilter(filter: RuntimeDuckDbFilter, state: DuckDbSemanticS
           "DuckDB native filters require a duckdb-sql text payload",
         );
       }
+      if (hasDuckDbAnonymousParameter(filter.payload.text)) {
+        semanticUnsupported(
+          "unsupported-native-filter",
+          `${path}.payload.text`,
+          "DuckDB native filters cannot contain anonymous parameters because the native payload carries no bind values",
+        );
+      }
       state.usesNativeFilter = true;
       return `(${filter.payload.text})`;
     }
   }
+}
+
+function hasDuckDbAnonymousParameter(text: string): boolean {
+  let index = 0;
+  while (index < text.length) {
+    const character = text[index];
+    if (character === "'" || character === '"') {
+      index = skipDuckDbQuotedToken(text, index, character);
+      continue;
+    }
+    if (character === "-" && text[index + 1] === "-") {
+      index += 2;
+      while (index < text.length && text[index] !== "\n" && text[index] !== "\r") index += 1;
+      continue;
+    }
+    if (character === "/" && text[index + 1] === "*") {
+      index = skipDuckDbBlockComment(text, index + 2);
+      continue;
+    }
+    if (character === "$") {
+      const delimiter = duckDbDollarQuoteDelimiter(text, index);
+      if (delimiter) {
+        const end = text.indexOf(delimiter, index + delimiter.length);
+        index = end === -1 ? text.length : end + delimiter.length;
+        continue;
+      }
+    }
+    if (character === "?") return true;
+    index += 1;
+  }
+  return false;
+}
+
+function skipDuckDbQuotedToken(text: string, start: number, quote: "'" | '"'): number {
+  let index = start + 1;
+  while (index < text.length) {
+    if (text[index] !== quote) {
+      index += 1;
+      continue;
+    }
+    if (text[index + 1] === quote) {
+      index += 2;
+      continue;
+    }
+    return index + 1;
+  }
+  return index;
+}
+
+function skipDuckDbBlockComment(text: string, start: number): number {
+  let depth = 1;
+  let index = start;
+  while (index < text.length && depth > 0) {
+    if (text[index] === "/" && text[index + 1] === "*") {
+      depth += 1;
+      index += 2;
+      continue;
+    }
+    if (text[index] === "*" && text[index + 1] === "/") {
+      depth -= 1;
+      index += 2;
+      continue;
+    }
+    index += 1;
+  }
+  return index;
+}
+
+function duckDbDollarQuoteDelimiter(text: string, start: number): string | undefined {
+  const match = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(text.slice(start));
+  return match?.[0];
 }
 
 function compileDuckDbSpatial(

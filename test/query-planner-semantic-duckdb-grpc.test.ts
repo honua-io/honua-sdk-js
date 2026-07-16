@@ -611,6 +611,40 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     expect(omitted).not.toHaveProperty("outputGeometry");
   });
 
+  it("rejects an attribute that collides with the reserved geometry result alias", () => {
+    const base = schema();
+    const collidingSchema = createSourceSchemaV2({
+      fields: [...base.fields, field("geometry", { kind: "string" })],
+      key: base.key,
+      geometry: base.geometry,
+      temporal: base.temporal,
+      openContent: base.openContent,
+      provenance: base.provenance,
+    });
+    const query = createSemanticQueryBuilder<
+      Incident & { readonly geometry: string },
+      "geoparquet",
+      "primary-geometry"
+    >();
+
+    for (const features of [
+      query.features({ select: ["geometry"] as const, geometry: "include" }),
+      query.features({ geometry: "include" }),
+    ]) {
+      expect(
+        compileSemanticDuckDbQuery({
+          query: features,
+          schema: collidingSchema,
+          resource,
+          geometry: { field: "shape", encoding: "wkb" },
+        }),
+      ).toMatchObject({
+        outcome: "unsupported",
+        diagnostics: [{ code: "unsupported-projection" }],
+      });
+    }
+  });
+
   it("does not label measured or unknown DuckDB GeoJSON output layouts as exact", () => {
     const query = createSemanticQueryBuilder<Incident, "geoparquet", "primary-geometry">();
     for (const layout of ["xym", "xyzm", "unknown"] as const) {
@@ -775,6 +809,26 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     expect(compiled(duckResult)).toMatchObject({ usesNativeFilter: true });
     expect(compiled(duckResult).sqlTemplate).toContain("WHERE (amount > 0)");
     expect(compiled(grpcResult)).toMatchObject({ usesNativeFilter: true, where: "amount > 0" });
+
+    const quotedQuestionMark = duckDb(
+      duck.features({
+        geometry: "omit",
+        filter: duck.native("duckdb-sql", { format: "text", text: "status = '?' /* ? */" }),
+      }),
+    );
+    expect(compiled(quotedQuestionMark).sqlTemplate).toContain("WHERE (status = '?' /* ? */)");
+
+    expect(
+      duckDb(
+        duck.features({
+          geometry: "omit",
+          filter: duck.native("duckdb-sql", { format: "text", text: "amount > ?" }),
+        }),
+      ),
+    ).toMatchObject({
+      outcome: "unsupported",
+      diagnostics: [{ code: "unsupported-native-filter", path: "$.filter.payload.text" }],
+    });
 
     const quotedAnd = grpc(
       honua.features({
