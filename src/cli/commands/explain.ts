@@ -14,7 +14,8 @@
 
 import type { Capability, Protocol, Query, SourceDescriptor, SourceLocator } from "../../contract/types.js";
 import { PROTOCOLS, PROTOCOL_DEFAULT_CAPABILITIES, capabilities } from "../../contract/types.js";
-import { explainQuery } from "../../query-planner/index.js";
+import { createGeoParquetResourceHandle, explainQuery } from "../../query-planner/index.js";
+import type { GeoParquetResourceHandleV1 } from "../../query-planner/resource.js";
 import type { ParsedArgs } from "../args.js";
 import { ArgError, getArray, getBoolean, getNumber, getString, parseBbox, parseServiceLayer } from "../args.js";
 import type { CommandContext } from "../command.js";
@@ -40,7 +41,7 @@ function parseCapabilities(raw: string | undefined, protocol: Protocol): Capabil
  * Resolve the protocol-specific locator from the positional ref and flags. The
  * ref carries `<service>/<layer>` for GeoServices/gRPC, the collection id for
  * OGC API Features, the type name for WFS, the entity set for OData, and the
- * parquet URL for GeoParquet.
+ * opaque resource id for GeoParquet.
  */
 function buildLocator(protocol: Protocol, ref: string | undefined, baseUrl: string, parsed: ParsedArgs): SourceLocator {
   switch (protocol) {
@@ -59,12 +60,27 @@ function buildLocator(protocol: Protocol, ref: string | undefined, baseUrl: stri
     case "geoparquet": {
       const geometryColumn = getString(parsed, "geometry-column");
       return {
-        url: ref ?? baseUrl,
+        url: "honua-resource://opaque",
         ...(geometryColumn ? { geoparquet: { geometryColumn } } : {}),
       };
     }
     default:
       return { url: baseUrl };
+  }
+}
+
+function buildGeoParquetResource(parsed: ParsedArgs, ref: string | undefined): GeoParquetResourceHandleV1 {
+  try {
+    return createGeoParquetResourceHandle({
+      resolver: getString(parsed, "resolver") ?? "io.honua.cli",
+      id: getString(parsed, "resource-id") ?? ref ?? mustFlag("resource-id"),
+      authorizationContextId: getString(parsed, "authorization-context") ?? "anonymous",
+      ...(getString(parsed, "resource-version") ? { resourceVersion: getString(parsed, "resource-version") } : {}),
+    });
+  } catch {
+    throw new ArgError(
+      "GeoParquet explain requires a bounded opaque resource id, resolver, and non-secret authorization context",
+    );
   }
 }
 
@@ -100,14 +116,20 @@ export async function explainCommand(parsed: ParsedArgs, ctx: CommandContext): P
   const locator = buildLocator(protocol, ref, baseUrl, parsed);
 
   const descriptor: SourceDescriptor = {
-    id: getString(parsed, "id") ?? ref ?? protocol,
+    id:
+      getString(parsed, "id") ??
+      (protocol === "geoparquet" ? (getString(parsed, "resource-id") ?? ref) : ref) ??
+      protocol,
     protocol,
     locator,
     capabilities: capabilities(parseCapabilities(getString(parsed, "capabilities"), protocol)),
   };
 
   const query = buildQuery(parsed);
-  const plan = explainQuery({ descriptor, query });
+  const plan =
+    protocol === "geoparquet"
+      ? explainQuery({ descriptor, query, geoparquetResource: buildGeoParquetResource(parsed, ref) })
+      : explainQuery({ descriptor, query });
 
   if (getBoolean(parsed, "json")) {
     printLine(renderJson(plan));

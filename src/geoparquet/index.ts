@@ -506,6 +506,21 @@ export interface GeoparquetSourceHandle {
   describe(): Promise<GeoparquetDescription>;
   /** Run arbitrary SQL against the shared DuckDB instance. */
   sql(query: string): Promise<DuckRow[]>;
+  /**
+   * Execute a reviewed plan with ephemeral sources supplied by an opaque
+   * resource resolver. The sources are compiled and consumed immediately and
+   * never enter the runtime profile cache.
+   */
+  executeResolvedQuery<T = Record<string, unknown>>(input: GeoparquetResolvedQueryInput<T>): Promise<Result<T>>;
+}
+
+export interface GeoparquetResolvedQueryInput<T = Record<string, unknown>> {
+  readonly sources: readonly string[];
+  readonly operation: "query" | "queryAll" | "queryAggregate";
+  readonly query: Query<T>;
+  /** Validated logical id from the opaque handle, used only for degradation diagnostics. */
+  readonly sourceId: string;
+  readonly geometry?: GeometryColumnPlan;
 }
 
 declare module "../contract/types.js" {
@@ -568,7 +583,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
     return { profile, opts };
   }
 
-  function degradedFor(bboxApproximated: boolean): DegradedReason[] | undefined {
+  function degradedFor(bboxApproximated: boolean, sourceId = descriptor.id): DegradedReason[] | undefined {
     if (!bboxApproximated) return undefined;
     return [
       {
@@ -577,7 +592,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
           "geoparquet: non-envelope spatialFilter was reduced to its bounding box for predicate pushdown; " +
           "results may include features outside the exact geometry.",
         protocol: "geoparquet",
-        sourceId: descriptor.id,
+        sourceId,
       },
     ];
   }
@@ -601,6 +616,55 @@ export function geoparquetSource<T = Record<string, unknown>>(
     },
     sql(query: string) {
       return runtime.query(query);
+    },
+    async executeResolvedQuery<TResolved>(input: GeoparquetResolvedQueryInput<TResolved>) {
+      const opts: CompileOptions = {
+        sources: input.sources,
+        geometryAlias: GEOPARQUET_ALIAS,
+        ...(input.geometry ? { geometry: input.geometry } : {}),
+      };
+      if (input.operation === "queryAggregate") {
+        ensureCapability(descriptor, caps, "queryAggregate");
+        if (!input.query.aggregation) throw new Error("geoparquet: planned aggregate is missing aggregation intent");
+        const compiled = compileAggregate(
+          { ...input.query, aggregation: input.query.aggregation as AggregationSpec },
+          opts,
+        );
+        const rows = await runtime.query(compiled.sql, { signal: input.query.signal });
+        const aggregateRows = rows.map((row) => {
+          const out: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(row)) out[key] = normalizeScalar(value);
+          return out;
+        });
+        const degraded = degradedFor(compiled.bboxApproximated, input.sourceId);
+        return {
+          features: [],
+          exceededTransferLimit: false,
+          aggregateRows,
+          ...(degraded ? { degraded } : {}),
+        };
+      }
+
+      ensureCapability(descriptor, caps, "query");
+      const wantGeometry = input.query.returnGeometry !== false && input.geometry !== undefined;
+      const compiled = compileQuery(input.query, opts);
+      const rows = await runtime.query(compiled.sql, { signal: input.query.signal });
+      const features = rows.map((row) => rowToFeature<TResolved>(row, wantGeometry));
+      const degraded = degradedFor(compiled.bboxApproximated, input.sourceId);
+      if (input.operation === "queryAll") {
+        return {
+          features,
+          exceededTransferLimit: false,
+          totalCount: features.length,
+          ...(degraded ? { degraded } : {}),
+        };
+      }
+      const limit = input.query.pagination?.limit;
+      return {
+        features,
+        exceededTransferLimit: typeof limit === "number" && features.length >= limit,
+        ...(degraded ? { degraded } : {}),
+      };
     },
   };
 

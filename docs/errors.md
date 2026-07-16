@@ -120,7 +120,7 @@ and this class/family documentation.
 | `HonuaWmtsCapabilitiesParseError` | `core.wmts-capabilities-parse` |
 | `HonuaDiscoveryError` | `discovery.*` (the eight values in `HonuaDiscoveryErrorCode`) |
 | `HonuaQueryPlanningError` | `query.planning.*` (the six values in `QueryPlanningErrorCode`) |
-| `HonuaQueryPlanExecutionError` | `query.execution.*` (the seven values in `QueryPlanExecutionErrorCode`) |
+| `HonuaQueryPlanExecutionError` | `query.execution.*` (the eight values in `QueryPlanExecutionErrorCode`) |
 | `HonuaMapLibreSourceAdapterError` | `map.source-adapter.*` |
 | `HonuaDataToMapBridgeError` | `map.data-bridge.*` |
 | `HonuaAutomaticMapLibreStrategyError` | `map.automatic-strategy.*` |
@@ -210,6 +210,7 @@ string's local legacy `.code` or message.
 | `query.execution.resource-unavailable` | `query` | `authentication` | no | Query resource is unavailable in the authorization context |
 | `query.execution.resource-expired` | `query` | `authentication` | no | Query resource authorization has expired |
 | `query.execution.resource-resolution-failed` | `query` | `internal` | no | Query resource resolution failed |
+| `query.execution.resource-execution-failed` | `query` | `internal` | no | Resolved query resource execution failed |
 | `map.source-adapter.disposed` | `map` | `validation` | no | Map source adapter is disposed |
 | `map.source-adapter.source-conflict` | `map` | `validation` | no | Map source identifier already exists |
 | `map.source-adapter.layer-conflict` | `map` | `validation` | no | Map layer identifier already exists |

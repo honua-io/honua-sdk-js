@@ -11,7 +11,7 @@ import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from ".
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryFromCanonical, queryIrSourceIdentity } from "../query-planner/ir.js";
-import { hashQueryPlan } from "../query-planner/planner.js";
+import { hashQueryPlanV1 } from "../query-planner/planner.js";
 import {
   type ExecuteQueryPlanOptions,
   HonuaQueryPlanExecutionError,
@@ -535,7 +535,7 @@ function assertQueryable<T>(source: Source<T>): void {
 }
 
 function assertProjectionPlanContext<T>(source: Source<T>, plan: QueryExecutionPlanV1): void {
-  if (hashQueryPlan(plan) !== plan.fingerprint) {
+  if (hashQueryPlanV1(plan) !== plan.fingerprint) {
     throw new HonuaQueryPlanExecutionError(
       "invalid-plan",
       "Plan content does not match its fingerprint; project only the accepted immutable plan.",

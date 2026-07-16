@@ -1,14 +1,19 @@
 import type { AggregationSpec, Query, SourceDescriptor } from "../contract/types.js";
 import { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
+import { parseGeoParquetResourceHandle } from "./resource.js";
 import {
   type CanonicalQuery,
+  type ExplainGeoParquetQueryOptions,
   type ExplainQueryOptions,
   HonuaQueryPlanningError,
   type JsonValue,
   QUERY_IR_KIND,
+  QUERY_IR_V2_VERSION,
   QUERY_IR_VERSION,
   type QueryIrSourceIdentity,
+  type QueryIrSourceIdentityV2,
   type QueryIrV1,
+  type QueryIrV2,
 } from "./types.js";
 
 export function createQueryIr<T>(options: ExplainQueryOptions<T>): QueryIrV1 {
@@ -29,7 +34,26 @@ export function createQueryIr<T>(options: ExplainQueryOptions<T>): QueryIrV1 {
   }
 }
 
-export function hashQueryIr(ir: QueryIrV1): `sha256:${string}` {
+/** Build a GeoParquet v2 IR whose only resource addressing is an opaque handle. */
+export function createGeoParquetQueryIr<T>(options: ExplainGeoParquetQueryOptions<T>): QueryIrV2 {
+  try {
+    const ir: QueryIrV2 = {
+      kind: QUERY_IR_KIND,
+      version: QUERY_IR_V2_VERSION,
+      source: queryIrSourceIdentityV2(options.descriptor, options.geoparquetResource, options),
+      query: canonicalizeQuery(options.query),
+    };
+    return deepFreeze(ir);
+  } catch (error) {
+    if (error instanceof HonuaQueryPlanningError) throw error;
+    throw new HonuaQueryPlanningError(
+      "invalid-query",
+      `GeoParquet query cannot be represented safely by ${QUERY_IR_KIND}@${QUERY_IR_V2_VERSION}`,
+    );
+  }
+}
+
+export function hashQueryIr(ir: QueryIrV1 | QueryIrV2): `sha256:${string}` {
   return sha256(canonicalStringify(toJsonValue(ir)));
 }
 
@@ -118,6 +142,85 @@ export function queryIrSourceIdentity(
     authorizationScope,
     capabilities: [...descriptor.capabilities].sort(),
   });
+}
+
+/** Rebuild the exact credential-free source identity used by a GeoParquet v2 plan. */
+export function queryIrSourceIdentityV2(
+  descriptor: SourceDescriptor,
+  resourceValue: unknown,
+  context: Pick<ExplainQueryOptions, "authorizationScope" | "schemaVersion" | "sourceVersion"> = {},
+): QueryIrSourceIdentityV2 {
+  if (descriptor.protocol !== "geoparquet") {
+    throw new HonuaQueryPlanningError("invalid-query", "Opaque GeoParquet resources require protocol geoparquet");
+  }
+  const resource = parseGeoParquetResourceHandle(resourceValue);
+  const authorizationScope = [...new Set(context.authorizationScope ?? [])].sort();
+  if (authorizationScope.some((scope) => !isStableAuthorizationScope(scope))) {
+    throw new HonuaQueryPlanningError("invalid-query", "GeoParquet authorization scope identity is invalid");
+  }
+  const geometryProperty = descriptor.schema?.fields?.find((field) => field.type === "esriFieldTypeGeometry")?.name;
+  const primaryKey = optionalPlanMetadata(descriptor.schema?.primaryKey, "primary key");
+  const schemaVersion = optionalPlanMetadata(context.schemaVersion, "schema version");
+  const sourceVersion = optionalPlanMetadata(context.sourceVersion, "source version");
+  const geometryColumn = optionalPlanMetadata(
+    descriptor.locator.geoparquet?.geometryColumn ?? geometryProperty,
+    "geometry column",
+  );
+  const bboxColumn = optionalPlanMetadata(descriptor.locator.geoparquet?.bboxColumn, "bbox column");
+  const geometryEncoding = descriptor.locator.geoparquet?.geometryEncoding;
+  if (
+    geometryEncoding !== undefined &&
+    geometryEncoding !== "wkb" &&
+    geometryEncoding !== "native" &&
+    geometryEncoding !== "geojson"
+  ) {
+    throw new HonuaQueryPlanningError("invalid-query", "GeoParquet geometry encoding identity is invalid");
+  }
+  return deepFreeze({
+    id: resource.resource.id,
+    protocol: "geoparquet",
+    endpoint: "[opaque-resource]",
+    ...(primaryKey ? { primaryKey } : {}),
+    ...(schemaVersion ? { schemaVersion } : {}),
+    ...(sourceVersion ? { sourceVersion } : {}),
+    geoparquet: {
+      resource,
+      ...(geometryColumn ? { geometryColumn } : {}),
+      ...(geometryEncoding ? { geometryEncoding } : {}),
+      ...(bboxColumn ? { bboxColumn } : {}),
+    },
+    authorizationScope,
+    capabilities: [...descriptor.capabilities].sort(),
+  });
+}
+
+function optionalPlanMetadata(value: unknown, label: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.length === 0 || value.length > 1_024 || containsControlCharacter(value)) {
+    throw new HonuaQueryPlanningError("invalid-query", `GeoParquet ${label} identity is invalid`);
+  }
+  return value;
+}
+
+function containsControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
+
+function isStableAuthorizationScope(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 256 &&
+    /^[A-Za-z0-9][A-Za-z0-9._:/~-]*$/.test(value) &&
+    !value.endsWith("/") &&
+    !value.includes("//") &&
+    !value.split("/").some((segment) => segment === "." || segment === "..") &&
+    !/^eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$/.test(value)
+  );
 }
 
 /**

@@ -37,6 +37,10 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "type-name" },
   { name: "entity-set" },
   { name: "geometry-column" },
+  { name: "resolver" },
+  { name: "resource-id" },
+  { name: "resource-version" },
+  { name: "authorization-context" },
   { name: "where" },
   { name: "bbox" },
   { name: "datetime" },
@@ -98,6 +102,8 @@ DATA
       --protocol <id>      Source protocol (default geoservices-feature-service)
       --where / --bbox / --fields / --limit    Query shape to plan
       --collection / --type-name / --entity-set   Protocol locator for OGC/WFS/OData
+      --resource-id / --resolver / --authorization-context   Opaque GeoParquet identity
+      --resource-version   Stable GeoParquet data revision (never a credential)
       --json               Emit the full plan (stages, pushdown, compiled request, fingerprint)
 
 STAC
