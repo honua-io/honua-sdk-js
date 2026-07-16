@@ -16,6 +16,8 @@ export const QUERY_IR_VERSION = "1.0" as const;
 export const QUERY_PLAN_VERSION = "1.0" as const;
 export const QUERY_IR_V2_VERSION = "2.0" as const;
 export const QUERY_PLAN_V2_VERSION = "2.0" as const;
+export const QUERY_PLAN_DIAGNOSTICS_VERSION = "1.0" as const;
+export const QUERY_PLANNER_VERSION = "honua-query-planner@1" as const;
 export const QUERY_IR_KIND = "honua.query-ir" as const;
 export const QUERY_PLAN_KIND = "honua.query-plan" as const;
 
@@ -142,6 +144,134 @@ export interface QueryPlanningEstimates {
   readonly requests?: number;
 }
 
+export type QueryPlanBoundConfidence = "exact" | "bounded" | "estimated" | "unknown";
+export type QueryPlanBoundSource = "compiler" | "query-limit" | "fallback-policy" | "caller-estimate" | "unavailable";
+
+/** One deterministic quantity bound. Missing numbers are deliberately unknown, never zero. */
+export interface QueryPlanQuantityBound {
+  readonly unit: "request" | "row" | "byte";
+  readonly confidence: QueryPlanBoundConfidence;
+  readonly source: QueryPlanBoundSource;
+  readonly lower?: number;
+  readonly upper?: number;
+  readonly estimate?: number;
+}
+
+/** Versioned cost and safety bounds used at both plan and step scope. */
+export interface QueryPlanBoundsV1 {
+  readonly version: typeof QUERY_PLAN_DIAGNOSTICS_VERSION;
+  readonly requests: QueryPlanQuantityBound;
+  readonly rows: QueryPlanQuantityBound;
+  readonly bytes: QueryPlanQuantityBound;
+  readonly transferBytes: QueryPlanQuantityBound;
+  readonly materializationBytes: QueryPlanQuantityBound;
+}
+
+export type QueryPlanCachePolicy = "bypass" | "prefer-cache" | "require-fresh";
+export type QueryPlanCacheFreshness = "fresh" | "stale" | "unknown";
+export type QueryPlanCacheAction = "bypass" | "reuse" | "revalidate" | "refresh";
+export type QueryPlanValidatorKind = "etag" | "last-modified" | "revision" | "fingerprint";
+
+export interface QueryPlanValidatorInput {
+  readonly kind: QueryPlanValidatorKind;
+  /** Raw validators are accepted at planning only and persisted as a digest. */
+  readonly value?: string;
+  /** Safe reconstruction path for already-digested persisted provenance. */
+  readonly fingerprint?: `sha256:${string}`;
+}
+
+export interface QueryPlanCacheOptions {
+  readonly policy?: QueryPlanCachePolicy;
+  readonly freshness?: QueryPlanCacheFreshness;
+  readonly validator?: QueryPlanValidatorInput;
+}
+
+export interface QueryPlanCacheDecisionV1 {
+  readonly version: typeof QUERY_PLAN_DIAGNOSTICS_VERSION;
+  readonly policy: QueryPlanCachePolicy;
+  readonly action: QueryPlanCacheAction;
+  readonly freshness: QueryPlanCacheFreshness;
+  readonly validator?: { readonly kind: QueryPlanValidatorKind; readonly fingerprint: `sha256:${string}` };
+  readonly reason: "policy-bypass" | "fresh-entry" | "validator-available" | "stale-entry" | "cache-miss";
+}
+
+export type QueryPlanFidelity = "exact" | "equivalent" | "approximate";
+
+export interface QueryPlanFidelityLoss {
+  readonly code: "spatial-envelope-reduction";
+  readonly path: string;
+  readonly description: string;
+  readonly remediation: string;
+}
+
+export type QueryPlanDiscoveryState = "metadata" | "declared" | "inferred" | "unavailable";
+
+export interface QueryPlanDiscoveryContext {
+  readonly state: QueryPlanDiscoveryState;
+  /** Raw discovery source is planning-only and persisted as a digest. */
+  readonly source?: string;
+  readonly sourceFingerprint?: `sha256:${string}`;
+  readonly validator?: QueryPlanValidatorInput;
+}
+
+export interface QueryPlanProvenanceV1 {
+  readonly version: typeof QUERY_PLAN_DIAGNOSTICS_VERSION;
+  readonly source: {
+    readonly id: string;
+    readonly protocol: Protocol;
+    readonly endpointFingerprint: `sha256:${string}`;
+    readonly descriptorFingerprint: `sha256:${string}`;
+  };
+  readonly schema:
+    | { readonly state: "known"; readonly fingerprint: `sha256:${string}`; readonly basis: "schema-v2" | "version" }
+    | { readonly state: "unavailable"; readonly reason: "not-provided" };
+  readonly discovery: {
+    readonly state: QueryPlanDiscoveryState;
+    readonly sourceFingerprint?: `sha256:${string}`;
+    readonly validator?: { readonly kind: QueryPlanValidatorKind; readonly fingerprint: `sha256:${string}` };
+    readonly fingerprint: `sha256:${string}`;
+  };
+  readonly authorizationScope: { readonly fingerprint: `sha256:${string}`; readonly count: number };
+}
+
+export interface QueryPlanStepProvenanceV1 {
+  readonly version: typeof QUERY_PLAN_DIAGNOSTICS_VERSION;
+  readonly sourceFingerprint: `sha256:${string}`;
+  readonly schemaFingerprint?: `sha256:${string}`;
+  readonly discoveryFingerprint: `sha256:${string}`;
+  readonly authorizationScopeFingerprint: `sha256:${string}`;
+}
+
+export type QueryPlanExecutionMode = "snapshot" | "delta";
+
+export interface QueryPlanValidityV1 {
+  readonly version: typeof QUERY_PLAN_DIAGNOSTICS_VERSION;
+  readonly plannerVersion: typeof QUERY_PLANNER_VERSION;
+  readonly contractVersion: string;
+  readonly executionMode: QueryPlanExecutionMode;
+  readonly sourceFingerprint: `sha256:${string}`;
+  readonly schemaFingerprint: `sha256:${string}`;
+  readonly discoveryFingerprint: `sha256:${string}`;
+  readonly authorizationScopeFingerprint: `sha256:${string}`;
+  readonly queryFingerprint: `sha256:${string}`;
+  readonly crsFingerprint: `sha256:${string}`;
+  readonly policyFingerprint: `sha256:${string}`;
+  readonly fingerprint: `sha256:${string}`;
+}
+
+export type QueryPlanWarningCode =
+  | "bounded-local-fallback"
+  | "geometry-transfer-required"
+  | "approximate-spatial-filter";
+
+export interface QueryPlanWarning {
+  readonly code: QueryPlanWarningCode;
+  readonly severity: "warning";
+  readonly path: string;
+  readonly message: string;
+  readonly remediation: string;
+}
+
 export interface ExplainQueryOptions<T = Record<string, unknown>> {
   readonly descriptor: SourceDescriptor;
   readonly query?: Readonly<Query<T>>;
@@ -153,6 +283,12 @@ export interface ExplainQueryOptions<T = Record<string, unknown>> {
   readonly authorizationScope?: readonly string[];
   /** Caller-supplied metadata estimates; explaining never reads result data. */
   readonly estimates?: QueryPlanningEstimates;
+  /** Stable cache state only. Observation clocks never enter a plan fingerprint. */
+  readonly cache?: QueryPlanCacheOptions;
+  /** Credential-safe discovery identity. Raw sources/validators are digested. */
+  readonly discovery?: QueryPlanDiscoveryContext;
+  /** Realtime delta plans carry mode only; live cursor bytes remain transport state. */
+  readonly executionMode?: QueryPlanExecutionMode;
 }
 
 /** Opt-in GeoParquet v2 planning options. */
@@ -311,7 +447,10 @@ export interface RemoteQueryPlanStep {
   readonly engine: "remote";
   readonly operation: "query" | "queryAll" | "queryAggregate";
   readonly pushdown: "full" | "partial";
-  readonly fidelity: "exact";
+  readonly fidelity: QueryPlanFidelity;
+  readonly losses: readonly QueryPlanFidelityLoss[];
+  readonly bounds: QueryPlanBoundsV1;
+  readonly provenance: QueryPlanStepProvenanceV1;
   readonly reason: string;
   readonly requests: number;
   readonly query: CanonicalQuery;
@@ -323,7 +462,10 @@ export interface GeoParquetRemoteQueryPlanStepV2 {
   readonly engine: "remote";
   readonly operation: "query" | "queryAll" | "queryAggregate";
   readonly pushdown: "full" | "partial";
-  readonly fidelity: "exact";
+  readonly fidelity: QueryPlanFidelity;
+  readonly losses: readonly QueryPlanFidelityLoss[];
+  readonly bounds: QueryPlanBoundsV1;
+  readonly provenance: QueryPlanStepProvenanceV1;
   readonly reason: string;
   readonly requests: number;
   readonly query: CanonicalQuery;
@@ -335,7 +477,10 @@ export interface LocalAggregatePlanStep {
   readonly engine: "client";
   readonly operation: "aggregate";
   readonly pushdown: "none";
-  readonly fidelity: "exact";
+  readonly fidelity: "equivalent";
+  readonly losses: readonly QueryPlanFidelityLoss[];
+  readonly bounds: QueryPlanBoundsV1;
+  readonly provenance: QueryPlanStepProvenanceV1;
   readonly reason: string;
   readonly inputStepId: string;
   readonly aggregation: AggregationSpec;
@@ -355,11 +500,16 @@ export interface QueryExecutionPlanV1 {
   readonly capabilityPolicy: CapabilityPolicy;
   readonly fallback: QueryFallbackPolicy;
   readonly pushdown: "full" | "partial";
-  readonly fidelity: "exact";
-  readonly cache: "bypass";
+  readonly diagnosticsVersion: typeof QUERY_PLAN_DIAGNOSTICS_VERSION;
+  readonly fidelity: QueryPlanFidelity;
+  readonly losses: readonly QueryPlanFidelityLoss[];
+  readonly bounds: QueryPlanBoundsV1;
+  readonly cache: QueryPlanCacheDecisionV1;
+  readonly provenance: QueryPlanProvenanceV1;
+  readonly validity: QueryPlanValidityV1;
   readonly estimates: QueryPlanningEstimates;
   readonly steps: readonly QueryPlanStep[];
-  readonly warnings: readonly string[];
+  readonly warnings: readonly QueryPlanWarning[];
 }
 
 export interface QueryExecutionPlanV2 {
@@ -371,11 +521,16 @@ export interface QueryExecutionPlanV2 {
   readonly capabilityPolicy: CapabilityPolicy;
   readonly fallback: QueryFallbackPolicy;
   readonly pushdown: "full" | "partial";
-  readonly fidelity: "exact";
-  readonly cache: "bypass";
+  readonly diagnosticsVersion: typeof QUERY_PLAN_DIAGNOSTICS_VERSION;
+  readonly fidelity: QueryPlanFidelity;
+  readonly losses: readonly QueryPlanFidelityLoss[];
+  readonly bounds: QueryPlanBoundsV1;
+  readonly cache: QueryPlanCacheDecisionV1;
+  readonly provenance: QueryPlanProvenanceV1;
+  readonly validity: QueryPlanValidityV1;
   readonly estimates: QueryPlanningEstimates;
   readonly steps: readonly QueryPlanStepV2[];
-  readonly warnings: readonly string[];
+  readonly warnings: readonly QueryPlanWarning[];
 }
 
 export type QueryExecutionPlan = QueryExecutionPlanV1 | QueryExecutionPlanV2;
@@ -402,6 +557,8 @@ export class HonuaQueryPlanningError extends HonuaSdkError {
 export type QueryPlanExecutionErrorCode =
   | "invalid-plan"
   | "plan-context-mismatch"
+  | "stale-plan"
+  | "foreign-plan"
   | "unsafe-materialization"
   | "invalid-resource-handle"
   | "resource-unavailable"
@@ -414,6 +571,7 @@ export class HonuaQueryPlanExecutionError extends HonuaSdkError {
     public readonly code: QueryPlanExecutionErrorCode,
     message: string,
     options: HonuaErrorOptions = {},
+    public readonly reason?: QueryPlanExecutionFailureReason,
   ) {
     super(QUERY_EXECUTION_CODES[code], message, options);
     this.name = "HonuaQueryPlanExecutionError";
@@ -432,6 +590,8 @@ const QUERY_PLANNING_CODES = {
 const QUERY_EXECUTION_CODES = {
   "invalid-plan": "query.execution.invalid-plan",
   "plan-context-mismatch": "query.execution.plan-context-mismatch",
+  "stale-plan": "query.execution.plan-context-mismatch",
+  "foreign-plan": "query.execution.plan-context-mismatch",
   "unsafe-materialization": "query.execution.unsafe-materialization",
   "invalid-resource-handle": "query.execution.invalid-resource-handle",
   "resource-unavailable": "query.execution.resource-unavailable",
@@ -445,11 +605,22 @@ export interface ExecuteQueryPlanOptions {
   readonly schemaVersion?: string;
   readonly sourceVersion?: string;
   readonly authorizationScope?: readonly string[];
+  readonly discovery?: QueryPlanDiscoveryContext;
+  readonly executionMode?: QueryPlanExecutionMode;
   /** Exact non-secret partition id required by a GeoParquet v2 resource handle. */
   readonly authorizationContextId?: string;
   /** Lifecycle-scoped resolver used only at the trusted v2 execution boundary. */
   readonly geoParquetResourceResolver?: GeoParquetResourceResolver;
 }
+
+export type QueryPlanExecutionFailureReason =
+  | "source-identity-changed"
+  | "authorization-scope-changed"
+  | "source-version-changed"
+  | "schema-changed"
+  | "capabilities-changed"
+  | "discovery-changed"
+  | "execution-mode-changed";
 
 export interface QueryPlanExecution<T = Record<string, unknown>> {
   readonly planId: string;

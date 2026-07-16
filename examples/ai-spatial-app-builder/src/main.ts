@@ -94,7 +94,7 @@ function renderPlan(): void {
       <div><dt>CRS / row limit</dt><dd>EPSG:${escapeHtml(plan.queryPlan.ir.query.outSr)} / ${escapeHtml(plan.queryPlan.ir.query.pagination?.limit)}</dd></div>
       <div><dt>Request / row / byte estimate</dt><dd>${escapeHtml(plan.queryPlan.estimates.requests ?? "unknown")} / ${escapeHtml(plan.queryPlan.estimates.rows ?? "unknown")} / ${escapeHtml(plan.queryPlan.estimates.bytes ?? "unknown")} bytes</dd></div>
       <div><dt>Approved byte ceiling</dt><dd>${escapeHtml(plan.policy.maxBytes)} bytes</dd></div>
-      <div><dt>Fidelity / cache</dt><dd>${escapeHtml(plan.queryPlan.fidelity)} / ${escapeHtml(plan.queryPlan.cache)}</dd></div>
+      <div><dt>Fidelity / cache</dt><dd>${escapeHtml(plan.queryPlan.fidelity)} / ${escapeHtml(plan.queryPlan.cache.action)}</dd></div>
       <div><dt>Data provenance</dt><dd>${escapeHtml(plan.sourceProvenance.dataMode)} · observed ${escapeHtml(plan.sourceProvenance.observedAt)} · ${escapeHtml(plan.sourceProvenance.attribution)}</dd></div>
       <div><dt>Capabilities</dt><dd>${escapeHtml(plan.queryPlan.ir.source.capabilities.join(", "))}</dd></div>
       <div><dt>Policy</dt><dd>${escapeHtml(plan.policy.id)} · ${escapeHtml(plan.policy.allowedEffects.join(", "))}</dd></div>

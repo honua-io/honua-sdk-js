@@ -293,13 +293,17 @@ describe("executeQueryPlan", () => {
     await expect(
       executeQueryPlan(plan, overflow, { authorizationScope: ["other"], schemaVersion: "schema-one" }),
     ).rejects.toMatchObject({
-      code: "plan-context-mismatch",
+      code: "foreign-plan",
+      reason: "authorization-scope-changed",
     });
     await expect(
       executeQueryPlan(plan, overflow, { authorizationScope: ["read"], schemaVersion: "schema-two" }),
-    ).rejects.toMatchObject({ code: "plan-context-mismatch" });
+    ).rejects.toMatchObject({ code: "stale-plan", reason: "schema-changed" });
 
-    const tampered = { ...plan, warnings: ["changed"] } as typeof plan;
+    const tampered = {
+      ...plan,
+      warnings: [{ ...plan.warnings[0], message: "changed" }],
+    } as typeof plan;
     await expect(
       executeQueryPlan(tampered, overflow, { authorizationScope: ["read"], schemaVersion: "schema-one" }),
     ).rejects.toBeInstanceOf(HonuaQueryPlanExecutionError);

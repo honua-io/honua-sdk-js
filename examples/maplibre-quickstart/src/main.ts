@@ -118,7 +118,7 @@ function renderPlan(dataset: QuickstartDataset): void {
   setText("#plan-id", plan.id);
   setText("#plan-pushdown", plan.pushdown);
   setText("#plan-fidelity", plan.fidelity);
-  setText("#plan-cache", plan.cache);
+  setText("#plan-cache", `${plan.cache.action} (${plan.cache.reason})`);
   getElement<HTMLElement>("#plan-steps").innerHTML = plan.steps
     .map(
       (item) =>

@@ -59,6 +59,7 @@ export function hashQueryIr(ir: QueryIrV1 | QueryIrV2): `sha256:${string}` {
 
 export function canonicalizeQuery<T>(query?: Readonly<Query<T>>): CanonicalQuery {
   if (!query) return deepFreeze({});
+  if (query.where !== undefined) assertSafeNativeExpression(query.where);
   const canonical: CanonicalQuery = {
     ...(query.where !== undefined ? { where: { kind: "source-native" as const, expression: query.where } } : {}),
     ...(query.spatialFilter
@@ -122,6 +123,9 @@ export function queryIrSourceIdentity(
   context: Pick<ExplainQueryOptions, "authorizationScope" | "schemaVersion" | "sourceVersion"> = {},
 ): QueryIrSourceIdentity {
   const authorizationScope = [...new Set(context.authorizationScope ?? [])].sort();
+  if (authorizationScope.some((scope) => !isStableAuthorizationScope(scope))) {
+    throw new HonuaQueryPlanningError("invalid-query", "authorization scope identity is invalid");
+  }
   const geometryProperty = descriptor.schema?.fields?.find((field) => field.type === "esriFieldTypeGeometry")?.name;
   const geoparquet =
     descriptor.protocol === "geoparquet" ? geoparquetIdentity(descriptor, geometryProperty) : undefined;
@@ -221,6 +225,17 @@ function isStableAuthorizationScope(value: unknown): value is string {
     !value.split("/").some((segment) => segment === "." || segment === "..") &&
     !/^eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$/.test(value)
   );
+}
+
+function assertSafeNativeExpression(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 65_536 || containsControlCharacter(value)) {
+    throw new HonuaQueryPlanningError("invalid-query", "query.where is invalid");
+  }
+  const sensitive =
+    /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\bBasic\s+[A-Za-z0-9+/=]{8,}|\bAKIA[0-9A-Z]{16}\b|\b(?:authorization|password|secret|token|api[-_]?key)\s*(?:=|eq)\s*['"][^'"]{4,}['"]|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
+  if (sensitive.test(value)) {
+    throw new HonuaQueryPlanningError("invalid-query", "query.where contains sensitive native expression material");
+  }
 }
 
 /**

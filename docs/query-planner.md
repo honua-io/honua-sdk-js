@@ -520,6 +520,12 @@ const plan = explainQuery({
   descriptor,
   sourceVersion: "2026-07-10",
   authorizationScope: ["data:read"],
+  cache: {
+    policy: "require-fresh",
+    freshness: "stale",
+    validator: { kind: "etag", value: currentEtag },
+  },
+  discovery: { state: "metadata", source: "catalog:incidents" },
   query: {
     where: "status = 'open'",
     aggregation: {
@@ -530,12 +536,14 @@ const plan = explainQuery({
 });
 
 console.log(plan.fingerprint, plan.steps[0]?.compiled);
+console.log(plan.bounds, plan.cache, plan.fidelity, plan.provenance);
 
 // `source` is the matching Source from Dataset.source(...). Version and scope
 // are repeated so execution can reject a stale or differently-authorized plan.
 const execution = await executeQueryPlan(plan, source, {
   sourceVersion: "2026-07-10",
   authorizationScope: ["data:read"],
+  discovery: { state: "metadata", source: "catalog:incidents" },
 });
 console.log(execution.result.aggregateRows);
 ```
@@ -762,6 +770,38 @@ honua explain parcels:current --protocol geoparquet \
   --resource-version snapshot:42 --json
 ```
 
+## Structured diagnostics
+
+Every plan and every step carries `diagnosticsVersion: "1.0"` data. Step
+diagnostics sit beside the step's `engine` and `pushdown` decision so consumers
+do not have to infer safety or fidelity from prose:
+
+- `bounds` describes requests, rows, bytes, transfer bytes, and local
+  materialization bytes. Each quantity declares its unit, evidence source, and
+  `exact`, `bounded`, `estimated`, or `unknown` confidence. Unknown values are
+  never presented as zero.
+- `fidelity` is `exact` when the source executes the requested semantics,
+  `equivalent` when bounded residual work preserves the result, and
+  `approximate` when it does not. Every approximation has a loss record with a
+  stable code, affected plan path, description, and remediation. For example,
+  DuckDB polygon-to-envelope reduction emits `spatial-envelope-reduction`; it
+  is never reported as exact.
+- `provenance` binds the credential-free source and descriptor, schema state,
+  discovery evidence, and authorization-scope identity. Endpoints, discovery
+  sources, validators, and authorization scopes are represented by
+  domain-separated SHA-256 fingerprints where a raw value is unnecessary.
+- `warnings` are stable objects with `code`, `path`, `message`, and
+  `remediation`. Bounded local execution, geometry transfer, and approximate
+  spatial filtering therefore remain machine-actionable.
+
+`cache` is a deterministic decision, not a cache side effect. The caller may
+select `bypass`, `prefer-cache`, or `require-fresh` and report `fresh`, `stale`,
+or `unknown` evidence. The plan records an action (`bypass`, `reuse`,
+`revalidate`, or `refresh`) and reason. ETags, last-modified values, revisions,
+and precomputed fingerprints are normalized to a kind plus digest; raw
+validators do not enter serialized plans. Cache storage and conditional
+requests remain the responsibility of the plan consumer.
+
 ## Bounded degraded execution
 
 Fallback is disabled by default. When a source can query features but cannot
@@ -797,16 +837,23 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
   GeoParquet resources.
 - Objects serialize with sorted keys; array order remains semantically
   significant. SHA-256 fingerprints are identical in browsers, workers, and
-  Node for the same descriptor, query, policy, versions, scope, and estimates.
-- Capabilities, authorization scopes, source/schema versions, CRS/query
-  fields, and fallback budgets participate in the fingerprint.
+  Node for the same descriptor, query, policy, versions, scope, estimates,
+  cache decision, and discovery evidence.
+- The versioned `validity` binding covers planner/contract version, source,
+  schema, capabilities, authorization scope, discovery, query, CRS, policy,
+  and execution mode. Signals, observation timestamps, expiry clocks, and raw
+  realtime cursors are execution state and never enter the fingerprint.
+- Realtime callers select `executionMode: "snapshot"` or `"delta"`; the mode
+  is bound to the plan while live cursor bytes remain with the transport.
 - `executeQueryPlan` verifies the complete canonical v2 projection, its
-  fingerprint, and the current source context. A changed plan, stable source
-  identity, version, capability set, or scope is rejected; the executor does
-  not re-plan. Opaque GeoParquet credential rotation is intentionally outside
-  that identity.
-- Feature/query/result caching remains bypassed. Opt-in materialization is a
-  separate workflow.
+  fingerprint, and the current source context. Source or authorization-context
+  drift throws `HonuaQueryPlanExecutionError` with `code: "foreign-plan"`;
+  version, schema, capability, or discovery drift uses `code: "stale-plan"`.
+  Both include a typed `reason`, and the executor never silently replans.
+  Opaque GeoParquet credential rotation is intentionally outside that
+  identity.
+- Structured cache decisions are explanatory. The planner does not fetch,
+  persist, or materialize cached feature/query/result data.
 
 ## Deliberate first-slice boundaries
 
@@ -815,9 +862,11 @@ AST, temporal values, canonical identity, and CQL2 JSON interchange are now
 available, while the existing v1 compilers remain on their compatibility path.
 Follow-on slices must adopt the AST in those compilers, negotiate richer OGC
 filter support, and add spatial-binning aggregation (grid/hex),
-joins/composition, cache/freshness decisions, cost models, realtime
-snapshot/delta plans, receipts, and richer renderer/MCP consumption. Histogram
-and time-series aggregation are rejected by the current compiler rather than
-silently ignored. The GeoServices, OGC API Features, WFS, OData, credential-free
-and opaque DuckDB SQL, gRPC, bounded columnar/worker paths,
+joins/composition, evidence-backed protocol cost models, execution-integrated
+cache storage, receipts, and richer renderer/MCP consumption. Structured
+cache/freshness decisions and snapshot/delta plan identity are available now;
+the planner does not store cache entries or persist live cursors. Histogram and
+time-series aggregation are rejected by the current compiler rather than
+silently ignored. The GeoServices, OGC API Features, WFS, OData,
+credential-free and opaque DuckDB SQL, gRPC, bounded columnar/worker paths,
 spatial-aggregation pushdown, and CLI plan consumer are now delivered.
