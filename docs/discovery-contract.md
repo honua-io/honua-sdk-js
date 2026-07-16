@@ -226,6 +226,15 @@ descriptors and an empty `sources` array, so neither can masquerade as a feature
 collection. Image edit, attachment, relationship, and stream capabilities are
 never inferred.
 
+CRS evidence keeps native `wkid` and `latestWkid` values separate from an
+authority identity. A legacy Esri WKID is never relabeled as EPSG; `authority`
+and `code` appear only when an explicit or reviewed alias establishes the EPSG
+code. Likewise, `operation.sdkSupported` means the current SDK can execute the
+advertised binding, not merely that its operation name is familiar. The
+existing geometry adapter is bound to `Utilities/Geometry`, so an equivalent
+operation advertised under another GeometryServer id remains discoverable but
+reports `sdkSupported: false`.
+
 Geometry operations are derived only from advertised operation metadata.
 GPServer discovery reads the advertised task list with a maximum concurrency of
 four, then classifies each task as synchronous `execute`, asynchronous

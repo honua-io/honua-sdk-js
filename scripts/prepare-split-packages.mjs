@@ -124,6 +124,10 @@ function createSdkPackage() {
   copyFile(path.join(DIST_SRC_ROOT, "connect-schema.d.ts"), path.join(packageRoot, "connect-schema.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-geoservices.js"), path.join(packageRoot, "connect-geoservices.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-geoservices.d.ts"), path.join(packageRoot, "connect-geoservices.d.ts"));
+  for (const moduleName of ["geoservices-discovery", "geoservices-endpoint", "geoservices-metadata"]) {
+    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.js`), path.join(packageRoot, `${moduleName}.js`));
+    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.d.ts`), path.join(packageRoot, `${moduleName}.d.ts`));
+  }
   copyFile(path.join(DIST_SRC_ROOT, "connect-wfs.js"), path.join(packageRoot, "connect-wfs.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-wfs.d.ts"), path.join(packageRoot, "connect-wfs.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-odata.js"), path.join(packageRoot, "connect-odata.js"));
