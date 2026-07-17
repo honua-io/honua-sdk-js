@@ -46,6 +46,12 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await expect(page.locator("#detail-title")).toHaveText("Isolated demo coordination record");
     await expect(page.locator("#edit-profile")).toHaveText("Isolated + resettable");
     await expect(page.getByRole("button", { name: "Stage Edit" })).toBeEnabled();
+    await expect(page.locator("#edit-guard-reason")).toHaveAttribute("role", "status");
+    await expect(page.locator("#edit-guard-reason")).toHaveAttribute("aria-live", "polite");
+    await expect(page.locator(".edit-actions")).toHaveAttribute("role", "group");
+    await expect(page.locator(".edit-actions")).toHaveAttribute("aria-describedby", "edit-guard-reason");
+    await expect(page.locator("#edit-status")).toHaveAttribute("aria-describedby", "edit-guard-reason");
+    await expect(page.locator("#edit-assigned")).toHaveAttribute("aria-describedby", "edit-guard-reason");
 
     await page.getByRole("button", { name: "Replay Duplicate" }).click();
     await expect(page.locator("#stream-ignored")).toHaveText("1");
@@ -67,20 +73,39 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await expect(page.locator("#stream-reconciliation")).toContainText(/replacement snapshot applied/i);
     await expect(page.getByRole("button", { name: "Stage Edit" })).toBeEnabled();
 
-    await page.locator("#edit-status").selectOption("monitoring");
-    await page.locator("#edit-assigned").fill("Exercise Lead");
-    await page.getByRole("button", { name: "Stage Edit" }).click();
+    const editStatus = page.locator("#edit-status");
+    const editAssigned = page.locator("#edit-assigned");
+    const stageEdit = page.getByRole("button", { name: "Stage Edit" });
+    const submitEdit = page.getByRole("button", { name: "Submit Staged Edit" });
+    const repeatEdit = page.getByRole("button", { name: "Repeat Same Request" });
+    const simulateConflict = page.getByRole("button", { name: "Simulate Conflict" });
+    const resetEdit = page.getByRole("button", { name: "Reset Demo Record" });
+
+    await editStatus.selectOption("monitoring");
+    await editStatus.focus();
+    await page.keyboard.press("Tab");
+    await expect(editAssigned).toBeFocused();
+    await editAssigned.fill("Exercise Lead");
+    await page.keyboard.press("Tab");
+    await expect(stageEdit).toBeFocused();
+    await page.keyboard.press("Enter");
     await expect(page.locator("#edit-outcome")).toContainText("Staged against revision 1");
-    await page.getByRole("button", { name: "Simulate Conflict" }).click();
-    await page.getByRole("button", { name: "Submit Staged Edit" }).click();
+    await simulateConflict.focus();
+    await page.keyboard.press("Enter");
+    await submitEdit.focus();
+    await page.keyboard.press("Space");
     await expect(page.locator("#edit-outcome")).toContainText("Conflict:");
-    await page.getByRole("button", { name: "Stage Edit" }).click();
-    await page.getByRole("button", { name: "Submit Staged Edit" }).click();
+    await stageEdit.focus();
+    await page.keyboard.press("Enter");
+    await submitEdit.focus();
+    await page.keyboard.press("Enter");
     await expect(page.locator("#edit-outcome")).toContainText("Applied:");
     await expect(page.locator("#detail-status")).toHaveText("Monitoring");
-    await page.getByRole("button", { name: "Repeat Same Request" }).click();
+    await repeatEdit.focus();
+    await page.keyboard.press("Space");
     await expect(page.locator("#edit-outcome")).toContainText("Duplicate:");
-    await page.getByRole("button", { name: "Reset Demo Record" }).click();
+    await resetEdit.focus();
+    await page.keyboard.press("Enter");
     await expect(page.locator("#edit-outcome")).toContainText("Reset:");
     await expect(page.locator("#detail-status")).toHaveText("Assigned");
 
@@ -115,6 +140,7 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     const beforeStaleDenials = await mutationRequestCount();
     await page.evaluate(() =>
       Promise.all([
+        window.__HONUA_INCIDENT_RUNTIME__?.stageEdit(),
         window.__HONUA_INCIDENT_RUNTIME__?.submitEdit(),
         window.__HONUA_INCIDENT_RUNTIME__?.repeatEdit(),
         window.__HONUA_INCIDENT_RUNTIME__?.simulateConflict(),
@@ -142,8 +168,26 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await expect(page.locator("#incident-list")).toContainText("Ala Moana signal failure");
 
     await page.locator("#status-filter").selectOption("");
-    await page.getByRole("button", { name: "Open Airport logistics delay" }).click();
+    const airportIncident = page.getByRole("button", { name: "Open Airport logistics delay" });
+    await airportIncident.focus();
+    await page.keyboard.press("Enter");
     await expect(page.locator("#detail-title")).toHaveText("Airport logistics delay");
+    await expect(page.locator("#edit-guard-reason")).toContainText(/not part of the isolated resettable/i);
+    await expect(editStatus).toBeDisabled();
+    await expect(editAssigned).toBeDisabled();
+    await expect(stageEdit).toBeDisabled();
+    const beforeOutsideSandboxDenials = await mutationRequestCount();
+    await page.evaluate(() =>
+      Promise.all([
+        window.__HONUA_INCIDENT_RUNTIME__?.stageEdit(),
+        window.__HONUA_INCIDENT_RUNTIME__?.submitEdit(),
+        window.__HONUA_INCIDENT_RUNTIME__?.repeatEdit(),
+        window.__HONUA_INCIDENT_RUNTIME__?.simulateConflict(),
+        window.__HONUA_INCIDENT_RUNTIME__?.resetEdit(),
+      ]),
+    );
+    await expect(page.locator("#edit-outcome")).toContainText(/not part of the isolated resettable/i);
+    expect(await mutationRequestCount()).toBe(beforeOutsideSandboxDenials);
 
     await page.evaluate(() => {
       return Promise.all([
@@ -242,6 +286,45 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
     expect(expectedConflictConsole).toHaveLength(1);
+
+    await page.goto(fixtureServer.unauthorizedUrl);
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.ready === true))
+      .toBe(true);
+    await expect(page.locator("#connection-status")).toHaveText("Live");
+    await expect(page.locator("#live-authority")).toHaveText("Authoritative");
+    await expect(page.locator("#edit-profile")).toHaveText("Unauthorized");
+    await expect(page.locator("#edit-guard-reason")).toContainText(/not authorized/i);
+    await expect(page.locator("#edit-status")).toBeDisabled();
+    await expect(page.locator("#edit-assigned")).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Stage Edit" })).toBeDisabled();
+    const beforeUnauthorizedDenials = await mutationRequestCount();
+    await page.evaluate(() =>
+      Promise.all([
+        window.__HONUA_INCIDENT_RUNTIME__?.stageEdit(),
+        window.__HONUA_INCIDENT_RUNTIME__?.submitEdit(),
+        window.__HONUA_INCIDENT_RUNTIME__?.repeatEdit(),
+        window.__HONUA_INCIDENT_RUNTIME__?.simulateConflict(),
+        window.__HONUA_INCIDENT_RUNTIME__?.resetEdit(),
+      ]),
+    );
+    await expect(page.locator("#edit-outcome")).toContainText(/not authorized/i);
+    expect(await mutationRequestCount()).toBe(beforeUnauthorizedDenials);
+
+    const unauthorizedCursor = await page.locator("#stream-cursor").textContent();
+    await page.getByRole("button", { name: "Step Event" }).click();
+    await expect.poll(async () => page.locator("#stream-cursor").textContent()).not.toBe(unauthorizedCursor);
+    await expect(page.locator("#connection-status")).toHaveText("Live");
+    await expect(page.locator("#live-authority")).toHaveText("Authoritative");
+    await expect(page.locator("#edit-profile")).toHaveText("Unauthorized");
+    await expect.poll(async () => (await (await fetch(fixtureServer.runUrl)).json()).state.subscriberCount).toBe(1);
+    await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.dispose());
+    await expect.poll(async () => (await (await fetch(fixtureServer.runUrl)).json()).state.subscriberCount).toBe(0);
+    await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
+    expect(pageErrors).toEqual([]);
+    expect(consoleErrors).toEqual([]);
+    expect(expectedConflictConsole).toHaveLength(1);
+    expect(externalRequests).toEqual([]);
   } finally {
     await fixtureServer.close();
   }

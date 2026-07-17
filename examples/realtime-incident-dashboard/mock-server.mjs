@@ -36,12 +36,15 @@ export async function startIncidentDashboardFixtureServer({ build = true, buildT
     defaultRunId: fixtureRunId,
   });
   const query = new URLSearchParams({ transport: "fixture-edit", fixtureRun: fixtureRunId });
+  const unauthorizedQuery = new URLSearchParams(query);
+  unauthorizedQuery.set("fixtureAuthorization", "unauthorized");
   return Object.freeze({
     ...harness,
     fixtureRunId,
     runUrl: `${harness.origin}/__fixture__/runs/${fixtureRunId}`,
     requestLogUrl: `${harness.origin}/__fixture__/runs/${fixtureRunId}/requests`,
     url: `${harness.origin}/?${query}`,
+    unauthorizedUrl: `${harness.origin}/?${unauthorizedQuery}`,
   });
 }
 
