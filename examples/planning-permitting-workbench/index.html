@@ -6,6 +6,7 @@
     <title>Maui Planning &amp; Permitting Workbench</title>
   </head>
   <body>
+    <a class="skip-link" href="#review-board-module">Skip to planning workbench</a>
     <main class="workbench-shell">
       <aside class="left-rail" aria-label="Workbench controls">
         <header class="app-header">
@@ -14,20 +15,24 @@
           <p class="tier-badge" id="tier-badge">Community + Pro</p>
         </header>
 
-        <nav class="module-switcher" aria-label="Workbench modules">
-          <button type="button" data-module="review-board" aria-pressed="true">Review Board</button>
-          <button type="button" data-module="query-analysis" aria-pressed="false">Query &amp; Analysis</button>
-          <button type="button" data-module="permit-editing" aria-pressed="false">Permit Editing</button>
+        <nav class="module-switcher" aria-label="Workbench modules" role="tablist">
+          <button id="tab-review-board" type="button" role="tab" data-module="review-board" aria-selected="true" aria-controls="review-board-module">Review Board</button>
+          <button id="tab-query-analysis" type="button" role="tab" data-module="query-analysis" aria-selected="false" aria-controls="query-analysis-module" tabindex="-1">Query &amp; Analysis</button>
+          <button id="tab-permit-editing" type="button" role="tab" data-module="permit-editing" aria-selected="false" aria-controls="permit-editing-module" tabindex="-1">Permit Editing</button>
         </nav>
 
         <section class="panel">
           <div class="panel-heading">
             <h2>Search</h2>
-            <span id="search-status">geocode</span>
+            <span id="search-status" role="status" aria-live="polite">connecting</span>
           </div>
-          <label class="field-label" for="search-input">Address or TMK</label>
-          <input id="search-input" type="search" placeholder="120 Market St / 3-8-001-014" autocomplete="off" />
-          <ul id="search-results" class="stack-list search-list"></ul>
+          <form id="planning-search-form" class="search-form">
+            <label class="field-label" for="search-input">Planning address</label>
+            <input id="search-input" type="search" value="300 Hana Hwy" placeholder="300 Hana Hwy" autocomplete="off" aria-describedby="search-hint" required />
+            <button id="search-submit" type="submit" disabled>Find parcel</button>
+          </form>
+          <p id="search-hint" class="hint">Uses the public geocoding client, then queries the metadata-discovered parcel source.</p>
+          <ul id="search-results" class="stack-list search-list" aria-label="Planning address suggestions"></ul>
         </section>
 
         <section class="panel">
@@ -72,8 +77,8 @@
         </section>
       </aside>
 
-      <section class="module-stage" aria-live="polite">
-        <section id="review-board-module" class="module-view" data-active="true">
+      <section class="module-stage">
+        <section id="review-board-module" class="module-view" data-active="true" role="tabpanel" aria-labelledby="tab-review-board" tabindex="0">
           <div class="stage-heading">
             <div>
               <p class="eyebrow">Review Board</p>
@@ -95,6 +100,7 @@
               </div>
               <div class="table-wrap">
                 <table>
+                  <caption class="sr-only">Parcels in the current linked planning context</caption>
                   <thead>
                     <tr><th>TMK</th><th>Address</th><th>Zoning</th><th></th></tr>
                   </thead>
@@ -123,7 +129,7 @@
           </section>
         </section>
 
-        <section id="query-analysis-module" class="module-view" data-active="false">
+        <section id="query-analysis-module" class="module-view" data-active="false" role="tabpanel" aria-labelledby="tab-query-analysis" tabindex="0" hidden>
           <div class="stage-heading">
             <div>
               <p class="eyebrow">Query &amp; Analysis</p>
@@ -159,6 +165,16 @@
               <ul id="sketch-readout" class="stack-list"></ul>
             </section>
 
+            <section class="panel" id="analysis-truth" aria-labelledby="analysis-truth-heading">
+              <div class="panel-heading">
+                <h3 id="analysis-truth-heading">Public SDK analysis truth</h3>
+                <span id="analysis-status" role="status" aria-live="polite">search first</span>
+              </div>
+              <p class="hint">Runs a capped source envelope query before exact client-side geometry and hazard intersection.</p>
+              <button id="run-sdk-analysis" type="button" disabled>Run bounded analysis</button>
+              <ul id="analysis-truth-list" class="stack-list"></ul>
+            </section>
+
             <section class="panel">
               <div class="panel-heading">
                 <h3>Print / export</h3>
@@ -166,18 +182,18 @@
               </div>
               <div class="button-row">
                 <button id="generate-print" type="button">Generate print manifest</button>
-                <button id="export-workspace" type="button">Export workspace</button>
+                <button id="export-workspace" type="button" disabled>Export workspace</button>
               </div>
-              <pre id="print-json" class="json-readout"></pre>
+              <pre id="print-json" class="json-readout" tabindex="0" aria-label="Generated planning export"></pre>
             </section>
           </div>
         </section>
 
-        <section id="permit-editing-module" class="module-view" data-active="false">
+        <section id="permit-editing-module" class="module-view" data-active="false" role="tabpanel" aria-labelledby="tab-permit-editing" tabindex="0" hidden>
           <div class="stage-heading">
             <div>
               <p class="eyebrow">Permit Editing</p>
-              <h2>Writable Permit Layer</h2>
+              <h2>Metadata-backed Permit Submission</h2>
             </div>
             <dl class="summary-strip">
               <div><dt>Permits</dt><dd id="permit-count">0</dd></div>
@@ -201,40 +217,35 @@
                 <span id="edit-permit-no">-</span>
               </div>
               <label class="field-label" for="edit-parcel-field">Parcel TMK</label>
-              <input id="edit-parcel-field" type="text" />
+              <input id="edit-parcel-field" type="text" readonly aria-describedby="edit-parcel-hint" />
+              <p id="edit-parcel-hint" class="hint">Set by the public geocode and source-query workflow.</p>
               <label class="field-label" for="edit-type-field">Permit type</label>
-              <select id="edit-type-field">
-                <option value="residential">Residential</option>
-                <option value="commercial">Commercial</option>
-                <option value="grading">Grading</option>
-                <option value="shoreline">Shoreline</option>
-                <option value="demolition">Demolition</option>
-              </select>
+              <select id="edit-type-field" disabled></select>
               <label class="field-label" for="edit-status-field">Status</label>
-              <select id="edit-status-field">
-                <option value="intake">Intake</option>
-                <option value="under-review">Under review</option>
-                <option value="approved">Approved</option>
-                <option value="issued">Issued</option>
-                <option value="denied">Denied</option>
-              </select>
-              <label class="field-label" for="edit-reviewer-field">Reviewer</label>
-              <input id="edit-reviewer-field" type="text" />
-              <label class="field-label" for="edit-valuation-field">Valuation ($)</label>
-              <input id="edit-valuation-field" type="number" min="0" step="1000" />
+              <select id="edit-status-field" disabled></select>
+              <label class="field-label" for="edit-height-field">Proposed height (ft)</label>
+              <input id="edit-height-field" type="number" min="0" max="60" step="1" value="28" disabled />
               <label class="field-label" for="edit-description-field">Description</label>
-              <textarea id="edit-description-field" rows="3"></textarea>
+              <textarea id="edit-description-field" rows="3" disabled></textarea>
+              <label class="field-label" for="permit-scenario">Deterministic submission scenario</label>
+              <select id="permit-scenario" disabled>
+                <option value="success">Success with attachment</option>
+                <option value="invalid-domain">Invalid metadata domain</option>
+                <option value="conflict">Version conflict</option>
+                <option value="attachment-failure">Attachment failure</option>
+                <option value="unsupported">Unsupported read-only source</option>
+              </select>
               <div class="button-row">
-                <button id="force-conflict" type="button">Force conflict</button>
-                <button id="save-permit" type="button">Save permit</button>
+                <button id="force-conflict" type="button" disabled>Choose conflict</button>
+                <button id="save-permit" type="button" aria-describedby="edit-message" disabled>Submit permit</button>
               </div>
-              <p id="edit-message" class="edit-message">-</p>
+              <p id="edit-message" class="edit-message" role="status" aria-live="polite">Connect, search, and analyze before submitting.</p>
             </section>
 
             <section class="panel">
               <div class="panel-heading">
                 <h3>Capability readiness</h3>
-                <span id="edit-capability-state">-</span>
+                <span id="edit-capability-state" role="status" aria-live="polite">connecting</span>
               </div>
               <ul id="edit-readiness-list" class="stack-list"></ul>
             </section>
@@ -243,6 +254,15 @@
       </section>
 
       <aside class="detail-rail" aria-label="Parcel detail">
+        <section class="panel workflow-truth" id="workflow-truth" aria-labelledby="workflow-truth-heading">
+          <div class="panel-heading">
+            <h2 id="workflow-truth-heading">Public workflow truth</h2>
+            <span id="workflow-state" role="status" aria-live="polite">connecting</span>
+          </div>
+          <dl id="workflow-truth-list" class="metric-list"></dl>
+          <p id="workflow-degradation" class="edit-message" role="status" aria-live="polite">Waiting for metadata discovery.</p>
+        </section>
+
         <section class="panel detail-panel">
           <div class="panel-heading">
             <h2>Detail</h2>
@@ -259,7 +279,7 @@
             <h2>Linked context</h2>
             <span id="context-active-view">review-board</span>
           </div>
-          <pre id="context-json" class="json-readout"></pre>
+          <pre id="context-json" class="json-readout" tabindex="0" aria-label="Linked planning context"></pre>
         </section>
       </aside>
     </main>

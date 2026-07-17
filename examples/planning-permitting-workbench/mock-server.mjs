@@ -436,11 +436,20 @@ export async function startPlanningWorkbenchFixtureServer({ build = true, metada
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Failed to bind the planning fixture server.");
   const url = `http://127.0.0.1:${address.port}`;
+  let closePromise;
   return {
     server,
     url,
-    async close() {
-      await new Promise((resolve) => server.close(resolve));
+    close() {
+      closePromise ??= new Promise((resolve, reject) => {
+        if (!server.listening) {
+          resolve();
+          return;
+        }
+        server.close((error) => (error ? reject(error) : resolve()));
+        server.closeAllConnections();
+      });
+      return closePromise;
     },
   };
 }
