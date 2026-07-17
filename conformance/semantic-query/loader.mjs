@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { open } from "node:fs/promises";
 
 import Ajv2020 from "ajv/dist/2020.js";
 
@@ -100,11 +100,28 @@ export function validateSemanticQueryCorpus(schema, corpus) {
 }
 
 async function readBoundedUtf8(url, maxBytes, label) {
+  let file;
   let bytes;
   try {
-    bytes = await readFile(url);
-  } catch {
+    file = await open(url, "r");
+    const stat = await file.stat();
+    if (!stat.isFile()) {
+      throw new SemanticQueryCorpusError(`Semantic query ${label} is not a regular file`);
+    }
+
+    const bounded = new Uint8Array(maxBytes + 1);
+    let offset = 0;
+    while (offset < bounded.byteLength) {
+      const { bytesRead } = await file.read(bounded, offset, bounded.byteLength - offset, offset);
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    bytes = bounded.subarray(0, offset);
+  } catch (error) {
+    if (error instanceof SemanticQueryCorpusError) throw error;
     throw new SemanticQueryCorpusError(`Semantic query ${label} could not be read`);
+  } finally {
+    await file?.close().catch(() => undefined);
   }
   if (bytes.byteLength === 0 || bytes.byteLength > maxBytes) {
     throw new SemanticQueryCorpusError(`Semantic query ${label} exceeds its bounded input contract`);

@@ -1,4 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -129,6 +132,17 @@ describe("versioned semantic query equivalence corpus", () => {
     });
     expect(Object.isFrozen(corpus)).toBe(true);
     expect(Object.isFrozen(corpus.cases[0]?.query)).toBe(true);
+
+    const temporaryRoot = await mkdtemp(path.join(tmpdir(), "honua-semantic-corpus-"));
+    try {
+      const oversizedCorpus = path.join(temporaryRoot, "oversized-corpus.json");
+      await writeFile(oversizedCorpus, new Uint8Array(2 * 1024 * 1024 + 1));
+      await expect(loadSemanticQueryCorpus({ corpusUrl: pathToFileURL(oversizedCorpus) })).rejects.toThrow(
+        "exceeds its bounded input contract",
+      );
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
 
     const schemaDocument = JSON.parse(
       await readFile(new URL("../conformance/semantic-query/v1/schema.json", import.meta.url), "utf8"),
