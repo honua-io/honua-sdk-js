@@ -73,6 +73,7 @@ const SERVICE_TYPES: Readonly<Record<string, ServiceTypeDefinition>> = Object.fr
 
 const GEOSERVICES_PATH =
   /^(.*)\/rest\/services\/(.+?)\/(FeatureServer|MapServer|ImageServer|GeometryServer|GPServer)(?:\/([^/]+))?\/?$/i;
+const MAX_GEOSERVICES_ENDPOINT_LENGTH = 16_384;
 
 /**
  * Classify a canonical GeoServices service URL without issuing a request.
@@ -152,9 +153,13 @@ export function normalizeGeoServicesEndpoint(input: string | URL): NormalizedGeo
 }
 
 function normalizeInputUrl(input: string | URL): URL {
+  const text = input.toString();
+  if (text.length > MAX_GEOSERVICES_ENDPOINT_LENGTH) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices endpoint exceeds the URL length limit.");
+  }
   let url: URL;
   try {
-    url = new URL(input.toString());
+    url = new URL(text);
   } catch {
     throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices endpoints must be absolute HTTP(S) URLs.");
   }

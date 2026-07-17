@@ -3,7 +3,7 @@
 import { honuaMetadataRequestHeaders } from "./core/cache-state.js";
 import type { HonuaCacheReadMode } from "./core/cache-state.js";
 import type { HonuaClient } from "./core/client.js";
-import { HonuaAbortError, HonuaDiscoveryError, HonuaHttpError } from "./core/errors.js";
+import { HonuaAbortError, HonuaDiscoveryError, HonuaHttpError, HonuaNetworkError } from "./core/errors.js";
 
 export interface GeoServicesMetadataAvailable {
   readonly kind: "available";
@@ -71,7 +71,7 @@ export async function getGeoServicesMetadata(
         }),
       },
       options.signal,
-      { redirect: "error", discardErrorBody: true },
+      { redirect: "manual", discardErrorBody: true },
     );
     throwIfAborted(options.signal);
     const source = validateMetadataResponseUrl(response, endpoint);
@@ -93,6 +93,9 @@ export async function getGeoServicesMetadata(
     return Object.freeze({ kind: "available" as const, value: body, source });
   } catch (error) {
     if (options.signal?.aborted || error instanceof HonuaAbortError) throw error;
+    if (error instanceof HonuaNetworkError && error.message.includes("opaque")) {
+      throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices metadata redirects are not allowed.");
+    }
     if (error instanceof HonuaHttpError && [401, 403, 498, 499].includes(error.statusCode)) {
       return Object.freeze({ kind: "secured" as const, statusCode: error.statusCode, source: endpoint });
     }

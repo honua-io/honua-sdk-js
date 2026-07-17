@@ -51,6 +51,17 @@ describe("GeoServices endpoint normalization", () => {
     ).toBeUndefined();
   });
 
+  it("rejects an oversized endpoint before applying the service-path classifier", () => {
+    const oversized = `https://example.test/rest/services/${"x".repeat(17_000)}/FeatureServer`;
+    expect(() => normalizeGeoServicesEndpoint(oversized)).toThrowError(
+      expect.objectContaining({
+        name: "HonuaDiscoveryError",
+        code: "invalid-endpoint",
+        message: "GeoServices endpoint exceeds the URL length limit.",
+      }),
+    );
+  });
+
   it.each([
     "https://user:secret@example.test/rest/services/Parcels/FeatureServer",
     "https://example.test/rest/services/Parcels/FeatureServer?token=secret",

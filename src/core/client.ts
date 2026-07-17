@@ -606,7 +606,7 @@ export class HonuaClient {
   private async fetchWithSafeRedirects(
     url: string,
     init: RequestInit,
-    redirectPolicy: "safe-follow" | "error" = "safe-follow",
+    redirectPolicy: "safe-follow" | "error" | "manual" = "safe-follow",
   ): Promise<Response> {
     let currentUrl = url;
     let currentInit: RequestInit = init;
@@ -641,6 +641,11 @@ export class HonuaClient {
       }
 
       if (!REDIRECT_STATUSES.has(response.status)) return response;
+
+      // Some bounded metadata callers need the untouched 3xx response so
+      // their protocol facade can preserve its typed redirect diagnostic.
+      // Credentials are still never replayed because fetch remains manual.
+      if (redirectPolicy === "manual") return response;
 
       if (redirects >= MAX_SAFE_REDIRECTS) {
         throw new HonuaNetworkError(`Exceeded the maximum of ${MAX_SAFE_REDIRECTS} redirects.`, undefined);
@@ -1161,7 +1166,7 @@ export class HonuaClient {
     callerSignal?: AbortSignal,
     options: {
       okStatuses?: readonly number[];
-      redirect?: "safe-follow" | "error";
+      redirect?: "safe-follow" | "error" | "manual";
       discardErrorBody?: boolean;
     } = {},
   ): Promise<Response> {
@@ -1988,7 +1993,7 @@ export class HonuaClient {
     options: {
       callerSignal?: AbortSignal;
       okStatuses?: readonly number[];
-      redirect?: "safe-follow" | "error";
+      redirect?: "safe-follow" | "error" | "manual";
       errorBody?: (response: Response) => Promise<unknown>;
       shortCircuit?: (
         response: Response,
