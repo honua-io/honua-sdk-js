@@ -126,7 +126,7 @@ test("binds the canonical schema-valid projection to its v2 consumer fixture", a
 
 test("owns a deeply frozen projection snapshot across the verification and render boundary", async () => {
   const callerProjection = structuredClone(projection);
-  const verifiedTitle = sampleById(callerProjection, "endpoint-to-map").title;
+  const verifiedTitle = sampleById(callerProjection, "maplibre-quickstart").title;
   const integrity = await verifyGalleryProjectionIntegrity({
     projectionBytes: stableBytes(callerProjection),
     consumerFixture: fixtureForProjection(callerProjection),
@@ -136,20 +136,20 @@ test("owns a deeply frozen projection snapshot across the verification and rende
   assert.notStrictEqual(integrity.projection, callerProjection);
   assertDeepFrozen(integrity.projection);
   assert.throws(() => {
-    sampleById(integrity.projection, "endpoint-to-map").title = "Forged frozen title";
+    sampleById(integrity.projection, "maplibre-quickstart").title = "Forged frozen title";
   }, TypeError);
 
-  sampleById(callerProjection, "endpoint-to-map").title = "Forged caller title";
+  sampleById(callerProjection, "maplibre-quickstart").title = "Forged caller title";
   callerProjection.samples.push({
-    ...structuredClone(sampleById(callerProjection, "endpoint-to-map")),
+    ...structuredClone(sampleById(callerProjection, "maplibre-quickstart")),
     id: "forged-after-verification",
   });
 
   const gallery = createGalleryModel(integrity);
   const html = renderGallery(gallery);
-  assert.equal(gallery.cardCount, 32);
+  assert.equal(gallery.cardCount, 30);
   assert.equal(
-    galleryCards(gallery).find((card) => card.sample.id === "endpoint-to-map").sample.title,
+    galleryCards(gallery).find((card) => card.sample.id === "maplibre-quickstart").sample.title,
     verifiedTitle,
   );
   assert.doesNotMatch(html, /Forged caller title|forged-after-verification/);
@@ -158,7 +158,7 @@ test("owns a deeply frozen projection snapshot across the verification and rende
 test("deep-freezes and brands every rendered model claim", async () => {
   const gallery = await canonicalGallery();
   const cards = galleryCards(gallery);
-  const endpointCard = cards.find((card) => card.sample.id === "endpoint-to-map");
+  const endpointCard = cards.find((card) => card.sample.id === "maplibre-quickstart");
   const incidentCard = cards.find((card) => card.sample.id === "realtime-incident-dashboard");
   const replacementCard = cards.find((card) => card.sample.id === "web-components-basic");
 
@@ -308,7 +308,7 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", as
 
 test("cannot mint a token for credential-bearing or schema-invalid canonical bytes", async () => {
   const credentialBearing = structuredClone(projection);
-  sampleById(credentialBearing, "endpoint-to-map").data.provenance =
+  sampleById(credentialBearing, "maplibre-quickstart").data.provenance =
     "https://data.example.test/features?access_token=actual-secret-value";
   await assert.rejects(
     () =>
@@ -320,7 +320,7 @@ test("cannot mint a token for credential-bearing or schema-invalid canonical byt
   );
 
   const schemaInvalid = structuredClone(projection);
-  delete sampleById(schemaInvalid, "endpoint-to-map").title;
+  delete sampleById(schemaInvalid, "maplibre-quickstart").title;
   await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
@@ -331,7 +331,7 @@ test("cannot mint a token for credential-bearing or schema-invalid canonical byt
   );
 
   const foreignRepository = structuredClone(projection);
-  sampleById(foreignRepository, "endpoint-to-map").source.repository = "honua-io/forked-sdk";
+  sampleById(foreignRepository, "maplibre-quickstart").source.repository = "honua-io/forked-sdk";
   await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
@@ -370,9 +370,9 @@ test("rejects a schema-valid empty public portfolio with the explicit zero-card 
 
 test("projects one canonical catalog-v2 sample into an honest public gallery card", async () => {
   const gallery = await canonicalGallery();
-  const card = galleryCards(gallery).find((candidate) => candidate.sample.id === "endpoint-to-map");
-  assert.deepEqual(card.sample, sampleById(projection, "endpoint-to-map"));
-  assert.equal(card.journey, null);
+  const card = galleryCards(gallery).find((candidate) => candidate.sample.id === "maplibre-quickstart");
+  assert.deepEqual(card.sample, sampleById(projection, "maplibre-quickstart"));
+  assert.equal(card.journey.id, "first-map");
   assert.equal(card.replacement, null);
   assert.deepEqual(gallery.provenance, {
     projection: {
@@ -392,8 +392,8 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const cards = galleryCards(gallery);
   const byId = new Map(cards.map((card) => [card.sample.id, card]));
 
-  assert.equal(gallery.cardCount, 32);
-  assert.deepEqual(counts, { recipe: 15, lab: 17 });
+  assert.equal(gallery.cardCount, 30);
+  assert.deepEqual(counts, { recipe: 13, lab: 17 });
   assert.ok(!byId.has("arcgis-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
   assert.deepEqual(byId.get("runtime-parity-showcase").replacement, {
@@ -430,12 +430,15 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   assert.equal(imageryCard.sample.evidence.live.status, "planned");
   assert.ok(cards.every((card) => card.qualification.label.includes("not receipt-qualified")));
   assert.ok(cards.every((card) => card.qualification.state !== "receipt-qualified-golden"));
-  assert.deepEqual(byId.get("endpoint-to-map").qualification.requiredGates, [
+  assert.deepEqual(byId.get("maplibre-quickstart").qualification.requiredGates, [
     "packedBuild",
     "browser",
     "accessibility",
     "console",
     "responsive",
+    "screenshot",
+    "performance",
+    "liveEvidence",
   ]);
 });
 
@@ -516,7 +519,7 @@ test("renders global provenance once and puts every card CTA before its disclosu
   assert.equal(occurrenceCount(html, /<dt>Projection SHA-256<\/dt>/g), 1);
   assert.ok(html.includes(consumerFixture.format));
   assert.ok(html.includes(consumerFixture.input.sha256));
-  assert.equal(cards.length, 32);
+  assert.equal(cards.length, 30);
   for (const card of cards) {
     const ctaIndex = card.indexOf('<a class="demo-link"');
     const detailsIndex = card.indexOf('<details class="demo-card-details">');
@@ -673,7 +676,7 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
   const empty = document.querySelector("[data-gallery-empty]");
   const groups = [...document.querySelectorAll("[data-gallery-group]")];
 
-  assert.equal(count.textContent, "32");
+  assert.equal(count.textContent, "30");
   assert.equal(clear.disabled, true);
   assert.equal(empty.hidden, true);
 
@@ -702,7 +705,7 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
 
   capability.value = "";
   protocol.value = "";
-  search.value = "endpoint-to-map four statements";
+  search.value = "maplibre-quickstart endpoint inspected";
   let submitWasPrevented = false;
   form.addEventListener("submit", (event) => {
     submitWasPrevented = event.defaultPrevented;
@@ -717,7 +720,7 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
   assert.equal(search.value, "");
   assert.equal(capability.value, "");
   assert.equal(protocol.value, "");
-  assert.equal(count.textContent, "32");
+  assert.equal(count.textContent, "30");
   assert.equal(empty.hidden, true);
   assert.ok(groups.every((group) => !group.hidden));
   assert.equal(document.activeElement, search);

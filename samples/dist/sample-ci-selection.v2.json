@@ -112,16 +112,13 @@
       },
       "sampleIds": [
         "edit-workflow-demo",
-        "endpoint-to-map",
         "geocoding-quickstart",
         "geoprocessing-job-runner",
-        "maplibre-quickstart",
         "oauth-signin",
         "pmtiles-static",
         "react-quickstart",
         "sketch-editing",
         "stac-imagery-browser",
-        "standalone-quickstart",
         "temporal-playback",
         "terrain-rgb-elevation"
       ]
@@ -139,7 +136,8 @@
         "liveEvidence": true
       },
       "sampleIds": [
-        "imagery-cog-quickstart"
+        "imagery-cog-quickstart",
+        "maplibre-quickstart"
       ]
     },
     {
@@ -424,46 +422,6 @@
       }
     },
     {
-      "id": "endpoint-to-map",
-      "sourcePath": "examples/endpoint-to-map",
-      "track": "recipe",
-      "supportTier": "experimental",
-      "validationProfile": "browser-recipe",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:endpoint-to-map:typecheck",
-            "npm run demo:endpoint-to-map:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:endpoint-to-map:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "public-live",
-        "status": "planned"
-      }
-    },
-    {
       "id": "geocoding-quickstart",
       "sourcePath": "examples/geocoding-quickstart",
       "track": "recipe",
@@ -638,16 +596,16 @@
       "track": "recipe",
       "journeyId": "first-map",
       "supportTier": "supported",
-      "validationProfile": "browser-recipe",
+      "validationProfile": "golden-browser",
       "gates": {
         "packedBuild": true,
         "browser": true,
         "accessibility": true,
         "console": true,
         "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
+        "screenshot": true,
+        "performance": true,
+        "liveEvidence": true
       },
       "commandPlan": {
         "validation": {
@@ -667,15 +625,13 @@
         "liveEvidence": {
           "execution": "scheduled-only",
           "commands": [
-            "npm run bench:live"
+            "npm run evidence:first-map:live"
           ]
         }
       },
       "liveEvidence": {
-        "mode": "demo-live",
-        "status": "executed",
-        "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json",
-        "expiresAt": "2026-08-12T02:18:02.654Z"
+        "mode": "public-live",
+        "status": "planned"
       }
     },
     {
@@ -1338,49 +1294,6 @@
         "liveEvidence": {
           "execution": "scheduled-only",
           "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "public-live",
-        "status": "planned"
-      }
-    },
-    {
-      "id": "standalone-quickstart",
-      "sourcePath": "examples/standalone-quickstart",
-      "track": "recipe",
-      "supportTier": "supported",
-      "validationProfile": "browser-recipe",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:standalone:typecheck",
-            "npm run demo:standalone:build",
-            "npm run test:playwright:standalone"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:standalone:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": [
-            "npm run demo:standalone:live-smoke"
-          ]
         }
       },
       "liveEvidence": {

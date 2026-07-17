@@ -1,0 +1,44 @@
+name: First Map Release Smoke
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  source-packed-parity:
+    name: Three-engine smoke and source-packed parity
+    runs-on: ubuntu-latest
+    env:
+      HONUA_FIRST_MAP_RELEASE_MATRIX: "true"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: npm run test:playwright:quickstart
+      - run: npm run demo:quickstart:parity
+      - run: npm run demo:quickstart:copyability
+      - run: npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode source
+      - run: npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode packed
+
+      - name: Upload deterministic browser and bundle observations
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: honua-sdk-first-map-release-smoke
+          path: |
+            .tmp/playwright-first-map-output
+            examples/maplibre-quickstart/dist/first-map-bundle-budget.json
+            examples/maplibre-quickstart/dist/honua-sample-sdk-resolution.json
+          if-no-files-found: warn
+          retention-days: 30

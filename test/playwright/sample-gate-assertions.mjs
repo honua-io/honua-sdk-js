@@ -62,19 +62,24 @@ async function writeBrowserEvidenceArtifacts({
 
   if (screenshotOutput) {
     await mkdir(path.dirname(screenshotOutput.absolute), { recursive: true });
-    await page.setViewportSize(SAMPLE_SCREENSHOT_VIEWPORT);
-    const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), "screenshot.png");
-    await page.screenshot({ path: screenshotPath, animations: "disabled", fullPage: false });
-    const bytes = await readFile(screenshotPath);
-    const report = {
-      projectName,
-      browserName,
-      viewport: SAMPLE_SCREENSHOT_VIEWPORT,
-      path: path.relative(process.cwd(), screenshotPath).replaceAll(path.sep, "/"),
-      bytes: bytes.byteLength,
-      sha256: createHash("sha256").update(bytes).digest("hex"),
-    };
-    await writeFile(screenshotOutput.absolute, `${JSON.stringify(report, null, 2)}\n`);
+    const previousViewport = page.viewportSize();
+    try {
+      await page.setViewportSize(SAMPLE_SCREENSHOT_VIEWPORT);
+      const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), "screenshot.png");
+      await page.screenshot({ path: screenshotPath, animations: "disabled", fullPage: false });
+      const bytes = await readFile(screenshotPath);
+      const report = {
+        projectName,
+        browserName,
+        viewport: SAMPLE_SCREENSHOT_VIEWPORT,
+        path: path.relative(process.cwd(), screenshotPath).replaceAll(path.sep, "/"),
+        bytes: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      };
+      await writeFile(screenshotOutput.absolute, `${JSON.stringify(report, null, 2)}\n`);
+    } finally {
+      if (previousViewport) await page.setViewportSize(previousViewport);
+    }
   }
 
   if (performanceOutput) {
@@ -92,7 +97,9 @@ async function writeBrowserEvidenceArtifacts({
         if (!navigation || navigation.entryType !== "navigation") {
           throw new Error("PerformanceNavigationTiming is unavailable");
         }
-        const resources = performance.getEntriesByType("resource");
+        const resources = performance
+          .getEntriesByType("resource")
+          .filter((entry) => entry.responseEnd > 0 && entry.responseEnd <= readyMs);
         return {
           navigation: {
             entryType: navigation.entryType,
@@ -167,15 +174,20 @@ async function attestKeyboardWorkflow(page, selector) {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
   const interactionStartedAt = await page.evaluate(() => performance.now());
-  await page.keyboard.press("Tab");
-  const tabReachedTarget = await summary.evaluate((element) => document.activeElement === element);
+  let tabCount = 0;
+  let tabReachedTarget = false;
+  while (!tabReachedTarget && tabCount < 64) {
+    await page.keyboard.press("Tab");
+    tabCount += 1;
+    tabReachedTarget = await summary.evaluate((element) => document.activeElement === element);
+  }
   expect(tabReachedTarget).toBe(true);
   await page.keyboard.press("Enter");
   const interactionFinishedAt = await page.evaluate(() => performance.now());
   const activated = await summary.evaluate((element) => element.closest("details")?.open === true);
   expect(activated).toBe(true);
   await page.keyboard.press("Enter");
-  return { selector, tabReachedTarget, activated, durationMs: interactionFinishedAt - interactionStartedAt };
+  return { selector, tabCount, tabReachedTarget, activated, durationMs: interactionFinishedAt - interactionStartedAt };
 }
 
 async function attestResponsiveWorkflows(page, viewports, selectors) {

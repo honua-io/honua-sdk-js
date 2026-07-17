@@ -37,8 +37,10 @@ const mounted = await mountSource(map, data.source(), {
 });
 ```
 
-The runnable version of this workflow (fixture and live lanes) is
-[`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md).
+This page is the focused lower-level API recipe. The duplicate `endpoint-to-map` app was retired; its
+[`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md) route is documentation-only and redirects readers
+to the canonical [First Map](../examples/maplibre-quickstart/README.md) executable. Do not rebuild a second sample app
+around this excerpt.
 
 ## Strategy selection
 
