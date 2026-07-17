@@ -1,0 +1,22 @@
+{
+  "stac_version": "1.1.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/table/v1.2.0/schema.json",
+    "https://stac-extensions.github.io/projection/v2.0.0/schema.json"
+  ],
+  "type": "Collection",
+  "id": "oahu-observations",
+  "title": "Oahu observations",
+  "description": "Static fixture collection.",
+  "license": "CC-BY-4.0",
+  "providers": [{ "name": "Honua fixture program", "roles": ["producer"] }],
+  "crs": ["EPSG:4326"],
+  "extent": {
+    "spatial": { "bbox": [[-158.4, 21.2, -157.6, 21.8]], "crs": "OGC:CRS84" },
+    "temporal": { "interval": [["2026-01-01T00:00:00Z", null]] }
+  },
+  "links": [
+    { "rel": "item", "href": "./item.json", "type": "application/geo+json" },
+    { "rel": "child", "href": "./catalog.json", "type": "application/json" }
+  ]
+}

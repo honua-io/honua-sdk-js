@@ -1334,7 +1334,10 @@ export function stacSearchSource<T>(
   const layout = descriptor.locator.layout;
   const stacBasePath = layout === "stac-api" ? "" : undefined;
   const stac = new HonuaStacSearch({ client, ...(stacBasePath !== undefined ? { basePath: stacBasePath } : {}) });
-  const staticCatalog = layout === "stac-static" ? new HonuaStacStaticCatalog(client, client.serverBaseUrl) : undefined;
+  const staticCatalog =
+    layout === "stac-static"
+      ? new HonuaStacStaticCatalog(client, descriptor.locator.url, descriptor.locator.stacStatic)
+      : undefined;
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.stac;
   const collectionScope = descriptor.locator.collectionId;
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {

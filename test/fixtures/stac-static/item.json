@@ -1,0 +1,73 @@
+{
+  "stac_version": "1.1.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/table/v1.2.0/schema.json",
+    "https://stac-extensions.github.io/projection/v2.0.0/schema.json"
+  ],
+  "type": "Feature",
+  "id": "observation-001",
+  "collection": "oahu-observations",
+  "bbox": [-158.1, 21.3, -157.8, 21.6],
+  "geometry": null,
+  "properties": {
+    "datetime": "2026-04-12T21:19:01Z",
+    "proj:code": "EPSG:4326",
+    "table:primary_geometry": "geometry"
+  },
+  "assets": {
+    "cog": {
+      "href": "./assets/image.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "roles": ["data", "visual"]
+    },
+    "geoparquet": {
+      "href": "./assets/table.parquet",
+      "type": "application/vnd.apache.parquet",
+      "roles": ["data"],
+      "table:primary_geometry": "geometry"
+    },
+    "pmtiles": {
+      "href": "https://cdn.example/basemap.pmtiles",
+      "type": "application/vnd.pmtiles",
+      "roles": ["data"]
+    },
+    "vector-tiles": {
+      "href": "./tiles/{z}/{x}/{y}.pbf",
+      "type": "application/vnd.mapbox-vector-tile",
+      "roles": ["tiles"]
+    },
+    "metadata": {
+      "href": "./assets/metadata.json",
+      "type": "application/json",
+      "roles": ["metadata"]
+    },
+    "regular-geotiff": {
+      "href": "./assets/regular.tif",
+      "type": "image/tiff; application=geotiff",
+      "roles": ["data"]
+    },
+    "mislabelled": {
+      "href": "./assets/mislabelled.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "roles": ["data"]
+    },
+    "unsupported": {
+      "href": "./assets/archive.zip",
+      "type": "application/zip",
+      "roles": ["data"]
+    },
+    "suffix-only": {
+      "href": "./assets/no-type.pmtiles",
+      "roles": ["data"]
+    },
+    "unsafe-signed": {
+      "href": "./assets/signed.pmtiles?token=do-not-retain",
+      "type": "application/vnd.pmtiles",
+      "roles": ["data"]
+    }
+  },
+  "links": [
+    { "rel": "collection", "href": "./collection.json", "type": "application/json" },
+    { "rel": "root", "href": "./catalog.json", "type": "application/json" }
+  ]
+}

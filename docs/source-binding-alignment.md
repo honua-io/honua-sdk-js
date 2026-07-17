@@ -20,6 +20,7 @@ locator fields until the server schema exposes them explicitly.
 | `locator.serviceId` | `locator.serviceId` | GeoServices service identifier (FeatureServer, MapServer, ImageServer, Geometry, GP). |
 | `locator.layerId` | `locator.layerId` | Numeric layer identifier within the service. |
 | `locator.collectionId` | `locator.collectionId` | OGC API Features / Tiles / Maps / STAC collection, or OGC API Records catalog id. |
+| `locator.stacStatic` | SDK-only additive field | Normalized document/depth/link/asset/probe/body limits admitted by static STAC discovery and reapplied by the runtime reader. It prevents a persisted descriptor from widening its catalog crawl after discovery. |
 | `locator.tileMatrixSetId` | `locator.tileMatrixSetId` | OGC API Tiles tile-matrix-set identifier. When set, `Source.adapter("ogc-tiles")` returns a bound `HonuaOgcTileset`; when omitted, it returns the root `HonuaOgcTiles` handle for tile-matrix-set discovery. Preserved as an additive locator field when present. |
 | `locator.styleId` | `locator.styleId` | OGC API Maps styled-output identifier. Consumed by `Source.adapter("ogc-maps")` to build the `/styles/{styleId}/map` route. Not consumed by the OGC Tiles adapter today: honua-server does not expose a `/styles/{styleId}/tiles/...` route, so the SDK keeps the tile path canonical. Preserved as an additive locator field when present. |
 | `locator.typeName` | `locator.typeName` | WFS / WMS / WMTS layer name (the WMS `LAYERS=` value, the WMTS `Layer` identifier). |

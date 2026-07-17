@@ -18,7 +18,7 @@ export interface NormalizedRetryOptions {
 }
 
 export const DEFAULT_RETRY_STATUSES: ReadonlySet<number> = new Set([429, 502, 503, 504]);
-export const DEFAULT_RETRY_METHODS: ReadonlySet<QueryMethod> = new Set(["GET", "PUT", "DELETE"]);
+export const DEFAULT_RETRY_METHODS: ReadonlySet<QueryMethod> = new Set(["GET", "HEAD", "PUT", "DELETE"]);
 
 export function normalizeTimeoutMs(timeoutMs: number | undefined): number | undefined {
   if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs)) {
