@@ -18,6 +18,7 @@ import type {
 } from "../src/contract/types.js";
 import { HonuaAbortError } from "../src/core/errors.js";
 import { createHonuaKernel } from "../src/kernel/index.js";
+import { type SourceToMapLibreMap, mountSourceToMapLibre } from "../src/map/source-to-maplibre.js";
 
 interface Incident {
   readonly id: number;
@@ -245,6 +246,8 @@ describe.each(PROTOCOL_CASES)("connection query facade: $protocol", ({ protocol,
     const plan = await connection.explain(request);
     const planned = await connection.query(plan);
     const direct = await connection.query(request);
+    const map = inMemoryMap();
+    const mounted = await mountSourceToMapLibre(map, connection.source<Incident>(), plan);
 
     expect(plan.steps[0]).toMatchObject({ engine: "remote", compiled: { compiler } });
     expect(plan.ir.source.sourceVersion).toMatch(/^connection-source:sha256:[0-9a-f]{64}$/);
@@ -270,11 +273,32 @@ describe.each(PROTOCOL_CASES)("connection query facade: $protocol", ({ protocol,
     expect(serializedReceipt).not.toContain("TENANT-ALPHA");
     expect(serializedReceipt).not.toContain("RAW-API-KEY");
     expect(serializedReceipt).not.toContain(endpoint);
-    expect(fixture.source.query).toHaveBeenCalledTimes(2);
+    expect(map.getSource("honua-incidents")).toBeDefined();
+    mounted.dispose();
+    expect(fixture.source.query).toHaveBeenCalledTimes(3);
 
     await kernel.dispose();
   });
 });
+
+function inMemoryMap(): SourceToMapLibreMap {
+  const sources = new Map<string, unknown>();
+  const layers = new Map<string, unknown>();
+  return {
+    getSource: (id) => sources.get(id),
+    addSource: (id, source) => sources.set(id, source),
+    removeSource: (id) => {
+      sources.delete(id);
+    },
+    getLayer: (id) => layers.get(id),
+    addLayer: (layer) => {
+      layers.set(String((layer as { readonly id: unknown }).id), layer);
+    },
+    removeLayer: (id) => {
+      layers.delete(id);
+    },
+  };
+}
 
 describe("connection query cache truthfulness", () => {
   it.each(["hit", "refreshed"] as const)(
