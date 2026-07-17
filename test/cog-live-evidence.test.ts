@@ -2,7 +2,7 @@ import fs from "node:fs";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { runCogLiveEvidence, validateCogPublicContract } from "../scripts/cog-live-evidence.mjs";
+import { readExactEvidenceBody, runCogLiveEvidence, validateCogPublicContract } from "../scripts/cog-live-evidence.mjs";
 import { validateEvidenceEnvelope } from "../scripts/sample-contract.mjs";
 
 const contract = JSON.parse(
@@ -73,5 +73,23 @@ describe("direct COG scheduled semantic evidence", () => {
     expect(packageJson.dependencies?.geotiff).toBeUndefined();
     expect(packageJson.peerDependencies?.geotiff).toBeUndefined();
     expect(packageJson.devDependencies.geotiff).toBe("3.0.5");
+  });
+
+  it("cancels a live prefix response before it can exceed the pinned byte ceiling", async () => {
+    const cancel = vi.fn();
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(65));
+        },
+        cancel,
+      }),
+      { status: 206 },
+    );
+
+    await expect(readExactEvidenceBody(response, 64, new AbortController().signal)).rejects.toThrow(
+      "exceeded its 64-byte ceiling",
+    );
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 });

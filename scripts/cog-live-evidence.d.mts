@@ -20,6 +20,12 @@ export interface CogPublicContract {
 
 export function validateCogPublicContract<T extends CogPublicContract>(contract: T): T;
 
+export function readExactEvidenceBody(
+  response: Response,
+  expectedLength: number,
+  signal: AbortSignal,
+): Promise<Uint8Array>;
+
 export function runCogLiveEvidence(options?: {
   readonly contract?: CogPublicContract;
   readonly observedAt?: string;

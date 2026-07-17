@@ -166,6 +166,7 @@ export function normalizeWindowRequest(
 export function normalizeDecodedWindow(
   value: CogDecodedWindow,
   request: CogWindowRequest,
+  metadata: CogDecodedMetadata,
   limits: CogTransferLimits,
 ): readonly CogBandWindow[] {
   const outputWidth = request.sampling?.width ?? request.width;
@@ -174,6 +175,7 @@ export function normalizeDecodedWindow(
     throw new HonuaCogError("invalid-window", "The COG decoder returned a window with mismatched dimensions.");
   }
   const requestedBands = request.bands ?? [];
+  const metadataByBand = new Map(metadata.bands.map((band) => [band.index, band]));
   if (value.bands.length !== requestedBands.length) {
     throw new HonuaCogError("invalid-window", "The COG decoder returned a mismatched band count.");
   }
@@ -192,6 +194,13 @@ export function normalizeDecodedWindow(
     const band = entry.band;
     if (entry.values.length !== expectedSamples || byBand.has(band)) {
       throw new HonuaCogError("invalid-window", "Every decoded COG band must contain exactly one value per pixel.");
+    }
+    const expectedType = metadataByBand.get(band)?.dataType;
+    if (!expectedType || sampleArrayDataType(entry.values) !== expectedType) {
+      throw new HonuaCogError(
+        "invalid-window",
+        `Decoded COG band ${band} does not match its inspected ${expectedType ?? "unknown"} sample type.`,
+      );
     }
     decodedBytes += entry.values.byteLength;
     if (!Number.isSafeInteger(decodedBytes) || decodedBytes > limits.maxDecodedBytes) {
@@ -379,6 +388,9 @@ function cloneEvidence(value: StacAssetClassificationEvidence): StacAssetClassif
   ) {
     throw new HonuaCogError("invalid-candidate", "The STAC candidate contains malformed classification evidence.");
   }
+  if (value.supports !== undefined && !Array.isArray(value.supports)) {
+    throw new HonuaCogError("invalid-candidate", "The STAC candidate evidence supports field must be an array.");
+  }
   const supports = value.supports
     ? Object.freeze(
         value.supports.map((kind) => {
@@ -514,6 +526,17 @@ function isSampleArray(value: unknown): value is CogSampleArray {
     value instanceof Float32Array ||
     value instanceof Float64Array
   );
+}
+
+function sampleArrayDataType(value: CogSampleArray): CogBand["dataType"] {
+  if (value instanceof Uint8Array) return "uint8";
+  if (value instanceof Int8Array) return "int8";
+  if (value instanceof Uint16Array) return "uint16";
+  if (value instanceof Int16Array) return "int16";
+  if (value instanceof Uint32Array) return "uint32";
+  if (value instanceof Int32Array) return "int32";
+  if (value instanceof Float32Array) return "float32";
+  return "float64";
 }
 
 function cloneSampleArray(values: CogSampleArray): CogSampleArray {

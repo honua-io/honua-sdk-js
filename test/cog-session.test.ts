@@ -233,6 +233,42 @@ describe("direct STAC-to-COG S1 boundary", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it("rejects malformed secondary classification evidence as a typed candidate error", () => {
+    const factory = vi.fn(async () => fixtureDecoder());
+    const fetchFn = vi.fn(partialRangeFetch());
+    const malformed = candidate({
+      evidence: [
+        ...candidate().evidence,
+        { kind: "role", value: "data", supports: "cog" } as unknown as StacAssetCandidate["evidence"][number],
+      ],
+    });
+
+    expect(() => openStacCogAsset(malformed, { decoderFactory: factory, fetchFn })).toThrowError(
+      expect.objectContaining({ name: "HonuaCogError", code: "invalid-candidate" }),
+    );
+    expect(factory).not.toHaveBeenCalled();
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("rejects decoded sample arrays that contradict inspected band metadata", async () => {
+    const session = openStacCogAsset(candidate(), {
+      decoderFactory: async () =>
+        fixtureDecoder({
+          async readWindow() {
+            return { width: 2, height: 2, bands: [{ band: 1, values: new Uint16Array(4) }] };
+          },
+        }),
+      fetchFn: partialRangeFetch(),
+    });
+
+    await session.inspect();
+    await expect(session.readWindow({ x: 0, y: 0, width: 2, height: 2, bands: [1] })).rejects.toMatchObject({
+      name: "HonuaCogError",
+      code: "invalid-window",
+    });
+    await session.dispose();
+  });
+
   it("limits the factory signal to initialization and uses operation signals after it settles", async () => {
     const controller = new AbortController();
     let initializationSignal: AbortSignal | undefined;

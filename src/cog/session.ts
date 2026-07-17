@@ -137,7 +137,7 @@ export class StacCogAssetSession {
           linked.controller.signal,
         );
       }
-      const bands = normalizeDecodedWindow(decoded, normalizedRequest, this.limits);
+      const bands = normalizeDecodedWindow(decoded, normalizedRequest, metadata, this.limits);
       return Object.freeze({
         window: normalizedRequest,
         width: normalizedRequest.sampling?.width ?? normalizedRequest.width,

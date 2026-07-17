@@ -106,10 +106,40 @@ async function verifyPrefix(contract, fetchFn, signal) {
   invariant(response.headers.get("content-range") === `bytes ${offset}-${offset + length - 1}/${contract.asset.byteLength}`, "Pinned Content-Range drift");
   invariant(response.headers.get("etag") === contract.asset.etag, "Pinned asset ETag drift");
   invariant(response.headers.get("last-modified") === contract.asset.lastModified, "Pinned Last-Modified drift");
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  const bytes = await readExactEvidenceBody(response, length, signal);
   invariant(bytes.byteLength === length, "Pinned prefix byte length drift");
   invariant(sha256(bytes) === expectedDigest, "Pinned prefix digest drift");
   return { contentRange: response.headers.get("content-range"), etag: response.headers.get("etag"), sha256: sha256(bytes) };
+}
+
+export async function readExactEvidenceBody(response, expectedLength, signal) {
+  invariant(Number.isSafeInteger(expectedLength) && expectedLength > 0, "Pinned prefix length is invalid");
+  invariant(response.body, "Pinned prefix response has no readable body");
+  const reader = response.body.getReader();
+  const abort = () => void reader.cancel().catch(() => undefined);
+  if (signal.aborted) abort();
+  else signal.addEventListener("abort", abort, { once: true });
+  const output = new Uint8Array(expectedLength);
+  let written = 0;
+  try {
+    while (true) {
+      invariant(!signal.aborted, "Pinned prefix read was aborted");
+      const next = await reader.read();
+      if (next.done) break;
+      if (written + next.value.byteLength > expectedLength) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error(`Pinned prefix response exceeded its ${expectedLength}-byte ceiling`);
+      }
+      output.set(next.value, written);
+      written += next.value.byteLength;
+    }
+  } finally {
+    signal.removeEventListener("abort", abort);
+    reader.releaseLock();
+  }
+  invariant(!signal.aborted, "Pinned prefix read was aborted");
+  invariant(written === expectedLength, "Pinned prefix byte length drift");
+  return output;
 }
 
 function validateInspection(inspection, expected) {
