@@ -59,11 +59,16 @@ Every runner must enforce the invariants that JSON Schema cannot express:
   and metric references resolve to declared fields;
 - every source row has exactly the declared fields and respects logical type
   and nullability;
-- metric aliases neither collide with fields nor repeat;
+- query kinds admit only their own fields; operators, literals, sort/group
+  fields, and metrics are compatible with the declared logical types;
+- page variants, temporal instants/intervals, GeoJSON coordinate shapes, and
+  CRS authority/axis bindings are structurally and semantically consistent;
+- metric aliases neither collide with fields nor repeat, and ranges, bounding
+  boxes, and temporal intervals have ordered endpoints;
 - every case has one projection for every declared protocol and the corpus
   contains the complete required coverage taxonomy;
-- the frozen clock parses deterministically and the full fixture contains no
-  credential-bearing key or value.
+- dates and UTC timestamps parse strictly, the frozen clock is a UTC timestamp,
+  and the full fixture contains no credential-bearing key or value.
 
 ## Coverage and interpretation
 

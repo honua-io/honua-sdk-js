@@ -161,6 +161,78 @@ describe("versioned semantic query equivalence corpus", () => {
     expect(`${String(captured)}\n${JSON.stringify(captured)}`).not.toContain("corpus-secret-marker");
   });
 
+  it("rejects ambiguous or ill-typed portable corpus semantics before compilation", async () => {
+    const schemaDocument = JSON.parse(
+      await readFile(new URL("../conformance/semantic-query/v1/schema.json", import.meta.url), "utf8"),
+    );
+    const attacks: Array<(value: Record<string, unknown>) => void> = [
+      (value) => {
+        value.frozenClock = "2026-07-15";
+      },
+      (value) => {
+        const cases = value.cases as Array<{ query: Record<string, unknown> }>;
+        cases[0]!.query.metrics = [{ fn: "count", field: "id", as: "count" }];
+      },
+      (value) => {
+        const cases = value.cases as Array<{ query: Record<string, unknown> }>;
+        cases[4]!.query.page = { kind: "first", offset: 999, limit: 2 };
+      },
+      (value) => {
+        const cases = value.cases as Array<{ query: { filter: Record<string, unknown> } }>;
+        cases[2]!.query.filter.value = {
+          kind: "temporal-literal",
+          valueType: "interval",
+          value: ["not-an-instant", "still-not-an-instant"],
+        };
+      },
+      (value) => {
+        const cases = value.cases as Array<{ query: { filter: Record<string, unknown> } }>;
+        cases[3]!.query.filter.bbox = { arbitrary: "object" };
+      },
+      (value) => {
+        const cases = value.cases as Array<{
+          query: { metrics: Array<Record<string, unknown>> };
+          expected: { rows: Array<Record<string, unknown>> };
+        }>;
+        cases[5]!.query.metrics[1] = { fn: "sum", field: "status", as: "mean_score" };
+        cases[5]!.expected.rows[0]!.mean_score = 0;
+      },
+      (value) => {
+        const rows = value.rows as Array<Record<string, unknown>>;
+        rows[0]!.observedAt = "2026-07-15T24:00:00Z";
+      },
+      (value) => {
+        const schema = value.schema as { geometry: { definitionAxisOrder: string[] } };
+        schema.geometry.definitionAxisOrder.push("height");
+      },
+      (value) => {
+        const cases = value.cases as Array<{ query: { filter: Record<string, unknown> } }>;
+        const bbox = cases[3]!.query.filter.bbox as {
+          crs: { definition: { code: string } };
+        };
+        bbox.crs.definition.code = "3857";
+      },
+      (value) => {
+        const cases = value.cases as Array<{ query: { filter: Record<string, unknown> } }>;
+        const bbox = cases[3]!.query.filter.bbox as {
+          crs: { coordinateOrder: { axes: Array<{ unit: string }> } };
+        };
+        bbox.crs.coordinateOrder.axes[0]!.unit = "radian";
+      },
+      (value) => {
+        const cases = value.cases as Array<{ query: { filter: Record<string, unknown> } }>;
+        const bbox = cases[3]!.query.filter.bbox as Record<string, unknown>;
+        bbox.coordinateEpoch = 2026;
+      },
+    ];
+
+    for (const attack of attacks) {
+      const hostile = structuredClone(corpus) as unknown as Record<string, unknown>;
+      attack(hostile);
+      expect(() => validateSemanticQueryCorpus(schemaDocument, hostile)).toThrow(SemanticQueryCorpusError);
+    }
+  });
+
   it("covers the required semantic and adversarial matrix once", () => {
     const coverage = new Set(corpus.cases.flatMap((entry) => entry.covers));
     expect(coverage).toEqual(
