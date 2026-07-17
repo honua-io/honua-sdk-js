@@ -1419,15 +1419,14 @@
     {
       "id": "service-explorer",
       "title": "Universal service explorer",
-      "summary": "Browses heterogeneous spatial services with capability and cache diagnostics.",
+      "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "sourceKind": "root-example",
       "track": "lab",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Become the universal discovery and explain-plan journey.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Maintained public-kernel journey with deterministic hostile fixtures and scheduled dual-protocol evidence."
       },
       "validationProfile": "browser-lab",
       "source": {
@@ -1440,9 +1439,14 @@
         "version": "0.1.0-beta.0"
       },
       "capabilities": [
+        "cancellation",
         "capability-discovery",
-        "catalog",
-        "protocols"
+        "explain-plan",
+        "fidelity",
+        "map",
+        "protocols",
+        "provenance",
+        "query"
       ],
       "protocols": [
         "geoservices",
@@ -1458,12 +1462,11 @@
       ],
       "data": {
         "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed multi-protocol catalog or configured Honua catalog.",
-        "attribution": "Source attribution is retained per selected service.",
-        "freshness": "Metadata cache and live observation timestamps.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+        "authMode": "anonymous",
+        "provenance": "Same-origin OGC fixture observations or scheduled public GeoServices and OGC inspection receipts.",
+        "attribution": "Inspected source attribution remains visible; scheduled evidence credits Esri and pygeoapi.",
+        "freshness": "Fixture replay is deterministic; scheduled live evidence records its observation time.",
+        "configurationStatus": "approved"
       },
       "evidence": {
         "fixture": {
@@ -1471,11 +1474,11 @@
           "status": "executed"
         },
         "live": {
-          "mode": "authenticated",
+          "mode": "public-live",
           "status": "planned"
         }
       },
-      "expectedDegradation": "Unavailable admin metadata falls back to service discovery with a visible diagnostic."
+      "expectedDegradation": "Discovery may be partial or an inspected source may be query/render unsupported; every unavailable action retains a structured evidence or planner reason."
     },
     {
       "id": "shared-renderer-state",
@@ -2177,16 +2180,8 @@
     {
       "id": "two-protocols",
       "route": "demo-two-protocols.html",
-      "ownership": "site-exception",
-      "exceptionReason": "The site currently owns the only three-protocol side-by-side implementation; replace it from the universal discovery flagship.",
-      "title": "Same data, three protocols",
-      "summary": "Compares GeoServices, OGC Features, and OData results.",
-      "track": "lab",
-      "supportTier": "experimental",
-      "capabilities": [
-        "interoperability",
-        "query"
-      ]
+      "ownership": "sdk-projection",
+      "sampleId": "service-explorer"
     },
     {
       "id": "wms-overlay",

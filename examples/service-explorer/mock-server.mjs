@@ -129,6 +129,82 @@ function serveOgcFixture(requestUrl, res) {
   return false;
 }
 
+async function boundedJsonProbe(origin, requestPath, maxBytes = 64 * 1024) {
+  const response = await fetch(`${origin}${requestPath}`, { signal: AbortSignal.timeout(2_000) });
+  const body = Buffer.from(await response.arrayBuffer());
+  if (!response.ok) throw new Error(`${requestPath} returned HTTP ${response.status}`);
+  if (body.byteLength === 0 || body.byteLength > maxBytes) {
+    throw new Error(`${requestPath} exceeded its bounded fixture response budget`);
+  }
+  const contentType = response.headers.get("content-type");
+  if (!contentType?.startsWith("application/json")) {
+    throw new Error(`${requestPath} did not return JSON`);
+  }
+  return {
+    path: requestPath,
+    status: response.status,
+    bodyBytes: body.byteLength,
+    bodySha256: createHash("sha256").update(body).digest("hex"),
+    contentType,
+    json: JSON.parse(body.toString("utf8")),
+  };
+}
+
+async function probeProtocolAndHostileFixtures(origin) {
+  const landing = await boundedJsonProbe(origin, "/fixtures/ogc");
+  const conformance = await boundedJsonProbe(origin, "/fixtures/ogc/conformance");
+  const collections = await boundedJsonProbe(origin, "/fixtures/ogc/collections");
+  const items = await boundedJsonProbe(origin, "/fixtures/ogc/collections/places/items?limit=2");
+  if (!landing.json.links?.some((link) => link.rel === "data")) {
+    throw new Error("OGC landing evidence does not advertise a data link");
+  }
+  if (!conformance.json.conformsTo?.some((value) => value.includes("ogcapi-features-1/1.0/conf/core"))) {
+    throw new Error("OGC conformance evidence does not advertise the core class");
+  }
+  if (collections.json.collections?.[0]?.id !== "places") {
+    throw new Error("OGC collection evidence did not retain the expected source identity");
+  }
+  if (items.json.numberReturned !== 2 || items.json.features?.length !== 2) {
+    throw new Error("OGC item evidence did not honor the bounded query limit");
+  }
+
+  const deadlineMs = 50;
+  const startedAt = performance.now();
+  let errorName;
+  try {
+    await fetch(`${origin}/fixtures/slow-ogc`, { signal: AbortSignal.timeout(deadlineMs) });
+    throw new Error("Hostile slow fixture unexpectedly completed before its deadline");
+  } catch (error) {
+    errorName = error instanceof Error ? error.name : "unknown";
+    if (errorName !== "AbortError" && errorName !== "TimeoutError") throw error;
+  }
+  const elapsedMs = Math.max(0, performance.now() - startedAt);
+  if (elapsedMs > 1_000) throw new Error("Hostile slow fixture did not cancel within its bounded grace period");
+
+  return {
+    protocol: {
+      landing: withoutJson(landing),
+      conformance: withoutJson(conformance),
+      collections: withoutJson(collections),
+      items: withoutJson(items),
+      sourceId: "places",
+      returnedFeatures: items.json.numberReturned,
+    },
+    hostile: {
+      path: "/fixtures/slow-ogc",
+      deadlineMs,
+      cancelled: true,
+      errorName,
+      elapsedMs,
+    },
+  };
+}
+
+function withoutJson(probe) {
+  const { json: _json, ...evidence } = probe;
+  return evidence;
+}
+
 function resolveStaticPath(pathname) {
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
   const absolutePath = path.join(distRoot, requestedPath);
@@ -218,6 +294,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
   if (evidenceOnce) {
     let probe;
+    let fixtureMatrix;
     try {
       const response = await fetch(url);
       const body = Buffer.from(await response.arrayBuffer());
@@ -230,6 +307,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         contentType: response.headers.get("content-type"),
       };
       if (!response.ok) throw new Error(`Fixture evidence probe failed with HTTP ${response.status}`);
+      fixtureMatrix = await probeProtocolAndHostileFixtures(url);
     } finally {
       await close();
     }
@@ -246,6 +324,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         ready: true,
         started: true,
         probe,
+        fixtureMatrix,
         closed: true,
         listeningAfterClose: server.listening,
         activeConnectionsAfterClose,

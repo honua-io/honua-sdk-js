@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SampleCleanupRegistry } from "../examples/_kit/cleanup.js";
 import { mountSamplePresentation } from "../examples/_kit/presentation.js";
-import { runServiceExplorerWorkflow } from "../examples/service-explorer/src/workflow.js";
 import type { StandaloneDataset } from "../examples/standalone-quickstart/src/data.js";
 import { renderStandaloneFeatureList } from "../examples/standalone-quickstart/src/presentation.js";
 import { runStandaloneWorkflow } from "../examples/standalone-quickstart/src/workflow.js";
@@ -126,31 +125,6 @@ describe("sample presentation", () => {
     await vi.waitFor(() => expect(queryCount).toBe(2));
     controller.abort(new DOMException("disposed", "AbortError"));
     await expect(workflow).rejects.toMatchObject({ name: "HonuaNetworkError", cause: { name: "AbortError" } });
-    expect(controller.signal.aborted).toBe(true);
-  });
-
-  it("does not convert service-explorer cancellation into fixture degradation", async () => {
-    const controller = new AbortController();
-    const fetchFn = vi.fn<typeof fetch>(async (_input, init) => {
-      return await new Promise<Response>((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
-      });
-    });
-    const workflow = runServiceExplorerWorkflow(
-      {
-        honuaBaseUrl: "https://example.test",
-        mode: "cloud",
-        serviceId: "abort-test",
-        layerId: 0,
-        where: "1=1",
-        resultRecordCount: 10,
-        mapMoveDebounceMs: 10,
-      },
-      { fetchFn, signal: controller.signal },
-    );
-    await vi.waitFor(() => expect(fetchFn).toHaveBeenCalled());
-    controller.abort(new DOMException("disposed", "AbortError"));
-    await expect(workflow).rejects.toMatchObject({ name: "AbortError" });
     expect(controller.signal.aborted).toBe(true);
   });
 });

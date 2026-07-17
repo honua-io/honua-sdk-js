@@ -2096,22 +2096,26 @@
     {
       "id": "service-explorer",
       "title": "Universal service explorer",
-      "summary": "Browses heterogeneous spatial services with capability and cache diagnostics.",
+      "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "sourceKind": "root-example",
       "track": "lab",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Become the universal discovery and explain-plan journey.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Maintained public-kernel journey with deterministic hostile fixtures and scheduled dual-protocol evidence."
       },
       "sourcePath": "examples/service-explorer",
       "docsPath": "examples/service-explorer/README.md",
       "capabilities": [
+        "cancellation",
         "capability-discovery",
-        "catalog",
-        "protocols"
+        "explain-plan",
+        "fidelity",
+        "map",
+        "protocols",
+        "provenance",
+        "query"
       ],
       "protocols": [
         "geoservices",
@@ -2127,81 +2131,42 @@
       ],
       "data": {
         "mode": "hybrid",
-        "authMode": "api-key",
+        "authMode": "anonymous",
         "config": [
-          "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
-          "VITE_HONUA_SERVICE_EXPLORER_API_KEY",
-          "VITE_HONUA_SERVICE_EXPLORER_BASE_URL",
-          "VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN",
-          "VITE_HONUA_SERVICE_EXPLORER_LAYER_ID",
-          "VITE_HONUA_SERVICE_EXPLORER_MAP_MOVE_DEBOUNCE_MS",
-          "VITE_HONUA_SERVICE_EXPLORER_MODE",
-          "VITE_HONUA_SERVICE_EXPLORER_RESULT_RECORD_COUNT",
-          "VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID",
-          "VITE_HONUA_SERVICE_EXPLORER_SOURCE_ID",
-          "VITE_HONUA_SERVICE_EXPLORER_WHERE"
+          "HONUA_SERVICE_EXPLORER_GEOSERVICES_SOURCE_ID",
+          "HONUA_SERVICE_EXPLORER_GEOSERVICES_URL",
+          "HONUA_SERVICE_EXPLORER_LIVE_ENABLED",
+          "HONUA_SERVICE_EXPLORER_OGC_SOURCE_ID",
+          "HONUA_SERVICE_EXPLORER_OGC_URL"
         ],
-        "provenance": "Committed multi-protocol catalog or configured Honua catalog.",
-        "attribution": "Source attribution is retained per selected service.",
-        "freshness": "Metadata cache and live observation timestamps.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables.",
+        "provenance": "Same-origin OGC fixture observations or scheduled public GeoServices and OGC inspection receipts.",
+        "attribution": "Inspected source attribution remains visible; scheduled evidence credits Esri and pygeoapi.",
+        "freshness": "Fixture replay is deterministic; scheduled live evidence records its observation time.",
+        "configurationStatus": "approved",
         "configClassifications": [
           {
-            "name": "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
-            "exposure": "browser-public",
+            "name": "HONUA_SERVICE_EXPLORER_GEOSERVICES_SOURCE_ID",
+            "exposure": "server-only",
             "valueKind": "non-secret"
           },
           {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_API_KEY",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_BASE_URL",
-            "exposure": "browser-public",
+            "name": "HONUA_SERVICE_EXPLORER_GEOSERVICES_URL",
+            "exposure": "server-only",
             "valueKind": "non-secret"
           },
           {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_LAYER_ID",
-            "exposure": "browser-public",
+            "name": "HONUA_SERVICE_EXPLORER_LIVE_ENABLED",
+            "exposure": "server-only",
             "valueKind": "non-secret"
           },
           {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_MAP_MOVE_DEBOUNCE_MS",
-            "exposure": "browser-public",
+            "name": "HONUA_SERVICE_EXPLORER_OGC_SOURCE_ID",
+            "exposure": "server-only",
             "valueKind": "non-secret"
           },
           {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_MODE",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_RESULT_RECORD_COUNT",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_SOURCE_ID",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_WHERE",
-            "exposure": "browser-public",
+            "name": "HONUA_SERVICE_EXPLORER_OGC_URL",
+            "exposure": "server-only",
             "valueKind": "non-secret"
           }
         ]
@@ -2215,16 +2180,20 @@
           ]
         },
         "live": {
-          "mode": "authenticated",
+          "mode": "public-live",
           "status": "planned",
-          "commands": []
+          "commands": [
+            "npm run demo:service-explorer:live-evidence"
+          ]
         }
       },
-      "expectedDegradation": "Unavailable admin metadata falls back to service discovery with a visible diagnostic.",
+      "expectedDegradation": "Discovery may be partial or an inspected source may be query/render unsupported; every unavailable action retains a structured evidence or planner reason.",
       "validationProfile": "browser-lab",
       "validation": [
         "npm run demo:service-explorer:typecheck",
         "npm run demo:service-explorer:build",
+        "npx vitest run test/service-explorer-truth-model.test.ts",
+        "npx vitest run test/service-explorer-operation-model.test.ts",
         "npm run test:playwright:service-explorer"
       ]
     },
@@ -3181,16 +3150,8 @@
     {
       "id": "two-protocols",
       "route": "demo-two-protocols.html",
-      "ownership": "site-exception",
-      "exceptionReason": "The site currently owns the only three-protocol side-by-side implementation; replace it from the universal discovery flagship.",
-      "title": "Same data, three protocols",
-      "summary": "Compares GeoServices, OGC Features, and OData results.",
-      "capabilities": [
-        "interoperability",
-        "query"
-      ],
-      "track": "lab",
-      "supportTier": "experimental"
+      "ownership": "sdk-projection",
+      "sampleId": "service-explorer"
     },
     {
       "id": "wms-overlay",

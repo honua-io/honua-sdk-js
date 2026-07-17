@@ -94,17 +94,39 @@ facts, query execution, map/table projection, hostile URL redaction, timeout
 cancellation, responsive layout, axe accessibility, and teardown. The fixture
 runner also proves loopback readiness and complete server shutdown.
 
-The shared maintained-sample runner is the next gate enrolled in S3:
+The shared maintained-sample runner exercises the same workflow against both
+the source checkout and the packed public package:
 
 ```sh
 npm run samples:run -- verify --sample service-explorer --sdk-mode source
 npm run samples:run -- verify --sample service-explorer --sdk-mode packed
 ```
 
-S3 also retires the now-unreferenced legacy helper modules and test, updates the
-canonical catalog/gallery projection, and adds scheduled live GeoServices and
-OGC evidence producers. Until those gates land and execute, this slice uses
-`Refs #544` rather than closing the issue.
+The fixture evidence lane probes the OGC landing page, conformance declaration,
+collection metadata, and bounded item response. It also proves that a hostile
+slow endpoint is cancelled by a deadline before the server shuts down. A
+scheduled, non-PR workflow runs `demo:service-explorer:live-evidence` against a
+public Esri GeoServices layer and a public pygeoapi OGC Features collection.
+Every live request is anonymous, URL-validated, and capped at 20 seconds.
+
+## Hosted control-plane handoff
+
+The URL explorer deliberately does not need a Honua account. A server-side host
+that wants to turn an inspected public source into managed connections, maps,
+or workspaces can hand off to the separate control-plane client without placing
+credentials in this browser sample:
+
+```ts
+import { createHonuaControlPlane } from "@honua/sdk-js/control-plane";
+
+const controlPlane = createHonuaControlPlane({
+  baseUrl: process.env.HONUA_CONTROL_PLANE_URL,
+  getAccessToken: () => loadAccessTokenFromServerSession(),
+});
+```
+
+That host-only client is an optional follow-on; it is not part of discovery,
+planner truth, or the fixture/live evidence claims made by this sample.
 
 ## Caching and realtime
 
