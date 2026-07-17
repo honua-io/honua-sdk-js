@@ -1,4 +1,4 @@
-import type { Capability, ConnectionInspection, Source } from "@honua/sdk-js";
+import type { Capability, ConnectionInspection, HonuaKernel, Source } from "@honua/sdk-js";
 import type {
   DataToMapDiagnostic,
   DataToMapLibreMap,
@@ -66,6 +66,7 @@ export type FirstMapWorkflowResult<T> = FirstMapReady<T> | FirstMapSourceSelecti
 export interface FirstMapWorkflowOptions<T = Record<string, unknown>> {
   readonly map: DataToMapLibreMap;
   readonly mount?: Readonly<Omit<MountSourceOptions<T>, "maxGeoJsonFeatures" | "query" | "signal" | "strategy">>;
+  readonly createKernel?: () => HonuaKernel;
   readonly fetchFn?: typeof fetch;
   readonly signal?: AbortSignal;
 }

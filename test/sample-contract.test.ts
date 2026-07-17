@@ -416,9 +416,7 @@ describe("sample publication contract", () => {
       "kepler-analytics: browser-public credentials require legacy-unsafe status and bounded rework",
     );
 
-    const maplibre = catalog.samples.find(
-      (sample: { id: string }) => sample.id === "maplibre-quickstart",
-    );
+    const maplibre = catalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart");
     expect(maplibre.data.configurationStatus).toBe("approved");
     await expect(
       inspectSampleConfiguration(maplibre.sourcePath, catalog.configuration.environmentReadExemptions),
