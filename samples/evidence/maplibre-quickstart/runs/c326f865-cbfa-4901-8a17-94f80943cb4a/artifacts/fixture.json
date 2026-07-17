@@ -1,0 +1,29 @@
+{
+  "format": "honua.sdk.sample-fixture-gate.v1",
+  "sampleId": "maplibre-quickstart",
+  "sourceRevision": "169aa8a44fe4d442e71ca63d3388aed61922f019",
+  "command": [
+    "npm",
+    "run",
+    "demo:quickstart:mock",
+    "--",
+    "--evidence-once"
+  ],
+  "transport": "loopback-http",
+  "networkScope": "loopback-only",
+  "host": "127.0.0.1",
+  "port": 43459,
+  "ready": true,
+  "started": true,
+  "probe": {
+    "method": "GET",
+    "path": "/",
+    "status": 200,
+    "bodyBytes": 11202,
+    "bodySha256": "246121de7bc7b1aa30eeebab4958e460f9985550625f968d407aa67d48ac578e",
+    "contentType": "text/html; charset=utf-8"
+  },
+  "closed": true,
+  "listeningAfterClose": false,
+  "activeConnectionsAfterClose": 0
+}

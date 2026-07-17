@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "gate": "fixture",
+  "status": "passed",
+  "sdkMode": "source",
+  "sourceRevision": "169aa8a44fe4d442e71ca63d3388aed61922f019",
+  "sourceDigest": "32a284f43f7c3687022b1a7af933a2274ccc5b9ae84f6a7607cf13a1098ebcc4",
+  "runRoot": "samples/evidence/maplibre-quickstart/runs/c326f865-cbfa-4901-8a17-94f80943cb4a",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "demo:quickstart:mock",
+      "--",
+      "--evidence-once"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "032d2c86d74f3c077736cf5af72acdc95ae4f55358a48ffb2aee476b489608b4"
+  },
+  "observedAt": "2026-07-17T14:07:27.337Z",
+  "expiresAt": "2026-07-24T14:07:27.337Z",
+  "durationMs": 4514.536590000003,
+  "artifacts": [
+    {
+      "kind": "fixture-probe-report",
+      "path": "samples/evidence/maplibre-quickstart/runs/c326f865-cbfa-4901-8a17-94f80943cb4a/artifacts/fixture.json",
+      "bytes": 714,
+      "sha256": "96d5bdc5f9cff0d0396b25f1cd3eea2dbf4b7faa2ac46518084c49847a348bea"
+    }
+  ]
+}

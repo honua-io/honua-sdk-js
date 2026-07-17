@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "gate": "console",
+  "status": "passed",
+  "sdkMode": "source",
+  "sourceRevision": "169aa8a44fe4d442e71ca63d3388aed61922f019",
+  "sourceDigest": "32a284f43f7c3687022b1a7af933a2274ccc5b9ae84f6a7607cf13a1098ebcc4",
+  "runRoot": "samples/evidence/maplibre-quickstart/runs/cf3bbaa1-4fa7-4eaa-ab65-779e2cf9adfd",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "test:playwright:quickstart",
+      "--",
+      "--reporter=json"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "032d2c86d74f3c077736cf5af72acdc95ae4f55358a48ffb2aee476b489608b4"
+  },
+  "observedAt": "2026-07-17T14:07:19.324Z",
+  "expiresAt": "2026-07-24T14:07:19.324Z",
+  "durationMs": 39116.279927999996,
+  "artifacts": [
+    {
+      "kind": "playwright-gate-report",
+      "path": "samples/evidence/maplibre-quickstart/runs/cf3bbaa1-4fa7-4eaa-ab65-779e2cf9adfd/artifacts/console.json",
+      "bytes": 30415,
+      "sha256": "7a02c9faa0720e7c5e85806369e3a0e2c1e9d6b33d652fde69a0ea96c13d8b5b"
+    }
+  ]
+}

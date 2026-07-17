@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "gate": "performance",
+  "status": "passed",
+  "sdkMode": "source",
+  "sourceRevision": "169aa8a44fe4d442e71ca63d3388aed61922f019",
+  "sourceDigest": "32a284f43f7c3687022b1a7af933a2274ccc5b9ae84f6a7607cf13a1098ebcc4",
+  "runRoot": "samples/evidence/maplibre-quickstart/runs/cf3bbaa1-4fa7-4eaa-ab65-779e2cf9adfd",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "test:playwright:quickstart",
+      "--",
+      "--reporter=json"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "032d2c86d74f3c077736cf5af72acdc95ae4f55358a48ffb2aee476b489608b4"
+  },
+  "observedAt": "2026-07-17T14:07:20.581Z",
+  "expiresAt": "2026-07-24T14:07:20.581Z",
+  "durationMs": 39116.279927999996,
+  "artifacts": [
+    {
+      "kind": "performance-report",
+      "path": "samples/evidence/maplibre-quickstart/runs/cf3bbaa1-4fa7-4eaa-ab65-779e2cf9adfd/artifacts/performance.json",
+      "bytes": 1113,
+      "sha256": "8e9c379a8a36be92767a02198fdccd372e58077fb940aca5a7d1de1ae83c7ded"
+    }
+  ]
+}
