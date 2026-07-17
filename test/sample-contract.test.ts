@@ -30,7 +30,11 @@ import {
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
-const validationTime = { now: "2026-07-17T12:00:00.000Z" };
+const catalogEvidenceTime = (await readJson("examples/maplibre-quickstart/evidence/live.v1.json")).observedAt;
+const validationTime = {
+  now: catalogEvidenceTime,
+  qualificationBootstrapSampleId: "maplibre-quickstart",
+};
 const goldenJourneyIds = [
   "first-map",
   "service-explorer",
@@ -1011,6 +1015,8 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
 
     const promoteIncident = async () => {
       const catalog = await readJson("samples/catalog.v2.json");
+      catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "first-map").status = "planned";
+      catalog.samples.find((candidate: { id: string }) => candidate.id === "maplibre-quickstart").track = "recipe";
       catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations").status =
         "qualified";
       const sample = catalog.samples.find(
@@ -1020,10 +1026,14 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       sample.validationProfile = "golden-browser";
       return { catalog, sample };
     };
+    const incidentValidationTime = {
+      ...validationTime,
+      qualificationBootstrapSampleId: "realtime-incident-dashboard",
+    };
 
     const unsupported = await promoteIncident();
     unsupported.sample.supportTier = "experimental";
-    await expect(validateCatalog(unsupported.catalog, packageJson, validationTime)).rejects.toThrow(
+    await expect(validateCatalog(unsupported.catalog, packageJson, incidentValidationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples must be supported",
     );
 
@@ -1033,18 +1043,18 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       reason: "Promotion regression fixture.",
       targetRelease: "0.2.0-beta.0",
     };
-    await expect(validateCatalog(inactive.catalog, packageJson, validationTime)).rejects.toThrow(
+    await expect(validateCatalog(inactive.catalog, packageJson, incidentValidationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples must be active",
     );
 
     const missingFixture = await promoteIncident();
     missingFixture.sample.evidence.fixture.status = "planned";
-    await expect(validateCatalog(missingFixture.catalog, packageJson, validationTime)).rejects.toThrow(
+    await expect(validateCatalog(missingFixture.catalog, packageJson, incidentValidationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples require executed fixture evidence",
     );
 
     const missingLive = await promoteIncident();
-    await expect(validateCatalog(missingLive.catalog, packageJson, validationTime)).rejects.toThrow(
+    await expect(validateCatalog(missingLive.catalog, packageJson, incidentValidationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples require current executed live evidence",
     );
 
@@ -1081,7 +1091,7 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       await mkdir("test-results", { recursive: true });
       await writeFile(evidencePath, `${JSON.stringify(executedEvidence, null, 2)}\n`);
       await expect(
-        validateCatalog(metadataOnly.catalog, packageJson, { ...validationTime, verifyCheckout: false }),
+        validateCatalog(metadataOnly.catalog, packageJson, { now: validationTime.now, verifyCheckout: false }),
       ).rejects.toThrow("realtime-incident-dashboard: missing gate receipt directory");
       await expect(
         validateCatalog(metadataOnly.catalog, packageJson, {

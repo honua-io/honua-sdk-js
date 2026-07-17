@@ -32,7 +32,27 @@ import {
   validateSelection,
 } from "../../scripts/sample-runner.mjs";
 import { liveEvidenceOutputContract } from "../../scripts/lib/live-evidence-output.mjs";
+import {
+  firstMapQualificationExpiry,
+  replaceFirstMapQualificationExpiry,
+} from "../../scripts/refresh-first-map-qualification.mjs";
 import { captureGateSourceSnapshot } from "../../scripts/sample-gate-receipt.mjs";
+
+test("First Map qualification expiry follows the catalog freshness window", () => {
+  assert.equal(firstMapQualificationExpiry("2026-07-17T12:00:00.000Z", 31), "2026-08-17T12:00:00.000Z");
+  const migration = `{
+    "maplibre-quickstart": {
+      "live": { "expiresAt": "2026-08-01T00:00:00.000Z" }
+    },
+    "next-sample": {}
+  }`;
+  assert.equal(
+    replaceFirstMapQualificationExpiry(migration, "2026-08-17T12:00:00.000Z"),
+    migration.replace("2026-08-01T00:00:00.000Z", "2026-08-17T12:00:00.000Z"),
+  );
+  assert.throws(() => firstMapQualificationExpiry("not-a-date", 31), /expiry inputs are invalid/);
+  assert.throws(() => firstMapQualificationExpiry("2026-07-17T12:00:00.000Z", 0), /expiry inputs are invalid/);
+});
 
 const gates = {
   packedBuild: true,

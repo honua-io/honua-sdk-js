@@ -33,6 +33,20 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Refresh canonical live observation and catalog projection
+        if: github.event_name == 'schedule'
+        env:
+          HONUA_FIRST_MAP_LIVE_ENABLED: "true"
+        run: |
+          npm run evidence:first-map:live
+          node scripts/refresh-first-map-qualification.mjs
+          git diff --check
+          git config user.name "Mike McDougall"
+          git config user.email "mike@honua.io"
+          git add -u -- README.md docs/generated/sample-catalog.md examples/maplibre-quickstart/evidence samples
+          git commit -m "chore(samples): refresh First Map live qualification"
+
       - run: npm run test:playwright:quickstart
       - run: npm run demo:quickstart:parity
       - run: npm run demo:quickstart:copyability
@@ -49,8 +63,6 @@ jobs:
             echo "Qualification receipts are already current."
             exit 0
           fi
-          git config user.name "Mike McDougall"
-          git config user.email "mike@honua.io"
           git add -- samples/evidence/maplibre-quickstart
           git commit -m "chore(samples): refresh First Map qualification receipts"
           git push origin HEAD:trunk

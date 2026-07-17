@@ -2835,10 +2835,14 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
 
   const goldenSamples = catalog.samples.filter((sample) => sample.track === "golden");
   const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
-  let qualificationBootstrapConsumed = false;
   invariant(
     goldenSamples.length === qualifiedJourneys.length,
     "golden sample count must match the qualified journey count",
+  );
+  invariant(
+    options.qualificationBootstrapSampleId === undefined ||
+      goldenSamples.some((sample) => sample.id === options.qualificationBootstrapSampleId),
+    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
   );
   for (const sample of goldenSamples) {
     const profile = qualityProfiles.get(sample.validationProfile);
@@ -2861,7 +2865,6 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       },
     };
     if (options.qualificationBootstrapSampleId === sample.id) {
-      qualificationBootstrapConsumed = true;
       continue;
     }
     await validateQualificationReceiptSet({
@@ -2874,11 +2877,6 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       verifyCheckout: options.verifyCheckout,
     });
   }
-  invariant(
-    options.qualificationBootstrapSampleId === undefined || qualificationBootstrapConsumed,
-    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
-  );
-
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
     .filter((sample) => sample.sourceKind === "root-example")
