@@ -6176,7 +6176,8 @@ order is honored per WMS 1.3 §6.7.3.2 — `EPSG:4326` is swapped to
 (x, y) tuples. MapLibre integration ships through
 `buildWmsRasterSourceSpec(descriptor)`, which emits a `raster` source
 spec with a pre-baked KVP `tiles` template using MapLibre's runtime
-`{bbox-epsg3857}` / `{width}` / `{height}` placeholders.
+`{bbox-epsg-3857}` placeholder plus validated 1–4096 literal `WIDTH` /
+`HEIGHT` values equal to `tileSize`.
 
 ### WMTS
 First-party WMTS 1.0.0 adapter. Render-only — `Source.query()` throws
@@ -10831,7 +10832,7 @@ destinations, using the alignment table in
 | `geoservices_map_service` | contract adapter | `geoservices-map-service`, custom source type `honua-map-service`. |
 | `ogc_features` | contract adapter | `ogc-features`, custom source type `honua-ogc-features`. Collection id is copied from `locator.collectionId`. |
 | `wfs` | contract adapter | `wfs` (built-in), custom source type `honua-wfs`. `locator.typeName` (and optional `locator.featureNamespace`) are forwarded; first-party WFS 2.0 adapter ships in `@honua/sdk-js/contract`. |
-| `wms` | contract adapter | `wms`, custom source type `honua-wms`. `locator.typeName` projects as `layers`, `locator.styleId` as `styles`. Use `buildWmsRasterSourceSpec(descriptor)` to produce a MapLibre-ready `{ type: "raster", tiles, tileSize }` spec with a pre-baked KVP `GetMap` template that uses MapLibre's `{bbox-epsg3857}` / `{width}` / `{height}` placeholders. |
+| `wms` | contract adapter | `wms`, custom source type `honua-wms`. `locator.typeName` projects as `layers`, `locator.styleId` as `styles`. Use `buildWmsRasterSourceSpec(descriptor)` to produce a MapLibre-ready `{ type: "raster", tiles, tileSize }` spec with a pre-baked KVP `GetMap` template that uses MapLibre's exact `{bbox-epsg-3857}` placeholder and validated 1–4096 literal `WIDTH` / `HEIGHT` values equal to `tileSize`. |
 | `wmts` | contract adapter | `wmts`, custom source type `honua-wmts`. `locator.typeName` / `locator.styleId` / `locator.tileMatrixSetId` project as `layer` / `style` / `tileMatrixSet`. Use `buildWmtsRasterSourceSpec(descriptor)` to produce a MapLibre-ready `{ type: "raster", tiles, tileSize, scheme: "xyz" }` spec using the RESTful `{layer}/{style}/{tms}/{z}/{y}/{x}.{ext}` route. |
 | `odata` | contract adapter | `odata`. The entity-set request path comes from `locator.entitySet` when set; otherwise it is derived from `locator.layerId` as `Layers(<layerId>)/Features` to match Honua Server's layer-scoped OData routes. Optional path prefix from `locator.url`. |
 | `vector_tile` / `ogc_tiles` | MapLibre-native | Projected to a `{ type: "vector", tiles: [url], attribution? }` source entry — no contract adapter. |
