@@ -31,7 +31,7 @@ from the SDK root, `/honua`, `/cog`, and prebuilt browser static graphs.
 
 ## Core application pattern
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { connect } from "@honua/sdk-js";
 import { mountStacCogAssetToMapLibre, openStacCogAsset } from "@honua/sdk-js/cog";
 

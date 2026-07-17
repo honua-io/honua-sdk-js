@@ -21,7 +21,7 @@ operation; it never receives an unbounded Fetch function. This keeps a
 preferred GeoTIFF package lazy and application-owned while Honua enforces the
 network and lifecycle policy.
 
-```ts
+```ts doc-test=compile
 import { connect } from "@honua/sdk-js";
 import { openStacCogAsset, type CogDecoderFactory } from "@honua/sdk-js/cog";
 
@@ -95,7 +95,7 @@ viewport, chooses an advertised overview from the canvas/zoom target, reads a
 bounded window, alpha-masks numeric nodata, encodes a bounded PNG with browser
 Canvas 2D, and adds or updates one native MapLibre `image` source.
 
-```ts
+```ts doc-test=compile
 import {
   mountStacCogAssetToMapLibre,
   openStacCogAsset,
