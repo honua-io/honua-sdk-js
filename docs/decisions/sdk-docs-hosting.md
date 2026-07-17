@@ -34,6 +34,14 @@ GitHub Actions.**
   the committed sources plus the TypeDoc output, so it is deterministic and fast
   (< 1s locally; the CI job target is ≤ 5 min).
 
+The gallery handoff is consumer fixture v3: it content-binds the catalog-v2
+site projection, the separate visual-evidence-v1 projection, and the generated
+capability-to-sample matrix. Qualified golden cards publish both desktop and
+mobile PNGs only after the complete source, packed, fixture, browser, semantic,
+performance, and live receipt set has been validated. Planned candidates and
+support gaps continue to render without invented screenshots or coverage, and
+the site never copies executable sample source.
+
 ### Why repo-local, not honua-site's GitBook
 
 The org's marketing + platform docs hub (`honua-io/honua-site`) is authored in
@@ -109,7 +117,7 @@ When a `docs.honua.io` (or `honua.io/sdk-js`) subdomain/subpath is provisioned:
 
 `.github/workflows/docs-site.yml` runs on `push` to `trunk` and
 `workflow_dispatch`: `npm ci` → `verify:llms` (freshness gate, REQ-004) →
-`samples:verify` plus the non-empty gallery regression → `docs:api` (TypeDoc) →
+`samples:verify` plus the non-empty and visual-integrity gallery regressions → `docs:api` (TypeDoc) →
 `docs:site` (assemble) → `docs:site:linkcheck` → `upload-pages-artifact` →
 `deploy-pages`. Catalog verification schema-checks the public projection and
 its generated consumer digest before publication. Gallery recipe/lab profile

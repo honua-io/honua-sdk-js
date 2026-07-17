@@ -12,7 +12,7 @@ import {
   isSampleEvidenceRunId,
   SAMPLE_PERFORMANCE_BUDGET_MS,
   SAMPLE_PERFORMANCE_METRIC,
-  SAMPLE_SCREENSHOT_VIEWPORT,
+  SAMPLE_SCREENSHOT_VARIANTS,
 } from "./lib/sample-gates.mjs";
 
 const require = createRequire(import.meta.url);
@@ -914,31 +914,44 @@ function declaredEvidenceProject(sampleId) {
 }
 
 async function validateScreenshotReport(report, receipt, root) {
-  invariant(report?.format === "honua.sdk.sample-screenshot-gate.v1", "screenshot report format is invalid");
+  invariant(report?.format === "honua.sdk.sample-screenshot-gate.v2", "screenshot report format is invalid");
   invariant(report.sampleId === receipt.sampleId && report.sourceRevision === receipt.sourceRevision, "screenshot report binding mismatch");
   const evidenceProject = declaredEvidenceProject(receipt.sampleId);
   invariant(
-    report.screenshot?.projectName === evidenceProject.name &&
-      report.screenshot?.browserName === evidenceProject.browserName &&
-      report.screenshot?.viewport?.width === SAMPLE_SCREENSHOT_VIEWPORT.width &&
-      report.screenshot?.viewport?.height === SAMPLE_SCREENSHOT_VIEWPORT.height,
-    "screenshot report is not bound to the declared project, browser, and viewport",
-  );
-  const image = await verifiedArtifact(
-    { kind: "screenshot", path: report.screenshot.path },
-    root,
-    receipt.sampleId,
-    receipt.runRoot,
-  );
-  const dimensions = validatePng(image.content);
-  invariant(
-    dimensions.width === report.screenshot.viewport.width && dimensions.height === report.screenshot.viewport.height,
-    "screenshot PNG dimensions do not match the declared viewport",
+    Array.isArray(report.screenshots) && report.screenshots.length === SAMPLE_SCREENSHOT_VARIANTS.length,
+    "screenshot report must contain the complete desktop/mobile variant set",
   );
   invariant(
-    image.sha256 === report.screenshot.sha256 && image.bytes === report.screenshot.bytes,
-    "screenshot report digest mismatch",
+    new Set(report.screenshots.map((screenshot) => screenshot?.path)).size === SAMPLE_SCREENSHOT_VARIANTS.length,
+    "screenshot report paths must be unique",
   );
+  for (let index = 0; index < SAMPLE_SCREENSHOT_VARIANTS.length; index += 1) {
+    const expected = SAMPLE_SCREENSHOT_VARIANTS[index];
+    const screenshot = report.screenshots[index];
+    invariant(
+      screenshot?.variant === expected.id &&
+        screenshot.projectName === evidenceProject.name &&
+        screenshot.browserName === evidenceProject.browserName &&
+        screenshot.viewport?.width === expected.viewport.width &&
+        screenshot.viewport?.height === expected.viewport.height,
+      `screenshot report ${expected.id} variant is not bound to the declared project, browser, and viewport`,
+    );
+    const image = await verifiedArtifact(
+      { kind: `screenshot-${expected.id}`, path: screenshot.path },
+      root,
+      receipt.sampleId,
+      receipt.runRoot,
+    );
+    const dimensions = validatePng(image.content);
+    invariant(
+      dimensions.width === screenshot.viewport.width && dimensions.height === screenshot.viewport.height,
+      `screenshot ${expected.id} PNG dimensions do not match the declared viewport`,
+    );
+    invariant(
+      image.sha256 === screenshot.sha256 && image.bytes === screenshot.bytes,
+      `screenshot ${expected.id} report digest mismatch`,
+    );
+  }
 }
 
 async function validateLiveEvidence(evidence, evidencePath, receipt, root) {

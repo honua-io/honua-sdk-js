@@ -152,6 +152,7 @@
         "geojson": { "protocolIds": ["maplibre-geojson"], "supportClaimIds": [], "external": false },
         "geoparquet": { "protocolIds": ["geoparquet"], "supportClaimIds": [], "external": false },
         "geoservices": { "protocolIds": ["geoservices-feature-service", "geoservices-map-service", "geoservices-image-service", "geoservices-geometry-service", "geoservices-gp-service"], "supportClaimIds": [], "external": false },
+        "geoservices-feature": { "protocolIds": ["geoservices-feature-service"], "supportClaimIds": ["geoservices-feature-standalone"], "external": false },
         "honua": { "protocolIds": ["grpc"], "supportClaimIds": ["compatibility-gate-facade"], "external": false },
         "mcp": { "protocolIds": [], "supportClaimIds": ["agent-tools-facade"], "external": false },
         "oauth": { "protocolIds": [], "supportClaimIds": [], "external": true },

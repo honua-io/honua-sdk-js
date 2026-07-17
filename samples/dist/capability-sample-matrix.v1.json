@@ -1,0 +1,5009 @@
+{
+  "format": "honua.site.sdk-capability-sample-matrix.v1",
+  "schemaVersion": 1,
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.0-beta.0"
+  },
+  "inputs": {
+    "supportManifest": {
+      "path": "config/support-manifest.v1.json",
+      "format": "honua.sdk.support-manifest.v1",
+      "schemaVersion": 1,
+      "sha256": "e3cadb96f9fe466742a756064e3a773e0e0ba69a897a98538526ed435b923067"
+    },
+    "catalog": {
+      "path": "samples/catalog.v2.json",
+      "format": "honua.sdk.sample-catalog.v2",
+      "schemaVersion": 2,
+      "sha256": "db79a20e66d39aa0049a1dbfc76b420bc43dabc6a332afaa915fdcbb7a7feafb"
+    },
+    "package": {
+      "path": "package.json",
+      "sha256": "5c582b00a45eff7e2134703d62f87bf22875d2a23d8dec0b5e43d624ce27b402"
+    },
+    "sampleKit": {
+      "path": "examples/_kit/manifest.v1.json",
+      "format": "honua.sdk.sample-kit.v1",
+      "schemaVersion": 1,
+      "sha256": "0f78501de83abd77f4268f8cac499f9f59de6bbebb5437e24056b7c9cd78b143"
+    },
+    "visualEvidence": {
+      "path": "samples/dist/honua-site-visual-evidence.v1.json",
+      "format": "honua.site.sdk-sample-visual-evidence.v1",
+      "schemaVersion": 1,
+      "sha256": "953d2bc760e5d09c1cbaa03b02a5220ef64911a111fb061be1c985d957654bf0"
+    }
+  },
+  "statusVocabulary": {
+    "coverage": [
+      "qualified",
+      "partial",
+      "planned",
+      "experimental",
+      "unsupported"
+    ],
+    "support": [
+      "supported",
+      "beta",
+      "experimental",
+      "facade-required",
+      "deprecated"
+    ]
+  },
+  "dimensions": {
+    "tasks": [
+      "agent-approval",
+      "agent-planning",
+      "agent-tools",
+      "aggregation",
+      "analysis",
+      "analytics",
+      "app-bootstrap",
+      "arcgis",
+      "async-jobs",
+      "atomic-authorization",
+      "attachments",
+      "authentication",
+      "bounded-local",
+      "camera",
+      "cancel",
+      "cancellation",
+      "capability-discovery",
+      "catalog",
+      "codemod",
+      "cog",
+      "columnar",
+      "compatibility",
+      "controls",
+      "custom-elements",
+      "direct-connect",
+      "discovery",
+      "editing",
+      "elevation",
+      "explain-plan",
+      "fidelity",
+      "filter",
+      "filtering",
+      "forward-geocode",
+      "geoparquet",
+      "geoprocessing",
+      "idempotency",
+      "imagery",
+      "interaction-state",
+      "large-data",
+      "linked-filters",
+      "linked-views",
+      "map",
+      "mcp",
+      "migration",
+      "node",
+      "oauth",
+      "offline",
+      "optimistic-concurrency",
+      "optimistic-updates",
+      "planning",
+      "pmtiles",
+      "popup",
+      "profile",
+      "progressive-rendering",
+      "protocols",
+      "provenance",
+      "query",
+      "query-planning",
+      "range-reads",
+      "raster",
+      "react",
+      "realtime",
+      "receipts",
+      "reconciliation",
+      "renderer-adapters",
+      "replay",
+      "reverse-geocode",
+      "route-playback",
+      "runtime",
+      "safe-editing",
+      "selection",
+      "server",
+      "session",
+      "sketch",
+      "snapping",
+      "sse",
+      "stac",
+      "storytelling",
+      "strategy-selection",
+      "suggest",
+      "temporal",
+      "terrain",
+      "three-dimensional",
+      "typed-agent-tools",
+      "vector-tiles",
+      "workspace"
+    ],
+    "protocols": [
+      "geojson",
+      "geoparquet",
+      "geoservices",
+      "geoservices-feature",
+      "honua",
+      "mcp",
+      "oauth",
+      "odata",
+      "ogc",
+      "ogc-features",
+      "ogc-processes",
+      "pmtiles",
+      "s3",
+      "sse",
+      "stac",
+      "terrain-rgb",
+      "wfs",
+      "wms",
+      "wmts"
+    ],
+    "renderers": [
+      "arcgis",
+      "cesium",
+      "kepler",
+      "maplibre",
+      "none",
+      "svg"
+    ],
+    "dataModes": [
+      "fixture",
+      "hybrid"
+    ],
+    "authModes": [
+      "anonymous",
+      "api-key",
+      "bearer",
+      "host-mediated",
+      "none",
+      "oauth"
+    ],
+    "supportTiers": [
+      "deprecated",
+      "experimental",
+      "internal",
+      "supported"
+    ],
+    "lifecycleStates": [
+      "active",
+      "merge",
+      "replace",
+      "retire",
+      "rework"
+    ]
+  },
+  "goldenJourneys": [
+    {
+      "id": "first-map",
+      "title": "First Map",
+      "candidateSampleId": "maplibre-quickstart",
+      "catalogStatus": "planned",
+      "coverageState": "planned"
+    },
+    {
+      "id": "service-explorer",
+      "title": "Universal Service Explorer",
+      "candidateSampleId": "service-explorer",
+      "catalogStatus": "planned",
+      "coverageState": "planned"
+    },
+    {
+      "id": "planning-permitting",
+      "title": "Planning and Permitting",
+      "candidateSampleId": "planning-permitting-workbench",
+      "catalogStatus": "planned",
+      "coverageState": "planned"
+    },
+    {
+      "id": "incident-operations",
+      "title": "Realtime Incident Operations",
+      "candidateSampleId": "realtime-incident-dashboard",
+      "catalogStatus": "planned",
+      "coverageState": "planned"
+    },
+    {
+      "id": "imagery-terrain",
+      "title": "Imagery and Terrain",
+      "candidateSampleId": "imagery-cog-quickstart",
+      "catalogStatus": "planned",
+      "coverageState": "planned"
+    },
+    {
+      "id": "cloud-native-analysis",
+      "title": "Cloud-Native Spatial Analysis",
+      "candidateSampleId": "spatial-analytics-workbench",
+      "catalogStatus": "planned",
+      "coverageState": "planned"
+    },
+    {
+      "id": "arcgis-migration",
+      "title": "ArcGIS Migration Workbench",
+      "candidateSampleId": "migration-workbench",
+      "catalogStatus": "planned",
+      "coverageState": "planned"
+    }
+  ],
+  "samples": [
+    {
+      "id": "ai-spatial-app-builder",
+      "title": "Safe Agent Workbench",
+      "sourcePath": "examples/ai-spatial-app-builder",
+      "track": "lab",
+      "tasks": [
+        "agent-approval",
+        "agent-planning",
+        "atomic-authorization",
+        "query-planning",
+        "receipts",
+        "typed-agent-tools"
+      ],
+      "protocolTokens": [
+        "geoservices",
+        "honua"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service",
+        "grpc"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "host-mediated",
+      "supportTier": "experimental",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "app-bootstrap-basic",
+      "title": "Application bootstrap basic",
+      "sourcePath": "examples/app-bootstrap-basic",
+      "track": "lab",
+      "tasks": [
+        "app-bootstrap"
+      ],
+      "protocolTokens": [
+        "honua"
+      ],
+      "protocolIds": [
+        "grpc"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "deprecated",
+      "lifecycleState": "retire",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "arcgis-source-app",
+      "title": "ArcGIS source migration fixture",
+      "sourcePath": "examples/arcgis-source-app",
+      "track": "fixture",
+      "tasks": [
+        "arcgis",
+        "migration"
+      ],
+      "protocolTokens": [
+        "geoservices"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service"
+      ],
+      "renderers": [
+        "arcgis"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "internal",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "automatic-source-workflow",
+      "title": "Automatic source-to-map workflow fixture",
+      "sourcePath": "docs/examples/automatic-source-workflow",
+      "track": "fixture",
+      "tasks": [
+        "interaction-state",
+        "map",
+        "strategy-selection"
+      ],
+      "protocolTokens": [
+        "geoservices",
+        "pmtiles",
+        "wms",
+        "wmts"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service",
+        "pmtiles",
+        "wms",
+        "wmts"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "internal",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "cesium-route-playback",
+      "title": "Cesium route playback lab",
+      "sourcePath": "docs/examples/cesium-route-playback",
+      "track": "lab",
+      "tasks": [
+        "route-playback",
+        "terrain",
+        "three-dimensional"
+      ],
+      "protocolTokens": [
+        "geoservices"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service"
+      ],
+      "renderers": [
+        "cesium"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "api-key",
+      "supportTier": "experimental",
+      "lifecycleState": "rework",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "edit-workflow-demo",
+      "title": "Conflict-aware editing workflow",
+      "sourcePath": "examples/edit-workflow-demo",
+      "track": "recipe",
+      "tasks": [
+        "attachments",
+        "editing",
+        "optimistic-updates"
+      ],
+      "protocolTokens": [
+        "geoservices",
+        "honua"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service",
+        "grpc"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "supported",
+      "lifecycleState": "rework",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "endpoint-to-map",
+      "title": "Endpoint to map: the standalone data-to-map bridge",
+      "sourcePath": "examples/endpoint-to-map",
+      "track": "recipe",
+      "tasks": [
+        "direct-connect",
+        "map",
+        "query"
+      ],
+      "protocolTokens": [
+        "geoservices"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "anonymous",
+      "supportTier": "experimental",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "geocoding-quickstart",
+      "title": "Geocoding quickstart",
+      "sourcePath": "examples/geocoding-quickstart",
+      "track": "recipe",
+      "tasks": [
+        "forward-geocode",
+        "reverse-geocode",
+        "suggest"
+      ],
+      "protocolTokens": [
+        "geoservices"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "api-key",
+      "supportTier": "supported",
+      "lifecycleState": "rework",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "geoprocessing-job-runner",
+      "title": "Geoprocessing job runner",
+      "sourcePath": "examples/geoprocessing-job-runner",
+      "track": "recipe",
+      "tasks": [
+        "async-jobs",
+        "cancel",
+        "geoprocessing"
+      ],
+      "protocolTokens": [
+        "geoservices",
+        "ogc-processes"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service",
+        "ogc-processes"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "bearer",
+      "supportTier": "supported",
+      "lifecycleState": "merge",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "imagery-cog-quickstart",
+      "title": "Imagery and COG quickstart",
+      "sourcePath": "examples/imagery-cog-quickstart",
+      "track": "recipe",
+      "journeyId": "imagery-terrain",
+      "tasks": [
+        "cog",
+        "imagery",
+        "raster"
+      ],
+      "protocolTokens": [
+        "geoservices",
+        "wms"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service",
+        "wms"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "api-key",
+      "supportTier": "supported",
+      "lifecycleState": "rework",
+      "qualification": {
+        "state": "planned"
+      }
+    },
+    {
+      "id": "kepler-analytics",
+      "title": "Kepler operations analytics",
+      "sourcePath": "examples/kepler-analytics",
+      "track": "lab",
+      "tasks": [
+        "analytics",
+        "linked-filters",
+        "replay"
+      ],
+      "protocolTokens": [
+        "geojson",
+        "honua"
+      ],
+      "protocolIds": [
+        "grpc",
+        "maplibre-geojson"
+      ],
+      "renderers": [
+        "kepler"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "api-key",
+      "supportTier": "experimental",
+      "lifecycleState": "rework",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "maplibre-quickstart",
+      "title": "First Map: public endpoint to MapLibre",
+      "sourcePath": "examples/maplibre-quickstart",
+      "track": "recipe",
+      "journeyId": "first-map",
+      "tasks": [
+        "discovery",
+        "explain-plan",
+        "filter",
+        "linked-views",
+        "map",
+        "popup",
+        "provenance",
+        "query"
+      ],
+      "protocolTokens": [
+        "geoservices-feature",
+        "ogc-features"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "ogc-features"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "anonymous",
+      "supportTier": "supported",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "planned"
+      }
+    },
+    {
+      "id": "mcp-gis-assistant",
+      "title": "MCP GIS assistant",
+      "sourcePath": "examples/mcp-gis-assistant",
+      "track": "lab",
+      "tasks": [
+        "agent-tools",
+        "mcp",
+        "query"
+      ],
+      "protocolTokens": [
+        "honua",
+        "mcp"
+      ],
+      "protocolIds": [
+        "grpc"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "experimental",
+      "lifecycleState": "rework",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "migration-workbench",
+      "title": "ArcGIS migration workbench",
+      "sourcePath": "examples/migration-workbench",
+      "track": "lab",
+      "journeyId": "arcgis-migration",
+      "tasks": [
+        "codemod",
+        "compatibility",
+        "migration"
+      ],
+      "protocolTokens": [
+        "geoservices"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "supported",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "planned"
+      }
+    },
+    {
+      "id": "nl-map-control",
+      "title": "Natural-language map control",
+      "sourcePath": "examples/nl-map-control",
+      "track": "lab",
+      "tasks": [
+        "agent-approval",
+        "agent-planning",
+        "agent-tools",
+        "map",
+        "receipts"
+      ],
+      "protocolTokens": [
+        "honua"
+      ],
+      "protocolIds": [
+        "grpc"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "experimental",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "node-backend-quickstart",
+      "title": "Node backend quickstart",
+      "sourcePath": "examples/node-backend-quickstart",
+      "track": "recipe",
+      "tasks": [
+        "node",
+        "query",
+        "server"
+      ],
+      "protocolTokens": [
+        "honua"
+      ],
+      "protocolIds": [
+        "grpc"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "api-key",
+      "supportTier": "supported",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "oauth-signin",
+      "title": "OAuth sign-in",
+      "sourcePath": "examples/oauth-signin",
+      "track": "recipe",
+      "tasks": [
+        "authentication",
+        "oauth",
+        "session"
+      ],
+      "protocolTokens": [
+        "oauth"
+      ],
+      "protocolIds": [],
+      "renderers": [
+        "none"
+      ],
+      "dataMode": "fixture",
+      "authMode": "oauth",
+      "supportTier": "supported",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "overture-geoparquet",
+      "title": "Overture GeoParquet",
+      "sourcePath": "examples/overture-geoparquet",
+      "track": "lab",
+      "tasks": [
+        "cancellation",
+        "columnar",
+        "geoparquet",
+        "large-data",
+        "progressive-rendering",
+        "range-reads"
+      ],
+      "protocolTokens": [
+        "geoparquet",
+        "s3"
+      ],
+      "protocolIds": [
+        "geoparquet"
+      ],
+      "renderers": [
+        "svg"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "anonymous",
+      "supportTier": "experimental",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "planning-permitting-workbench",
+      "title": "Planning and permitting workbench",
+      "sourcePath": "examples/planning-permitting-workbench",
+      "track": "lab",
+      "journeyId": "planning-permitting",
+      "tasks": [
+        "editing",
+        "map",
+        "planning",
+        "query"
+      ],
+      "protocolTokens": [
+        "geoservices",
+        "honua"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service",
+        "grpc"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "supported",
+      "lifecycleState": "rework",
+      "qualification": {
+        "state": "planned"
+      }
+    },
+    {
+      "id": "pmtiles-static",
+      "title": "PMTiles static map",
+      "sourcePath": "examples/pmtiles-static",
+      "track": "recipe",
+      "tasks": [
+        "offline",
+        "pmtiles",
+        "vector-tiles"
+      ],
+      "protocolTokens": [
+        "pmtiles"
+      ],
+      "protocolIds": [
+        "pmtiles"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "supported",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "react-quickstart",
+      "title": "React quickstart",
+      "sourcePath": "examples/react-quickstart",
+      "track": "recipe",
+      "tasks": [
+        "map",
+        "query",
+        "react"
+      ],
+      "protocolTokens": [
+        "honua"
+      ],
+      "protocolIds": [
+        "grpc"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "api-key",
+      "supportTier": "supported",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "realtime-incident-dashboard",
+      "title": "Realtime incident operations",
+      "sourcePath": "examples/realtime-incident-dashboard",
+      "track": "lab",
+      "journeyId": "incident-operations",
+      "tasks": [
+        "idempotency",
+        "optimistic-concurrency",
+        "realtime",
+        "reconciliation",
+        "safe-editing",
+        "sse"
+      ],
+      "protocolTokens": [
+        "geoservices",
+        "sse"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "anonymous",
+      "supportTier": "supported",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "planned"
+      }
+    },
+    {
+      "id": "runtime-parity-showcase",
+      "title": "Runtime parity showcase",
+      "sourcePath": "examples/runtime-parity-showcase",
+      "track": "lab",
+      "tasks": [
+        "fidelity",
+        "renderer-adapters",
+        "runtime"
+      ],
+      "protocolTokens": [
+        "honua"
+      ],
+      "protocolIds": [
+        "grpc"
+      ],
+      "renderers": [
+        "cesium",
+        "kepler",
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "experimental",
+      "lifecycleState": "replace",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "service-explorer",
+      "title": "Universal service explorer",
+      "sourcePath": "examples/service-explorer",
+      "track": "lab",
+      "journeyId": "service-explorer",
+      "tasks": [
+        "capability-discovery",
+        "catalog",
+        "protocols"
+      ],
+      "protocolTokens": [
+        "geoservices",
+        "odata",
+        "ogc",
+        "stac",
+        "wfs",
+        "wms",
+        "wmts"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service",
+        "odata",
+        "ogc-features",
+        "ogc-maps",
+        "ogc-processes",
+        "ogc-records",
+        "ogc-tiles",
+        "stac",
+        "wfs",
+        "wms",
+        "wmts"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "api-key",
+      "supportTier": "supported",
+      "lifecycleState": "rework",
+      "qualification": {
+        "state": "planned"
+      }
+    },
+    {
+      "id": "shared-renderer-state",
+      "title": "Shared renderer state lab",
+      "sourcePath": "docs/examples/shared-renderer-state",
+      "track": "lab",
+      "tasks": [
+        "camera",
+        "filtering",
+        "selection",
+        "temporal"
+      ],
+      "protocolTokens": [
+        "honua"
+      ],
+      "protocolIds": [
+        "grpc"
+      ],
+      "renderers": [
+        "cesium",
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "experimental",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "sketch-editing",
+      "title": "Interactive sketch editing with terra-draw",
+      "sourcePath": "examples/sketch-editing",
+      "track": "recipe",
+      "tasks": [
+        "editing",
+        "sketch",
+        "snapping"
+      ],
+      "protocolTokens": [
+        "geoservices"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "experimental",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "spatial-analytics-workbench",
+      "title": "Spatial analytics workbench",
+      "sourcePath": "examples/spatial-analytics-workbench",
+      "track": "lab",
+      "journeyId": "cloud-native-analysis",
+      "tasks": [
+        "aggregation",
+        "analysis",
+        "bounded-local",
+        "explain-plan",
+        "linked-views",
+        "provenance"
+      ],
+      "protocolTokens": [
+        "geoservices",
+        "ogc"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service",
+        "ogc-features",
+        "ogc-maps",
+        "ogc-processes",
+        "ogc-records",
+        "ogc-tiles"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "anonymous",
+      "supportTier": "experimental",
+      "lifecycleState": "rework",
+      "qualification": {
+        "state": "planned"
+      }
+    },
+    {
+      "id": "stac-imagery-browser",
+      "title": "STAC imagery browser",
+      "sourcePath": "examples/stac-imagery-browser",
+      "track": "recipe",
+      "tasks": [
+        "cog",
+        "imagery",
+        "stac"
+      ],
+      "protocolTokens": [
+        "stac"
+      ],
+      "protocolIds": [
+        "stac"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "supported",
+      "lifecycleState": "merge",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "standalone-quickstart",
+      "title": "Standalone public-service quickstart",
+      "sourcePath": "examples/standalone-quickstart",
+      "track": "recipe",
+      "tasks": [
+        "direct-connect",
+        "map",
+        "query"
+      ],
+      "protocolTokens": [
+        "geoservices"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "anonymous",
+      "supportTier": "supported",
+      "lifecycleState": "merge",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "storytelling-25d-map",
+      "title": "2.5D storytelling map",
+      "sourcePath": "examples/storytelling-25d-map",
+      "track": "lab",
+      "tasks": [
+        "storytelling",
+        "terrain",
+        "three-dimensional"
+      ],
+      "protocolTokens": [
+        "honua",
+        "ogc-features"
+      ],
+      "protocolIds": [
+        "grpc",
+        "ogc-features"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "api-key",
+      "supportTier": "supported",
+      "lifecycleState": "merge",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "temporal-playback",
+      "title": "Temporal playback",
+      "sourcePath": "examples/temporal-playback",
+      "track": "recipe",
+      "tasks": [
+        "map",
+        "realtime",
+        "renderer-adapters"
+      ],
+      "protocolTokens": [
+        "geojson"
+      ],
+      "protocolIds": [
+        "maplibre-geojson"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "experimental",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "terrain-rgb-elevation",
+      "title": "Terrain RGB elevation",
+      "sourcePath": "examples/terrain-rgb-elevation",
+      "track": "recipe",
+      "tasks": [
+        "elevation",
+        "profile",
+        "terrain"
+      ],
+      "protocolTokens": [
+        "terrain-rgb"
+      ],
+      "protocolIds": [],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "hybrid",
+      "authMode": "api-key",
+      "supportTier": "supported",
+      "lifecycleState": "merge",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "unified-ops-workspace",
+      "title": "Unified operations workspace",
+      "sourcePath": "examples/unified-ops-workspace",
+      "track": "lab",
+      "tasks": [
+        "analysis",
+        "realtime",
+        "workspace"
+      ],
+      "protocolTokens": [
+        "honua",
+        "sse"
+      ],
+      "protocolIds": [
+        "grpc"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "deprecated",
+      "lifecycleState": "retire",
+      "qualification": {
+        "state": "partial"
+      }
+    },
+    {
+      "id": "web-components-basic",
+      "title": "Web components basic",
+      "sourcePath": "examples/web-components-basic",
+      "track": "lab",
+      "tasks": [
+        "controls",
+        "custom-elements",
+        "map"
+      ],
+      "protocolTokens": [
+        "honua"
+      ],
+      "protocolIds": [
+        "grpc"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "deprecated",
+      "lifecycleState": "retire",
+      "qualification": {
+        "state": "partial"
+      }
+    }
+  ],
+  "protocolOperations": [
+    {
+      "id": "geoparquet:query:client-only:native",
+      "protocolId": "geoparquet",
+      "protocolLabel": "GeoParquet",
+      "operation": "query",
+      "supportStatus": "experimental",
+      "environment": "client-only",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoparquet-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "id": "geoparquet:queryAggregate:client-only:native",
+      "protocolId": "geoparquet",
+      "protocolLabel": "GeoParquet",
+      "operation": "queryAggregate",
+      "supportStatus": "experimental",
+      "environment": "client-only",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoparquet-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "id": "geoparquet:stream:client-only:native",
+      "protocolId": "geoparquet",
+      "protocolLabel": "GeoParquet",
+      "operation": "stream",
+      "supportStatus": "experimental",
+      "environment": "client-only",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoparquet-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:applyEdits:protocol-adapter:native",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "applyEdits",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:attachments:protocol-adapter:native",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "attachments",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [
+        "edit-workflow-demo"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:pbf:protocol-adapter:native",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "pbf",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "core-client-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:query:protocol-adapter:native",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "query",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance"
+      ],
+      "candidateSampleIds": [
+        "endpoint-to-map",
+        "maplibre-quickstart",
+        "planning-permitting-workbench",
+        "standalone-quickstart"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:queryAggregate:protocol-adapter:native",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "queryAggregate",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:queryExtent:protocol-adapter:native",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "queryExtent",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:queryObjectIds:protocol-adapter:native",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "queryObjectIds",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:queryRelated:protocol-adapter:native",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "queryRelated",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:sql:protocol-adapter:native",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "sql",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "core-client-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:stream:protocol-adapter:native",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "stream",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "honua-surface-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-feature-service:tiles:protocol-adapter:client-fallback",
+      "protocolId": "geoservices-feature-service",
+      "protocolLabel": "GS Feature",
+      "operation": "tiles",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "client-fallback",
+      "truthEvidence": [
+        "query-tiles-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-geometry-service:geometry:protocol-adapter:native",
+      "protocolId": "geoservices-geometry-service",
+      "protocolLabel": "GS Geometry",
+      "operation": "geometry",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-gp-service:geoprocess:protocol-adapter:native",
+      "protocolId": "geoservices-gp-service",
+      "protocolLabel": "GS GP",
+      "operation": "geoprocess",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance",
+        "geoprocessing-job-run-fixtures",
+        "process-runner-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-image-service:image:protocol-adapter:native",
+      "protocolId": "geoservices-image-service",
+      "protocolLabel": "GS Image",
+      "operation": "image",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-image-service:query:protocol-adapter:native",
+      "protocolId": "geoservices-image-service",
+      "protocolLabel": "GS Image",
+      "operation": "query",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [
+        "endpoint-to-map",
+        "planning-permitting-workbench",
+        "standalone-quickstart"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "id": "geoservices-image-service:queryExtent:protocol-adapter:native",
+      "protocolId": "geoservices-image-service",
+      "protocolLabel": "GS Image",
+      "operation": "queryExtent",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-image-service:queryObjectIds:protocol-adapter:native",
+      "protocolId": "geoservices-image-service",
+      "protocolLabel": "GS Image",
+      "operation": "queryObjectIds",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-image-service:render:protocol-adapter:native",
+      "protocolId": "geoservices-image-service",
+      "protocolLabel": "GS Image",
+      "operation": "render",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-image-service:tiles:protocol-adapter:native",
+      "protocolId": "geoservices-image-service",
+      "protocolLabel": "GS Image",
+      "operation": "tiles",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-map-service:query:protocol-adapter:native",
+      "protocolId": "geoservices-map-service",
+      "protocolLabel": "GS Map",
+      "operation": "query",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "honua-surface-fixtures"
+      ],
+      "candidateSampleIds": [
+        "endpoint-to-map",
+        "planning-permitting-workbench",
+        "standalone-quickstart"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "id": "geoservices-map-service:queryAggregate:protocol-adapter:native",
+      "protocolId": "geoservices-map-service",
+      "protocolLabel": "GS Map",
+      "operation": "queryAggregate",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "honua-surface-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-map-service:queryExtent:protocol-adapter:native",
+      "protocolId": "geoservices-map-service",
+      "protocolLabel": "GS Map",
+      "operation": "queryExtent",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "honua-surface-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-map-service:queryObjectIds:protocol-adapter:native",
+      "protocolId": "geoservices-map-service",
+      "protocolLabel": "GS Map",
+      "operation": "queryObjectIds",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance",
+        "honua-surface-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-map-service:queryRelated:protocol-adapter:native",
+      "protocolId": "geoservices-map-service",
+      "protocolLabel": "GS Map",
+      "operation": "queryRelated",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "geoservices-conformance",
+        "honua-surface-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-map-service:render:protocol-adapter:native",
+      "protocolId": "geoservices-map-service",
+      "protocolLabel": "GS Map",
+      "operation": "render",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "honua-surface-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-map-service:sql:protocol-adapter:native",
+      "protocolId": "geoservices-map-service",
+      "protocolLabel": "GS Map",
+      "operation": "sql",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "honua-surface-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-map-service:stream:protocol-adapter:native",
+      "protocolId": "geoservices-map-service",
+      "protocolLabel": "GS Map",
+      "operation": "stream",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "honua-surface-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-map-service:tiles:protocol-adapter:native",
+      "protocolId": "geoservices-map-service",
+      "protocolLabel": "GS Map",
+      "operation": "tiles",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "connect-fixtures",
+        "tile-layer-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "grpc:applyEdits:honua-facade:native",
+      "protocolId": "grpc",
+      "protocolLabel": "gRPC",
+      "operation": "applyEdits",
+      "supportStatus": "supported",
+      "environment": "honua-facade",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "grpc-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "grpc:query:honua-facade:native",
+      "protocolId": "grpc",
+      "protocolLabel": "gRPC",
+      "operation": "query",
+      "supportStatus": "supported",
+      "environment": "honua-facade",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "grpc-conformance"
+      ],
+      "candidateSampleIds": [
+        "mcp-gis-assistant",
+        "node-backend-quickstart",
+        "planning-permitting-workbench",
+        "react-quickstart"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "id": "grpc:queryAggregate:honua-facade:native",
+      "protocolId": "grpc",
+      "protocolLabel": "gRPC",
+      "operation": "queryAggregate",
+      "supportStatus": "supported",
+      "environment": "honua-facade",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "grpc-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "grpc:queryExtent:honua-facade:native",
+      "protocolId": "grpc",
+      "protocolLabel": "gRPC",
+      "operation": "queryExtent",
+      "supportStatus": "supported",
+      "environment": "honua-facade",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "grpc-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "grpc:queryObjectIds:honua-facade:native",
+      "protocolId": "grpc",
+      "protocolLabel": "gRPC",
+      "operation": "queryObjectIds",
+      "supportStatus": "supported",
+      "environment": "honua-facade",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "grpc-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "grpc:stream:honua-facade:native",
+      "protocolId": "grpc",
+      "protocolLabel": "gRPC",
+      "operation": "stream",
+      "supportStatus": "supported",
+      "environment": "honua-facade",
+      "executionMode": "native",
+      "truthEvidence": [
+        "contract-conformance",
+        "grpc-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "maplibre-raster:render:client-only:native",
+      "protocolId": "maplibre-raster",
+      "protocolLabel": "MapLibre raster",
+      "operation": "render",
+      "supportStatus": "supported",
+      "environment": "client-only",
+      "executionMode": "native",
+      "truthEvidence": [
+        "maplibre-raster-source-fixtures",
+        "maplibre-automatic-browser"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "maplibre-raster:tiles:client-only:native",
+      "protocolId": "maplibre-raster",
+      "protocolLabel": "MapLibre raster",
+      "operation": "tiles",
+      "supportStatus": "supported",
+      "environment": "client-only",
+      "executionMode": "native",
+      "truthEvidence": [
+        "maplibre-raster-source-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "maplibre-vector:render:client-only:native",
+      "protocolId": "maplibre-vector",
+      "protocolLabel": "MapLibre vector",
+      "operation": "render",
+      "supportStatus": "supported",
+      "environment": "client-only",
+      "executionMode": "native",
+      "truthEvidence": [
+        "maplibre-automatic-source-fixtures",
+        "maplibre-automatic-browser"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "maplibre-vector:tiles:client-only:native",
+      "protocolId": "maplibre-vector",
+      "protocolLabel": "MapLibre vector",
+      "operation": "tiles",
+      "supportStatus": "supported",
+      "environment": "client-only",
+      "executionMode": "native",
+      "truthEvidence": [
+        "maplibre-automatic-source-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "odata:applyEdits:protocol-adapter:native",
+      "protocolId": "odata",
+      "protocolLabel": "OData",
+      "operation": "applyEdits",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "odata-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "odata:query:protocol-adapter:native",
+      "protocolId": "odata",
+      "protocolLabel": "OData",
+      "operation": "query",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "odata-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "odata:queryObjectIds:protocol-adapter:native",
+      "protocolId": "odata",
+      "protocolLabel": "OData",
+      "operation": "queryObjectIds",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "odata-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "odata:stream:protocol-adapter:native",
+      "protocolId": "odata",
+      "protocolLabel": "OData",
+      "operation": "stream",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "odata-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-features:applyEdits:protocol-adapter:native",
+      "protocolId": "ogc-features",
+      "protocolLabel": "OGC Features",
+      "operation": "applyEdits",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "ogc-features-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-features:query:protocol-adapter:native",
+      "protocolId": "ogc-features",
+      "protocolLabel": "OGC Features",
+      "operation": "query",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "ogc-features-fixtures"
+      ],
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "id": "ogc-features:queryAggregate:protocol-adapter:client-fallback",
+      "protocolId": "ogc-features",
+      "protocolLabel": "OGC Features",
+      "operation": "queryAggregate",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "client-fallback",
+      "truthEvidence": [
+        "contract-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-features:queryExtent:protocol-adapter:client-fallback",
+      "protocolId": "ogc-features",
+      "protocolLabel": "OGC Features",
+      "operation": "queryExtent",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "client-fallback",
+      "truthEvidence": [
+        "contract-conformance"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-features:queryObjectIds:protocol-adapter:native",
+      "protocolId": "ogc-features",
+      "protocolLabel": "OGC Features",
+      "operation": "queryObjectIds",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "ogc-features-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-features:stream:protocol-adapter:native",
+      "protocolId": "ogc-features",
+      "protocolLabel": "OGC Features",
+      "operation": "stream",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "ogc-features-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-maps:render:protocol-adapter:native",
+      "protocolId": "ogc-maps",
+      "protocolLabel": "OGC Maps",
+      "operation": "render",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "ogc-maps-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-records:query:protocol-adapter:native",
+      "protocolId": "ogc-records",
+      "protocolLabel": "OGC Records",
+      "operation": "query",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "ogc-records-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-records:queryObjectIds:protocol-adapter:native",
+      "protocolId": "ogc-records",
+      "protocolLabel": "OGC Records",
+      "operation": "queryObjectIds",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "ogc-records-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-records:stream:protocol-adapter:native",
+      "protocolId": "ogc-records",
+      "protocolLabel": "OGC Records",
+      "operation": "stream",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "ogc-records-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-tiles:render:protocol-adapter:native",
+      "protocolId": "ogc-tiles",
+      "protocolLabel": "OGC Tiles",
+      "operation": "render",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "ogc-tiles-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-tiles:tiles:protocol-adapter:native",
+      "protocolId": "ogc-tiles",
+      "protocolLabel": "OGC Tiles",
+      "operation": "tiles",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "ogc-tiles-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "pmtiles:tiles:client-only:native",
+      "protocolId": "pmtiles",
+      "protocolLabel": "PMTiles",
+      "operation": "tiles",
+      "supportStatus": "supported",
+      "environment": "client-only",
+      "executionMode": "native",
+      "truthEvidence": [
+        "pmtiles-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "stac:query:protocol-adapter:native",
+      "protocolId": "stac",
+      "protocolLabel": "STAC",
+      "operation": "query",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "stac-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "stac:queryObjectIds:protocol-adapter:native",
+      "protocolId": "stac",
+      "protocolLabel": "STAC",
+      "operation": "queryObjectIds",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "stac-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "stac:stream:protocol-adapter:native",
+      "protocolId": "stac",
+      "protocolLabel": "STAC",
+      "operation": "stream",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "stac-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wfs:applyEdits:protocol-adapter:native",
+      "protocolId": "wfs",
+      "protocolLabel": "WFS",
+      "operation": "applyEdits",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "wfs-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wfs:query:protocol-adapter:native",
+      "protocolId": "wfs",
+      "protocolLabel": "WFS",
+      "operation": "query",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "wfs-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wfs:queryExtent:protocol-adapter:native",
+      "protocolId": "wfs",
+      "protocolLabel": "WFS",
+      "operation": "queryExtent",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "wfs-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wfs:queryObjectIds:protocol-adapter:native",
+      "protocolId": "wfs",
+      "protocolLabel": "WFS",
+      "operation": "queryObjectIds",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "wfs-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wfs:stream:protocol-adapter:native",
+      "protocolId": "wfs",
+      "protocolLabel": "WFS",
+      "operation": "stream",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "wfs-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wms:query:protocol-adapter:native",
+      "protocolId": "wms",
+      "protocolLabel": "WMS",
+      "operation": "query",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "wms-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wms:render:protocol-adapter:native",
+      "protocolId": "wms",
+      "protocolLabel": "WMS",
+      "operation": "render",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "wms-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wms:tiles:protocol-adapter:native",
+      "protocolId": "wms",
+      "protocolLabel": "WMS",
+      "operation": "tiles",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "wms-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wmts:render:protocol-adapter:native",
+      "protocolId": "wmts",
+      "protocolLabel": "WMTS",
+      "operation": "render",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "wmts-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wmts:tiles:protocol-adapter:native",
+      "protocolId": "wmts",
+      "protocolLabel": "WMTS",
+      "operation": "tiles",
+      "supportStatus": "supported",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "wmts-fixtures"
+      ],
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    }
+  ],
+  "supportClaims": [
+    {
+      "id": "agent-tools-facade",
+      "label": "MCP tools and AI execution",
+      "operations": [
+        "agent-tools"
+      ],
+      "supportStatus": "facade-required",
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "api": "mcp/, @honua/sdk-js/agent-tools",
+      "truthEvidence": [
+        "agent-tools-fixtures"
+      ],
+      "candidateEvidence": [
+        {
+          "sampleId": "mcp-gis-assistant",
+          "matchedOperations": [
+            "agent-tools"
+          ]
+        }
+      ],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "id": "collaboration-deprecated",
+      "label": "Collaboration and saved maps compatibility shim",
+      "operations": [
+        "collaboration"
+      ],
+      "supportStatus": "deprecated",
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "api": "@honua/sdk-js/collaboration",
+      "truthEvidence": [],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "id": "compatibility-gate-facade",
+      "label": "Server compatibility gate",
+      "operations": [
+        "compatibility"
+      ],
+      "supportStatus": "facade-required",
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "api": "HonuaClient.checkCompatibility()",
+      "truthEvidence": [
+        "server-compatibility-fixtures"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "esri-compat-standalone",
+      "label": "Esri compatibility layer",
+      "operations": [
+        "query",
+        "applyEdits"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "native",
+      "api": "@honua/sdk-js/esri-compat",
+      "truthEvidence": [
+        "esri-compat-fixtures"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geometry-client-only",
+      "label": "Geometry operations",
+      "operations": [
+        "geometry"
+      ],
+      "supportStatus": "supported",
+      "environment": "client-only",
+      "executionMode": "native",
+      "api": "@honua/sdk-js/geometry",
+      "truthEvidence": [
+        "geometry-fixtures"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoparquet-discovery-client-only",
+      "label": "GeoParquet asset discovery",
+      "protocolId": "geoparquet",
+      "operations": [
+        "discovery"
+      ],
+      "supportStatus": "experimental",
+      "environment": "client-only",
+      "executionMode": "discovery",
+      "api": "connect({ protocol: 'geoparquet', geoparquet: { profiler } })",
+      "truthEvidence": [
+        "geoparquet-connect-fixtures"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "id": "geoservices-feature-standalone",
+      "label": "GeoServices FeatureServer query",
+      "protocolId": "geoservices-feature-service",
+      "operations": [
+        "discovery",
+        "query",
+        "queryExtent",
+        "queryObjectIds",
+        "stream"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "native",
+      "api": "connect(), HonuaClient.queryFeatures, Source",
+      "truthEvidence": [
+        "connect-fixtures",
+        "contract-conformance",
+        "geoservices-conformance",
+        "standalone-live"
+      ],
+      "candidateEvidence": [
+        {
+          "sampleId": "maplibre-quickstart",
+          "matchedOperations": [
+            "discovery",
+            "query"
+          ]
+        }
+      ],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "id": "geoservices-image-standalone",
+      "label": "GeoServices ImageServer reads",
+      "protocolId": "geoservices-image-service",
+      "operations": [
+        "query",
+        "render",
+        "tiles",
+        "image"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "native",
+      "api": "HonuaClient.imageService, Source.protocol()",
+      "truthEvidence": [
+        "geoservices-conformance",
+        "image-service-integration"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "geoservices-map-standalone",
+      "label": "GeoServices MapServer reads",
+      "protocolId": "geoservices-map-service",
+      "operations": [
+        "discovery",
+        "query",
+        "render",
+        "tiles"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "native",
+      "api": "connect(), HonuaClient.mapService, Source",
+      "truthEvidence": [
+        "connect-fixtures",
+        "honua-surface-fixtures",
+        "tile-layer-fixtures",
+        "map-service-integration",
+        "standalone-live"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "map-package-facade",
+      "label": "Authored MapPackage runtime",
+      "operations": [
+        "render"
+      ],
+      "supportStatus": "facade-required",
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "api": "@honua/sdk-js/runtime",
+      "truthEvidence": [
+        "map-package-fixtures"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "migration-client-only",
+      "label": "ArcGIS scanner and migration codemod",
+      "operations": [
+        "migration"
+      ],
+      "supportStatus": "supported",
+      "environment": "build-time",
+      "executionMode": "static",
+      "api": "@honua/sdk-js/migration, honua-migrate",
+      "truthEvidence": [
+        "migration-fixtures"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "odata-standalone",
+      "label": "OData v4",
+      "protocolId": "odata",
+      "operations": [
+        "discovery",
+        "query",
+        "queryObjectIds",
+        "applyEdits",
+        "stream"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "api": "connect(), Source, HonuaOdataEntitySet",
+      "truthEvidence": [
+        "odata-fixtures",
+        "standalone-live"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-features-standalone",
+      "label": "OGC API Features",
+      "protocolId": "ogc-features",
+      "operations": [
+        "discovery",
+        "query",
+        "queryObjectIds",
+        "applyEdits",
+        "stream"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "api": "connect(), Source with locator.layout=ogc-api or auto",
+      "truthEvidence": [
+        "ogc-features-fixtures",
+        "standalone-live"
+      ],
+      "candidateEvidence": [
+        {
+          "sampleId": "maplibre-quickstart",
+          "matchedOperations": [
+            "discovery",
+            "query"
+          ]
+        }
+      ],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "id": "ogc-maps-standalone",
+      "label": "OGC API Maps",
+      "protocolId": "ogc-maps",
+      "operations": [
+        "discovery",
+        "render"
+      ],
+      "supportStatus": "beta",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "api": "connect(), Source protocol ogc-maps",
+      "truthEvidence": [
+        "ogc-maps-fixtures"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "id": "ogc-processes-discovery-standalone",
+      "label": "OGC API Processes discovery",
+      "protocolId": "ogc-processes",
+      "operations": [
+        "discovery"
+      ],
+      "supportStatus": "experimental",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "api": "discoverOgcProcesses()",
+      "truthEvidence": [
+        "ogc-processes-fixtures"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "id": "ogc-processes-execution-facade",
+      "label": "OGC API Processes execution",
+      "protocolId": "ogc-processes",
+      "operations": [
+        "processes"
+      ],
+      "supportStatus": "facade-required",
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "api": "HonuaClient OGC Processes methods",
+      "truthEvidence": [
+        "ogc-processes-integration"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "ogc-records-standalone",
+      "label": "OGC API Records",
+      "protocolId": "ogc-records",
+      "operations": [
+        "discovery",
+        "query",
+        "queryObjectIds",
+        "stream"
+      ],
+      "supportStatus": "beta",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "api": "connect(), Source protocol ogc-records",
+      "truthEvidence": [
+        "ogc-records-fixtures"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "id": "ogc-tiles-standalone",
+      "label": "OGC API Tiles",
+      "protocolId": "ogc-tiles",
+      "operations": [
+        "discovery",
+        "render",
+        "tiles"
+      ],
+      "supportStatus": "beta",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "api": "connect(), Source protocol ogc-tiles",
+      "truthEvidence": [
+        "ogc-tiles-fixtures"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "id": "realtime-facade",
+      "label": "Realtime subscriptions",
+      "operations": [
+        "realtime"
+      ],
+      "supportStatus": "facade-required",
+      "environment": "honua-facade",
+      "executionMode": "transport",
+      "api": "@honua/sdk-js/realtime",
+      "truthEvidence": [
+        "realtime-integration"
+      ],
+      "candidateEvidence": [
+        {
+          "sampleId": "realtime-incident-dashboard",
+          "matchedOperations": [
+            "realtime"
+          ]
+        },
+        {
+          "sampleId": "unified-ops-workspace",
+          "matchedOperations": [
+            "realtime"
+          ]
+        }
+      ],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "id": "stac-standalone",
+      "label": "STAC API and static catalogs",
+      "protocolId": "stac",
+      "operations": [
+        "discovery",
+        "query",
+        "queryObjectIds",
+        "stream"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "api": "connect(), Source with locator.layout=stac-api or stac-static",
+      "truthEvidence": [
+        "stac-fixtures",
+        "standalone-live"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "id": "wfs-standalone",
+      "label": "WFS 2.0",
+      "protocolId": "wfs",
+      "operations": [
+        "discovery",
+        "query",
+        "queryExtent",
+        "queryObjectIds",
+        "applyEdits",
+        "stream"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "api": "connect(), Source, HonuaWfs",
+      "truthEvidence": [
+        "wfs-fixtures",
+        "standalone-live"
+      ],
+      "candidateEvidence": [],
+      "fullyQualifiedSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    }
+  ],
+  "entrypoints": [
+    {
+      "subpath": ".",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [
+        "maplibre-quickstart",
+        "service-explorer",
+        "standalone-quickstart"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "subpath": "./browser",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./honua",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [
+        "service-explorer",
+        "standalone-quickstart"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "subpath": "./auth",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./contract",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./esri-compat",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [
+        "migration-workbench",
+        "standalone-quickstart"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "subpath": "./migration",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./runtime",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./expr",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./webmap",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./geocoding",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./exploration",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [
+        "service-explorer"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "subpath": "./interactions",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [
+        "service-explorer"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "subpath": "./filter-registry",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./style",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [
+        "service-explorer"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "subpath": "./map",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [
+        "maplibre-quickstart",
+        "standalone-quickstart"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+      }
+    },
+    {
+      "subpath": "./realtime",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./react",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./geometry",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./cli",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./agent-tools",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./agent-safety",
+      "supportStatus": "supported",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+      }
+    },
+    {
+      "subpath": "./geoparquet",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./query-planner",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./source-schema",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./source-capabilities",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./source-capability-discovery",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./plugin",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./deckgl",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./offline",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./diagnostics",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./nl-map-control",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./routing",
+      "supportStatus": "experimental",
+      "exportPresent": true,
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+      }
+    },
+    {
+      "subpath": "./app",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/app",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./app-controller",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/app-controller",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./app-workspace",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/app-workspace",
+      "candidateSampleIds": [
+        "service-explorer"
+      ],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./scene-workspace",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/scene-workspace",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./collaboration",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/collaboration",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./control-plane",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/control-plane",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./replica-sync",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/replica-sync",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./share",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/share",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./operate",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/operate",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./generated-app",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/generated-app",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./studio",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/studio",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./operator",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/operator",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./operator/controllers",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/operator/controllers",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./operator/workspace",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/operator/workspace",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./operator/theming",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/operator/theming",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./operator/i18n",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/operator/i18n",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./controls",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/controls",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    },
+    {
+      "subpath": "./web-components",
+      "supportStatus": "deprecated",
+      "exportPresent": true,
+      "replacement": "@honua/app-platform/web-components",
+      "candidateSampleIds": [],
+      "qualifyingSampleIds": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The public surface is deprecated and remains visible only for replacement planning."
+      }
+    }
+  ],
+  "gaps": [
+    {
+      "targetType": "golden-journey",
+      "targetId": "first-map",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "reason": "The canonical journey remains planned until its complete receipt set is current."
+    },
+    {
+      "targetType": "golden-journey",
+      "targetId": "service-explorer",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [
+        "service-explorer"
+      ],
+      "reason": "The canonical journey remains planned until its complete receipt set is current."
+    },
+    {
+      "targetType": "golden-journey",
+      "targetId": "planning-permitting",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [
+        "planning-permitting-workbench"
+      ],
+      "reason": "The canonical journey remains planned until its complete receipt set is current."
+    },
+    {
+      "targetType": "golden-journey",
+      "targetId": "incident-operations",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [
+        "realtime-incident-dashboard"
+      ],
+      "reason": "The canonical journey remains planned until its complete receipt set is current."
+    },
+    {
+      "targetType": "golden-journey",
+      "targetId": "imagery-terrain",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [
+        "imagery-cog-quickstart"
+      ],
+      "reason": "The canonical journey remains planned until its complete receipt set is current."
+    },
+    {
+      "targetType": "golden-journey",
+      "targetId": "cloud-native-analysis",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [
+        "spatial-analytics-workbench"
+      ],
+      "reason": "The canonical journey remains planned until its complete receipt set is current."
+    },
+    {
+      "targetType": "golden-journey",
+      "targetId": "arcgis-migration",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [
+        "migration-workbench"
+      ],
+      "reason": "The canonical journey remains planned until its complete receipt set is current."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoparquet:query:client-only:native",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoparquet:queryAggregate:client-only:native",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoparquet:stream:client-only:native",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:applyEdits:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:attachments:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "edit-workflow-demo"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:pbf:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:query:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "endpoint-to-map",
+        "maplibre-quickstart",
+        "planning-permitting-workbench",
+        "standalone-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:queryAggregate:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:queryExtent:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:queryObjectIds:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:queryRelated:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:sql:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:stream:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-feature-service:tiles:protocol-adapter:client-fallback",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-geometry-service:geometry:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-gp-service:geoprocess:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-image-service:image:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-image-service:query:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "endpoint-to-map",
+        "planning-permitting-workbench",
+        "standalone-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-image-service:queryExtent:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-image-service:queryObjectIds:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-image-service:render:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-image-service:tiles:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-map-service:query:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "endpoint-to-map",
+        "planning-permitting-workbench",
+        "standalone-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-map-service:queryAggregate:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-map-service:queryExtent:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-map-service:queryObjectIds:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-map-service:queryRelated:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-map-service:render:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-map-service:sql:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-map-service:stream:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "geoservices-map-service:tiles:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "grpc:applyEdits:honua-facade:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "grpc:query:honua-facade:native",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "mcp-gis-assistant",
+        "node-backend-quickstart",
+        "planning-permitting-workbench",
+        "react-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "grpc:queryAggregate:honua-facade:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "grpc:queryExtent:honua-facade:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "grpc:queryObjectIds:honua-facade:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "grpc:stream:honua-facade:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "maplibre-raster:render:client-only:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "maplibre-raster:tiles:client-only:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "maplibre-vector:render:client-only:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "maplibre-vector:tiles:client-only:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "odata:applyEdits:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "odata:query:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "odata:queryObjectIds:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "odata:stream:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-features:applyEdits:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-features:query:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-features:queryAggregate:protocol-adapter:client-fallback",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-features:queryExtent:protocol-adapter:client-fallback",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-features:queryObjectIds:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-features:stream:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-maps:render:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-records:query:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-records:queryObjectIds:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-records:stream:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-tiles:render:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-tiles:tiles:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "pmtiles:tiles:client-only:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "stac:query:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "stac:queryObjectIds:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "stac:stream:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wfs:applyEdits:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wfs:query:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wfs:queryExtent:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wfs:queryObjectIds:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wfs:stream:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wms:query:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wms:render:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wms:tiles:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wmts:render:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wmts:tiles:protocol-adapter:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "agent-tools-facade",
+      "supportStatus": "facade-required",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "mcp-gis-assistant"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "collaboration-deprecated",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "compatibility-gate-facade",
+      "supportStatus": "facade-required",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "esri-compat-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "geometry-client-only",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "geoparquet-discovery-client-only",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "geoservices-feature-standalone",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "geoservices-image-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "geoservices-map-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "map-package-facade",
+      "supportStatus": "facade-required",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "migration-client-only",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "odata-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "ogc-features-standalone",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "ogc-maps-standalone",
+      "supportStatus": "beta",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "ogc-processes-discovery-standalone",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "ogc-processes-execution-facade",
+      "supportStatus": "facade-required",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "ogc-records-standalone",
+      "supportStatus": "beta",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "ogc-tiles-standalone",
+      "supportStatus": "beta",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "realtime-facade",
+      "supportStatus": "facade-required",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "realtime-incident-dashboard",
+        "unified-ops-workspace"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "stac-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "wfs-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": ".",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart",
+        "service-explorer",
+        "standalone-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./browser",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./honua",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "service-explorer",
+        "standalone-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./auth",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./contract",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./esri-compat",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "migration-workbench",
+        "standalone-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./migration",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./runtime",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./expr",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./webmap",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./geocoding",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./exploration",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "service-explorer"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./interactions",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "service-explorer"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./filter-registry",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./style",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "service-explorer"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./map",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart",
+        "standalone-quickstart"
+      ],
+      "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./realtime",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./react",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./geometry",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./cli",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./agent-tools",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./agent-safety",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./geoparquet",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./query-planner",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./source-schema",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./source-capabilities",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./source-capability-discovery",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./plugin",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./deckgl",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./offline",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./diagnostics",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./nl-map-control",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./routing",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./app",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./app-controller",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./app-workspace",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [
+        "service-explorer"
+      ],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./scene-workspace",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./collaboration",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./control-plane",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./replica-sync",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./share",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./operate",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./generated-app",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./studio",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./operator",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./operator/controllers",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./operator/workspace",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./operator/theming",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./operator/i18n",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./controls",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./web-components",
+      "supportStatus": "deprecated",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "The public surface is deprecated and remains visible only for replacement planning."
+    }
+  ]
+}

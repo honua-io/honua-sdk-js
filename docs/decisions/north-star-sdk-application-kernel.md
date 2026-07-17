@@ -439,7 +439,8 @@ Credential rules:
 The SDK repository owns executable samples and tests. Each flagship example
 will expose a small, versioned catalog manifest containing slug, title,
 capabilities, protocols, renderer, fixture command, live command, screenshot,
-and provenance metadata. The `honua-site` samples directory/gallery consumes a
+and provenance metadata. Qualified journeys carry reproducible desktop/mobile
+screenshot evidence. The `honua-site` samples directory/gallery consumes a
 generated projection of that manifest and links to or embeds the deployed SDK
 artifact. It must not fork `src/`, mock servers, fixtures, or workflow logic.
 Changes flow SDK example -> validated catalog artifact -> site projection. The

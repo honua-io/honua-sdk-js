@@ -8,8 +8,11 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { expectedGateCommand } from "./lib/sample-gates.mjs";
-import { validateQualificationReceiptSet } from "./sample-gate-receipt.mjs";
+import { expectedGateCommand, SAMPLE_SCREENSHOT_VARIANTS } from "./lib/sample-gates.mjs";
+import {
+  readCanonicalBoundedFile,
+  validateQualificationReceiptSet,
+} from "./sample-gate-receipt.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -24,9 +27,28 @@ const MIGRATION_SCHEMA_PATH = "samples/contract/v2/schemas/catalog-migration.sch
 const GENERATED_CATALOG_PATH = "docs/generated/sample-catalog.md";
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const SITE_VISUAL_EVIDENCE_PATH = "samples/dist/honua-site-visual-evidence.v1.json";
+const SITE_VISUAL_EVIDENCE_SCHEMA_PATH = "samples/contract/v2/schemas/site-visual-evidence.schema.json";
+const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
+const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH = "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
+const SUPPORT_MANIFEST_PATH = "config/support-manifest.v1.json";
+const SAMPLE_KIT_MANIFEST_PATH = "examples/_kit/manifest.v1.json";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+const SITE_CONSUMER_FIXTURE_V3_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
+const SITE_CONSUMER_FIXTURE_V3_SCHEMA_PATH = "samples/contract/v2/schemas/site-consumer-fixture.schema.json";
+const SITE_VISUAL_GATE_ORDER = Object.freeze([
+  "packed-build",
+  "browser",
+  "accessibility",
+  "console",
+  "responsive",
+  "screenshot",
+  "performance",
+  "fixture",
+  "live",
+]);
 const FIXTURE_BUILD_ENVIRONMENT_HELPER = "../../scripts/lib/fixture-build-environment.mjs";
 const REVIEWED_FIXTURE_HARNESS_IMPORTS = new Set([
   FIXTURE_BUILD_ENVIRONMENT_HELPER,
@@ -3047,6 +3069,361 @@ export function generateSiteProjection(catalog, packageJson) {
   };
 }
 
+function orderedUnique(values) {
+  return [...new Set(values)].sort();
+}
+
+function sampleSupportBinding(sample, supportManifest) {
+  const protocolIds = [];
+  const supportClaimIds = [];
+  for (const token of sample.protocols) {
+    const mapping = supportManifest.consumerContracts.sampleCatalog.protocols[token];
+    invariant(mapping, `${sample.id}: capability matrix has no support mapping for ${token}`);
+    protocolIds.push(...mapping.protocolIds);
+    supportClaimIds.push(...mapping.supportClaimIds);
+  }
+  return {
+    protocolIds: orderedUnique(protocolIds),
+    supportClaimIds: orderedUnique(supportClaimIds),
+  };
+}
+
+function matrixCoverage(supportStatus, candidates, fullyQualifiedCandidates) {
+  if (supportStatus === "experimental" || supportStatus === "beta") {
+    return {
+      state: "experimental",
+      reason: "Support truth is experimental or beta; sample evidence cannot promote the support claim.",
+    };
+  }
+  if (supportStatus === "deprecated") {
+    return {
+      state: "unsupported",
+      reason: "The public surface is deprecated and remains visible only for replacement planning.",
+    };
+  }
+  if (fullyQualifiedCandidates.length > 0) {
+    return {
+      state: "qualified",
+      reason: "A canonical sample covers the complete cell with current source, packed, browser, visual, fixture, and live receipts.",
+    };
+  }
+  if (candidates.length > 0) {
+    return {
+      state: "partial",
+      reason: "Executable source exists, but no candidate has complete current qualification receipts for this cell.",
+    };
+  }
+  return {
+    state: "planned",
+    reason: "Support truth has no cataloged executable sample that demonstrates this exact cell.",
+  };
+}
+
+function qualificationEvidence(visualEntry) {
+  if (!visualEntry) return undefined;
+  return {
+    sourceRevision: visualEntry.sourceRevision,
+    observedAt: visualEntry.observedAt,
+    expiresAt: visualEntry.expiresAt,
+    semanticGates: visualEntry.semanticEvidence.map((entry) => entry.gate),
+    screenshotVariants: visualEntry.screenshots.map((entry) => entry.variant),
+  };
+}
+
+function packageEntrypoint(importName, packageName) {
+  if (importName === packageName) return ".";
+  const prefix = `${packageName}/`;
+  return importName.startsWith(prefix) ? `./${importName.slice(prefix.length)}` : undefined;
+}
+
+/**
+ * Produce an honesty-first support-to-sample matrix. Candidate relationships
+ * come only from the support manifest's catalog join and exact catalog task
+ * names. A cell becomes qualified only when its candidate is represented in
+ * the current visual-evidence handoff, which itself requires all nine gates.
+ */
+export function generateCapabilitySampleMatrix(
+  catalog,
+  packageJson,
+  supportManifest,
+  kitManifest,
+  visualEvidence,
+) {
+  const visualBySample = new Map(
+    visualEvidence.qualifiedGoldenJourneys.map((entry) => [entry.sampleId, entry]),
+  );
+  const bindings = new Map(
+    catalog.samples.map((sample) => [sample.id, sampleSupportBinding(sample, supportManifest)]),
+  );
+  const kitBySample = new Map(kitManifest.samples.map((sample) => [sample.id, sample]));
+  const samples = catalog.samples.map((sample) => {
+    const binding = bindings.get(sample.id);
+    const visualEntry = visualBySample.get(sample.id);
+    return {
+      id: sample.id,
+      title: sample.title,
+      sourcePath: sample.sourcePath,
+      track: sample.track,
+      ...(sample.journeyId ? { journeyId: sample.journeyId } : {}),
+      tasks: [...sample.capabilities],
+      protocolTokens: [...sample.protocols],
+      protocolIds: [...binding.protocolIds],
+      renderers: [...sample.renderers],
+      dataMode: sample.data.mode,
+      authMode: sample.data.authMode,
+      supportTier: sample.supportTier,
+      lifecycleState: sample.lifecycle.state,
+      qualification: {
+        state: visualEntry ? "qualified" : sample.journeyId ? "planned" : "partial",
+        ...(qualificationEvidence(visualEntry) ? { evidence: qualificationEvidence(visualEntry) } : {}),
+      },
+    };
+  });
+  const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+  const qualifiedSampleIds = new Set(visualBySample.keys());
+
+  const protocolOperations = supportManifest.protocols
+    .flatMap((protocol) =>
+      protocol.operationClaims.flatMap((claim) =>
+        claim.operations.map((operation) => {
+          const candidateSampleIds = catalog.samples
+            .filter(
+              (sample) =>
+                bindings.get(sample.id).protocolIds.includes(protocol.id) &&
+                sample.capabilities.includes(operation),
+            )
+            .map((sample) => sample.id)
+            .sort();
+          const qualifyingSampleIds = candidateSampleIds.filter((sampleId) => qualifiedSampleIds.has(sampleId));
+          const coverage = matrixCoverage(claim.status, candidateSampleIds, qualifyingSampleIds);
+          return {
+            id: `${protocol.id}:${operation}:${claim.environment}:${claim.executionMode}`,
+            protocolId: protocol.id,
+            protocolLabel: protocol.label,
+            operation,
+            supportStatus: claim.status,
+            environment: claim.environment,
+            executionMode: claim.executionMode,
+            truthEvidence: [...claim.evidence],
+            candidateSampleIds,
+            qualifyingSampleIds,
+            coverage,
+          };
+        }),
+      ),
+    )
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  const supportClaims = supportManifest.supportClaims
+    .map((claim) => {
+      const candidateEvidence = catalog.samples
+        .filter((sample) => bindings.get(sample.id).supportClaimIds.includes(claim.id))
+        .map((sample) => ({
+          sampleId: sample.id,
+          matchedOperations: claim.operations.filter((operation) => sample.capabilities.includes(operation)),
+        }))
+        .filter((candidate) => candidate.matchedOperations.length > 0)
+        .sort((left, right) => left.sampleId.localeCompare(right.sampleId));
+      const fullyQualifiedSampleIds = candidateEvidence
+        .filter(
+          (candidate) =>
+            qualifiedSampleIds.has(candidate.sampleId) &&
+            candidate.matchedOperations.length === claim.operations.length,
+        )
+        .map((candidate) => candidate.sampleId);
+      const coverage = matrixCoverage(claim.status, candidateEvidence, fullyQualifiedSampleIds);
+      return {
+        id: claim.id,
+        label: claim.label,
+        ...(claim.protocol ? { protocolId: claim.protocol } : {}),
+        operations: [...claim.operations],
+        supportStatus: claim.status,
+        environment: claim.environment,
+        executionMode: claim.executionMode,
+        api: claim.api,
+        truthEvidence: [...claim.evidence],
+        candidateEvidence,
+        fullyQualifiedSampleIds,
+        coverage,
+      };
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  const entrypointCandidates = new Map();
+  for (const kitSample of kitManifest.samples) {
+    invariant(sampleById.has(kitSample.id), `sample kit references unknown matrix sample ${kitSample.id}`);
+    for (const importName of kitSample.sdkEntrypoints) {
+      const subpath = packageEntrypoint(importName, packageJson.name);
+      invariant(subpath, `${kitSample.id}: sample kit entrypoint is outside ${packageJson.name}`);
+      const candidates = entrypointCandidates.get(subpath) ?? [];
+      candidates.push(kitSample.id);
+      entrypointCandidates.set(subpath, candidates);
+    }
+  }
+  const entrypoints = supportManifest.packageLifecycle.entrypoints.map((entrypoint) => {
+    const candidateSampleIds = orderedUnique(entrypointCandidates.get(entrypoint.subpath) ?? []);
+    const qualifyingSampleIds = candidateSampleIds.filter((sampleId) => qualifiedSampleIds.has(sampleId));
+    return {
+      subpath: entrypoint.subpath,
+      supportStatus: entrypoint.status,
+      exportPresent: Object.hasOwn(packageJson.exports, entrypoint.subpath),
+      ...(entrypoint.replacement ? { replacement: entrypoint.replacement } : {}),
+      candidateSampleIds,
+      qualifyingSampleIds,
+      coverage: matrixCoverage(entrypoint.status, candidateSampleIds, qualifyingSampleIds),
+    };
+  });
+
+  const goldenJourneys = catalog.goldenJourneys.map((journey) => ({
+    id: journey.id,
+    title: journey.title,
+    candidateSampleId: journey.candidateSampleId,
+    catalogStatus: journey.status,
+    coverageState: visualBySample.has(journey.candidateSampleId) ? "qualified" : "planned",
+  }));
+  const gaps = [
+    ...goldenJourneys
+      .filter((journey) => journey.coverageState !== "qualified")
+      .map((journey) => ({
+        targetType: "golden-journey",
+        targetId: journey.id,
+        supportStatus: "supported",
+        coverageState: journey.coverageState,
+        candidateSampleIds: [journey.candidateSampleId],
+        reason: "The canonical journey remains planned until its complete receipt set is current.",
+      })),
+    ...protocolOperations
+      .filter((cell) => cell.coverage.state !== "qualified")
+      .map((cell) => ({
+        targetType: "protocol-operation",
+        targetId: cell.id,
+        supportStatus: cell.supportStatus,
+        coverageState: cell.coverage.state,
+        candidateSampleIds: [...cell.candidateSampleIds],
+        reason: cell.coverage.reason,
+      })),
+    ...supportClaims
+      .filter((cell) => cell.coverage.state !== "qualified")
+      .map((cell) => ({
+        targetType: "support-claim",
+        targetId: cell.id,
+        supportStatus: cell.supportStatus,
+        coverageState: cell.coverage.state,
+        candidateSampleIds: cell.candidateEvidence.map((candidate) => candidate.sampleId),
+        reason: cell.coverage.reason,
+      })),
+    ...entrypoints
+      .filter((cell) => cell.coverage.state !== "qualified")
+      .map((cell) => ({
+        targetType: "package-entrypoint",
+        targetId: cell.subpath,
+        supportStatus: cell.supportStatus,
+        coverageState: cell.coverage.state,
+        candidateSampleIds: [...cell.candidateSampleIds],
+        reason: cell.coverage.reason,
+      })),
+  ];
+
+  return {
+    format: "honua.site.sdk-capability-sample-matrix.v1",
+    schemaVersion: 1,
+    sdk: { package: packageJson.name, version: packageJson.version },
+    inputs: {
+      supportManifest: {
+        path: SUPPORT_MANIFEST_PATH,
+        format: supportManifest.format,
+        schemaVersion: supportManifest.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(supportManifest))),
+      },
+      catalog: {
+        path: CATALOG_PATH,
+        format: catalog.format,
+        schemaVersion: catalog.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(catalog))),
+      },
+      package: {
+        path: "package.json",
+        sha256: sha256(Buffer.from(stableJson(packageJson))),
+      },
+      sampleKit: {
+        path: SAMPLE_KIT_MANIFEST_PATH,
+        format: kitManifest.format,
+        schemaVersion: kitManifest.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(kitManifest))),
+      },
+      visualEvidence: {
+        path: SITE_VISUAL_EVIDENCE_PATH,
+        format: visualEvidence.format,
+        schemaVersion: visualEvidence.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(visualEvidence))),
+      },
+    },
+    statusVocabulary: {
+      coverage: ["qualified", "partial", "planned", "experimental", "unsupported"],
+      support: ["supported", "beta", "experimental", "facade-required", "deprecated"],
+    },
+    dimensions: {
+      tasks: orderedUnique(catalog.samples.flatMap((sample) => sample.capabilities)),
+      protocols: orderedUnique(catalog.samples.flatMap((sample) => sample.protocols)),
+      renderers: orderedUnique(catalog.samples.flatMap((sample) => sample.renderers)),
+      dataModes: orderedUnique(catalog.samples.map((sample) => sample.data.mode)),
+      authModes: orderedUnique(catalog.samples.map((sample) => sample.data.authMode)),
+      supportTiers: orderedUnique(catalog.samples.map((sample) => sample.supportTier)),
+      lifecycleStates: orderedUnique(catalog.samples.map((sample) => sample.lifecycle.state)),
+    },
+    goldenJourneys,
+    samples,
+    protocolOperations,
+    supportClaims,
+    entrypoints,
+    gaps,
+  };
+}
+
+export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
+  validateSensitiveMetadata(matrix, "capability sample matrix");
+  await validateJsonSchema(matrix, CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH);
+  invariant(
+    matrix.samples.length > 0 && new Set(matrix.samples.map((sample) => sample.id)).size === matrix.samples.length,
+    "capability sample matrix sample IDs must be non-empty and unique",
+  );
+  invariant(
+    matrix.protocolOperations.every(
+      (cell) =>
+        (cell.coverage.state !== "qualified" || cell.qualifyingSampleIds.length > 0) &&
+        cell.qualifyingSampleIds.every((sampleId) => cell.candidateSampleIds.includes(sampleId)),
+    ),
+    "capability sample matrix protocol qualification is overstated",
+  );
+  invariant(
+    matrix.entrypoints.every(
+      (entrypoint) =>
+        entrypoint.exportPresent &&
+        (entrypoint.coverage.state !== "qualified" || entrypoint.qualifyingSampleIds.length > 0) &&
+        entrypoint.qualifyingSampleIds.every((sampleId) => entrypoint.candidateSampleIds.includes(sampleId)),
+    ),
+    "capability sample matrix package qualification or export parity drift",
+  );
+  const expectedGapIds = [
+    ...matrix.goldenJourneys.filter((item) => item.coverageState !== "qualified").map((item) => `golden-journey:${item.id}`),
+    ...matrix.protocolOperations.filter((item) => item.coverage.state !== "qualified").map((item) => `protocol-operation:${item.id}`),
+    ...matrix.supportClaims.filter((item) => item.coverage.state !== "qualified").map((item) => `support-claim:${item.id}`),
+    ...matrix.entrypoints.filter((item) => item.coverage.state !== "qualified").map((item) => `package-entrypoint:${item.subpath}`),
+  ].sort();
+  const actualGapIds = matrix.gaps.map((item) => `${item.targetType}:${item.targetId}`).sort();
+  invariant(JSON.stringify(actualGapIds) === JSON.stringify(expectedGapIds), "capability sample matrix gap coverage drift");
+  if (inputs.catalog && inputs.packageJson && inputs.supportManifest && inputs.kitManifest && inputs.visualEvidence) {
+    const expected = generateCapabilitySampleMatrix(
+      inputs.catalog,
+      inputs.packageJson,
+      inputs.supportManifest,
+      inputs.kitManifest,
+      inputs.visualEvidence,
+    );
+    invariant(JSON.stringify(matrix) === JSON.stringify(expected), "capability sample matrix does not match its source truth");
+  }
+}
+
 export function generateCiSelection(catalog) {
   const profiles = catalog.qualityProfiles.map((profile) => ({
     id: profile.id,
@@ -3103,6 +3480,162 @@ export function generateCiSelection(catalog) {
 export async function validateSiteProjection(projection) {
   validateSensitiveMetadata(projection, "site projection");
   await validateJsonSchema(projection, SITE_PROJECTION_SCHEMA_PATH);
+  const sampleIds = new Set(projection.samples.map((sample) => sample.id));
+  invariant(sampleIds.size === projection.samples.length, "site projection sample IDs must be unique");
+  const routeIds = new Set(projection.routes.map((route) => route.id));
+  invariant(routeIds.size === projection.routes.length, "site projection route IDs must be unique");
+  for (const route of projection.routes) {
+    if (route.ownership === "sdk-projection") {
+      invariant(
+        sampleIds.has(route.sampleId),
+        `site projection route ${route.id} references unknown SDK sample ${route.sampleId}`,
+      );
+    }
+  }
+}
+
+export async function validateSiteVisualEvidence(evidence, projection, options = {}) {
+  validateSensitiveMetadata(evidence, "site visual evidence");
+  await validateJsonSchema(evidence, SITE_VISUAL_EVIDENCE_SCHEMA_PATH);
+  invariant(
+    JSON.stringify(evidence.policy.requiredScreenshotVariants) ===
+      JSON.stringify(SAMPLE_SCREENSHOT_VARIANTS.map((variant) => ({ id: variant.id, viewport: { ...variant.viewport } }))),
+    "site visual evidence screenshot variant policy drift",
+  );
+  invariant(
+    JSON.stringify(evidence.policy.requiredSemanticGates) === JSON.stringify(SITE_VISUAL_GATE_ORDER),
+    "site visual evidence semantic gate policy drift",
+  );
+  const entries = evidence.qualifiedGoldenJourneys;
+  invariant(
+    new Set(entries.map((entry) => entry.journeyId)).size === entries.length &&
+      new Set(entries.map((entry) => entry.sampleId)).size === entries.length,
+    "site visual evidence journey and sample IDs must be unique",
+  );
+  if (projection) {
+    invariant(
+      evidence.projection.path === SITE_PROJECTION_PATH &&
+        evidence.projection.format === projection.format &&
+        evidence.projection.schemaVersion === projection.schemaVersion &&
+        evidence.projection.sha256 === sha256(Buffer.from(stableJson(projection))),
+      "site visual evidence projection binding drift",
+    );
+    const qualified = projection.goldenJourneys.filter((journey) => journey.status === "qualified");
+    invariant(
+      JSON.stringify(entries.map((entry) => [entry.journeyId, entry.sampleId])) ===
+        JSON.stringify(qualified.map((journey) => [journey.id, journey.candidateSampleId])),
+      "site visual evidence does not exactly cover qualified golden journeys",
+    );
+    for (const entry of entries) {
+      const sample = projection.samples.find((candidate) => candidate.id === entry.sampleId);
+      invariant(
+        sample?.track === "golden" &&
+          sample.journeyId === entry.journeyId &&
+          sample.evidence.live.status === "executed" &&
+          sample.evidence.live.mode === entry.liveEvidence.mode,
+        `${entry.sampleId}: site visual evidence does not match its qualified card`,
+      );
+    }
+  }
+  const now = Date.parse(options.now ?? new Date().toISOString());
+  invariant(Number.isFinite(now), "site visual evidence validation time is invalid");
+  const maximumFutureSkewMs = 5 * 60 * 1000;
+  const maximumFreshnessMs = 7 * 24 * 60 * 60 * 1000;
+  for (const entry of entries) {
+    invariant(
+      JSON.stringify(entry.semanticEvidence.map((item) => item.gate)) === JSON.stringify(SITE_VISUAL_GATE_ORDER),
+      `${entry.sampleId}: site visual evidence semantic gates are incomplete or out of order`,
+    );
+    const observedAt = Date.parse(entry.observedAt);
+    const expiresAt = Date.parse(entry.expiresAt);
+    invariant(
+      observedAt <= now + maximumFutureSkewMs &&
+        expiresAt > now &&
+        expiresAt > observedAt &&
+        expiresAt - observedAt <= maximumFreshnessMs,
+      `${entry.sampleId}: site visual evidence is stale or has an invalid observation window`,
+    );
+    for (let index = 0; index < SAMPLE_SCREENSHOT_VARIANTS.length; index += 1) {
+      const expected = SAMPLE_SCREENSHOT_VARIANTS[index];
+      const screenshot = entry.screenshots[index];
+      invariant(
+        screenshot.variant === expected.id &&
+          screenshot.sourcePath.startsWith(`samples/evidence/${entry.sampleId}/runs/`) &&
+          screenshot.sourcePath.endsWith(`/artifacts/screenshot-${expected.id}.png`) &&
+          screenshot.publicationPath ===
+            `assets/gallery-evidence/${entry.sampleId}/${expected.id}-${screenshot.sha256.slice(0, 16)}.png`,
+        `${entry.sampleId}: ${expected.id} visual publication binding drift`,
+      );
+    }
+    for (const item of entry.semanticEvidence) {
+      const itemObservedAt = Date.parse(item.observedAt);
+      const itemExpiresAt = Date.parse(item.expiresAt);
+      invariant(
+        item.receiptPath === `samples/evidence/${entry.sampleId}/receipts/${item.gate}.v1.json` &&
+          item.reportPath.startsWith(`samples/evidence/${entry.sampleId}/runs/`),
+        `${entry.sampleId}: ${item.gate} semantic evidence path binding drift`,
+      );
+      invariant(
+        itemObservedAt <= now + maximumFutureSkewMs &&
+          itemExpiresAt > now &&
+          itemExpiresAt > itemObservedAt &&
+          itemExpiresAt - itemObservedAt <= maximumFreshnessMs,
+        `${entry.sampleId}: ${item.gate} semantic evidence is stale or has an invalid observation window`,
+      );
+    }
+    const expectedObservedAt = new Date(
+      Math.max(...entry.semanticEvidence.map((item) => Date.parse(item.observedAt))),
+    ).toISOString();
+    const expectedExpiresAt = new Date(
+      Math.min(...entry.semanticEvidence.map((item) => Date.parse(item.expiresAt))),
+    ).toISOString();
+    invariant(
+      entry.observedAt === expectedObservedAt && entry.expiresAt === expectedExpiresAt,
+      `${entry.sampleId}: site visual evidence aggregate window drift`,
+    );
+    const liveReceipt = entry.semanticEvidence.find((item) => item.gate === "live");
+    const liveObservedAt = Date.parse(entry.liveEvidence.observedAt);
+    const liveExpiresAt = Date.parse(entry.liveEvidence.expiresAt);
+    const provenanceObservedAt = Date.parse(entry.liveEvidence.provenance.observedAt);
+    invariant(
+      entry.liveEvidence.evidencePath.startsWith(`samples/evidence/${entry.sampleId}/runs/`) &&
+        entry.liveEvidence.evidencePath.endsWith("/artifacts/live-evidence.json"),
+      `${entry.sampleId}: live visual evidence path binding drift`,
+    );
+    invariant(
+      liveObservedAt <= now + maximumFutureSkewMs &&
+        liveExpiresAt > now &&
+        liveExpiresAt > liveObservedAt &&
+        liveExpiresAt - liveObservedAt <= maximumFreshnessMs &&
+        provenanceObservedAt <= now + maximumFutureSkewMs &&
+        provenanceObservedAt <= liveObservedAt + maximumFutureSkewMs,
+      `${entry.sampleId}: live visual evidence is stale or has an invalid observation window`,
+    );
+    invariant(
+      liveReceipt &&
+        entry.liveEvidence.expiresAt === liveReceipt.expiresAt &&
+        Math.abs(liveObservedAt - Date.parse(liveReceipt.observedAt)) <= maximumFutureSkewMs,
+      `${entry.sampleId}: live visual evidence receipt window drift`,
+    );
+    if (entry.journeyId === "incident-operations") {
+      invariant(
+        entry.liveEvidence.realtime?.observationWindowMs > 0,
+        `${entry.sampleId}: incident operations visual evidence must remain realtime`,
+      );
+    }
+  }
+}
+
+export async function validateSiteConsumerFixture(fixture, projection, visualEvidence, capabilityMatrix) {
+  validateSensitiveMetadata(fixture, "site consumer fixture");
+  await validateJsonSchema(fixture, SITE_CONSUMER_FIXTURE_V3_SCHEMA_PATH);
+  if (projection && visualEvidence && capabilityMatrix) {
+    invariant(
+      JSON.stringify(fixture) ===
+        JSON.stringify(generateSiteConsumerFixtureV3(projection, visualEvidence, capabilityMatrix)),
+      "site consumer fixture does not exactly match its generated inputs",
+    );
+  }
 }
 
 export async function validateCiSelection(selection) {
@@ -3143,6 +3676,281 @@ function generateSiteConsumerFixture(projection) {
   };
 }
 
+function selectedReceiptSample(sample) {
+  return {
+    id: sample.id,
+    commandPlan: {
+      validation: { execution: "automatic", commands: [...sample.validation] },
+      fixtureEvidence: { execution: "orchestrated", commands: [...sample.evidence.fixture.commands] },
+      liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
+    },
+  };
+}
+
+async function canonicalEvidenceJson(relativePath, label) {
+  const bytes = await readCanonicalBoundedFile(PROJECT_ROOT, relativePath, {
+    label,
+    maxBytes: 16 * 1024 * 1024,
+  });
+  return { bytes, value: parseJsonDocument(bytes.toString("utf8"), relativePath) };
+}
+
+async function canonicalReceiptReport(receipt, sampleId, label) {
+  const artifact = receipt.artifacts?.[0];
+  invariant(artifact, `${sampleId}: ${label} receipt artifact is missing`);
+  const loaded = await canonicalEvidenceJson(artifact.path, `${sampleId} ${label}`);
+  invariant(
+    loaded.bytes.byteLength === artifact.bytes && sha256(loaded.bytes) === artifact.sha256,
+    `${sampleId}: ${label} changed after qualification validation`,
+  );
+  return loaded.value;
+}
+
+function projectedLiveEvidence(sample, liveReport, receipt) {
+  invariant(liveReport?.format === "honua.sdk.sample-live-gate.v1", `${sample.id}: live gate report is invalid`);
+  const evidence = liveReport.evidence;
+  invariant(evidence?.status === "executed" && evidence.lane === "live", `${sample.id}: live evidence is not executed`);
+  const realtime = evidence.realtime
+    ? {
+        observationWindowMs: evidence.realtime.observationWindowMs,
+        snapshotAt: evidence.realtime.snapshotAt,
+        cursor: evidence.realtime.cursor,
+        lagMs: evidence.realtime.lagMs,
+      }
+    : undefined;
+  if (sample.journeyId === "incident-operations") {
+    invariant(
+      realtime && realtime.observationWindowMs > 0,
+      `${sample.id}: incident operations visual evidence must remain realtime`,
+    );
+  }
+  return {
+    mode: sample.evidence.live.mode,
+    status: "executed",
+    observedAt: evidence.observedAt,
+    expiresAt: receipt.expiresAt,
+    evidencePath: liveReport.evidencePath,
+    provenance: {
+      state: evidence.provenance.state,
+      observedAt: evidence.provenance.observedAt,
+      attribution: evidence.provenance.attribution,
+    },
+    semantics: {
+      operation: evidence.semantics.operation,
+      outcome: evidence.semantics.outcome,
+      itemCount: evidence.semantics.itemCount,
+      assertions: [...evidence.semantics.assertions],
+    },
+    timing: { totalMs: evidence.timing.totalMs },
+    degradation: {
+      state: evidence.degradation.state,
+      reasons: [...evidence.degradation.reasons],
+    },
+    ...(realtime ? { realtime } : {}),
+  };
+}
+
+export async function generateSiteVisualEvidence(catalog, projection, options = {}) {
+  const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
+  const receiptRoot = path.join(PROJECT_ROOT, "samples/evidence");
+  const now = options.now ?? new Date().toISOString();
+  const evidence = [];
+  for (const journey of qualifiedJourneys) {
+    const sample = catalog.samples.find((candidate) => candidate.id === journey.candidateSampleId);
+    const profile = catalog.qualityProfiles.find((candidate) => candidate.id === sample?.validationProfile);
+    invariant(sample && profile, `${journey.id}: qualified visual evidence source is missing`);
+    invariant(
+      Object.values(profile.gates).every(Boolean),
+      `${sample.id}: qualified visual evidence requires the complete golden gate profile`,
+    );
+
+    const receipts = new Map();
+    for (const gate of SITE_VISUAL_GATE_ORDER) {
+      const relativePath = `samples/evidence/${sample.id}/receipts/${gate}.v1.json`;
+      const loaded = await canonicalEvidenceJson(relativePath, `${sample.id} ${gate} visual handoff receipt`);
+      receipts.set(gate, { ...loaded, relativePath });
+    }
+    const sourceDigests = new Set([...receipts.values()].map(({ value }) => value.sourceDigest));
+    const sourceRevisions = new Set([...receipts.values()].map(({ value }) => value.sourceRevision));
+    invariant(sourceDigests.size === 1, `${sample.id}: visual handoff receipts do not share one source digest`);
+    invariant(sourceRevisions.size === 1, `${sample.id}: visual handoff receipts do not share one source revision`);
+    const [sourceDigest] = sourceDigests;
+    const [sourceRevision] = sourceRevisions;
+
+    await validateQualificationReceiptSet({
+      sample: selectedReceiptSample(sample),
+      profile,
+      expectedCommand: expectedGateCommand,
+      receiptRoot,
+      now,
+      projectRoot: PROJECT_ROOT,
+      verifyCheckout: options.verifyCheckout,
+      ...(options.verifyCheckout === false ? { sourceDigest } : {}),
+    });
+
+    for (const receipt of receipts.values()) {
+      const current = await canonicalEvidenceJson(
+        receipt.relativePath,
+        `${sample.id} visual handoff receipt stability check`,
+      );
+      invariant(
+        current.bytes.equals(receipt.bytes),
+        `${sample.id}: ${receipt.value.gate} receipt changed during visual handoff generation`,
+      );
+    }
+
+    const screenshotReceipt = receipts.get("screenshot").value;
+    const screenshotReport = await canonicalReceiptReport(
+      screenshotReceipt,
+      sample.id,
+      "desktop/mobile visual handoff report",
+    );
+    invariant(
+      screenshotReport.format === "honua.sdk.sample-screenshot-gate.v2" &&
+        Array.isArray(screenshotReport.screenshots) &&
+        screenshotReport.screenshots.length === SAMPLE_SCREENSHOT_VARIANTS.length,
+      `${sample.id}: visual handoff requires the desktop/mobile screenshot report`,
+    );
+    const screenshots = SAMPLE_SCREENSHOT_VARIANTS.map((variant, index) => {
+      const screenshot = screenshotReport.screenshots[index];
+      invariant(
+        screenshot.variant === variant.id &&
+          screenshot.viewport?.width === variant.viewport.width &&
+          screenshot.viewport?.height === variant.viewport.height,
+        `${sample.id}: visual handoff ${variant.id} screenshot binding drift`,
+      );
+      return {
+        variant: variant.id,
+        sourcePath: screenshot.path,
+        publicationPath: `assets/gallery-evidence/${sample.id}/${variant.id}-${screenshot.sha256.slice(0, 16)}.png`,
+        mediaType: "image/png",
+        viewport: { ...variant.viewport },
+        bytes: screenshot.bytes,
+        sha256: screenshot.sha256,
+      };
+    });
+
+    const liveReceipt = receipts.get("live").value;
+    const liveReport = await canonicalReceiptReport(liveReceipt, sample.id, "live visual handoff report");
+    const observedAt = new Date(
+      Math.max(...[...receipts.values()].map(({ value }) => Date.parse(value.observedAt))),
+    ).toISOString();
+    const expiresAt = new Date(
+      Math.min(...[...receipts.values()].map(({ value }) => Date.parse(value.expiresAt))),
+    ).toISOString();
+    invariant(Date.parse(expiresAt) > Date.parse(observedAt), `${sample.id}: visual handoff receipt window is invalid`);
+
+    evidence.push({
+      journeyId: journey.id,
+      sampleId: sample.id,
+      sourceRevision,
+      sourceDigest,
+      observedAt,
+      expiresAt,
+      screenshots,
+      semanticEvidence: SITE_VISUAL_GATE_ORDER.map((gate) => {
+        const receipt = receipts.get(gate);
+        return {
+          gate,
+          receiptPath: receipt.relativePath,
+          reportPath: receipt.value.artifacts[0].path,
+          observedAt: receipt.value.observedAt,
+          expiresAt: receipt.value.expiresAt,
+          sha256: sha256(receipt.bytes),
+        };
+      }),
+      liveEvidence: projectedLiveEvidence(sample, liveReport, liveReceipt),
+    });
+  }
+
+  const visualEvidence = {
+    format: "honua.site.sdk-sample-visual-evidence.v1",
+    schemaVersion: 1,
+    projection: {
+      path: SITE_PROJECTION_PATH,
+      format: projection.format,
+      schemaVersion: projection.schemaVersion,
+      sha256: sha256(Buffer.from(stableJson(projection))),
+    },
+    policy: {
+      requiredScreenshotVariants: SAMPLE_SCREENSHOT_VARIANTS.map((variant) => ({
+        id: variant.id,
+        viewport: { ...variant.viewport },
+      })),
+      requiredSemanticGates: [...SITE_VISUAL_GATE_ORDER],
+      executableSourceOwner: "honua-io/honua-sdk-js",
+      presentationOwner: "honua-io/honua-site",
+    },
+    qualifiedGoldenJourneys: evidence,
+  };
+  validateSensitiveMetadata(visualEvidence, "site visual evidence");
+  return visualEvidence;
+}
+
+function generateSiteConsumerFixtureV3(projection, visualEvidence, capabilityMatrix) {
+  const samples = projection.samples;
+  const journeys = projection.goldenJourneys;
+  const qualifiedGoldenCount = journeys.filter((journey) => journey.status === "qualified").length;
+  return {
+    format: "honua.site.sdk-sample-consumer-fixture.v3",
+    schemaVersion: 3,
+    accepts: {
+      projectionFormat: projection.format,
+      projectionSchemaVersion: projection.schemaVersion,
+      catalogFormat: projection.catalog.format,
+      catalogSchemaVersion: projection.catalog.schemaVersion,
+      visualEvidenceFormat: visualEvidence.format,
+      visualEvidenceSchemaVersion: visualEvidence.schemaVersion,
+      capabilityMatrixFormat: capabilityMatrix.format,
+      capabilityMatrixSchemaVersion: capabilityMatrix.schemaVersion,
+    },
+    inputs: {
+      projection: {
+        path: SITE_PROJECTION_PATH,
+        schemaPath: SITE_PROJECTION_SCHEMA_PATH,
+        sha256: sha256(Buffer.from(stableJson(projection))),
+      },
+      visualEvidence: {
+        path: SITE_VISUAL_EVIDENCE_PATH,
+        schemaPath: SITE_VISUAL_EVIDENCE_SCHEMA_PATH,
+        sha256: sha256(Buffer.from(stableJson(visualEvidence))),
+      },
+      capabilityMatrix: {
+        path: CAPABILITY_SAMPLE_MATRIX_PATH,
+        schemaPath: CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH,
+        sha256: sha256(Buffer.from(stableJson(capabilityMatrix))),
+      },
+    },
+    assertions: {
+      sampleCount: samples.length,
+      rootExampleCount: samples.filter((sample) => sample.sourceKind === "root-example").length,
+      docsExampleCount: samples.filter((sample) => sample.sourceKind === "docs-example").length,
+      goldenJourneyCount: journeys.length,
+      qualifiedGoldenCount,
+      visualEvidenceCount: visualEvidence.qualifiedGoldenJourneys.length,
+      routeCount: projection.routes.length,
+      sampleIdsUnique: new Set(samples.map((sample) => sample.id)).size === samples.length,
+      routeIdsUnique: new Set(projection.routes.map((route) => route.id)).size === projection.routes.length,
+      routesEndInHtml: projection.routes.every((route) => route.route.endsWith(".html")),
+      visualEvidenceMatchesQualifiedGolden:
+        visualEvidence.qualifiedGoldenJourneys.length === qualifiedGoldenCount,
+      desktopMobileEvidenceRequired: true,
+      semanticGateSetRequired: true,
+      capabilityMatrixGapCount: capabilityMatrix.gaps.length,
+      capabilityMatrixQualifiedCellCount:
+        capabilityMatrix.protocolOperations.filter((cell) => cell.coverage.state === "qualified").length +
+        capabilityMatrix.supportClaims.filter((cell) => cell.coverage.state === "qualified").length +
+        capabilityMatrix.entrypoints.filter((cell) => cell.coverage.state === "qualified").length,
+      unsupportedClaimsVisible: capabilityMatrix.gaps.length > 0,
+      executableSourceOwner: "honua-io/honua-sdk-js",
+      presentationOwner: "honua-io/honua-site",
+      sourceImplementationDuplicated: false,
+      credentialValuesForbidden: true,
+    },
+    representativeRoutes: ["quickstart-map", "public-safety", "two-protocols"],
+  };
+}
+
 function generatedCatalogMarkdown(catalog, packageJson) {
   const journeyRows = catalog.goldenJourneys.map(
     (journey) =>
@@ -3173,7 +3981,7 @@ function generatedCatalogMarkdown(catalog, packageJson) {
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
     "",
-    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The presentation-safe projection is [`samples/dist/honua-site-samples.v2.json`](../../samples/dist/honua-site-samples.v2.json).",
+    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The presentation-safe projection is [`samples/dist/honua-site-samples.v2.json`](../../samples/dist/honua-site-samples.v2.json); its qualified desktop/mobile receipt handoff is [`samples/dist/honua-site-visual-evidence.v1.json`](../../samples/dist/honua-site-visual-evidence.v1.json), and the evidence-derived support coverage contract is [`samples/dist/capability-sample-matrix.v1.json`](../../samples/dist/capability-sample-matrix.v1.json).",
     "",
   ].join("\n");
 }
@@ -3204,15 +4012,42 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-export async function generatedOutputs(catalog, packageJson) {
+export async function generatedOutputs(catalog, packageJson, options = {}) {
   const readme = await readFile(path.join(PROJECT_ROOT, "README.md"), "utf8");
+  const supportManifest =
+    options.supportManifest ??
+    parseJsonDocument(await readFile(path.join(PROJECT_ROOT, SUPPORT_MANIFEST_PATH), "utf8"), SUPPORT_MANIFEST_PATH);
+  const kitManifest =
+    options.kitManifest ??
+    parseJsonDocument(await readFile(path.join(PROJECT_ROOT, SAMPLE_KIT_MANIFEST_PATH), "utf8"), SAMPLE_KIT_MANIFEST_PATH);
   const projection = generateSiteProjection(catalog, packageJson);
+  const visualEvidence = await generateSiteVisualEvidence(catalog, projection, options);
+  const capabilityMatrix = generateCapabilitySampleMatrix(
+    catalog,
+    packageJson,
+    supportManifest,
+    kitManifest,
+    visualEvidence,
+  );
   const ciSelection = generateCiSelection(catalog);
+  const consumerFixtureV3 = generateSiteConsumerFixtureV3(projection, visualEvidence, capabilityMatrix);
+  await validateSiteVisualEvidence(visualEvidence, projection, options);
+  await validateCapabilitySampleMatrix(capabilityMatrix, {
+    catalog,
+    packageJson,
+    supportManifest,
+    kitManifest,
+    visualEvidence,
+  });
+  await validateSiteConsumerFixture(consumerFixtureV3, projection, visualEvidence, capabilityMatrix);
   return new Map([
     [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
+    [SITE_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
+    [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
     [SITE_CONSUMER_FIXTURE_PATH, stableJson(generateSiteConsumerFixture(projection))],
+    [SITE_CONSUMER_FIXTURE_V3_PATH, stableJson(consumerFixtureV3)],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
   ]);
 }

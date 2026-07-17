@@ -1,0 +1,58 @@
+{
+  "format": "honua.site.sdk-sample-consumer-fixture.v3",
+  "schemaVersion": 3,
+  "accepts": {
+    "projectionFormat": "honua.site.sdk-sample-projection.v2",
+    "projectionSchemaVersion": 2,
+    "catalogFormat": "honua.sdk.sample-catalog.v2",
+    "catalogSchemaVersion": 2,
+    "visualEvidenceFormat": "honua.site.sdk-sample-visual-evidence.v1",
+    "visualEvidenceSchemaVersion": 1,
+    "capabilityMatrixFormat": "honua.site.sdk-capability-sample-matrix.v1",
+    "capabilityMatrixSchemaVersion": 1
+  },
+  "inputs": {
+    "projection": {
+      "path": "samples/dist/honua-site-samples.v2.json",
+      "schemaPath": "samples/contract/v2/schemas/site-projection.schema.json",
+      "sha256": "5cfa97f5118a6bcdd08b97baea0b8c737faacaab19fa0e829af901471139b7e1"
+    },
+    "visualEvidence": {
+      "path": "samples/dist/honua-site-visual-evidence.v1.json",
+      "schemaPath": "samples/contract/v2/schemas/site-visual-evidence.schema.json",
+      "sha256": "953d2bc760e5d09c1cbaa03b02a5220ef64911a111fb061be1c985d957654bf0"
+    },
+    "capabilityMatrix": {
+      "path": "samples/dist/capability-sample-matrix.v1.json",
+      "schemaPath": "samples/contract/v2/schemas/capability-sample-matrix.schema.json",
+      "sha256": "835120e468452fb2c28ffc396dda895d1f05c8ca8ffd1eaf8aec63ee95ff2bc0"
+    }
+  },
+  "assertions": {
+    "sampleCount": 34,
+    "rootExampleCount": 31,
+    "docsExampleCount": 3,
+    "goldenJourneyCount": 7,
+    "qualifiedGoldenCount": 0,
+    "visualEvidenceCount": 0,
+    "routeCount": 21,
+    "sampleIdsUnique": true,
+    "routeIdsUnique": true,
+    "routesEndInHtml": true,
+    "visualEvidenceMatchesQualifiedGolden": true,
+    "desktopMobileEvidenceRequired": true,
+    "semanticGateSetRequired": true,
+    "capabilityMatrixGapCount": 150,
+    "capabilityMatrixQualifiedCellCount": 0,
+    "unsupportedClaimsVisible": true,
+    "executableSourceOwner": "honua-io/honua-sdk-js",
+    "presentationOwner": "honua-io/honua-site",
+    "sourceImplementationDuplicated": false,
+    "credentialValuesForbidden": true
+  },
+  "representativeRoutes": [
+    "quickstart-map",
+    "public-safety",
+    "two-protocols"
+  ]
+}

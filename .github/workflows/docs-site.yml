@@ -19,9 +19,15 @@ on:
       - ".release-please-manifest.json"
       - "release-please-config.json"
       - "CHANGELOG.md"
+      - "examples/_kit/**"
+      - "config/support-manifest.v1.json"
+      - "config/support-manifest.schema.json"
       - "samples/catalog.v2.json"
-      - "samples/contract/v2/**"
+      - "samples/contract/**"
       - "samples/dist/honua-site-samples.v2.json"
+      - "samples/dist/honua-site-visual-evidence.v1.json"
+      - "samples/dist/capability-sample-matrix.v1.json"
+      - "samples/evidence/**"
       - "scripts/build-docs-site.mjs"
       - "scripts/docs-api.mjs"
       - "scripts/check-docs-site-links.mjs"
@@ -31,8 +37,11 @@ on:
       - "scripts/generate-comparison-page.mjs"
       - "scripts/lib/docs-gallery-client.mjs"
       - "scripts/lib/docs-gallery.mjs"
+      - "scripts/lib/sample-gates.mjs"
       - "scripts/sample-contract.mjs"
+      - "scripts/sample-gate-receipt.mjs"
       - "test/scripts/docs-gallery.test.mjs"
+      - "test/playwright/docs-gallery.spec.mjs"
       - ".github/workflows/docs-site.yml"
   workflow_dispatch:
 
@@ -67,6 +76,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install gallery browser
+        run: npx playwright install --with-deps chromium
+
       # REQ-004: hosted docs, repo docs, and llms.txt cannot drift apart.
       - name: Verify llms.txt freshness (gate)
         run: npm run verify:llms
@@ -96,6 +108,9 @@ jobs:
 
       - name: Assemble docs site
         run: npm run docs:site
+
+      - name: Verify gallery browser, accessibility, and responsive behavior
+        run: npm run docs:site:gallery:browser
 
       - name: Link-check built site
         run: npm run docs:site:linkcheck

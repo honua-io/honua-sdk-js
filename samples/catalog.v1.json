@@ -175,7 +175,7 @@
       "sourcePath": "examples/maplibre-quickstart",
       "docsPath": "examples/maplibre-quickstart/README.md",
       "capabilities": ["discovery", "explain-plan", "filter", "linked-views", "map", "popup", "provenance", "query"],
-      "protocols": ["geoservices", "ogc-features"],
+      "protocols": ["geoservices-feature", "ogc-features"],
       "renderers": ["maplibre"],
       "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["VITE_HONUA_FIRST_MAP_BASEMAP_STYLE", "VITE_HONUA_FIRST_MAP_FILTER", "VITE_HONUA_FIRST_MAP_MAX_FEATURES", "VITE_HONUA_FIRST_MAP_MODE", "VITE_HONUA_FIRST_MAP_PROTOCOL", "VITE_HONUA_FIRST_MAP_SOURCE_ID", "VITE_HONUA_FIRST_MAP_URL"], "provenance": "Versioned Honolulu fixture replay or an anonymous public GeoServices/OGC source, identified in runtime evidence.", "attribution": "Source attribution and protocol identity are shown beside the map.", "freshness": "Fixture capture time or live response observation time." },
       "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:quickstart:mock"] }, "live": { "status": "executed", "commands": ["npm run bench:live"], "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json" } },

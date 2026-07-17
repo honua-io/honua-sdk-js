@@ -1,6 +1,10 @@
 import { classifySampleCommand, isPlaywrightCommand, parseSampleCommand } from "./sample-command.mjs";
 
-export const SAMPLE_SCREENSHOT_VIEWPORT = Object.freeze({ width: 1280, height: 720 });
+export const SAMPLE_SCREENSHOT_VARIANTS = Object.freeze([
+  Object.freeze({ id: "desktop", viewport: Object.freeze({ width: 1280, height: 720 }) }),
+  Object.freeze({ id: "mobile", viewport: Object.freeze({ width: 390, height: 844 }) }),
+]);
+export const SAMPLE_SCREENSHOT_VIEWPORT = SAMPLE_SCREENSHOT_VARIANTS[0].viewport;
 export const SAMPLE_PERFORMANCE_METRIC = "sample-ready-duration";
 export const SAMPLE_PERFORMANCE_BUDGET_MS = 5_000;
 

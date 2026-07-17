@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/site-sample-consumer-fixture.v3.schema.json",
+  "title": "Honua site SDK sample consumer fixture v3",
+  "type": "object",
+  "required": ["format", "schemaVersion", "accepts", "inputs", "assertions", "representativeRoutes"],
+  "properties": {
+    "format": { "const": "honua.site.sdk-sample-consumer-fixture.v3" },
+    "schemaVersion": { "const": 3 },
+    "accepts": {
+      "type": "object",
+      "required": [
+        "projectionFormat",
+        "projectionSchemaVersion",
+        "catalogFormat",
+        "catalogSchemaVersion",
+        "visualEvidenceFormat",
+        "visualEvidenceSchemaVersion",
+        "capabilityMatrixFormat",
+        "capabilityMatrixSchemaVersion"
+      ],
+      "properties": {
+        "projectionFormat": { "const": "honua.site.sdk-sample-projection.v2" },
+        "projectionSchemaVersion": { "const": 2 },
+        "catalogFormat": { "const": "honua.sdk.sample-catalog.v2" },
+        "catalogSchemaVersion": { "const": 2 },
+        "visualEvidenceFormat": { "const": "honua.site.sdk-sample-visual-evidence.v1" },
+        "visualEvidenceSchemaVersion": { "const": 1 },
+        "capabilityMatrixFormat": { "const": "honua.site.sdk-capability-sample-matrix.v1" },
+        "capabilityMatrixSchemaVersion": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "inputs": {
+      "type": "object",
+      "required": ["projection", "visualEvidence", "capabilityMatrix"],
+      "properties": {
+        "projection": { "$ref": "#/$defs/input" },
+        "visualEvidence": { "$ref": "#/$defs/input" },
+        "capabilityMatrix": { "$ref": "#/$defs/input" }
+      },
+      "additionalProperties": false
+    },
+    "assertions": {
+      "type": "object",
+      "required": [
+        "sampleCount",
+        "rootExampleCount",
+        "docsExampleCount",
+        "goldenJourneyCount",
+        "qualifiedGoldenCount",
+        "visualEvidenceCount",
+        "routeCount",
+        "sampleIdsUnique",
+        "routeIdsUnique",
+        "routesEndInHtml",
+        "visualEvidenceMatchesQualifiedGolden",
+        "desktopMobileEvidenceRequired",
+        "semanticGateSetRequired",
+        "capabilityMatrixGapCount",
+        "capabilityMatrixQualifiedCellCount",
+        "unsupportedClaimsVisible",
+        "executableSourceOwner",
+        "presentationOwner",
+        "sourceImplementationDuplicated",
+        "credentialValuesForbidden"
+      ],
+      "properties": {
+        "sampleCount": { "type": "integer", "minimum": 0 },
+        "rootExampleCount": { "type": "integer", "minimum": 0 },
+        "docsExampleCount": { "type": "integer", "minimum": 0 },
+        "goldenJourneyCount": { "type": "integer", "minimum": 0 },
+        "qualifiedGoldenCount": { "type": "integer", "minimum": 0 },
+        "visualEvidenceCount": { "type": "integer", "minimum": 0 },
+        "routeCount": { "type": "integer", "minimum": 0 },
+        "sampleIdsUnique": { "const": true },
+        "routeIdsUnique": { "const": true },
+        "routesEndInHtml": { "const": true },
+        "visualEvidenceMatchesQualifiedGolden": { "const": true },
+        "desktopMobileEvidenceRequired": { "const": true },
+        "semanticGateSetRequired": { "const": true },
+        "capabilityMatrixGapCount": { "type": "integer", "minimum": 0 },
+        "capabilityMatrixQualifiedCellCount": { "type": "integer", "minimum": 0 },
+        "unsupportedClaimsVisible": { "const": true },
+        "executableSourceOwner": { "const": "honua-io/honua-sdk-js" },
+        "presentationOwner": { "const": "honua-io/honua-site" },
+        "sourceImplementationDuplicated": { "const": false },
+        "credentialValuesForbidden": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "representativeRoutes": {
+      "const": ["quickstart-map", "public-safety", "two-protocols"]
+    }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["path", "schemaPath", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "schemaPath": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

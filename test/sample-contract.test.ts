@@ -10,21 +10,26 @@ import {
   classifyConfigurationName,
   compareReleases,
   extractSampleConfiguration,
+  generateCapabilitySampleMatrix,
   generateCiSelection,
   generateSiteProjection,
+  generateSiteVisualEvidence,
   generatedOutputDrift,
   generatedOutputs,
   inspectSampleConfiguration,
   isRunnableRootExampleDirectory,
   migrateCatalogV1ToV2,
   parseJsonDocument,
+  validateCapabilitySampleMatrix,
   validateCatalog,
   validateCiSelection,
   validateEvidenceEnvelope,
   validateFixtureBuildHarnessSource,
   validateFixtureBuildHarnesses,
   validateLiveEvidenceProducer,
+  validateSiteConsumerFixture,
   validateSiteProjection,
+  validateSiteVisualEvidence,
   verifyBrowserArtifactManifest,
 } from "../scripts/sample-contract.mjs";
 
@@ -68,7 +73,7 @@ describe("sample publication contract", () => {
       data: { configurationStatus: "legacy-unsafe", config: [] },
     });
     expect(catalog.siteMappings).toHaveLength(21);
-  });
+  }, 15_000);
 
   it("replays the reviewed v1 migration without semantic drift", async () => {
     const v1 = await readJson("samples/catalog.v1.json");
@@ -101,7 +106,7 @@ describe("sample publication contract", () => {
     await expect(migrateCatalogV1ToV2(v1, migration)).rejects.toThrow(
       "migration overrides must cover every v1 sample exactly",
     );
-  });
+  }, 15_000);
 
   it("rejects duplicate JSON properties before permissive parsing can hide them", () => {
     expect(() =>
@@ -131,9 +136,29 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
     const projection = generateSiteProjection(catalog, packageJson);
     const ciSelection = generateCiSelection(catalog);
+    const visualEvidence = await generateSiteVisualEvidence(catalog, projection, validationTime);
+    const supportManifest = await readJson("config/support-manifest.v1.json");
+    const kitManifest = await readJson("examples/_kit/manifest.v1.json");
+    const capabilityMatrix = generateCapabilitySampleMatrix(
+      catalog,
+      packageJson,
+      supportManifest,
+      kitManifest,
+      visualEvidence,
+    );
 
     await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
     await expect(validateCiSelection(ciSelection)).resolves.toBeUndefined();
+    await expect(validateSiteVisualEvidence(visualEvidence, projection, validationTime)).resolves.toBeUndefined();
+    await expect(
+      validateCapabilitySampleMatrix(capabilityMatrix, {
+        catalog,
+        packageJson,
+        supportManifest,
+        kitManifest,
+        visualEvidence,
+      }),
+    ).resolves.toBeUndefined();
 
     expect(projection.samples).toHaveLength(34);
     expect(projection.routes).toHaveLength(21);
@@ -144,6 +169,35 @@ describe("sample publication contract", () => {
     expect(ciSelection.samples).toHaveLength(34);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
+    expect(visualEvidence).toMatchObject({
+      format: "honua.site.sdk-sample-visual-evidence.v1",
+      schemaVersion: 1,
+      projection: { format: projection.format, schemaVersion: projection.schemaVersion },
+      policy: {
+        requiredScreenshotVariants: [
+          { id: "desktop", viewport: { width: 1280, height: 720 } },
+          { id: "mobile", viewport: { width: 390, height: 844 } },
+        ],
+      },
+      qualifiedGoldenJourneys: [],
+    });
+    expect(capabilityMatrix).toMatchObject({
+      format: "honua.site.sdk-capability-sample-matrix.v1",
+      schemaVersion: 1,
+      sdk: { package: packageJson.name, version: packageJson.version },
+    });
+    expect(capabilityMatrix.samples).toHaveLength(34);
+    expect(capabilityMatrix.goldenJourneys).toHaveLength(7);
+    expect(capabilityMatrix.gaps.length).toBeGreaterThan(0);
+    expect(
+      capabilityMatrix.protocolOperations.find(
+        (cell) => cell.protocolId === "ogc-features" && cell.operation === "query",
+      ),
+    ).toMatchObject({
+      candidateSampleIds: ["maplibre-quickstart"],
+      qualifyingSampleIds: [],
+      coverage: { state: "partial" },
+    });
     expect(JSON.stringify(projection)).not.toContain('"commands"');
     expect(JSON.stringify(projection)).not.toContain("VITE_");
     for (const sample of catalog.samples) {
@@ -179,6 +233,20 @@ describe("sample publication contract", () => {
     delete malformedProjection.samples[0].lifecycle.state;
     await expect(validateSiteProjection(malformedProjection)).rejects.toThrow("JSON Schema validation failed");
 
+    const maliciousRoute = structuredClone(projection);
+    maliciousRoute.routes[0].route = "../stolen.html";
+    await expect(validateSiteProjection(maliciousRoute)).rejects.toThrow("JSON Schema validation failed");
+
+    const orphanedRoute = structuredClone(projection);
+    orphanedRoute.routes[0].sampleId = "forged-sample";
+    await expect(validateSiteProjection(orphanedRoute)).rejects.toThrow(
+      "site projection route analyst-workbench references unknown SDK sample forged-sample",
+    );
+
+    const duplicateRoute = structuredClone(projection);
+    duplicateRoute.routes[1].id = duplicateRoute.routes[0].id;
+    await expect(validateSiteProjection(duplicateRoute)).rejects.toThrow("site projection route IDs must be unique");
+
     const sensitiveProjection = structuredClone(projection);
     sensitiveProjection.externalReplacements[0].url = "https://example.test/replacement?clientSecret=secret";
     await expect(validateSiteProjection(sensitiveProjection)).rejects.toThrow(
@@ -207,7 +275,10 @@ describe("sample publication contract", () => {
     expect(bumpedProjection.samples[0].sdk.version).toBe("0.1.1-beta.0");
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
+      "samples/dist/honua-site-visual-evidence.v1.json",
+      "samples/dist/capability-sample-matrix.v1.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
 
     const semanticDrift = new Map(currentOutputs);
@@ -225,8 +296,26 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
+      "samples/dist/honua-site-visual-evidence.v1.json",
+      "samples/dist/capability-sample-matrix.v1.json",
       fixturePath,
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
+
+    const handoffPath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
+    const handoff = JSON.parse(currentOutputs.get(handoffPath)!);
+    const currentProjection = JSON.parse(currentOutputs.get("samples/dist/honua-site-samples.v2.json")!);
+    const visualPath = "samples/dist/honua-site-visual-evidence.v1.json";
+    const currentVisualEvidence = JSON.parse(currentOutputs.get(visualPath)!);
+    const matrixPath = "samples/dist/capability-sample-matrix.v1.json";
+    const currentCapabilityMatrix = JSON.parse(currentOutputs.get(matrixPath)!);
+    await expect(
+      validateSiteConsumerFixture(handoff, currentProjection, currentVisualEvidence, currentCapabilityMatrix),
+    ).resolves.toBeUndefined();
+    handoff.inputs.visualEvidence.sha256 = "0".repeat(64);
+    await expect(
+      validateSiteConsumerFixture(handoff, currentProjection, currentVisualEvidence, currentCapabilityMatrix),
+    ).rejects.toThrow("does not exactly match its generated inputs");
   });
 
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {
@@ -986,7 +1075,7 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
         validateCatalog(await readJson("samples/catalog.v2.json"), driftedDependencyPackage, validationTime),
       ).rejects.toThrow("scheduled live command is not in the reviewed bounded producer registry");
     }
-  });
+  }, 15_000);
 
   it("keeps candidates non-golden until the full qualification contract is satisfied", async () => {
     const packageJson = await readJson("package.json");

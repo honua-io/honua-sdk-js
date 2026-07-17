@@ -247,6 +247,15 @@
           "supportClaimIds": [],
           "external": false
         },
+        "geoservices-feature": {
+          "protocolIds": [
+            "geoservices-feature-service"
+          ],
+          "supportClaimIds": [
+            "geoservices-feature-standalone"
+          ],
+          "external": false
+        },
         "honua": {
           "protocolIds": [
             "grpc"

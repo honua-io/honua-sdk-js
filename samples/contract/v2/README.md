@@ -19,6 +19,24 @@ execution evidence so none of those meanings has to be inferred from another.
 - `site-projection.schema.json` contains presentation-safe metadata for every
   catalog entry and the existing route migration map. Commands, configuration
   names, credential material, and executable source are not copied to the site.
+- `site-visual-evidence.schema.json` binds each qualified golden journey to its
+  complete semantic receipt set plus content-addressed 1280×720 desktop and
+  390×844 mobile PNGs. The generated
+  `samples/dist/honua-site-visual-evidence.v1.json` is empty while no journey is
+  qualified; a qualification without both screenshots and all nine current
+  receipts fails generation instead of publishing a placeholder.
+- `capability-sample-matrix.schema.json` defines the deterministic support-to-
+  sample projection. `samples/dist/capability-sample-matrix.v1.json` joins the
+  support manifest, package exports, catalog v2, sample-kit import contracts,
+  and current qualification handoff. Exact cells use `qualified`, `partial`,
+  `planned`, `experimental`, or `unsupported`; missing and overstated coverage
+  cannot disappear into a generic “supported” badge.
+- `honua-site-consumer.v3.json` is the versioned site handoff. It binds the v2
+  metadata projection, v1 visual-evidence projection, and v1 capability matrix
+  by schema and SHA-256, asserts exact qualified-journey and visible-gap
+  coverage, and explicitly keeps executable source ownership in this
+  repository. The v2 consumer fixture remains the compatibility handoff for
+  consumers that have not adopted visual evidence.
 - `migrations/catalog.v1-to-v2.json` is the reviewed one-time migration overlay.
   `npm run samples:migrate:v1` reproduces `samples/catalog.v2.json` from the
   frozen v1 catalog and this overlay.
@@ -36,10 +54,10 @@ Each declares a `planned` or `qualified` status and one candidate sample. A
 planned candidate remains a recipe or lab. Promotion to the golden track
 requires supported and active lifecycle state, executed fixture evidence, and
 current executed live evidence whenever its quality profile requires it.
-All seven candidates are currently planned; the catalog makes no golden claim
-until #541 supplies verifiable gate, screenshot, performance, fixture, and live
-evidence. Validation fails closed on every attempted golden promotion until
-those versioned per-gate receipts exist; profile booleans alone are never proof.
+The catalog makes no golden claim until verifiable gate, screenshot,
+performance, fixture, and live evidence exists. Validation fails closed on
+every attempted golden promotion until those versioned per-gate receipts
+exist; profile booleans alone are never proof.
 
 CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence
@@ -122,8 +140,8 @@ The v1 catalog and projection remain committed as frozen compatibility inputs
 for consumers that have not yet moved to v2. In-repository generators, learning
 paths, flagship evidence validation, and new site/CI projections consume v2.
 Generated projections are byte-bound to the effective package version; a
-package-version change requires regeneration of both the tracked site
-projection and its consumer digest.
+package-version change requires regeneration of the tracked site projection,
+capability matrix, and consumer digests.
 
 Run:
 
@@ -162,9 +180,10 @@ Browser receipts are bound to the exact pilot test, every declared project and
 browser engine, first-attempt results, and finalized assertion attachment sets.
 Console assertions are finalized after quality checks, fixture teardown, and
 explicit closure of the pilot-owned page and browser context.
-Screenshot and performance receipts come from that exact browser workflow and
-bind the canonical evidence project, engine, viewport, a structurally decoded
-PNG, positive monotonic navigation/resource/interaction measurements,
+Screenshot and performance receipts come from that exact browser workflow.
+Screenshot v2 binds the canonical evidence project and engine to an ordered
+desktop/mobile pair of structurally decoded PNGs at the contract viewports;
+performance binds positive monotonic navigation/resource/interaction measurements,
 sample-ready measurement, and budget. Fixture receipts prove loopback
 readiness, a real probe, and zero listeners or connections after shutdown.
 Packed receipts bind the package tarball and re-read a self-contained copy of

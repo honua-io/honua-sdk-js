@@ -1,0 +1,42 @@
+{
+  "format": "honua.site.sdk-sample-visual-evidence.v1",
+  "schemaVersion": 1,
+  "projection": {
+    "path": "samples/dist/honua-site-samples.v2.json",
+    "format": "honua.site.sdk-sample-projection.v2",
+    "schemaVersion": 2,
+    "sha256": "5cfa97f5118a6bcdd08b97baea0b8c737faacaab19fa0e829af901471139b7e1"
+  },
+  "policy": {
+    "requiredScreenshotVariants": [
+      {
+        "id": "desktop",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        }
+      },
+      {
+        "id": "mobile",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        }
+      }
+    ],
+    "requiredSemanticGates": [
+      "packed-build",
+      "browser",
+      "accessibility",
+      "console",
+      "responsive",
+      "screenshot",
+      "performance",
+      "fixture",
+      "live"
+    ],
+    "executableSourceOwner": "honua-io/honua-sdk-js",
+    "presentationOwner": "honua-io/honua-site"
+  },
+  "qualifiedGoldenJourneys": []
+}

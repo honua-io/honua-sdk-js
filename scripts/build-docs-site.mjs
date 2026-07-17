@@ -27,16 +27,26 @@ import {
   createGalleryModel,
   renderGalleryContent,
   verifyGalleryProjectionIntegrity,
+  verifyGalleryVisualAssets,
 } from "./lib/docs-gallery.mjs";
 import { parseJsonDocument } from "./sample-contract.mjs";
+import { readCanonicalBoundedFile } from "./sample-gate-receipt.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "dist", "docs-site");
 const API_SRC = path.join(ROOT, "dist", "docs-api");
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
-const SITE_PROJECTION = path.join(ROOT, SITE_PROJECTION_PATH);
-const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
-const SITE_CONSUMER_FIXTURE = path.join(ROOT, SITE_CONSUMER_FIXTURE_PATH);
+const SITE_VISUAL_EVIDENCE_PATH = "samples/dist/honua-site-visual-evidence.v1.json";
+const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
+const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
+const GALLERY_INPUT_BUDGETS = Object.freeze({
+  projection: 2 * 1024 * 1024,
+  visualEvidence: 4 * 1024 * 1024,
+  capabilityMatrix: 4 * 1024 * 1024,
+  consumerFixture: 256 * 1024,
+  client: 64 * 1024,
+});
+const GALLERY_CLIENT_PATH = "scripts/lib/docs-gallery-client.mjs";
 
 const SITE_TITLE = "@honua/sdk-js";
 const SITE_URL = "https://honua-io.github.io/honua-sdk-js/";
@@ -361,11 +371,43 @@ ${scripts}
 // ---------------------------------------------------------------------------
 
 async function loadGalleryModel() {
-  const projectionBytes = fs.readFileSync(SITE_PROJECTION, "utf8");
-  const consumerBytes = fs.readFileSync(SITE_CONSUMER_FIXTURE, "utf8");
+  const [projectionBuffer, visualEvidenceBuffer, capabilityMatrixBuffer, consumerBuffer] = await Promise.all([
+    readCanonicalBoundedFile(ROOT, SITE_PROJECTION_PATH, {
+      label: "gallery site projection",
+      maxBytes: GALLERY_INPUT_BUDGETS.projection,
+    }),
+    readCanonicalBoundedFile(ROOT, SITE_VISUAL_EVIDENCE_PATH, {
+      label: "gallery visual evidence",
+      maxBytes: GALLERY_INPUT_BUDGETS.visualEvidence,
+    }),
+    readCanonicalBoundedFile(ROOT, CAPABILITY_SAMPLE_MATRIX_PATH, {
+      label: "gallery capability sample matrix",
+      maxBytes: GALLERY_INPUT_BUDGETS.capabilityMatrix,
+    }),
+    readCanonicalBoundedFile(ROOT, SITE_CONSUMER_FIXTURE_PATH, {
+      label: "gallery consumer fixture",
+      maxBytes: GALLERY_INPUT_BUDGETS.consumerFixture,
+    }),
+  ]);
+  const projectionBytes = projectionBuffer.toString("utf8");
+  const visualEvidenceBytes = visualEvidenceBuffer.toString("utf8");
+  const capabilityMatrixBytes = capabilityMatrixBuffer.toString("utf8");
+  const consumerBytes = consumerBuffer.toString("utf8");
   const consumerFixture = parseJsonDocument(consumerBytes, SITE_CONSUMER_FIXTURE_PATH);
-  const integrity = await verifyGalleryProjectionIntegrity({ projectionBytes, consumerFixture });
+  const integrity = await verifyGalleryProjectionIntegrity({
+    projectionBytes,
+    visualEvidenceBytes,
+    capabilityMatrixBytes,
+    consumerFixture,
+  });
   return createGalleryModel(integrity);
+}
+
+async function readCanonicalGalleryAsset(relativePath) {
+  return readCanonicalBoundedFile(ROOT, relativePath, {
+    label: `gallery visual asset ${relativePath}`,
+    maxBytes: 32 * 1024 * 1024,
+  });
 }
 
 function demoSourceUrl(docsPath) {
@@ -436,6 +478,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .gallery-provenance{margin:1rem 0;border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;background:var(--sidebar-bg)}
 .gallery-provenance summary,.demo-card-details summary{cursor:pointer;font-weight:700;color:var(--accent)}
 .gallery-provenance .demo-facts{margin:.75rem 0 .25rem}
+.gallery-coverage{margin:1rem 0;border:1px solid var(--border);border-radius:8px;padding:.8rem;background:var(--sidebar-bg)}
+.gallery-coverage h2{margin-top:0}.gallery-coverage-counts{display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;padding-left:1.25rem}
+.gallery-gap-list{max-height:28rem;overflow:auto;padding-right:.75rem}.gallery-gap-list li{margin:.65rem 0}
 .gallery-qualification-note{color:var(--muted);font-size:.9rem}
 .gallery-controls{display:flex;flex-wrap:wrap;align-items:end;gap:.8rem;margin:1.25rem 0;padding:1rem;border:1px solid var(--border);border-radius:10px;background:var(--sidebar-bg)}
 .gallery-control{display:flex;flex:1 1 200px;flex-direction:column;gap:.25rem}
@@ -456,6 +501,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .demo-card p{color:var(--muted);margin:0 0 .8rem}
 .demo-card .demo-id{flex:0 0 auto}
 .demo-card .demo-summary{color:var(--fg)}
+.demo-visual-evidence{display:grid;grid-template-columns:minmax(0,2fr) minmax(100px,1fr);gap:1px;margin:.15rem 0 .85rem;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--border)}
+.demo-visual-evidence figure{margin:0;background:var(--bg)}
+.demo-visual-evidence img{display:block;width:100%;height:auto}
+.demo-visual-evidence figcaption{padding:.45rem .6rem;color:var(--muted);font-size:.75rem}
+.demo-visual-evidence>p{grid-column:1/-1;margin:0!important;padding:.45rem .6rem;background:var(--bg);font-size:.75rem}
 .demo-facts{display:grid;grid-template-columns:minmax(7.5rem,auto) 1fr;gap:.5rem .75rem;margin:.25rem 0 1rem;font-size:.86rem}
 .demo-facts--essential{gap:.35rem .65rem;margin-bottom:.7rem}
 .demo-facts dt{font-weight:700;color:var(--muted)}
@@ -469,6 +519,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .demo-card-details{border-top:1px solid var(--border);padding-top:.55rem}
 .demo-card-details .demo-facts{margin:.75rem 0 .2rem}
 .site-footer{border-top:1px solid var(--border);margin-top:2rem;padding:1.5rem;text-align:center;color:var(--muted);font-size:.85rem}
+.site-footer a{text-decoration:underline;text-underline-offset:.15em}
 @media (max-width:820px){.layout{flex-direction:column;padding:0 1rem}.sidebar{position:static;flex-basis:auto;max-height:none;width:100%;border-bottom:1px solid var(--border)}}
 @media (max-width:520px){.demo-facts{grid-template-columns:1fr}.demo-facts dd{margin-bottom:.35rem}}
 `;
@@ -502,6 +553,9 @@ async function main() {
   const gallery = await loadGalleryModel();
   rmrf(OUT);
   fs.mkdirSync(OUT, { recursive: true });
+  for (const asset of await verifyGalleryVisualAssets(gallery, readCanonicalGalleryAsset)) {
+    writeFile(asset.publicationPath, asset.bytes);
+  }
 
   const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
   const install = fs.readFileSync(path.join(ROOT, "INSTALL.md"), "utf8");
@@ -581,7 +635,11 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
 
   // Assets.
   writeFile("assets/style.css", STYLE_CSS);
-  writeFile("assets/gallery.js", fs.readFileSync(path.join(ROOT, "scripts/lib/docs-gallery-client.mjs"), "utf8"));
+  const galleryClient = await readCanonicalBoundedFile(ROOT, GALLERY_CLIENT_PATH, {
+    label: "gallery browser client",
+    maxBytes: GALLERY_INPUT_BUDGETS.client,
+  });
+  writeFile("assets/gallery.js", galleryClient);
   // Disable Jekyll so paths beginning with `_` (if any) survive Pages.
   writeFile(".nojekyll", "");
 
