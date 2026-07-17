@@ -188,6 +188,18 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
       },
     },
   ],
+  [
+    "evidence:planning:live",
+    {
+      definition: "npm run build --silent && node scripts/planning-live-evidence.mjs --output test-results/planning-live-evidence.json --strict",
+      generatorPath: "scripts/planning-live-evidence.mjs",
+      dependencies: {
+        build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
+        clean: "rm -rf dist",
+        compile: "npm run clean --silent && tsc -p tsconfig.json",
+      },
+    },
+  ],
 ]);
 const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "25d",
