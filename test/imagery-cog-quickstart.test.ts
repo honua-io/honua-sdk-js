@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { HonuaImageService } from "@honua/sdk-js/honua";
+import {
+  clientOptionsFromImageryConfig,
+  resolveImageryCogConfig,
+} from "../examples/imagery-cog-quickstart/src/config.js";
 import { createFixtureImageryCogDataset } from "../examples/imagery-cog-quickstart/src/fixtures.js";
 import {
   activeImageryLayerCount,
@@ -14,6 +18,47 @@ import {
 import { HonuaClient } from "../src/index.js";
 
 describe("Imagery and COG Quickstart sample", () => {
+  it("keeps browser configuration credential-free and same-origin", () => {
+    const fixture = resolveImageryCogConfig({}, "https://demo.honua.test");
+    const proxied = resolveImageryCogConfig(
+      {
+        VITE_HONUA_IMAGERY_BASE_URL: "/honua",
+        VITE_HONUA_IMAGERY_API_KEY: "must-not-be-read",
+        VITE_HONUA_IMAGERY_BEARER_TOKEN: "must-not-be-read",
+      },
+      "https://demo.honua.test",
+    );
+
+    expect(fixture).toEqual({ honuaBaseUrl: "https://demo.honua.test", mode: "fixture-safe" });
+    expect(proxied).toEqual({ honuaBaseUrl: "https://demo.honua.test/honua", mode: "live" });
+    expect(clientOptionsFromImageryConfig(proxied)).not.toHaveProperty("apiKey");
+    expect(clientOptionsFromImageryConfig(proxied)).not.toHaveProperty("bearerToken");
+    expect(() =>
+      resolveImageryCogConfig(
+        { VITE_HONUA_IMAGERY_BASE_URL: "https://credential-edge.example.test" },
+        "https://demo.honua.test",
+      ),
+    ).toThrow(/same-origin proxy/u);
+    expect(() =>
+      resolveImageryCogConfig(
+        { VITE_HONUA_IMAGERY_BASE_URL: "https://fixture-user:fixture-password@demo.honua.test/honua" },
+        "https://demo.honua.test",
+      ),
+    ).toThrow(/credential-free path/u);
+    expect(() =>
+      resolveImageryCogConfig(
+        { VITE_HONUA_IMAGERY_BASE_URL: "/honua?token=must-not-survive" },
+        "https://demo.honua.test",
+      ),
+    ).toThrow(/credential-free path/u);
+    expect(() =>
+      resolveImageryCogConfig(
+        { VITE_HONUA_IMAGERY_BASE_URL: `/honua/${"x".repeat(2_048)}` },
+        "https://demo.honua.test",
+      ),
+    ).toThrow(/2048 characters/u);
+  });
+
   it("projects WMS and COG-backed ImageServer layers into MapLibre raster sources", () => {
     const client = new HonuaClient({ baseUrl: "https://honua.example.test" });
     const plan = createImageryRenderPlan(createFixtureImageryCogDataset(), client);

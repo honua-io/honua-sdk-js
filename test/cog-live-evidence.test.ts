@@ -2,7 +2,13 @@ import fs from "node:fs";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { readExactEvidenceBody, runCogLiveEvidence, validateCogPublicContract } from "../scripts/cog-live-evidence.mjs";
+import {
+  isCogLiveEvidenceEnabled,
+  readExactEvidenceBody,
+  runCogLiveEvidence,
+  validateCogPublicContract,
+} from "../scripts/cog-live-evidence.mjs";
+import { geoTiffResolutionUnit } from "../scripts/lib/geotiff-cog-decoder.mjs";
 import { validateEvidenceEnvelope } from "../scripts/sample-contract.mjs";
 
 const contract = JSON.parse(
@@ -10,6 +16,12 @@ const contract = JSON.parse(
 );
 
 describe("direct COG scheduled semantic evidence", () => {
+  it("accepts the dedicated scheduled gate or the sample-runner live gate", () => {
+    expect(isCogLiveEvidenceEnabled({})).toBe(false);
+    expect(isCogLiveEvidenceEnabled({ HONUA_COG_LIVE_ENABLED: "true" })).toBe(true);
+    expect(isCogLiveEvidenceEnabled({ HONUA_SAMPLE_LIVE_ENABLED: "1" })).toBe(true);
+  });
+
   it("pins immutable STAC, byte, inspection, provenance, and freshness semantics", () => {
     expect(validateCogPublicContract(contract)).toBe(contract);
     expect(contract).toMatchObject({
@@ -51,7 +63,7 @@ describe("direct COG scheduled semantic evidence", () => {
       degradation: { state: "unavailable", reasons: ["live-network-gate-disabled"] },
       cog: {
         contractPath: "test/fixtures/cog/public-earth-search-sentinel-2.json",
-        networkGate: "HONUA_COG_LIVE_ENABLED",
+        networkGates: ["HONUA_COG_LIVE_ENABLED", "HONUA_SAMPLE_LIVE_ENABLED"],
         scheduledOnly: true,
       },
     });
@@ -73,6 +85,15 @@ describe("direct COG scheduled semantic evidence", () => {
     expect(packageJson.dependencies?.geotiff).toBeUndefined();
     expect(packageJson.peerDependencies?.geotiff).toBeUndefined();
     expect(packageJson.devDependencies.geotiff).toBe("3.0.5");
+  });
+
+  it("derives resolution units from GeoTIFF unit keys rather than CRS code prefixes", () => {
+    expect(geoTiffResolutionUnit({ ProjectedCSTypeGeoKey: 32621, ProjLinearUnitsGeoKey: 9001 })).toBe("metre");
+    expect(geoTiffResolutionUnit({ ProjectedCSTypeGeoKey: 2227, ProjLinearUnitsGeoKey: 9003 })).toBe("us-survey-foot");
+    expect(geoTiffResolutionUnit({ GeographicTypeGeoKey: 6668, GeogAngularUnitsGeoKey: 9102 })).toBe("degree");
+    expect(geoTiffResolutionUnit({ ProjectedCSTypeGeoKey: 32621, ProjLinearUnitsGeoKey: 9015 })).toBe("EPSG:9015");
+    expect(geoTiffResolutionUnit({ GeographicTypeGeoKey: 4326 })).toBeUndefined();
+    expect(geoTiffResolutionUnit({ ProjectedCSTypeGeoKey: 32767, ProjLinearUnitsGeoKey: 9001 })).toBeUndefined();
   });
 
   it("cancels a live prefix response before it can exceed the pinned byte ceiling", async () => {

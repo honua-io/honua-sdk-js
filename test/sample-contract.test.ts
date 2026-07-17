@@ -173,6 +173,17 @@ describe("sample publication contract", () => {
       execution: "scheduled-only",
       commands: ["npm run bench:live"],
     });
+    const imagery = ciSelection.samples.find((sample: { id: string }) => sample.id === "imagery-cog-quickstart");
+    expect(imagery).toMatchObject({ validationProfile: "golden-browser" });
+    expect(imagery?.commandPlan.liveEvidence).toEqual({
+      execution: "scheduled-only",
+      commands: ["npm run evidence:cog:live"],
+    });
+    expect(
+      projection.routes
+        .filter((route) => ["imagery-terrain", "maui-3d", "wms-overlay"].includes(String(route.id)))
+        .map((route) => String(route.sampleId)),
+    ).toEqual(["imagery-cog-quickstart", "imagery-cog-quickstart", "imagery-cog-quickstart"]);
     expect(projection.samples.some((sample: { id: string }) => sample.id === "two-protocols")).toBe(false);
 
     const malformedProjection = structuredClone(projection);
@@ -271,6 +282,8 @@ describe("sample publication contract", () => {
     const first = replacementCycle.samples.find((sample: { id: string }) => sample.id === "geoprocessing-job-runner");
     const second = replacementCycle.samples.find((sample: { id: string }) => sample.id === "stac-imagery-browser");
     first.lifecycle.replacement = { kind: "sample", id: second.id };
+    second.lifecycle.state = "merge";
+    second.lifecycle.targetRelease = "0.2.0-beta.0";
     second.lifecycle.replacement = { kind: "sample", id: first.id };
     await expect(validateCatalog(replacementCycle, packageJson, validationTime)).rejects.toThrow(
       "sample/journey replacement cycle: sample:geoprocessing-job-runner -> sample:stac-imagery-browser -> sample:geoprocessing-job-runner",
@@ -281,6 +294,7 @@ describe("sample publication contract", () => {
       (sample: { id: string }) => sample.id === "imagery-cog-quickstart",
     );
     imagery.lifecycle.state = "merge";
+    imagery.lifecycle.targetRelease = "0.2.0-beta.0";
     imagery.lifecycle.replacement = { kind: "journey", id: "imagery-terrain" };
     await expect(validateCatalog(expandedJourneyCycle, packageJson, validationTime)).rejects.toThrow(
       "sample/journey replacement cycle: sample:imagery-cog-quickstart -> journey:imagery-terrain -> sample:imagery-cog-quickstart",

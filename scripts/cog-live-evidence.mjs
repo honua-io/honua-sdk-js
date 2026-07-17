@@ -11,6 +11,7 @@ const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const CONTRACT_PATH = "test/fixtures/cog/public-earth-search-sentinel-2.json";
 const PRODUCER_PATH = "scripts/cog-live-evidence.mjs";
 const DEFAULT_OUTPUT = "test-results/cog-live-evidence.json";
+const NETWORK_GATES = ["HONUA_COG_LIVE_ENABLED", "HONUA_SAMPLE_LIVE_ENABLED"];
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -32,6 +33,10 @@ function sourceRevision() {
 
 function addDays(iso, days) {
   return new Date(Date.parse(iso) + days * 86_400_000).toISOString();
+}
+
+export function isCogLiveEvidenceEnabled(env = process.env) {
+  return NETWORK_GATES.some((name) => /^(?:1|true)$/i.test(env[name] ?? ""));
 }
 
 export function validateCogPublicContract(contract) {
@@ -88,7 +93,7 @@ function skippedEvidence(contract, observedAt, reason) {
     cog: {
       contractPath: CONTRACT_PATH,
       contractSha256: sha256(fs.readFileSync(path.join(PROJECT_ROOT, CONTRACT_PATH))),
-      networkGate: "HONUA_COG_LIVE_ENABLED",
+      networkGates: NETWORK_GATES,
       scheduledOnly: true,
     },
   });
@@ -172,7 +177,7 @@ function windowDigest(result) {
 export async function runCogLiveEvidence(options = {}) {
   const contract = validateCogPublicContract(options.contract ?? readJson(CONTRACT_PATH));
   const observedAt = options.observedAt ?? new Date().toISOString();
-  const enabled = options.enabled ?? /^(?:1|true)$/i.test(process.env.HONUA_COG_LIVE_ENABLED ?? "");
+  const enabled = options.enabled ?? isCogLiveEvidenceEnabled();
   const strict = options.strict ?? false;
   if (!enabled) {
     const evidence = skippedEvidence(contract, observedAt, "Live COG evidence is disabled outside its scheduled/manual network lane.");

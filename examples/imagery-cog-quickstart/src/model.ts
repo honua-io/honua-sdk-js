@@ -152,7 +152,7 @@ function sourceDescriptorForLayer(layer: ImageryLayerDefinition, client: HonuaCl
       styleId: "default",
     },
     capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wms,
-    attribution: "Honua fixture imagery",
+    attribution: "Honua published imagery",
   };
 }
 
@@ -172,7 +172,7 @@ function sourceSpecForLayer(
     tiles: [buildImageServerTileUrlTemplate(imageService, "png")],
     tileSize: 256,
     scheme: "xyz",
-    attribution: "Honua fixture imagery",
+    attribution: "Honua published imagery",
   };
 }
 

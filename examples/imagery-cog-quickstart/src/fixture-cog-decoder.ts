@@ -33,7 +33,7 @@ const WGS84_METADATA: CogDecodedMetadata = {
 };
 
 function assetKey(assetUrl: string): string {
-  return new URL(assetUrl).pathname.split("/").at(-1) ?? "visual-a";
+  return new URL(assetUrl).pathname.split("/").at(-1) ?? "cog";
 }
 
 function metadataFor(assetUrl: string): CogDecodedMetadata {
@@ -85,7 +85,7 @@ function fixturePixel(assetUrl: string, sourceX: number, sourceY: number): reado
   const westCape = ((along + 0.69) / 0.24) ** 2 + ((across - 0.03) / 0.2) ** 2;
   const land = Math.min(coast, eastCape, westCape) < 1;
   const texture = Math.sin(sourceX * 0.73 + sourceY * 0.41) * 7 + Math.cos(sourceY * 0.91) * 5;
-  const secondScene = assetKey(assetUrl) === "visual-b";
+  const secondScene = assetKey(assetUrl) === "cog-alt";
 
   if (!land) {
     const shelf = Math.max(0, 1.25 - Math.min(coast, eastCape, westCape));
@@ -142,7 +142,7 @@ export function createFixtureCogDecoderFactory(telemetry: FixtureCogDecoderTelem
     return {
       async inspect({ readRange, signal }) {
         try {
-          if (assetKey(assetUrl) === "visual-slow") await pause(450, signal);
+          if (assetKey(assetUrl) === "slow-cog") await pause(450, signal);
           await readRange({ offset: 0, length: 64 });
           await readRange({ offset: 1024, length: 32 });
           return metadataFor(assetUrl);
@@ -153,7 +153,7 @@ export function createFixtureCogDecoderFactory(telemetry: FixtureCogDecoderTelem
       },
       async readWindow(request, { readRange, signal }) {
         try {
-          if (assetKey(assetUrl) === "visual-slow") await pause(250, signal);
+          if (assetKey(assetUrl) === "slow-cog") await pause(250, signal);
           await readRange({ offset: 2048 + request.x + request.y, length: 96 });
           if (signal.aborted) throw abortError();
           const bands = request.bands ?? [1, 2, 3];

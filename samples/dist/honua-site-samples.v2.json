@@ -646,18 +646,17 @@
     },
     {
       "id": "imagery-cog-quickstart",
-      "title": "Imagery and COG quickstart",
-      "summary": "Discovers a STAC COG, discloses bounded reads, and renders it in MapLibre with published raster paths for comparison.",
+      "title": "Imagery and Terrain journey",
+      "summary": "Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles.",
       "sourceKind": "root-example",
       "track": "recipe",
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Consolidate the imagery candidate and its overlapping recipes before journey qualification.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "The fixture-first browser workflow, opt-in /cog renderer, pinned live semantic probe, and legacy WMS/Terrain routes now converge on one runnable journey; golden receipt qualification remains intentionally planned."
       },
-      "validationProfile": "browser-recipe",
+      "validationProfile": "golden-browser",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/imagery-cog-quickstart",
@@ -669,12 +668,18 @@
       },
       "capabilities": [
         "cog",
+        "elevation",
         "imagery",
-        "raster"
+        "profile",
+        "range-requests",
+        "raster",
+        "stac",
+        "terrain"
       ],
       "protocols": [
         "geoservices",
         "stac",
+        "terrain-rgb",
         "wms"
       ],
       "renderers": [
@@ -682,12 +687,11 @@
       ],
       "data": {
         "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed offline STAC/COG scenarios plus one immutable Earth Search item and asset pin.",
-        "attribution": "Fixture provenance is visible in-app; live evidence records Copernicus/Element 84 attribution.",
-        "freshness": "Acquisition time is distinct from probe time; a weekly scheduled probe produces evidence valid for eight days.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+        "authMode": "host-mediated",
+        "provenance": "Committed STAC, bounded COG range/decoded-window, imagery, and terrain fixtures; a configured same-origin Honua service; or the scheduled pinned Element 84 Earth Search Sentinel-2 item.",
+        "attribution": "STAC and elevation provider attribution, license, version, checksum, and ETag remain visible in workflow receipts; the pinned lane records ESA, Sinergise, AWS, and Element 84 attribution from its reviewed contract.",
+        "freshness": "Fixture acquisition/version metadata, configured-service response observation time, or the scheduled pinned-item observation time.",
+        "configurationStatus": "approved"
       },
       "evidence": {
         "fixture": {
@@ -699,7 +703,7 @@
           "status": "planned"
         }
       },
-      "expectedDegradation": "Range, CORS, CRS, and non-COG format refusals remain typed and visible while another classified asset stays usable."
+      "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
     },
     {
       "id": "kepler-analytics",
@@ -1653,13 +1657,8 @@
       "track": "recipe",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "merge",
-        "reason": "Fold into the imagery journey while keeping a focused STAC recipe.",
-        "targetRelease": "0.2.0-beta.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "imagery-terrain"
-        }
+        "state": "active",
+        "reason": "Retain as the small credential-free STAC discovery recipe; the imagery journey owns full range, comparison, elevation, and terrain qualification."
       },
       "validationProfile": "browser-recipe",
       "source": {
@@ -2137,7 +2136,7 @@
       "id": "maui-3d",
       "route": "demo-maui-3d.html",
       "ownership": "sdk-projection",
-      "sampleId": "storytelling-25d-map"
+      "sampleId": "imagery-cog-quickstart"
     },
     {
       "id": "maui-explorer",
