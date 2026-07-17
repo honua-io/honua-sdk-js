@@ -1,0 +1,500 @@
+{
+  "$schema": "./sdk-coverage.schema.json",
+  "format": "honua.sdk.sdk-coverage.v1",
+  "schemaVersion": 1,
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.0-beta.0"
+  },
+  "generatedFrom": [
+    "config/sdk-coverage-crosswalk.v1.json",
+    "config/support-manifest.v1.json"
+  ],
+  "keyListSource": "config/capability-keys.fixture.json (pinned fixture -- see KEY_LIST_URL)",
+  "statusVocabulary": [
+    "covered",
+    "partial"
+  ],
+  "capabilities": [
+    {
+      "key": "ai.agent-operations",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "dryRunAgentPlan",
+        "executeAgentPlanStep",
+        "verifyAgentStepAuthorization (src/agent-safety)"
+      ],
+      "evidence": [
+        "test/agent-safety-performance.test.ts",
+        "test/agent-safety-semantic-eval.test.ts",
+        "test/agent-safety.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk",
+      "note": "Agent dry-run, execution, and approval-consumption authorization are implemented in src/agent-safety and proven by dedicated tests. The MCP tool-discovery/execution facade (agent-tools-facade in config/support-manifest.v1.json) additionally requires a Honua Server for tool execution against live data, so this key stops short of a fully standalone claim."
+    },
+    {
+      "key": "ai.approval-workflows",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "issueAgentApproval",
+        "issueAgentExecutionReceipt",
+        "verifyAgentApproval",
+        "verifyAgentExecutionReceipt (src/agent-safety)"
+      ],
+      "evidence": [
+        "test/agent-execution.test.ts",
+        "test/agent-safety-evidence.test.ts",
+        "test/agent-safety.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk"
+    },
+    {
+      "key": "ai.mcp-discovery",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HONUA_AGENT_TOOL_NAMES",
+        "HonuaAgentToolDefinition (src/agent-tools/index.ts)"
+      ],
+      "evidence": [
+        "test/agent-tools.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk",
+      "note": "Tool definitions and JSON schemas (HONUA_AGENT_TOOL_NAMES) are local and discoverable client-side; discovery and execution against a live Honua MCP server requires the Honua facade (agent-tools-facade in config/support-manifest.v1.json)."
+    },
+    {
+      "key": "collaboration.map-sessions",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "@honua/sdk-js/collaboration"
+      ],
+      "evidence": [
+        "test/collaboration.test.ts"
+      ],
+      "source": "support-manifest",
+      "note": "The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration."
+    },
+    {
+      "key": "discovery.capability-manifest",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HonuaClient.checkCompatibility()"
+      ],
+      "evidence": [
+        "test/server-compatibility.test.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Reads the Honua administrative capabilities contract and should be skipped for standalone reads."
+    },
+    {
+      "key": "editing.featureserver-edits",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "@honua/sdk-js/esri-compat",
+        "HonuaClient.queryFeatures",
+        "Source",
+        "connect()"
+      ],
+      "evidence": [
+        "scripts/first-map-live-evidence.mjs",
+        "test/connect.test.ts",
+        "test/contract/conformance.test.ts",
+        "test/contract/geoservices-conformance.test.ts",
+        "test/feature-layer-compat.test.ts"
+      ],
+      "source": "support-manifest"
+    },
+    {
+      "key": "fieldops.offline-sync",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HonuaOfflineRegion (src/offline/region.ts)",
+        "downloadOfflineRegion"
+      ],
+      "evidence": [
+        "test/offline-error-envelope.test.ts",
+        "test/offline-region.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk",
+      "note": "SDK implements client-side offline map-region download and session tracking (src/offline/region.ts); it does not implement field-form data collection or bidirectional field-data sync, which is the fieldops.forms capability the SDK does not touch."
+    },
+    {
+      "key": "geocoding.forward",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HonuaGeocoder.forward",
+        "connect()",
+        "geocodingProvider (honua/nominatim/pelias/photon)"
+      ],
+      "evidence": [
+        "test/geocoding-providers.test.ts",
+        "test/geocoding.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk"
+    },
+    {
+      "key": "geocoding.reverse",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HonuaGeocoder.reverse",
+        "connect()",
+        "geocodingProvider (honua/nominatim/pelias/photon)"
+      ],
+      "evidence": [
+        "test/geocoding-providers.test.ts",
+        "test/geocoding.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk"
+    },
+    {
+      "key": "identity.oidc",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HonuaOAuth2Provider (src/core/auth/oauth2-provider.ts)"
+      ],
+      "evidence": [
+        "test/auth-client-credentials.test.ts",
+        "test/auth-client-integration.test.ts",
+        "test/auth-oauth2-provider.test.ts",
+        "test/oauth-identity-compat.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk"
+    },
+    {
+      "key": "identity.portal-sharing",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "PortalCompat.getItem (src/esri-compat/portal.ts)",
+        "PortalCompat.search"
+      ],
+      "evidence": [
+        "test/portal-compat.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk"
+    },
+    {
+      "key": "identity.portal-token",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "PortalCompat.generateToken (src/esri-compat/portal.ts)"
+      ],
+      "evidence": [
+        "test/portal-compat.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk"
+    },
+    {
+      "key": "ops.observability",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "replayDiagnosticBundle (src/diagnostics/replay.ts)"
+      ],
+      "evidence": [
+        "test/diagnostic-bundle.test.ts",
+        "test/integration-diagnostics.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk",
+      "note": "SDK implements client-side diagnostic bundle capture and replay (src/diagnostics) for support escalation; it does not implement server-side metrics/tracing endpoints, which are honua-server's ops.observability surface."
+    },
+    {
+      "key": "plugin.sdk",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HonuaPluginRegistry",
+        "honua-plugin-certify CLI",
+        "runHonuaPluginConformance"
+      ],
+      "evidence": [
+        "test/plugin-certification-cli.test.ts",
+        "test/plugin-certification.test.ts",
+        "test/plugin-conformance.test.ts",
+        "test/plugin-registry.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk"
+    },
+    {
+      "key": "process.geoprocessing",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "discoverGeoServices()"
+      ],
+      "evidence": [
+        "test/geoservices-discovery.test.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Returns task execution and job-lifecycle metadata without starting a job or inventing a queryable Source."
+    },
+    {
+      "key": "raster.cloud-cog-serving",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "StacCogAssetSession",
+        "openStacCogAsset (src/cog/session.ts)"
+      ],
+      "evidence": [
+        "test/cog-maplibre.test.ts",
+        "test/cog-session.test.ts",
+        "test/imagery-cog-quickstart.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk",
+      "note": "SDK provides client-side COG range-read session and MapLibre integration for consuming Cloud-Optimized GeoTIFFs (StacCogAssetSession); it does not serve or tile COGs server-side, which remains honua-server's responsibility."
+    },
+    {
+      "key": "routing.solve",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "assertRoutingCapability",
+        "honua routing provider",
+        "osrmRoutingProvider",
+        "supportsRoutingCapability",
+        "valhallaRoutingProvider"
+      ],
+      "evidence": [
+        "test/routing-providers.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk"
+    },
+    {
+      "key": "serve.geoservices-featureserver",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "@honua/sdk-js/esri-compat",
+        "HonuaClient.queryFeatures",
+        "Source",
+        "connect()"
+      ],
+      "evidence": [
+        "scripts/first-map-live-evidence.mjs",
+        "test/connect.test.ts",
+        "test/contract/conformance.test.ts",
+        "test/contract/geoservices-conformance.test.ts",
+        "test/feature-layer-compat.test.ts"
+      ],
+      "source": "support-manifest"
+    },
+    {
+      "key": "serve.geoservices-geometry-service",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "discoverGeoServices()"
+      ],
+      "evidence": [
+        "test/geoservices-discovery.test.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Returns advertised geometry operations as metadata-only descriptors; it never invents a queryable Source."
+    },
+    {
+      "key": "serve.geoservices-imageserver",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HonuaClient.imageService",
+        "Source.protocol()",
+        "connect()",
+        "discoverGeoServices()"
+      ],
+      "evidence": [
+        "test/contract/geoservices-conformance.test.ts",
+        "test/geoservices-discovery.test.ts",
+        "test/integration/surfaces/image-server.integration.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor."
+    },
+    {
+      "key": "serve.geoservices-mapserver",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HonuaClient.mapService",
+        "Source",
+        "connect()"
+      ],
+      "evidence": [
+        "test/connect.test.ts",
+        "test/honua-surface.test.ts",
+        "test/integration/surfaces/map-server.integration.ts",
+        "test/tile-layer-compat.test.ts"
+      ],
+      "source": "support-manifest"
+    },
+    {
+      "key": "serve.odata",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HonuaOdataEntitySet",
+        "Source",
+        "connect()"
+      ],
+      "evidence": [
+        "test/contract/odata-backend-agnostic.test.ts"
+      ],
+      "source": "support-manifest"
+    },
+    {
+      "key": "serve.ogc-api-features",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "Source with locator.layout=ogc-api or auto",
+        "connect()"
+      ],
+      "evidence": [
+        "test/contract/ogc-features-backend-agnostic.test.ts"
+      ],
+      "source": "support-manifest"
+    },
+    {
+      "key": "serve.ogc-api-maps",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "Source protocol ogc-maps",
+        "connect()"
+      ],
+      "evidence": [
+        "test/connect-ogc-maps.test.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps."
+    },
+    {
+      "key": "serve.ogc-api-records",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "Source protocol ogc-records",
+        "connect()"
+      ],
+      "evidence": [
+        "test/connect-ogc.test.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Discovers and queries the raw records path advertised by the service; does not require /ogc/records."
+    },
+    {
+      "key": "serve.ogc-api-tiles",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "Source protocol ogc-tiles",
+        "connect()"
+      ],
+      "evidence": [
+        "test/connect-ogc-tiles.test.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles."
+    },
+    {
+      "key": "serve.stac",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "Source with locator.layout=stac-api or stac-static",
+        "connect()"
+      ],
+      "evidence": [
+        "test/contract/stac-backend-agnostic.test.ts"
+      ],
+      "source": "support-manifest"
+    },
+    {
+      "key": "serve.vector-tiles",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "connect(), Source (protocol: \"pmtiles\")"
+      ],
+      "evidence": [
+        "test/pmtiles-contract.test.ts"
+      ],
+      "source": "support-manifest"
+    },
+    {
+      "key": "serve.wfs",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "HonuaWfs",
+        "Source",
+        "connect()"
+      ],
+      "evidence": [
+        "test/contract/wfs-backend-agnostic.test.ts"
+      ],
+      "source": "support-manifest"
+    },
+    {
+      "key": "serve.wms",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "connect(), Source (protocol: \"wms\")"
+      ],
+      "evidence": [
+        "test/contract/wms.test.ts"
+      ],
+      "source": "support-manifest"
+    },
+    {
+      "key": "serve.wmts",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "connect(), Source (protocol: \"wmts\")"
+      ],
+      "evidence": [
+        "test/contract/wmts.test.ts"
+      ],
+      "source": "support-manifest"
+    },
+    {
+      "key": "streaming.feature-subscriptions",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "@honua/sdk-js/realtime"
+      ],
+      "evidence": [
+        "test/integration/surfaces/realtime.integration.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Subscription-backed live updates depend on the Honua realtime contract."
+    },
+    {
+      "key": "styling.ogc-api-styles",
+      "status": "covered",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "OGC API Styles resolvers",
+        "createSources (src/style/factory.ts)"
+      ],
+      "evidence": [
+        "test/runtime/ogc-styles.test.ts",
+        "test/style.test.ts"
+      ],
+      "source": "sdk-coverage-crosswalk"
+    }
+  ]
+}

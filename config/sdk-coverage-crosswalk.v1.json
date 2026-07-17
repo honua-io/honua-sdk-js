@@ -1,0 +1,132 @@
+{
+  "$schema": "./sdk-coverage-crosswalk.schema.json",
+  "format": "honua.sdk.sdk-coverage-crosswalk.v1",
+  "schemaVersion": 1,
+  "source": "Maps config/support-manifest.v1.json protocol and supportClaim ids to canonical capability keys consumed from honua-io/honua-server capability-keys.v1.json (KEY_LIST_URL override; config/capability-keys.fixture.json pinned fallback). Also carries a small set of hand-specified `extras` entries for SDK feature areas support-manifest.v1.json does not model as protocols/supportClaims (geocoding, routing, offline, plugin, cog, style, esri-compat portal, auth, diagnostics, agent-safety). scripts/sdk-coverage.mjs is the only consumer.",
+  "trackingIssue": "https://github.com/honua-io/honua-sdk-js/issues/618",
+  "protocols": {
+    "grpc": { "internalOnly": true, "reason": "Native Honua gRPC transport underlying many operations across many capabilities; not itself a discrete customer-facing capability key." },
+    "geoservices-feature-service": { "capabilityKeys": ["serve.geoservices-featureserver", "editing.featureserver-edits"] },
+    "geoservices-map-service": { "capabilityKeys": ["serve.geoservices-mapserver"] },
+    "geoservices-image-service": { "capabilityKeys": ["serve.geoservices-imageserver"], "forcePartial": true },
+    "geoservices-geometry-service": { "capabilityKeys": ["serve.geoservices-geometry-service"] },
+    "geoservices-gp-service": { "capabilityKeys": ["process.geoprocessing"] },
+    "ogc-features": { "capabilityKeys": ["serve.ogc-api-features"] },
+    "ogc-tiles": { "capabilityKeys": ["serve.ogc-api-tiles"] },
+    "ogc-maps": { "capabilityKeys": ["serve.ogc-api-maps"] },
+    "ogc-records": { "capabilityKeys": ["serve.ogc-api-records"] },
+    "stac": { "capabilityKeys": ["serve.stac"] },
+    "wfs": { "capabilityKeys": ["serve.wfs"] },
+    "wms": { "capabilityKeys": ["serve.wms"] },
+    "wmts": { "capabilityKeys": ["serve.wmts"] },
+    "odata": { "capabilityKeys": ["serve.odata"] },
+    "pmtiles": { "capabilityKeys": ["serve.vector-tiles"] },
+    "geoparquet": { "internalOnly": true, "reason": "Client-only cloud-native columnar format profiling; GeoParquet has no canonical capability key in the published vocabulary." },
+    "maplibre-vector": { "internalOnly": true, "reason": "Client rendering pipeline (MapLibre vector source/layer wiring), not a platform-served capability." },
+    "maplibre-raster": { "internalOnly": true, "reason": "Client rendering pipeline (MapLibre raster source/layer wiring), not a platform-served capability." },
+    "maplibre-geojson": { "internalOnly": true, "reason": "Client rendering pipeline (MapLibre GeoJSON source/layer wiring), not a platform-served capability." }
+  },
+  "supportClaims": {
+    "esri-compat-standalone": { "capabilityKeys": ["serve.geoservices-featureserver", "editing.featureserver-edits"] },
+    "migration-client-only": { "internalOnly": true, "reason": "Static ArcGIS-to-Honua codemod/scan tooling; dev-time only, not a platform capability." },
+    "geometry-client-only": { "internalOnly": true, "reason": "Client-side geometry math (buffer/area/simplify/measure/reprojection); the published vocabulary has no client-geometry-library category, and this is distinct from serve.geoservices-geometry-service (ArcGIS GeometryServer discovery)." },
+    "compatibility-gate-facade": { "capabilityKeys": ["discovery.capability-manifest"] },
+    "map-package-facade": { "internalOnly": true, "reason": "Composite server-authored-content facade (styles + layer order + metadata); no single discrete canonical key covers this composite concept." },
+    "realtime-facade": { "capabilityKeys": ["streaming.feature-subscriptions"] },
+    "collaboration-deprecated": { "capabilityKeys": ["collaboration.map-sessions"], "extraEvidence": ["test/collaboration.test.ts"] },
+    "agent-tools-facade": { "capabilityKeys": ["ai.mcp-discovery", "ai.agent-operations"] },
+    "ogc-processes-discovery-standalone": { "capabilityKeys": ["process.ogc-api-processes"] },
+    "ogc-processes-execution-facade": { "capabilityKeys": ["process.ogc-api-processes"] }
+  },
+  "extras": {
+    "geocoding.forward": {
+      "status": "covered",
+      "entrypoints": ["connect()", "HonuaGeocoder.forward", "geocodingProvider (honua/nominatim/pelias/photon)"],
+      "sourceFiles": ["src/geocoding/index.ts", "src/geocoding/provider.ts", "src/geocoding/provider-http.ts"],
+      "evidence": ["test/geocoding.test.ts", "test/geocoding-providers.test.ts"]
+    },
+    "geocoding.reverse": {
+      "status": "covered",
+      "entrypoints": ["connect()", "HonuaGeocoder.reverse", "geocodingProvider (honua/nominatim/pelias/photon)"],
+      "sourceFiles": ["src/geocoding/index.ts", "src/geocoding/provider.ts", "src/geocoding/provider-http.ts"],
+      "evidence": ["test/geocoding.test.ts", "test/geocoding-providers.test.ts"]
+    },
+    "routing.solve": {
+      "status": "covered",
+      "entrypoints": ["assertRoutingCapability", "supportsRoutingCapability", "osrmRoutingProvider", "valhallaRoutingProvider", "honua routing provider"],
+      "sourceFiles": ["src/routing/index.ts", "src/routing/provider.ts", "src/routing/providers/osrm.ts", "src/routing/providers/valhalla.ts", "src/routing/providers/honua.ts"],
+      "evidence": ["test/routing-providers.test.ts"]
+    },
+    "fieldops.offline-sync": {
+      "status": "partial",
+      "note": "SDK implements client-side offline map-region download and session tracking (src/offline/region.ts); it does not implement field-form data collection or bidirectional field-data sync, which is the fieldops.forms capability the SDK does not touch.",
+      "entrypoints": ["downloadOfflineRegion", "HonuaOfflineRegion (src/offline/region.ts)"],
+      "sourceFiles": ["src/offline/index.ts", "src/offline/region.ts"],
+      "evidence": ["test/offline-region.test.ts", "test/offline-error-envelope.test.ts"]
+    },
+    "plugin.sdk": {
+      "status": "covered",
+      "entrypoints": ["HonuaPluginRegistry", "runHonuaPluginConformance", "honua-plugin-certify CLI"],
+      "sourceFiles": ["src/plugin/index.ts", "src/plugin/registry.ts", "src/plugin/conformance.ts", "src/plugin/certification.ts"],
+      "evidence": ["test/plugin-registry.test.ts", "test/plugin-conformance.test.ts", "test/plugin-certification.test.ts", "test/plugin-certification-cli.test.ts"]
+    },
+    "raster.cloud-cog-serving": {
+      "status": "partial",
+      "note": "SDK provides client-side COG range-read session and MapLibre integration for consuming Cloud-Optimized GeoTIFFs (StacCogAssetSession); it does not serve or tile COGs server-side, which remains honua-server's responsibility.",
+      "entrypoints": ["StacCogAssetSession", "openStacCogAsset (src/cog/session.ts)"],
+      "sourceFiles": ["src/cog/index.ts", "src/cog/session.ts", "src/cog/range-transport.ts"],
+      "evidence": ["test/cog-session.test.ts", "test/cog-maplibre.test.ts", "test/imagery-cog-quickstart.test.ts"]
+    },
+    "styling.ogc-api-styles": {
+      "status": "covered",
+      "entrypoints": ["createSources (src/style/factory.ts)", "OGC API Styles resolvers"],
+      "sourceFiles": ["src/style/index.ts", "src/style/factory.ts"],
+      "evidence": ["test/runtime/ogc-styles.test.ts", "test/style.test.ts"]
+    },
+    "identity.portal-sharing": {
+      "status": "covered",
+      "entrypoints": ["PortalCompat.search", "PortalCompat.getItem (src/esri-compat/portal.ts)"],
+      "sourceFiles": ["src/esri-compat/portal.ts"],
+      "evidence": ["test/portal-compat.test.ts"]
+    },
+    "identity.portal-token": {
+      "status": "covered",
+      "entrypoints": ["PortalCompat.generateToken (src/esri-compat/portal.ts)"],
+      "sourceFiles": ["src/esri-compat/portal.ts"],
+      "evidence": ["test/portal-compat.test.ts"]
+    },
+    "identity.oidc": {
+      "status": "covered",
+      "entrypoints": ["HonuaOAuth2Provider (src/core/auth/oauth2-provider.ts)"],
+      "sourceFiles": ["src/core/auth/oauth2-provider.ts"],
+      "evidence": ["test/auth-oauth2-provider.test.ts", "test/auth-client-credentials.test.ts", "test/auth-client-integration.test.ts", "test/oauth-identity-compat.test.ts"]
+    },
+    "ops.observability": {
+      "status": "partial",
+      "note": "SDK implements client-side diagnostic bundle capture and replay (src/diagnostics) for support escalation; it does not implement server-side metrics/tracing endpoints, which are honua-server's ops.observability surface.",
+      "entrypoints": ["replayDiagnosticBundle (src/diagnostics/replay.ts)"],
+      "sourceFiles": ["src/diagnostics/index.ts", "src/diagnostics/replay.ts"],
+      "evidence": ["test/diagnostic-bundle.test.ts", "test/integration-diagnostics.test.ts"]
+    },
+    "ai.approval-workflows": {
+      "status": "covered",
+      "entrypoints": ["issueAgentApproval", "verifyAgentApproval", "issueAgentExecutionReceipt", "verifyAgentExecutionReceipt (src/agent-safety)"],
+      "sourceFiles": ["src/agent-safety/index.ts", "src/agent-safety/execution.ts", "src/agent-safety/evidence.ts", "src/agent-safety/types.ts"],
+      "evidence": ["test/agent-safety.test.ts", "test/agent-safety-evidence.test.ts", "test/agent-execution.test.ts"]
+    },
+    "ai.agent-operations": {
+      "status": "partial",
+      "note": "Agent dry-run, execution, and approval-consumption authorization are implemented in src/agent-safety and proven by dedicated tests. The MCP tool-discovery/execution facade (agent-tools-facade in config/support-manifest.v1.json) additionally requires a Honua Server for tool execution against live data, so this key stops short of a fully standalone claim.",
+      "entrypoints": ["dryRunAgentPlan", "executeAgentPlanStep", "verifyAgentStepAuthorization (src/agent-safety)"],
+      "sourceFiles": ["src/agent-safety/index.ts", "src/agent-safety/execution.ts"],
+      "evidence": ["test/agent-safety.test.ts", "test/agent-safety-semantic-eval.test.ts", "test/agent-safety-performance.test.ts"]
+    },
+    "ai.mcp-discovery": {
+      "status": "partial",
+      "note": "Tool definitions and JSON schemas (HONUA_AGENT_TOOL_NAMES) are local and discoverable client-side; discovery and execution against a live Honua MCP server requires the Honua facade (agent-tools-facade in config/support-manifest.v1.json).",
+      "entrypoints": ["HONUA_AGENT_TOOL_NAMES", "HonuaAgentToolDefinition (src/agent-tools/index.ts)"],
+      "sourceFiles": ["src/agent-tools/index.ts"],
+      "evidence": ["test/agent-tools.test.ts"]
+    }
+  }
+}
