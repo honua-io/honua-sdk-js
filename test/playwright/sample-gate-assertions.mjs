@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 
@@ -10,10 +11,13 @@ import {
   isSampleEvidenceRunId,
   SAMPLE_PERFORMANCE_BUDGET_MS,
   SAMPLE_PERFORMANCE_METRIC,
-  SAMPLE_SCREENSHOT_VIEWPORT,
+  SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+  SAMPLE_SCREENSHOT_VARIANTS,
 } from "../../scripts/lib/sample-gates.mjs";
 
 const FORMAT = "honua.sdk.sample-gate-assertion.v1";
+const require = createRequire(import.meta.url);
+const PLAYWRIGHT_VERSION = require("@playwright/test/package.json").version;
 
 function controlledEvidenceOutput(value, sampleId, fileName) {
   if (value === undefined) return undefined;
@@ -62,17 +66,64 @@ async function writeBrowserEvidenceArtifacts({
 
   if (screenshotOutput) {
     await mkdir(path.dirname(screenshotOutput.absolute), { recursive: true });
-    await page.setViewportSize(SAMPLE_SCREENSHOT_VIEWPORT);
-    const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), "screenshot.png");
-    await page.screenshot({ path: screenshotPath, animations: "disabled", fullPage: false });
-    const bytes = await readFile(screenshotPath);
-    const report = {
+    const browser = page.context().browser();
+    const actualBrowserName = browser?.browserType().name();
+    const browserVersion = browser?.version();
+    if (!browserVersion || actualBrowserName !== browserName) {
+      throw new Error("screenshot evidence requires the declared browser engine and runtime version");
+    }
+    const runtime = {
+      playwrightVersion: PLAYWRIGHT_VERSION,
       projectName,
-      browserName,
-      viewport: SAMPLE_SCREENSHOT_VIEWPORT,
-      path: path.relative(process.cwd(), screenshotPath).replaceAll(path.sep, "/"),
-      bytes: bytes.byteLength,
-      sha256: createHash("sha256").update(bytes).digest("hex"),
+      browserName: actualBrowserName,
+      browserVersion,
+      platform: process.platform,
+      architecture: process.arch,
+    };
+    const screenshots = [];
+    for (const variant of SAMPLE_SCREENSHOT_VARIANTS) {
+      await page.setViewportSize(variant.viewport);
+      const stabilize = () =>
+        page.evaluate(async () => {
+          await document.fonts?.ready;
+          scrollTo(0, 0);
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        });
+      await stabilize();
+      const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), `screenshot-${variant.id}.png`);
+      await page.screenshot({ path: screenshotPath, animations: "disabled", fullPage: false });
+      const bytes = await readFile(screenshotPath);
+      await stabilize();
+      const repeatPath = path.join(
+        path.dirname(screenshotOutput.absolute),
+        `screenshot-${variant.id}-repeat.png`,
+      );
+      await page.screenshot({ path: repeatPath, animations: "disabled", fullPage: false });
+      const repeatBytes = await readFile(repeatPath);
+      if (!bytes.equals(repeatBytes)) {
+        throw new Error(`${variant.id} screenshot captures are not byte-identical`);
+      }
+      screenshots.push({
+        variant: variant.id,
+        projectName,
+        browserName,
+        viewport: variant.viewport,
+        path: path.relative(process.cwd(), screenshotPath).replaceAll(path.sep, "/"),
+        bytes: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        reproducibility: {
+          captureCount: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount,
+          comparison: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison,
+          repeatPath: path.relative(process.cwd(), repeatPath).replaceAll(path.sep, "/"),
+          repeatBytes: repeatBytes.byteLength,
+          repeatSha256: createHash("sha256").update(repeatBytes).digest("hex"),
+        },
+      });
+    }
+    const report = {
+      reproducibilityPolicy: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+      runtime,
+      screenshots,
     };
     await writeFile(screenshotOutput.absolute, `${JSON.stringify(report, null, 2)}\n`);
   }

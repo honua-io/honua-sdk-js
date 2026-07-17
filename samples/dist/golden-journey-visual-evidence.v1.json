@@ -1,0 +1,72 @@
+{
+  "format": "honua.sdk.golden-journey-visual-evidence.v1",
+  "schemaVersion": 1,
+  "inputs": {
+    "catalog": {
+      "path": "samples/catalog.v2.json",
+      "format": "honua.sdk.sample-catalog.v2",
+      "schemaVersion": 2,
+      "sha256": "c0f9c665288b8a5b0af88424793c9f2603ad85ed2fbdba6a36b3a00c95655586"
+    },
+    "qualificationEvidence": {
+      "format": "honua.sdk.sample-qualification-evidence.v1",
+      "schemaVersion": 1,
+      "sha256": "b922a09666feb7c76cba635d8047ca9666fc3eb0ba775e3c26365b0b4365d6cb"
+    }
+  },
+  "policy": {
+    "sourceRepository": "honua-io/honua-sdk-js",
+    "requiredScreenshotVariants": [
+      {
+        "id": "desktop",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        }
+      },
+      {
+        "id": "mobile",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        }
+      }
+    ],
+    "screenshotReproducibility": {
+      "reportFormat": "honua.sdk.sample-screenshot-gate.v3",
+      "captureCount": 2,
+      "comparison": "byte-identical",
+      "scope": "same-page-session",
+      "animations": "disabled",
+      "stabilization": [
+        "fonts-ready",
+        "scroll-origin",
+        "double-animation-frame"
+      ],
+      "runtimeBinding": [
+        "playwright-version",
+        "project-name",
+        "browser-name",
+        "browser-version",
+        "platform",
+        "architecture"
+      ]
+    },
+    "requiredSemanticGates": [
+      "packed-build",
+      "browser",
+      "accessibility",
+      "console",
+      "responsive",
+      "screenshot",
+      "performance",
+      "fixture",
+      "live"
+    ],
+    "freshness": {
+      "maxFutureSkewSeconds": 300,
+      "maxWindowSeconds": 604800
+    }
+  },
+  "qualifiedGoldenJourneys": []
+}

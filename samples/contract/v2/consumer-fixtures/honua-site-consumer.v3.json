@@ -1,0 +1,203 @@
+{
+  "format": "honua.site.sdk-sample-consumer-fixture.v3",
+  "schemaVersion": 3,
+  "accepts": {
+    "handoffFormat": "honua.site.sdk-sample-consumer-handoff.v1",
+    "handoffSchemaVersion": 1,
+    "siteProjectionFormat": "honua.site.sdk-sample-projection.v2",
+    "capabilityMatrixFormat": "honua.site.sdk-capability-sample-matrix.v1",
+    "visualEvidenceFormat": "honua.sdk.golden-journey-visual-evidence.v1"
+  },
+  "input": {
+    "path": "samples/dist/honua-site-consumer-handoff.v1.json",
+    "schemaPath": "samples/contract/v2/schemas/site-consumer-handoff.schema.json",
+    "format": "honua.site.sdk-sample-consumer-handoff.v1",
+    "schemaVersion": 1,
+    "bytes": 271917,
+    "sha256": "65473f9d3f8218f38a142db0dc035e057091be9df6f767a1dbf77d209d70119a"
+  },
+  "assertions": {
+    "cardCount": 32,
+    "qualifiedJourneyCount": 0,
+    "canonicalRouteCount": 32,
+    "legacyRouteCount": 20,
+    "gapCount": 422,
+    "everyQualifiedTrackHandedOff": true,
+    "honestZeroQualificationAllowed": true,
+    "allLegacyRoutesResolved": true,
+    "externalListingsCanonicalOnly": true,
+    "sourceImplementationDuplicated": false,
+    "taskCapabilityProtocolFiltersRequired": true,
+    "accessibleKeyboardContractRequired": true,
+    "desktopMobileResponsiveContractRequired": true,
+    "incidentOperationsRealtimeRequired": true
+  },
+  "filterCases": [
+    {
+      "id": "all-public-cards",
+      "filters": {},
+      "expectedSampleIds": [
+        "ai-spatial-app-builder",
+        "app-bootstrap-basic",
+        "cesium-route-playback",
+        "edit-workflow-demo",
+        "endpoint-to-map",
+        "geocoding-quickstart",
+        "geoprocessing-job-runner",
+        "imagery-cog-quickstart",
+        "kepler-analytics",
+        "maplibre-quickstart",
+        "mcp-gis-assistant",
+        "migration-workbench",
+        "nl-map-control",
+        "node-backend-quickstart",
+        "oauth-signin",
+        "overture-geoparquet",
+        "planning-permitting-workbench",
+        "pmtiles-static",
+        "react-quickstart",
+        "realtime-incident-dashboard",
+        "runtime-parity-showcase",
+        "service-explorer",
+        "shared-renderer-state",
+        "sketch-editing",
+        "spatial-analytics-workbench",
+        "stac-imagery-browser",
+        "standalone-quickstart",
+        "storytelling-25d-map",
+        "temporal-playback",
+        "terrain-rgb-elevation",
+        "unified-ops-workspace",
+        "web-components-basic"
+      ]
+    },
+    {
+      "id": "task",
+      "filters": {
+        "task": "agent-approval"
+      },
+      "expectedSampleIds": [
+        "ai-spatial-app-builder",
+        "nl-map-control"
+      ]
+    },
+    {
+      "id": "capability",
+      "filters": {
+        "capability": "agent-tools-facade"
+      },
+      "expectedSampleIds": [
+        "mcp-gis-assistant"
+      ]
+    },
+    {
+      "id": "protocol",
+      "filters": {
+        "protocol": "geoparquet"
+      },
+      "expectedSampleIds": [
+        "overture-geoparquet"
+      ]
+    },
+    {
+      "id": "combined",
+      "filters": {
+        "task": "agent-approval",
+        "capability": "compatibility-gate-facade",
+        "protocol": "geoservices-feature-service"
+      },
+      "expectedSampleIds": [
+        "ai-spatial-app-builder"
+      ]
+    },
+    {
+      "id": "text",
+      "filters": {
+        "text": "ai-spatial-app-builder"
+      },
+      "expectedSampleIds": [
+        "ai-spatial-app-builder"
+      ]
+    },
+    {
+      "id": "zero-results",
+      "filters": {
+        "text": "__no_sdk_sample_matches__"
+      },
+      "expectedSampleIds": []
+    }
+  ],
+  "interaction": {
+    "filters": {
+      "dimensions": [
+        "task",
+        "capability",
+        "protocol",
+        "renderer",
+        "data-mode",
+        "auth-mode",
+        "support-tier",
+        "lifecycle-state",
+        "qualification-state"
+      ],
+      "textNormalization": "NFKC-lowercase-trim-collapse-whitespace",
+      "textTerms": "and",
+      "facetMatching": "exact-and",
+      "zeroResultsVisible": true,
+      "clearControlRequired": true
+    },
+    "accessibility": {
+      "filterRegionRole": "search",
+      "filterRegionAccessibleNameRequired": true,
+      "nativeControlLabelsRequired": true,
+      "resultsRole": "status",
+      "resultsAriaLive": "polite",
+      "resultsAriaAtomic": true,
+      "cardHeadingsRequired": true,
+      "screenshotAlternativeTextRequired": true,
+      "lifecycleStatusVisible": true,
+      "focusIndicatorRequired": true
+    },
+    "keyboard": {
+      "navigation": "native-tab-order",
+      "controlOrder": [
+        "task-search",
+        "capability-filter",
+        "protocol-filter",
+        "additional-filters",
+        "clear-filters",
+        "sample-cards"
+      ],
+      "activationKeys": [
+        "Enter",
+        "Space"
+      ],
+      "clearFiltersControl": "button",
+      "focusAfterClear": "task-search",
+      "noKeyboardTrap": true
+    },
+    "responsive": {
+      "requiredViewports": [
+        {
+          "id": "desktop",
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "id": "mobile",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          }
+        }
+      ],
+      "desktopControls": "multi-column",
+      "mobileControls": "single-column",
+      "minimumTouchTargetCssPixels": 44,
+      "horizontalPageOverflowForbidden": true,
+      "contentLossForbidden": true
+    }
+  }
+}

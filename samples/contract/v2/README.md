@@ -19,6 +19,28 @@ execution evidence so none of those meanings has to be inferred from another.
 - `site-projection.schema.json` contains presentation-safe metadata for every
   catalog entry and the existing route migration map. Commands, configuration
   names, credential material, and executable source are not copied to the site.
+- `capability-sample-matrix.schema.json` defines the generated support-to-sample
+  coverage contract. `samples/dist/capability-sample-matrix.v1.json` joins the
+  support manifest, exact package exports, catalog v2, and validated golden
+  qualification receipts without creating another support inventory.
+  Its compact fixture has a companion adversarial fixture that pins orphan,
+  stale, and overstated-join rejection cases.
+- `golden-journey-visual-evidence.schema.json` defines the SDK-owned visual
+  evidence handoff. `samples/dist/golden-journey-visual-evidence.v1.json`
+  contains only catalog-qualified journeys and binds desktop/mobile captures,
+  the exact Playwright project and browser runtime, every semantic gate
+  receipt, artifact integrity, and the shared freshness window. Site consumer
+  routes and presentation remain a separate consumer concern.
+- `site-consumer-handoff.schema.json` defines that separate consumer boundary.
+  `samples/dist/honua-site-consumer-handoff.v1.json` content-binds the site
+  projection, capability matrix, and golden visual evidence; projects public
+  cards and visible gaps; declares task, capability, protocol, and supporting
+  facets; and resolves every canonical, legacy, replacement, and retirement
+  route without copying executable source. The generated v3 consumer fixture
+  pins the artifact digest and executes representative filter cases plus the
+  required accessible keyboard and desktop/mobile responsive behavior. Both
+  artifacts publish closed collection, string, JSON-depth, and byte budgets;
+  the fixture separately exercises positive text and zero-result searches.
 - `migrations/catalog.v1-to-v2.json` is the reviewed one-time migration overlay.
   `npm run samples:migrate:v1` reproduces `samples/catalog.v2.json` from the
   frozen v1 catalog and this overlay.
@@ -40,6 +62,42 @@ All seven candidates are currently planned; the catalog makes no golden claim
 until #541 supplies verifiable gate, screenshot, performance, fixture, and live
 evidence. Validation fails closed on every attempted golden promotion until
 those versioned per-gate receipts exist; profile booleans alone are never proof.
+
+Matrix support and sample coverage are deliberately separate. A supported SDK
+cell remains supported when it lacks a qualified sample; its coverage is shown
+as `planned` or `partial`, not silently promoted or downgraded. Beta and
+experimental SDK cells remain `experimental`, default protocol gaps remain
+`unsupported`, and only a catalog-qualified golden sample with its complete
+validated receipt set can produce `qualified`. The projection contains no
+wall-clock generation value and hashes all four authority inputs, so identical
+inputs produce identical bytes.
+
+Qualified matrix cells resolve through content-derived evidence-binding IDs.
+Each binding names canonical SDK source at one evidence-neutral revision and
+digest, at least one source-mode receipt, and the packed-build receipt and
+report with their byte and SHA-256 bindings. Matrix generation validates the
+complete receipt semantics and exact evidence directory/run inventory, then
+rejects orphan sample trees, unreferenced runs, expired receipts, missing or
+changed reports, and protocol/claim/entrypoint joins that overstate the
+catalog. Freshness fields are copied only from the signed receipts; the matrix
+does not add an observation or generation clock. With no qualified journeys,
+the canonical matrix has zero receipts, zero evidence bindings, and no
+qualified cells.
+
+The site consumer handoff preserves that qualification boundary. Every
+matrix-qualified public sample must appear as one canonical card with its
+source/packed evidence binding and matching current visual evidence; the
+Incident Operations journey additionally requires a positive realtime
+observation window. An empty qualified set is valid when the authority inputs
+contain no admitted receipt set. Empty public cards are never valid. Legacy
+SDK routes resolve to `samples/<sample-id>.html`; internal fixtures and
+site-owned exceptions require an explicit status page instead of a substitute
+application. Canonical `retire` and `replace` routes are lifecycle status pages,
+while their legacy aliases remain permanent redirects to that status. External
+listings may use only canonical paths. The interaction
+object is a downstream requirement, not evidence that `honua-site` has already
+implemented or deployed it; that repository must validate the v3 fixture and
+run its own static/accessibility/responsive build before adoption is complete.
 
 CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence
@@ -122,8 +180,8 @@ The v1 catalog and projection remain committed as frozen compatibility inputs
 for consumers that have not yet moved to v2. In-repository generators, learning
 paths, flagship evidence validation, and new site/CI projections consume v2.
 Generated projections are byte-bound to the effective package version; a
-package-version change requires regeneration of both the tracked site
-projection and its consumer digest.
+package-version change requires regeneration of the tracked site projection,
+capability matrix, and consumer digest.
 
 Run:
 
@@ -162,10 +220,16 @@ Browser receipts are bound to the exact pilot test, every declared project and
 browser engine, first-attempt results, and finalized assertion attachment sets.
 Console assertions are finalized after quality checks, fixture teardown, and
 explicit closure of the pilot-owned page and browser context.
-Screenshot and performance receipts come from that exact browser workflow and
-bind the canonical evidence project, engine, viewport, a structurally decoded
-PNG, positive monotonic navigation/resource/interaction measurements,
-sample-ready measurement, and budget. Fixture receipts prove loopback
+Screenshot receipts capture an ordered 1280x720 desktop and 390x844 mobile pair
+twice in one page session after fonts, scroll origin, and two animation frames
+stabilize. Byte equality is claimed only inside that pinned session and records
+the exact Playwright version, project, browser name/version, platform, and
+architecture; it is not a cross-platform equivalence claim. Verification
+rejects aliased primary/repeat paths and rechecks both PNG structures,
+dimensions, byte counts, and SHA-256 digests. Performance receipts come from
+that same browser workflow and bind positive monotonic
+navigation/resource/interaction measurements, sample-ready measurement, and
+budget. Fixture receipts prove loopback
 readiness, a real probe, and zero listeners or connections after shutdown.
 Packed receipts bind the package tarball and re-read a self-contained copy of
 the final sample `dist` tree and resolution evidence from the same run. Live
