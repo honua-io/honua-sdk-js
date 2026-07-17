@@ -1,0 +1,192 @@
+{
+  "format": "honua.site.sdk-capability-sample-matrix.v1",
+  "schemaVersion": 1,
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.0-fixture"
+  },
+  "inputs": {
+    "supportTruth": {
+      "path": "config/support-manifest.v1.json",
+      "format": "honua.sdk.support-manifest.v1",
+      "schemaVersion": 1,
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "packageExports": {
+      "path": "package.json",
+      "package": "@honua/sdk-js",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "catalog": {
+      "path": "samples/catalog.v2.json",
+      "format": "honua.sdk.sample-catalog.v2",
+      "schemaVersion": 2,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "qualificationEvidence": {
+      "root": "samples/evidence",
+      "format": "honua.sdk.sample-qualification-evidence.v1",
+      "schemaVersion": 1,
+      "receiptCount": 0,
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    }
+  },
+  "statusVocabulary": {
+    "coverage": ["qualified", "partial", "planned", "experimental", "unsupported"],
+    "support": ["supported", "beta", "experimental", "deprecated", "unsupported", "facade-required"]
+  },
+  "dimensions": {
+    "tasks": ["query"],
+    "catalogProtocols": ["ogc-features"],
+    "protocolIds": ["ogc-features"],
+    "renderers": ["maplibre"],
+    "dataModes": ["fixture"],
+    "authModes": ["none"],
+    "supportTiers": ["supported"],
+    "lifecycleStates": ["active"],
+    "packageEntrypoints": ["./map"]
+  },
+  "goldenJourneys": [
+    {
+      "id": "first-map",
+      "title": "First Map",
+      "candidateSampleId": "map-recipe",
+      "catalogStatus": "planned",
+      "supportStatus": "supported",
+      "coverage": {
+        "state": "planned",
+        "reason": "The golden journey has no qualification receipts.",
+        "candidateSampleIds": ["map-recipe"],
+        "qualifyingSampleIds": [],
+        "selectedSampleId": "map-recipe"
+      }
+    }
+  ],
+  "samples": [
+    {
+      "id": "map-recipe",
+      "title": "Map recipe",
+      "sourcePath": "examples/map-recipe",
+      "track": "recipe",
+      "journeyId": "first-map",
+      "tasks": ["query"],
+      "catalogProtocols": ["ogc-features"],
+      "protocolIds": ["ogc-features"],
+      "supportClaimIds": ["ogc-features-standalone"],
+      "protocolBindings": [
+        {
+          "catalogProtocol": "ogc-features",
+          "protocolIds": ["ogc-features"],
+          "supportClaimIds": ["ogc-features-standalone"],
+          "external": false
+        }
+      ],
+      "renderers": ["maplibre"],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "supported",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "planned",
+        "catalogStatus": "planned"
+      }
+    }
+  ],
+  "protocolOperations": [
+    {
+      "id": "ogc-features:query:default",
+      "protocolId": "ogc-features",
+      "protocolLabel": "OGC Features",
+      "operation": "query",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "The default operation status is unsupported.",
+        "candidateSampleIds": ["map-recipe"],
+        "qualifyingSampleIds": [],
+        "selectedSampleId": "map-recipe"
+      }
+    }
+  ],
+  "supportClaims": [
+    {
+      "id": "ogc-features-standalone",
+      "label": "OGC API Features",
+      "protocolId": "ogc-features",
+      "operations": ["query"],
+      "api": "connect(), Source",
+      "apiEntrypoints": [],
+      "supportStatus": "experimental",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "truthEvidence": ["ogc-features-fixtures"],
+      "candidateEvidence": [
+        {
+          "sampleId": "map-recipe",
+          "matchedOperations": ["query"],
+          "binding": "exact"
+        }
+      ],
+      "coverage": {
+        "state": "experimental",
+        "reason": "Experimental support remains experimental without qualification.",
+        "candidateSampleIds": ["map-recipe"],
+        "qualifyingSampleIds": [],
+        "selectedSampleId": "map-recipe"
+      }
+    }
+  ],
+  "packageEntrypoints": [
+    {
+      "subpath": "./map",
+      "supportStatus": "supported",
+      "targets": {
+        "types": "./dist/src/map/index.d.ts",
+        "default": "./dist/src/map/index.js"
+      },
+      "coverage": {
+        "state": "partial",
+        "reason": "Runnable source exists without complete qualification receipts.",
+        "candidateSampleIds": ["map-recipe"],
+        "qualifyingSampleIds": [],
+        "selectedSampleId": "map-recipe"
+      }
+    }
+  ],
+  "gaps": [
+    {
+      "targetType": "golden-journey",
+      "targetId": "first-map",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": ["map-recipe"],
+      "reason": "The golden journey has no qualification receipts."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./map",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": ["map-recipe"],
+      "reason": "Runnable source exists without complete qualification receipts."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-features:query:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": ["map-recipe"],
+      "reason": "The default operation status is unsupported."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "ogc-features-standalone",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": ["map-recipe"],
+      "reason": "Experimental support remains experimental without qualification."
+    }
+  ]
+}

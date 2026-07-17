@@ -36,6 +36,54 @@ export interface CiSelectedSample {
   };
 }
 
+export type SampleCoverageState = "qualified" | "partial" | "planned" | "experimental" | "unsupported";
+
+export interface QualificationEvidenceInventory {
+  format: "honua.sdk.sample-qualification-evidence.v1";
+  schemaVersion: 1;
+  samples: Array<{
+    sampleId: string;
+    receipts: Array<{
+      gate: string;
+      sdkMode: "source" | "packed";
+      sourceRevision: string;
+      sourceDigest: string;
+      path: string;
+      sha256: string;
+    }>;
+  }>;
+}
+
+export interface MatrixCoverage {
+  state: SampleCoverageState;
+  reason: string;
+  candidateSampleIds: string[];
+  qualifyingSampleIds: string[];
+  selectedSampleId?: string;
+}
+
+export interface CapabilitySampleMatrix {
+  format: "honua.site.sdk-capability-sample-matrix.v1";
+  schemaVersion: 1;
+  sdk: { package: string; version: string };
+  inputs: Record<string, Record<string, unknown>>;
+  statusVocabulary: { coverage: SampleCoverageState[]; support: string[] };
+  dimensions: Record<string, string[]>;
+  goldenJourneys: Array<{
+    id: string;
+    title: string;
+    candidateSampleId: string;
+    catalogStatus: "planned" | "qualified";
+    supportStatus: string;
+    coverage: MatrixCoverage;
+  }>;
+  samples: Array<Record<string, unknown> & { id: string; qualification: { state: SampleCoverageState } }>;
+  protocolOperations: Array<Record<string, unknown> & { id: string; coverage: MatrixCoverage }>;
+  supportClaims: Array<Record<string, unknown> & { id: string; coverage: MatrixCoverage }>;
+  packageEntrypoints: Array<Record<string, unknown> & { subpath: string; coverage: MatrixCoverage }>;
+  gaps: Array<Record<string, unknown>>;
+}
+
 export interface BrowserArtifactManifest {
   format: "honua.sdk.browser-artifacts.v1";
   schemaVersion: 1;
@@ -83,6 +131,25 @@ export function generateSiteProjection(
   goldenJourneys: GoldenJourney[];
   externalReplacements: Array<{ id: string; title: string; url: string }>;
 };
+export function collectQualificationEvidence(
+  catalog: SampleCatalog,
+  options?: { receiptRoot?: string },
+): Promise<QualificationEvidenceInventory>;
+export function generateCapabilitySampleMatrix(
+  catalog: SampleCatalog,
+  packageJson: Record<string, unknown>,
+  supportTruth: Record<string, unknown>,
+  qualificationEvidence: QualificationEvidenceInventory,
+): CapabilitySampleMatrix;
+export function validateCapabilitySampleMatrix(
+  matrix: unknown,
+  inputs?: {
+    catalog?: SampleCatalog;
+    packageJson?: Record<string, unknown>;
+    supportTruth?: Record<string, unknown>;
+    qualificationEvidence?: QualificationEvidenceInventory;
+  },
+): Promise<void>;
 export function generateCiSelection(catalog: SampleCatalog): {
   profiles: Array<Record<string, unknown>>;
   samples: CiSelectedSample[];
@@ -91,7 +158,12 @@ export function validateSiteProjection(projection: unknown): Promise<void>;
 export function validateCiSelection(selection: unknown): Promise<void>;
 export function generatedOutputs(
   catalog: SampleCatalog,
-  packageJson: { name: string; version: string },
+  packageJson: Record<string, unknown> & { name: string; version: string },
+  options?: {
+    supportTruth?: Record<string, unknown>;
+    qualificationEvidence?: QualificationEvidenceInventory;
+    receiptRoot?: string;
+  },
 ): Promise<Map<string, string>>;
 export function generatedOutputDrift(
   expectedOutputs: Map<string, string>,
