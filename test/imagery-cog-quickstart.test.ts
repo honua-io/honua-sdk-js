@@ -10,7 +10,6 @@ import {
   activeImageryLayerCount,
   buildImageServerTileUrlTemplate,
   createImageryRenderPlan,
-  normalizeSdkWmsTemplateForMapLibre,
   setImageryLayerOpacity,
   setImageryLayerVisibility,
   summarizeImageryCache,
@@ -81,20 +80,10 @@ describe("Imagery and COG Quickstart sample", () => {
       "https://honua.example.test/rest/services/OahuCog/ImageServer/tile/{z}/{y}/{x}?f=png",
     );
     expect(plan.auditRows.map((row) => row.sdkSurface)).toEqual([
-      "client.wms().capabilities + buildWmsRasterSourceSpec + MapLibre token normalization",
+      "client.wms().capabilities + buildWmsRasterSourceSpec",
       "HonuaImageService.tileUrl",
       "HonuaImageService.exportImage",
     ]);
-  });
-
-  it("normalizes only the legacy SDK WMS placeholders MapLibre cannot expand", () => {
-    expect(
-      normalizeSdkWmsTemplateForMapLibre({
-        type: "raster",
-        tiles: ["https://honua.test/wms?BBOX={bbox-epsg3857}&WIDTH={width}&HEIGHT={height}"],
-        tileSize: 512,
-      }).tiles[0],
-    ).toBe("https://honua.test/wms?BBOX={bbox-epsg-3857}&WIDTH=512&HEIGHT=512");
   });
 
   it("builds ImageServer tile templates from the SDK adapter tileUrl surface", () => {

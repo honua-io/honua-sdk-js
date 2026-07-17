@@ -111,7 +111,7 @@ test(
       await expect(page.locator("#inspection-content")).toContainText("CC-BY-4.0 fixture terms");
       await expect(page.locator("#attribution-state")).toContainText("Copernicus Sentinel");
       await expect(page.locator("#fidelity-list")).toContainText("direct decoding/rendering remains #537");
-      await expect(page.locator("#fidelity-list")).toContainText("#620 corrects it package-wide");
+      await expect(page.locator("#fidelity-list")).toContainText("exact MapLibre bbox token");
       await expect(page.locator("#fidelity-list")).toContainText("Cesium production is intentionally excluded");
       await expect(page.locator(".maplibregl-canvas")).toHaveCount(1);
 
@@ -267,6 +267,17 @@ test(
         caret: "hide",
         maxDiffPixelRatio: 0.015,
       });
+
+      const failStacSearch = (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: '{"type":"FeatureCollection"' });
+      const stacSearchPattern = /\/stac\/search(?:\?|$)/u;
+      await page.route(stacSearchPattern, failStacSearch);
+      expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(false);
+      expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.ready)).toBe(false);
+      await expect(page.locator("#search-status")).toContainText("STAC search failed");
+      await page.unroute(stacSearchPattern, failStacSearch);
+      expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(true);
+      expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.ready)).toBe(true);
 
       const interactionCountBeforeDispose = await page.evaluate(
         () => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.interactionCount,
