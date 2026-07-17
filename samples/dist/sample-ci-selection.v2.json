@@ -904,7 +904,8 @@
           "execution": "automatic",
           "commands": [
             "npm run demo:planning-workbench:typecheck",
-            "npm run demo:planning-workbench:build"
+            "npm run demo:planning-workbench:build",
+            "npm run test:playwright:planning-workbench"
           ]
         },
         "fixtureEvidence": {

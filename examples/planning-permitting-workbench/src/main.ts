@@ -305,7 +305,7 @@ function renderPresets(): void {
     (preset) => `<button type="button" data-preset="${escapeHtml(preset.id)}">${escapeHtml(preset.label)}</button>`,
   ).join("");
   container.querySelectorAll<HTMLButtonElement>("[data-preset]").forEach((button) => {
-    button.addEventListener("click", () => {
+    cleanup.listen(button, "click", () => {
       const preset = MAP_PRESETS.find((entry) => entry.id === button.dataset.preset);
       if (!preset) return;
       setText("#extent-label", preset.label);

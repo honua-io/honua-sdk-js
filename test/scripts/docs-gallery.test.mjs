@@ -415,6 +415,26 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   });
   assert.equal(byId.get("web-components-basic").sample.lifecycle.state, "retire");
   assert.equal(byId.get("realtime-incident-dashboard").journey.title, "Realtime Incident Operations");
+  assert.deepEqual(byId.get("edit-workflow-demo").replacement, {
+    kind: "journey",
+    id: "planning-permitting",
+    title: "Planning and Permitting",
+    status: "planned",
+    candidateSampleId: "planning-permitting-workbench",
+    publicSampleId: "planning-permitting-workbench",
+  });
+  assert.equal(byId.get("edit-workflow-demo").sample.lifecycle.state, "replace");
+  assert.equal(byId.get("geocoding-quickstart").sample.track, "recipe");
+  assert.equal(byId.get("geocoding-quickstart").sample.lifecycle.state, "rework");
+  assert.equal(byId.get("sketch-editing").sample.track, "recipe");
+  assert.equal(byId.get("sketch-editing").sample.lifecycle.state, "active");
+  const planningCard = byId.get("planning-permitting-workbench");
+  assert.equal(planningCard.sample.track, "lab");
+  assert.equal(planningCard.sample.lifecycle.state, "active");
+  assert.equal(planningCard.journey.status, "planned");
+  assert.equal(planningCard.qualification.state, "planned-golden-candidate");
+  assert.match(planningCard.qualification.label, /not receipt-qualified/u);
+  assert.equal(planningCard.sample.evidence.live.status, "planned");
   const imageryCard = byId.get("imagery-cog-quickstart");
   assert.equal(imageryCard.sample.lifecycle.state, "active");
   assert.equal(imageryCard.qualification.state, "planned-golden-candidate");
