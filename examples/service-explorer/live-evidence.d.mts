@@ -1,4 +1,5 @@
 export interface ServiceExplorerLiveBudgets {
+  readonly producerTimeoutMs: number;
   readonly requestTimeoutMs: number;
   readonly maxRequestsPerTarget: number;
   readonly maxResponseBytes: number;
@@ -106,3 +107,8 @@ export function createNonExecutedServiceExplorerEvidence(options: {
   readonly sdkVersion?: string;
   readonly includeProducerArtifact?: boolean;
 }): SampleEvidenceEnvelope;
+
+export function serviceExplorerLiveEnabled(
+  runnerEnabled: boolean,
+  env?: Readonly<Record<string, string | undefined>>,
+): boolean;

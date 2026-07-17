@@ -18,6 +18,7 @@ const DEFAULT_OUTPUT = "test-results/service-explorer-live-evidence.json";
 const SOURCE_IDENTITY = "canonical-anonymous-geoservices+canonical-anonymous-ogc-features";
 const SOURCE_PROVIDER = "esri-sampleserver6-and-pygeoapi-demo";
 const ATTRIBUTION = "Esri sample services and the pygeoapi development team.";
+const ALLOWED_REQUEST_HEADERS = new Set(["accept"]);
 const FORBIDDEN_REQUEST_HEADERS = new Set([
   "authorization",
   "cookie",
@@ -56,6 +57,7 @@ const CREDENTIAL_QUERY_PARAMETERS = new Set([
 ]);
 
 export const SERVICE_EXPLORER_LIVE_BUDGETS = Object.freeze({
+  producerTimeoutMs: 90_000,
   requestTimeoutMs: 20_000,
   maxRequestsPerTarget: 12,
   maxResponseBytes: 512 * 1024,
@@ -145,6 +147,7 @@ export function createBoundedServiceExplorerFetch(options) {
   );
   const fetchFn = options.fetchFn ?? globalThis.fetch;
   const budgets = normalizeBudgets(options.budgets);
+  const requestPolicy = options.requestPolicy ?? exactRequestPolicy([[targetUrl.pathname, {}]]);
   let requestCount = 0;
   let totalResponseBytes = 0;
 
@@ -156,9 +159,9 @@ export function createBoundedServiceExplorerFetch(options) {
 
     const request = new Request(input, init);
     const requestUrl = new URL(request.url);
-    validateDerivedRequest(request, requestUrl, targetUrl);
+    validateDerivedRequest(request, requestUrl, targetUrl, requestPolicy);
     const deadline = AbortSignal.timeout(budgets.requestTimeoutMs);
-    const signal = request.signal ? AbortSignal.any([request.signal, deadline]) : deadline;
+    const signal = combineSignals(request.signal, options.producerSignal, deadline);
     const response = await fetchFn(request, {
       credentials: "omit",
       redirect: "manual",
@@ -166,6 +169,9 @@ export function createBoundedServiceExplorerFetch(options) {
     });
     if (response.status >= 300 && response.status < 400) {
       throw new Error("Service Explorer evidence does not follow redirects");
+    }
+    if (response.redirected || (response.url && response.url !== requestUrl.href)) {
+      throw new Error("Service Explorer evidence does not accept followed or rewritten responses");
     }
 
     const remainingTotalBytes = budgets.maxTotalResponseBytes - totalResponseBytes;
@@ -187,16 +193,20 @@ export async function collectServiceExplorerLiveEvidence(options = {}) {
     throw new Error("Executed Service Explorer live evidence requires a full lowercase source revision");
   }
 
+  const budgets = normalizeBudgets(options.budgets);
+  const producerSignal = AbortSignal.timeout(budgets.producerTimeoutMs);
   const startedAt = performance.now();
   const honua = createHonua({ discoveryCacheMaxEntries: 2 });
   const observations = [];
   try {
     for (const target of targets) {
+      producerSignal.throwIfAborted();
       observations.push(
         await inspectAndQueryTarget(honua, target, {
           allowLoopback: options.allowLoopback === true,
-          budgets: options.budgets,
+          budgets,
           fetchFn: options.fetchFn,
+          producerSignal,
         }),
       );
     }
@@ -307,6 +317,8 @@ async function inspectAndQueryTarget(honua, target, options) {
     allowLoopback: options.allowLoopback,
     fetchFn: options.fetchFn,
     budgets,
+    producerSignal: options.producerSignal,
+    requestPolicy: reviewedRequestPolicy(target),
   });
   const startedAt = performance.now();
   const connection = await honua.connect(
@@ -317,13 +329,15 @@ async function inspectAndQueryTarget(honua, target, options) {
       ...(target.collectionId ? { collectionId: target.collectionId } : {}),
     },
     {
-      signal: AbortSignal.timeout(budgets.requestTimeoutMs),
+      signal: operationSignal(options.producerSignal, budgets.requestTimeoutMs),
       authorizationScopeFingerprint: "service-explorer-public-evidence:v1",
       clientOptions: { fetchFn, retry: { maxRetries: 0 } },
     },
   );
   try {
-    const inspection = await connection.inspect({ signal: AbortSignal.timeout(budgets.requestTimeoutMs) });
+    const inspection = await connection.inspect({
+      signal: operationSignal(options.producerSignal, budgets.requestTimeoutMs),
+    });
     if (inspection.protocol !== target.protocol) {
       throw new Error(`${target.id} inspection resolved an unexpected protocol`);
     }
@@ -337,7 +351,7 @@ async function inspectAndQueryTarget(honua, target, options) {
       capabilityPolicy: "strict",
     });
     const execution = await executeQueryPlan(plan, source, {
-      signal: AbortSignal.timeout(budgets.requestTimeoutMs),
+      signal: operationSignal(options.producerSignal, budgets.requestTimeoutMs),
     });
     const itemCount = execution.result.features?.length ?? execution.result.aggregateRows?.length ?? 0;
     if (itemCount !== 1) {
@@ -370,7 +384,7 @@ function validateTargetMatrix(targets) {
   }
 }
 
-function validateDerivedRequest(request, requestUrl, targetUrl) {
+function validateDerivedRequest(request, requestUrl, targetUrl, requestPolicy) {
   if (request.method !== "GET") {
     throw new Error("Service Explorer evidence permits only GET requests");
   }
@@ -383,9 +397,22 @@ function validateDerivedRequest(request, requestUrl, targetUrl) {
   ) {
     throw new Error("Service Explorer evidence requests must remain under the reviewed target path");
   }
+  const expectedQuery = requestPolicy.get(requestUrl.pathname);
+  if (!expectedQuery) {
+    throw new Error("Service Explorer evidence requested a path outside the reviewed operation matrix");
+  }
   for (const name of requestUrl.searchParams.keys()) {
     if (isCredentialQueryParameter(name)) {
       throw new Error("Service Explorer evidence requests cannot contain credential query parameters");
+    }
+  }
+  if (requestUrl.searchParams.size !== expectedQuery.size) {
+    throw new Error("Service Explorer evidence query does not match the reviewed operation matrix");
+  }
+  for (const [name, expectedValue] of expectedQuery) {
+    const values = requestUrl.searchParams.getAll(name);
+    if (values.length !== 1 || values[0] !== expectedValue) {
+      throw new Error("Service Explorer evidence query does not match the reviewed operation matrix");
     }
   }
   for (const name of FORBIDDEN_REQUEST_HEADERS) {
@@ -393,6 +420,44 @@ function validateDerivedRequest(request, requestUrl, targetUrl) {
       throw new Error("Service Explorer evidence requests cannot contain credential headers");
     }
   }
+  for (const [name, value] of request.headers) {
+    if (!ALLOWED_REQUEST_HEADERS.has(name) || value.length > 256) {
+      throw new Error("Service Explorer evidence request headers exceed the reviewed operation matrix");
+    }
+  }
+}
+
+function reviewedRequestPolicy(target) {
+  const basePath = new URL(target.url).pathname.replace(/\/$/u, "");
+  if (target.protocol === "geoservices-feature-service") {
+    return exactRequestPolicy([
+      [basePath, { f: "json" }],
+      [
+        `${basePath}/query`,
+        { f: "json", where: "1=1", outFields: "*", returnGeometry: "true", resultRecordCount: "1" },
+      ],
+    ]);
+  }
+  const collectionPath = `${basePath}/collections/${encodeURIComponent(target.collectionId)}`;
+  return exactRequestPolicy([
+    [basePath, { f: "json" }],
+    [`${basePath}/conformance`, { f: "json" }],
+    [`${basePath}/collections`, { f: "json" }],
+    [`${collectionPath}/items`, { f: "json", limit: "1" }],
+  ]);
+}
+
+function exactRequestPolicy(entries) {
+  return new Map(entries.map(([pathname, query]) => [pathname, new Map(Object.entries(query))]));
+}
+
+function combineSignals(...signals) {
+  const present = signals.filter(Boolean);
+  return present.length === 1 ? present[0] : AbortSignal.any(present);
+}
+
+function operationSignal(producerSignal, requestTimeoutMs) {
+  return combineSignals(producerSignal, AbortSignal.timeout(requestTimeoutMs));
 }
 
 async function copyBoundedJsonResponse(response, maxBytes) {
@@ -502,14 +567,15 @@ async function main() {
   const outputContract = liveEvidenceOutputContract(SAMPLE_ID, DEFAULT_OUTPUT);
   const observedAt = new Date().toISOString();
   const sourceRevision = gitCommit(outputContract.sourceRevision);
-  const liveEnabled = process.env.HONUA_SERVICE_EXPLORER_LIVE_ENABLED === "true";
+  const liveEnabled = serviceExplorerLiveEnabled(outputContract.enabled, process.env);
   let evidence;
   let failure;
 
   if (!liveEnabled) {
     evidence = createNonExecutedServiceExplorerEvidence({
       status: "skipped",
-      reason: "HONUA_SERVICE_EXPLORER_LIVE_ENABLED is not true; no public endpoint was contacted.",
+      reason:
+        "Neither HONUA_SAMPLE_LIVE_ENABLED nor HONUA_SERVICE_EXPLORER_LIVE_ENABLED is true; no public endpoint was contacted.",
       degradationReason: "live-execution-not-enabled",
       observedAt,
       sourceRevision,
@@ -540,6 +606,10 @@ async function main() {
     );
     process.exitCode = 1;
   }
+}
+
+export function serviceExplorerLiveEnabled(runnerEnabled, env = process.env) {
+  return runnerEnabled === true || env.HONUA_SERVICE_EXPLORER_LIVE_ENABLED === "true";
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

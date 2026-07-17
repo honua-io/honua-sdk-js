@@ -487,14 +487,17 @@ test("reviewed live producers honor the explicit per-run output contract", async
     output: process.env.HONUA_SAMPLE_LIVE_OUTPUT,
     sample: process.env.HONUA_SAMPLE_LIVE_SAMPLE_ID,
     revision: process.env.HONUA_SAMPLE_SOURCE_REVISION,
+    enabled: process.env.HONUA_SAMPLE_LIVE_ENABLED,
   };
   try {
     process.env.HONUA_SAMPLE_LIVE_OUTPUT = output;
     process.env.HONUA_SAMPLE_LIVE_SAMPLE_ID = "ai-spatial-app-builder";
     process.env.HONUA_SAMPLE_SOURCE_REVISION = sourceRevision;
+    process.env.HONUA_SAMPLE_LIVE_ENABLED = "true";
     assert.deepEqual(liveEvidenceOutputContract("ai-spatial-app-builder", "ignored.json"), {
       output,
       sourceRevision,
+      enabled: true,
     });
     const result = spawnSync(process.execPath, ["examples/ai-spatial-app-builder/live-evidence.mjs"], {
       cwd: process.cwd(),
@@ -516,6 +519,7 @@ test("reviewed live producers honor the explicit per-run output contract", async
       ["HONUA_SAMPLE_LIVE_OUTPUT", prior.output],
       ["HONUA_SAMPLE_LIVE_SAMPLE_ID", prior.sample],
       ["HONUA_SAMPLE_SOURCE_REVISION", prior.revision],
+      ["HONUA_SAMPLE_LIVE_ENABLED", prior.enabled],
     ]) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
