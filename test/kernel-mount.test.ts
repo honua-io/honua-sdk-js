@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import type { Map as MapLibreMap } from "maplibre-gl";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { HonuaConnection } from "../src/connect.js";
 import { type SourceDiscoveryInspection, normalizeDiscoveryEndpoint } from "../src/contract/discovery.js";
@@ -300,6 +301,10 @@ function acceptedPlanBoundToNativeFixture(descriptor: SourceDescriptor): QueryEx
 }
 
 describe("connection MapLibre mount", () => {
+  it("accepts the actual MapLibre v5 Map type as a borrowed renderer host", () => {
+    expectTypeOf<MapLibreMap>().toMatchTypeOf<MapLibreRendererMap>();
+  });
+
   it("borrows an existing map, exposes first-frame readiness/raw diagnostics, and removes only Honua resources", async () => {
     const descriptor: SourceDescriptor = {
       id: "imagery",
