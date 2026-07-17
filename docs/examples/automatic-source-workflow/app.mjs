@@ -73,6 +73,7 @@ async function run() {
       expected,
       match: plan.selected?.strategy === expected,
       cache: plan.cache,
+      tileTemplate: plan.source?.tiles?.[0] ?? null,
       diagnosticCodes: plan.diagnostics.map((entry) => entry.code),
     };
   }
@@ -88,6 +89,7 @@ async function run() {
     const mounted = await mountAutomaticSourceToMapLibre(map, source, plan, options);
     const mountedSourcePresent = mounted.layerIds.every((layerId) => map.getLayer(layerId) !== undefined);
     const sourcePresent = map.getSource(mounted.sourceId) !== undefined;
+    if (name === "wms-raster") await waitForLocalWmsRequest();
     mounted.dispose();
     const cleaned =
       map.getSource(mounted.sourceId) === undefined &&
@@ -115,6 +117,18 @@ async function run() {
   map.remove();
   globalThis.__automaticSourceWorkflowResult = result;
   globalThis.__automaticSourceWorkflowDone = true;
+}
+
+async function waitForLocalWmsRequest() {
+  const deadline = performance.now() + 2_000;
+  while (performance.now() < deadline) {
+    const observed = performance
+      .getEntriesByType("resource")
+      .some((entry) => entry.name.startsWith(`${globalThis.location.origin}/wms?`));
+    if (observed) return;
+    await new Promise((resolve) => setTimeout(resolve, 16));
+  }
+  throw new Error("MapLibre did not issue the deterministic WMS tile request");
 }
 
 async function drainGeojsonWorkflow(map) {

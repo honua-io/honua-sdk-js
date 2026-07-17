@@ -4,6 +4,7 @@ import {
   type MapLibreRasterSourceSpec,
   buildWmsRasterSourceSpec,
   buildWmtsRasterSourceSpec,
+  validateRasterTileSize,
 } from "./raster-source-spec.js";
 
 export type MapLibreRasterStrategy = "native-raster-tiles" | "wms-raster" | "wmts-raster";
@@ -272,8 +273,18 @@ function buildSource(
 }
 
 function validateOptions(options: ProjectRasterSourceToMapLibreOptions): void {
+  if (options.tileSize !== undefined) {
+    try {
+      validateRasterTileSize(options.tileSize);
+    } catch (error) {
+      throw new HonuaMapLibreRasterStrategyError(
+        "invalid-option",
+        error instanceof Error ? error.message : "tileSize is invalid.",
+        { option: "tileSize", value: options.tileSize },
+      );
+    }
+  }
   for (const [name, value] of [
-    ["tileSize", options.tileSize],
     ["minzoom", options.minzoom],
     ["maxzoom", options.maxzoom],
   ] as const) {
@@ -283,12 +294,6 @@ function validateOptions(options: ProjectRasterSourceToMapLibreOptions): void {
         value,
       });
     }
-  }
-  if (options.tileSize === 0) {
-    throw new HonuaMapLibreRasterStrategyError("invalid-option", "tileSize must be greater than zero.", {
-      option: "tileSize",
-      value: options.tileSize,
-    });
   }
   if (options.minzoom !== undefined && options.maxzoom !== undefined && options.minzoom > options.maxzoom) {
     throw new HonuaMapLibreRasterStrategyError("invalid-option", "minzoom cannot exceed maxzoom.", {
