@@ -1,0 +1,485 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/semantic-query-conformance-corpus/1.0/schema.json",
+  "title": "Honua semantic query conformance corpus 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "version", "frozenClock", "schema", "protocols", "rows", "cases"],
+  "properties": {
+    "$schema": { "type": "string", "const": "./schema.json" },
+    "kind": { "const": "honua.semantic-query-conformance-corpus" },
+    "version": { "const": "1.0" },
+    "frozenClock": { "type": "string", "format": "date-time" },
+    "schema": { "$ref": "#/$defs/logicalSchema" },
+    "protocols": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": { "enum": ["geoservices", "ogc-cql2-json", "wfs-fes-2.0", "odata-v4", "duckdb", "honua-grpc"] },
+      "allOf": [
+        { "contains": { "const": "geoservices" } },
+        { "contains": { "const": "ogc-cql2-json" } },
+        { "contains": { "const": "wfs-fes-2.0" } },
+        { "contains": { "const": "odata-v4" } },
+        { "contains": { "const": "duckdb" } },
+        { "contains": { "const": "honua-grpc" } }
+      ]
+    },
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/dataRow" }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": { "$ref": "#/$defs/case" }
+    }
+  },
+  "$defs": {
+    "logicalSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields", "key", "geometry", "temporal"],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "type", "nullable"],
+            "properties": {
+              "name": { "$ref": "#/$defs/identifier" },
+              "type": { "enum": ["boolean", "integer", "float", "decimal", "string", "date", "timestamp", "geometry"] },
+              "nullable": { "type": "boolean" }
+            }
+          }
+        },
+        "key": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "geometry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["field", "type", "crs", "definitionAxisOrder", "coordinateOrder", "layout"],
+          "properties": {
+            "field": { "$ref": "#/$defs/identifier" },
+            "type": {
+              "enum": [
+                "Point",
+                "MultiPoint",
+                "LineString",
+                "MultiLineString",
+                "Polygon",
+                "MultiPolygon",
+                "GeometryCollection"
+              ]
+            },
+            "crs": { "type": "string", "pattern": "^[A-Z][A-Z0-9._-]{1,15}:[A-Za-z0-9._-]{1,32}$" },
+            "definitionAxisOrder": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 4,
+              "items": { "enum": ["longitude", "latitude", "easting", "northing", "height", "measure"] }
+            },
+            "coordinateOrder": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 4,
+              "items": { "enum": ["longitude", "latitude", "easting", "northing", "height", "measure"] }
+            },
+            "layout": { "enum": ["xy", "xyz", "xym", "xyzm"] }
+          }
+        },
+        "temporal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["field", "kind"],
+          "properties": {
+            "field": { "$ref": "#/$defs/identifier" },
+            "kind": { "enum": ["date", "instant"] }
+          }
+        }
+      }
+    },
+    "identifier": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+    "dataRow": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 128,
+      "propertyNames": { "$ref": "#/$defs/identifier" },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "jsonValue": {
+      "oneOf": [
+        { "type": ["string", "number", "boolean", "null"] },
+        { "type": "array", "maxItems": 4096, "items": { "$ref": "#/$defs/jsonValue" } },
+        { "type": "object", "maxProperties": 256, "additionalProperties": { "$ref": "#/$defs/jsonValue" } }
+      ]
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "covers", "query", "expected", "projections"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 96, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "covers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "comparison",
+              "null",
+              "list",
+              "range",
+              "pattern",
+              "spatial",
+              "temporal",
+              "projection",
+              "sort",
+              "pagination",
+              "grouping",
+              "statistics",
+              "injection",
+              "unicode",
+              "axis-order",
+              "boundary",
+              "approximate"
+            ]
+          }
+        },
+        "query": { "$ref": "#/$defs/query" },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rows"],
+          "properties": {
+            "rows": {
+              "type": "array",
+              "maxItems": 256,
+              "items": { "$ref": "#/$defs/dataRow" }
+            }
+          }
+        },
+        "projections": { "$ref": "#/$defs/projectionMatrix" }
+      }
+    },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["features", "aggregate"] },
+        "select": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "geometry": { "enum": ["include", "omit"] },
+        "filter": { "$ref": "#/$defs/filter" },
+        "sort": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "direction", "nulls"],
+            "properties": {
+              "field": { "$ref": "#/$defs/identifier" },
+              "direction": { "enum": ["asc", "desc"] },
+              "nulls": { "enum": ["first", "last", "native"] }
+            }
+          }
+        },
+        "page": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "limit"],
+          "properties": {
+            "kind": { "enum": ["first", "offset"] },
+            "offset": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 2147483647 }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "kind": { "const": "offset" } }, "required": ["kind"] },
+              "then": { "required": ["offset"] },
+              "else": { "not": { "required": ["offset"] } }
+            }
+          ]
+        },
+        "groupBy": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["fn", "as"],
+            "properties": {
+              "fn": { "enum": ["count", "sum", "avg", "min", "max", "stddev", "variance"] },
+              "field": { "$ref": "#/$defs/identifier" },
+              "as": { "$ref": "#/$defs/identifier" }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "fn": { "const": "count" } }, "required": ["fn"] },
+                "else": { "required": ["field"] }
+              }
+            ]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "aggregate" } }, "required": ["kind"] },
+          "then": {
+            "required": ["groupBy", "metrics"],
+            "not": {
+              "anyOf": [{ "required": ["select"] }, { "required": ["geometry"] }]
+            }
+          },
+          "else": {
+            "not": {
+              "anyOf": [{ "required": ["groupBy"] }, { "required": ["metrics"] }]
+            }
+          }
+        }
+      ]
+    },
+    "property": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name"],
+      "properties": { "kind": { "const": "property" }, "name": { "$ref": "#/$defs/identifier" } }
+    },
+    "literal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": { "kind": { "const": "literal" }, "value": { "$ref": "#/$defs/jsonValue" } }
+    },
+    "filter": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "left", "right"],
+          "properties": {
+            "kind": { "const": "comparison" },
+            "operator": { "enum": ["eq", "ne", "lt", "lte", "gt", "gte"] },
+            "left": { "$ref": "#/$defs/property" },
+            "right": { "$ref": "#/$defs/literal" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "operand", "values"],
+          "properties": {
+            "kind": { "const": "list" },
+            "operator": { "const": "in" },
+            "operand": { "$ref": "#/$defs/property" },
+            "values": { "type": "array", "minItems": 1, "maxItems": 256, "items": { "$ref": "#/$defs/literal" } }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "operand", "lower", "upper"],
+          "properties": {
+            "kind": { "const": "range" },
+            "operator": { "const": "between" },
+            "operand": { "$ref": "#/$defs/property" },
+            "lower": { "$ref": "#/$defs/literal" },
+            "upper": { "$ref": "#/$defs/literal" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "operand"],
+          "properties": {
+            "kind": { "const": "null" },
+            "operator": { "enum": ["is-null", "is-not-null"] },
+            "operand": { "$ref": "#/$defs/property" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "operand", "pattern", "caseSensitive"],
+          "properties": {
+            "kind": { "const": "pattern" },
+            "operator": { "const": "like" },
+            "operand": { "$ref": "#/$defs/property" },
+            "pattern": { "type": "string", "minLength": 1, "maxLength": 4096 },
+            "caseSensitive": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "property", "bbox"],
+          "properties": {
+            "kind": { "const": "spatial" },
+            "operator": { "const": "bbox-intersects" },
+            "property": { "$ref": "#/$defs/property" },
+            "bbox": { "type": "object" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "property", "geometry"],
+          "properties": {
+            "kind": { "const": "spatial" },
+            "operator": {
+              "enum": ["equals", "intersects", "within", "contains", "disjoint", "touches", "overlaps", "crosses"]
+            },
+            "property": { "$ref": "#/$defs/property" },
+            "geometry": { "type": "object" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "operand", "value"],
+          "properties": {
+            "kind": { "const": "temporal" },
+            "operator": { "enum": ["before", "after", "during", "time-intersects"] },
+            "operand": { "$ref": "#/$defs/property" },
+            "value": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "valueType", "value"],
+              "properties": {
+                "kind": { "const": "temporal-literal" },
+                "valueType": { "enum": ["date", "instant", "interval"] },
+                "value": {
+                  "oneOf": [
+                    { "type": "string", "minLength": 1, "maxLength": 128 },
+                    {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "operator", "args"],
+          "properties": {
+            "kind": { "const": "boolean" },
+            "operator": { "enum": ["and", "or"] },
+            "args": { "type": "array", "minItems": 2, "maxItems": 256, "items": { "$ref": "#/$defs/filter" } }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "arg"],
+          "properties": { "kind": { "const": "not" }, "arg": { "$ref": "#/$defs/filter" } }
+        }
+      ]
+    },
+    "projectionMatrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["geoservices", "ogc-cql2-json", "wfs-fes-2.0", "odata-v4", "duckdb", "honua-grpc"],
+      "properties": {
+        "geoservices": { "$ref": "#/$defs/projection" },
+        "ogc-cql2-json": { "$ref": "#/$defs/projection" },
+        "wfs-fes-2.0": { "$ref": "#/$defs/projection" },
+        "odata-v4": { "$ref": "#/$defs/projection" },
+        "duckdb": { "$ref": "#/$defs/projection" },
+        "honua-grpc": { "$ref": "#/$defs/projection" }
+      }
+    },
+    "projection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome"],
+          "properties": { "outcome": { "const": "exact" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "loss", "reason"],
+          "properties": {
+            "outcome": { "const": "approximate" },
+            "reason": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "loss": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["code", "path"],
+              "properties": {
+                "code": { "const": "spatial-envelope-reduction" },
+                "path": { "type": "string", "minLength": 1, "maxLength": 256 }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "diagnostic", "reason"],
+          "properties": {
+            "outcome": { "const": "unsupported" },
+            "reason": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "diagnostic": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["code", "path"],
+              "properties": {
+                "code": {
+                  "enum": [
+                    "unsupported-crs",
+                    "crs-transform-required",
+                    "unsupported-distance",
+                    "unsupported-field-type",
+                    "unsupported-geometry",
+                    "unsupported-native-filter",
+                    "unsupported-node",
+                    "unsupported-projection",
+                    "unsupported-sort",
+                    "unsupported-source"
+                  ]
+                },
+                "path": { "type": "string", "minLength": 1, "maxLength": 256 }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
