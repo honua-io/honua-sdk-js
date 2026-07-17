@@ -99,6 +99,24 @@ describe("Honua cache state", () => {
     expect(requestCount).toBe(2);
   });
 
+  it("does not reuse metadata admitted under a broader response-size policy", async () => {
+    let requestCount = 0;
+    const oversized = { ...layerFixture, description: "x".repeat(2_048) };
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async () => {
+        requestCount += 1;
+        return json(oversized, 200);
+      },
+    });
+
+    expect((await client.getLayerMetadata("bounded-service", 0)).cache?.status).toBe("miss");
+    await expect(client.getLayerMetadata("bounded-service", 0, { maxResponseBytes: 128 })).rejects.toThrow(
+      /128-byte limit/,
+    );
+    expect(requestCount).toBe(2);
+  });
+
   it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
     "fails closed for invalid maxResponseBytes %s",
     (maxResponseBytes) => {

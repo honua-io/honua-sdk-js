@@ -1190,7 +1190,13 @@ export class HonuaClient {
     options: HonuaMetadataRequestOptions = {},
   ): Promise<T> {
     const metadataOptions = normalizeHonuaMetadataRequestOptions(options);
-    const keyFingerprint = `metadata:${cacheKey}`;
+    // A byte-bounded trust boundary must never reuse an entry populated by an
+    // unbounded or more-permissive request. Partitioning preserves normal cache
+    // reuse for callers that share the same ceiling without retaining bodies
+    // that were admitted under different limits.
+    const keyFingerprint = `metadata:${cacheKey}${
+      metadataOptions.maxResponseBytes === undefined ? "" : `:max-response-bytes:${metadataOptions.maxResponseBytes}`
+    }`;
     const cached = this.metadataCache.get(keyFingerprint) as MetadataCacheEntry<T> | undefined;
     const bypass = metadataOptions.cache === "bypass";
     const now = Date.now();
