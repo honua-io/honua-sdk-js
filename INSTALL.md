@@ -8,7 +8,7 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 11 experimental,
+It projects 22 supported (documented below as stable), 12 experimental,
 and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
@@ -59,6 +59,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 | Subpath | What it gives you |
 |---------|-------------------|
+| `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection and bounded pixel-window range reads through a caller-injected decoder; no raster peer enters the root graph ([guide](./docs/cog.md)). |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |
