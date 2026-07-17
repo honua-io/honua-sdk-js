@@ -338,9 +338,56 @@ test(
         maxDiffPixelRatio: 0.015,
       });
 
+      const emptyStacSearch = (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            type: "FeatureCollection",
+            features: [],
+            numberMatched: 0,
+            numberReturned: 0,
+            links: [],
+          }),
+        });
+      const stacSearchPattern = /\/stac\/search(?:\?|$)/u;
+      const releasesBeforeEmptySearch = await page.evaluate(
+        () => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.releasedRasterResources,
+      );
+      await page.route(stacSearchPattern, emptyStacSearch);
+      expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(true);
+      await expect(page.locator("#search-status")).toContainText("No scenes matched");
+      await expect(page.locator("#inspection-content")).not.toHaveAttribute("data-status", "ready");
+      expect(
+        await page.evaluate(() => {
+          const runtime = window.__HONUA_IMAGERY_TERRAIN_RUNTIME__;
+          return {
+            selectedAssetKey: runtime?.selectedAssetKey ?? null,
+            inspectionStatus: runtime?.inspectionStatus,
+            retained: runtime?.resources.retainedRasterResource ?? null,
+            directCog: runtime?.directCog,
+          };
+        }),
+      ).toMatchObject({
+        selectedAssetKey: null,
+        inspectionStatus: "idle",
+        retained: null,
+        directCog: {
+          phase: "disposed",
+          candidateCount: 0,
+          mapSourceMounted: false,
+          mapLayerMounted: false,
+        },
+      });
+      expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.releasedRasterResources)).toBe(
+        releasesBeforeEmptySearch + 2,
+      );
+      await page.unroute(stacSearchPattern, emptyStacSearch);
+      expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(true);
+      await expect(page.locator("#inspection-content")).toHaveAttribute("data-status", "ready");
+
       const failStacSearch = (route) =>
         route.fulfill({ status: 200, contentType: "application/json", body: '{"type":"FeatureCollection"' });
-      const stacSearchPattern = /\/stac\/search(?:\?|$)/u;
       await page.route(stacSearchPattern, failStacSearch);
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(false);
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.ready)).toBe(false);

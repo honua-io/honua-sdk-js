@@ -1046,6 +1046,29 @@ async function runSearch(): Promise<boolean> {
     selectedAssetKey = scene?.assets.some((asset) => asset.key === DEFAULT_ASSET_KEY)
       ? DEFAULT_ASSET_KEY
       : scene?.assets[0]?.key;
+    if (!scene) {
+      selectionGeneration += 1;
+      inspectionLoading = false;
+      inspectionOutcome = undefined;
+      directCandidates = [];
+      setPreviewVisible(false);
+      await disposeDirectCog();
+      if (controller.signal.aborted || disposed) return false;
+      setDirectEvidence({ candidateCount: 0, selectedAssetKey: undefined });
+      setText("#asset-switch-state", "No asset is selected because the current search returned no scenes.");
+      setText(
+        "#attribution-state",
+        "No scene attribution is active; provider attribution loads with a selected STAC item.",
+      );
+      presentation.updateEvidence({
+        SDK: `@honua/sdk-js ${__HONUA_SDK_VERSION__}`,
+        Search: receipt.sdkSurface,
+        Range: "No asset selected",
+        Cache: "No asset selected",
+        Rendering: "WMS / ImageServer / Terrain-RGB (no direct COG selected)",
+        Limitation: "No STAC scenes matched the current search filters",
+      });
+    }
     setText(
       "#search-status",
       receipt.scenes.length === 0

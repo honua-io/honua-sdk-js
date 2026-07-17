@@ -142,6 +142,74 @@ describe("Imagery and Terrain S1 journey", () => {
     });
   });
 
+  it("resolves a relative STAC asset against a nested client base before pipeline fetching", async () => {
+    const requestedUrls: string[] = [];
+    const tiffHeader = new Uint8Array(64);
+    tiffHeader.set([0x49, 0x49, 0x2a, 0x00]);
+    const fetchFn: typeof fetch = async (input, init) => {
+      const request = new Request(input, init);
+      requestedUrls.push(request.url);
+      const url = new URL(request.url);
+      if (url.pathname === "/honua/stac/search") {
+        return new Response(
+          JSON.stringify({
+            type: "FeatureCollection",
+            numberMatched: 1,
+            numberReturned: 1,
+            features: [
+              {
+                type: "Feature",
+                stac_version: "1.1.0",
+                id: "relative-item",
+                collection: "relative-collection",
+                bbox: [-158, 21, -157, 22],
+                geometry: null,
+                properties: { datetime: "2026-04-12T21:19:01Z" },
+                assets: {
+                  cog: {
+                    href: "assets/oahu.tif",
+                    type: "image/tiff; application=geotiff; profile=cloud-optimized",
+                    "proj:code": "EPSG:4326",
+                    "raster:bands": [{ name: "elevation", data_type: "uint16", nodata: 0 }],
+                  },
+                },
+                links: [],
+              },
+            ],
+            links: [],
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
+      }
+      if (url.pathname === "/honua/assets/oahu.tif") {
+        expect(request.headers.get("range")).toBe("bytes=0-63");
+        return new Response(tiffHeader, {
+          status: 206,
+          headers: {
+            "accept-ranges": "bytes",
+            "content-length": "64",
+            "content-range": "bytes 0-63/128",
+            "content-type": "image/tiff",
+          },
+        });
+      }
+      return new Response("Not found", { status: 404 });
+    };
+    const journey = new ImageryTerrainJourney({
+      client: new HonuaClient({ baseUrl: "https://imagery.example.test/honua", fetchFn, retry: { maxRetries: 0 } }),
+    });
+
+    const search = await journey.search({ ...SEARCH, collectionId: "relative-collection" });
+    expect(search.scenes[0]?.assets[0]?.href).toBe("/honua/assets/oahu.tif");
+    await expect(journey.inspectAsset("relative-item", "cog")).resolves.toMatchObject({
+      status: "ready",
+      identity: { assetKey: "cog", assetHref: "/honua/assets/oahu.tif" },
+      range: { requested: "bytes=0-63", bytesReceived: 64 },
+    });
+    expect(requestedUrls.some((url) => new URL(url).pathname === "/honua/assets/oahu.tif")).toBe(true);
+    expect(requestedUrls.every((url) => !url.includes("honuaassets"))).toBe(true);
+  });
+
   it.each([
     ["credential-cog", "credentials"],
     ["cors-cog", "cors"],

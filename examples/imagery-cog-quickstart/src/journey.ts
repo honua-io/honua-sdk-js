@@ -303,6 +303,7 @@ export class ImageryTerrainJourney {
       const scenes = boundedItems.map((item) => toSceneSummary(item, this.#client.serverBaseUrl));
       const nextItems = new Map<string, HonuaStacItemResponse>();
       for (const item of boundedItems) nextItems.set(itemId(item), item);
+      this.#clearSelection("Asset selection was invalidated by a completed STAC search.");
       this.#items.clear();
       for (const [id, item] of nextItems) this.#items.set(id, item);
       return {
@@ -594,6 +595,14 @@ export class ImageryTerrainJourney {
     retained?.release();
   }
 
+  #clearSelection(reason: string): void {
+    this.#selectionGeneration += 1;
+    this.#selectionController?.abort(reason);
+    this.#selectionController = undefined;
+    this.#releaseRetainedResource();
+    this.#activeSelectionId = undefined;
+  }
+
   #cancelReason(generation: number, callerSignal: AbortSignal | undefined): RasterAssetInspectionCancelled["reason"] {
     if (this.#disposed) return "disposed";
     if (generation !== this.#selectionGeneration) return "superseded";
@@ -694,7 +703,7 @@ function parseAssetMetadata(
       ...(acquiredAt ? { acquiredAt } : {}),
       ...(version ? { version } : {}),
     },
-    requestHref: asset.href,
+    requestHref: href.requestHref,
     credentialBearing: href.credentialBearing,
     hrefValid: href.valid,
     mediaType: asset.type ?? "",
@@ -933,12 +942,17 @@ function validateProfileRequest(line: readonly ElevationCoordinate[], sampleCoun
 function assetHrefSafety(
   href: string,
   baseUrl: string,
-): { redacted: string; credentialBearing: boolean; valid: boolean } {
+): { requestHref: string; redacted: string; credentialBearing: boolean; valid: boolean } {
   if (typeof href !== "string" || href.length === 0 || href.length > 8_192) {
-    return { redacted: "invalid-asset-url", credentialBearing: false, valid: false };
+    return {
+      requestHref: "invalid-asset-url",
+      redacted: "invalid-asset-url",
+      credentialBearing: false,
+      valid: false,
+    };
   }
   try {
-    const resolved = new URL(href, baseUrl);
+    const resolved = new URL(href, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
     const sensitiveKeys = [...resolved.searchParams.keys()].filter(isCredentialQueryKey);
     const credentialBearing = Boolean(
       resolved.username || resolved.password || resolved.hash || sensitiveKeys.length > 0,
@@ -949,12 +963,18 @@ function assetHrefSafety(
     for (const key of sensitiveKeys) resolved.searchParams.set(key, "[redacted]");
     const absolute = /^[A-Za-z][A-Za-z\d+.-]*:/u.test(href);
     return {
+      requestHref: resolved.toString(),
       redacted: absolute ? resolved.toString() : `${resolved.pathname}${resolved.search}`,
       credentialBearing,
       valid: ["http:", "https:"].includes(resolved.protocol),
     };
   } catch {
-    return { redacted: "invalid-asset-url", credentialBearing: false, valid: false };
+    return {
+      requestHref: "invalid-asset-url",
+      redacted: "invalid-asset-url",
+      credentialBearing: false,
+      valid: false,
+    };
   }
 }
 
