@@ -170,14 +170,6 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     },
   ],
   [
-    "evidence:imagery-terrain:live",
-    {
-      definition:
-        "node scripts/imagery-terrain-live-evidence.mjs --output test-results/imagery-terrain-live-evidence.json",
-      generatorPath: "scripts/imagery-terrain-live-evidence.mjs",
-    },
-  ],
-  [
     "evidence:overture:live",
     {
       definition: "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",

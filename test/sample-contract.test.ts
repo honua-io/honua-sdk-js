@@ -177,7 +177,7 @@ describe("sample publication contract", () => {
     expect(imagery).toMatchObject({ validationProfile: "golden-browser" });
     expect(imagery?.commandPlan.liveEvidence).toEqual({
       execution: "scheduled-only",
-      commands: ["npm run evidence:imagery-terrain:live"],
+      commands: ["npm run evidence:cog:live"],
     });
     expect(
       projection.routes

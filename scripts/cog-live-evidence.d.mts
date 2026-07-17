@@ -20,6 +20,8 @@ export interface CogPublicContract {
 
 export function validateCogPublicContract<T extends CogPublicContract>(contract: T): T;
 
+export function isCogLiveEvidenceEnabled(env?: Readonly<Record<string, string | undefined>>): boolean;
+
 export function runCogLiveEvidence(options?: {
   readonly contract?: CogPublicContract;
   readonly observedAt?: string;

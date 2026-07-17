@@ -14,8 +14,8 @@
           <p class="eyebrow">Golden journey candidate · fixture safe</p>
           <h1>Imagery and Terrain</h1>
           <p class="hero-copy">
-            Search a STAC catalog, inspect bounded COG transport, compare published imagery, and follow terrain from
-            one point to a route profile.
+            Search a STAC catalog, inspect and render a bounded COG, compare published imagery, and follow terrain
+            from one point to a route profile.
           </p>
         </div>
         <dl class="status-strip" aria-label="Journey status">
@@ -68,7 +68,7 @@
 
         <section id="journey-map" class="map-stage" aria-labelledby="map-heading">
           <header class="map-toolbar">
-            <div><p class="toolbar-kicker">Published pixels</p><h2 id="map-heading">WMS ↔ ImageServer comparison</h2></div>
+            <div><p class="toolbar-kicker">Direct and published pixels</p><h2 id="map-heading">COG ↔ WMS / ImageServer comparison</h2></div>
             <div class="map-actions">
               <label class="terrain-toggle"><input id="terrain-toggle" type="checkbox" /><span>Terrain / 2.5D</span></label>
               <button id="zoom-extent" type="button">Fit Oʻahu</button>
@@ -77,11 +77,11 @@
           <div id="map" role="region" aria-label="MapLibre imagery and terrain comparison map"></div>
           <div class="comparison-control">
             <div>
-              <label for="comparison-slider">Imagery comparison</label>
-              <output id="comparison-value" for="comparison-slider">68% ImageServer over WMS</output>
+              <label for="comparison-slider">Direct COG comparison</label>
+              <output id="comparison-value" for="comparison-slider">68% direct COG over published imagery</output>
             </div>
             <input id="comparison-slider" type="range" min="0" max="100" value="68" />
-            <div class="comparison-axis" aria-hidden="true"><span>WMS</span><span>ImageServer</span></div>
+            <div class="comparison-axis" aria-hidden="true"><span>Published</span><span>Direct COG</span></div>
           </div>
           <p id="endpoint-state" class="map-overlay">Waiting for same-origin fixture endpoints.</p>
         </section>
@@ -94,6 +94,27 @@
             </div>
             <div id="inspection-content" class="inspection-content">
               <p class="empty-copy">Select a STAC asset to inspect its bounded range receipt.</p>
+            </div>
+          </section>
+
+          <section id="direct-cog-render" class="step-card direct-cog-panel" aria-labelledby="direct-cog-heading">
+            <div class="step-heading compact">
+              <span aria-hidden="true">↗</span>
+              <div><p>Render</p><h2 id="direct-cog-heading">Direct COG receipt</h2></div>
+            </div>
+            <strong id="direct-cog-status" role="status" aria-live="polite" data-phase="discovering">discovering</strong>
+            <p class="panel-help">
+              The selected STAC scenario drives the opt-in COG session; failures stay typed while published imagery remains usable.
+            </p>
+            <dl class="direct-cog-facts">
+              <div><dt>Inspection</dt><dd id="direct-cog-inspection">No accepted inspection yet.</dd></div>
+              <div><dt>STAC provenance</dt><dd id="direct-cog-provenance">Discovering candidates.</dd></div>
+              <div><dt>Lifecycle</dt><dd id="direct-cog-lifecycle">0 decoder(s) created · 0 released · 0 aborted · map released</dd></div>
+              <div><dt>Typed refusal</dt><dd id="direct-cog-error">No range, CORS, CRS, or format refusal.</dd></div>
+            </dl>
+            <div class="range-evidence" aria-label="Fetched direct COG byte range evidence">
+              <strong id="direct-cog-transfer-summary">No asset bytes fetched.</strong>
+              <ol id="direct-cog-ranges"><li><span>No range evidence yet.</span></li></ol>
             </div>
           </section>
 
@@ -131,7 +152,7 @@
 
       <footer class="attribution-bar">
         <p id="attribution-state">Fixture metadata only · provider attribution loads with the selected STAC item.</p>
-        <p>MapLibre supported · direct COG decoding remains #537 · Cesium remains a lab.</p>
+        <p>MapLibre direct COG and terrain supported · public UTM browser reprojection unclaimed · Cesium remains a lab.</p>
       </footer>
       <span id="journey-announcer" class="sr-only" aria-live="polite"></span>
     </main>

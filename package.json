@@ -566,7 +566,6 @@
     "bench:references:source-tree:write": "npm run build --silent && node dist/bench/cross-sdk/validate.js --write-source-tree",
     "bench:browser": "node bench/browser/run.mjs --check --output test-results/browser-benchmark/report.json",
     "bench:live": "node scripts/live-benchmark-evidence.mjs --output test-results/live-benchmark-evidence.json",
-    "evidence:imagery-terrain:live": "node scripts/imagery-terrain-live-evidence.mjs --output test-results/imagery-terrain-live-evidence.json",
     "evidence:overture:live": "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",
     "eval:coding-agents": "npm run build --silent && node scripts/eval-coding-agents.mjs",
     "eval:coding-agents:self-test": "npm run build --silent && node scripts/eval-coding-agents.mjs --variant known-bad --expect-fail"

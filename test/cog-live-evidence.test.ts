@@ -2,7 +2,11 @@ import fs from "node:fs";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { runCogLiveEvidence, validateCogPublicContract } from "../scripts/cog-live-evidence.mjs";
+import {
+  isCogLiveEvidenceEnabled,
+  runCogLiveEvidence,
+  validateCogPublicContract,
+} from "../scripts/cog-live-evidence.mjs";
 import { validateEvidenceEnvelope } from "../scripts/sample-contract.mjs";
 
 const contract = JSON.parse(
@@ -10,6 +14,12 @@ const contract = JSON.parse(
 );
 
 describe("direct COG scheduled semantic evidence", () => {
+  it("accepts the dedicated scheduled gate or the sample-runner live gate", () => {
+    expect(isCogLiveEvidenceEnabled({})).toBe(false);
+    expect(isCogLiveEvidenceEnabled({ HONUA_COG_LIVE_ENABLED: "true" })).toBe(true);
+    expect(isCogLiveEvidenceEnabled({ HONUA_SAMPLE_LIVE_ENABLED: "1" })).toBe(true);
+  });
+
   it("pins immutable STAC, byte, inspection, provenance, and freshness semantics", () => {
     expect(validateCogPublicContract(contract)).toBe(contract);
     expect(contract).toMatchObject({
@@ -51,7 +61,7 @@ describe("direct COG scheduled semantic evidence", () => {
       degradation: { state: "unavailable", reasons: ["live-network-gate-disabled"] },
       cog: {
         contractPath: "test/fixtures/cog/public-earth-search-sentinel-2.json",
-        networkGate: "HONUA_COG_LIVE_ENABLED",
+        networkGates: ["HONUA_COG_LIVE_ENABLED", "HONUA_SAMPLE_LIVE_ENABLED"],
         scheduledOnly: true,
       },
     });
