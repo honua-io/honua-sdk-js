@@ -213,7 +213,14 @@
             "kind": { "enum": ["first", "offset"] },
             "offset": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
             "limit": { "type": "integer", "minimum": 1, "maximum": 2147483647 }
-          }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "kind": { "const": "offset" } }, "required": ["kind"] },
+              "then": { "required": ["offset"] },
+              "else": { "not": { "required": ["offset"] } }
+            }
+          ]
         },
         "groupBy": {
           "type": "array",
@@ -233,7 +240,13 @@
               "fn": { "enum": ["count", "sum", "avg", "min", "max", "stddev", "variance"] },
               "field": { "$ref": "#/$defs/identifier" },
               "as": { "$ref": "#/$defs/identifier" }
-            }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "fn": { "const": "count" } }, "required": ["fn"] },
+                "else": { "required": ["field"] }
+              }
+            ]
           }
         }
       },
@@ -242,7 +255,14 @@
           "if": { "properties": { "kind": { "const": "aggregate" } }, "required": ["kind"] },
           "then": {
             "required": ["groupBy", "metrics"],
-            "not": { "properties": { "select": true }, "required": ["select"] }
+            "not": {
+              "anyOf": [{ "required": ["select"] }, { "required": ["geometry"] }]
+            }
+          },
+          "else": {
+            "not": {
+              "anyOf": [{ "required": ["groupBy"] }, { "required": ["metrics"] }]
+            }
           }
         }
       ]
