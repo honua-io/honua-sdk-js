@@ -389,7 +389,9 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
 
     const semanticDrift = new Map(currentOutputs);
@@ -408,7 +410,9 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v1.json",
       fixturePath,
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
   });
 

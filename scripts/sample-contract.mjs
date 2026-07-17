@@ -29,6 +29,7 @@ const require = createRequire(import.meta.url);
 const Ajv2020 = require("ajv/dist/2020").default;
 const addFormats = require("ajv-formats").default;
 const ts = require("typescript");
+const JSON_SCHEMA_VALIDATORS = new Map();
 const CATALOG_PATH = "samples/catalog.v2.json";
 const CAPABILITY_CROSSWALK_PATH = "config/capability-crosswalk.v1.json";
 const V1_CATALOG_PATH = "samples/catalog.v1.json";
@@ -44,11 +45,18 @@ const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH =
 const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence.v1.json";
 const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
   "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json";
+const SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v1.json";
+const SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-handoff.schema.json";
 const SUPPORT_TRUTH_PATH = "config/support-manifest.v1.json";
 const QUALIFICATION_EVIDENCE_ROOT = "samples/evidence";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+const SITE_CONSUMER_V3_FIXTURE_PATH =
+  "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
+const SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-fixture.schema.json";
 const FIXTURE_BUILD_ENVIRONMENT_HELPER = "../../scripts/lib/fixture-build-environment.mjs";
 const REVIEWED_FIXTURE_HARNESS_IMPORTS = new Set([
   FIXTURE_BUILD_ENVIRONMENT_HELPER,
@@ -119,6 +127,53 @@ const GOLDEN_VISUAL_GATE_ORDER = Object.freeze([
 ]);
 const GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS = 300;
 const GOLDEN_VISUAL_MAX_WINDOW_SECONDS = 7 * 24 * 60 * 60;
+const SITE_CONSUMER_PUBLIC_TRACKS = Object.freeze(["golden", "recipe", "lab"]);
+const SITE_CONSUMER_FILTER_DIMENSIONS = Object.freeze([
+  "task",
+  "capability",
+  "protocol",
+  "renderer",
+  "data-mode",
+  "auth-mode",
+  "support-tier",
+  "lifecycle-state",
+  "qualification-state",
+]);
+const SITE_CONSUMER_CONTROL_ORDER = Object.freeze([
+  "task-search",
+  "capability-filter",
+  "protocol-filter",
+  "additional-filters",
+  "clear-filters",
+  "sample-cards",
+]);
+const SITE_CONSUMER_RESERVED_ROOT_ROUTES = new Set(["index.html", "gallery.html", "404.html"]);
+const SITE_CONSUMER_RESERVED_SAMPLE_ROUTES = new Set([
+  "samples/index.html",
+  "samples/routes.html",
+  "samples/site-handoff.v1.json",
+]);
+const SITE_CONSUMER_MAX_ARTIFACT_BYTES = 16 * 1024 * 1024;
+const SITE_CONSUMER_MAX_CARDS = 512;
+const SITE_CONSUMER_MAX_ROUTES = 1024;
+const SITE_CONSUMER_MAX_GAPS = 8192;
+const SITE_CONSUMER_MAX_FACET_VALUES = 2048;
+const SITE_CONSUMER_MAX_FILTER_VALUE_CHARACTERS = 512;
+const SITE_CONSUMER_MAX_SEARCH_TEXT_CHARACTERS = 32 * 1024;
+const SITE_CONSUMER_MAX_JSON_NODES = 250_000;
+const SITE_CONSUMER_MAX_JSON_DEPTH = 64;
+const SITE_CONSUMER_FILTER_KEYS = new Set([
+  "text",
+  "task",
+  "capability",
+  "protocol",
+  "renderer",
+  "dataMode",
+  "authMode",
+  "supportTier",
+  "lifecycleState",
+  "qualificationState",
+]);
 const SAMPLE_SOURCE_EXTENSIONS = new Set([".js", ".mjs", ".ts", ".tsx"]);
 const CONFIGURATION_NAME_PATTERN = /^(?:HONUA|STANDALONE|VITE)_[A-Z0-9_]+$/;
 const STANDARD_CONFIGURATION_EXEMPTIONS = new Map([
@@ -357,10 +412,14 @@ async function readJson(relativePath) {
 }
 
 async function validateJsonSchema(value, schemaPath) {
-  const schema = await readJson(schemaPath);
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
-  const validate = ajv.compile(schema);
+  let validate = JSON_SCHEMA_VALIDATORS.get(schemaPath);
+  if (!validate) {
+    const schema = await readJson(schemaPath);
+    const ajv = new Ajv2020({ allErrors: true, strict: false });
+    addFormats(ajv);
+    validate = ajv.compile(schema);
+    JSON_SCHEMA_VALIDATORS.set(schemaPath, validate);
+  }
   if (validate(value)) return;
   const details = (validate.errors ?? [])
     .map((error) => `${error.instancePath || "/"} ${error.message}`)
@@ -543,20 +602,22 @@ function validateSensitiveString(value, label) {
   invariant(!containsCredentialValue(value), `${label} contains a credential value`);
 }
 
-function validateSensitiveMetadata(value, label) {
+function validateSensitiveMetadata(value, label, limits = {}) {
+  const maxDepth = limits.maxDepth ?? MAX_SENSITIVE_METADATA_DEPTH;
+  const maxNodes = limits.maxNodes ?? MAX_SENSITIVE_METADATA_NODES;
   const activeObjects = new WeakSet();
   let nodeCount = 0;
   const countNode = (location) => {
     nodeCount += 1;
     invariant(
-      nodeCount <= MAX_SENSITIVE_METADATA_NODES,
-      `${label}${location} exceeds the ${MAX_SENSITIVE_METADATA_NODES}-node metadata limit`,
+      nodeCount <= maxNodes,
+      `${label}${location} exceeds the ${maxNodes}-node metadata limit`,
     );
   };
   const visit = (current, location, depth, sensitiveContext = false) => {
     invariant(
-      depth <= MAX_SENSITIVE_METADATA_DEPTH,
-      `${label}${location} exceeds the metadata depth limit of ${MAX_SENSITIVE_METADATA_DEPTH}`,
+      depth <= maxDepth,
+      `${label}${location} exceeds the metadata depth limit of ${maxDepth}`,
     );
     countNode(location);
     if (typeof current === "string") {
@@ -4804,6 +4865,900 @@ export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
   }
 }
 
+function validateSiteConsumerJsonBudget(value, label) {
+  let nodes = 0;
+  let stringCharacters = 0;
+  let estimatedStableJsonBytes = 0;
+  const active = new WeakSet();
+  const visit = (candidate, depth) => {
+    nodes += 1;
+    invariant(nodes <= SITE_CONSUMER_MAX_JSON_NODES, `${label} exceeds its JSON node budget`);
+    invariant(depth <= SITE_CONSUMER_MAX_JSON_DEPTH, `${label} exceeds its JSON depth budget`);
+    estimatedStableJsonBytes += 2 * depth + 8;
+    invariant(
+      estimatedStableJsonBytes <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+      `${label} exceeds its estimated stable JSON byte budget`,
+    );
+    if (typeof candidate === "string") {
+      invariant(
+        candidate.length <= SITE_CONSUMER_MAX_SEARCH_TEXT_CHARACTERS,
+        `${label} contains an overlong JSON string`,
+      );
+      stringCharacters += candidate.length;
+      estimatedStableJsonBytes += Buffer.byteLength(JSON.stringify(candidate));
+      invariant(
+        stringCharacters <= SITE_CONSUMER_MAX_ARTIFACT_BYTES &&
+          estimatedStableJsonBytes <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+        `${label} exceeds its aggregate string character budget`,
+      );
+      return;
+    }
+    if (candidate === null || typeof candidate !== "object") {
+      estimatedStableJsonBytes += String(candidate).length;
+      invariant(
+        estimatedStableJsonBytes <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+        `${label} exceeds its estimated stable JSON byte budget`,
+      );
+      return;
+    }
+    invariant(!active.has(candidate), `${label} contains a JSON cycle`);
+    active.add(candidate);
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) visit(item, depth + 1);
+    } else {
+      for (const [key, item] of Object.entries(candidate)) {
+        stringCharacters += key.length;
+        estimatedStableJsonBytes += Buffer.byteLength(JSON.stringify(key));
+        invariant(
+          stringCharacters <= SITE_CONSUMER_MAX_ARTIFACT_BYTES &&
+            estimatedStableJsonBytes <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+          `${label} exceeds its aggregate string character budget`,
+        );
+        visit(item, depth + 1);
+      }
+    }
+    active.delete(candidate);
+  };
+  visit(value, 0);
+}
+
+function siteConsumerArtifactReference(relativePath, schemaPath, artifact) {
+  validateSiteConsumerJsonBudget(artifact, relativePath);
+  const bytes = Buffer.from(stableJson(artifact));
+  invariant(
+    bytes.byteLength <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+    `${relativePath}: site consumer authority exceeds its ${SITE_CONSUMER_MAX_ARTIFACT_BYTES}-byte budget`,
+  );
+  return {
+    path: relativePath,
+    schemaPath,
+    format: artifact.format,
+    schemaVersion: artifact.schemaVersion,
+    bytes: bytes.byteLength,
+    sha256: sha256(bytes),
+  };
+}
+
+function canonicalSiteSamplePath(sampleId) {
+  invariant(
+    typeof sampleId === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(sampleId),
+    `${sampleId}: invalid canonical site sample ID`,
+  );
+  const route = `samples/${sampleId}.html`;
+  invariant(
+    !SITE_CONSUMER_RESERVED_SAMPLE_ROUTES.has(route),
+    `${sampleId}: canonical site route collides with reserved content`,
+  );
+  return route;
+}
+
+function normalizedSiteConsumerText(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function siteConsumerSearchText(card) {
+  const searchText = normalizedSiteConsumerText(
+    [
+      card.id,
+      card.title,
+      card.summary,
+      card.track,
+      card.journey?.id,
+      card.journey?.title,
+      card.journey?.status,
+      ...card.tasks,
+      ...card.capabilities,
+      ...card.protocols,
+      ...card.catalogProtocols,
+      ...card.renderers,
+      card.data.mode,
+      card.data.authMode,
+      card.supportTier,
+      card.lifecycle.state,
+      card.qualification.state,
+      card.expectedDegradation,
+    ]
+      .filter((value) => value !== undefined && value !== null)
+      .join(" "),
+  );
+  invariant(
+    searchText.length <= SITE_CONSUMER_MAX_SEARCH_TEXT_CHARACTERS,
+    `${card.id}: site consumer search text exceeds its character budget`,
+  );
+  return searchText;
+}
+
+export function filterSiteConsumerCards(cards, filters = {}) {
+  invariant(
+    Array.isArray(cards) && cards.length <= SITE_CONSUMER_MAX_CARDS,
+    `site consumer cards must be an array with at most ${SITE_CONSUMER_MAX_CARDS} entries`,
+  );
+  invariant(
+    filters && typeof filters === "object" && !Array.isArray(filters),
+    "site consumer filters must be an object",
+  );
+  for (const [key, value] of Object.entries(filters)) {
+    invariant(SITE_CONSUMER_FILTER_KEYS.has(key), `site consumer filter is unsupported: ${key}`);
+    invariant(
+      typeof value === "string" && value.length <= SITE_CONSUMER_MAX_FILTER_VALUE_CHARACTERS,
+      `${key}: site consumer filter exceeds its character budget`,
+    );
+  }
+  const terms = normalizedSiteConsumerText(filters.text).split(" ").filter(Boolean);
+  invariant(
+    terms.every((term) => term.length <= SITE_CONSUMER_MAX_FILTER_VALUE_CHARACTERS),
+    "site consumer normalized text filter exceeds its character budget",
+  );
+  const exactArrayFacets = [
+    ["task", "tasks"],
+    ["capability", "capabilities"],
+    ["protocol", "protocols"],
+    ["renderer", "renderers"],
+  ];
+  const exactValueFacets = [
+    ["dataMode", ["data", "mode"]],
+    ["authMode", ["data", "authMode"]],
+    ["supportTier", ["supportTier"]],
+    ["lifecycleState", ["lifecycle", "state"]],
+    ["qualificationState", ["qualification", "state"]],
+  ];
+  return cards.filter((card) => {
+    invariant(
+      typeof card?.searchText === "string" &&
+        card.searchText.length <= SITE_CONSUMER_MAX_SEARCH_TEXT_CHARACTERS,
+      "site consumer card search text is missing or exceeds its character budget",
+    );
+    if (!terms.every((term) => card.searchText.includes(term))) return false;
+    for (const [filterKey, cardKey] of exactArrayFacets) {
+      const value = String(filters[filterKey] ?? "");
+      if (value && !card[cardKey].includes(value)) return false;
+    }
+    for (const [filterKey, cardPath] of exactValueFacets) {
+      const value = String(filters[filterKey] ?? "");
+      let actual = card;
+      for (const key of cardPath) actual = actual?.[key];
+      if (value && actual !== value) return false;
+    }
+    return true;
+  });
+}
+
+function resolvedSiteConsumerReplacement(replacement, indexes, publicSampleIds) {
+  if (!replacement) return null;
+  if (replacement.kind === "sample") {
+    const sample = indexes.samples.get(replacement.id);
+    invariant(sample, `replacement references missing sample ${replacement.id}`);
+    return {
+      kind: replacement.kind,
+      id: replacement.id,
+      title: sample.title,
+      canonicalPath: publicSampleIds.has(sample.id) ? canonicalSiteSamplePath(sample.id) : null,
+    };
+  }
+  if (replacement.kind === "journey") {
+    const journey = indexes.journeys.get(replacement.id);
+    invariant(journey, `replacement references missing journey ${replacement.id}`);
+    const candidate = indexes.samples.get(journey.candidateSampleId);
+    invariant(candidate, `replacement journey ${replacement.id} has no candidate sample`);
+    return {
+      kind: replacement.kind,
+      id: replacement.id,
+      title: journey.title,
+      status: journey.status,
+      candidateSampleId: candidate.id,
+      canonicalPath: publicSampleIds.has(candidate.id) ? canonicalSiteSamplePath(candidate.id) : null,
+    };
+  }
+  invariant(replacement.kind === "external", `replacement ${replacement.id} has an unsupported kind`);
+  const external = indexes.externalReplacements.get(replacement.id);
+  invariant(external, `replacement references missing external target ${replacement.id}`);
+  return {
+    kind: replacement.kind,
+    id: replacement.id,
+    title: external.title,
+    url: external.url,
+  };
+}
+
+function siteConsumerLegacyRoutes(projection, indexes, publicSampleIds) {
+  const routeByPath = new Map();
+  for (const declared of projection.routes) {
+    invariant(
+      typeof declared.route === "string" && /^[-a-z0-9]+\.html$/.test(declared.route),
+      `${declared.id}: unsafe legacy site route`,
+    );
+    invariant(
+      !SITE_CONSUMER_RESERVED_ROOT_ROUTES.has(declared.route),
+      `${declared.id}: legacy site route collides with reserved content`,
+    );
+    let route;
+    if (declared.ownership === "sdk-projection") {
+      const sample = indexes.samples.get(declared.sampleId);
+      invariant(sample, `${declared.id}: legacy route references missing sample ${declared.sampleId}`);
+      const isPublic = publicSampleIds.has(sample.id);
+      route = {
+        path: declared.route,
+        routeIds: [declared.id],
+        ownership: declared.ownership,
+        resolution: isPublic ? "canonical-sample" : "not-public",
+        sampleId: sample.id,
+        canonicalPath: isPublic ? canonicalSiteSamplePath(sample.id) : null,
+        httpStatus: isPublic ? 308 : null,
+        presentation: isPublic ? "permanent-redirect" : "status-page",
+        title: sample.title,
+        track: sample.track,
+        supportTier: sample.supportTier,
+        reason: isPublic
+          ? "Redirect to the stable canonical SDK sample route."
+          : "Display an explicit status: the mapped SDK entry is an internal fixture, not a public application.",
+      };
+    } else {
+      invariant(declared.ownership === "site-exception", `${declared.id}: unsupported legacy route ownership`);
+      route = {
+        path: declared.route,
+        routeIds: [declared.id],
+        ownership: declared.ownership,
+        resolution: "site-exception",
+        sampleId: null,
+        canonicalPath: null,
+        httpStatus: null,
+        presentation: "status-page",
+        title: declared.title,
+        track: declared.track,
+        supportTier: declared.supportTier,
+        reason: `Display an explicit site-owned exception or retirement status. ${declared.exceptionReason}`,
+      };
+    }
+    const existing = routeByPath.get(route.path);
+    if (!existing) {
+      routeByPath.set(route.path, route);
+      continue;
+    }
+    const comparable = ({ routeIds: _routeIds, ...value }) => value;
+    invariant(
+      JSON.stringify(comparable(existing)) === JSON.stringify(comparable(route)),
+      `${route.path}: conflicting legacy route resolutions`,
+    );
+    existing.routeIds = orderedUnique([...existing.routeIds, ...route.routeIds]);
+  }
+  return [...routeByPath.values()].sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function siteConsumerInteractionContract(visualEvidence) {
+  return {
+    filters: {
+      dimensions: [...SITE_CONSUMER_FILTER_DIMENSIONS],
+      textNormalization: "NFKC-lowercase-trim-collapse-whitespace",
+      textTerms: "and",
+      facetMatching: "exact-and",
+      zeroResultsVisible: true,
+      clearControlRequired: true,
+    },
+    accessibility: {
+      filterRegionRole: "search",
+      filterRegionAccessibleNameRequired: true,
+      nativeControlLabelsRequired: true,
+      resultsRole: "status",
+      resultsAriaLive: "polite",
+      resultsAriaAtomic: true,
+      cardHeadingsRequired: true,
+      screenshotAlternativeTextRequired: true,
+      lifecycleStatusVisible: true,
+      focusIndicatorRequired: true,
+    },
+    keyboard: {
+      navigation: "native-tab-order",
+      controlOrder: [...SITE_CONSUMER_CONTROL_ORDER],
+      activationKeys: ["Enter", "Space"],
+      clearFiltersControl: "button",
+      focusAfterClear: "task-search",
+      noKeyboardTrap: true,
+    },
+    responsive: {
+      requiredViewports: structuredClone(visualEvidence.policy.requiredScreenshotVariants),
+      desktopControls: "multi-column",
+      mobileControls: "single-column",
+      minimumTouchTargetCssPixels: 44,
+      horizontalPageOverflowForbidden: true,
+      contentLossForbidden: true,
+    },
+  };
+}
+
+function qualifiedCoverageCount(collection) {
+  return collection.filter((entry) => entry.coverage.state === "qualified").length;
+}
+
+export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) {
+  invariant(
+    projection.format === "honua.site.sdk-sample-projection.v2" && projection.schemaVersion === 2,
+    "site consumer handoff requires site projection v2",
+  );
+  invariant(
+    matrix.format === "honua.site.sdk-capability-sample-matrix.v1" && matrix.schemaVersion === 1,
+    "site consumer handoff requires capability matrix v1",
+  );
+  invariant(
+    visualEvidence.format === "honua.sdk.golden-journey-visual-evidence.v1" &&
+      visualEvidence.schemaVersion === 1,
+    "site consumer handoff requires golden visual evidence v1",
+  );
+  invariant(
+    projection.catalog.package === matrix.sdk.package && projection.catalog.version === matrix.sdk.version,
+    "site consumer handoff SDK package/version inputs disagree",
+  );
+  invariant(
+    Array.isArray(projection.samples) && projection.samples.length <= SITE_CONSUMER_MAX_CARDS &&
+      Array.isArray(projection.routes) && projection.routes.length <= SITE_CONSUMER_MAX_ROUTES &&
+      Array.isArray(projection.goldenJourneys) && projection.goldenJourneys.length <= SITE_CONSUMER_MAX_CARDS &&
+      Array.isArray(projection.externalReplacements) &&
+      projection.externalReplacements.length <= SITE_CONSUMER_MAX_CARDS,
+    "site consumer projection exceeds its bounded inventory",
+  );
+  invariant(
+    Array.isArray(matrix.samples) && matrix.samples.length <= SITE_CONSUMER_MAX_CARDS &&
+      Array.isArray(matrix.evidenceBindings) && matrix.evidenceBindings.length <= SITE_CONSUMER_MAX_CARDS &&
+      Array.isArray(matrix.gaps) && matrix.gaps.length <= SITE_CONSUMER_MAX_GAPS,
+    "site consumer capability matrix exceeds its bounded inventory",
+  );
+  invariant(
+    Array.isArray(visualEvidence.qualifiedGoldenJourneys) &&
+      visualEvidence.qualifiedGoldenJourneys.length <= SITE_CONSUMER_MAX_CARDS,
+    "site consumer visual evidence exceeds its bounded inventory",
+  );
+
+  const indexes = {
+    samples: new Map(projection.samples.map((sample) => [sample.id, sample])),
+    matrixSamples: new Map(matrix.samples.map((sample) => [sample.id, sample])),
+    journeys: new Map(projection.goldenJourneys.map((journey) => [journey.id, journey])),
+    externalReplacements: new Map(
+      projection.externalReplacements.map((replacement) => [replacement.id, replacement]),
+    ),
+    evidenceBindings: new Map(matrix.evidenceBindings.map((binding) => [binding.id, binding])),
+    visualBySample: new Map(
+      visualEvidence.qualifiedGoldenJourneys.map((entry) => [entry.sampleId, entry]),
+    ),
+  };
+  invariant(indexes.samples.size === projection.samples.length, "site projection sample IDs are not unique");
+  invariant(indexes.matrixSamples.size === matrix.samples.length, "capability matrix sample IDs are not unique");
+  invariant(
+    projection.samples.every((sample) => indexes.matrixSamples.has(sample.id)) &&
+      matrix.samples.every((sample) => indexes.samples.has(sample.id)),
+    "site projection and capability matrix sample inventories disagree",
+  );
+
+  const publicSamples = projection.samples
+    .filter((sample) => SITE_CONSUMER_PUBLIC_TRACKS.includes(sample.track))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  invariant(publicSamples.length > 0, "eligible site sample inventory unexpectedly produced zero cards");
+  const publicSampleIds = new Set(publicSamples.map((sample) => sample.id));
+  const cards = publicSamples.map((sample) => {
+    const matrixSample = indexes.matrixSamples.get(sample.id);
+    invariant(matrixSample.sourcePath === sample.source.path, `${sample.id}: source path join drift`);
+    const journey = sample.journeyId ? indexes.journeys.get(sample.journeyId) : null;
+    invariant(!sample.journeyId || journey, `${sample.id}: journey join is orphaned`);
+    const evidenceBindingId = matrixSample.qualification.evidenceBindingId ?? null;
+    const visual = indexes.visualBySample.get(sample.id) ?? null;
+    if (matrixSample.qualification.state === "qualified") {
+      invariant(evidenceBindingId && indexes.evidenceBindings.has(evidenceBindingId), `${sample.id}: missing evidence binding`);
+      invariant(visual && visual.journeyId === sample.journeyId, `${sample.id}: missing qualified visual evidence`);
+    } else {
+      invariant(!evidenceBindingId && !visual, `${sample.id}: unqualified card overstates evidence`);
+    }
+    const card = {
+      id: sample.id,
+      title: sample.title,
+      summary: sample.summary,
+      canonicalPath: canonicalSiteSamplePath(sample.id),
+      track: sample.track,
+      journey: journey
+        ? { id: journey.id, title: journey.title, status: journey.status }
+        : null,
+      source: structuredClone(sample.source),
+      sdk: structuredClone(sample.sdk),
+      tasks: [...matrixSample.tasks],
+      capabilities: [...matrixSample.supportClaimIds],
+      protocols: [...matrixSample.protocolIds],
+      catalogProtocols: [...matrixSample.catalogProtocols],
+      renderers: [...matrixSample.renderers],
+      data: structuredClone(sample.data),
+      supportTier: sample.supportTier,
+      lifecycle: structuredClone(sample.lifecycle),
+      evidence: structuredClone(sample.evidence),
+      expectedDegradation: sample.expectedDegradation,
+      qualification: structuredClone(matrixSample.qualification),
+      evidenceBindingId,
+      visualEvidence: visual ? structuredClone(visual) : null,
+    };
+    return { ...card, searchText: siteConsumerSearchText(card) };
+  });
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+  const qualifiedCards = cards.filter((card) => card.qualification.state === "qualified");
+  const qualifiedJourneys = qualifiedCards.map((card) => ({
+    journeyId: card.journey.id,
+    sampleId: card.id,
+    canonicalPath: card.canonicalPath,
+    evidenceBindingId: card.evidenceBindingId,
+    visualEvidence: structuredClone(card.visualEvidence),
+  }));
+  const visualSampleIds = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.sampleId).sort();
+  invariant(
+    JSON.stringify(qualifiedCards.map((card) => card.id).sort()) === JSON.stringify(visualSampleIds),
+    "site consumer handoff qualified and visual sample sets disagree",
+  );
+  for (const entry of qualifiedJourneys) {
+    if (entry.journeyId === "incident-operations") {
+      invariant(
+        entry.visualEvidence.liveEvidence.realtime?.observationWindowMs > 0,
+        "incident operations consumer handoff must remain realtime",
+      );
+    }
+  }
+
+  const filters = {
+    tasks: orderedUnique(cards.flatMap((card) => card.tasks)),
+    capabilities: orderedUnique(cards.flatMap((card) => card.capabilities)),
+    protocols: orderedUnique(cards.flatMap((card) => card.protocols)),
+    catalogProtocols: orderedUnique(cards.flatMap((card) => card.catalogProtocols)),
+    renderers: orderedUnique(cards.flatMap((card) => card.renderers)),
+    dataModes: orderedUnique(cards.map((card) => card.data.mode)),
+    authModes: orderedUnique(cards.map((card) => card.data.authMode)),
+    supportTiers: orderedUnique(cards.map((card) => card.supportTier)),
+    lifecycleStates: orderedUnique(cards.map((card) => card.lifecycle.state)),
+    qualificationStates: orderedUnique(cards.map((card) => card.qualification.state)),
+  };
+  invariant(
+    filters.tasks.length > 0 && filters.capabilities.length > 0 && filters.protocols.length > 0,
+    "site consumer task/capability/protocol filters must each resolve at least one public card",
+  );
+  invariant(
+    Object.values(filters).every((values) => values.length <= SITE_CONSUMER_MAX_FACET_VALUES),
+    "site consumer facet inventory exceeds its bounded value count",
+  );
+
+  const lifecycleNotices = cards
+    .filter((card) => card.lifecycle.state !== "active")
+    .map((card) => ({
+      sampleId: card.id,
+      canonicalPath: card.canonicalPath,
+      state: card.lifecycle.state,
+      reason: card.lifecycle.reason,
+      targetRelease: card.lifecycle.targetRelease,
+      replacement: resolvedSiteConsumerReplacement(
+        card.lifecycle.replacement,
+        indexes,
+        publicSampleIds,
+      ),
+    }));
+  const gaps = matrix.gaps.map((gap) => ({
+    ...structuredClone(gap),
+    candidateRoutes: gap.candidateSampleIds
+      .filter((sampleId) => cardById.has(sampleId))
+      .map((sampleId) => ({ sampleId, canonicalPath: cardById.get(sampleId).canonicalPath })),
+  }));
+
+  const handoff = {
+    format: "honua.site.sdk-sample-consumer-handoff.v1",
+    schemaVersion: 1,
+    sdk: structuredClone(matrix.sdk),
+    ownership: {
+      producer: "honua-io/honua-sdk-js#550",
+      consumer: "honua-io/honua-site",
+      executableSourceOwner: "honua-io/honua-sdk-js",
+      presentationOwner: "honua-io/honua-site",
+      sourceImplementationDuplicated: false,
+    },
+    inputs: {
+      siteProjection: siteConsumerArtifactReference(
+        SITE_PROJECTION_PATH,
+        SITE_PROJECTION_SCHEMA_PATH,
+        projection,
+      ),
+      capabilityMatrix: siteConsumerArtifactReference(
+        CAPABILITY_SAMPLE_MATRIX_PATH,
+        CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH,
+        matrix,
+      ),
+      visualEvidence: siteConsumerArtifactReference(
+        GOLDEN_VISUAL_EVIDENCE_PATH,
+        GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH,
+        visualEvidence,
+      ),
+    },
+    policy: {
+      qualificationAuthority: "validated-matrix-and-visual-evidence",
+      qualifiedRequires: ["source", "packed", "fixture", "live", "desktop", "mobile", "semantic-gates"],
+      honestZeroQualificationAllowed: true,
+      externalListings: "canonical-routes-only",
+      canonicalRoutes: {
+        index: "samples/index.html",
+        detailPattern: "samples/<sample-id>.html",
+        migrationMap: "samples/routes.html",
+        manifest: "samples/site-handoff.v1.json",
+        statusPages: ["fixture", "retire", "replace"],
+      },
+      limits: {
+        maxArtifactBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+        maxCards: SITE_CONSUMER_MAX_CARDS,
+        maxRoutes: SITE_CONSUMER_MAX_ROUTES,
+        maxGaps: SITE_CONSUMER_MAX_GAPS,
+        maxFacetValues: SITE_CONSUMER_MAX_FACET_VALUES,
+        maxFilterValueCharacters: SITE_CONSUMER_MAX_FILTER_VALUE_CHARACTERS,
+        maxJsonNodes: SITE_CONSUMER_MAX_JSON_NODES,
+        maxJsonDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
+        maxStringCharacters: SITE_CONSUMER_MAX_SEARCH_TEXT_CHARACTERS,
+        maxAggregateStringCharacters: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+      },
+      interaction: siteConsumerInteractionContract(visualEvidence),
+    },
+    filters,
+    counts: {
+      cards: cards.length,
+      qualifiedJourneys: qualifiedJourneys.length,
+      canonicalRoutes: cards.length,
+      legacyRoutes: siteConsumerLegacyRoutes(projection, indexes, publicSampleIds).length,
+      lifecycleNotices: lifecycleNotices.length,
+      gaps: gaps.length,
+      qualifiedMatrixCells: {
+        goldenJourneys: qualifiedCoverageCount(matrix.goldenJourneys),
+        protocolOperations: qualifiedCoverageCount(matrix.protocolOperations),
+        supportClaims: qualifiedCoverageCount(matrix.supportClaims),
+        packageEntrypoints: qualifiedCoverageCount(matrix.packageEntrypoints),
+      },
+    },
+    cards,
+    qualifiedJourneys,
+    canonicalRoutes: cards.map((card) => ({
+      sampleId: card.id,
+      path: card.canonicalPath,
+      track: card.track,
+      lifecycleState: card.lifecycle.state,
+      presentation: ["retire", "replace"].includes(card.lifecycle.state)
+        ? "lifecycle-status"
+        : "sample-detail",
+      externalListingEligible: true,
+    })),
+    legacyRoutes: siteConsumerLegacyRoutes(projection, indexes, publicSampleIds),
+    lifecycleNotices,
+    gaps,
+  };
+  validateSiteConsumerJsonBudget(handoff, "generated site consumer handoff");
+  return handoff;
+}
+
+async function validateSiteConsumerLocalLink(relativePath, label, expectedKind) {
+  invariant(
+    typeof relativePath === "string" &&
+      relativePath.length > 0 &&
+      relativePath.length <= 512 &&
+      !path.isAbsolute(relativePath) &&
+      !relativePath.includes("\\") &&
+      path.posix.normalize(relativePath) === relativePath &&
+      relativePath !== ".." &&
+      !relativePath.startsWith("../"),
+    `${label} must be a bounded canonical repository-relative path`,
+  );
+  const canonicalRoot = await realpath(PROJECT_ROOT);
+  let absolute = PROJECT_ROOT;
+  let metadata;
+  const segments = relativePath.split("/");
+  for (let index = 0; index < segments.length; index += 1) {
+    absolute = path.join(absolute, segments[index]);
+    metadata = await lstat(absolute).catch((error) => {
+      if (error?.code === "ENOENT") throw new Error(`${label} is broken or missing`);
+      throw error;
+    });
+    invariant(!metadata.isSymbolicLink(), `${label} must not contain a symlink`);
+    if (index < segments.length - 1) invariant(metadata.isDirectory(), `${label} ancestor must be a directory`);
+  }
+  const canonical = await realpath(absolute);
+  invariant(
+    canonical === path.join(canonicalRoot, ...segments),
+    `${label} escapes its canonical repository root`,
+  );
+  const finalMetadata = await lstat(absolute);
+  invariant(
+    !finalMetadata.isSymbolicLink() &&
+      finalMetadata.dev === metadata.dev &&
+      finalMetadata.ino === metadata.ino &&
+      finalMetadata.mode === metadata.mode,
+    `${label} changed while it was being validated`,
+  );
+  invariant(
+    expectedKind === "directory" ? finalMetadata.isDirectory() : finalMetadata.isFile(),
+    `${label} must be a ${expectedKind}`,
+  );
+}
+
+function validateSiteConsumerExternalUrl(value, label) {
+  invariant(
+    typeof value === "string" && value.length > 0 && value.length <= 2048,
+    `${label} exceeds its URL character budget`,
+  );
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${label} must be an absolute URL`);
+  }
+  invariant(
+    url.protocol === "https:" &&
+      url.href === value &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash,
+    `${label} must be credential-free canonical HTTPS`,
+  );
+}
+
+async function validateSiteConsumerArtifactInput(reference, label) {
+  await validateSiteConsumerLocalLink(reference.schemaPath, `${label} schema`, "file");
+  const bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
+    label: `${label} artifact`,
+    maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+  });
+  invariant(
+    bytes.byteLength === reference.bytes && sha256(bytes) === reference.sha256,
+    `${label} artifact byte or digest binding drift`,
+  );
+  const artifact = parseJsonDocument(bytes.toString("utf8"), reference.path);
+  invariant(
+    artifact?.format === reference.format && artifact.schemaVersion === reference.schemaVersion,
+    `${label} artifact format or schema version drift`,
+  );
+  await validateJsonSchema(artifact, reference.schemaPath);
+}
+
+export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
+  validateSiteConsumerJsonBudget(handoff, "site consumer handoff");
+  validateSensitiveMetadata(handoff, "site consumer handoff", {
+    maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
+    maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
+  });
+  await validateJsonSchema(handoff, SITE_CONSUMER_HANDOFF_SCHEMA_PATH);
+  const { projection, matrix, visualEvidence, catalog, packageJson, supportTruth, qualificationEvidence } = inputs;
+  const authorityInputSupplied = [
+    projection,
+    matrix,
+    visualEvidence,
+    catalog,
+    packageJson,
+    supportTruth,
+    qualificationEvidence,
+  ].some((value) => value !== undefined);
+  if (authorityInputSupplied) {
+    invariant(
+      projection &&
+        matrix &&
+        visualEvidence &&
+        catalog &&
+        packageJson &&
+        supportTruth &&
+        qualificationEvidence,
+      "site consumer handoff validation requires the complete authority input set",
+    );
+    await validateSiteProjection(projection);
+    await validateCapabilitySampleMatrix(matrix, {
+      catalog,
+      packageJson,
+      supportTruth,
+      qualificationEvidence,
+    });
+    await validateGoldenJourneyVisualEvidence(visualEvidence, catalog, qualificationEvidence);
+    const expected = generateSiteConsumerHandoff(projection, matrix, visualEvidence);
+    invariant(
+      JSON.stringify(handoff) === JSON.stringify(expected),
+      "site consumer handoff does not match its validated authority inputs",
+    );
+  } else if (inputs.verifyCheckout !== false) {
+    for (const [name, reference] of Object.entries(handoff.inputs)) {
+      await validateSiteConsumerArtifactInput(reference, `site consumer ${name}`);
+    }
+  }
+
+  const cardById = new Map(handoff.cards.map((card) => [card.id, card]));
+  invariant(cardById.size === handoff.cards.length, "site consumer handoff card IDs must be unique");
+  invariant(
+    handoff.cards.length > 0 &&
+      handoff.counts.cards === handoff.cards.length &&
+      handoff.counts.qualifiedJourneys === handoff.qualifiedJourneys.length &&
+      handoff.counts.canonicalRoutes === handoff.canonicalRoutes.length &&
+      handoff.counts.legacyRoutes === handoff.legacyRoutes.length &&
+      handoff.counts.lifecycleNotices === handoff.lifecycleNotices.length &&
+      handoff.counts.gaps === handoff.gaps.length,
+    "site consumer handoff unexpectedly contains zero or miscounted bounded collections",
+  );
+  for (const values of Object.values(handoff.filters)) sortedUnique(values, "site consumer filter values");
+  invariant(
+    new Set(handoff.canonicalRoutes.map((route) => route.path)).size === handoff.canonicalRoutes.length,
+    "site consumer canonical routes must be unique",
+  );
+  invariant(
+    handoff.canonicalRoutes.every(
+      (route) =>
+        cardById.get(route.sampleId)?.canonicalPath === route.path &&
+        route.path === canonicalSiteSamplePath(route.sampleId) &&
+        route.presentation ===
+          (["retire", "replace"].includes(cardById.get(route.sampleId)?.lifecycle.state)
+            ? "lifecycle-status"
+            : "sample-detail") &&
+        route.externalListingEligible === true,
+    ),
+    "site consumer external listings must use only stable canonical routes",
+  );
+  invariant(
+    new Set(handoff.legacyRoutes.map((route) => route.path)).size === handoff.legacyRoutes.length &&
+      handoff.legacyRoutes.every(
+        (route) =>
+          route.resolution === "canonical-sample"
+            ? route.httpStatus === 308 &&
+              route.presentation === "permanent-redirect" &&
+              cardById.get(route.sampleId)?.canonicalPath === route.canonicalPath
+            : route.httpStatus === null &&
+              route.presentation === "status-page" &&
+              route.canonicalPath === null,
+      ),
+    "site consumer legacy routes are duplicated, broken, or unresolved",
+  );
+  const qualifiedCards = handoff.cards.filter((card) => card.qualification.state === "qualified");
+  invariant(
+    JSON.stringify(qualifiedCards.map((card) => card.id)) ===
+      JSON.stringify(handoff.qualifiedJourneys.map((entry) => entry.sampleId)) &&
+      qualifiedCards.every(
+        (card) => card.evidenceBindingId && card.visualEvidence && card.journey?.status === "qualified",
+      ),
+    "site consumer handoff does not include every qualified canonical track",
+  );
+  for (const entry of handoff.qualifiedJourneys) {
+    if (entry.journeyId === "incident-operations") {
+      invariant(
+        entry.visualEvidence.liveEvidence.realtime?.observationWindowMs > 0,
+        "incident operations consumer handoff must remain realtime",
+      );
+    }
+  }
+  invariant(
+    handoff.lifecycleNotices.every(
+      (notice) =>
+        cardById.get(notice.sampleId)?.canonicalPath === notice.canonicalPath &&
+        cardById.get(notice.sampleId)?.lifecycle.state === notice.state &&
+        (!["retire", "replace"].includes(notice.state) || notice.replacement),
+    ),
+    "site consumer lifecycle status or replacement route is incomplete",
+  );
+  for (const card of handoff.cards) {
+    invariant(
+      card.source.repository === "honua-io/honua-sdk-js",
+      `${card.id}: executable source owner is not canonical`,
+    );
+    if (inputs.verifyCheckout !== false) {
+      await validateSiteConsumerLocalLink(card.source.path, `${card.id} source link`, "directory");
+      await validateSiteConsumerLocalLink(card.source.docsPath, `${card.id} docs link`, "file");
+    }
+  }
+  for (const notice of handoff.lifecycleNotices) {
+    if (notice.replacement?.kind === "external") {
+      validateSiteConsumerExternalUrl(notice.replacement.url, `${notice.sampleId} replacement link`);
+    }
+  }
+}
+
+function siteConsumerFilterCase(id, handoff, filters) {
+  return {
+    id,
+    filters,
+    expectedSampleIds: filterSiteConsumerCards(handoff.cards, filters).map((card) => card.id),
+  };
+}
+
+export function generateSiteConsumerFixtureV3(handoff) {
+  const representative = handoff.cards.find(
+    (card) => card.tasks.length > 0 && card.capabilities.length > 0 && card.protocols.length > 0,
+  );
+  invariant(representative, "site consumer fixture requires a filterable representative card");
+  const filterCases = [
+    siteConsumerFilterCase("all-public-cards", handoff, {}),
+    siteConsumerFilterCase("task", handoff, { task: handoff.filters.tasks[0] }),
+    siteConsumerFilterCase("capability", handoff, { capability: handoff.filters.capabilities[0] }),
+    siteConsumerFilterCase("protocol", handoff, { protocol: handoff.filters.protocols[0] }),
+    siteConsumerFilterCase("combined", handoff, {
+      task: representative.tasks[0],
+      capability: representative.capabilities[0],
+      protocol: representative.protocols[0],
+    }),
+    siteConsumerFilterCase("text", handoff, { text: representative.id }),
+    siteConsumerFilterCase("zero-results", handoff, { text: "__no_sdk_sample_matches__" }),
+  ];
+  return {
+    format: "honua.site.sdk-sample-consumer-fixture.v3",
+    schemaVersion: 3,
+    accepts: {
+      handoffFormat: handoff.format,
+      handoffSchemaVersion: handoff.schemaVersion,
+      siteProjectionFormat: handoff.inputs.siteProjection.format,
+      capabilityMatrixFormat: handoff.inputs.capabilityMatrix.format,
+      visualEvidenceFormat: handoff.inputs.visualEvidence.format,
+    },
+    input: siteConsumerArtifactReference(
+      SITE_CONSUMER_HANDOFF_PATH,
+      SITE_CONSUMER_HANDOFF_SCHEMA_PATH,
+      handoff,
+    ),
+    assertions: {
+      cardCount: handoff.counts.cards,
+      qualifiedJourneyCount: handoff.counts.qualifiedJourneys,
+      canonicalRouteCount: handoff.counts.canonicalRoutes,
+      legacyRouteCount: handoff.counts.legacyRoutes,
+      gapCount: handoff.counts.gaps,
+      everyQualifiedTrackHandedOff: true,
+      honestZeroQualificationAllowed: true,
+      allLegacyRoutesResolved: true,
+      externalListingsCanonicalOnly: true,
+      sourceImplementationDuplicated: false,
+      taskCapabilityProtocolFiltersRequired: true,
+      accessibleKeyboardContractRequired: true,
+      desktopMobileResponsiveContractRequired: true,
+      incidentOperationsRealtimeRequired: true,
+    },
+    filterCases,
+    interaction: structuredClone(handoff.policy.interaction),
+  };
+}
+
+export async function validateSiteConsumerFixtureV3(fixture, handoff) {
+  validateSiteConsumerJsonBudget(fixture, "site consumer fixture v3");
+  validateSensitiveMetadata(fixture, "site consumer fixture v3", {
+    maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
+    maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
+  });
+  await validateJsonSchema(fixture, SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH);
+  const expected = generateSiteConsumerFixtureV3(handoff);
+  invariant(
+    JSON.stringify(fixture) === JSON.stringify(expected),
+    "site consumer fixture v3 does not match the versioned handoff",
+  );
+  for (const filterCase of fixture.filterCases) {
+    invariant(
+      JSON.stringify(
+        filterSiteConsumerCards(handoff.cards, filterCase.filters).map((card) => card.id),
+      ) === JSON.stringify(filterCase.expectedSampleIds),
+      `${filterCase.id}: site consumer executable filter fixture drift`,
+    );
+  }
+  invariant(
+    fixture.interaction.keyboard.focusAfterClear === "task-search" &&
+      fixture.interaction.keyboard.noKeyboardTrap &&
+      fixture.interaction.responsive.requiredViewports.some((entry) => entry.id === "desktop") &&
+      fixture.interaction.responsive.requiredViewports.some((entry) => entry.id === "mobile"),
+    "site consumer keyboard or responsive fixture is incomplete",
+  );
+}
+
 export function generateCiSelection(catalog) {
   const profiles = catalog.qualityProfiles.map((profile) => ({
     id: profile.id,
@@ -4977,20 +5932,27 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     qualificationEvidence,
   );
   const visualEvidence = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
-  await validateCapabilitySampleMatrix(capabilityMatrix, {
+  const handoff = generateSiteConsumerHandoff(projection, capabilityMatrix, visualEvidence);
+  const consumerFixtureV3 = generateSiteConsumerFixtureV3(handoff);
+  await validateSiteConsumerHandoff(handoff, {
+    projection,
+    matrix: capabilityMatrix,
+    visualEvidence,
     catalog,
     packageJson,
     supportTruth,
     qualificationEvidence,
   });
-  await validateGoldenJourneyVisualEvidence(visualEvidence, catalog, qualificationEvidence);
+  await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff);
   return new Map([
     [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
     [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
     [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
+    [SITE_CONSUMER_HANDOFF_PATH, stableJson(handoff)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
     [SITE_CONSUMER_FIXTURE_PATH, stableJson(generateSiteConsumerFixture(projection))],
+    [SITE_CONSUMER_V3_FIXTURE_PATH, stableJson(consumerFixtureV3)],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
   ]);
 }

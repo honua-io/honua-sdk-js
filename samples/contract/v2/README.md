@@ -31,6 +31,16 @@ execution evidence so none of those meanings has to be inferred from another.
   the exact Playwright project and browser runtime, every semantic gate
   receipt, artifact integrity, and the shared freshness window. Site consumer
   routes and presentation remain a separate consumer concern.
+- `site-consumer-handoff.schema.json` defines that separate consumer boundary.
+  `samples/dist/honua-site-consumer-handoff.v1.json` content-binds the site
+  projection, capability matrix, and golden visual evidence; projects public
+  cards and visible gaps; declares task, capability, protocol, and supporting
+  facets; and resolves every canonical, legacy, replacement, and retirement
+  route without copying executable source. The generated v3 consumer fixture
+  pins the artifact digest and executes representative filter cases plus the
+  required accessible keyboard and desktop/mobile responsive behavior. Both
+  artifacts publish closed collection, string, JSON-depth, and byte budgets;
+  the fixture separately exercises positive text and zero-result searches.
 - `migrations/catalog.v1-to-v2.json` is the reviewed one-time migration overlay.
   `npm run samples:migrate:v1` reproduces `samples/catalog.v2.json` from the
   frozen v1 catalog and this overlay.
@@ -78,6 +88,21 @@ catalog. Freshness fields are copied only from the signed receipts; the matrix
 does not add an observation or generation clock. With no qualified journeys,
 the canonical matrix has zero receipts, zero evidence bindings, and no
 qualified cells.
+
+The site consumer handoff preserves that qualification boundary. Every
+matrix-qualified public sample must appear as one canonical card with its
+source/packed evidence binding and matching current visual evidence; the
+Incident Operations journey additionally requires a positive realtime
+observation window. An empty qualified set is valid when the authority inputs
+contain no admitted receipt set. Empty public cards are never valid. Legacy
+SDK routes resolve to `samples/<sample-id>.html`; internal fixtures and
+site-owned exceptions require an explicit status page instead of a substitute
+application. Canonical `retire` and `replace` routes are lifecycle status pages,
+while their legacy aliases remain permanent redirects to that status. External
+listings may use only canonical paths. The interaction
+object is a downstream requirement, not evidence that `honua-site` has already
+implemented or deployed it; that repository must validate the v3 fixture and
+run its own static/accessibility/responsive build before adoption is complete.
 
 CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence
