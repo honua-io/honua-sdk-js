@@ -177,7 +177,6 @@ Labels: `fixture` · `authenticated` · `experimental` · `degraded`
 - Provenance: Committed Oahu story fixtures or configured Honua services.
 - Freshness: Fixture capture or live layer observation time.
 - Catalog degradation: Terrain and live overlays fail independently with structured status.
-- Live sample: [demo-maui-3d.html](https://honua.io/demo-maui-3d.html)
 - Supported API imports: `@honua/sdk-js/map` (`HonuaMap`); `@honua/sdk-js/runtime` (`HonuaMapRuntime`)
 - honua.io journey: `imagery-terrain-3d`
 - Degradation: The runnable 2.5D shell still reaches the scene-workspace compatibility surface; stable map/runtime imports are the taught foundation until #399 migrates it.
