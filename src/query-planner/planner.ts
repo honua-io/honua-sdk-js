@@ -374,6 +374,7 @@ function assertCredentialFreeLegacyDescriptor(descriptor: SourceDescriptor): voi
 }
 
 function assertPlanPersistenceSafe(plan: QueryExecutionPlan): void {
+  assertStructuredDiagnostics(plan);
   if (plan.version === QUERY_PLAN_VERSION) {
     if (plan.ir.version !== "1.0") throw invalidPersistedPlan();
     if (plan.ir.source.protocol === "geoparquet") {
@@ -381,13 +382,12 @@ function assertPlanPersistenceSafe(plan: QueryExecutionPlan): void {
       if (!sources || sources.length === 0 || sources.some((source) => !isCredentialFreeLegacySource(source))) {
         throw invalidPersistedPlan();
       }
-      for (const step of plan.steps) {
-        if (step.engine !== "remote") continue;
-        if (step.compiled.compiler !== "duckdb-sql-v1") throw invalidPersistedPlan();
-        const expected = compileDuckDbQuery(plan.ir.source, step.query);
-        if (canonicalStringify(toJsonValue(step.compiled)) !== canonicalStringify(toJsonValue(expected))) {
-          throw invalidPersistedPlan();
-        }
+    }
+    for (const step of plan.steps) {
+      if (step.engine !== "remote") continue;
+      const expected = compileRemoteQuery(plan.ir.source, step.query, step.operation);
+      if (!sameCanonicalValue(step.compiled, expected)) {
+        throw invalidPersistedPlan();
       }
     }
     return;
@@ -402,6 +402,81 @@ function assertPlanPersistenceSafe(plan: QueryExecutionPlan): void {
   }
   const expected = rebuildGeoParquetQueryPlanV2(plan);
   if (canonicalStringify(toJsonValue(plan)) !== canonicalStringify(toJsonValue(expected))) throw invalidPersistedPlan();
+}
+
+function assertStructuredDiagnostics(plan: QueryExecutionPlan): void {
+  if (plan.capabilityPolicy !== "strict" && plan.capabilityPolicy !== "degraded") throw invalidPersistedPlan();
+  const fallback = normalizeFallback(plan.fallback);
+  const estimates = normalizeEstimates(plan.estimates);
+  const executionMode = normalizeExecutionMode(plan.validity.executionMode);
+  if (!sameCanonicalValue(plan.fallback, fallback) || !sameCanonicalValue(plan.estimates, estimates)) {
+    throw invalidPersistedPlan();
+  }
+  const expectedProvenance = rebuildPersistedProvenance(plan);
+  if (!sameCanonicalValue(plan.provenance, expectedProvenance)) throw invalidPersistedPlan();
+
+  const expectedSteps = plan.steps.map((step) => createStepDiagnostics(step, estimates, expectedProvenance));
+  for (let index = 0; index < plan.steps.length; index += 1) {
+    const step = plan.steps[index];
+    const expected = expectedSteps[index];
+    if (!step || !expected) throw invalidPersistedPlan();
+    const actual = {
+      fidelity: step.fidelity,
+      losses: step.losses,
+      bounds: step.bounds,
+      provenance: step.provenance,
+    };
+    if (!sameCanonicalValue(actual, expected)) throw invalidPersistedPlan();
+    if (step.engine === "remote") {
+      const expectedRequests = step.operation === "queryAll" ? (estimates.requests ?? 1) : 1;
+      if (step.requests !== expectedRequests) throw invalidPersistedPlan();
+    }
+  }
+
+  const expectedFidelity = summarizeFidelity(expectedSteps);
+  const expected = {
+    diagnosticsVersion: QUERY_PLAN_DIAGNOSTICS_VERSION,
+    fidelity: expectedFidelity.fidelity,
+    losses: expectedFidelity.losses,
+    bounds: summarizePlanBounds(expectedSteps),
+    cache: createCacheDecision(persistedCacheOptions(plan.cache)),
+    provenance: expectedProvenance,
+    validity: createPlanValidity(plan.ir, expectedProvenance, plan.capabilityPolicy, fallback, executionMode),
+    warnings: createPlanWarnings(plan.steps, plan.ir.source),
+  };
+  const actual = {
+    diagnosticsVersion: plan.diagnosticsVersion,
+    fidelity: plan.fidelity,
+    losses: plan.losses,
+    bounds: plan.bounds,
+    cache: plan.cache,
+    provenance: plan.provenance,
+    validity: plan.validity,
+    warnings: plan.warnings,
+  };
+  if (!sameCanonicalValue(actual, expected)) throw invalidPersistedPlan();
+}
+
+function rebuildPersistedProvenance(plan: QueryExecutionPlan): QueryExecutionPlan["provenance"] {
+  const source = plan.ir.source;
+  const schema = plan.provenance.schema;
+  const descriptor: SourceDescriptor = {
+    id: source.id,
+    protocol: source.protocol,
+    locator: { url: source.endpoint },
+    capabilities: capabilities(parsePlanCapabilities(source.capabilities)),
+    ...(schema.state === "known" && schema.basis === "schema-v2"
+      ? { schemaV2: { kind: "honua.source-schema", version: "2.0", fingerprint: schema.fingerprint } }
+      : {}),
+  };
+  return createQueryPlanProvenance(descriptor, source, {
+    ...(source.schemaVersion ? { schemaVersion: source.schemaVersion } : {}),
+    discovery: persistedDiscoveryContext(plan.provenance.discovery),
+  });
+}
+
+function sameCanonicalValue(left: unknown, right: unknown): boolean {
+  return canonicalStringify(toJsonValue(left)) === canonicalStringify(toJsonValue(right));
 }
 
 /**

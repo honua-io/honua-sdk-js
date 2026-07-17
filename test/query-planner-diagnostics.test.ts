@@ -177,6 +177,29 @@ describe("structured query-plan decisions", () => {
     expect(plan.warnings).toContainEqual(
       expect.objectContaining({ code: "approximate-spatial-filter", path: "$.ir.query.spatialFilter" }),
     );
+
+    const dishonest = structuredClone(plan) as unknown as Record<string, unknown>;
+    dishonest.fidelity = "exact";
+    dishonest.losses = [];
+    dishonest.warnings = [];
+    const firstStep = (dishonest.steps as Array<Record<string, unknown>>)[0];
+    if (!firstStep) throw new Error("expected a remote step");
+    firstStep.fidelity = "exact";
+    firstStep.losses = [];
+    resignPlan(dishonest);
+    expect(captureError(() => serializeQueryPlan(dishonest as never))).toMatchObject({ code: "invalid-plan" });
+
+    const disguisedCompiler = structuredClone(plan) as unknown as Record<string, unknown>;
+    disguisedCompiler.fidelity = "exact";
+    disguisedCompiler.losses = [];
+    disguisedCompiler.warnings = [];
+    const disguisedStep = (disguisedCompiler.steps as Array<Record<string, unknown>>)[0];
+    if (!disguisedStep) throw new Error("expected a remote step");
+    disguisedStep.fidelity = "exact";
+    disguisedStep.losses = [];
+    delete (disguisedStep.compiled as Record<string, unknown>).bboxApproximated;
+    resignPlan(disguisedCompiler);
+    expect(captureError(() => serializeQueryPlan(disguisedCompiler as never))).toMatchObject({ code: "invalid-plan" });
   });
 
   it("marks bounded local execution equivalent and exposes materialization ceilings", () => {
