@@ -40,6 +40,8 @@
     "ogc-records",
     "ogc-tiles",
     "ogc-maps",
+    "wms",
+    "wmts",
     "geoservices-feature-service",
     "geoservices-map-service",
     "geoservices-image-service"
@@ -354,14 +356,18 @@
           "protocolIds": [
             "wms"
           ],
-          "supportClaimIds": [],
+          "supportClaimIds": [
+            "wms-discovery-standalone"
+          ],
           "external": false
         },
         "wmts": {
           "protocolIds": [
             "wmts"
           ],
-          "supportClaimIds": [],
+          "supportClaimIds": [
+            "wmts-discovery-standalone"
+          ],
           "external": false
         }
       }
@@ -558,6 +564,12 @@
       "id": "wmts-fixtures",
       "kind": "fixture",
       "path": "test/contract/wmts.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "wms-wmts-connect-fixtures",
+      "kind": "fixture",
+      "path": "test/connect-wms-wmts.test.ts",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -1411,6 +1423,46 @@
       "evidence": [
         "wfs-fixtures",
         "standalone-live"
+      ]
+    },
+    {
+      "id": "wms-discovery-standalone",
+      "label": "WMS 1.3 discovery and raster rendering",
+      "protocol": "wms",
+      "operations": [
+        "discovery",
+        "render",
+        "tiles"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "supported",
+      "backendNeeded": "Any WMS 1.3.0 server with a MapLibre-compatible GetMap binding",
+      "api": "connect(), Source descriptor, @honua/sdk-js/map",
+      "notes": "Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding; canonical query remains disabled unless a Honua service id binds the existing FeatureInfo adapter.",
+      "evidence": [
+        "wms-wmts-connect-fixtures",
+        "maplibre-raster-source-fixtures"
+      ]
+    },
+    {
+      "id": "wmts-discovery-standalone",
+      "label": "WMTS 1.0 discovery and raster tiles",
+      "protocol": "wmts",
+      "operations": [
+        "discovery",
+        "render",
+        "tiles"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "supported",
+      "backendNeeded": "Any WMTS 1.0.0 server with a Web Mercator, z-addressable tile matrix set",
+      "api": "connect(), Source descriptor, @honua/sdk-js/map",
+      "notes": "Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms.",
+      "evidence": [
+        "wms-wmts-connect-fixtures",
+        "maplibre-raster-source-fixtures"
       ]
     },
     {

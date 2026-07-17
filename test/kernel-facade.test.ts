@@ -276,6 +276,89 @@ describe("createHonua application kernel facade", () => {
     await honua.dispose();
   });
 
+  it.each([
+    [
+      "WMS",
+      {
+        url: "https://geo.example.test/dispatch?tenant=public",
+        protocol: "wms" as const,
+        typeName: "parcels",
+        styleId: "outline",
+      },
+      { protocol: "wms", typeName: "parcels", styleId: "outline" },
+    ],
+    [
+      "WMTS",
+      {
+        url: "https://geo.example.test/dispatch?tenant=public",
+        protocol: "wmts" as const,
+        typeName: "imagery",
+        styleId: "day",
+        tileMatrixSetId: "WebMercatorQuad",
+      },
+      {
+        protocol: "wmts",
+        typeName: "imagery",
+        styleId: "day",
+        tileMatrixSetId: "WebMercatorQuad",
+      },
+    ],
+  ] as const)(
+    "forwards structured %s raster selectors and limits through refresh",
+    async (_family, locator, expected) => {
+      const initial = mockConnection(["initial"]);
+      const refreshed = mockConnection(["refreshed"]);
+      const calls: ConnectOptions[] = [];
+      const honua = createHonuaKernel({
+        connectDelegate: sequenceDelegate(calls, [initial.connection, refreshed.connection]),
+      });
+      const capabilitiesLimits = { maxBytes: 4096, timeoutMs: 1500 };
+
+      const connection = await honua.connect(locator, { capabilitiesLimits });
+      capabilitiesLimits.maxBytes = 1;
+      capabilitiesLimits.timeoutMs = 1;
+      await connection.inspect({ refresh: true });
+
+      expect(calls).toHaveLength(2);
+      expect(calls[0]).toMatchObject({
+        endpoint: "https://geo.example.test/dispatch?tenant=public",
+        ...expected,
+        capabilitiesLimits: { maxBytes: 4096, timeoutMs: 1500 },
+      });
+      expect(calls[1]).toMatchObject({
+        endpoint: "https://geo.example.test/dispatch?tenant=public",
+        ...expected,
+        refresh: true,
+        capabilitiesLimits: { maxBytes: 4096, timeoutMs: 1500 },
+      });
+      expect(Object.isFrozen(calls[0]?.capabilitiesLimits)).toBe(true);
+      expect(Object.isFrozen(calls[1]?.capabilitiesLimits)).toBe(true);
+
+      await honua.dispose();
+    },
+  );
+
+  it.each([
+    ["styleId", { styleId: "outline" }, { styleId: "night" }],
+    ["tileMatrixSetId", { tileMatrixSetId: "WebMercatorQuad" }, { tileMatrixSetId: "Custom" }],
+  ] as const)(
+    "rejects conflicting structured raster selector %s before delegation",
+    async (_field, locator, options) => {
+      const delegate = vi.fn<KernelConnectDelegate>();
+      const honua = createHonuaKernel({ connectDelegate: delegate });
+
+      await expect(
+        honua.connect(
+          { url: "https://geo.example.test/dispatch", protocol: "wmts", typeName: "imagery", ...locator },
+          options,
+        ),
+      ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+      expect(delegate).not.toHaveBeenCalled();
+
+      await honua.dispose();
+    },
+  );
+
   it("owns optional delegated adapter resources through refresh and disposes each exactly once", async () => {
     const initial = mockConnection(["initial"]);
     const refreshed = mockConnection(["refreshed"]);

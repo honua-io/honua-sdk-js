@@ -446,7 +446,7 @@ export function renderReadmeStandaloneSection(manifest) {
   const discovery = supportClaim(manifest, "ogc-processes-discovery-standalone");
   const execution = supportClaim(manifest, "ogc-processes-execution-facade");
   return `**Honua Server is optional for standards clients.** Supported GeoServices, OGC API
-Features, WFS 2.0, STAC, and OData claims work against raw standards-speaking endpoints.
+Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (\`${tiles.status}\`), Maps (\`${maps.status}\`), and Records
 (\`${records.status}\`) also discover and use raw advertised paths. OGC API Processes
 keeps two honest lanes: raw discovery is \`${discovery.status}\`, while typed execution
