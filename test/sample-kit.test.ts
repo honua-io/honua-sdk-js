@@ -72,6 +72,22 @@ describe("shared sample kit", () => {
     expect(() => subpathGuard?.resolveId?.("@honua/sdk-js/esri-compat")).not.toThrow();
   });
 
+  it("fails closed when a build produces no bundle inventory evidence", () => {
+    const config = createSampleViteConfig(
+      new URL("../examples/standalone-quickstart/vite.config.ts", import.meta.url).href,
+      { sdkEntrypoints: ["@honua/sdk-js"] },
+    );
+    const evidence = (
+      config.plugins as Array<{
+        configResolved?: (config: unknown) => void;
+        closeBundle?: () => void;
+      }>
+    )[1];
+    evidence?.configResolved?.({ command: "build", root: "/tmp/honua-sample", build: { outDir: "dist" } });
+
+    expect(() => evidence?.closeBundle?.()).toThrow("sample bundle closed without a resolved output inventory");
+  });
+
   it("rejects traversal and symlink package export targets", async () => {
     const root = path.resolve("test-results/sample-kit-export-target");
     await rm(root, { recursive: true, force: true });
