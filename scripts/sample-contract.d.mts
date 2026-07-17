@@ -65,6 +65,7 @@ export function validateCatalog(
   packageJson: Record<string, unknown>,
   options?: {
     now?: string;
+    qualificationBootstrapSampleId?: string;
     sourceRevision?: string;
     receiptRoot?: string;
     verifyCheckout?: boolean;

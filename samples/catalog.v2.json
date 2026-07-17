@@ -2049,7 +2049,7 @@
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
-      "validationProfile": "browser-lab",
+      "validationProfile": "golden-browser",
       "validation": [
         "npm run demo:service-explorer:typecheck",
         "npm run demo:service-explorer:build",
