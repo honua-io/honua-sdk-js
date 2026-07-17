@@ -1,0 +1,36 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "gate": "live",
+  "status": "passed",
+  "sdkMode": "source",
+  "sourceRevision": "f0552bcd5b56d8de988a446c6f5ab5fc59a4f153",
+  "sourceDigest": "fb8c3aac60b55c1c1f412745f33abac398c1ebd795b03a3229908b24f1a7b5d8",
+  "runRoot": "samples/evidence/maplibre-quickstart/runs/bc7be4a7-5534-4155-93a9-730f369489b0",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "evidence:first-map:live"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "1d3243dde1e6708638c03ab4385516d05d456a184cb724db87f3c94c095230e7"
+  },
+  "observedAt": "2026-07-17T16:11:32.367Z",
+  "expiresAt": "2026-07-24T16:11:32.367Z",
+  "durationMs": 2585.090507000001,
+  "artifacts": [
+    {
+      "kind": "live-evidence-report",
+      "path": "samples/evidence/maplibre-quickstart/runs/bc7be4a7-5534-4155-93a9-730f369489b0/artifacts/live.json",
+      "bytes": 2667,
+      "sha256": "a9dfa6a443208a4fa59376f15a96ce69fd536141786c9909668298e0ffed6591"
+    }
+  ]
+}
