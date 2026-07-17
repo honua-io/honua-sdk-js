@@ -84,6 +84,49 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await expect(page.locator("#edit-outcome")).toContainText("Reset:");
     await expect(page.locator("#detail-status")).toHaveText("Assigned");
 
+    await page.getByRole("button", { name: "Stage Edit" }).click();
+    const mutationRoutes = new Set([
+      "fixture-action-concurrent-edit",
+      "fixture-action-edit",
+      "fixture-action-reset-edit",
+    ]);
+    const mutationRequestCount = async () => {
+      const evidence = await (await fetch(fixtureServer.requestLogUrl)).json();
+      return evidence.requests.filter((request) => mutationRoutes.has(request.routeId)).length;
+    };
+    const beforeReconnectDenials = await mutationRequestCount();
+    await page.evaluate(() =>
+      Promise.all([
+        window.__HONUA_INCIDENT_RUNTIME__?.reconnect(),
+        window.__HONUA_INCIDENT_RUNTIME__?.submitEdit(),
+        window.__HONUA_INCIDENT_RUNTIME__?.repeatEdit(),
+        window.__HONUA_INCIDENT_RUNTIME__?.simulateConflict(),
+        window.__HONUA_INCIDENT_RUNTIME__?.resetEdit(),
+      ]),
+    );
+    await expect(page.locator("#connection-status")).toHaveText("Reconnecting");
+    await expect(page.locator("#live-authority")).toHaveText("Read-only");
+    await expect(page.locator("#edit-outcome")).toContainText(/not authoritative/i);
+    expect(await mutationRequestCount()).toBe(beforeReconnectDenials);
+    await page.getByRole("button", { name: "Resume" }).click();
+    await expect(page.locator("#live-authority")).toHaveText("Authoritative");
+
+    await page.getByRole("button", { name: "Mark Stale" }).click();
+    const beforeStaleDenials = await mutationRequestCount();
+    await page.evaluate(() =>
+      Promise.all([
+        window.__HONUA_INCIDENT_RUNTIME__?.submitEdit(),
+        window.__HONUA_INCIDENT_RUNTIME__?.repeatEdit(),
+        window.__HONUA_INCIDENT_RUNTIME__?.simulateConflict(),
+        window.__HONUA_INCIDENT_RUNTIME__?.resetEdit(),
+      ]),
+    );
+    await expect(page.locator("#connection-status")).toHaveText("Stale");
+    await expect(page.locator("#edit-outcome")).toContainText(/not authoritative/i);
+    expect(await mutationRequestCount()).toBe(beforeStaleDenials);
+    await page.getByRole("button", { name: "Resume" }).click();
+    await expect(page.locator("#live-authority")).toHaveText("Authoritative");
+
     await page.getByRole("button", { name: "Step Event" }).click();
     await expect(page.locator("#last-scenario-step")).toHaveText("Escalate outage");
     await expect(page.locator("#summary-critical")).toHaveText("2");

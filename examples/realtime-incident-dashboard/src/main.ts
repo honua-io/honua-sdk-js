@@ -781,16 +781,28 @@ async function bootstrap(): Promise<void> {
       return incidentRecords(store.state).find((incident) => incident.id === id);
     }
 
-    function updateEditPanel(): void {
+    function currentMutationGuard(): IncidentMutationGuard {
       const incident = currentIncidentById(selectedIncidentId);
-      latestMutationGuard = evaluateIncidentMutationGuard({
+      return evaluateIncidentMutationGuard({
         lane,
-        live: latestAuthority.authoritative,
+        live: authorityForLane(store.state, lane).authoritative,
         authorized: incidentTransport.controls.authorized,
         safeEditProfile: incidentTransport.controls.safeDemoEditing,
         sourceIdentity: incidentTransport.controls.sourceIdentity,
         incident,
       });
+    }
+
+    function admitMutation(): boolean {
+      latestMutationGuard = currentMutationGuard();
+      if (latestMutationGuard.enabled) return true;
+      setText("#edit-outcome", latestMutationGuard.reason);
+      return false;
+    }
+
+    function updateEditPanel(): void {
+      const incident = currentIncidentById(selectedIncidentId);
+      latestMutationGuard = currentMutationGuard();
       setText("#edit-profile", incidentTransport.controls.safeDemoEditing ? "Isolated + resettable" : "Unavailable");
       setText("#edit-guard-reason", latestMutationGuard.reason);
       setText("#edit-revision", incident?.revision === undefined ? "-" : String(incident.revision));
@@ -803,10 +815,7 @@ async function bootstrap(): Promise<void> {
 
     function stageEdit(): string | null {
       const incident = currentIncidentById(selectedIncidentId);
-      if (!latestMutationGuard.enabled || !incident) {
-        setText("#edit-outcome", latestMutationGuard.reason);
-        return null;
-      }
+      if (!admitMutation() || !incident) return null;
       idempotencySequence += 1;
       stagedEdit = {
         incidentId: incident.id,
@@ -827,10 +836,7 @@ async function bootstrap(): Promise<void> {
 
     function submitEdit(request = stagedEdit): Promise<string | null> {
       return enqueueControl(async () => {
-        if (!request || !latestMutationGuard.enabled) {
-          setText("#edit-outcome", latestMutationGuard.reason);
-          return null;
-        }
+        if (!request || !admitMutation()) return null;
         const receipt = await incidentTransport.controls.edit(request);
         if (lifecycle.disposed) return null;
         lastSubmittedEdit = request;
@@ -844,7 +850,7 @@ async function bootstrap(): Promise<void> {
 
     function repeatEdit(): Promise<string | null> {
       return enqueueControl(async () => {
-        if (!lastSubmittedEdit) return null;
+        if (!lastSubmittedEdit || !admitMutation()) return null;
         const receipt = await incidentTransport.controls.edit(lastSubmittedEdit);
         if (lifecycle.disposed) return null;
         runtime.lastEditOutcome = receipt.outcome;
@@ -856,7 +862,7 @@ async function bootstrap(): Promise<void> {
     function resetEdit(): Promise<string | null> {
       return enqueueControl(async () => {
         const incident = currentIncidentById(selectedIncidentId);
-        if (!incident || !latestMutationGuard.enabled) return null;
+        if (!incident || !admitMutation()) return null;
         idempotencySequence += 1;
         const receipt = await incidentTransport.controls.reset({
           incidentId: incident.id,
@@ -889,6 +895,7 @@ async function bootstrap(): Promise<void> {
 
     function simulateConflict(): Promise<void> {
       return enqueueControl(async () => {
+        if (!admitMutation()) return;
         await incidentTransport.controls.simulateConcurrentUpdate();
         if (lifecycle.disposed) return;
         setText("#edit-outcome", "Concurrent update published. Submit the staged edit to observe a revision conflict.");
