@@ -1,5 +1,6 @@
 /** Internal GeoServices URL classification and metadata projection for connect(). */
 
+import { canonicalizeUrlQuery, deleteQueryNames } from "./connect-url-safety.js";
 import type {
   ConnectDiscoverySourceSnapshot,
   ConnectProtocolHint,
@@ -220,7 +221,8 @@ function parseWmsWmtsTarget(endpoint: string, hint: ConnectProtocolHint): Connec
       },
     );
   }
-  parsed.search = "";
+  deleteQueryNames(parsed, new Set(["service", "request", "version"]));
+  canonicalizeUrlQuery(parsed);
   parsed.hash = "";
   while (parsed.pathname.length > 1 && parsed.pathname.endsWith("/")) parsed.pathname = parsed.pathname.slice(0, -1);
   const normalized = parsed.toString().replace(/\/$/, "");

@@ -122,6 +122,22 @@ describe("metadata-driven MapLibre raster strategy", () => {
     expect(projection.source.tiles[0]).toContain("BBOX={bbox-epsg3857}");
   });
 
+  it("refuses a runtime format override that was not selected by WMS discovery", () => {
+    const discovered = descriptor("wms", {
+      url: "https://maps.test/wms",
+      typeName: "parcels",
+      raster: {
+        kind: "wms-kvp",
+        url: "https://maps.test/render",
+        format: "image/png",
+      },
+    });
+
+    expect(() => projectRasterSourceToMapLibre(discovered, { format: "image/webp" })).toThrow(
+      'was discovered with WMS format "image/png", not "image/webp"',
+    );
+  });
+
   it("selects WMTS and preserves exact REST tile metadata", () => {
     const projection = projectRasterSourceToMapLibre(
       descriptor("wmts", {

@@ -1,6 +1,13 @@
 /** Internal fail-closed WMS/WMTS metadata discovery for connect(). */
 
 import type { ConnectTarget } from "./connect-geoservices.js";
+import {
+  advertisedWmsAxisOrder,
+  isAdvertisedWebMercatorCrs,
+  mapLibreMatrixSetUnavailableReason,
+  mapLibreTileMatrixTemplate,
+} from "./connect-raster-evidence.js";
+import { canonicalizeUrlQuery, hasCredentialQuery, isCredentialQueryName } from "./connect-url-safety.js";
 import type {
   ConnectDiscoverySnapshot,
   ConnectDiscoverySourceSnapshot,
@@ -37,7 +44,6 @@ import {
   HonuaNetworkError,
   HonuaTimeoutError,
 } from "./core/errors.js";
-import { wmsBboxRequiresAxisSwap } from "./core/wms-axis.js";
 import {
   type WmsCapabilities,
   type WmsCapabilityLayer,
@@ -50,6 +56,7 @@ import {
   type WmtsCapabilityOperation,
   type WmtsCapabilityResourceUrl,
   type WmtsCapabilityTileMatrixSet,
+  isWmtsCapabilityTileMatrixSetComplete,
   parseWmtsCapabilities,
 } from "./core/wmts-capabilities.js";
 
@@ -62,28 +69,6 @@ const SUPPORTED_FEATURE_INFO_FORMATS = new Set([
   "application/geo+json",
   "application/vnd.geo+json",
 ]);
-const CREDENTIAL_QUERY_NAMES = new Set([
-  "access_token",
-  "api_key",
-  "apikey",
-  "authorization",
-  "bearer",
-  "client_secret",
-  "code",
-  "id_token",
-  "jwt",
-  "key",
-  "password",
-  "sas",
-  "session",
-  "sig",
-  "signature",
-  "subscription-key",
-  "token",
-  "x-api-key",
-  "x-goog-signature",
-]);
-
 interface CachedCapabilities {
   readonly xml: string;
   readonly cachedAtMs: number;
@@ -188,11 +173,11 @@ async function fetchCapabilities(
           );
         }
         const validator = honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator;
-        const refreshed: CachedCapabilities = {
+        const refreshed = immutableCachedCapabilities({
           ...cached,
           cachedAtMs: Date.now(),
           ...(validator ? { validator } : {}),
-        };
+        });
         const document = parsedDocument(
           protocol,
           refreshed.xml,
@@ -208,13 +193,15 @@ async function fetchCapabilities(
       if (deadline.timedOut()) throw new HonuaTimeoutError(timeoutMs);
       if (options.signal?.aborted) throw new HonuaAbortError();
       const validator = honuaCacheValidatorFromHeaders(response.headers);
-      const entry: CachedCapabilities = {
+      const entry = immutableCachedCapabilities({
         xml,
         cachedAtMs: Date.now(),
         ...(validator ? { validator } : {}),
-      };
+      });
       const document = parsedDocument(protocol, xml, source, new Date(entry.cachedAtMs).toISOString(), validator);
-      if (metadata.cache !== "bypass") setCachedCapabilities(cache, cacheKey, entry);
+      if (metadata.cache !== "bypass" && !capabilitiesContainCredentialUrls(protocol, document.value, source)) {
+        setCachedCapabilities(cache, cacheKey, entry);
+      }
       return document;
     } catch (cause) {
       const normalized = normalizeCapabilitiesFailure(cause, deadline.timedOut(), options.signal, timeoutMs, protocol);
@@ -288,7 +275,7 @@ function projectWms(
     const selectedStyle = selectStyle(styles, options.styleId, layer.name, "WMS", false);
     const mapFormat = preferredFormat(capabilities.formats.map, SUPPORTED_IMAGE_FORMATS);
     const featureInfoFormat = preferredFormat(capabilities.formats.featureInfo, SUPPORTED_FEATURE_INFO_FORMATS);
-    const renderReason = wmsRenderUnavailableReason(map, mapFormat);
+    const renderReason = wmsRenderUnavailableReason(layer, map, mapFormat);
     const advertisedQueryReason = wmsQueryUnavailableReason(layer, featureInfo, featureInfoFormat);
     const queryReason =
       advertisedQueryReason ??
@@ -569,6 +556,7 @@ function unsafeOperationEvidence(
 }
 
 function wmsRenderUnavailableReason(
+  layer: WmsCapabilityLayer,
   operation: ValidatedOperation | undefined,
   format: string | undefined,
 ): string | undefined {
@@ -579,6 +567,9 @@ function wmsRenderUnavailableReason(
       : "WMS GetMap did not advertise a safe GET URL.";
   }
   if (!format) return "WMS GetMap advertises no supported image format.";
+  if (!layer.crs.some(isAdvertisedWebMercatorCrs)) {
+    return "WMS layer does not advertise an exact EPSG:3857 CRS required by the current MapLibre raster adapter.";
+  }
   return undefined;
 }
 
@@ -626,17 +617,11 @@ function wmtsRasterBinding(
   operation: ValidatedOperation,
   template: string | undefined,
 ): { readonly binding?: RasterRequestBinding; readonly reason?: string } {
-  if (!mapLibreCompatibleMatrixSet(matrixSet)) {
-    return Object.freeze({
-      reason: `WMTS tile matrix set "${matrixSet.identifier}" is not Web Mercator compatible with the existing MapLibre raster adapter.`,
-    });
-  }
-  const tileMatrixTemplate = mapLibreTileMatrixTemplate(matrixSet);
-  if (!tileMatrixTemplate) {
-    return Object.freeze({
-      reason: `WMTS tile matrix set "${matrixSet.identifier}" has identifiers that cannot map exactly to MapLibre zoom levels.`,
-    });
-  }
+  const matrixEvidence = liveTileMatrixEvidence(matrixSet);
+  const matrixReason = mapLibreMatrixSetUnavailableReason(matrixEvidence);
+  if (matrixReason) return Object.freeze({ reason: matrixReason });
+  const tileMatrixTemplate = mapLibreTileMatrixTemplate(matrixSet.matrices.map((matrix) => matrix.identifier));
+  if (!tileMatrixTemplate) return Object.freeze({ reason: "WMTS tile matrix identifiers are not executable." });
   if (template) {
     const variables = templateVariables(template);
     const supportedVariables = new Set(["Layer", "Style", "TileMatrixSet", "TileMatrix", "TileRow", "TileCol"]);
@@ -672,24 +657,6 @@ function wmtsRasterBinding(
   });
 }
 
-function mapLibreCompatibleMatrixSet(matrixSet: WmtsCapabilityTileMatrixSet): boolean {
-  const crs = matrixSet.supportedCrs?.toLowerCase() ?? "";
-  const wellKnownScaleSet = matrixSet.wellKnownScaleSet?.toLowerCase() ?? "";
-  return crs.includes("3857") || crs.includes("900913") || wellKnownScaleSet.includes("googlemapscompatible");
-}
-
-function mapLibreTileMatrixTemplate(matrixSet: WmtsCapabilityTileMatrixSet): string | undefined {
-  if (matrixSet.matrices.length === 0) return undefined;
-  let prefix: string | undefined;
-  for (const [index, matrix] of matrixSet.matrices.entries()) {
-    const match = /^(.*?)(0|[1-9]\d*)$/.exec(matrix.identifier);
-    if (!match || match[2] !== String(index)) return undefined;
-    if (prefix === undefined) prefix = match[1];
-    else if (prefix !== match[1]) return undefined;
-  }
-  return `${prefix ?? ""}{z}`;
-}
-
 function wmtsFeatureInfoUnavailableReason(
   style: DiscoveryStyleMetadata | undefined,
   matrixSet: WmtsCapabilityTileMatrixSet | undefined,
@@ -722,12 +689,48 @@ function safeAdvertisedUrl(
     return { ok: false, reason: `${label} URL must be same-origin and contain no credentials or fragment.` };
   }
   for (const name of resolved.searchParams.keys()) {
-    if (CREDENTIAL_QUERY_NAMES.has(name.toLowerCase())) {
+    if (isCredentialQueryName(name)) {
       return { ok: false, reason: `${label} URL contains a credential-bearing query parameter.` };
     }
   }
-  resolved.searchParams.sort();
+  canonicalizeUrlQuery(resolved);
   return { ok: true, url: resolved.toString() };
+}
+
+function capabilitiesContainCredentialUrls(
+  protocol: "wms" | "wmts",
+  capabilities: WmsCapabilities | WmtsCapabilities,
+  source: string,
+): boolean {
+  if (protocol === "wms") {
+    const wms = capabilities as WmsCapabilities;
+    const operationUrls = wms.request.operations.flatMap((operation) => [...operation.getUrls, ...operation.postUrls]);
+    const layerUrls: string[] = [];
+    const layers = [...wms.layers];
+    while (layers.length > 0) {
+      const layer = layers.shift()!;
+      layers.unshift(...layer.children);
+      layerUrls.push(...layer.styles.flatMap((style) => style.legendUrl ?? []));
+    }
+    return [...operationUrls, ...layerUrls].some((url) => advertisedUrlContainsCredentials(url, source));
+  }
+  const wmts = capabilities as WmtsCapabilities;
+  const operationUrls = wmts.operations.flatMap((operation) => [...operation.getUrls, ...operation.postUrls]);
+  const layerUrls = wmts.layers.flatMap((layer) => [
+    ...layer.styles.flatMap((style) => style.legendUrl ?? []),
+    ...layer.resourceTemplates.map((resource) => resource.template),
+    ...layer.featureInfoTemplates.map((resource) => resource.template),
+  ]);
+  return [...operationUrls, ...layerUrls].some((url) => advertisedUrlContainsCredentials(url, source));
+}
+
+function advertisedUrlContainsCredentials(raw: string, source: string): boolean {
+  try {
+    const parsed = new URL(raw, source);
+    return Boolean(parsed.username || parsed.password || parsed.hash || hasCredentialQuery(parsed.searchParams));
+  } catch {
+    return false;
+  }
 }
 
 function wmsMetadata(
@@ -788,10 +791,7 @@ function wmsMetadata(
       ),
     }),
     axisOrders: Object.freeze(
-      layer.crs.map(
-        (crs): DiscoveryAxisOrderMetadata =>
-          Object.freeze({ crs, order: wmsBboxRequiresAxisSwap(crs) ? "yx" : recognizedCrs(crs) ? "xy" : "unknown" }),
-      ),
+      layer.crs.map((crs): DiscoveryAxisOrderMetadata => Object.freeze({ crs, order: advertisedWmsAxisOrder(crs) })),
     ),
     ...(partialReasons.length > 0 ? { partialReasons: Object.freeze(unique(partialReasons)) } : {}),
   });
@@ -1020,12 +1020,17 @@ function selectMatrixSet(
       { typeName: layer.identifier, tileMatrixSetId: selected },
     );
   }
+  let fallback: WmtsCapabilityTileMatrixSet | undefined;
   for (const id of ids) {
     const matrixSet = matrixSets.get(id);
-    if (matrixSet) return matrixSet;
+    if (matrixSet) {
+      fallback ??= matrixSet;
+      if (mapLibreMatrixSetUnavailableReason(liveTileMatrixEvidence(matrixSet)) === undefined) return matrixSet;
+      continue;
+    }
     partialReasons.push(`WMTS layer "${layer.identifier}" references missing tile matrix set "${id}".`);
   }
-  return undefined;
+  return fallback;
 }
 
 function linkedMatrixSetsForLayer(
@@ -1058,6 +1063,13 @@ function tileMatrixMetadata(matrixSet: WmtsCapabilityTileMatrixSet): DiscoveryTi
         }),
       ),
     ),
+  });
+}
+
+function liveTileMatrixEvidence(matrixSet: WmtsCapabilityTileMatrixSet) {
+  return Object.freeze({
+    ...tileMatrixMetadata(matrixSet),
+    complete: isWmtsCapabilityTileMatrixSetComplete(matrixSet),
   });
 }
 
@@ -1201,6 +1213,7 @@ function capabilitiesUrl(endpoint: string, protocol: "wms" | "wmts", version: st
   url.searchParams.set("SERVICE", protocol.toUpperCase());
   url.searchParams.set("REQUEST", "GetCapabilities");
   url.searchParams.set("VERSION", version);
+  canonicalizeUrlQuery(url);
   return url.toString();
 }
 
@@ -1225,10 +1238,6 @@ function schemaValidator(
   return {};
 }
 
-function recognizedCrs(value: string): boolean {
-  return /^(?:CRS:(?:84|\d+)|EPSG:\d+|urn:ogc:def:crs:|https?:\/\/www\.opengis\.net\/def\/crs\/)/i.test(value);
-}
-
 function cacheFor(client: HonuaClient): Map<string, CachedCapabilities> {
   let cache = capabilitiesCache.get(client);
   if (!cache) {
@@ -1239,13 +1248,22 @@ function cacheFor(client: HonuaClient): Map<string, CachedCapabilities> {
 }
 
 function setCachedCapabilities(cache: Map<string, CachedCapabilities>, key: string, value: CachedCapabilities): void {
+  const owned = immutableCachedCapabilities(value);
   cache.delete(key);
-  cache.set(key, value);
+  cache.set(key, owned);
   while (cache.size > MAX_CAPABILITIES_CACHE_ENTRIES) {
     const oldest = cache.keys().next().value;
     if (oldest === undefined) break;
     cache.delete(oldest);
   }
+}
+
+function immutableCachedCapabilities(value: CachedCapabilities): CachedCapabilities {
+  return Object.freeze({
+    xml: value.xml,
+    cachedAtMs: value.cachedAtMs,
+    ...(value.validator ? { validator: Object.freeze({ ...value.validator }) } : {}),
+  });
 }
 
 function normalizeCapabilitiesFailure(

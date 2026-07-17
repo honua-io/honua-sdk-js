@@ -31,8 +31,12 @@ export interface ConnectLocator {
   readonly sourceId?: SourceId;
   /** Restrict OGC API Features or STAC discovery to one collection. */
   readonly collectionId?: string;
-  /** Restrict WFS discovery to one namespace-qualified feature type. */
+  /** Restrict WFS discovery to one feature type or WMS/WMTS discovery to one named layer. */
   readonly typeName?: string;
+  /** Restrict WMS/WMTS discovery to one advertised style. */
+  readonly styleId?: string;
+  /** Restrict WMTS discovery to one advertised tile matrix set. */
+  readonly tileMatrixSetId?: string;
 }
 
 /** Options for one kernel-owned connection. Cache and capability policy remain instance-owned. */
@@ -376,7 +380,6 @@ function normalizeConnectRequest(
 ): NormalizedConnectRequest {
   const optionSnapshot = snapshotOwnDataObject(options, "kernel.connect() options");
   const locatorSnapshot = snapshotConnectLocator(locator);
-  const endpoint = validateConnectEndpoint(locatorSnapshot.endpoint);
   const selectedSourceId = mergeSourceSelection(
     locatorSnapshot.fields?.sourceId as SourceId | undefined,
     optionSnapshot.sourceId as SourceId | undefined,
@@ -386,6 +389,7 @@ function normalizeConnectRequest(
     locatorSnapshot.fields?.protocol as ConnectProtocolHint | undefined,
     optionSnapshot.protocol as ConnectProtocolHint | undefined,
   );
+  const endpoint = validateConnectEndpoint(locatorSnapshot.endpoint, protocol ?? "auto");
   const collectionId = mergeLocatorOption(
     "collectionId",
     locatorSnapshot.fields?.collectionId as string | undefined,
@@ -396,12 +400,24 @@ function normalizeConnectRequest(
     locatorSnapshot.fields?.typeName as string | undefined,
     optionSnapshot.typeName as string | undefined,
   );
+  const styleId = mergeLocatorOption(
+    "styleId",
+    locatorSnapshot.fields?.styleId as string | undefined,
+    optionSnapshot.styleId as string | undefined,
+  );
+  const tileMatrixSetId = mergeLocatorOption(
+    "tileMatrixSetId",
+    locatorSnapshot.fields?.tileMatrixSetId as string | undefined,
+    optionSnapshot.tileMatrixSetId as string | undefined,
+  );
   const initialOptions = snapshotKernelConnectOptions(
     Object.freeze({
       ...optionSnapshot,
       ...(protocol !== undefined ? { protocol } : {}),
       ...(collectionId !== undefined ? { collectionId } : {}),
       ...(typeName !== undefined ? { typeName } : {}),
+      ...(styleId !== undefined ? { styleId } : {}),
+      ...(tileMatrixSetId !== undefined ? { tileMatrixSetId } : {}),
     }) as KernelConnectOptions,
   );
   const { refresh: _refresh, signal: _signal, ...persistentOptions } = initialOptions;

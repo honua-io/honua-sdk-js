@@ -320,4 +320,22 @@ describe("parseWmtsCapabilities", () => {
     expect(tms?.matrices[1]?.matrixWidth).toBe(2);
     expect(tms?.supportedCrs).toBe("urn:ogc:def:crs:EPSG::3857");
   });
+
+  it.each([
+    ["TileWidth", "0"],
+    ["TileHeight", "1.5"],
+    ["MatrixWidth", "9007199254740992"],
+    ["MatrixHeight", "Infinity"],
+    ["ScaleDenominator", "0"],
+  ] as const)("ignores a tile matrix with invalid %s value %s", (field, value) => {
+    const invalid = BASIC_WMTS_CAPABILITIES.replace(
+      new RegExp(`<${field}>[^<]+</${field}>`),
+      `<${field}>${value}</${field}>`,
+    );
+    const caps = parseWmtsCapabilities(invalid);
+    const tms = findWmtsTileMatrixSet(caps, "WebMercatorQuad");
+
+    expect(tms?.matrices.map((matrix) => matrix.identifier)).toEqual(["1"]);
+    expect(caps.warnings).toContain("WMTS TileMatrix metadata with invalid numeric fields was ignored.");
+  });
 });

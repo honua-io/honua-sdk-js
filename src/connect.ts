@@ -28,6 +28,13 @@ export type {
   OgcProcessDiscoverySummary,
   OgcProcessesDiscoveryResult,
 } from "./connect-ogc.js";
+import {
+  advertisedWmsAxisOrder,
+  isAdvertisedWebMercatorCrs,
+  mapLibreMatrixSetUnavailableReason,
+  mapLibreTileMatrixTemplate,
+} from "./connect-raster-evidence.js";
+import { canonicalizeUrlQuery, hasCredentialQuery, isCredentialQueryName } from "./connect-url-safety.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import { discoverWmsWmtsSources } from "./connect-wms-wmts.js";
 import {
@@ -446,6 +453,10 @@ export async function connectWithSourceSchemaProjection(
         !sourceSchemaProjectionApplies(target.protocol) ||
         snapshot.sources.every((source) => source.schemaV2 !== undefined))
     ) {
+      // Detach and deeply freeze the serializable value before handing it to a
+      // caller-owned cache. A cache hook can retain this object but cannot
+      // mutate the connection assembled from it or any later replay.
+      snapshot = snapshotCacheData(snapshot);
       await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
     }
@@ -651,11 +662,12 @@ export function validateConnectEndpoint(input: string | URL, hint: ConnectProtoc
         (name.toLowerCase() === "f" || name.toLowerCase() === "format") &&
         (value.toLowerCase() === "json" || value.toLowerCase() === "pjson"),
     );
-  const capabilitiesQueryIsAllowed = isWmsWmtsCapabilitiesQuery(endpoint.searchParams, hint);
+  const rasterServiceQueryIsAllowed = isWmsWmtsServiceQuery(endpoint, hint);
   if (
     endpoint.username ||
     endpoint.password ||
-    (endpoint.search && !formatQueryIsRemovable && !capabilitiesQueryIsAllowed) ||
+    hasCredentialQuery(endpoint.searchParams) ||
+    (endpoint.search && !formatQueryIsRemovable && !rasterServiceQueryIsAllowed) ||
     endpoint.hash
   ) {
     throw new HonuaDiscoveryError(
@@ -664,6 +676,7 @@ export function validateConnectEndpoint(input: string | URL, hint: ConnectProtoc
     );
   }
   if (formatQueryIsRemovable) endpoint.search = "";
+  else if (rasterServiceQueryIsAllowed) canonicalizeUrlQuery(endpoint);
   while (endpoint.pathname.length > 1 && endpoint.pathname.endsWith("/")) {
     endpoint.pathname = endpoint.pathname.slice(0, -1);
   }
@@ -671,21 +684,31 @@ export function validateConnectEndpoint(input: string | URL, hint: ConnectProtoc
   return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
 }
 
-function isWmsWmtsCapabilitiesQuery(params: URLSearchParams, hint: ConnectProtocolHint): boolean {
+function isWmsWmtsServiceQuery(endpoint: URL, hint: ConnectProtocolHint): boolean {
+  const params = endpoint.searchParams;
   if (params.size === 0 || (hint !== "auto" && hint !== "wms" && hint !== "wmts")) return false;
   const values = new Map<string, string>();
   for (const [rawName, rawValue] of params) {
     const name = rawName.toLowerCase();
-    if (values.has(name) || (name !== "service" && name !== "request" && name !== "version")) return false;
-    values.set(name, rawValue);
+    if (name === "service" || name === "request" || name === "version") {
+      if (values.has(name)) return false;
+      values.set(name, rawValue);
+    }
   }
   const service = values.get("service")?.toLowerCase();
+  if (service !== undefined && service !== "wms" && service !== "wmts") return false;
+  const pathService = endpoint.pathname.split("/").filter(Boolean).at(-1)?.toLowerCase();
+  const hintedService = hint === "wms" || hint === "wmts" ? hint : undefined;
+  const structuralService = service === "wms" || service === "wmts" ? service : undefined;
+  const endpointService = pathService === "wms" || pathService === "wmts" ? pathService : undefined;
+  const protocol = structuralService ?? hintedService ?? endpointService;
+  if (protocol !== "wms" && protocol !== "wmts") return false;
+  if (structuralService && hintedService && structuralService !== hintedService) return false;
+  if (endpointService && hintedService && endpointService !== hintedService) return false;
   const request = values.get("request")?.toLowerCase();
-  if (service !== "wms" && service !== "wmts") return false;
-  if (hint !== "auto" && hint !== service) return false;
   if (request !== undefined && request !== "getcapabilities") return false;
   const version = values.get("version");
-  return version === undefined || (service === "wms" ? version === "1.3.0" : version === "1.0.0");
+  return version === undefined || (protocol === "wms" ? version === "1.3.0" : version === "1.0.0");
 }
 
 function assertClientEndpoint(client: HonuaClient, endpoint: string): void {
@@ -1701,7 +1724,8 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
 }
 
 function freezeCachedLocator(locator: SourceLocator): SourceLocator {
-  return Object.freeze({ ...locator });
+  const raster = locator.raster ? Object.freeze({ ...locator.raster }) : undefined;
+  return Object.freeze({ ...locator, ...(raster ? { raster } : {}) });
 }
 
 function validateCachedRasterMetadataBinding(
@@ -1736,13 +1760,25 @@ function validateCachedRasterMetadataBinding(
       cacheMetadataError("Cached WMS operations contradict cached capability evidence.");
     }
     validateCachedExecutableRasterBinding(locator, metadata.operations?.render, render);
+    validateCachedWmsAxisOrders(metadata);
+    if (render && !metadata.crs?.some(isAdvertisedWebMercatorCrs)) {
+      cacheMetadataError("Cached executable WMS source does not advertise an exact EPSG:3857 CRS.");
+    }
+    if (locator.raster && !metadata.formats?.render?.includes(locator.raster.format)) {
+      cacheMetadataError("Cached WMS raster format was not advertised by GetMap metadata.");
+    }
   } else {
     const tiles = metadata.operations?.tiles?.available === true;
     if (tiles !== resolved.has("render") || tiles !== resolved.has("tiles")) {
       cacheMetadataError("Cached WMTS tile operation contradicts cached capability evidence.");
     }
     validateCachedExecutableRasterBinding(locator, metadata.operations?.tiles, tiles);
-    if (tiles) validateCachedTileMatrixBinding(locator, metadata);
+    if (tiles) {
+      validateCachedTileMatrixBinding(locator, metadata);
+      if (locator.raster && !metadata.formats?.render?.includes(locator.raster.format)) {
+        cacheMetadataError("Cached WMTS raster format was not advertised by layer metadata.");
+      }
+    }
     validateCachedTemplateOperation(metadata.operations?.tiles, ["TileMatrix", "TileRow", "TileCol"], "tile");
     validateCachedTemplateOperation(
       metadata.operations?.featureInfo,
@@ -1806,22 +1842,26 @@ function validateCachedTileMatrixBinding(locator: SourceLocator, metadata: Disco
   const matrixSet = metadata.tileMatrixSets?.find((candidate) => candidate.id === locator.tileMatrixSetId);
   if (
     !matrixSet ||
-    mapLibreTileMatrixTemplateFromMetadata(matrixSet.matrices.map((matrix) => matrix.id)) !== binding.tileMatrixTemplate
+    mapLibreMatrixSetUnavailableReason(matrixSet) !== undefined ||
+    mapLibreTileMatrixTemplate(matrixSet.matrices.map((matrix) => matrix.id)) !== binding.tileMatrixTemplate
   ) {
-    cacheMetadataError("Cached WMTS raster binding does not match its advertised tile-matrix identifiers.");
+    cacheMetadataError("Cached WMTS raster binding does not match a proven GoogleMapsCompatible tile matrix set.");
   }
 }
 
-function mapLibreTileMatrixTemplateFromMetadata(ids: readonly string[]): string | undefined {
-  if (ids.length === 0) return undefined;
-  let prefix: string | undefined;
-  for (const [index, id] of ids.entries()) {
-    const match = /^(.*?)(0|[1-9]\d*)$/.exec(id);
-    if (!match || match[2] !== String(index)) return undefined;
-    if (prefix === undefined) prefix = match[1];
-    else if (prefix !== match[1]) return undefined;
+function validateCachedWmsAxisOrders(metadata: DiscoverySourceMetadata): void {
+  const crs = metadata.crs ?? [];
+  const axes = metadata.axisOrders ?? [];
+  const axisCrs = axes.map((axis) => axis.crs);
+  if (axes.length !== crs.length || new Set(axisCrs).size !== axisCrs.length) {
+    cacheMetadataError("Cached WMS axis metadata must contain exactly one entry per advertised CRS.");
   }
-  return `${prefix ?? ""}{z}`;
+  for (const advertised of crs) {
+    const axis = axes.find((candidate) => candidate.crs === advertised);
+    if (!axis || axis.order !== advertisedWmsAxisOrder(advertised)) {
+      cacheMetadataError("Cached WMS axis metadata contradicts the advertised CRS identifiers.");
+    }
+  }
 }
 
 function validateCachedTemplateOperation(
@@ -2131,15 +2171,11 @@ function validateCachedMetadataUrl(value: unknown, label: string, endpoint: stri
     cacheMetadataError(`Cached ${label} URL must remain on the discovery endpoint origin.`);
   }
   for (const name of parsed.searchParams.keys()) {
-    if (
-      /^(?:access_token|api_?key|apikey|authorization|bearer|client_secret|code|id_token|jwt|key|password|sas|session|sig|signature|subscription-key|token|x-api-key|x-goog-signature)$/i.test(
-        name,
-      )
-    ) {
+    if (isCredentialQueryName(name)) {
       cacheMetadataError(`Cached ${label} URL contains credential-bearing query state.`);
     }
   }
-  parsed.searchParams.sort();
+  canonicalizeUrlQuery(parsed);
   return parsed.toString().replace(/%7B([A-Za-z_][A-Za-z0-9_.:-]{0,127})%7D/gi, (_match, name: string) => `{${name}}`);
 }
 

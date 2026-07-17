@@ -162,6 +162,148 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
+  it("uses one canonical service identity for bare and GetCapabilities WMS locators", async () => {
+    const fetchFn = capabilitiesFetch(WMS_CAPABILITIES);
+    const snapshots = new Map<string, ConnectDiscoverySnapshot>();
+    const identities: string[] = [];
+    const cache = {
+      get: (identity: { readonly key: string }) => {
+        identities.push(identity.key);
+        return snapshots.get(identity.key);
+      },
+      set: (identity: { readonly key: string }, snapshot: ConnectDiscoverySnapshot) => {
+        identities.push(identity.key);
+        snapshots.set(identity.key, snapshot);
+      },
+    };
+    const base = {
+      protocol: "wms" as const,
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+      cache,
+    };
+
+    const capabilities = await connect({
+      ...base,
+      endpoint: "https://maps.example/dispatch?VERSION=1.3.0&tenant=public&REQUEST=GetCapabilities&SERVICE=WMS",
+    });
+    const bare = await connect({ ...base, endpoint: "https://maps.example/dispatch?tenant=public" });
+
+    expect(capabilities.inspection.endpoint).toBe("https://maps.example/dispatch?tenant=public");
+    expect(bare.inspection.endpoint).toBe(capabilities.inspection.endpoint);
+    expect(bare.inspection.cacheStatus).toBe("hit");
+    expect(new Set(identities).size).toBe(1);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses one canonical service identity for bare and GetCapabilities WMTS locators", async () => {
+    const fetchFn = capabilitiesFetch(WMTS_CAPABILITIES);
+    const snapshots = new Map<string, ConnectDiscoverySnapshot>();
+    const identities: string[] = [];
+    const cache = {
+      get: (identity: { readonly key: string }) => {
+        identities.push(identity.key);
+        return snapshots.get(identity.key);
+      },
+      set: (identity: { readonly key: string }, snapshot: ConnectDiscoverySnapshot) => {
+        identities.push(identity.key);
+        snapshots.set(identity.key, snapshot);
+      },
+    };
+    const base = {
+      protocol: "wmts" as const,
+      typeName: "imagery",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+      cache,
+    };
+
+    const capabilities = await connect({
+      ...base,
+      endpoint: "https://tiles.example/dispatch?VERSION=1.0.0&tenant=public&REQUEST=GetCapabilities&SERVICE=WMTS",
+    });
+    const bare = await connect({ ...base, endpoint: "https://tiles.example/dispatch?tenant=public" });
+
+    expect(capabilities.inspection.endpoint).toBe("https://tiles.example/dispatch?tenant=public");
+    expect(bare.inspection.endpoint).toBe(capabilities.inspection.endpoint);
+    expect(bare.inspection.cacheStatus).toBe("hit");
+    expect(new Set(identities).size).toBe(1);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    "https://user:password@maps.example/ogc/wms",
+    "https://maps.example/ogc/wms?API_KEY=TOP-SECRET",
+    "https://maps.example/ogc/wms?%41PI%5FKEY=TOP-SECRET",
+    "https://maps.example/ogc/wms?%2574oken=TOP-SECRET",
+    "https://maps.example/ogc/wms?tenant=public&token=TOP-SECRET&TOKEN=SECOND-SECRET",
+  ])("rejects credential-bearing WMS locator %s before fetch or cache access", async (endpoint) => {
+    const fetchFn = vi.fn();
+    const get = vi.fn();
+    const set = vi.fn();
+
+    const error = await connect({
+      endpoint,
+      protocol: "wms",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+      cache: { get, set },
+    }).catch((cause: unknown) => cause);
+
+    expect(error).toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+    expect(JSON.stringify(error)).not.toContain("TOP-SECRET");
+    expect(JSON.stringify(error)).not.toContain("SECOND-SECRET");
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it("retains advertised WMS CRS metadata but enables MapLibre raster only with exact Web Mercator evidence", async () => {
+    const withoutWebMercator = WMS_CAPABILITIES.replace("<CRS>EPSG:3857</CRS>", "<CRS>EPSG:32604</CRS>");
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: capabilitiesFetch(withoutWebMercator) },
+    });
+    const source = connection.inspection.sources[0]!;
+
+    expect(source.metadata?.crs).toContain("EPSG:32604");
+    expect(source.metadata?.axisOrders).toContainEqual({ crs: "EPSG:32604", order: "unknown" });
+    expect(source.metadata?.axisOrders).toHaveLength(source.metadata?.crs?.length ?? -1);
+    expect(source.descriptor.capabilities.has("render")).toBe(false);
+    expect(source.descriptor.capabilities.has("tiles")).toBe(false);
+    expect(source.descriptor.locator.raster).toBeUndefined();
+    expect(source.metadata?.operations?.render).toMatchObject({
+      available: false,
+      reason: "WMS layer does not advertise an exact EPSG:3857 CRS required by the current MapLibre raster adapter.",
+    });
+  });
+
+  it("retains WMS metadata but refuses formats the raster adapter cannot execute", async () => {
+    const unsupportedFormats = WMS_CAPABILITIES.replace(
+      "<Format>image/png</Format>\n        <Format>image/jpeg</Format>\n        <Format>image/svg+xml</Format>",
+      "<Format>image/tiff</Format>\n        <Format>image/svg+xml</Format>",
+    );
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: capabilitiesFetch(unsupportedFormats) },
+    });
+    const source = connection.inspection.sources[0]!;
+
+    expect(source.metadata?.formats?.render).toEqual(["image/tiff", "image/svg+xml"]);
+    expect(source.descriptor.locator.raster).toBeUndefined();
+    expect(source.metadata?.operations?.render).toMatchObject({
+      available: false,
+      reason: "WMS GetMap advertises no supported image format.",
+    });
+  });
+
   it("discovers WMTS styles, dimensions, relative REST resources, and all linked tile matrices", async () => {
     const connection = await connect({
       endpoint: "https://tiles.example/ogc/wmts?SERVICE=WMTS&REQUEST=GetCapabilities&VERSION=1.0.0",
@@ -259,6 +401,37 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
       available: false,
       reason: 'WMTS tile matrix set "WebMercatorQuad" has identifiers that cannot map exactly to MapLibre zoom levels.',
     });
+  });
+
+  it.each([
+    ["CRS", "urn:ogc:def:crs:EPSG::3857", "urn:ogc:def:crs:EPSG::4326"],
+    [
+      "well-known scale set",
+      "urn:ogc:def:wkss:OGC:1.0:GoogleMapsCompatible",
+      "urn:ogc:def:wkss:OGC:1.0:GoogleMapsCompatibleExtended",
+    ],
+    ["origin", "-20037508.3427892 20037508.3427892", "-180 90"],
+    ["scale progression", "279541132.0143589", "279541000"],
+    ["matrix dimensions", "<MatrixWidth>2</MatrixWidth>", "<MatrixWidth>3</MatrixWidth>"],
+    ["invalid numeric dimensions", "<MatrixWidth>1</MatrixWidth>", "<MatrixWidth>1.5</MatrixWidth>"],
+  ] as const)("keeps WMTS metadata but fails closed for incoherent %s evidence", async (_case, before, after) => {
+    const incoherent = WMTS_CAPABILITIES.replace(before, after);
+    const connection = await connect({
+      endpoint: "https://tiles.example/ogc/wmts",
+      protocol: "wmts",
+      typeName: "imagery",
+      tileMatrixSetId: "WebMercatorQuad",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: capabilitiesFetch(incoherent) },
+    });
+    const source = connection.inspection.sources[0]!;
+
+    expect(source.metadata?.tileMatrixSets?.find((matrixSet) => matrixSet.id === "WebMercatorQuad")).toBeDefined();
+    expect(source.descriptor.capabilities.has("render")).toBe(false);
+    expect(source.descriptor.capabilities.has("tiles")).toBe(false);
+    expect(source.descriptor.locator.raster).toBeUndefined();
+    expect(source.metadata?.operations?.tiles).toMatchObject({ available: false });
+    expect(source.metadata?.partialReasons?.some((reason) => reason.includes("WebMercatorQuad"))).toBe(true);
   });
 
   it("retains canonical Honua WMS query execution only when discovery resolves a service id", async () => {
@@ -365,16 +538,23 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
   });
 
   it("rejects unsafe advertised URLs without retaining credentials or inventing render support", async () => {
-    const unsafe = WMS_CAPABILITIES.replace(
-      './render?tenant=public"',
-      'https://evil.example/render?token=secret"',
-    ).replace('./render-post?tenant=public"', 'https://evil.example/render-post?token=secret"');
+    const unsafe = WMS_CAPABILITIES.replace('./render?tenant=public"', './render?%2541PI%255FKEY=TOP-SECRET"')
+      .replace('./render-post?tenant=public"', './render-post?Authorization=TOP-SECRET"')
+      .replace('./legends/outline.png"', './legends/outline.png?token=TOP-SECRET"')
+      .replace('./legend?tenant=public"', './legend?x-amz-signature=TOP-SECRET"');
+    let snapshot: ConnectDiscoverySnapshot | undefined;
     const connection = await connect({
       endpoint: "https://maps.example/ogc/wms",
       protocol: "wms",
       typeName: "parcels",
       authorizationScopeFingerprint: "anonymous",
       clientOptions: { fetchFn: capabilitiesFetch(unsafe) },
+      cache: {
+        get: () => undefined,
+        set: (_identity, value) => {
+          snapshot = value;
+        },
+      },
     });
     const source = connection.inspection.sources[0]!;
 
@@ -383,10 +563,53 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
     expect(source.metadata?.operations?.render).toMatchObject({ available: false });
     expect(source.metadata?.operations?.render?.urls).toEqual([]);
     expect(source.metadata?.operations?.render?.methods).toEqual([]);
-    expect(source.metadata?.partialReasons?.join(" ")).not.toContain("secret");
+    expect(source.metadata?.styles?.find((style) => style.id === "outline")?.legendUrl).toBeUndefined();
+    expect(source.metadata?.operations?.legend?.urls).toEqual([]);
+    expect(JSON.stringify(connection.inspection)).not.toContain("TOP-SECRET");
+    expect(JSON.stringify(snapshot)).not.toContain("TOP-SECRET");
     expect(source.diagnostics).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: "partial-discovery" })]),
     );
+
+    const unsafeFetch = capabilitiesFetch(unsafe);
+    const client = new HonuaClient({ baseUrl: "https://maps.example", fetchFn: unsafeFetch });
+    const options = {
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms" as const,
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      client,
+    };
+    await connect(options);
+    await connect(options);
+    expect(unsafeFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects credential-bearing WMTS operations, resources, and legends without leaking their values", async () => {
+    const unsafe = WMTS_CAPABILITIES.replace('./kvp?tenant=public"', './kvp?%2541uthorization=TOP-SECRET"')
+      .replace('./legends/day.png"', './legends/day.png?token=TOP-SECRET"')
+      .replace('TileCol}.png?tenant=public"/>', 'TileCol}.png?x-goog-signature=TOP-SECRET"/>');
+    let snapshot: ConnectDiscoverySnapshot | undefined;
+    const connection = await connect({
+      endpoint: "https://tiles.example/ogc/wmts",
+      protocol: "wmts",
+      typeName: "imagery",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: capabilitiesFetch(unsafe) },
+      cache: {
+        get: () => undefined,
+        set: (_identity, value) => {
+          snapshot = value;
+        },
+      },
+    });
+    const source = connection.inspection.sources[0]!;
+
+    expect(source.descriptor.capabilities.has("render")).toBe(false);
+    expect(source.descriptor.locator.raster).toBeUndefined();
+    expect(source.metadata?.styles?.find((style) => style.id === "day")?.legendUrl).toBeUndefined();
+    expect(JSON.stringify(connection.inspection)).not.toContain("TOP-SECRET");
+    expect(JSON.stringify(snapshot)).not.toContain("TOP-SECRET");
   });
 
   it("retains only methods backed by validated same-origin operation URLs", async () => {
@@ -517,6 +740,122 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
     expect(requests[1]?.headers.get("if-modified-since")).toBeNull();
     expect(requests[1]?.headers.get("cache-control")).toBe("no-store");
   });
+
+  it("hands caller caches deeply frozen raster snapshots and replays an isolated owned copy", async () => {
+    let snapshot: ConnectDiscoverySnapshot | undefined;
+    const cache = {
+      get: () => snapshot,
+      set: (_identity: unknown, value: ConnectDiscoverySnapshot) => {
+        snapshot = value;
+      },
+    };
+    const options = {
+      endpoint: "https://tiles.example/ogc/wmts",
+      protocol: "wmts" as const,
+      typeName: "imagery",
+      authorizationScopeFingerprint: "anonymous",
+      cache,
+    };
+    await connect({ ...options, clientOptions: { fetchFn: capabilitiesFetch(WMTS_CAPABILITIES) } });
+
+    const source = snapshot!.sources[0]!;
+    const raster = source.locator.raster!;
+    const metadata = source.metadata!;
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(source.locator)).toBe(true);
+    expect(Object.isFrozen(raster)).toBe(true);
+    expect(Object.isFrozen(metadata)).toBe(true);
+    expect(Object.isFrozen(metadata.operations?.tiles)).toBe(true);
+    expect(Object.isFrozen(metadata.operations?.tiles?.urls)).toBe(true);
+    expect(Object.isFrozen(metadata.tileMatrixSets?.[0]?.matrices[0]?.topLeftCorner)).toBe(true);
+    expect(() => {
+      (raster as { url: string }).url = "https://tiles.example/changed";
+    }).toThrow();
+
+    const replay = await connect({ ...options, clientOptions: { fetchFn: vi.fn() } });
+    expect(replay.inspection.cacheStatus).toBe("hit");
+    expect(replay.source().descriptor.locator.raster).toEqual(raster);
+    expect(replay.source().descriptor.locator.raster).not.toBe(raster);
+    expect(Object.isFrozen(replay.source().descriptor.locator.raster)).toBe(true);
+  });
+
+  it("rejects cached WMS axis drift and percent-encoded credential state", async () => {
+    let snapshot: ConnectDiscoverySnapshot | undefined;
+    const options = {
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms" as const,
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+    };
+    await connect({
+      ...options,
+      clientOptions: { fetchFn: capabilitiesFetch(WMS_CAPABILITIES) },
+      cache: {
+        get: () => undefined,
+        set: (_identity, value) => {
+          snapshot = value;
+        },
+      },
+    });
+
+    const axisDrift = structuredClone(snapshot!);
+    (axisDrift.sources[0]!.metadata!.axisOrders![0]! as { order: "xy" | "yx" | "unknown" }).order = "xy";
+    await expect(
+      connect({
+        ...options,
+        clientOptions: { fetchFn: vi.fn() },
+        cache: { get: () => axisDrift, set: vi.fn() },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+
+    const credentialDrift = structuredClone(snapshot!);
+    (credentialDrift.sources[0]!.metadata!.operations!.render!.urls as string[])[0] =
+      "https://maps.example/render?%2574oken=TOP-SECRET";
+    const error = await connect({
+      ...options,
+      clientOptions: { fetchFn: vi.fn() },
+      cache: { get: () => credentialDrift, set: vi.fn() },
+    }).catch((cause: unknown) => cause);
+    expect(error).toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+    expect(JSON.stringify(error)).not.toContain("TOP-SECRET");
+  });
+
+  it.each([1.5, Number.MAX_SAFE_INTEGER + 1, 3] as const)(
+    "rejects cached WMTS executable matrix width %s",
+    async (matrixWidth) => {
+      let snapshot: ConnectDiscoverySnapshot | undefined;
+      const options = {
+        endpoint: "https://tiles.example/ogc/wmts",
+        protocol: "wmts" as const,
+        typeName: "imagery",
+        authorizationScopeFingerprint: "anonymous",
+      };
+      await connect({
+        ...options,
+        clientOptions: { fetchFn: capabilitiesFetch(WMTS_CAPABILITIES) },
+        cache: {
+          get: () => undefined,
+          set: (_identity, value) => {
+            snapshot = value;
+          },
+        },
+      });
+      const tampered = structuredClone(snapshot!);
+      (
+        tampered.sources[0]!.metadata!.tileMatrixSets![0]!.matrices[1]! as {
+          matrixWidth: number;
+        }
+      ).matrixWidth = matrixWidth;
+
+      await expect(
+        connect({
+          ...options,
+          clientOptions: { fetchFn: vi.fn() },
+          cache: { get: () => tampered, set: vi.fn() },
+        }),
+      ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+    },
+  );
 
   it("rejects malformed XML and credential-bearing cached operation metadata", async () => {
     await expect(

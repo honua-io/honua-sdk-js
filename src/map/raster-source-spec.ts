@@ -37,6 +37,11 @@ export function buildWmsRasterSourceSpec(
   const url = binding?.url ?? requireLocatorUrl(descriptor);
   const tileSize = options.tileSize ?? 256;
   const format = options.format ?? binding?.format ?? "image/png";
+  if (binding && options.format !== undefined && options.format.toLowerCase() !== binding.format.toLowerCase()) {
+    throw new TypeError(
+      `descriptor for "${descriptor.id}" was discovered with WMS format "${binding.format}", not "${options.format}"`,
+    );
+  }
   const transparent = options.transparent ?? true;
   const request = new URL(url);
   request.searchParams.set("SERVICE", "WMS");

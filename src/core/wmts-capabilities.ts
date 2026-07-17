@@ -73,6 +73,8 @@ export interface WmtsCapabilityTileMatrixSet {
   readonly matrices: ReadonlyArray<WmtsCapabilityTileMatrix>;
 }
 
+const incompleteTileMatrixSets = new WeakSet<WmtsCapabilityTileMatrixSet>();
+
 export interface WmtsCapabilityTileMatrix {
   readonly identifier: string;
   readonly scaleDenominator: number;
@@ -248,21 +250,25 @@ function parseWgs84BoundingBox(
 
 function parseTileMatrixSet(node: CapabilitiesXmlElement, warnings: string[]): WmtsCapabilityTileMatrixSet[] {
   const identifier = xmlText(xmlChild(node, "Identifier"));
-  const matrices = Object.freeze(
-    xmlChildren(node, "TileMatrix").flatMap((matrix) => parseTileMatrix(matrix, warnings)),
-  );
+  const matrixNodes = xmlChildren(node, "TileMatrix");
+  const matrices = Object.freeze(matrixNodes.flatMap((matrix) => parseTileMatrix(matrix, warnings)));
   if (!identifier || matrices.length === 0) {
     warnings.push("WMTS TileMatrixSet metadata without an identifier or valid matrices was ignored.");
     return [];
   }
-  return [
-    Object.freeze({
-      identifier,
-      ...optional("supportedCrs", xmlText(xmlChild(node, "SupportedCRS"))),
-      ...optional("wellKnownScaleSet", xmlText(xmlChild(node, "WellKnownScaleSet"))),
-      matrices,
-    }),
-  ];
+  const matrixSet = Object.freeze({
+    identifier,
+    ...optional("supportedCrs", xmlText(xmlChild(node, "SupportedCRS"))),
+    ...optional("wellKnownScaleSet", xmlText(xmlChild(node, "WellKnownScaleSet"))),
+    matrices,
+  });
+  if (matrices.length !== matrixNodes.length) incompleteTileMatrixSets.add(matrixSet);
+  return [matrixSet];
+}
+
+/** @internal Whether every matrix advertised by this parsed set was structurally valid. */
+export function isWmtsCapabilityTileMatrixSetComplete(matrixSet: WmtsCapabilityTileMatrixSet): boolean {
+  return !incompleteTileMatrixSets.has(matrixSet);
 }
 
 function parseTileMatrix(node: CapabilitiesXmlElement, warnings: string[]): WmtsCapabilityTileMatrix[] {
