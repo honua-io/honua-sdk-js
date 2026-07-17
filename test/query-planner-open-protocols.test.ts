@@ -62,7 +62,7 @@ describe("WFS query planning", () => {
         compiler: "wfs-2.0-get-feature-v1",
         typeName: "cad:parcels",
         propertyName: ["parcel_id", "status", "the_geom"],
-        sortBy: "parcel_id D",
+        sortBy: "parcel_id DESC",
         startIndex: 5,
         count: 25,
       },

@@ -12,8 +12,16 @@ capability matrix in [`protocol-capability-matrix.md`](./protocol-capability-mat
 Canonical OGC API Features queries can be explained before execution through
 `@honua/sdk-js/query-planner`. The deterministic
 `ogc-api-features-query-v1` output exposes the collection, CQL2 text filter,
-properties, sort, bbox, CRS, and paging request without fetching metadata or
-rows. See [Deterministic query planner](./query-planner.md#remote-pushdown).
+extension-shaped properties/sort/offset fields, bbox, CRS, and paging request
+without fetching metadata or rows. That v1 surface is source-native
+compatibility, not a claim that projection, sorting, or numeric offset belong to
+OGC API Features Core. The typed `compileSemanticOgcApiFeaturesQuery()` path is
+standards-strict: it preserves Core `limit`, rejects `select`, `sort`, and
+caller-supplied offset without extension evidence, and requires explicit Part 2
+CRS conformance plus collection CRS metadata only when a non-default filter or
+output CRS must be transmitted. Exact Core default output/filter CRS requests
+are satisfied without emitting extension parameters. See
+[Deterministic query planner](./query-planner.md#remote-pushdown).
 
 ## Conformance areas covered
 

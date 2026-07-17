@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "quotes-xml-unicode",
+      "value": "O'Reilly\\line\nMālama 世界 & </fes:Literal><fes:Or>",
+      "expectedCql2Text": "'O''Reilly\\\\line\\nMālama 世界 & </fes:Literal><fes:Or>'",
+      "expectedFesText": "O'Reilly\\line\nMālama 世界 &amp; &lt;/fes:Literal&gt;&lt;fes:Or&gt;"
+    },
+    {
+      "name": "quotes-ampersand-emoji",
+      "value": "quote\" apostrophe' ampersand& emoji 🗺️",
+      "expectedCql2Text": "'quote\" apostrophe'' ampersand& emoji 🗺️'",
+      "expectedFesText": "quote\" apostrophe' ampersand&amp; emoji 🗺️"
+    }
+  ]
+}
