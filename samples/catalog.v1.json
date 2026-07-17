@@ -270,19 +270,19 @@
     {
       "id": "overture-geoparquet",
       "title": "Overture GeoParquet",
-      "summary": "Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence.",
+      "summary": "Executes one bounded GeoParquet result and links its MapLibre map, table, chart, selection, and truthful receipts.",
       "tier": "flagship",
       "supportStatus": "experimental",
-      "disposition": { "decision": "keep", "reason": "Large-data flagship now shares one bounded semantic workflow across deterministic fixture and pinned AWS lanes." },
+      "disposition": { "decision": "keep", "reason": "Large-data flagship now shares one bounded semantic workflow and one linked artifact across deterministic fixture and pinned AWS lanes." },
       "sourcePath": "examples/overture-geoparquet",
       "docsPath": "examples/overture-geoparquet/README.md",
-      "capabilities": ["cancellation", "columnar", "geoparquet", "large-data", "progressive-rendering", "range-reads"],
+      "capabilities": ["cancellation", "chart", "columnar", "geoparquet", "large-data", "linked-analysis", "map", "progressive-rendering", "range-reads", "selection"],
       "protocols": ["geoparquet", "s3"],
-      "renderers": ["svg"],
+      "renderers": ["maplibre"],
       "data": { "mode": "hybrid", "authMode": "anonymous", "config": [], "provenance": "Committed deterministic GeoParquet fixture or pinned Overture STAC item 2026-06-17.0/places/place/00000 on public AWS Open Data.", "attribution": "Overture Maps Foundation Open Map Data with per-feature upstream sources preserved by the live schema.", "freshness": "Pinned release, schema, object ETag, last modification, and execution observation time are shown separately." },
       "lanes": { "fixture": { "status": "executed", "commands": ["npm run test:playwright:overture"] }, "live": { "status": "executed", "commands": ["npm run evidence:overture:live -- --strict"] } },
-      "expectedDegradation": "Unsupported or malformed ranges, expired objects, unsafe plans, worker failures, the 10-second source-probe deadline, and the 30-second engine budget stop explicitly. DuckDB full-HTTP fallback is disabled; scheduled evidence rejects un-ranged GETs and measures browser range bytes, while rows scanned and row groups pruned remain unverified.",
-      "validation": ["npm run demo:overture:typecheck", "npm run demo:overture:build", "npx vitest run test/overture-large-data.test.ts", "npm run test:playwright:overture"]
+      "expectedDegradation": "Unsupported or malformed ranges, expired objects, unsafe plans, worker failures, the 10-second source-probe deadline, and the 30-second engine budget stop explicitly. DuckDB full-HTTP fallback is disabled; scheduled evidence rejects un-ranged GETs and measures browser range bytes, while rows scanned and row groups pruned remain unverified. MapLibre consumes the bounded object artifact explicitly until the direct GeoArrow/deck.gl path is qualified; Kepler remains an optional recipe.",
+      "validation": ["npm run demo:overture:typecheck", "npm run demo:overture:build", "npx vitest run test/cloud-native-spatial-analysis.test.ts", "npx vitest run test/cloud-native-linked-analysis.test.ts", "npx vitest run test/overture-large-data.test.ts", "npm run test:playwright:overture"]
     },
     {
       "id": "planning-permitting-workbench",

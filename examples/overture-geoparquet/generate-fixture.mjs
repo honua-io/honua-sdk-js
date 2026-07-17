@@ -42,9 +42,17 @@ async function main() {
         id,
         name,
         category,
-        confidence,
-        ST_Point(longitude, latitude) AS geometry,
-        struct_pack(xmin := longitude, ymin := latitude, xmax := longitude, ymax := latitude) AS bbox
+        CAST(confidence AS DOUBLE) AS confidence,
+        ST_Point(CAST(longitude AS DOUBLE), CAST(latitude AS DOUBLE)) AS geometry,
+        struct_pack(
+          -- One conservative bbox intentionally crosses a narrow AOI boundary so
+          -- source and browser tests cover intersecting features whose bbox center
+          -- lies outside the AOI. It still encloses the point geometry.
+          xmin := CAST(CASE WHEN id = '08f2a3c1d4e5f601' THEN longitude - 0.04 ELSE longitude END AS DOUBLE),
+          ymin := CAST(latitude AS DOUBLE),
+          xmax := CAST(longitude AS DOUBLE),
+          ymax := CAST(latitude AS DOUBLE)
+        ) AS bbox
       FROM (VALUES ${values}) AS input(id, name, category, confidence, longitude, latitude);
       COPY places TO '${staged}' (FORMAT parquet, COMPRESSION zstd);
     `);

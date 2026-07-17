@@ -3,21 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Honua Overture Columnar Lab</title>
+    <title>Honua Cloud-Native Linked Analysis</title>
   </head>
   <body>
-    <main class="shell">
+    <a class="skip-link" href="#analysis-workflow">Skip to analysis workflow</a>
+    <main class="shell" id="analysis-workflow" tabindex="-1">
       <header class="hero">
         <div>
-          <p class="eyebrow">Honua / large-data proof</p>
-          <h1>Overture columnar lab</h1>
+          <p class="eyebrow">Honua / bounded linked analysis</p>
+          <h1>Cloud-native analysis</h1>
           <p class="lede">
-            Plan a bounded AOI query, run it in DuckDB-WASM’s worker, and inspect what was measured versus what
-            remains opaque. Engine range behavior and row-group pruning are not claimed as verified.
+            One accepted SDK result drives the map, table, chart, and selection. Inspect exactly what the source,
+            engine, SDK, cache, and renderer proved—and what remains unsupported.
           </p>
         </div>
-        <div class="status-stack">
+        <div class="status-stack" aria-label="Analysis states">
           <strong id="lane-badge" data-lane="fixture">Deterministic fixture</strong>
+          <span>Analysis <b id="analysis-state" data-state="idle">Idle</b></span>
+          <span>Renderer <b id="renderer-state" data-state="degraded">MapLibre bounded fallback</b></span>
           <span id="engine-state" role="status" aria-live="polite">Planner ready</span>
         </div>
       </header>
@@ -25,7 +28,7 @@
       <section class="disclosure" aria-labelledby="disclosure-title">
         <h2 id="disclosure-title">Execution disclosure</h2>
         <p id="execution-disclosure">
-          Required CI uses a 1.9 KB committed fixture with no cross-origin requests. AWS is opt-in.
+          Required CI uses a 2.1 KB committed fixture with no cross-origin requests. AWS is opt-in.
         </p>
       </section>
 
@@ -66,10 +69,15 @@
             </label>
             <div class="actions">
               <button id="run-query" type="submit">Plan + run</button>
+              <button id="tighten-policy" type="button" class="secondary">Tighten row policy</button>
               <button id="cancel-query" type="button" class="secondary" disabled>Cancel worker</button>
             </div>
           </form>
           <p id="query-message" role="status" aria-live="polite">Queries require an AOI, narrow projection, and limit.</p>
+          <div id="query-error" class="error-state" role="alert" hidden>
+            <strong>Analysis stopped</strong>
+            <span id="query-error-message"></span>
+          </div>
         </section>
 
         <section class="card plan-card" aria-labelledby="plan-title">
@@ -86,7 +94,7 @@
             <div><dt>Selected-object rows</dt><dd id="metric-candidate-rows">-</dd></div>
             <div><dt>Selected-object row groups</dt><dd id="metric-row-groups">-</dd></div>
             <div><dt>Memory ceiling</dt><dd id="metric-memory-policy">256 MiB</dd></div>
-            <div><dt>Cache key</dt><dd id="metric-cache-key">-</dd></div>
+            <div><dt>Cache identities</dt><dd id="metric-cache-key">-</dd></div>
             <div><dt>Range plan</dt><dd id="metric-range-plan">-</dd></div>
           </dl>
           <p id="plan-warning" class="warning">No plan yet.</p>
@@ -97,7 +105,7 @@
         </section>
       </div>
 
-      <section class="card" aria-labelledby="evidence-title">
+      <section class="card" aria-labelledby="evidence-title" data-analysis-region>
         <div class="section-heading">
           <div>
             <p class="eyebrow">03 / prove</p>
@@ -111,49 +119,87 @@
           <div><dt>STAC provenance</dt><dd id="evidence-stac">-</dd></div>
           <div><dt>Object version</dt><dd id="evidence-version">-</dd></div>
           <div><dt>Observed</dt><dd id="evidence-observed">-</dd></div>
-          <div><dt>Verified bytes / ranges</dt><dd id="evidence-ranges">-</dd></div>
+          <div><dt>Source bytes / ranges</dt><dd id="evidence-ranges">-</dd></div>
           <div><dt>Rows scanned / returned</dt><dd id="evidence-rows">-</dd></div>
-          <div><dt>Row groups pruned</dt><dd id="evidence-pruning">Unverified</dd></div>
-          <div><dt>Bounded result memory</dt><dd id="evidence-memory">-</dd></div>
+          <div><dt>Row groups pruned</dt><dd id="evidence-pruning">Not exposed</dd></div>
+          <div><dt>Bounded linked memory</dt><dd id="evidence-memory">-</dd></div>
+          <div><dt>Result fidelity</dt><dd id="evidence-fidelity">-</dd></div>
+          <div><dt>Engine cache</dt><dd id="evidence-engine-cache">-</dd></div>
+          <div><dt>Artifact identity</dt><dd id="evidence-artifact">-</dd></div>
           <div><dt>SDK planning</dt><dd id="timing-sdk">-</dd></div>
           <div><dt>Source range probe</dt><dd id="timing-network">-</dd></div>
-          <div><dt>Engine + opaque source</dt><dd id="timing-engine">-</dd></div>
-          <div><dt>Progressive render</dt><dd id="timing-render">-</dd></div>
+          <div><dt>Engine execution</dt><dd id="timing-engine">-</dd></div>
+          <div><dt>Renderer</dt><dd id="timing-render">-</dd></div>
         </dl>
         <p id="range-limitation" class="warning">Engine byte/range telemetry has not been observed.</p>
         <p id="attribution">Attribution pending.</p>
       </section>
 
-      <section class="result-layout">
+      <section class="result-layout" data-analysis-region>
         <section class="card map-card" aria-labelledby="map-title">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">04 / visualize</p>
-              <h2 id="map-title">Progressive AOI view</h2>
+              <p class="eyebrow">04 / map</p>
+              <h2 id="map-title">Linked AOI map</h2>
             </div>
             <span id="render-progress">0 rendered</span>
           </div>
-          <svg id="result-map" viewBox="0 0 800 400" role="img" aria-label="Returned Overture places inside the selected area">
-            <rect width="800" height="400" class="map-background"></rect>
-            <g id="result-points"></g>
-          </svg>
+          <div id="result-map" role="region" aria-label="MapLibre view of returned Overture places"></div>
+          <div id="map-feature-list" class="map-feature-list" aria-label="Keyboard-accessible map results"></div>
+          <p class="renderer-note">
+            MapLibre renders a bounded GeoJSON projection. Direct GeoArrow/deck.gl remains gated by #536 and #388;
+            <code>kepler-analytics</code> stays an optional recipe.
+          </p>
         </section>
 
-        <section class="card table-card" aria-labelledby="result-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">05 / inspect rows</p>
-              <h2 id="result-title">Bounded result</h2>
+        <div class="result-stack">
+          <section class="card chart-card" aria-labelledby="chart-title">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">05 / chart</p>
+                <h2 id="chart-title">Category distribution</h2>
+              </div>
+              <span id="chart-summary">0 buckets</span>
             </div>
-            <span id="result-summary">0 rows</span>
+            <div id="result-chart" class="result-chart"></div>
+          </section>
+
+          <section class="card selection-card" aria-labelledby="selection-title">
+            <p class="eyebrow">06 / selection</p>
+            <h2 id="selection-title">No linked selection</h2>
+            <p id="selection-detail">Choose a map result, table row, or chart bucket after execution.</p>
+          </section>
+        </div>
+      </section>
+
+      <section class="card table-card" aria-labelledby="result-title" data-analysis-region>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">07 / table</p>
+            <h2 id="result-title">Bounded result rows</h2>
           </div>
-          <div class="table-scroll" tabindex="0" aria-label="Scrollable query results">
-            <table>
-              <thead><tr><th>GERS id</th><th>Name</th><th>Category</th><th>Confidence</th><th>Location</th></tr></thead>
-              <tbody id="result-body"></tbody>
-            </table>
-          </div>
-        </section>
+          <span id="result-summary">0 rows</span>
+        </div>
+        <div class="table-scroll" tabindex="0" aria-label="Scrollable query results">
+          <table>
+            <caption class="sr-only">Rows from the one accepted cloud-native linked-analysis artifact</caption>
+            <thead>
+              <tr><th scope="col">Place</th><th scope="col">Category</th><th scope="col">Confidence</th><th scope="col">Longitude</th><th scope="col">Latitude</th></tr>
+            </thead>
+            <tbody id="result-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="receipt-layout" aria-label="Machine-readable receipts">
+        <details class="card">
+          <summary>Accepted linked artifact</summary>
+          <pre id="artifact-json">No accepted linked artifact.</pre>
+        </details>
+        <details class="card">
+          <summary>Presentation receipt</summary>
+          <pre id="presentation-json">No presentation receipt.</pre>
+        </details>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

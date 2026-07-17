@@ -3,7 +3,7 @@
 Honua's large-data browser sample runs a protocol-neutral spatial query through
 DuckDB-WASM's worker with one bounded policy in two lanes:
 
-- `fixture` uses a committed 1.9 KB GeoParquet file, the package-locked DuckDB
+- `fixture` uses a committed 2.1 KB GeoParquet file, the package-locked DuckDB
   main module and worker, and a SHA-256-pinned Parquet extension prepared into an
   ignored cache. Every browser asset is self-hosted; required CI makes no
   cross-origin requests.
@@ -13,8 +13,9 @@ DuckDB-WASM's worker with one bounded policy in two lanes:
 The UI separates measured evidence from plans and estimates. It shows release,
 schema, object key, ETag, last modification, observation time, STAC file
 selection, selected-object rows/row groups, verified probe bytes/ranges, result rows,
-memory ceiling, cache identity, SDK planning time, network probe time, combined
-engine/source time, and progressive rendering time.
+memory ceiling, cache identity, SDK planning time, network probe time, engine
+time, and MapLibre/DOM rendering time. It also exposes the accepted artifact and
+presentation receipts as JSON.
 
 ## Safety Contract
 
@@ -29,11 +30,13 @@ Every query requires:
 - a 30-second engine deadline
 - a GeoParquet `bbox` covering predicate
 
-The result is streamed as Arrow record batches and painted in batches of 25.
-`Query.signal` cancels DuckDB work; the UI also terminates the active runtime so
-stale batches cannot render. Result caching is bounded to three entries and the
-key includes release, object ETag, AOI, CRS, projection, category, row limit,
-memory/output policy, source deadline, and engine deadline.
+S1 materializes one SDK `Result` only after the planner and engine enforce their
+bounds. S2 then validates and freezes one linked artifact and paints its table
+rows in batches of 25. `Query.signal` cancels DuckDB work; the UI also terminates
+the active runtime so stale batches cannot render. Result caching is bounded to
+three immutable artifacts and the key includes release, object ETag, AOI, CRS,
+projection, category, row limit, memory/output policy, source deadline, and
+engine deadline plus the caller-declared, package-pinned DuckDB version.
 
 Unsafe AOIs, projection/row overages, missing STAC intersections, unsupported
 HTTP ranges, oversized/truncated probe bodies, engine failures, and deadline
@@ -67,8 +70,51 @@ The runner rejects unsupported range transport, manifest/object identity drift,
 row overflow, or result-byte overflow and still disposes its caller-owned
 runtime. It has no renderer adapter: direct GeoArrow/deck.gl presentation stays
 explicitly unsupported in S1 pending the renderer and bounded-transfer
-contracts. The returned `Result` is the future single source for linked map,
-table, and chart consumers.
+contracts. S2 consumes that returned `Result` without introducing a second
+query or engine path.
+
+## Linked S2 Workflow
+
+`src/linked-analysis-workflow.ts` consumes the exact `Result` and evidence from
+`runCloudNativeAnalysis()`. It creates
+`honua.sdk.cloud-native-linked-analysis.v1`, one immutable artifact containing:
+
+- bounded normalized rows for the table
+- the same rows projected to a bounded MapLibre GeoJSON point collection
+- bounded category/chart buckets carrying the same feature identities
+- the complete S1 source, query-plan, engine, provenance, fidelity, cache, and
+  worker-cleanup receipt
+- explicit row, geometry, chart-bucket, and derived-byte ceilings
+
+Missing or non-string identities, duplicate identities, invalid coordinates,
+confidence outside 0–1, receipt/result drift, and any row, geometry, chart, or
+byte overflow fail before a view can commit. Empty and approximate results keep
+separate `empty` and `degraded` states. A generation-bound coordinator makes
+new intent latest-wins; cancellation clears the pending artifact and terminates
+the worker. Keyboard-operable table, map-result, and chart buttons publish one
+selection identity back to every surface, and the layout remains bounded at a
+mobile viewport.
+
+`honua.sdk.cloud-native-presentation.v1` keeps presentation truth separate. It
+records immutable artifact-production timing independently from current
+delivery timing, including distinct source, engine, SDK, and renderer fields.
+A UI artifact-cache hit reports zero SDK/source/engine work for that delivery
+while retaining the labeled production receipt. The engine cache remains
+`bypass` and `execution-only`; a UI cache hit never becomes an engine-cache
+claim.
+
+MapLibre is explicitly a bounded object/GeoJSON fallback. Direct GeoArrow and
+deck.gl remain gated by #536 and the bounded #388 slice, and
+`kepler-analytics` remains an optional recipe rather than a second execution
+contract. Public-object qualification, published evidence/matrix coverage, and
+duplicate-demo redirects remain S3.
+
+The fixture is `fixture-places-v2` / `fixture-v2`. Its numeric analysis fields
+are physically `DOUBLE` so browser and Node Arrow readers preserve their
+documented values instead of exposing unscaled decimal storage integers. One
+point has a valid conservative bbox that crosses a narrow AOI boundary; the
+browser gate proves the materialized bbox center remains visible by fitting the
+MapLibre viewport to the bounded union of the AOI and returned coordinates.
 
 ## What the Live Lane Proves
 
@@ -159,7 +205,7 @@ tarballs.
 ```bash
 npm run demo:overture:typecheck
 npm run demo:overture:build
-npx vitest run test/cloud-native-spatial-analysis.test.ts test/overture-extension-cache.test.ts test/overture-large-data.test.ts test/geoparquet-source.test.ts test/geoparquet-sql.test.ts
+npx vitest run test/cloud-native-spatial-analysis.test.ts test/cloud-native-linked-analysis.test.ts test/overture-extension-cache.test.ts test/overture-large-data.test.ts test/geoparquet-source.test.ts test/geoparquet-sql.test.ts
 npm run test:playwright:overture
 npm run samples:verify
 npm run samples:run -- build --sample overture-geoparquet --sdk-mode source

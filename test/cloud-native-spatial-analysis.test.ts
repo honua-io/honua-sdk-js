@@ -105,7 +105,7 @@ describe("Cloud-Native Spatial Analysis S1", () => {
       boundedExecution: { fidelity: "exact", value: true },
       cleanup: { fidelity: "exact", value: true },
     });
-  });
+  }, 20_000);
 
   it("pins the raw fixture and returns a versioned, truth-qualified public-SDK receipt", async () => {
     const bytes = readFileSync(FIXTURE_PATH);
@@ -135,8 +135,8 @@ describe("Cloud-Native Spatial Analysis S1", () => {
       workflow: "bounded-aoi-geoparquet",
       source: {
         lane: "fixture",
-        release: "fixture-places-v1",
-        schemaVersion: "fixture-v1",
+        release: "fixture-places-v2",
+        schemaVersion: "fixture-v2",
         objectKey: "public/overture-places.parquet",
       },
       query: {

@@ -195,7 +195,7 @@ export function fixtureRangeEvidence(object: OvertureObjectManifest, bytes: numb
     lastModified: null,
     cacheStatus: "in-memory fixture",
     durationMs: 0,
-    limitation: "The 1.9 KB deterministic fixture is intentionally registered as one bounded in-memory buffer.",
+    limitation: "The 2.1 KB deterministic fixture is intentionally registered as one bounded in-memory buffer.",
   };
 }
 

@@ -14,12 +14,12 @@ export const OVERTURE_POLICY: OvertureExecutionPolicy = {
 
 export const FIXTURE_MANIFEST: OvertureSourceManifest = {
   lane: "fixture",
-  release: "fixture-places-v1",
-  schemaVersion: "fixture-v1",
+  release: "fixture-places-v2",
+  schemaVersion: "fixture-v2",
   stacUrl: null,
   totalFiles: 1,
   totalRows: 8,
-  totalBytes: 1_939,
+  totalBytes: 2_124,
   totalRowGroups: 1,
   objects: [
     {
@@ -27,10 +27,10 @@ export const FIXTURE_MANIFEST: OvertureSourceManifest = {
       url: "overture-places.parquet",
       objectKey: "public/overture-places.parquet",
       bbox: [-158.6, 21, -157.5, 21.7],
-      bytes: 1939,
+      bytes: 2124,
       rows: 8,
       rowGroups: 1,
-      etag: "sha256:611e669a2955069fe1aa838f33eb667c09b9d60f034df4c357349d91d58ef74c",
+      etag: "sha256:81eca2b5344b937d61ce9be6c8124b324dd6a0dca30aaf05060a3038ff9a4eca",
       lastModified: "fixture-commit",
     },
   ],

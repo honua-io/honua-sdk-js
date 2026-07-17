@@ -107,7 +107,7 @@ export interface OvertureExecutionEvidence {
   readonly rowsReturned: number;
   readonly rowsScanned: number | null;
   readonly rowGroupsPruned: number | null;
-  readonly estimatedResultBytes: number;
+  readonly materializedResultBytes: number;
   readonly cacheStatus: "miss" | "hit";
   readonly timing: OvertureTimingEvidence;
   readonly status: "completed" | "cancelled" | "rejected" | "failed";

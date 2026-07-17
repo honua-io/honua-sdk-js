@@ -893,6 +893,8 @@
           "commands": [
             "npm run demo:overture:typecheck",
             "npm run demo:overture:build",
+            "npx vitest run test/cloud-native-spatial-analysis.test.ts",
+            "npx vitest run test/cloud-native-linked-analysis.test.ts",
             "npx vitest run test/overture-large-data.test.ts",
             "npm run test:playwright:overture"
           ]
