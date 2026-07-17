@@ -978,7 +978,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="arcgis-source-app"></a>[`arcgis-source-app`](../../examples/arcgis-source-app/README.md) | fixture | - | internal | active | internal-fixture | fixture | not-required | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
 | <a id="automatic-source-workflow"></a>[`automatic-source-workflow`](../../docs/examples/automatic-source-workflow/README.md) | fixture | - | internal | active | browser-fixture | fixture | not-required | Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures. |
 | <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
-| <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | rework | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
+| <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | replace | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
 | <a id="endpoint-to-map"></a>[`endpoint-to-map`](../../examples/endpoint-to-map/README.md) | recipe | - | experimental | active | browser-recipe | hybrid | approved | mountSource() turns a public FeatureServer into a styled, interactive MapLibre map in four statements. |
 | <a id="geocoding-quickstart"></a>[`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | - | supported | rework | browser-recipe | hybrid | legacy-unsafe | Runs forward, reverse, and suggestion workflows with map feedback. |
 | <a id="geoprocessing-job-runner"></a>[`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
@@ -991,7 +991,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="node-backend-quickstart"></a>[`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | - | supported | active | headless-recipe | hybrid | approved | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |
 | <a id="overture-geoparquet"></a>[`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | lab | - | experimental | active | browser-lab | hybrid | not-required | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
-| <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | rework | browser-lab | fixture | not-required | Combines parcels, hazards, sketching, editing, and export in a task-oriented application. |
+| <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | active | browser-lab | fixture | not-required | Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services. |
 | <a id="pmtiles-static"></a>[`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Loads a static PMTiles archive without a Honua server. |
 | <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Uses the React provider, hooks, and map component over the same quickstart contract. |
 | <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
@@ -1265,26 +1265,26 @@ Labels: `fixture` · `experimental` · `degraded`
 - honua.io journey: `linked-large-data-analysis`
 - Degradation: The current shell still uses the 0.1.x app-workspace compatibility shim; #399 owns its supported-import migration.
 
-### 6. Edit with recovery and capability checks
+### 6. Plan, analyze, and edit with recovery
 
-Apply optimistic edits, attachments, and conflict recovery without hiding unsupported mutations.
+Search a parcel, run bounded geometry analysis, and apply metadata-backed edits and attachments without hiding unsupported mutations.
 
 Labels: `fixture` · `degraded`
 
 - Guide: [docs/shared-client-contract.md](../shared-client-contract.md)
-- Runnable example: [edit-workflow-demo](../../examples/edit-workflow-demo)
-- Executable entry: [examples/edit-workflow-demo/src/main.ts](../../examples/edit-workflow-demo/src/main.ts)
-- Example notes: [examples/edit-workflow-demo/README.md](../../examples/edit-workflow-demo/README.md)
-- Compile check: `npm run demo:edit-workflow:typecheck`
-- Sample contract: `recipe` · `supported` · `rework`
+- Runnable example: [planning-permitting-workbench](../../examples/planning-permitting-workbench)
+- Executable entry: [examples/planning-permitting-workbench/src/journey.ts](../../examples/planning-permitting-workbench/src/journey.ts)
+- Example notes: [examples/planning-permitting-workbench/README.md](../../examples/planning-permitting-workbench/README.md)
+- Compile check: `npm run demo:planning-workbench:typecheck`
+- Sample contract: `lab` · `supported` · `active`
 - Data and auth: `fixture` · `none`
-- Provenance: Committed deterministic edit fixture.
-- Freshness: Deterministic fixture replay time.
-- Catalog degradation: Editing is read-only when the service does not advertise mutation capability.
-- Live sample: [demo-editing.html](https://honua.io/demo-editing.html)
-- Supported API imports: `@honua/sdk-js/contract` (`createEditSession`); `@honua/sdk-js/honua` (`HonuaCapabilityNotSupportedError`)
-- honua.io journey: `realtime-operations`
-- Degradation: The current shell still uses the 0.1.x app-workspace compatibility shim, and mutations become read-only when capability or auth is absent.
+- Provenance: Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.
+- Freshness: Fixture version and generated-at values are committed with the repository; no live freshness claim is made.
+- Catalog degradation: Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.
+- Live sample: [demo-editing.html](https://honua.io/demo-editing.html) · [demo-planning-permitting.html](https://honua.io/demo-planning-permitting.html)
+- Supported API imports: `@honua/sdk-js/contract` (`createEditSession`); `@honua/sdk-js/geocoding` (`HonuaGeocodingClient`); `@honua/sdk-js/geometry` (`area`, `booleanIntersects`, `intersect`); `@honua/sdk-js/honua` (`createHonua`, `envelope`)
+- honua.io journey: `query-map-style`
+- Degradation: Metadata or capability discovery failure disables analysis, export, and mutation; deterministic fixture output is never presented as live or regulatory evidence.
 
 ### 7. Operate through realtime and offline transitions
 

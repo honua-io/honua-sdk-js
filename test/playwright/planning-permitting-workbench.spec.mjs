@@ -169,6 +169,10 @@ test(
         true,
       );
       await expect(page.locator("button:enabled, input:enabled, select:enabled, textarea:enabled")).toHaveCount(0);
+      const extentLabel = page.locator("#extent-label");
+      await expect(extentLabel).toHaveText("Maui Nui");
+      await page.locator('[data-preset="wailuku"]').dispatchEvent("click");
+      await expect(extentLabel).toHaveText("Maui Nui");
     } finally {
       try {
         await fixtureServer.close();

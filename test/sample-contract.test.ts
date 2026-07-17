@@ -67,6 +67,30 @@ describe("sample publication contract", () => {
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
       data: { configurationStatus: "legacy-unsafe", config: [] },
     });
+    expect(
+      catalog.samples.find((sample: { id: string }) => sample.id === "planning-permitting-workbench"),
+    ).toMatchObject({
+      track: "lab",
+      journeyId: "planning-permitting",
+      lifecycle: { state: "active" },
+      renderers: ["none"],
+      evidence: { live: { status: "planned" } },
+    });
+    expect(catalog.samples.find((sample: { id: string }) => sample.id === "edit-workflow-demo")).toMatchObject({
+      track: "recipe",
+      lifecycle: {
+        state: "replace",
+        replacement: { kind: "journey", id: "planning-permitting" },
+      },
+    });
+    expect(catalog.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart")).toMatchObject({
+      track: "recipe",
+      lifecycle: { state: "rework" },
+    });
+    expect(catalog.samples.find((sample: { id: string }) => sample.id === "sketch-editing")).toMatchObject({
+      track: "recipe",
+      lifecycle: { state: "active" },
+    });
     expect(catalog.siteMappings).toHaveLength(21);
   });
 
@@ -179,11 +203,38 @@ describe("sample publication contract", () => {
       execution: "scheduled-only",
       commands: ["npm run evidence:cog:live"],
     });
+    const planning = ciSelection.samples.find(
+      (sample: { id: string }) => sample.id === "planning-permitting-workbench",
+    );
+    expect(planning).toMatchObject({
+      track: "lab",
+      validationProfile: "browser-lab",
+      commandPlan: {
+        validation: {
+          execution: "automatic",
+          commands: [
+            "npm run demo:planning-workbench:typecheck",
+            "npm run demo:planning-workbench:build",
+            "npm run test:playwright:planning-workbench",
+          ],
+        },
+        fixtureEvidence: {
+          execution: "orchestrated",
+          commands: ["npm run demo:planning-workbench:mock"],
+        },
+        liveEvidence: { execution: "scheduled-only", commands: [] },
+      },
+    });
     expect(
       projection.routes
         .filter((route) => ["imagery-terrain", "maui-3d", "wms-overlay"].includes(String(route.id)))
         .map((route) => String(route.sampleId)),
     ).toEqual(["imagery-cog-quickstart", "imagery-cog-quickstart", "imagery-cog-quickstart"]);
+    expect(
+      projection.routes
+        .filter((route) => ["editing", "planning-permitting"].includes(String(route.id)))
+        .map((route) => String(route.sampleId)),
+    ).toEqual(["planning-permitting-workbench", "planning-permitting-workbench"]);
     expect(projection.samples.some((sample: { id: string }) => sample.id === "two-protocols")).toBe(false);
 
     const malformedProjection = structuredClone(projection);

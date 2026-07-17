@@ -433,9 +433,13 @@
       "track": "recipe",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Keep the workflow and add an isolated resettable live dataset.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "replace",
+        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow.",
+        "targetRelease": "0.2.0-beta.0",
+        "replacement": {
+          "kind": "journey",
+          "id": "planning-permitting"
+        }
       },
       "validationProfile": "browser-recipe",
       "source": {
@@ -540,7 +544,7 @@
       "supportTier": "supported",
       "lifecycle": {
         "state": "rework",
-        "reason": "Move browser credential inputs behind a host-mediated flow before recipe promotion.",
+        "reason": "Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion.",
         "targetRelease": "0.2.0-beta.0"
       },
       "validationProfile": "browser-recipe",
@@ -1144,16 +1148,15 @@
     },
     {
       "id": "planning-permitting-workbench",
-      "title": "Planning and permitting workbench",
-      "summary": "Combines parcels, hazards, sketching, editing, and export in a task-oriented application.",
+      "title": "Planning and Permitting journey",
+      "summary": "Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services.",
       "sourceKind": "root-example",
       "track": "lab",
       "journeyId": "planning-permitting",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Retain as the primary complete-application journey and simplify its first task.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Maintain the fixture-first public SDK workflow and source/packed browser gates as the planned planning candidate; golden qualification and live evidence remain explicitly unclaimed."
       },
       "validationProfile": "browser-lab",
       "source": {
@@ -1166,9 +1169,13 @@
         "version": "0.1.0-beta.0"
       },
       "capabilities": [
+        "attachments",
         "editing",
-        "map",
+        "geocoding",
+        "geometry",
+        "linked-views",
         "planning",
+        "provenance",
         "query"
       ],
       "protocols": [
@@ -1176,14 +1183,14 @@
         "honua"
       ],
       "renderers": [
-        "maplibre"
+        "none"
       ],
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "provenance": "Committed Maui planning fixtures.",
-        "attribution": "Dataset attribution is visible per layer.",
-        "freshness": "Fixture version committed with the repository.",
+        "provenance": "Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.",
+        "attribution": "Honua synthetic Maui planning data; not a current regulatory determination.",
+        "freshness": "Fixture version and generated-at values are committed with the repository; no live freshness claim is made.",
         "configurationStatus": "not-required"
       },
       "evidence": {
@@ -1196,7 +1203,7 @@
           "status": "planned"
         }
       },
-      "expectedDegradation": "Mutation and print actions disable with explicit reasons when capabilities are absent."
+      "expectedDegradation": "Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination."
     },
     {
       "id": "pmtiles-static",
@@ -1545,7 +1552,7 @@
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Canonical terra-draw binding demo for the Esri widget-cliff sketch gap."
+        "reason": "Retain as the focused terra-draw drawing, snapping, undo, and edit-submission recipe; the planning journey owns the end-to-end planning workflow."
       },
       "validationProfile": "browser-recipe",
       "source": {
@@ -2094,7 +2101,7 @@
       "id": "editing",
       "route": "demo-editing.html",
       "ownership": "sdk-projection",
-      "sampleId": "edit-workflow-demo"
+      "sampleId": "planning-permitting-workbench"
     },
     {
       "id": "esri-leaflet",

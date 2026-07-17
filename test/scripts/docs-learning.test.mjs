@@ -62,6 +62,10 @@ test("derives learning-card metadata from the versioned sample catalog", async (
   );
 
   const markdown = generateLearningMarkdown(manifest, sampleCatalog);
+  const edit = manifest.paths.find((learningPath) => learningPath.id === "edit");
+  assert.equal(edit.sampleId, "planning-permitting-workbench");
+  assert.equal(edit.sourceEntry, "examples/planning-permitting-workbench/src/journey.ts");
+  assert.match(markdown, /planning-permitting-workbench[\s\S]*Sample contract: `lab` · `supported` · `active`/);
   assert.match(markdown, /spatial-analytics-workbench[\s\S]*Sample contract: `lab` · `experimental` · `rework`/);
   assert.match(markdown, /storytelling-25d-map[\s\S]*Sample contract: `lab` · `supported` · `merge`/);
   assert.match(markdown, /Data and auth: `hybrid` · `anonymous`/);

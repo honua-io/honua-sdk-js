@@ -235,6 +235,7 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:incident",
   "test:playwright:migration-workbench",
   "test:playwright:overture",
+  "test:playwright:planning-workbench",
   "test:playwright:quickstart",
   "test:playwright:service-explorer",
   "test:playwright:sketch-editing",

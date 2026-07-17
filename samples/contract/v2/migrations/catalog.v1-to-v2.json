@@ -179,7 +179,12 @@
     },
     "edit-workflow-demo": {
       "track": "recipe",
-      "validationProfile": "browser-recipe"
+      "validationProfile": "browser-recipe",
+      "lifecycle": {
+        "state": "replace",
+        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow."
+      },
+      "replacement": { "kind": "journey", "id": "planning-permitting" }
     },
     "endpoint-to-map": {
       "track": "recipe",
@@ -191,7 +196,7 @@
       "validationProfile": "browser-recipe",
       "lifecycle": {
         "state": "rework",
-        "reason": "Move browser credential inputs behind a host-mediated flow before recipe promotion."
+        "reason": "Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion."
       },
       "configuration": {
         "status": "legacy-unsafe",
@@ -316,8 +321,36 @@
     },
     "planning-permitting-workbench": {
       "track": "lab",
+      "title": "Planning and Permitting journey",
+      "summary": "Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services.",
       "journeyId": "planning-permitting",
-      "validationProfile": "browser-lab"
+      "capabilities": [
+        "attachments",
+        "editing",
+        "geocoding",
+        "geometry",
+        "linked-views",
+        "planning",
+        "provenance",
+        "query"
+      ],
+      "renderers": ["none"],
+      "validationProfile": "browser-lab",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Maintain the fixture-first public SDK workflow and source/packed browser gates as the planned planning candidate; golden qualification and live evidence remain explicitly unclaimed."
+      },
+      "data": {
+        "provenance": "Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.",
+        "attribution": "Honua synthetic Maui planning data; not a current regulatory determination.",
+        "freshness": "Fixture version and generated-at values are committed with the repository; no live freshness claim is made."
+      },
+      "expectedDegradation": "Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.",
+      "validation": [
+        "npm run demo:planning-workbench:typecheck",
+        "npm run demo:planning-workbench:build",
+        "npm run test:playwright:planning-workbench"
+      ]
     },
     "pmtiles-static": {
       "track": "recipe",
@@ -360,7 +393,11 @@
     },
     "sketch-editing": {
       "track": "recipe",
-      "validationProfile": "browser-recipe"
+      "validationProfile": "browser-recipe",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as the focused terra-draw drawing, snapping, undo, and edit-submission recipe; the planning journey owns the end-to-end planning workflow."
+      }
     },
     "spatial-analytics-workbench": {
       "track": "lab",
@@ -427,6 +464,7 @@
     }
   },
   "siteMappingOverrides": {
+    "editing": { "sampleId": "planning-permitting-workbench" },
     "maui-3d": { "sampleId": "imagery-cog-quickstart" }
   },
   "addedSamples": [

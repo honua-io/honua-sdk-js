@@ -7,7 +7,8 @@ viewports, required workflow selectors, and SDK entrypoints that qualification
 evidence must exercise.
 
 The kit-managed pilots are `imagery-cog-quickstart`, `migration-workbench`,
-`service-explorer`, and `standalone-quickstart`.
+`planning-permitting-workbench`, `service-explorer`, and
+`standalone-quickstart`.
 
 ## Run the pilots
 

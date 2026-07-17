@@ -123,20 +123,22 @@
     },
     {
       "id": "edit",
-      "title": "Edit with recovery and capability checks",
-      "outcome": "Apply optimistic edits, attachments, and conflict recovery without hiding unsupported mutations.",
+      "title": "Plan, analyze, and edit with recovery",
+      "outcome": "Search a parcel, run bounded geometry analysis, and apply metadata-backed edits and attachments without hiding unsupported mutations.",
       "labels": ["fixture", "degraded"],
-      "degradationReason": "The current shell still uses the 0.1.x app-workspace compatibility shim, and mutations become read-only when capability or auth is absent.",
-      "siteJourneyId": "realtime-operations",
+      "degradationReason": "Metadata or capability discovery failure disables analysis, export, and mutation; deterministic fixture output is never presented as live or regulatory evidence.",
+      "siteJourneyId": "query-map-style",
       "guidePath": "docs/shared-client-contract.md",
-      "sampleId": "edit-workflow-demo",
-      "sourcePath": "examples/edit-workflow-demo",
-      "sourceEntry": "examples/edit-workflow-demo/src/main.ts",
-      "docsPath": "examples/edit-workflow-demo/README.md",
-      "typecheckScript": "demo:edit-workflow:typecheck",
+      "sampleId": "planning-permitting-workbench",
+      "sourcePath": "examples/planning-permitting-workbench",
+      "sourceEntry": "examples/planning-permitting-workbench/src/journey.ts",
+      "docsPath": "examples/planning-permitting-workbench/README.md",
+      "typecheckScript": "demo:planning-workbench:typecheck",
       "api": [
         { "specifier": "@honua/sdk-js/contract", "symbols": ["createEditSession"] },
-        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaCapabilityNotSupportedError"] }
+        { "specifier": "@honua/sdk-js/geocoding", "symbols": ["HonuaGeocodingClient"] },
+        { "specifier": "@honua/sdk-js/geometry", "symbols": ["area", "booleanIntersects", "intersect"] },
+        { "specifier": "@honua/sdk-js/honua", "symbols": ["createHonua", "envelope"] }
       ]
     },
     {
