@@ -113,7 +113,11 @@ describe("prepared SDK artifact contract", () => {
     }
 
     const ci = fs.readFileSync(path.join(getProjectRoot(), ".github", "workflows", "ci.yml"), "utf8");
+    const prFastJob = ci.slice(ci.indexOf("  pr-fast:"), ci.indexOf("  benchmark-lab:"));
     const jsSdkJob = ci.slice(ci.indexOf("  js-sdk:"), ci.indexOf("  mcp-sdk:"));
+    const fullHistoryCheckout = /uses: actions\/checkout@[^\n]+\n\s+with:\n\s+fetch-depth: 0/;
+    expect(prFastJob).toMatch(fullHistoryCheckout);
+    expect(jsSdkJob).toMatch(fullHistoryCheckout);
     expect(jsSdkJob.match(/run: npm run build\s*$/gm)).toHaveLength(1);
     expect(jsSdkJob).toContain("npm run test:coverage:prepared");
     expect(jsSdkJob).toContain("npm run test:playwright:prepared");
@@ -124,6 +128,9 @@ describe("prepared SDK artifact contract", () => {
     expect(jsSdkJob).not.toMatch(/run: npm run (?:test:coverage|test:playwright|demo:examples:build)\s*$/m);
 
     const publish = fs.readFileSync(path.join(getProjectRoot(), ".github", "workflows", "publish-js-sdk.yml"), "utf8");
+    const docsSite = fs.readFileSync(path.join(getProjectRoot(), ".github", "workflows", "docs-site.yml"), "utf8");
+    expect(publish).toMatch(fullHistoryCheckout);
+    expect(docsSite).toMatch(fullHistoryCheckout);
     expect(publish).toContain("npm run build:split-packages:prepared");
     expect(publish).toContain("npm run verify:browser:prepared");
     expect(publish).toContain("npm run demo:examples:build:prepared");
