@@ -38,17 +38,10 @@
       "mode": "readonly",
       "capabilities": ["metadata", "query", "feature-render"],
       "cloud": {
-        "baseUrlEnv": "VITE_HONUA_QUICKSTART_BASE_URL",
-        "authEnv": {
-          "apiKey": "VITE_HONUA_QUICKSTART_API_KEY",
-          "bearerToken": "VITE_HONUA_QUICKSTART_BEARER_TOKEN"
-        },
         "service": {
           "kind": "FeatureServer",
-          "serviceId": "natural-earth",
-          "serviceIdEnv": "VITE_HONUA_QUICKSTART_SERVICE_ID",
-          "layerId": 0,
-          "layerIdEnv": "VITE_HONUA_QUICKSTART_LAYER_ID"
+          "endpointEnv": "VITE_HONUA_QUICKSTART_ENDPOINT",
+          "protocolEnv": "VITE_HONUA_QUICKSTART_PROTOCOL"
         },
         "query": {
           "where": "1=1",
@@ -64,11 +57,9 @@
       },
       "smoke": {
         "fixtureCommand": "npm run test:playwright:quickstart",
-        "cloudCommand": "npm run test:cloud-demo:staging",
+        "cloudCommand": "npm run evidence:first-map:live",
         "requiresEnv": [
-          "HONUA_CLOUD_DEMO_BASE_URL",
-          "VITE_HONUA_QUICKSTART_SERVICE_ID",
-          "VITE_HONUA_QUICKSTART_LAYER_ID"
+          "VITE_HONUA_QUICKSTART_ENDPOINT"
         ]
       },
       "cacheNotes": {

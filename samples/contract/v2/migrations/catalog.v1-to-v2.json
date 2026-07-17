@@ -181,11 +181,6 @@
       "track": "recipe",
       "validationProfile": "browser-recipe"
     },
-    "endpoint-to-map": {
-      "track": "recipe",
-      "validationProfile": "browser-recipe",
-      "live": { "commands": [] }
-    },
     "geocoding-quickstart": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
@@ -232,20 +227,16 @@
     "maplibre-quickstart": {
       "track": "recipe",
       "journeyId": "first-map",
-      "validationProfile": "browser-recipe",
+      "validationProfile": "golden-browser",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Remove the rejected browser credential variables from the supported configuration surface before journey qualification."
-      },
-      "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The source still reads browser API-key and bearer-token variables in order to reject them."
+        "state": "active",
+        "reason": "Accepted First Map implementation; formal golden promotion awaits immutable complete gate receipts."
       },
       "live": {
-        "mode": "demo-live",
+        "mode": "public-live",
         "status": "executed",
         "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json",
-        "expiresAt": "2026-08-12T02:18:02.654Z"
+        "expiresAt": "2026-08-16T00:00:00.000Z"
       }
     },
     "mcp-gis-assistant": {
@@ -353,17 +344,6 @@
       "track": "recipe",
       "validationProfile": "browser-recipe",
       "replacement": { "kind": "journey", "id": "imagery-terrain" }
-    },
-    "standalone-quickstart": {
-      "track": "recipe",
-      "validationProfile": "browser-recipe",
-      "replacement": { "kind": "journey", "id": "first-map" },
-      "validation": [
-        "npm run demo:standalone:typecheck",
-        "npm run demo:standalone:build",
-        "npm run test:playwright:standalone"
-      ],
-      "live": { "mode": "public-live", "status": "planned" }
     },
     "storytelling-25d-map": {
       "track": "lab",

@@ -2,7 +2,7 @@
 
 Recorded responses from public standards servers, used by the deterministic
 `*-backend-agnostic.test.ts` suites so the raw endpoint layouts are covered
-without network access. The scheduled `standalone-live-smoke` workflow
+without network access. The scheduled `first-map-live-evidence` workflow
 re-verifies the same live servers weekly.
 
 | Dir | Source (recorded) | Layout shape proven |

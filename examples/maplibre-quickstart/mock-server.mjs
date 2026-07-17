@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,9 +11,8 @@ const projectRoot = path.resolve(exampleRoot, "../..");
 const distRoot = path.resolve(exampleRoot, "dist");
 
 export const FIXTURE_BUILD_ENV = {
-  VITE_HONUA_QUICKSTART_BASE_URL: "",
-  VITE_HONUA_QUICKSTART_SERVICE_ID: "natural-earth",
-  VITE_HONUA_QUICKSTART_LAYER_ID: "0",
+  VITE_HONUA_QUICKSTART_ENDPOINT: "",
+  VITE_HONUA_QUICKSTART_PROTOCOL: "auto",
   VITE_HONUA_QUICKSTART_WHERE: "1=1",
   VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: "25",
   VITE_HONUA_QUICKSTART_BASEMAP_STYLE: "/__honua-quickstart__/basemap-style.json",
@@ -45,8 +45,51 @@ export async function startQuickstartFixtureServer({ build = true, buildTimeoutM
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { url, close } = await startQuickstartFixtureServer();
+  const arguments_ = process.argv.slice(2);
+  const evidenceOnce = arguments_.length === 1 && arguments_[0] === "--evidence-once";
+  if (arguments_.length > 0 && !evidenceOnce) throw new Error("Unknown First Map fixture server argument");
+
+  const { server, url, close } = await startQuickstartFixtureServer();
   process.stdout.write(`quickstartMockUrl=${url}\n`);
+
+  if (evidenceOnce) {
+    let probe;
+    try {
+      const response = await fetch(url);
+      const body = Buffer.from(await response.arrayBuffer());
+      probe = {
+        method: "GET",
+        path: "/",
+        status: response.status,
+        bodyBytes: body.byteLength,
+        bodySha256: createHash("sha256").update(body).digest("hex"),
+        contentType: response.headers.get("content-type"),
+      };
+      if (!response.ok) throw new Error(`Fixture evidence probe failed with HTTP ${response.status}`);
+    } finally {
+      await close();
+    }
+    const activeConnectionsAfterClose = await new Promise((resolve, reject) => {
+      server.getConnections((error, count) => (error ? reject(error) : resolve(count)));
+    });
+    const endpoint = new URL(url);
+    process.stdout.write(
+      `fixtureEvidence=${JSON.stringify({
+        transport: "loopback-http",
+        networkScope: "loopback-only",
+        host: endpoint.hostname,
+        port: Number(endpoint.port),
+        ready: true,
+        started: true,
+        probe,
+        closed: true,
+        listeningAfterClose: server.listening,
+        activeConnectionsAfterClose,
+      })}\n`,
+    );
+    process.exit(0);
+  }
+
   const shutdown = async () => {
     await close();
     process.exit(0);

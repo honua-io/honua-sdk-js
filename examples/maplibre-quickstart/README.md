@@ -1,4 +1,4 @@
-# Honua × MapLibre flagship workflow
+# First Map: endpoint to inspected MapLibre map
 
 This is the canonical five-minute browser journey for the Honua JavaScript SDK:
 
@@ -12,14 +12,15 @@ contract and managed application kernel.
 The copyable S1 workflow core lives in [`src/workflow.ts`](./src/workflow.ts). In at most 120 non-comment lines it uses
 only published `@honua/sdk-js` and `@honua/sdk-js/runtime` entrypoints to connect, inspect, explain, execute a bounded
 query, and call `connection.mount()` with the accepted plan. GeoServices and OGC API Features use the same semantic
-workflow. Ambiguous source selection, unsupported capability, authentication, overflow, and unexpected errors remain
+workflow; the bounded map query requests WGS84 output for MapLibre. Ambiguous source selection, unsupported
+capability, authentication, overflow, and unexpected errors remain
 explicit states; truncated data is never mounted.
 
-The thin presentation shell now runs that workflow directly. It accepts an anonymous GeoServices FeatureServer layer
+The thin presentation shell runs that workflow directly. It accepts an anonymous GeoServices FeatureServer layer
 or OGC API Features URL, mounts the accepted plan through MapLibre, and adds only presentation concerns: a linked
 table/filter, accessible popup, plan disclosure, copyable call site, runtime budgets, and deterministic teardown. It
-does not adapt source behavior or add a private fallback. Consolidating overlapping sample routes remains a later
-portfolio slice.
+does not adapt source behavior or add a private fallback. The former `standalone-quickstart` and `endpoint-to-map`
+executables now redirect here rather than maintaining duplicate implementations.
 
 The result is more than a map. The page makes endpoint provenance, source identity and attribution, observation time,
 authorization mode, capabilities, SDK/plan versions, accepted feature count, query fingerprint, pushdown, fidelity,
@@ -58,15 +59,13 @@ Paste any anonymous, CORS-enabled GeoServices FeatureServer layer or OGC API Fea
 The same path can also be preconfigured for development:
 
 ```bash
-VITE_HONUA_QUICKSTART_BASE_URL=https://your-public-honua.example \
-VITE_HONUA_QUICKSTART_SERVICE_ID=public-service \
-VITE_HONUA_QUICKSTART_LAYER_ID=0 \
+VITE_HONUA_QUICKSTART_ENDPOINT=https://your-public-data.example/ogc/features \
+VITE_HONUA_QUICKSTART_PROTOCOL=ogc-features \
 npm run demo:quickstart
 ```
 
-For a direct layer or OGC endpoint, set `VITE_HONUA_QUICKSTART_ENDPOINT` and optionally
-`VITE_HONUA_QUICKSTART_PROTOCOL=ogc-features`. The older base/service/layer variables remain accepted by this slice so
-route and configuration retirement can happen deliberately in the later convergence work.
+`VITE_HONUA_QUICKSTART_PROTOCOL` accepts `auto`, `geoservices-feature-service`, or `ogc-features`. The retired
+base/service/layer composition variables are intentionally not browser inputs; paste the final public endpoint.
 
 Optional browser settings:
 
@@ -107,16 +106,18 @@ Required fixture validation is independent of a live environment:
 npm run demo:quickstart:typecheck
 npm run demo:quickstart:test
 npm run demo:quickstart:parity
+npm run demo:quickstart:copyability
 npm run demo:quickstart:build
 npm run test:playwright:quickstart
 ```
 
 The Playwright lane verifies all five stages, evidence and plan fields, table/filter/popup linkage, keyboard selection,
-mobile layout, zero page/console errors, and explicit cleanup. Live validation remains separate:
+mobile layout, Axe accessibility, zero external fixture requests, zero page/console errors, and explicit cleanup.
+The release smoke repeats the same focused test across Chromium, Firefox, and WebKit. Live validation remains
+scheduled and explicitly network-gated:
 
 ```bash
-npm run test:quickstart:staging
-npm run bench:live
+HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live
 ```
 
 The catalog publishes the latest validated per-sample live envelope at

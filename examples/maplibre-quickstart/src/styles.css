@@ -79,7 +79,7 @@ h1 { max-width: 64rem; margin: 1.35rem 0 1rem; font-size: clamp(2.55rem, 6vw, 6.
 .secondary-button:disabled { cursor: not-allowed; opacity: .55; }
 .secondary-button:hover { background: var(--paper-ink); color: var(--paper); }
 .field-control { display: grid; gap: .35rem; margin: .8rem 0; }
-.field-control span, dt { color: #587078; font: 500 .63rem ui-monospace, monospace; text-transform: uppercase; letter-spacing: .09em; }
+.field-control span, dt { color: #526970; font: 500 .63rem ui-monospace, monospace; text-transform: uppercase; letter-spacing: .09em; }
 .field-control select { width: 100%; border: 1px solid rgba(18, 37, 42, .24); background: #fff; color: var(--paper-ink); padding: .65rem .75rem; }
 .linked-context-grid, .selection-meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; margin: 0; background: rgba(18, 37, 42, .12); }
 .linked-context-grid div, .selection-meta div { min-width: 0; background: var(--paper); padding: .65rem; }
@@ -87,18 +87,18 @@ dd { margin: .22rem 0 0; font-weight: 700; overflow-wrap: anywhere; }
 .linked-context-grid dd { font-size: .78rem; }
 .table-scroll { overflow: auto; max-height: 19rem; }
 table { width: 100%; border-collapse: collapse; font-size: .78rem; }
-th { position: sticky; top: 0; z-index: 1; background: var(--paper); color: #587078; font: 500 .62rem ui-monospace, monospace; text-align: left; text-transform: uppercase; padding: .55rem .4rem; }
+th { position: sticky; top: 0; z-index: 1; background: var(--paper); color: #526970; font: 500 .62rem ui-monospace, monospace; text-align: left; text-transform: uppercase; padding: .55rem .4rem; }
 td { border-top: 1px solid rgba(18, 37, 42, .12); padding: .62rem .4rem; vertical-align: middle; }
 .feature-name { display: block; max-width: 13rem; font-weight: 700; }
-.feature-kind { color: #587078; font-size: .7rem; }
+.feature-kind { color: #526970; font-size: .7rem; }
 .feature-inspect-button { border: 0; background: var(--paper-ink); color: #fff; min-width: 2.75rem; min-height: 2.75rem; cursor: pointer; }
 .feature-inspect-button[data-selected="true"] { background: #b93b25; }
-.selection-card > p:not(.eyebrow) { margin: 0 0 .8rem; color: #587078; font-size: .82rem; }
+.selection-card > p:not(.eyebrow) { margin: 0 0 .8rem; color: #526970; font-size: .82rem; }
 .selection-meta { margin-bottom: .8rem; }
 .attribute-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: .55rem; margin: 0; }
 .attribute-row { min-width: 0; padding: .55rem; background: #e8eee9; }
 .attribute-row dd { font-size: .76rem; }
-.empty-copy { color: #587078; }
+.empty-copy { color: #526970; }
 
 .evidence-section, .plan-section { margin-top: 1.5rem; border: 1px solid var(--line); background: var(--surface); }
 .evidence-section { padding: clamp(1.25rem, 2.5vw, 2.25rem); }
@@ -109,7 +109,7 @@ td { border-top: 1px solid rgba(18, 37, 42, .12); padding: .62rem .4rem; vertica
 .evidence-grid > div { min-width: 0; background: var(--surface); padding: 1rem; }
 .evidence-grid dt, .plan-metrics dt { color: var(--aqua); }
 .evidence-grid dd { font-size: .88rem; }
-.evidence-grid small { display: block; margin-top: .4rem; color: var(--muted); font: 400 .66rem ui-monospace, monospace; overflow-wrap: anywhere; }
+.evidence-grid .evidence-note { display: block; margin-top: .4rem; color: var(--muted); font: 400 .66rem ui-monospace, monospace; overflow-wrap: anywhere; }
 .capability-list { display: flex; flex-wrap: wrap; gap: .4rem; }
 .capability-list span { border: 1px solid var(--line); padding: .35rem .55rem; color: var(--muted); font: 400 .65rem ui-monospace, monospace; }
 
@@ -138,9 +138,9 @@ footer p { margin: 0; }
 footer a { color: var(--lime); }
 .popup-card { color: #12252a; }
 .popup-card h3 { margin: .15rem 0 .3rem; }
-.popup-card p { margin: 0 0 .7rem; color: #587078; }
+.popup-card p { margin: 0 0 .7rem; color: #526970; }
 .popup-row { display: grid; margin-top: .4rem; }
-.popup-row span { color: #587078; font: 500 .6rem ui-monospace, monospace; text-transform: uppercase; }
+.popup-row span { color: #526970; font: 500 .6rem ui-monospace, monospace; text-transform: uppercase; }
 .maplibregl-popup-content { border-radius: 0; }
 
 @media (max-width: 74rem) {

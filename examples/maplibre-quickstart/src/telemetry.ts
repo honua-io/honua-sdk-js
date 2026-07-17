@@ -27,6 +27,14 @@ export interface QuickstartRuntimeState {
   queryDurationMs?: number;
   sdkVersion?: string;
   dataVersion?: string;
+  sourceProtocol?: string;
+  sourceId?: string;
+  sourceAttribution?: string | null;
+  sourceObservedAt?: string | null;
+  sourceFreshness?: "observed" | "unavailable";
+  cacheStatus?: "bypass" | "hit" | "miss" | "refreshed";
+  degradation?: string[];
+  authorizationMode?: "anonymous";
   planId?: string;
   planFingerprint?: string;
   planPushdown?: "full" | "partial";

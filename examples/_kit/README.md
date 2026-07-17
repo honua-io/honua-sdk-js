@@ -7,7 +7,7 @@ viewports, required workflow selectors, and SDK entrypoints that qualification
 evidence must exercise.
 
 The kit-managed pilots are `migration-workbench`, `service-explorer`, and
-`standalone-quickstart`.
+`maplibre-quickstart`.
 
 ## Run the pilots
 
@@ -29,10 +29,10 @@ npm run samples:run -- verify --kit --sdk-mode packed
 Select one pilot for a shorter loop:
 
 ```bash
-npm run samples:run -- typecheck --sample standalone-quickstart
+npm run samples:run -- typecheck --sample maplibre-quickstart
 npm run samples:run -- build --sample service-explorer --sdk-mode packed
 npm run samples:run -- verify --sample migration-workbench --sdk-mode source
-npm run samples:run -- test --sample standalone-quickstart
+npm run samples:run -- test --sample maplibre-quickstart
 npm run samples:run -- dev --sample service-explorer
 ```
 
@@ -54,7 +54,7 @@ fresh canonical run root with only that run and the group's receipt paths
 mutable:
 
 ```bash
-npm run samples:run -- evidence --sample standalone-quickstart
+npm run samples:run -- evidence --sample maplibre-quickstart
 npm run samples:run -- evidence --sample service-explorer --gate fixture
 ```
 

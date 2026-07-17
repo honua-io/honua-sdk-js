@@ -65,14 +65,17 @@ test("derives learning-card metadata from the versioned sample catalog", async (
   assert.match(markdown, /spatial-analytics-workbench[\s\S]*Sample contract: `lab` · `experimental` · `rework`/);
   assert.match(markdown, /storytelling-25d-map[\s\S]*Sample contract: `lab` · `supported` · `merge`/);
   assert.match(markdown, /Data and auth: `hybrid` · `anonymous`/);
-  assert.match(markdown, /Live sample: \[demo\.html\]\(https:\/\/honua\.io\/demo\.html\)/);
+  assert.match(
+    markdown,
+    /Live sample: \[sample-expr-builder\.html\]\(https:\/\/honua\.io\/sample-expr-builder\.html\) · \[demo\.html\]\(https:\/\/honua\.io\/demo\.html\)/,
+  );
   assert.match(markdown, /effective version derived from `package\.json`|version in \[`package\.json`\]/);
 });
 
 test("rejects learning paths that drift from catalog-owned source metadata", async () => {
   const invalid = copyManifest();
-  invalid.paths[0].sourcePath = "examples/maplibre-quickstart";
-  invalid.paths[0].sourceEntry = "examples/maplibre-quickstart/src/main.ts";
+  invalid.paths[0].sourcePath = "examples/service-explorer";
+  invalid.paths[0].sourceEntry = "examples/service-explorer/src/main.ts";
 
   await assert.rejects(
     validateLearningManifest({
@@ -83,7 +86,7 @@ test("rejects learning paths that drift from catalog-owned source metadata", asy
       sampleCatalog,
       checkRuntimeImports: false,
     }),
-    /start: sourcePath must match the sample catalog \(examples\/standalone-quickstart\)/,
+    /start: sourcePath must match the sample catalog \(examples\/maplibre-quickstart\)/,
   );
 });
 

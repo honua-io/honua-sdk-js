@@ -522,7 +522,7 @@ async function main() {
   <h1>${escapeHtml(SITE_TITLE)}</h1>
   <p class="tagline">MapLibre gives you the map. Honua gives you everything else: typed clients for Esri GeoServices, OGC API (Features / Tiles / Maps / Processes), STAC, WMS/WMTS, WFS 2.0, and OData v4 — plus a one-call data→map bridge and a drop-in ArcGIS migration path.</p>
   <p>
-    <a class="cta" href="guides/standalone-quickstart.html">Building on MapLibre → quickstart</a>
+    <a class="cta" href="guides/quickstart.html">Building on MapLibre → First Map</a>
     <a class="cta" href="guides/widget-survival-guide.html">Leaving ArcGIS → widget survival guide</a>
     <a class="cta secondary" href="api/index.html">API reference</a>
     <a class="cta secondary" href="gallery.html">Demo gallery</a>

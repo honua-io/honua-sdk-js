@@ -37,16 +37,15 @@
       "outcome": "Open a public GeoServices endpoint and render useful data without an account.",
       "labels": ["fixture", "public-live"],
       "siteJourneyId": "connect-existing-gis",
-      "guidePath": "docs/standalone-quickstart.md",
-      "sampleId": "standalone-quickstart",
-      "sourcePath": "examples/standalone-quickstart",
-      "sourceEntry": "examples/standalone-quickstart/src/main.ts",
-      "docsPath": "examples/standalone-quickstart/README.md",
-      "typecheckScript": "demo:standalone:typecheck",
+      "guidePath": "docs/quickstart.md",
+      "sampleId": "maplibre-quickstart",
+      "sourcePath": "examples/maplibre-quickstart",
+      "sourceEntry": "examples/maplibre-quickstart/src/workflow.ts",
+      "docsPath": "examples/maplibre-quickstart/README.md",
+      "typecheckScript": "demo:quickstart:typecheck",
       "api": [
-        { "specifier": "@honua/sdk-js/esri-compat", "symbols": ["FeatureLayerCompat"] },
-        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaClient"] },
-        { "specifier": "@honua/sdk-js/map", "symbols": ["loadHonuaFeatureServiceGeoJson"] }
+        { "specifier": "@honua/sdk-js", "symbols": ["createHonua"] },
+        { "specifier": "@honua/sdk-js/runtime", "symbols": ["maplibreRenderer"] }
       ]
     },
     {
@@ -88,19 +87,17 @@
       "id": "map-style",
       "title": "Connect, explain, and map query results",
       "outcome": "Connect, discover, explain, query, and mount one source with linked MapLibre views and visible runtime evidence.",
-      "labels": ["fixture", "demo-live", "experimental"],
+      "labels": ["fixture", "public-live"],
       "siteJourneyId": "query-map-style",
       "guidePath": "docs/quickstart.md",
       "sampleId": "maplibre-quickstart",
       "sourcePath": "examples/maplibre-quickstart",
-      "sourceEntry": "examples/maplibre-quickstart/src/main.ts",
+      "sourceEntry": "examples/maplibre-quickstart/src/workflow.ts",
       "docsPath": "examples/maplibre-quickstart/README.md",
       "typecheckScript": "demo:quickstart:typecheck",
       "api": [
-        { "specifier": "@honua/sdk-js/contract", "symbols": ["createDataset"] },
-        { "specifier": "@honua/sdk-js/exploration", "symbols": ["createExplorationContext"] },
-        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaClient"] },
-        { "specifier": "@honua/sdk-js/query-planner", "symbols": ["executeQueryPlan", "explainQuery"] }
+        { "specifier": "@honua/sdk-js", "symbols": ["createHonua"] },
+        { "specifier": "@honua/sdk-js/runtime", "symbols": ["maplibreRenderer"] }
       ]
     },
     {

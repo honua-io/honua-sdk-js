@@ -34,10 +34,12 @@ export async function runFirstMapWorkflow<T = Record<string, unknown>>(
       });
     }
     const source = sources.find(({ id }) => id === selectedId)!;
-    const maxFeatures = config.maxFeatures;
-    const view = { mode: config.mode, connection: connectionView(inspection, selectedId), source, maxFeatures };
+    // biome-ignore format: Keep the mechanically enforced copyable-workflow line budget.
+    const view = { mode: config.mode, connection: connectionView(inspection, selectedId), source, maxFeatures: config.maxFeatures };
     const explainOptions = { sourceId: selectedId, ...(options.signal ? { signal: options.signal } : {}) };
-    const plan = await connection.explain(config.query, explainOptions);
+    // biome-ignore format: Keep the mechanically enforced copyable-workflow line budget.
+    const queryDefinition = inspection.protocol === "geoservices-feature-service" ? { outSr: 4326, ...config.query } : config.query;
+    const plan = await connection.explain(queryDefinition, explainOptions);
     const query = await connection.query(plan, options.signal ? { signal: options.signal } : {});
     if (query.exceededTransferLimit || query.execution.terminal.exceededTransferLimit) {
       return close(honua, {

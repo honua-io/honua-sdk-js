@@ -14,7 +14,7 @@
           <div class="brand-line">
             <span class="brand-mark" aria-hidden="true">H</span>
             <p class="eyebrow">Honua JavaScript SDK × MapLibre</p>
-            <span id="mode-badge" class="mode-badge">Detecting mode</span>
+            <span id="mode-badge" class="mode-badge" data-testid="honua-sample-mode">Detecting mode</span>
           </div>
           <h1>From endpoint to linked map, with every decision in the open.</h1>
           <p class="hero-lede">
@@ -135,13 +135,13 @@
             <p id="demo-status" class="status-line" aria-live="polite">Waiting for the connection.</p>
           </div>
           <dl class="evidence-grid">
-            <div><dt>Provenance</dt><dd id="evidence-endpoint">Waiting…</dd><small id="evidence-source">—</small></div>
-            <div><dt>Freshness</dt><dd id="evidence-freshness">Waiting…</dd><small id="evidence-observed">—</small></div>
-            <div><dt>Authorization</dt><dd id="evidence-auth">Waiting…</dd><small>No credential values are exposed</small></div>
-            <div><dt>Versions</dt><dd id="evidence-versions">Waiting…</dd><small id="evidence-data-version">—</small></div>
-            <div><dt>Metadata cache</dt><dd id="evidence-cache">Waiting…</dd><small>SDK-reported state</small></div>
-            <div><dt>Degradation</dt><dd id="evidence-degradation">Waiting…</dd><small>Never silently empty</small></div>
-            <div><dt>Fixture runtime budget</dt><dd id="evidence-timing">Waiting…</dd><small>First usable map / 10,000 ms</small></div>
+            <div><dt>Provenance</dt><dd id="evidence-endpoint">Waiting…</dd><dd class="evidence-note" id="evidence-source">—</dd></div>
+            <div><dt>Freshness</dt><dd id="evidence-freshness">Waiting…</dd><dd class="evidence-note" id="evidence-observed">—</dd></div>
+            <div><dt>Authorization</dt><dd id="evidence-auth">Waiting…</dd><dd class="evidence-note">No credential values are exposed</dd></div>
+            <div><dt>Versions</dt><dd id="evidence-versions">Waiting…</dd><dd class="evidence-note" id="evidence-data-version">—</dd></div>
+            <div><dt>Metadata cache</dt><dd id="evidence-cache">Waiting…</dd><dd class="evidence-note">SDK-reported state</dd></div>
+            <div><dt>Degradation</dt><dd id="evidence-degradation">Waiting…</dd><dd class="evidence-note">Never silently empty</dd></div>
+            <div><dt>Fixture runtime budget</dt><dd id="evidence-timing">Waiting…</dd><dd class="evidence-note">First usable map / 10,000 ms</dd></div>
           </dl>
           <div id="capability-list" class="capability-list" aria-label="Source contract capabilities"></div>
         </section>
@@ -163,7 +163,7 @@
           </div>
           <div class="plan-detail">
             <ol id="plan-steps" class="plan-steps"><li>Waiting for discovery.</li></ol>
-            <details>
+            <details data-testid="honua-sample-evidence">
               <summary>Inspect query intent and plan JSON</summary>
               <pre id="plan-json">{}</pre>
             </details>

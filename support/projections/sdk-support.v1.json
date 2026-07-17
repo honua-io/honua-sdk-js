@@ -578,9 +578,9 @@
       "freshnessPolicy": "release-gated"
     },
     {
-      "id": "standalone-live",
+      "id": "first-map-live",
       "kind": "live",
-      "path": "scripts/standalone-live-smoke.mjs",
+      "path": "scripts/first-map-live-evidence.mjs",
       "freshnessPolicy": "scheduled-live"
     },
     {
@@ -1228,7 +1228,7 @@
         "connect-fixtures",
         "contract-conformance",
         "geoservices-conformance",
-        "standalone-live"
+        "first-map-live"
       ]
     },
     {
@@ -1251,8 +1251,7 @@
         "connect-fixtures",
         "honua-surface-fixtures",
         "tile-layer-fixtures",
-        "map-service-integration",
-        "standalone-live"
+        "map-service-integration"
       ]
     },
     {
@@ -1343,8 +1342,7 @@
       "api": "connect(), Source with locator.layout=ogc-api or auto",
       "notes": "Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path.",
       "evidence": [
-        "ogc-features-fixtures",
-        "standalone-live"
+        "ogc-features-fixtures"
       ]
     },
     {
@@ -1366,8 +1364,7 @@
       "api": "connect(), Source, HonuaWfs",
       "notes": "Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path.",
       "evidence": [
-        "wfs-fixtures",
-        "standalone-live"
+        "wfs-fixtures"
       ]
     },
     {
@@ -1387,8 +1384,7 @@
       "api": "connect(), Source with locator.layout=stac-api or stac-static",
       "notes": "Searches a raw STAC API or walks static catalog links with client-side filtering.",
       "evidence": [
-        "stac-fixtures",
-        "standalone-live"
+        "stac-fixtures"
       ]
     },
     {
@@ -1409,8 +1405,7 @@
       "api": "connect(), Source, HonuaOdataEntitySet",
       "notes": "Reads $metadata, intersects advertised capabilities, and uses the raw service root.",
       "evidence": [
-        "odata-fixtures",
-        "standalone-live"
+        "odata-fixtures"
       ]
     },
     {

@@ -1,6 +1,9 @@
 # Honua React Quickstart
 
-Browser sample for the `@honua/sdk-js/react` bindings (published standalone as `@honua/react`). It demonstrates:
+Browser sample for the `@honua/sdk-js/react` bindings (published standalone as `@honua/react`). This remains a focused
+framework recipe. The framework-neutral
+[First Map](../maplibre-quickstart/README.md) owns endpoint-to-map behavior, plan evidence, and golden qualification;
+this app should not duplicate or redesign that journey. It demonstrates:
 
 - an **externally-created plain `maplibre-gl` map** owned by the app (the `@vis.gl/react-maplibre` interop shape), published to Honua through `HonuaMapProvider`
 - `HonuaSourceLayer` mounting the queried source through the data-to-map bridge, with a selection/hover-aware `renderer` prop and click popups

@@ -299,7 +299,7 @@ separate flagship-evidence index, and only 14 were marked `keep`; the rest were
 marked `merge`, `rework`, `replace`, or `retire`. That fragmentation drove the
 portfolio redesign below.
 
-Catalog v2 now inventories 34 executable examples: 15 recipes, 17 labs, and two
+Catalog v2 now inventories 32 executable examples: 13 recipes, 17 labs, and two
 fixtures. It reserves the seven canonical journeys below, but deliberately
 qualifies zero as `golden` until the runner, fixture, live-evidence, and quality
 gates in [#541](https://github.com/honua-io/honua-sdk-js/issues/541) and
@@ -319,7 +319,7 @@ Public navigation will emphasize seven golden workflows:
 
 | Golden workflow | Existing sources to consolidate | Product proof |
 | --- | --- | --- |
-| First map in five minutes | `maplibre-quickstart`, `standalone-quickstart`, `endpoint-to-map` | URL discovery, query, explain, MapLibre mount, diagnostics |
+| First map in five minutes | `maplibre-quickstart` (former standalone/endpoint routes redirect here) | URL discovery, query, explain, MapLibre mount, diagnostics |
 | Universal service explorer | `service-explorer`, `runtime-parity-showcase` | Protocol detection, capability truth, supported/degraded controls |
 | Planning and permitting | `planning-permitting-workbench`, `edit-workflow-demo`, `sketch-editing`, `geocoding-quickstart` | Task-oriented query, forms, editing, attachments, spatial analysis |
 | Realtime incident operations | `realtime-incident-dashboard` | Live snapshot/delta, reconnect, ordering, cache/render reconciliation |

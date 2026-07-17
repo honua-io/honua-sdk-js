@@ -1,10 +1,15 @@
 import { expect, test } from "@playwright/test";
 
 import { startQuickstartFixtureServer } from "../../examples/maplibre-quickstart/mock-server.mjs";
+import { attestBrowserQuality, attestClosedFixture, finalizeSampleConsole } from "./sample-gate-assertions.mjs";
+
+const SAMPLE_ID = "maplibre-quickstart";
 
 test.setTimeout(90_000);
 
-test("flagship workflow is transparent, linked, accessible, responsive, and disposable", async ({ page }) => {
+test("First Map proves the canonical fixture journey in source or packed mode", async ({ browser, browserName }, testInfo) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
   const pageErrors = [];
   const consoleErrors = [];
   const externalRequests = [];
@@ -15,24 +20,32 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
 
   const fixtureServer = await startQuickstartFixtureServer();
   const fixtureOrigin = new URL(fixtureServer.url).origin;
-  page.on("request", (request) => {
-    const requestUrl = new URL(request.url());
-    if (/^https?:$/.test(requestUrl.protocol) && requestUrl.origin !== fixtureOrigin) externalRequests.push(request.url());
+  let fixtureClosed = false;
+  await context.route("**/*", async (route) => {
+    const requestUrl = new URL(route.request().url());
+    if (/^https?:$/.test(requestUrl.protocol) && requestUrl.origin !== fixtureOrigin) {
+      externalRequests.push(route.request().url());
+      await route.abort("blockedbyclient");
+      return;
+    }
+    await route.continue();
   });
 
   try {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const navigation = await page.goto(fixtureServer.url);
     expect(navigation?.headers()["content-security-policy"]).toContain("connect-src 'self'");
-    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: fixtureOrigin });
+    if (browserName === "chromium") {
+      await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: fixtureOrigin });
+    }
 
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.journeyComplete === true))
       .toBe(true);
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText("every decision in the open");
-    await expect(page.locator("#mode-badge")).toHaveText("Fixture replay");
-    await expect(page.locator("#mode-badge")).toHaveAttribute("data-mode", "fixture");
+    await expect(page.getByTestId("honua-sample-mode")).toHaveText("Fixture replay");
+    await expect(page.getByTestId("honua-sample-mode")).toHaveAttribute("data-mode", "fixture");
     for (const stage of ["connect", "discover", "explain", "query", "mount"]) {
       await expect(page.locator(`#journey-${stage}`)).toHaveAttribute("data-state", "complete");
       await expect(page.locator(`#journey-${stage} small`)).not.toHaveText("Waiting");
@@ -42,7 +55,7 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
     await expect(page.locator("#status-feature-count")).toHaveText("3 accepted");
     await expect(page.locator("#status-geometry-types")).toHaveText("polygon");
     await expect(page.locator("#evidence-auth")).toHaveText("anonymous public");
-    await expect(page.locator("#evidence-freshness")).toContainText("Source observation advertised");
+    await expect(page.locator("#evidence-freshness")).toContainText("SDK observation available");
     await expect(page.locator("#evidence-data-version")).toContainText("3 accepted feature(s)");
     await expect(page.locator("#evidence-degradation")).toContainText("exact accepted plan");
     await expect(page.locator("#evidence-timing")).toHaveText(/\d+ ms \/ 10000 ms/);
@@ -58,6 +71,9 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
     expect(runtime?.sdkVersion).toMatch(/^\d+\.\d+\.\d+/);
     expect(runtime?.firstMapBudgetMs).toBe(10_000);
     expect(runtime?.firstMapBudgetMet).toBe(true);
+    expect(runtime?.authorizationMode).toBe("anonymous");
+    expect(runtime?.sourceId).toBe("0");
+    expect(runtime?.cacheStatus).toMatch(/^(bypass|hit|miss|refreshed)$/);
 
     await expect(page.locator("#linked-visible-count")).toHaveText("3");
     await page.locator("#attribute-filter").selectOption({ label: "STATUS: Ready" });
@@ -84,9 +100,13 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
       .toBe("2");
 
     await page.locator("#copy-code-button").click();
-    await expect(page.locator("#copy-code-status")).toHaveText("Copied workflow call site.");
+    const copyStatus = page.locator("#copy-code-status");
+    await expect(copyStatus).toHaveText(/Copied workflow call site|Copy unavailable; select the visible code manually/);
+    if ((await copyStatus.textContent())?.startsWith("Copy unavailable")) {
+      await expect(page.locator("#workflow-code")).toBeFocused();
+    }
     await expect(page.locator("#workflow-code")).toContainText("runFirstMapWorkflow");
-    await expect(page.locator("#workflow-code")).toContainText("result.state !== \"ready\"");
+    await expect(page.locator("#workflow-code")).toContainText('result.state !== "ready"');
 
     await page.locator("#endpoint-url").fill(`${fixtureOrigin}/ogc/features`);
     await page.locator("#endpoint-protocol").selectOption("ogc-features");
@@ -96,12 +116,26 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
     await expect(page.locator("#status-feature-count")).toHaveText("3 accepted");
     await expect(page.locator("#workflow-code")).toContainText('"protocol": "ogc-features"');
 
-    await page.setViewportSize({ width: 390, height: 844 });
+    const runtimeReady = await page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.journeyComplete === true);
+    const sampleReadyDurationMs = await page.evaluate(() => performance.now());
+    await attestBrowserQuality({
+      page,
+      testInfo,
+      sampleId: SAMPLE_ID,
+      browserName,
+      sampleReadyDurationMs,
+      runtimeReady,
+      responsiveViewports: [
+        { width: 1280, height: 720 },
+        { width: 390, height: 844 },
+      ],
+      workflowSelectors: ["#endpoint-form", "#map", "#feature-list"],
+    });
+
     await expect(page.getByRole("application", { name: "Interactive map of queried features" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Linked table" })).toBeVisible();
-    expect(
-      await page.evaluate(() => ({ documentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth })),
-    ).toEqual({ documentWidth: 390, viewportWidth: 390 });
+    expect(await page.evaluate(() => ({ documentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth })))
+      .toEqual({ documentWidth: 390, viewportWidth: 390 });
 
     await page.evaluate(async () => await window.__HONUA_QUICKSTART_DISPOSE__?.());
     await expect.poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.disposed)).toBe(true);
@@ -109,10 +143,14 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
     expect(cleanup?.cleanupBudgetMet).toBe(true);
     expect(cleanup?.cleanupDurationMs).toBeLessThanOrEqual(1_000);
     await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
-    expect(pageErrors).toEqual([]);
-    expect(consoleErrors).toEqual([]);
     expect(externalRequests).toEqual([]);
   } finally {
+    if (!page.isClosed()) await page.evaluate(async () => await window.__HONUA_QUICKSTART_DISPOSE__?.());
     await fixtureServer.close();
+    fixtureClosed = true;
+    await attestClosedFixture(testInfo, SAMPLE_ID, "examples/maplibre-quickstart/mock-server.mjs");
+    await finalizeSampleConsole({ testInfo, sampleId: SAMPLE_ID, page, context, pageErrors, consoleErrors });
+    expect(fixtureClosed).toBe(true);
+    expect(externalRequests).toEqual([]);
   }
 });

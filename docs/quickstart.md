@@ -8,9 +8,9 @@ visible instead of hiding network and fallback decisions:
 connect → discover → explain → query → mount
 ```
 
-This slice keeps the overlapping standalone and endpoint-to-map routes intact for the later portfolio-convergence
-work. New users should start here because this one workflow accepts both public GeoServices layers and OGC API
-Features landing pages.
+The overlapping standalone and endpoint-to-map implementations have converged here. Their documentation and npm
+aliases remain stable, but this is the only executable and catalog source. It accepts both public GeoServices layers
+and OGC API Features landing pages.
 
 ## Run the deterministic lane
 
@@ -61,13 +61,13 @@ cp examples/maplibre-quickstart/.env.example examples/maplibre-quickstart/.env
 npm run demo:quickstart
 ```
 
-Use either the direct endpoint variables:
+Use the direct endpoint variables:
 
 - `VITE_HONUA_QUICKSTART_ENDPOINT`
 - `VITE_HONUA_QUICKSTART_PROTOCOL` (`auto`, `geoservices-feature-service`, or `ogc-features`)
 
-or the retained GeoServices base/service/layer variables. Their retirement is intentionally deferred to the route
-convergence slice.
+The former GeoServices base/service/layer composition variables are retired. Provide the complete public endpoint so
+the copied configuration has one unambiguous source identity.
 
 The optional source-native filter, bounded record count, and basemap style are documented in the
 [sample README](../examples/maplibre-quickstart/README.md#secret-free-live-run).
@@ -98,9 +98,21 @@ The required CI lane is fixture-only:
 npm run demo:quickstart:typecheck
 npm run demo:quickstart:test
 npm run demo:quickstart:parity
+npm run demo:quickstart:copyability
 npm run demo:quickstart:build
 npm run test:playwright:quickstart
 ```
+
+The focused browser command runs Chromium in required CI; the release smoke repeats it in Chromium, Firefox, and
+WebKit. Fixture requests are actively blocked if they target an origin outside the loopback harness. Anonymous
+public-network evidence is a separate scheduled lane:
+
+```bash
+HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live
+```
+
+It records source identity, attribution availability, observation/freshness, cache status, degradation, timing, and a
+screenshot. It never runs on pull requests.
 
 See [`quickstart-troubleshooting.md`](./quickstart-troubleshooting.md) for compatibility, discovery, configuration,
 geometry, plan, CORS, and staging diagnostics.

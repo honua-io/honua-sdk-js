@@ -30,7 +30,7 @@ import {
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
-const validationTime = { now: "2026-07-13T12:00:00.000Z" };
+const validationTime = { now: "2026-07-17T12:00:00.000Z" };
 const goldenJourneyIds = [
   "first-map",
   "service-explorer",
@@ -48,10 +48,10 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(34);
+    expect(catalog.samples).toHaveLength(32);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(31);
+    ).toHaveLength(29);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
@@ -135,13 +135,13 @@ describe("sample publication contract", () => {
     await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
     await expect(validateCiSelection(ciSelection)).resolves.toBeUndefined();
 
-    expect(projection.samples).toHaveLength(34);
+    expect(projection.samples).toHaveLength(32);
     expect(projection.routes).toHaveLength(21);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
-    expect(ciSelection.samples).toHaveLength(34);
+    expect(ciSelection.samples).toHaveLength(32);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
@@ -171,7 +171,7 @@ describe("sample publication contract", () => {
     });
     expect(quickstart?.commandPlan.liveEvidence).toEqual({
       execution: "scheduled-only",
-      commands: ["npm run bench:live"],
+      commands: ["npm run evidence:first-map:live"],
     });
     expect(projection.samples.some((sample: { id: string }) => sample.id === "two-protocols")).toBe(false);
 
@@ -416,15 +416,24 @@ describe("sample publication contract", () => {
       "kepler-analytics: browser-public credentials require legacy-unsafe status and bounded rework",
     );
 
-    const unboundedBrowserPromotion = structuredClone(catalog);
-    const maplibre = unboundedBrowserPromotion.samples.find(
-      (sample: { id: string }) => sample.id === "maplibre-quickstart",
-    );
-    maplibre.data.configurationStatus = "approved";
-    delete maplibre.data.configurationGap;
-    await expect(validateCatalog(unboundedBrowserPromotion, packageJson, validationTime)).rejects.toThrow(
-      "maplibre-quickstart: approved configuration cannot expose a whole environment object",
-    );
+    const maplibre = catalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart");
+    expect(maplibre.data).toMatchObject({
+      configurationStatus: "approved",
+      config: [
+        "VITE_HONUA_QUICKSTART_BASEMAP_STYLE",
+        "VITE_HONUA_QUICKSTART_ENDPOINT",
+        "VITE_HONUA_QUICKSTART_PROTOCOL",
+        "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT",
+        "VITE_HONUA_QUICKSTART_WHERE",
+      ],
+    });
+    expect(
+      maplibre.data.configClassifications.every(
+        (entry: { exposure: string; valueKind: string }) =>
+          entry.exposure === "browser-public" && entry.valueKind === "non-secret",
+      ),
+    ).toBe(true);
+    await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
 
     const inventedExemption = structuredClone(catalog);
     inventedExemption.configuration.environmentReadExemptions.push({
@@ -906,7 +915,7 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
         "demo:fixture:build",
       ),
     ).toThrow("expected exactly one demo:fixture:build fixture build");
-    await expect(validateFixtureBuildHarnesses()).resolves.toBe(26);
+    await expect(validateFixtureBuildHarnesses()).resolves.toBe(24);
   });
 
   it("accepts only bounded, whole catalog commands", async () => {
@@ -945,16 +954,17 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     );
 
     const viteDevLive = await readJson("samples/catalog.v2.json");
-    viteDevLive.samples.find((sample: { id: string }) => sample.id === "endpoint-to-map").evidence.live.commands = [
-      "npm run demo:endpoint-to-map",
+    viteDevLive.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").evidence.live.commands = [
+      "npm run demo:quickstart",
     ];
     await expect(validateCatalog(viteDevLive, packageJson, validationTime)).rejects.toThrow(
       "scheduled live command is not in the reviewed bounded producer registry",
     );
 
     const deceptiveProducer = await readJson("samples/catalog.v2.json");
-    deceptiveProducer.samples.find((sample: { id: string }) => sample.id === "endpoint-to-map").evidence.live.commands =
-      ["npm run demo:evil:live-smoke"];
+    deceptiveProducer.samples.find(
+      (sample: { id: string }) => sample.id === "maplibre-quickstart",
+    ).evidence.live.commands = ["npm run demo:evil:live-smoke"];
     const deceptivePackage = structuredClone(packageJson);
     deceptivePackage.scripts["demo:evil:live-smoke"] = "vite";
     await expect(validateCatalog(deceptiveProducer, deceptivePackage, validationTime)).rejects.toThrow(
@@ -963,7 +973,7 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
 
     const reboundProducer = await readJson("samples/catalog.v2.json");
     const reboundPackage = structuredClone(packageJson);
-    reboundPackage.scripts["demo:standalone:live-smoke"] = "node scripts/overture-live-evidence.mjs";
+    reboundPackage.scripts["evidence:first-map:live"] = "node scripts/overture-live-evidence.mjs";
     await expect(validateCatalog(reboundProducer, reboundPackage, validationTime)).rejects.toThrow(
       "scheduled live command is not in the reviewed bounded producer registry",
     );

@@ -1,74 +1,52 @@
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 
-import { defineConfig } from "vite";
+import { type Plugin, defineConfig } from "vite";
 
-const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(exampleRoot, "../..");
+import { createSampleViteConfig } from "../_kit/vite.config.js";
 
-// Benchmark lane (scripts/benchmark-time-to-first-map.mjs): when
-// HONUA_QUICKSTART_SDK_DIR points at an installed @honua/sdk-js package,
-// bundle the example against that package's published dist entrypoints so the
-// measured browser map exercises exactly what consumers install. Otherwise
-// (default dev/demo lanes) alias into the repo TypeScript source.
-const installedSdkDir = process.env.HONUA_QUICKSTART_SDK_DIR;
+export const FIRST_MAP_BUNDLE_BUDGET = Object.freeze({
+  javascriptBytes: 1_700_000,
+  javascriptGzipBytes: 450_000,
+});
 
-const versionManifestPath = installedSdkDir
-  ? path.resolve(installedSdkDir, "package.json")
-  : path.resolve(repoRoot, "package.json");
-const packageJson = JSON.parse(fs.readFileSync(versionManifestPath, "utf8")) as {
-  version: string;
-  exports?: Record<string, string | { default?: string }>;
+const bundleBudget: Plugin = {
+  name: "honua-first-map-bundle-budget",
+  enforce: "pre",
+  generateBundle(_options, bundle) {
+    const chunks = Object.values(bundle).filter((entry) => entry.type === "chunk");
+    const javascriptBytes = chunks.reduce((total, chunk) => total + Buffer.byteLength(chunk.code), 0);
+    const javascriptGzipBytes = chunks.reduce((total, chunk) => total + gzipSync(chunk.code).byteLength, 0);
+    if (
+      javascriptBytes > FIRST_MAP_BUNDLE_BUDGET.javascriptBytes ||
+      javascriptGzipBytes > FIRST_MAP_BUNDLE_BUDGET.javascriptGzipBytes
+    ) {
+      throw new Error(
+        `First Map JavaScript bundle ${javascriptBytes} bytes / ${javascriptGzipBytes} gzip exceeds ` +
+          `${FIRST_MAP_BUNDLE_BUDGET.javascriptBytes} / ${FIRST_MAP_BUNDLE_BUDGET.javascriptGzipBytes}.`,
+      );
+    }
+    this.emitFile({
+      type: "asset",
+      fileName: "first-map-bundle-budget.json",
+      source: `${JSON.stringify(
+        {
+          format: "honua.sdk.first-map-bundle.v1",
+          status: "passed",
+          measurement: { javascriptBytes, javascriptGzipBytes },
+          budget: FIRST_MAP_BUNDLE_BUDGET,
+        },
+        null,
+        2,
+      )}\n`,
+    });
+  },
 };
 
-const SDK_ALIAS_SUBPATHS: ReadonlyArray<readonly [find: string, exportKey: string, srcRelative: string]> = [
-  ["@honua/sdk-js/contract", "./contract", "src/contract/index.ts"],
-  ["@honua/sdk-js/exploration", "./exploration", "src/exploration/index.ts"],
-  ["@honua/sdk-js/query-planner", "./query-planner", "src/query-planner/index.ts"],
-  ["@honua/sdk-js/interactions", "./interactions", "src/interactions/index.ts"],
-  ["@honua/sdk-js/honua", "./honua", "src/honua.ts"],
-  ["@honua/sdk-js/runtime", "./runtime", "src/runtime/index.ts"],
-  ["@honua/sdk-js", ".", "src/index.ts"],
-];
-
-function sdkAliases(): Array<{ find: string; replacement: string }> {
-  if (!installedSdkDir) {
-    return SDK_ALIAS_SUBPATHS.map(([find, , srcRelative]) => ({
-      find,
-      replacement: path.resolve(repoRoot, srcRelative),
-    }));
-  }
-  return SDK_ALIAS_SUBPATHS.map(([find, exportKey]) => {
-    const entry = packageJson.exports?.[exportKey];
-    const target = typeof entry === "string" ? entry : entry?.default;
-    if (typeof target !== "string") {
-      throw new Error(`installed @honua/sdk-js declares no default export for "${exportKey}"`);
-    }
-    return { find, replacement: path.resolve(installedSdkDir, target) };
-  });
-}
+const shared = createSampleViteConfig(import.meta.url, {
+  sdkEntrypoints: ["@honua/sdk-js", "@honua/sdk-js/runtime"],
+});
 
 export default defineConfig({
-  define: {
-    __HONUA_SDK_VERSION__: JSON.stringify(packageJson.version),
-  },
-  root: exampleRoot,
-  envDir: exampleRoot,
-  resolve: {
-    alias: sdkAliases(),
-  },
-  server: {
-    host: "127.0.0.1",
-    fs: {
-      allow: [repoRoot],
-    },
-  },
-  preview: {
-    host: "127.0.0.1",
-  },
-  build: {
-    outDir: "dist",
-    emptyOutDir: true,
-  },
+  ...shared,
+  plugins: [bundleBudget, ...(shared.plugins ?? [])],
 });

@@ -1,43 +1,53 @@
 {
-  "$schema": "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
   "format": "honua.sdk.sample-evidence.v1",
   "schemaVersion": 1,
   "sampleId": "maplibre-quickstart",
   "lane": "live",
   "status": "executed",
   "reason": null,
-  "observedAt": "2026-07-12T02:18:02.654Z",
+  "observedAt": "2026-07-17T11:50:10.224Z",
   "authMode": "anonymous",
-  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b" },
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.0-beta.0",
+    "gitCommit": "dddd413a772d56618491624d250f34d4dcae0dc2"
+  },
   "source": {
-    "provider": "honua-demo",
-    "identity": "honua-demo:maui-parcels:1",
-    "endpoint": "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
-    "deploymentVersion": "1.0.0",
+    "provider": "esri-living-atlas",
+    "identity": "geoservices-feature-service:0",
+    "endpoint": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
+    "deploymentVersion": null,
     "dataVersion": null
   },
   "provenance": {
-    "sourceId": "honua-demo:maui-parcels:1",
-    "observedAt": "2026-07-12T02:18:02.654Z",
+    "sourceId": "geoservices-feature-service:0",
+    "observedAt": "2026-07-17T11:50:11.807Z",
     "validAt": null,
     "state": "live",
-    "attribution": "Honua canonical demo data"
+    "attribution": "States 2020 Apportionment - U.S. House of Representatives Seats"
   },
   "semantics": {
-    "operation": "compatibility-layer-query-renderable-geometry",
-    "outcome": "geoservices-renderable-feature",
+    "operation": "first-map-anonymous-public-endpoint",
+    "outcome": "map-popup-filter-plan-ready",
     "itemCount": 1,
     "assertions": [
-      "compatibilityChecked=true",
-      "serviceId=\"maui-parcels\"",
-      "layerId=1",
-      "layerName=\"maui-parcels\"",
-      "geometryType=\"esriGeometryPolygon\"",
-      "returnedFeatureCount=1",
-      "renderableGeometry=true"
+      "protocol=\"geoservices-feature-service\"",
+      "sourceId=\"0\"",
+      "attribution=\"States 2020 Apportionment - U.S. House of Representatives Seats\"",
+      "freshness=\"observed\"",
+      "cacheStatus=\"miss\"",
+      "degradationCount=0",
+      "planFingerprint=\"sha256:0885ae4a8d3e0e73be390693ccbb07052cfb9db059ade26c6515c73212e058a7\"",
+      "mode=\"Anonymous live\"",
+      "credentialsSent=false",
+      "unexpectedNetworkRequests=0",
+      "cleanupBudgetMet=true"
     ]
   },
-  "timing": { "totalMs": 2074.3419810000005, "firstSuccessfulInteractionMs": 2074.3419810000005 },
+  "timing": {
+    "totalMs": 902,
+    "firstSuccessfulInteractionMs": 902
+  },
   "degradation": {
     "state": "none",
     "reasons": []
@@ -45,8 +55,13 @@
   "artifacts": [
     {
       "kind": "producer-generator",
-      "path": "scripts/live-benchmark-evidence.mjs",
-      "sha256": "5c43cfddeb103dca32419b4bfd008f6fba80b6a8f1d15dcd9f4bc9b8d59b2607"
+      "path": "scripts/first-map-live-evidence.mjs",
+      "sha256": "d103c968b016dc2a320bf799df60733669ff86252a12f8cd6987ea10ca1f1459"
+    },
+    {
+      "kind": "live-screenshot",
+      "path": "examples/maplibre-quickstart/evidence/live.v1.png",
+      "sha256": "74793f7ab4000322df690a7dd979d19a8be85575ce171174dfa275af146b87c0"
     }
   ]
 }

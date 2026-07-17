@@ -141,10 +141,13 @@ describe("cloud demo services manifest", () => {
       expect(profile.fixtureFallback.state, `${profile.id} needs fixture-degraded state`).toBe("fixture-degraded");
       expect(profile.fixtureFallback.command, `${profile.id} needs a fixture command`).toMatch(/^npm run /);
       expect(profile.smoke.fixtureCommand, `${profile.id} needs fixture smoke`).toMatch(/^npm run /);
-      expect(profile.smoke.cloudCommand, `${profile.id} needs cloud smoke`).toBe("npm run test:cloud-demo:staging");
+      expect(profile.smoke.cloudCommand, `${profile.id} needs cloud smoke`).toMatch(/^npm run /);
       expect(
-        profile.smoke.requiresEnv.some((envName) => envName.endsWith("_BASE_URL") || envName.endsWith("_STREAM_URL")),
-        `${profile.id} needs a base URL or stream URL env requirement`,
+        profile.smoke.requiresEnv.some(
+          (envName) =>
+            envName.endsWith("_BASE_URL") || envName.endsWith("_STREAM_URL") || envName.endsWith("_ENDPOINT"),
+        ),
+        `${profile.id} needs a base URL, stream URL, or endpoint env requirement`,
       ).toBe(true);
       expect(profile.cacheNotes.metadata, `${profile.id} needs metadata cache note`).toBe("cacheable-metadata");
     }

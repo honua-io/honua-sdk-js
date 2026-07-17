@@ -207,7 +207,6 @@ test("runner argument and manifest boundaries reject substitution and traversal"
     /membership or gates drifted|stale or modified/,
   );
 });
-
 test("npm evidence commands suppress lifecycle hooks without changing their reviewed argv", () => {
   const executable = process.platform === "win32" ? "npm.cmd" : "npm";
   assert.deepEqual(commandForSpawn(["npm", "run", "bench:live", "--", "--sample", "safe-sample"]), [
@@ -428,7 +427,7 @@ test("fixture mock CLIs reject unknown arguments before binding a server", () =>
   for (const file of [
     "examples/migration-workbench/mock-server.mjs",
     "examples/service-explorer/mock-server.mjs",
-    "examples/standalone-quickstart/mock-server.mjs",
+    "examples/maplibre-quickstart/mock-server.mjs",
   ]) {
     const result = spawnSync(process.execPath, [file, "--not-a-real-mode"], {
       cwd: process.cwd(),

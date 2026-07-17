@@ -65,24 +65,17 @@ function readProtocol(value: string | undefined): FirstMapProtocol {
 function endpointFromEnvironment(env: Record<string, string | undefined>): { endpoint: string; live: boolean } {
   const direct = readOptional(env, "VITE_HONUA_QUICKSTART_ENDPOINT");
   if (direct) return { endpoint: direct, live: true };
-  const base = readOptional(env, "VITE_HONUA_QUICKSTART_BASE_URL");
-  if (!base) return { endpoint: `${location.origin}${FIXTURE_FEATURE_PATH}`, live: false };
-  if (/\/FeatureServer\/\d+\/?$/i.test(base) || /\/ogc\/features\/?$/i.test(base)) {
-    return { endpoint: base, live: true };
-  }
-  const serviceId = readOptional(env, "VITE_HONUA_QUICKSTART_SERVICE_ID") ?? "natural-earth";
-  const layerId = readOptional(env, "VITE_HONUA_QUICKSTART_LAYER_ID") ?? "0";
-  return {
-    endpoint: `${base.replace(/\/+$/, "")}/rest/services/${serviceId.replace(/^\/+|\/+$/g, "")}/FeatureServer/${layerId}`,
-    live: true,
-  };
+  return { endpoint: `${location.origin}${FIXTURE_FEATURE_PATH}`, live: false };
 }
 
 function initialLaunch(): FirstMapLaunch {
-  const env = import.meta.env as Record<string, string | undefined>;
-  if (readOptional(env, "VITE_HONUA_QUICKSTART_API_KEY") || readOptional(env, "VITE_HONUA_QUICKSTART_BEARER_TOKEN")) {
-    throw new Error("First Map is secret-free. Browser API keys and bearer tokens are not accepted.");
-  }
+  const env = {
+    VITE_HONUA_QUICKSTART_BASEMAP_STYLE: import.meta.env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE,
+    VITE_HONUA_QUICKSTART_ENDPOINT: import.meta.env.VITE_HONUA_QUICKSTART_ENDPOINT,
+    VITE_HONUA_QUICKSTART_PROTOCOL: import.meta.env.VITE_HONUA_QUICKSTART_PROTOCOL,
+    VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: import.meta.env.VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT,
+    VITE_HONUA_QUICKSTART_WHERE: import.meta.env.VITE_HONUA_QUICKSTART_WHERE,
+  };
   const configured = endpointFromEnvironment(env);
   const maxFeatures = Number(readOptional(env, "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT") ?? "25");
   const where = readOptional(env, "VITE_HONUA_QUICKSTART_WHERE");
@@ -237,9 +230,9 @@ function renderSelection(summary: FirstMapFeatureSummary | undefined): void {
 }
 
 function createPopupContent(summary: FirstMapFeatureSummary): HTMLElement {
-  const article = document.createElement("article");
+  const article = document.createElement("div");
   article.className = "popup-card";
-  article.setAttribute("role", "dialog");
+  article.setAttribute("role", "region");
   article.setAttribute("aria-label", `${summary.title} feature details`);
   const kicker = document.createElement("p");
   kicker.className = "popup-kicker";
@@ -302,13 +295,17 @@ function renderPlan(result: FirstMapReady<Record<string, unknown>>): void {
   );
 }
 
-function renderEvidence(result: FirstMapReady<Record<string, unknown>>, timingMs: number, mode: FirstMapMode): void {
-  const { view, plan, query, mounted } = result;
-  const degradation = [
-    ...plan.warnings.map(({ message }) => message),
-    ...(query.degraded?.map(({ reason }) => reason) ?? []),
-    ...mounted.diagnostics.filter(({ severity }) => severity === "warning").map(({ message }) => message),
+function firstMapDegradation(result: FirstMapReady<Record<string, unknown>>): string[] {
+  return [
+    ...result.plan.warnings.map(({ message }) => message),
+    ...(result.query.degraded?.map(({ reason }) => reason) ?? []),
+    ...result.mounted.diagnostics.filter(({ severity }) => severity === "warning").map(({ message }) => message),
   ];
+}
+
+function renderEvidence(result: FirstMapReady<Record<string, unknown>>, timingMs: number, mode: FirstMapMode): void {
+  const { view, plan, query } = result;
+  const degradation = firstMapDegradation(result);
   const timing = observeFirstMapTiming(timingMs, FIRST_MAP_TIMING_BUDGETS_MS.fixtureWorkflowReady);
   setText("#evidence-endpoint", safeEndpoint(view.connection.endpoint));
   setText(
@@ -317,7 +314,7 @@ function renderEvidence(result: FirstMapReady<Record<string, unknown>>, timingMs
   );
   setText(
     "#evidence-freshness",
-    view.connection.observedAt ? "Source observation advertised" : "No source time advertised",
+    view.connection.observedAt ? "SDK observation available" : "SDK observation unavailable",
   );
   setText(
     "#evidence-observed",
@@ -661,6 +658,14 @@ async function bootstrap(): Promise<void> {
       );
       telemetry.patchRuntime({
         serviceId: result.view.source.id,
+        sourceProtocol: result.view.source.protocol,
+        sourceId: result.view.source.id,
+        sourceAttribution: result.view.source.attribution ?? null,
+        sourceObservedAt: result.view.connection.observedAt ?? null,
+        sourceFreshness: result.view.connection.observedAt ? "observed" : "unavailable",
+        cacheStatus: result.view.connection.cacheStatus,
+        degradation: firstMapDegradation(result),
+        authorizationMode: "anonymous",
         featureCount: summaries.length,
         renderableFeatureCount: summaries.filter(({ geometryKind }) => geometryKind !== "attribute-only").length,
         geometryTypes: [...new Set(summaries.map(({ geometryKind }) => geometryKind))],

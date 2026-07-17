@@ -287,7 +287,13 @@ export async function validateKit(kit, selection, scripts, options = {}) {
       fail(`${sample.id}: sample kit Playwright script is invalid`);
     }
     safeRelativePath(sample.playwrightFile, `${sample.id}.playwrightFile`);
-    if (scripts[sample.playwrightScript] !== `playwright test ${sample.playwrightFile}`) {
+    const playwrightConfig = sample.playwrightConfig === undefined
+      ? undefined
+      : safeRelativePath(sample.playwrightConfig, `${sample.id}.playwrightConfig`);
+    const expectedPlaywrightCommand = playwrightConfig
+      ? `playwright test --config ${playwrightConfig} ${sample.playwrightFile}`
+      : `playwright test ${sample.playwrightFile}`;
+    if (scripts[sample.playwrightScript] !== expectedPlaywrightCommand) {
       fail(`${sample.id}: sample kit Playwright script does not bind its declared file`);
     }
     if (
@@ -323,6 +329,9 @@ export async function validateKit(kit, selection, scripts, options = {}) {
       await containedRegularFile(root, sourcePath, sample.viteConfig, `${sample.id}.viteConfig`);
       await containedRegularFile(root, sourcePath, sample.tsconfig, `${sample.id}.tsconfig`);
       await containedRegularFile(root, "test/playwright", sample.playwrightFile, `${sample.id}.playwrightFile`);
+      if (playwrightConfig) {
+        await containedRegularFile(root, ".", playwrightConfig, `${sample.id}.playwrightConfig`);
+      }
     }
     if (
       !Array.isArray(sample.sdkEntrypoints) ||

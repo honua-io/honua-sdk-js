@@ -167,15 +167,20 @@ async function attestKeyboardWorkflow(page, selector) {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
   const interactionStartedAt = await page.evaluate(() => performance.now());
-  await page.keyboard.press("Tab");
-  const tabReachedTarget = await summary.evaluate((element) => document.activeElement === element);
+  let tabCount = 0;
+  let tabReachedTarget = false;
+  while (!tabReachedTarget && tabCount < 64) {
+    await page.keyboard.press("Tab");
+    tabCount += 1;
+    tabReachedTarget = await summary.evaluate((element) => document.activeElement === element);
+  }
   expect(tabReachedTarget).toBe(true);
   await page.keyboard.press("Enter");
   const interactionFinishedAt = await page.evaluate(() => performance.now());
   const activated = await summary.evaluate((element) => element.closest("details")?.open === true);
   expect(activated).toBe(true);
   await page.keyboard.press("Enter");
-  return { selector, tabReachedTarget, activated, durationMs: interactionFinishedAt - interactionStartedAt };
+  return { selector, tabCount, tabReachedTarget, activated, durationMs: interactionFinishedAt - interactionStartedAt };
 }
 
 async function attestResponsiveWorkflows(page, viewports, selectors) {

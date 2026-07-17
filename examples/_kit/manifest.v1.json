@@ -36,17 +36,18 @@
       "workflowSelectors": ["#source-picker", "#map", "#result-table-body"]
     },
     {
-      "id": "standalone-quickstart",
-      "viteConfig": "examples/standalone-quickstart/vite.config.ts",
-      "tsconfig": "examples/standalone-quickstart/tsconfig.json",
-      "playwrightScript": "test:playwright:standalone",
-      "playwrightFile": "test/playwright/standalone-quickstart.spec.mjs",
-      "playwrightTestTitle": "standalone quickstart renders public-endpoint features with no Honua server",
+      "id": "maplibre-quickstart",
+      "viteConfig": "examples/maplibre-quickstart/vite.config.ts",
+      "tsconfig": "examples/maplibre-quickstart/tsconfig.json",
+      "playwrightScript": "test:playwright:quickstart",
+      "playwrightConfig": "playwright.first-map.config.mjs",
+      "playwrightFile": "test/playwright/quickstart-map.spec.mjs",
+      "playwrightTestTitle": "First Map proves the canonical fixture journey in source or packed mode",
       "playwrightProjects": [{ "name": "chromium", "browserName": "chromium" }],
       "evidenceProject": "chromium",
-      "sdkEntrypoints": ["@honua/sdk-js", "@honua/sdk-js/esri-compat", "@honua/sdk-js/honua", "@honua/sdk-js/map"],
+      "sdkEntrypoints": ["@honua/sdk-js", "@honua/sdk-js/runtime"],
       "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
-      "workflowSelectors": ["#status-feature-count", "#feature-list", "#map"]
+      "workflowSelectors": ["#endpoint-form", "#map", "#feature-list"]
     }
   ]
 }
