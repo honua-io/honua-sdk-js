@@ -1743,16 +1743,16 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-17 at commit `1f2aa85f`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-17 at commit `6f2d8907`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 531.4 KiB | 140.2 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 211.9 KiB | 53.6 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 554.7 KiB | 147.0 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 212.0 KiB | 53.8 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 40.7 KiB | 12.8 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 264.6 KiB | 70.0 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 286.4 KiB | 76.0 KiB |
 | ArcGIS compatibility layer (drop-in migration surface) | 979.4 KiB | 243.6 KiB |
 | Geocoding client | 25.1 KiB | 7.3 KiB |
 | Routing client | 18.7 KiB | 6.0 KiB |
@@ -1772,10 +1772,10 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 531.4 KiB ≈
-1.52 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 554.7 KiB ≈
+1.54 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
-0.40 MB over the wire with gzip. Esri's totals also grow with widgets;
+0.41 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.
 
 **`@esri/arcgis-rest-js`** (<https://developers.arcgis.com/arcgis-rest-js/>, retrieved 2026-07-13).
@@ -6375,6 +6375,30 @@ itself, so callers can — and should — pass a bare ObjectId on
 from the entity-set key parens to produce
 `/odata/Layers(<n>)/Features(<objectId>)` directly.
 
+Exact EDM write encoding is available through the explicit
+`odataSource(..., { writeEncoding: "lossless-json" })` opt-in. The option
+preflights the complete edit envelope against the adapter's existing cached
+`$metadata` snapshot. It preserves `Edm.Int64` and `Edm.Decimal` values as
+validated JSON strings, recursively encodes complex values and collections,
+uses `NaN` / `INF` / `-INF` for non-finite `Edm.Single` and `Edm.Double`
+values, and formats URL keys by their declared metadata types. A body receives
+`application/json;IEEE754Compatible=true` only when it contains a non-null
+Int64 or Decimal; JSON `$batch` carries that media type on the individual
+request part. Direct and atomic edits consume the same preflight projection.
+Nesting, container breadth, and aggregate value nodes are hard-bounded;
+malformed or over-budget values and keys fail locally with a bounded,
+value-redacted path. When the option is omitted, the original body bytes, ordinary
+`application/json` media type, and legacy key formatter are unchanged.
+
+The codec module is lazy and memoized, so legacy/default writes do not load it.
+Lossless updates reject a scalar `feature.id` that disagrees with the
+metadata-encoded single key in `attributes`, and reject scalar ids altogether
+for composite updates because equivalence to the named components cannot be
+proved. The generic `deletes: FeatureId[]` envelope cannot carry a structured
+composite identity; opted-in composite deletes therefore fail before any
+direct or `$batch` request. Legacy preformatted composite delete expressions
+remain available only on the unchanged legacy encoding path.
+
 When `EditEnvelope.rollbackOnFailure === true` AND `$metadata`
 advertises `Capabilities.BatchSupported`, the adapter collapses the
 envelope into a single `$batch` request whose every operation carries
@@ -7971,21 +7995,21 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-17 at commit `1f2aa85f`._
+_Generated 2026-07-17 at commit `6f2d8907`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 531.4 KiB | 568.6 KiB | 140.2 KiB | 150.2 KiB |
-| `/honua` | 698.0 KiB | 767.8 KiB | 185.3 KiB | 203.9 KiB |
-| `/contract` | 264.6 KiB | 287.3 KiB | 70.0 KiB | 72.9 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 684.6 KiB | 737.1 KiB | 143.4 KiB | 154.0 KiB |
+| `.` (root) | 554.7 KiB | 568.6 KiB | 147.0 KiB | 150.2 KiB |
+| `/honua` | 721.4 KiB | 767.8 KiB | 192.3 KiB | 203.9 KiB |
+| `/contract` | 286.4 KiB | 287.3 KiB | 76.0 KiB | 83.6 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 707.9 KiB | 737.1 KiB | 149.8 KiB | 154.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 253.7 KiB | 257.5 KiB | 31.2 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData schema-bound evaluation) | 717.3 KiB | 733.3 KiB | 152.1 KiB | 152.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData schema-bound evaluation) | 740.5 KiB | 814.6 KiB | 158.7 KiB | 174.5 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 53.2 KiB | 62.6 KiB | 16.5 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 52.4 KiB | 55.2 KiB | 15.2 KiB | 15.8 KiB |
 | `/nl-map-control` | 73.8 KiB | 84.5 KiB | 22.2 KiB | 25.3 KiB |
-| `/runtime` | 507.2 KiB | 550.7 KiB | 136.3 KiB | 147.5 KiB |
+| `/runtime` | 529.0 KiB | 550.7 KiB | 142.4 KiB | 147.5 KiB |
 | `/realtime` | 41.2 KiB | 49.3 KiB | 11.4 KiB | 13.5 KiB |
 | `/offline` | 36.6 KiB | 44.3 KiB | 11.1 KiB | 13.2 KiB |
 | `/query-planner` (worker runtime injected) | 521.4 KiB | 568.1 KiB | 102.7 KiB | 111.1 KiB |
@@ -7997,17 +8021,17 @@ _Generated 2026-07-17 at commit `1f2aa85f`._
 | `/routing` | 18.7 KiB | 24.6 KiB | 6.0 KiB | 7.6 KiB |
 | `/auth` | 24.1 KiB | 30.6 KiB | 7.0 KiB | 8.7 KiB |
 | `/style` | 59.1 KiB | 69.0 KiB | 14.6 KiB | 17.2 KiB |
-| `/map` | 173.3 KiB | 182.2 KiB | 48.8 KiB | 50.7 KiB |
+| `/map` | 173.4 KiB | 182.2 KiB | 48.8 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 46.9 KiB | 53.6 KiB | 14.8 KiB | 16.8 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 438.5 KiB | 446.7 KiB | 116.0 KiB | 117.2 KiB |
+| `/react` (react/react-dom external) | 460.3 KiB | 506.3 KiB | 122.2 KiB | 134.4 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 532.0 KiB | 569.2 KiB | 140.3 KiB | 150.5 KiB |
-| browser ESM (`./browser`) | 530.7 KiB | 567.8 KiB | 140.2 KiB | 150.2 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 211.9 KiB | 229.7 KiB | 53.6 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 399.3 KiB | 423.2 KiB | 103.1 KiB | 109.5 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 555.3 KiB | 569.2 KiB | 147.3 KiB | 150.5 KiB |
+| browser ESM (`./browser`) | 554.0 KiB | 567.8 KiB | 147.0 KiB | 150.2 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 212.0 KiB | 229.7 KiB | 53.8 KiB | 57.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 422.5 KiB | 423.2 KiB | 109.9 KiB | 120.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 501.2 KiB | 535.3 KiB | 132.0 KiB | 141.2 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 524.5 KiB | 535.3 KiB | 138.8 KiB | 141.2 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 226.6 KiB | 245.9 KiB | 57.0 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 40.7 KiB | 44.7 KiB | 12.8 KiB | 14.0 KiB |
@@ -8772,6 +8796,56 @@ const aggregated = await odata.apply(
   "groupby((STATE),aggregate(ACRES with sum as SumAcres))",
 );
 ```
+
+Lossless OData writes are deliberately opt-in on the OData source factory. The
+default remains the original `JSON.stringify` body and key formatter. Choose
+`writeEncoding: "lossless-json"` when edit values must follow their declared
+EDM types exactly:
+
+```ts doc-test=compile
+import { PROTOCOL_DEFAULT_CAPABILITIES, odataSource } from "@honua/sdk-js/contract";
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({ baseUrl: "https://server.honua.io" });
+const exactParcels = odataSource<Record<string, unknown>>(
+  {
+    id: "parcels-odata",
+    protocol: "odata",
+    locator: { url: "https://server.honua.io/odata", entitySet: "Parcels" },
+    capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+  },
+  client,
+  "strict",
+  { writeEncoding: "lossless-json" },
+);
+
+await exactParcels.applyEdits({
+  adds: [{ attributes: { ObjectId: 9_223_372_036_854_775_807n, AssessedValue: "1234567890.125" } }],
+  updates: [{ id: "9223372036854775807", attributes: { AssessedValue: "1234567890.250" } }],
+});
+```
+
+The adapter reuses its single-flight `$metadata` snapshot to validate and
+encode `Edm.Int64`, `Edm.Decimal`, special `Edm.Single`/`Edm.Double` values,
+nested complex values, collections, and typed single/composite keys. Bodies
+that contain an exact integer or decimal use
+`application/json;IEEE754Compatible=true`; ordinary bodies keep
+`application/json`. The same preflight projection feeds independent edits and
+JSON `$batch` parts. Nesting, per-container breadth, and the aggregate value
+graph are hard-bounded. Invalid values—including braced or malformed GUID
+keys—fail locally before any edit request, and diagnostics retain only a
+bounded property path, never the rejected value or request body.
+
+The lossless codec is loaded lazily on the first opted-in edit; sources that
+keep the default legacy encoding do not load its runtime. For a single-key
+update, `feature.id` and the corresponding body attribute may both be present
+only when metadata encoding proves they identify the same row. A mismatch
+fails the whole envelope before transport. Composite updates must carry every
+named key component in `attributes` and omit the ambiguous scalar `feature.id`.
+The unchanged generic `deletes: FeatureId[]` contract cannot represent named
+composite components, so lossless composite deletes fail locally; use the
+native typed OData surface until the generic edit contract gains structured
+feature identity.
 
 `Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites
 the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` →

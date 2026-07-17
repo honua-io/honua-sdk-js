@@ -57,7 +57,8 @@
     "/query-planner was reset for structured plan diagnostics and persisted-claim validation (#530): versioned bounds, fidelity losses, cache decisions, provenance, validity reasons, and credential-safe warning evidence measure 529,749 minified / 103,586 gzip bytes. Both exceeded ceilings are measured actual plus 10% headroom; root and browser measurements remain within their existing ceilings.",
     "/runtime and 'tree-shake:map-source-workflow' were reset for the connection-level MapLibre lifecycle (#534): the caller-injected renderer reuses automatic feature/vector/PMTiles/raster mounting, while the map workflow shares the lightweight accepted-plan context guard with the canonical executor. Measured sizes are 512,677 / 137,337 bytes for /runtime and 41,657 / 13,059 bytes for the isolated map workflow; each ceiling is measured actual plus 10% headroom.",
     "Root, /source-schema, browser, root-connect, and root-createHonua ceilings were reset for bounded static STAC discovery (#552): same-origin traversal, byte/structure ceilings, validator-bound caching, and evidence-based COG/GeoParquet/PMTiles/tile classification are intentionally part of universal connect. The reviewed root measures 529,272 minified / 139,865 gzip bytes; each affected ceiling is measured actual plus 10% headroom.",
-    "/honua was reset for metadata-only ImageServer, GeometryServer, and GPServer discovery (#553): bounded JSON admission, credential-safe redirect handling, explicit non-Source operation descriptors, and honest canonical-route support add 25,580 minified / 6,523 gzip bytes to the advanced facade while root and browser stay within their existing ceilings. The reviewed /honua entrypoint measures 714,778 minified / 189,789 gzip bytes; both ceilings are measured actual plus 10% headroom."
+    "/honua was reset for metadata-only ImageServer, GeometryServer, and GPServer discovery (#553): bounded JSON admission, credential-safe redirect handling, explicit non-Source operation descriptors, and honest canonical-route support add 25,580 minified / 6,523 gzip bytes to the advanced facade while root and browser stay within their existing ceilings. The reviewed /honua entrypoint measures 714,778 minified / 189,789 gzip bytes; both ceilings are measured actual plus 10% headroom.",
+    "The opt-in metadata-driven OData write codec (#585) adds exact EDM body/key encoding behind one memoized dynamic import and exposes its transport-independent primitives for native OData callers. This repository's no-splitting bundle reporter inlines that async module. Only exceeded metrics were reset from the combined discovery trunk: /contract gzip 77,846 bytes; /source-capability-discovery 758,293 minified / 162,464 gzip bytes; /react 471,298 minified / 125,138 gzip bytes; and the root-connect guard 112,577 gzip bytes. Each changed ceiling is the measured actual plus 10% headroom; root, browser, /honua, and the HonuaClient-only guard remain inside their existing ceilings."
   ],
   "entrypoints": {
     ".": {
@@ -70,7 +71,7 @@
     },
     "/contract": {
       "min": 294195,
-      "gzip": 74642
+      "gzip": 85631
     },
     "/source-schema": {
       "min": 754765,
@@ -81,8 +82,8 @@
       "gzip": 34010
     },
     "/source-capability-discovery": {
-      "min": 750909,
-      "gzip": 156309
+      "min": 834123,
+      "gzip": 178711
     },
     "/plugin": {
       "min": 64080,
@@ -174,7 +175,7 @@
     },
     "tree-shake:root-connect": {
       "min": 433370,
-      "gzip": 112115
+      "gzip": 123835
     },
     "tree-shake:source-capabilities-evaluate": {
       "min": 18332,
@@ -185,8 +186,8 @@
       "gzip": 144633
     },
     "/react": {
-      "min": 457456,
-      "gzip": 119971
+      "min": 518428,
+      "gzip": 137652
     },
     "/geometry": {
       "min": 581674,
