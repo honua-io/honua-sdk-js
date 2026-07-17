@@ -31,6 +31,7 @@ import {
   semanticRequestFingerprint,
   sortSemanticFieldMappings,
   sql92Identifier,
+  verifiedSemanticNativeText,
   verifiedSemanticSourceText,
   verifiedSemanticSourceVersion,
 } from "./semantic-literals.js";
@@ -130,6 +131,12 @@ export interface SemanticGeoServicesSourceIdentity {
   readonly sourceVersion?: string;
   /** Exact relationships advertised by layer metadata. Omission is not treated as support. */
   readonly supportedSpatialRelationships?: readonly SemanticGeoServicesSpatialRelationship[];
+  /** Layer-level `supportsAdvancedQueries`; required before emitting orderByFields. */
+  readonly supportsAdvancedQueries?: boolean;
+  /** `advancedQueryCapabilities.supportsPagination`; required for resultOffset/resultRecordCount. */
+  readonly supportsPagination?: boolean;
+  /** Layer `supportsStatistics`; required for outStatistics/groupByFieldsForStatistics. */
+  readonly supportsStatistics?: boolean;
   /** Explicit layer evidence for resultOffset on statistics requests. */
   readonly supportsPaginationOnAggregatedQueries?: boolean;
 }
@@ -208,6 +215,10 @@ interface GeoServicesSemanticState {
 
 interface VerifiedGeoServicesSource extends SemanticGeoServicesSourceIdentity {
   readonly supportedSpatialRelationships: readonly SemanticGeoServicesSpatialRelationship[];
+  readonly supportsAdvancedQueries: boolean;
+  readonly supportsPagination: boolean;
+  readonly supportsStatistics: boolean;
+  readonly supportsPaginationOnAggregatedQueries: boolean;
 }
 
 interface GeoServicesFilterParts {
@@ -280,14 +291,15 @@ function verifiedGeoServicesSource(value: SemanticGeoServicesSourceIdentity): Ve
     throw new HonuaQueryPlanningError("invalid-query", "options.source.layerId is invalid");
   }
   const sourceVersion = verifiedSemanticSourceVersion(value.sourceVersion, "options.source.sourceVersion");
-  if (
-    value.supportsPaginationOnAggregatedQueries !== undefined &&
-    typeof value.supportsPaginationOnAggregatedQueries !== "boolean"
-  ) {
-    throw new HonuaQueryPlanningError(
-      "invalid-query",
-      "options.source.supportsPaginationOnAggregatedQueries is invalid",
-    );
+  for (const capability of [
+    "supportsAdvancedQueries",
+    "supportsPagination",
+    "supportsStatistics",
+    "supportsPaginationOnAggregatedQueries",
+  ] as const) {
+    if (value[capability] !== undefined && typeof value[capability] !== "boolean") {
+      throw new HonuaQueryPlanningError("invalid-query", `options.source.${capability} is invalid`);
+    }
   }
   const relationships = value.supportedSpatialRelationships ?? [];
   if (!Array.isArray(relationships)) {
@@ -314,9 +326,10 @@ function verifiedGeoServicesSource(value: SemanticGeoServicesSourceIdentity): Ve
     layerId: value.layerId,
     ...(sourceVersion ? { sourceVersion } : {}),
     supportedSpatialRelationships: [...relationships].sort(),
-    ...(value.supportsPaginationOnAggregatedQueries !== undefined
-      ? { supportsPaginationOnAggregatedQueries: value.supportsPaginationOnAggregatedQueries }
-      : {}),
+    supportsAdvancedQueries: value.supportsAdvancedQueries === true,
+    supportsPagination: value.supportsPagination === true,
+    supportsStatistics: value.supportsStatistics === true,
+    supportsPaginationOnAggregatedQueries: value.supportsPaginationOnAggregatedQueries === true,
   };
 }
 
@@ -428,6 +441,13 @@ function geoServicesOutputCrs(
 
 function geoServicesOrderBy(query: RuntimeGeoServicesQuery, state: GeoServicesSemanticState): string | undefined {
   if (!query.sort || query.sort.length === 0) return undefined;
+  if (!state.source.supportsAdvancedQueries) {
+    semanticUnsupported(
+      "unsupported-source",
+      "$.sort",
+      "GeoServices orderByFields requires explicit supportsAdvancedQueries layer evidence",
+    );
+  }
   if (query.kind === "aggregate") {
     const groups = new Set(query.groupBy as readonly string[]);
     const index = query.sort.findIndex((sort) => !groups.has(sort.field as string));
@@ -461,6 +481,13 @@ function geoServicesPage(
   state: GeoServicesSemanticState,
 ): Pick<SemanticGeoServicesCompiledQueryV1, "resultOffset" | "resultRecordCount"> {
   if (!query.page) return {};
+  if (!state.source.supportsPagination) {
+    semanticUnsupported(
+      "unsupported-source",
+      "$.page",
+      "GeoServices pagination requires explicit supportsPagination layer evidence",
+    );
+  }
   if (query.kind === "aggregate" && !state.source.supportsPaginationOnAggregatedQueries) {
     semanticUnsupported(
       "unsupported-source",
@@ -484,6 +511,13 @@ function geoServicesSemanticAggregation(
   query: Extract<RuntimeGeoServicesQuery, { readonly kind: "aggregate" }>,
   state: GeoServicesSemanticState,
 ): Pick<SemanticGeoServicesCompiledQueryV1, "outStatistics" | "groupByFieldsForStatistics"> {
+  if (!state.source.supportsStatistics) {
+    semanticUnsupported(
+      "unsupported-source",
+      "$.metrics",
+      "GeoServices outStatistics requires explicit supportsStatistics layer evidence",
+    );
+  }
   if (query.outputCrs) {
     semanticUnsupported("unsupported-projection", "$.outputCrs", "GeoServices aggregate rows do not carry geometry");
   }
@@ -585,13 +619,14 @@ function compileGeoServicesAttributeFilter(
       return `${geoServicesSqlField(field, state, `${path}.left.name`)} ${operator} ${geoServicesLiteral(
         filter.right.value,
         field,
+        state,
         `${path}.right.value`,
       )}`;
     }
     case "list": {
       const field = semanticSchemaField(state.schema, filter.operand.name, `${path}.operand.name`);
       const values = filter.values.map((literal, index) =>
-        geoServicesLiteral(literal.value, field, `${path}.values[${index}].value`),
+        geoServicesLiteral(literal.value, field, state, `${path}.values[${index}].value`),
       );
       return `${geoServicesSqlField(field, state, `${path}.operand.name`)} IN (${values.join(", ")})`;
     }
@@ -600,8 +635,9 @@ function compileGeoServicesAttributeFilter(
       return `${geoServicesSqlField(field, state, `${path}.operand.name`)} BETWEEN ${geoServicesLiteral(
         filter.lower.value,
         field,
+        state,
         `${path}.lower.value`,
-      )} AND ${geoServicesLiteral(filter.upper.value, field, `${path}.upper.value`)}`;
+      )} AND ${geoServicesLiteral(filter.upper.value, field, state, `${path}.upper.value`)}`;
     }
     case "null": {
       const field = semanticSchemaField(state.schema, filter.operand.name, `${path}.operand.name`);
@@ -634,20 +670,20 @@ function compileGeoServicesAttributeFilter(
     case "not":
       return `NOT ${parenthesized(compileGeoServicesAttributeFilter(filter.arg as RuntimeGeoServicesFilter, state, `${path}.arg`))}`;
     case "temporal": {
+      if (filter.operator === "during" || filter.operator === "time-intersects") {
+        semanticUnsupported(
+          "unsupported-node",
+          `${path}.operator`,
+          `GeoServices SQL-92 cannot represent the OGC ${filter.operator} temporal-topology predicate exactly`,
+        );
+      }
       const field = semanticSchemaField(state.schema, filter.operand.name, `${path}.operand.name`);
       const name = geoServicesSqlField(field, state, `${path}.operand.name`);
-      if (filter.operator === "before" || filter.operator === "after") {
-        return `${name} ${filter.operator === "before" ? "<" : ">"} ${geoServicesLiteral(
-          filter.value.value as string,
-          field,
-          `${path}.value.value`,
-        )}`;
-      }
-      const [lower, upper] = filter.value.value as readonly [string, string];
-      return `${name} BETWEEN ${geoServicesLiteral(lower, field, `${path}.value.value[0]`)} AND ${geoServicesLiteral(
-        upper,
+      return `${name} ${filter.operator === "before" ? "<" : ">"} ${geoServicesLiteral(
+        filter.value.value as string,
         field,
-        `${path}.value.value[1]`,
+        state,
+        `${path}.value.value`,
       )}`;
     }
     case "native": {
@@ -658,18 +694,20 @@ function compileGeoServicesAttributeFilter(
           "GeoServices native filters require geoservices-sql92 text",
         );
       }
-      if (filter.payload.text.trim().length === 0) {
-        semanticUnsupported("unsupported-native-filter", `${path}.payload.text`, "Native SQL-92 text is empty");
-      }
       state.usesNativeFilter = true;
-      return filter.payload.text;
+      return verifiedSemanticNativeText(filter.payload.text, `${path}.payload.text`, "GeoServices SQL-92");
     }
     case "spatial":
       semanticUnsupported("unsupported-node", path, "Spatial predicates use GeoServices geometry request parameters");
   }
 }
 
-function geoServicesLiteral(value: JsonValue, field: LogicalField, path: string): string {
+function geoServicesLiteral(
+  value: JsonValue,
+  field: LogicalField,
+  state: GeoServicesSemanticState,
+  path: string,
+): string {
   switch (field.type.kind) {
     case "integer":
     case "decimal":
@@ -679,19 +717,59 @@ function geoServicesLiteral(value: JsonValue, field: LogicalField, path: string)
     case "string":
     case "uuid":
       return quotedSemanticString(value as string, path);
-    case "date":
+    case "date": {
+      requireGeoServicesNativeTemporalType(field, state.source.protocol, "esriFieldTypeDateOnly", path);
       return `DATE ${quotedSemanticString(value as string, path)}`;
-    case "time":
-      return `TIME ${quotedSemanticString(value as string, path)}`;
-    case "timestamp": {
-      if (field.type.timezone !== "utc") {
+    }
+    case "time": {
+      requireGeoServicesNativeTemporalType(field, state.source.protocol, "esriFieldTypeTimeOnly", path);
+      if ((value as string).includes(".")) {
         semanticUnsupported(
           "unsupported-field-type",
           path,
-          "GeoServices TIMESTAMP literals require UTC schema metadata",
+          "GeoServices Time Only SQL syntax does not preserve fractional seconds",
         );
       }
-      const normalized = (value as string).replace(/Z$/, "").replace("T", " ");
+      return `TIME ${quotedSemanticString(value as string, path)}`;
+    }
+    case "timestamp": {
+      const nativeType = geoServicesNativeTemporalType(field, state.source.protocol, path);
+      if (nativeType === "esriFieldTypeDate") {
+        if (field.type.timezone !== "utc") {
+          semanticUnsupported(
+            "unsupported-field-type",
+            path,
+            "GeoServices Date TIMESTAMP literals require explicit UTC field metadata",
+          );
+        }
+        const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:[0-5]\d)Z$/.exec(value as string);
+        if (!match) {
+          semanticUnsupported(
+            "unsupported-field-type",
+            path,
+            "GeoServices Date TIMESTAMP syntax cannot preserve fractional seconds or leap seconds",
+          );
+        }
+        return `TIMESTAMP ${quotedSemanticString(`${match[1]} ${match[2]}`, path)}`;
+      }
+      if (nativeType !== "esriFieldTypeTimestampOffset" || field.type.timezone !== "offset") {
+        semanticUnsupported(
+          "unsupported-field-type",
+          path,
+          "GeoServices offset TIMESTAMP literals require matching Timestamp Offset field metadata",
+        );
+      }
+      const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:[0-5]\d(?:\.\d{1,3})?)(Z|[+-]\d{2}:\d{2})$/.exec(
+        value as string,
+      );
+      if (!match) {
+        semanticUnsupported(
+          "unsupported-field-type",
+          path,
+          "GeoServices Timestamp Offset SQL syntax supports at most millisecond precision and no leap seconds",
+        );
+      }
+      const normalized = `${match[1]} ${match[2]} ${match[3] === "Z" ? "+00:00" : match[3]}`;
       return `TIMESTAMP ${quotedSemanticString(normalized, path)}`;
     }
     default:
@@ -700,6 +778,53 @@ function geoServicesLiteral(value: JsonValue, field: LogicalField, path: string)
         path,
         `GeoServices SQL-92 cannot represent ${field.type.kind} literals exactly`,
       );
+  }
+}
+
+type GeoServicesNativeTemporalType =
+  | "esriFieldTypeDate"
+  | "esriFieldTypeDateOnly"
+  | "esriFieldTypeTimeOnly"
+  | "esriFieldTypeTimestampOffset";
+
+const GEO_SERVICES_TEMPORAL_TYPES = new Set<GeoServicesNativeTemporalType>([
+  "esriFieldTypeDate",
+  "esriFieldTypeDateOnly",
+  "esriFieldTypeTimeOnly",
+  "esriFieldTypeTimestampOffset",
+]);
+
+function geoServicesNativeTemporalType(
+  field: LogicalField,
+  protocol: SemanticGeoServicesProtocol,
+  path: string,
+): GeoServicesNativeTemporalType {
+  const references = field.native.filter((reference) => reference.protocol === protocol);
+  if (
+    references.length !== 1 ||
+    !GEO_SERVICES_TEMPORAL_TYPES.has(references[0]?.name as GeoServicesNativeTemporalType)
+  ) {
+    semanticUnsupported(
+      "unsupported-source",
+      path,
+      "GeoServices temporal literals require one exact native layer field type",
+    );
+  }
+  return references[0]?.name as GeoServicesNativeTemporalType;
+}
+
+function requireGeoServicesNativeTemporalType(
+  field: LogicalField,
+  protocol: SemanticGeoServicesProtocol,
+  expected: GeoServicesNativeTemporalType,
+  path: string,
+): void {
+  if (geoServicesNativeTemporalType(field, protocol, path) !== expected) {
+    semanticUnsupported(
+      "unsupported-field-type",
+      path,
+      `GeoServices ${field.type.kind} literal requires native ${expected} metadata`,
+    );
   }
 }
 

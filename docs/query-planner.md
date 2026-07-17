@@ -354,7 +354,12 @@ GeoServices artifacts target standardized SQL-92 and the layer `query` request
 vocabulary. Every public semantic field is resolved to its exact physical
 `SourceSchemaV2.path`; SQL identifiers are delimited, string literals use quote
 doubling, finite numbers never use exponent notation, and UTC temporal values
-become typed SQL literals. An unfiltered query omits `where` instead of
+become typed SQL literals only with exact layer field-type evidence.
+`esriFieldTypeDate` uses timezone-aware schema metadata and second-precision
+`TIMESTAMP`; `esriFieldTypeDateOnly`, `esriFieldTypeTimeOnly`, and
+`esriFieldTypeTimestampOffset` use their standardized `DATE`, `TIME`, and
+offset-bearing `TIMESTAMP` forms. Precision that the native type cannot carry
+fails closed. An unfiltered query omits `where` instead of
 inventing `1=1`. Raw REST field parameters (`outFields`, ordering, grouping,
 and statistic operands) additionally require one delimiter-free Unicode
 identifier; a physical name that is safe only when SQL-delimited may be used in
@@ -367,7 +372,12 @@ geometry request parameters only when the schema identifies the target geometry
 property and executable CRS/layout, and the caller supplies the relationship advertised by
 the layer's `supportedSpatialRelationships` metadata. A spatial predicate
 inside `OR` or `NOT`, multiple spatial predicates, an implicit CRS transform,
-or an unadvertised relationship fails closed. See the
+or an unadvertised relationship fails closed. `orderByFields` requires an
+explicit `supportsAdvancedQueries: true`; feature paging requires
+`supportsPagination: true`; statistics require `supportsStatistics: true`;
+and paged aggregate requests additionally require
+`supportsPaginationOnAggregatedQueries: true`. Missing or false metadata never
+becomes inferred support. See the
 [GeoServices query request reference](https://developers.arcgis.com/rest/services-reference/enterprise/query-feature-service-layer/).
 
 OData artifacts target the v4.0 URL conventions. Physical property paths retain
@@ -413,14 +423,21 @@ if (compilation.outcome === "compiled") {
 ```
 
 OData spatial compilation additionally requires one exact, whitelisted OData
-v4 `Edm.Geography*`/`Edm.Geometry*` primitive type whose geometry kind agrees
-with `SourceSchemaV2`, executable EPSG CRS and `xy` layout metadata for the
-property, and explicit source evidence for
-`geo.intersects`. The literal CRS must match the property CRS byte-for-byte at
-the executable binding level; the compiler never inserts a transform. Other
-topological predicates and distance modes return path-addressed unsupported
-diagnostics. Portable `$apply` aggregation remains outside this compiler slice
-rather than approximating aggregate semantics.
+v4 `Edm.Geography*`/`Edm.Geometry*` primitive type, executable EPSG CRS and
+`xy` layout metadata for the property, and explicit source evidence for
+`geo.intersects`. Filtering admits only the normative signatures
+`geo.intersects(Edm.GeographyPoint, Edm.GeographyPolygon)` and its
+`Edm.Geometry` equivalent. A Point property therefore precedes a Polygon
+literal; a Polygon property is emitted second after a Point literal. Bounding
+boxes are Polygon literals and can target only exact Point properties. Generic,
+line, multi, collection, mixed, or unknown filter-property kinds fail closed,
+while geometry output may still use the broader whitelisted spatial types.
+Geography requires angular CRS axes, Geometry requires linear CRS axes, and the
+literal CRS must match the property CRS byte-for-byte at the executable binding
+level; the compiler never inserts a transform. Other topological predicates and
+distance modes return path-addressed unsupported diagnostics. Portable
+`$apply` aggregation remains outside this compiler slice rather than
+approximating aggregate semantics.
 
 Both request artifacts include `schemaFingerprint`, `queryFingerprint`, and a
 domain-separated `requestFingerprint`. The latter incorporates the exact
@@ -429,7 +446,8 @@ cache and approval identities change when either semantics or source evidence
 changes. `fieldMappings` exposes the complete logical-to-physical trace used by
 the request in Unicode-scalar order, independent of host locale or ICU data.
 Protocol-native filters are accepted only with the matching
-`geoservices-sql92` or `odata-4.0` tag and set `usesNativeFilter: true`.
+`geoservices-sql92` or `odata-4.0` tag, must be bounded nonblank text without
+control characters, and set `usesNativeFilter: true`.
 
 DuckDB artifacts contain a fixed `honua-resource://resolve-at-execution`
 placeholder, the opaque #587 resource handle, parameterized SQL, and ordered

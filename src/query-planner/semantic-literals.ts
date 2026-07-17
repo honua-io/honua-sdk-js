@@ -5,6 +5,7 @@ import { HonuaQueryPlanningError } from "./types.js";
 
 const MAX_SOURCE_IDENTITY_TEXT = 512;
 const MAX_PHYSICAL_SEGMENT_TEXT = 512;
+const MAX_ODATA_IDENTIFIER_CODE_POINTS = 128;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: request identities and identifiers reject control bytes
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
 const ODATA_IDENTIFIER = /^[_\p{ID_Start}][_\p{ID_Continue}]*$/u;
@@ -47,11 +48,11 @@ export function odataPropertyPath(segments: readonly string[], path: string): st
   }
   for (const segment of segments) {
     verifiedPhysicalSegment(segment, path);
-    if (!ODATA_IDENTIFIER.test(segment)) {
+    if (!ODATA_IDENTIFIER.test(segment) || [...segment].length > MAX_ODATA_IDENTIFIER_CODE_POINTS) {
       semanticUnsupported(
         "unsupported-source",
         path,
-        "OData cannot represent a physical property path segment in its identifier grammar",
+        "OData cannot represent a physical property path segment in its bounded simple-identifier grammar",
       );
     }
   }
@@ -109,6 +110,17 @@ export function verifiedSemanticSourceText(value: unknown, path: string): string
     CONTROL_CHARACTER.test(value)
   ) {
     throw new HonuaQueryPlanningError("invalid-query", `${path} is invalid`);
+  }
+  return value;
+}
+
+/** @internal Admit already-bounded protocol-native text without URL control bytes or an empty expression. */
+export function verifiedSemanticNativeText(value: string, path: string, dialect: string): string {
+  if (value.trim().length === 0) {
+    semanticUnsupported("unsupported-native-filter", path, `${dialect} native expression is empty`);
+  }
+  if (CONTROL_CHARACTER.test(value)) {
+    semanticUnsupported("unsupported-native-filter", path, `${dialect} native expression contains a control character`);
   }
   return value;
 }

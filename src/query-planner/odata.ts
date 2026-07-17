@@ -32,6 +32,7 @@ import {
   recordSemanticFieldMapping,
   semanticRequestFingerprint,
   sortSemanticFieldMappings,
+  verifiedSemanticNativeText,
   verifiedSemanticSourceText,
   verifiedSemanticSourceVersion,
 } from "./semantic-literals.js";
@@ -424,10 +425,12 @@ function odataOutputGeometry(
   if (metadata.layout !== "xy") {
     semanticUnsupported("unsupported-geometry", path, "OData geometry output requires explicit xy layout metadata");
   }
+  const spatialType = odataSpatialType(field, metadata, path);
+  assertOdataSpatialCategoryCrs(spatialType, crs, path);
   return {
     field: field.name,
     propertyPath,
-    spatialType: odataSpatialType(field, metadata, path),
+    spatialType,
     crs,
     layout: "xy",
   };
@@ -506,21 +509,20 @@ function compileOdataSemanticFilter(filter: RuntimeOdataFilter, state: OdataSema
     case "not":
       return `not ${odataParenthesized(compileOdataSemanticFilter(filter.arg as RuntimeOdataFilter, state, `${path}.arg`))}`;
     case "temporal": {
+      if (filter.operator === "during" || filter.operator === "time-intersects") {
+        semanticUnsupported(
+          "unsupported-node",
+          `${path}.operator`,
+          `OData v4 cannot represent the OGC ${filter.operator} temporal-topology predicate exactly`,
+        );
+      }
       const field = semanticSchemaField(state.schema, filter.operand.name, `${path}.operand.name`);
       const name = odataRequestField(field, state, `${path}.operand.name`);
-      if (filter.operator === "before" || filter.operator === "after") {
-        return `${name} ${filter.operator === "before" ? "lt" : "gt"} ${odataLiteral(
-          filter.value.value as string,
-          field,
-          `${path}.value.value`,
-        )}`;
-      }
-      const [lower, upper] = filter.value.value as readonly [string, string];
-      return `(${name} ge ${odataLiteral(lower, field, `${path}.value.value[0]`)}) and (${name} le ${odataLiteral(
-        upper,
+      return `${name} ${filter.operator === "before" ? "lt" : "gt"} ${odataLiteral(
+        filter.value.value as string,
         field,
-        `${path}.value.value[1]`,
-      )})`;
+        `${path}.value.value`,
+      )}`;
     }
     case "spatial":
       return compileOdataSpatial(filter, state, path);
@@ -529,7 +531,7 @@ function compileOdataSemanticFilter(filter: RuntimeOdataFilter, state: OdataSema
         semanticUnsupported("unsupported-native-filter", path, "OData native filters require odata-4.0 text");
       }
       state.usesNativeFilter = true;
-      return filter.payload.text;
+      return verifiedSemanticNativeText(filter.payload.text, `${path}.payload.text`, "OData 4.0");
     }
   }
 }
@@ -594,7 +596,11 @@ function odataLiteral(value: JsonValue, field: LogicalField, path: string): stri
     case "uuid":
     case "date":
     case "time":
+      return value as string;
     case "timestamp":
+      if (/:60(?:[.Z+-]|$)/.test(value as string)) {
+        semanticUnsupported("unsupported-field-type", path, "OData Edm.DateTimeOffset does not support leap seconds");
+      }
       return value as string;
     case "duration":
       return `duration${quotedSemanticString(value as string, path)}`;
@@ -656,8 +662,9 @@ function compileOdataSpatial(filter: RuntimeOdataSpatialFilter, state: OdataSema
   const field = semanticSchemaField(state.schema, fieldName, `${path}.property.name`);
   const propertyPath = odataRequestField(field, state, `${path}.property.name`);
   const metadata = sourceOdataGeometryField(state.schema, fieldName, `${path}.property`);
-  const spatialType = odataSpatialType(field, metadata, `${path}.property.name`);
+  const propertySpatial = odataFilterSpatialType(field, metadata, `${path}.property.name`);
   const sourceCrs = executableOdataCrs(metadata.crs, `${path}.property`);
+  assertOdataSpatialCategoryCrs(propertySpatial.spatialType, sourceCrs, `${path}.property`);
   if (metadata.layout !== "xy") {
     semanticUnsupported(
       "unsupported-geometry",
@@ -665,11 +672,31 @@ function compileOdataSpatial(filter: RuntimeOdataSpatialFilter, state: OdataSema
       "OData spatial filtering requires explicit xy geometry-property layout metadata",
     );
   }
-  const literal =
-    filter.operator === "bbox-intersects"
-      ? odataBboxLiteral(filter.bbox, sourceCrs, spatialType, path)
-      : odataGeometryLiteral(filter.geometry, sourceCrs, spatialType, path);
-  return `geo.intersects(${propertyPath},${literal})`;
+  if (filter.operator === "bbox-intersects") {
+    if (propertySpatial.geometryKind !== "Point") {
+      semanticUnsupported(
+        "unsupported-geometry",
+        `${path}.property.name`,
+        "OData bbox intersection requires an exact Point property for the Point,Polygon signature",
+      );
+    }
+    const literal = odataBboxLiteral(filter.bbox, sourceCrs, propertySpatial.spatialType, path);
+    return `geo.intersects(${propertyPath},${literal})`;
+  }
+  const literalKind = filter.geometry.geometry.type;
+  if (propertySpatial.geometryKind === "Point" && literalKind === "Polygon") {
+    const literal = odataGeometryLiteral(filter.geometry, sourceCrs, propertySpatial.spatialType, path);
+    return `geo.intersects(${propertyPath},${literal})`;
+  }
+  if (propertySpatial.geometryKind === "Polygon" && literalKind === "Point") {
+    const literal = odataGeometryLiteral(filter.geometry, sourceCrs, propertySpatial.spatialType, path);
+    return `geo.intersects(${literal},${propertyPath})`;
+  }
+  semanticUnsupported(
+    "unsupported-geometry",
+    `${path}.geometry.geometry`,
+    `OData geo.intersects requires Point,Polygon operands; property is ${propertySpatial.geometryKind} and literal is ${literalKind}`,
+  );
 }
 
 function odataGeometryLiteral(
@@ -827,37 +854,102 @@ const ODATA_SPATIAL_NATIVE_TYPES: Readonly<
   "Edm.GeometryCollection": { spatialType: "geometry", geometryKind: "GeometryCollection" },
 };
 
+interface OdataSpatialTypeEvidence {
+  readonly spatialType: "geography" | "geometry";
+  readonly geometryKind?: GeometryKind;
+}
+
+interface OdataFilterSpatialType extends OdataSpatialTypeEvidence {
+  readonly geometryKind: "Point" | "Polygon";
+}
+
 function odataSpatialType(field: LogicalField, metadata: GeometryFieldSchema, path: string): "geography" | "geometry" {
-  const candidateNames = field.native
-    .filter((reference) => reference.protocol === "odata")
-    .map((reference) => reference.name)
-    .filter((name) => name.startsWith("Edm.Geography") || name.startsWith("Edm.Geometry"));
-  const types = new Set(candidateNames.filter((name) => Object.hasOwn(ODATA_SPATIAL_NATIVE_TYPES, name)));
-  if (candidateNames.length !== types.size || types.size !== 1) {
+  return odataSpatialTypeEvidence(field, metadata, path).spatialType;
+}
+
+function odataFilterSpatialType(
+  field: LogicalField,
+  metadata: GeometryFieldSchema,
+  path: string,
+): OdataFilterSpatialType {
+  const evidence = odataSpatialTypeEvidence(field, metadata, path);
+  if (evidence.geometryKind !== "Point" && evidence.geometryKind !== "Polygon") {
+    semanticUnsupported(
+      "unsupported-source",
+      path,
+      "OData geo.intersects requires an exact Edm Point or Polygon property type",
+    );
+  }
+  if (metadata.geometryTypes.state !== "known" || metadata.geometryTypes.type !== evidence.geometryKind) {
+    semanticUnsupported(
+      "unsupported-source",
+      path,
+      "OData geo.intersects requires matching, single-kind SourceSchemaV2 geometry evidence",
+    );
+  }
+  return { spatialType: evidence.spatialType, geometryKind: evidence.geometryKind };
+}
+
+function odataSpatialTypeEvidence(
+  field: LogicalField,
+  metadata: GeometryFieldSchema,
+  path: string,
+): OdataSpatialTypeEvidence {
+  const references = field.native.filter((reference) => reference.protocol === "odata");
+  if (references.length !== 1 || !Object.hasOwn(ODATA_SPATIAL_NATIVE_TYPES, references[0]?.name as string)) {
     semanticUnsupported(
       "unsupported-source",
       path,
       "OData geometry properties require one exact OData v4 Edm.Geography or Edm.Geometry primitive type",
     );
   }
-  const type = [...types][0] as string;
+  const type = references[0]?.name as string;
   const evidence = ODATA_SPATIAL_NATIVE_TYPES[type];
   if (!evidence) {
     semanticUnsupported("unsupported-source", path, "OData spatial native type evidence is unavailable");
   }
   const geometryKind = evidence.geometryKind;
-  if (
-    geometryKind &&
-    ((metadata.geometryTypes.state === "known" && metadata.geometryTypes.type !== geometryKind) ||
-      (metadata.geometryTypes.state === "mixed" && !metadata.geometryTypes.types.includes(geometryKind)))
-  ) {
+  if (geometryKind && (metadata.geometryTypes.state !== "known" || metadata.geometryTypes.type !== geometryKind)) {
     semanticUnsupported(
       "unsupported-source",
       path,
-      "OData native spatial primitive conflicts with SourceSchemaV2 geometry-type evidence",
+      "OData native spatial primitive requires matching, single-kind SourceSchemaV2 geometry evidence",
     );
   }
-  return evidence.spatialType;
+  return evidence;
+}
+
+const ODATA_ANGULAR_AXIS_UNITS = new Set(["degree", "radian"]);
+const ODATA_LINEAR_AXIS_UNITS = new Set([
+  "metre",
+  "meter",
+  "kilometre",
+  "kilometer",
+  "foot",
+  "us-survey-foot",
+  "mile",
+  "nautical-mile",
+  "yard",
+]);
+
+function assertOdataSpatialCategoryCrs(
+  spatialType: "geography" | "geometry",
+  crs: ExecutableCrsBinding,
+  path: string,
+): void {
+  const units = crs.coordinateOrder.axes.slice(0, 2).map((axis) => axis.unit?.toLowerCase());
+  const category = units.every((unit) => unit !== undefined && ODATA_ANGULAR_AXIS_UNITS.has(unit))
+    ? "geography"
+    : units.every((unit) => unit !== undefined && ODATA_LINEAR_AXIS_UNITS.has(unit))
+      ? "geometry"
+      : undefined;
+  if (category !== spatialType) {
+    semanticUnsupported(
+      "unsupported-crs",
+      path,
+      `OData ${spatialType} requires ${spatialType === "geography" ? "angular" : "linear"} horizontal CRS axes`,
+    );
+  }
 }
 
 function sourceOdataGeometryField(schema: SourceSchemaV2, name: string, path: string) {
