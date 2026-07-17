@@ -178,6 +178,11 @@ validated after promotion without recursively hashing themselves.
 
 Browser receipts are bound to the exact pilot test, every declared project and
 browser engine, first-attempt results, and finalized assertion attachment sets.
+The runner validates the raw Playwright checkout root and project test roots,
+then publishes the canonical repository-relative `test/playwright` binding;
+producer-machine worktree paths and volatile output directories are never part
+of committed evidence; the raw reporter file is discarded after the canonical
+per-gate wrappers are written.
 Console assertions are finalized after quality checks, fixture teardown, and
 explicit closure of the pilot-owned page and browser context.
 Screenshot and performance receipts come from that exact browser workflow and

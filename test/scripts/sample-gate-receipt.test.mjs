@@ -144,7 +144,7 @@ function playwrightGateReport({
     gate: reportGate,
     command: ["npm", "run", "test:playwright:receipt"],
     playwright: {
-      config: { rootDir: path.resolve("test/playwright") },
+      config: { rootDir: "test/playwright" },
       suites: [
         {
           file: "quickstart-map.spec.mjs",
@@ -259,7 +259,7 @@ test("metadata-only accessibility JSON cannot qualify", async () => {
     gate: "accessibility",
     command: ["npm", "run", "test:playwright:receipt"],
     playwright: {
-      config: { rootDir: path.resolve("test/playwright") },
+      config: { rootDir: "test/playwright" },
       suites: [
         {
           file: "quickstart-map.spec.mjs",
@@ -322,7 +322,7 @@ test("Playwright evidence binds every declared browser engine without assuming o
 
   assert.doesNotThrow(() => validatePlaywrightGate(report, "maplibre-quickstart", "browser", contract));
   const wrongRoot = structuredClone(report);
-  wrongRoot.config.rootDir = path.resolve("test/browser");
+  wrongRoot.config.rootDir = "test/browser";
   assert.throws(
     () => validatePlaywrightGate(wrongRoot, "maplibre-quickstart", "browser", contract),
     /root directory binding mismatch/,
