@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { HonuaConnection } from "../src/connect.js";
-import type { SourceDiscoveryInspection } from "../src/contract/discovery.js";
+import type { ConnectCacheStatus, HonuaConnection } from "../src/connect.js";
+import type {
+  DiscoveryCapabilityDecision,
+  DiscoveryEvidenceKind,
+  DiscoveryProvenance,
+  SourceDiscoveryInspection,
+} from "../src/contract/discovery.js";
 import type {
   Capability,
   Dataset,
@@ -34,8 +39,37 @@ interface ConnectionFixtureOptions {
   readonly validator?: string;
   readonly schemaField?: string;
   readonly capabilities?: readonly ("query" | "queryAggregate")[];
+  readonly locator?: Partial<SourceDescriptor["locator"]>;
+  readonly provenance?: readonly DiscoveryProvenance[];
+  readonly capabilityDecisions?: readonly DiscoveryCapabilityDecision[];
+  readonly cacheStatus?: ConnectCacheStatus;
   readonly query?: Source<Incident>["query"];
   readonly queryAll?: Source<Incident>["queryAll"];
+}
+
+function fixtureCapabilityDecision(
+  capability: "query" | "queryAggregate",
+  options: {
+    readonly evidenceKind?: DiscoveryEvidenceKind;
+    readonly evidenceProvenance?: readonly DiscoveryProvenance[];
+  } = {},
+): DiscoveryCapabilityDecision {
+  return {
+    capability,
+    effective: true,
+    code: "enabled",
+    evidence: [
+      {
+        kind: options.evidenceKind ?? "metadata",
+        supported: true,
+        provenance: options.evidenceProvenance ?? [],
+      },
+    ],
+    adapterSupported: true,
+    positiveEvidence: true,
+    policyAllowed: true,
+    reason: `${capability} advertised by fixture metadata`,
+  };
 }
 
 function connectionFixture(options: ConnectionFixtureOptions): {
@@ -44,15 +78,18 @@ function connectionFixture(options: ConnectionFixtureOptions): {
 } {
   const sourceId = options.sourceId ?? "incidents";
   const capabilities = new Set<Capability>(options.capabilities ?? ["query"]);
+  const locator = {
+    ...(options.protocol === "geoservices-feature-service"
+      ? { url: options.endpoint, serviceId: "public-safety", layerId: 0 }
+      : options.protocol === "ogc-features"
+        ? { url: options.endpoint, collectionId: sourceId }
+        : { url: options.endpoint, entitySet: "Incidents" }),
+    ...options.locator,
+  };
   const descriptor: SourceDescriptor = {
     id: sourceId,
     protocol: options.protocol,
-    locator:
-      options.protocol === "geoservices-feature-service"
-        ? { url: options.endpoint, serviceId: "public-safety", layerId: 0 }
-        : options.protocol === "ogc-features"
-          ? { url: options.endpoint, collectionId: sourceId }
-          : { url: options.endpoint, entitySet: "Incidents" },
+    locator,
     capabilities,
     schema: {
       primaryKey: "id",
@@ -72,23 +109,16 @@ function connectionFixture(options: ConnectionFixtureOptions): {
   const inspection: SourceDiscoveryInspection = {
     descriptor,
     discovery: "metadata",
-    provenance: [
+    provenance: options.provenance ?? [
       {
         source: `${options.endpoint}/metadata`,
         retrievedAt: options.observedAt ?? "2026-07-16T00:00:00.000Z",
         validator: options.validator ?? '"revision-1"',
       },
     ],
-    capabilityDecisions: [...capabilities].map((capability) => ({
-      capability,
-      effective: true,
-      code: "enabled" as const,
-      evidence: [{ kind: "metadata" as const, supported: true, provenance: [] }],
-      adapterSupported: true,
-      positiveEvidence: true,
-      policyAllowed: true,
-      reason: `${capability} advertised by fixture metadata`,
-    })),
+    capabilityDecisions:
+      options.capabilityDecisions ??
+      [...capabilities].map((capability) => fixtureCapabilityDecision(capability as "query" | "queryAggregate")),
     diagnostics: [],
   };
   const dataset = {
@@ -117,7 +147,7 @@ function connectionFixture(options: ConnectionFixtureOptions): {
           authorizationScopeDigest: "sha256:fixture",
           key: "fixture",
         },
-        cacheStatus: "hit",
+        cacheStatus: options.cacheStatus ?? "hit",
       },
       source: (id?: SourceId) => {
         if (id !== undefined && id !== sourceId) throw new Error("fixture source mismatch");
@@ -196,6 +226,288 @@ describe.each(PROTOCOL_CASES)("connection query facade: $protocol", ({ protocol,
   });
 });
 
+describe("connection query cache truthfulness", () => {
+  it.each(["hit", "refreshed"] as const)(
+    "does not turn a discovery metadata cache %s into a query-result reuse claim",
+    async (cacheStatus) => {
+      const endpoint = `https://cache-${cacheStatus}.example.test/ogc/features`;
+      const fixture = connectionFixture({ endpoint, protocol: "ogc-features", cacheStatus });
+      const kernel = createHonuaKernel({ connectDelegate: async () => fixture.connection });
+      const connection = await kernel.connect<Incident>(endpoint, { protocol: "ogc-features" });
+
+      const plan = await connection.explain({ where: "status = 'open'" });
+      const result = await connection.query(plan);
+
+      expect(plan.cache).toMatchObject({
+        policy: "bypass",
+        action: "bypass",
+        freshness: "unknown",
+        reason: "policy-bypass",
+      });
+      expect(result.execution.observation.cacheStatus).toBe(cacheStatus);
+      expect(fixture.source.query).toHaveBeenCalledOnce();
+      await kernel.dispose();
+    },
+  );
+
+  it("uses only an explicit query-cache observation for a reuse decision and still reports remote execution truth", async () => {
+    const endpoint = "https://explicit-query-cache.example.test/ogc/features";
+    const fixture = connectionFixture({ endpoint, protocol: "ogc-features", cacheStatus: "miss" });
+    const kernel = createHonuaKernel({ connectDelegate: async () => fixture.connection });
+    const connection = await kernel.connect<Incident>(endpoint, { protocol: "ogc-features" });
+
+    const plan = await connection.explain(
+      { where: "status = 'open'" },
+      { cache: { policy: "prefer-cache", freshness: "fresh" } },
+    );
+    const result = await connection.query(plan);
+
+    expect(plan.cache).toMatchObject({
+      policy: "prefer-cache",
+      action: "reuse",
+      freshness: "fresh",
+      reason: "fresh-entry",
+    });
+    expect(result.execution.observation.cacheStatus).toBe("miss");
+    expect(fixture.source.query).toHaveBeenCalledOnce();
+    await kernel.dispose();
+  });
+});
+
+describe("connection discovery plan identity", () => {
+  it("keeps observation time receipt-only so a clock-only metadata refresh accepts the plan", async () => {
+    const endpoint = "https://clock-refresh.example.test/ogc/features";
+    const first = connectionFixture({
+      endpoint,
+      protocol: "ogc-features",
+      observedAt: "2026-07-16T00:00:00.000Z",
+      cacheStatus: "hit",
+    });
+    const refreshed = connectionFixture({
+      endpoint,
+      protocol: "ogc-features",
+      observedAt: "2026-07-16T01:00:00.000Z",
+      cacheStatus: "refreshed",
+    });
+    const queue = [first.connection, refreshed.connection];
+    const kernel = createHonuaKernel({
+      connectDelegate: async () => {
+        const next = queue.shift();
+        if (!next) throw new Error("fixture queue exhausted");
+        return next;
+      },
+    });
+    const connection = await kernel.connect<Incident>(endpoint, { protocol: "ogc-features" });
+    const request: Query<Incident> = { where: "status = 'open'" };
+    const plan = await connection.explain(request);
+
+    await connection.inspect({ refresh: true });
+    const refreshedPlan = await connection.explain(request);
+    const result = await connection.query(plan);
+
+    expect(refreshedPlan.fingerprint).toBe(plan.fingerprint);
+    expect(refreshedPlan.provenance.discovery).toEqual(plan.provenance.discovery);
+    expect(result.execution.observation).toMatchObject({
+      cacheStatus: "refreshed",
+      observedAt: "2026-07-16T01:00:00.000Z",
+    });
+    expect(first.source.query).not.toHaveBeenCalled();
+    expect(refreshed.source.query).toHaveBeenCalledOnce();
+    await kernel.dispose();
+  });
+
+  it.each([
+    {
+      change: "validator",
+      refreshed: { validator: '"revision-2"' },
+    },
+    {
+      change: "provenance source",
+      refreshed: {
+        provenance: [
+          {
+            source: "https://semantic-refresh.example.test/ogc/features/alternate-metadata",
+            retrievedAt: "2026-07-16T01:00:00.000Z",
+            validator: '"revision-1"',
+          },
+        ],
+      },
+    },
+    {
+      change: "capability evidence",
+      refreshed: { capabilityDecisions: [fixtureCapabilityDecision("query", { evidenceKind: "declared" })] },
+    },
+  ] as const)("rejects an accepted plan after a $change change", async ({ refreshed: refreshedOptions }) => {
+    const endpoint = "https://semantic-refresh.example.test/ogc/features";
+    const first = connectionFixture({ endpoint, protocol: "ogc-features" });
+    const refreshed = connectionFixture({
+      endpoint,
+      protocol: "ogc-features",
+      observedAt: "2026-07-16T01:00:00.000Z",
+      ...refreshedOptions,
+    });
+    const queue = [first.connection, refreshed.connection];
+    const kernel = createHonuaKernel({
+      connectDelegate: async () => {
+        const next = queue.shift();
+        if (!next) throw new Error("fixture queue exhausted");
+        return next;
+      },
+    });
+    const connection = await kernel.connect<Incident>(endpoint, { protocol: "ogc-features" });
+    const plan = await connection.explain({ where: "status = 'open'" });
+
+    await connection.inspect({ refresh: true });
+
+    await expect(connection.query(plan)).rejects.toMatchObject({
+      code: "stale-plan",
+      reason: "discovery-changed",
+    });
+    expect(first.source.query).not.toHaveBeenCalled();
+    expect(refreshed.source.query).not.toHaveBeenCalled();
+    await kernel.dispose();
+  });
+
+  it.each([
+    {
+      change: "locator binding",
+      first: {},
+      refreshed: { locator: { collectionId: "alternate-incidents" } },
+    },
+    {
+      change: "schema",
+      first: {},
+      refreshed: { schemaField: "state" },
+    },
+    {
+      change: "effective capabilities",
+      first: {
+        capabilities: ["query", "queryAggregate"],
+        capabilityDecisions: [fixtureCapabilityDecision("query"), fixtureCapabilityDecision("queryAggregate")],
+      },
+      refreshed: {
+        capabilities: ["query"],
+        capabilityDecisions: [fixtureCapabilityDecision("query"), fixtureCapabilityDecision("queryAggregate")],
+      },
+    },
+  ] as const)("rejects an accepted plan after a same-id descriptor $change change", async ({ first, refreshed }) => {
+    const endpoint = "https://descriptor-refresh.example.test/ogc/features";
+    const initialFixture = connectionFixture({ endpoint, protocol: "ogc-features", ...first });
+    const refreshedFixture = connectionFixture({
+      endpoint,
+      protocol: "ogc-features",
+      observedAt: "2026-07-16T01:00:00.000Z",
+      ...refreshed,
+    });
+    const queue = [initialFixture.connection, refreshedFixture.connection];
+    const kernel = createHonuaKernel({
+      connectDelegate: async () => {
+        const next = queue.shift();
+        if (!next) throw new Error("fixture queue exhausted");
+        return next;
+      },
+    });
+    const connection = await kernel.connect<Incident>(endpoint, { protocol: "ogc-features" });
+    const plan = await connection.explain({ where: "status = 'open'" });
+
+    await connection.inspect({ refresh: true });
+
+    await expect(connection.query(plan)).rejects.toMatchObject({
+      code: "foreign-plan",
+      reason: "source-identity-changed",
+    });
+    expect(initialFixture.source.query).not.toHaveBeenCalled();
+    expect(refreshedFixture.source.query).not.toHaveBeenCalled();
+    await kernel.dispose();
+  });
+
+  it("canonicalizes ordering and duplicates across provenance, validators, evidence, and decisions", async () => {
+    const endpoint = "https://ordered-evidence.example.test/ogc/features";
+    const evidenceSourceA = `${endpoint}/evidence/a`;
+    const evidenceSourceB = `${endpoint}/evidence/b`;
+    const firstEvidence = [
+      { source: evidenceSourceB, retrievedAt: "2026-07-16T00:00:00.000Z", validator: '"b"' },
+      { source: evidenceSourceA, retrievedAt: "2026-07-16T00:00:00.000Z", validator: '"a"' },
+      { source: evidenceSourceB, retrievedAt: "2026-07-16T00:05:00.000Z", validator: '"b"' },
+    ];
+    const refreshedEvidence = [
+      { source: evidenceSourceA, retrievedAt: "2026-07-16T01:00:00.000Z", validator: '"a"' },
+      { source: evidenceSourceB, retrievedAt: "2026-07-16T01:00:00.000Z", validator: '"b"' },
+    ];
+    const firstQueryDecision = fixtureCapabilityDecision("query", { evidenceProvenance: firstEvidence });
+    const firstAggregateDecision = fixtureCapabilityDecision("queryAggregate", {
+      evidenceProvenance: firstEvidence,
+    });
+    const refreshedQueryDecision = fixtureCapabilityDecision("query", {
+      evidenceProvenance: refreshedEvidence,
+    });
+    const refreshedAggregateDecision = fixtureCapabilityDecision("queryAggregate", {
+      evidenceProvenance: refreshedEvidence,
+    });
+    const first = connectionFixture({
+      endpoint,
+      protocol: "ogc-features",
+      capabilities: ["query", "queryAggregate"],
+      provenance: firstEvidence,
+      capabilityDecisions: [firstAggregateDecision, firstQueryDecision, firstAggregateDecision],
+    });
+    const refreshed = connectionFixture({
+      endpoint,
+      protocol: "ogc-features",
+      capabilities: ["query", "queryAggregate"],
+      provenance: refreshedEvidence,
+      capabilityDecisions: [refreshedQueryDecision, refreshedAggregateDecision],
+      cacheStatus: "refreshed",
+    });
+    const queue = [first.connection, refreshed.connection];
+    const kernel = createHonuaKernel({
+      connectDelegate: async () => {
+        const next = queue.shift();
+        if (!next) throw new Error("fixture queue exhausted");
+        return next;
+      },
+    });
+    const connection = await kernel.connect<Incident>(endpoint, { protocol: "ogc-features" });
+    const request: Query<Incident> = { where: "status = 'open'" };
+    const plan = await connection.explain(request);
+
+    await connection.inspect({ refresh: true });
+    const refreshedPlan = await connection.explain(request);
+
+    expect(refreshedPlan.fingerprint).toBe(plan.fingerprint);
+    expect(refreshedPlan.provenance.discovery.validator).toEqual(plan.provenance.discovery.validator);
+    await expect(connection.query(plan)).resolves.toMatchObject({ format: "features" });
+    expect(refreshed.source.query).toHaveBeenCalledOnce();
+    await kernel.dispose();
+  });
+
+  it("canonicalizes semantically identical capability policy collections", async () => {
+    const endpoint = "https://ordered-policy.example.test/ogc/features";
+    const first = connectionFixture({ endpoint, protocol: "ogc-features", capabilities: ["query", "queryAggregate"] });
+    const second = connectionFixture({ endpoint, protocol: "ogc-features", capabilities: ["query", "queryAggregate"] });
+    const firstKernel = createHonuaKernel({
+      capabilityPolicy: {
+        allow: ["queryAggregate", "query", "query"],
+        deny: ["attachments", "queryRelated", "attachments"],
+      },
+      connectDelegate: async () => first.connection,
+    });
+    const secondKernel = createHonuaKernel({
+      capabilityPolicy: { allow: ["query", "queryAggregate"], deny: ["queryRelated", "attachments"] },
+      connectDelegate: async () => second.connection,
+    });
+    const firstConnection = await firstKernel.connect<Incident>(endpoint, { protocol: "ogc-features" });
+    const secondConnection = await secondKernel.connect<Incident>(endpoint, { protocol: "ogc-features" });
+
+    const firstPlan = await firstConnection.explain({ where: "status = 'open'" });
+    const secondPlan = await secondConnection.explain({ where: "status = 'open'" });
+
+    expect(secondPlan.provenance.discovery).toEqual(firstPlan.provenance.discovery);
+    expect(secondPlan.fingerprint).toBe(firstPlan.fingerprint);
+    await Promise.all([firstKernel.dispose(), secondKernel.dispose()]);
+  });
+});
+
 describe("connection accepted-plan safety", () => {
   it("rejects mutated, foreign, wrong-scope, and refreshed-schema plans without replanning", async () => {
     const first = connectionFixture({
@@ -257,7 +569,10 @@ describe("connection accepted-plan safety", () => {
     expect(first.source.query).not.toHaveBeenCalled();
 
     await connection.inspect({ refresh: true });
-    await expect(connection.query(plan)).rejects.toMatchObject({ code: "stale-plan", reason: "schema-changed" });
+    await expect(connection.query(plan)).rejects.toMatchObject({
+      code: "foreign-plan",
+      reason: "source-identity-changed",
+    });
     expect(refreshed.source.query).not.toHaveBeenCalled();
 
     await Promise.all([kernel.dispose(), foreignKernel.dispose(), wrongScopeKernel.dispose()]);

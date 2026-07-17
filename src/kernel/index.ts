@@ -6,9 +6,11 @@ import {
   validateConnectEndpoint,
 } from "../connect.js";
 import {
+  type DiscoveryCapabilityDecision,
   type DiscoveryCapabilityPolicy,
   type DiscoveryDiagnostic,
   type DiscoveryEvidenceKind,
+  type DiscoveryProvenance,
   type SourceDiscoveryInspection,
   normalizeDiscoveryEndpoint,
 } from "../contract/discovery.js";
@@ -79,6 +81,7 @@ export interface ExplainOptions {
   readonly capabilityPolicy?: CapabilityPolicy;
   readonly fallback?: QueryFallbackPolicy;
   readonly estimates?: QueryPlanningEstimates;
+  /** Explicit query-result cache observation; discovery metadata cache state is never inferred here. */
   readonly cache?: QueryPlanCacheOptions;
 }
 
@@ -408,7 +411,7 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
         capabilityPolicy: optionSnapshot.capabilityPolicy,
         fallback: optionSnapshot.fallback,
         estimates: optionSnapshot.estimates,
-        cache: optionSnapshot.cache ?? defaultPlanCache(context.state.inspection.cacheStatus),
+        cache: optionSnapshot.cache ?? defaultPlanCache(),
         schemaVersion: context.schemaVersion,
         sourceVersion: context.sourceVersion,
         authorizationScope: context.authorizationScope,
@@ -451,7 +454,7 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
           capabilityPolicy: optionSnapshot.capabilityPolicy,
           fallback: optionSnapshot.fallback,
           estimates: optionSnapshot.estimates,
-          cache: optionSnapshot.cache ?? defaultPlanCache(state.inspection.cacheStatus),
+          cache: optionSnapshot.cache ?? defaultPlanCache(),
           schemaVersion: context.schemaVersion,
           sourceVersion: context.sourceVersion,
           authorizationScope: context.authorizationScope,
@@ -524,7 +527,7 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
     const authorizationScope = connectionAuthorizationScope(this.#options.authorizationScopeFingerprint);
     const discovery = connectionDiscoveryContext(sourceInspection, this.#lifecycle.policy.capabilities);
     const schemaVersion = legacySchemaVersion(descriptor);
-    const sourceVersion = connectionSourceVersion(state.inspection, sourceId);
+    const sourceVersion = connectionSourceVersion(state.inspection, descriptor);
     let delegate: Source<T>;
     try {
       delegate = state.discovered.source<T>(sourceId);
@@ -893,17 +896,63 @@ function connectionAuthorizationScope(value: string | undefined): readonly strin
   return Object.freeze([`scope:${sha256(`honua.kernel.authorization-scope.v1\0${fingerprint}`)}`]);
 }
 
-function connectionSourceVersion(inspection: ConnectionInspection, sourceId: SourceId): string {
+function connectionSourceVersion(inspection: ConnectionInspection, descriptor: SourceDescriptor): string {
   const identity = canonicalStringify(
     toJsonValue({
-      version: 1,
+      version: 2,
       connectionId: inspection.id,
       endpoint: inspection.endpoint,
       protocol: inspection.protocol,
-      sourceId,
+      descriptor: semanticSourceDescriptor(descriptor),
     }),
   );
   return `connection-source:${sha256(identity)}`;
+}
+
+/** Project execution-relevant descriptor truth without retaining URL credentials or observation clocks. */
+function semanticSourceDescriptor(descriptor: SourceDescriptor): Readonly<Record<string, unknown>> {
+  const { url, geoparquet, ...locatorCoordinates } = descriptor.locator;
+  const locator = {
+    ...locatorCoordinates,
+    url: normalizeDiscoveryEndpoint(url),
+    ...(geoparquet === undefined
+      ? {}
+      : {
+          geoparquet: {
+            ...geoparquet,
+            ...(geoparquet.urls === undefined
+              ? {}
+              : { urls: sortedUniqueStrings(geoparquet.urls.map((entry) => normalizeDiscoveryEndpoint(entry))) }),
+          },
+        }),
+  };
+  const capabilityProfile = descriptor.capabilityProfile;
+  return {
+    id: descriptor.id,
+    protocol: descriptor.protocol,
+    locator,
+    capabilities: sortedUniqueStrings([...descriptor.capabilities]),
+    ...(descriptor.schema === undefined ? {} : { schema: descriptor.schema }),
+    ...(descriptor.schemaV2 === undefined ? {} : { schemaV2: descriptor.schemaV2 }),
+    ...(capabilityProfile === undefined
+      ? {}
+      : {
+          capabilityProfile: {
+            kind: capabilityProfile.kind,
+            version: capabilityProfile.version,
+            sourceFingerprint: capabilityProfile.sourceFingerprint,
+            sourceEndpointFingerprint: capabilityProfile.sourceEndpointFingerprint,
+            entries: canonicalUnique(
+              capabilityProfile.entries.map((entry) => ({
+                id: entry.id,
+                effective: entry.effective,
+              })),
+            ),
+          },
+        }),
+    ...(descriptor.analytics === undefined ? {} : { analytics: descriptor.analytics }),
+    ...(descriptor.attribution === undefined ? {} : { attribution: descriptor.attribution }),
+  };
 }
 
 function legacySchemaVersion(descriptor: SourceDescriptor): string | undefined {
@@ -915,31 +964,123 @@ function connectionDiscoveryContext(
   inspection: SourceDiscoveryInspection,
   policy: DiscoveryCapabilityPolicy,
 ): QueryPlanDiscoveryContext {
+  const provenance = normalizeDiscoveryProvenance(inspection.provenance);
+  const capabilityDecisions = canonicalUnique(
+    inspection.capabilityDecisions.map((decision) => normalizeDiscoveryCapabilityDecision(decision)),
+  );
   const evidence = canonicalStringify(
     toJsonValue({
-      version: 1,
+      version: 2,
       discovery: inspection.discovery,
-      provenance: inspection.provenance,
-      capabilityDecisions: inspection.capabilityDecisions,
-      diagnostics: inspection.diagnostics,
-      policy,
+      provenance,
+      capabilityDecisions,
+      policy: normalizeDiscoveryCapabilityPolicy(policy),
     }),
   );
-  const validators = inspection.provenance
-    .map((entry) => entry.validator)
-    .filter((value): value is string => typeof value === "string" && value.length > 0);
+  const validators = sortedUniqueStrings([
+    ...provenance.flatMap((entry) => (entry.validator === undefined ? [] : [entry.validator])),
+    ...capabilityDecisions.flatMap((decision) =>
+      decision.evidence.flatMap((entry) =>
+        entry.provenance.flatMap((provenanceEntry) =>
+          provenanceEntry.validator === undefined ? [] : [provenanceEntry.validator],
+        ),
+      ),
+    ),
+  ]);
   return Object.freeze({
     state: plannerDiscoveryState(inspection),
-    sourceFingerprint: sha256(`honua.kernel.discovery-evidence.v1\0${evidence}`),
+    sourceFingerprint: sha256(`honua.kernel.discovery-evidence.v2\0${evidence}`),
     ...(validators.length > 0
       ? {
           validator: {
             kind: "fingerprint" as const,
-            fingerprint: sha256(`honua.kernel.discovery-validator.v1\0${canonicalStringify(toJsonValue(validators))}`),
+            fingerprint: sha256(`honua.kernel.discovery-validator.v2\0${canonicalStringify(toJsonValue(validators))}`),
           },
         }
       : {}),
   });
+}
+
+interface SemanticDiscoveryProvenance {
+  readonly source: string;
+  readonly validator?: string;
+}
+
+interface SemanticDiscoveryEvidence {
+  readonly kind: DiscoveryEvidenceKind;
+  readonly supported: boolean;
+  readonly reason?: string;
+  readonly provenance: readonly SemanticDiscoveryProvenance[];
+}
+
+interface SemanticDiscoveryCapabilityDecision {
+  readonly capability: DiscoveryCapabilityDecision["capability"];
+  readonly effective: boolean;
+  readonly code: DiscoveryCapabilityDecision["code"];
+  readonly evidence: readonly SemanticDiscoveryEvidence[];
+  readonly adapterSupported: boolean;
+  readonly positiveEvidence: boolean;
+  readonly policyAllowed: boolean;
+}
+
+/** Strip receipt-only clocks and canonicalize set-like discovery evidence before hashing plan identity. */
+function normalizeDiscoveryProvenance(
+  provenance: readonly DiscoveryProvenance[],
+): readonly SemanticDiscoveryProvenance[] {
+  return canonicalUnique(
+    provenance.map((entry) => ({
+      source: entry.source,
+      ...(typeof entry.validator === "string" && entry.validator.length > 0 ? { validator: entry.validator } : {}),
+    })),
+  );
+}
+
+function normalizeDiscoveryCapabilityDecision(
+  decision: DiscoveryCapabilityDecision,
+): SemanticDiscoveryCapabilityDecision {
+  return {
+    capability: decision.capability,
+    effective: decision.effective,
+    code: decision.code,
+    evidence: canonicalUnique(
+      decision.evidence.map((entry) => ({
+        kind: entry.kind,
+        supported: entry.supported,
+        ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+        provenance: normalizeDiscoveryProvenance(entry.provenance),
+      })),
+    ),
+    adapterSupported: decision.adapterSupported,
+    positiveEvidence: decision.positiveEvidence,
+    policyAllowed: decision.policyAllowed,
+  };
+}
+
+function normalizeDiscoveryCapabilityPolicy(policy: DiscoveryCapabilityPolicy): Readonly<{
+  allow?: readonly DiscoveryCapabilityDecision["capability"][];
+  deny: readonly DiscoveryCapabilityDecision["capability"][];
+  acceptInferred: boolean;
+}> {
+  return {
+    ...(policy.allow === undefined ? {} : { allow: sortedUniqueStrings(policy.allow) }),
+    deny: sortedUniqueStrings(policy.deny ?? []),
+    acceptInferred: policy.acceptInferred === true,
+  };
+}
+
+function canonicalUnique<T>(values: readonly T[]): readonly T[] {
+  const keyed = new Map<string, T>();
+  for (const value of values) {
+    const key = canonicalStringify(toJsonValue(value));
+    if (!keyed.has(key)) keyed.set(key, value);
+  }
+  return [...keyed.entries()]
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([, value]) => value);
+}
+
+function sortedUniqueStrings<T extends string>(values: readonly T[]): readonly T[] {
+  return [...new Set(values)].sort();
 }
 
 function plannerDiscoveryState(inspection: SourceDiscoveryInspection): DiscoveryEvidenceKind {
@@ -953,17 +1094,11 @@ function plannerDiscoveryState(inspection: SourceDiscoveryInspection): Discovery
   return "unavailable";
 }
 
-function defaultPlanCache(status: ConnectCacheStatus): QueryPlanCacheOptions {
-  switch (status) {
-    case "bypass":
-      return Object.freeze({ policy: "bypass" });
-    case "hit":
-      return Object.freeze({ policy: "prefer-cache", freshness: "fresh" });
-    case "refreshed":
-      return Object.freeze({ policy: "require-fresh", freshness: "fresh" });
-    case "miss":
-      return Object.freeze({ policy: "prefer-cache", freshness: "unknown" });
-  }
+function defaultPlanCache(): QueryPlanCacheOptions {
+  // A discovery-metadata cache observation says nothing about query-result
+  // reuse. Managed queries execute the adapter unless the caller supplies an
+  // explicit query-cache observation to the planner.
+  return Object.freeze({ policy: "bypass" });
 }
 
 /** Bind execution to the immutable inspection descriptor while preserving the adapter implementation. */
