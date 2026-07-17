@@ -9,11 +9,11 @@
     <main class="app-shell">
       <section class="control-panel" aria-label="Imagery controls">
         <header class="panel-header">
-          <p class="eyebrow">Cloud Honua imagery proof</p>
-          <h1>Imagery and COG Rendering</h1>
+          <p class="eyebrow">Direct, bounded raster proof</p>
+          <h1>STAC to COG to MapLibre</h1>
           <p>
-            Validate COG-backed ImageServer tiles, WMS GetMap, export previews, legends, and metadata cache state from
-            one Honua client configuration.
+            Discover evidence-classified STAC assets, inspect and read exact COG byte ranges, then render the visible
+            window. Published WMS and ImageServer paths remain below for comparison.
           </p>
         </header>
 
@@ -36,9 +36,52 @@
           </div>
         </section>
 
+        <section class="direct-cog-panel" aria-labelledby="direct-cog-heading">
+          <div class="section-heading">
+            <div>
+              <p class="step-label">Primary workflow</p>
+              <h2 id="direct-cog-heading">Direct STAC asset</h2>
+            </div>
+            <strong id="direct-cog-status" role="status" aria-live="polite" data-phase="discovering">discovering</strong>
+          </div>
+          <label class="asset-picker" for="direct-cog-asset">
+            <span>Asset and failure scenario</span>
+            <select id="direct-cog-asset" aria-describedby="direct-cog-help">
+              <option>Discovering STAC candidates…</option>
+            </select>
+          </label>
+          <p id="direct-cog-help" class="panel-help">
+            Every option is classified from STAC media-type evidence. Failure cases are deliberate and remain visible.
+          </p>
+          <dl class="direct-cog-facts">
+            <div>
+              <dt>Inspection</dt>
+              <dd id="direct-cog-inspection">No accepted inspection yet.</dd>
+            </div>
+            <div>
+              <dt>STAC provenance</dt>
+              <dd id="direct-cog-provenance">Discovering candidates.</dd>
+            </div>
+            <div>
+              <dt>Lifecycle</dt>
+              <dd id="direct-cog-lifecycle">0 decoder(s) created · 0 released · 0 aborted · map released</dd>
+            </div>
+            <div>
+              <dt>Typed refusal</dt>
+              <dd id="direct-cog-error">No range, CORS, CRS, or format refusal.</dd>
+            </div>
+          </dl>
+          <div class="range-evidence" aria-label="Fetched byte range evidence">
+            <strong id="direct-cog-transfer-summary">No asset bytes fetched.</strong>
+            <ol id="direct-cog-ranges">
+              <li><span>No range evidence yet.</span></li>
+            </ol>
+          </div>
+        </section>
+
         <section class="layer-panel" aria-label="Imagery layer list">
           <div class="section-heading">
-            <h2>Render Paths</h2>
+            <h2>Published path comparisons</h2>
             <button id="zoom-extent" type="button">Zoom Extent</button>
           </div>
           <div id="layer-list" class="layer-list"></div>

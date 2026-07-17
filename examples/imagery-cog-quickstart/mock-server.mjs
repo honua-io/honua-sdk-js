@@ -24,6 +24,51 @@ const TILE_PNG = Buffer.from(
   "base64",
 );
 
+const COG_MEDIA_TYPE = "image/tiff; application=geotiff; profile=cloud-optimized";
+const COG_BYTES = Buffer.alloc(16 * 1024);
+for (let index = 0; index < COG_BYTES.length; index += 1) COG_BYTES[index] = (index * 31 + 17) % 256;
+
+const STAC_ITEM = {
+  stac_version: "1.1.0",
+  type: "Feature",
+  id: "oahu-direct-cog-fixture",
+  collection: "honua-fixture-imagery",
+  bbox: [-158.22, 21.21, -157.66, 21.64],
+  geometry: {
+    type: "Polygon",
+    coordinates: [
+      [
+        [-158.22, 21.21],
+        [-157.66, 21.21],
+        [-157.66, 21.64],
+        [-158.22, 21.64],
+        [-158.22, 21.21],
+      ],
+    ],
+  },
+  properties: { datetime: "2026-07-16T08:00:00Z", "proj:code": "EPSG:4326" },
+  links: [],
+  assets: Object.fromEntries(
+    [
+      "visual-a",
+      "visual-b",
+      "visual-slow",
+      "range-unsupported",
+      "cors-blocked",
+      "unsupported-crs",
+      "unsupported-format",
+    ].map((key) => [
+      key,
+      {
+        href: `./assets/${key}`,
+        type: COG_MEDIA_TYPE,
+        roles: ["data", "visual"],
+        title: key,
+      },
+    ]),
+  ),
+};
+
 const WMS_CAPABILITIES = `<?xml version="1.0" encoding="UTF-8"?>
 <WMS_Capabilities version="1.3.0" xmlns:xlink="http://www.w3.org/1999/xlink">
   <Service>
@@ -81,6 +126,63 @@ function servePng(res) {
     "cache-control": "no-store",
   });
   res.end(TILE_PNG);
+}
+
+function maybeServeDirectCogFixture(req, requestUrl, res) {
+  if (requestUrl.pathname === "/fixtures/cog/item.json") {
+    res.writeHead(200, {
+      "content-type": "application/geo+json; charset=utf-8",
+      "cache-control": "no-store",
+      etag: '"oahu-direct-stac-v1"',
+    });
+    res.end(JSON.stringify(STAC_ITEM));
+    return true;
+  }
+
+  const match = /^\/fixtures\/cog\/assets\/([^/]+)$/.exec(requestUrl.pathname);
+  if (!match) return false;
+  const key = match[1];
+  const commonHeaders = {
+    "content-type": COG_MEDIA_TYPE,
+    "accept-ranges": "bytes",
+    "access-control-allow-origin": "*",
+    "cache-control": "no-store",
+    etag: `"fixture-${key}-v1"`,
+  };
+  if (req.method === "HEAD") {
+    res.writeHead(200, { ...commonHeaders, "content-length": String(COG_BYTES.length) });
+    res.end();
+    return true;
+  }
+
+  const range = req.headers.range;
+  if (key === "range-unsupported" && range) {
+    res.writeHead(200, { ...commonHeaders, "content-length": String(COG_BYTES.length) });
+    res.end(COG_BYTES);
+    return true;
+  }
+  const rangeMatch = typeof range === "string" ? /^bytes=(\d+)-(\d+)$/.exec(range) : undefined;
+  if (!rangeMatch) {
+    res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+    res.end("An exact byte Range is required for this fixture.");
+    return true;
+  }
+  const start = Number(rangeMatch[1]);
+  const requestedEnd = Number(rangeMatch[2]);
+  const end = Math.min(requestedEnd, COG_BYTES.length - 1);
+  if (start > end) {
+    res.writeHead(416, { ...commonHeaders, "content-range": `bytes */${COG_BYTES.length}` });
+    res.end();
+    return true;
+  }
+  const body = COG_BYTES.subarray(start, end + 1);
+  res.writeHead(206, {
+    ...commonHeaders,
+    "content-range": `bytes ${start}-${end}/${COG_BYTES.length}`,
+    "content-length": String(body.length),
+  });
+  res.end(body);
+  return true;
 }
 
 function maybeServeHonuaFixture(requestUrl, res) {
@@ -157,6 +259,10 @@ export async function startImageryCogFixtureServer({ build = true } = {}) {
 
   const server = http.createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
+
+    if (maybeServeDirectCogFixture(req, requestUrl, res)) {
+      return;
+    }
 
     if (maybeServeHonuaFixture(requestUrl, res)) {
       return;
