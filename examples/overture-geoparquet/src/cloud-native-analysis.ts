@@ -3,13 +3,24 @@ import type { GeoparquetRuntime } from "@honua/sdk-js/geoparquet";
 import {
   type GeoParquetResourceHandleV1,
   type QueryExecutionPlanV2,
+  canonicalStringify,
   createGeoParquetResourceHandle,
   createGeoParquetResourceRegistry,
   executeQueryPlan,
   explainQuery,
+  parseGeoParquetResourceHandle,
   queryPlanCacheKey,
+  sha256,
+  toJsonValue,
 } from "@honua/sdk-js/query-planner";
 
+import {
+  OVERTURE_HARD_LIMITS,
+  OverturePlanRejectedError,
+  validateIsoTimestamp,
+  validateOvertureManifest,
+  validateOvertureQueryPlan,
+} from "./planner.js";
 import type {
   OvertureObjectManifest,
   OvertureQueryPlan,
@@ -22,6 +33,21 @@ export const CLOUD_NATIVE_ANALYSIS_EVIDENCE_VERSION = 1 as const;
 
 const RESOURCE_RESOLVER = "io.honua.samples.overture";
 const AUTHORIZATION_SCOPE = ["public:anonymous"] as const;
+const RANGE_FOOTER_PROBE_BYTES = 65_536;
+
+export interface CloudNativeEngineIdentity {
+  readonly name: string;
+  readonly version: string | null;
+  readonly verification: "caller-declared" | "unavailable";
+  readonly cacheScope: "execution-only";
+}
+
+const UNKNOWN_ENGINE_IDENTITY: CloudNativeEngineIdentity = Object.freeze({
+  name: "unverified-geoparquet-runtime",
+  version: null,
+  verification: "unavailable",
+  cacheScope: "execution-only",
+});
 
 export type CloudNativeMetric<T> =
   | { readonly fidelity: "exact"; readonly value: T; readonly basis: string }
@@ -79,7 +105,10 @@ export interface CloudNativeAnalysisEvidenceV1 {
   };
   readonly cache: {
     readonly policy: "bypass";
+    readonly scope: CloudNativeEngineIdentity["cacheScope"];
     readonly identity: string;
+    readonly sdkPlanIdentity: string;
+    readonly engine: CloudNativeEngineIdentity;
   };
   readonly resultFidelity: CloudNativeMetric<"exact" | "approximate">;
   readonly timing: {
@@ -107,6 +136,8 @@ export interface RunCloudNativeAnalysisOptions<T> {
   readonly source: Source<T>;
   /** Dedicated public runtime that owns `source` and its worker lifecycle. */
   readonly runtime: GeoparquetRuntime;
+  /** Optional caller declaration; it remains unverified and execution-only in S1 evidence. */
+  readonly engineIdentity?: CloudNativeEngineIdentity;
   readonly signal?: AbortSignal;
   /** Monotonic milliseconds; injectable so fixture receipts can be deterministic. */
   readonly now?: () => number;
@@ -115,7 +146,8 @@ export interface RunCloudNativeAnalysisOptions<T> {
 export type CloudNativeAnalysisRejectionCode =
   | "invalid-workflow-input"
   | "unsupported-range-io"
-  | "unsafe-materialization";
+  | "unsafe-materialization"
+  | "engine-budget-exceeded";
 
 export class CloudNativeAnalysisRejectedError extends Error {
   public constructor(
@@ -157,10 +189,49 @@ export function explainCloudNativeAnalysis(
   workflowPlan: OvertureQueryPlan,
   manifest: OvertureSourceManifest,
   descriptor: SourceDescriptor,
-  resource = resourceHandle(workflowPlan, descriptor),
+  suppliedResource?: GeoParquetResourceHandleV1,
 ): CloudNativeAnalysisPlanReceipt {
-  const object = selectedObject(workflowPlan, manifest, descriptor);
-  return planReceipt(buildSdkPlan(workflowPlan, manifest, descriptor, object, resource));
+  const acceptedManifest = acceptedManifestInput(manifest);
+  const acceptedPlan = acceptedPlanInput(workflowPlan, acceptedManifest);
+  const object = selectedObject(acceptedPlan, acceptedManifest, descriptor);
+  const resource = acceptedResourceHandle(suppliedResource, acceptedPlan, descriptor, object);
+  return planReceipt(buildSdkPlan(acceptedPlan, acceptedManifest, descriptor, object, resource));
+}
+
+/** Credential-free identity for the complete bounded workflow, not just the SDK query plan. */
+export function cloudNativeAnalysisCacheIdentity(
+  workflowPlan: OvertureQueryPlan,
+  manifest: OvertureSourceManifest,
+  suppliedEngineIdentity?: CloudNativeEngineIdentity,
+): string {
+  const acceptedManifest = acceptedManifestInput(manifest);
+  const acceptedPlan = acceptedPlanInput(workflowPlan, acceptedManifest);
+  const object = selectedPlanObject(acceptedPlan);
+  const engine = validateEngineIdentity(suppliedEngineIdentity);
+  const digest = sha256(
+    `honua.sdk.cloud-native-analysis-cache.v1\n${canonicalStringify(
+      toJsonValue({
+        source: {
+          lane: acceptedPlan.lane,
+          release: acceptedManifest.release,
+          schemaVersion: acceptedManifest.schemaVersion,
+          objectKey: object.objectKey,
+          objectVersion: object.etag,
+          objectBytes: object.bytes,
+        },
+        query: {
+          aoi: acceptedPlan.aoi,
+          crs: acceptedManifest.crs,
+          projection: acceptedPlan.projection,
+          category: acceptedPlan.category,
+          limit: acceptedPlan.limit,
+        },
+        policy: acceptedPlan.policy,
+        engine,
+      }),
+    )}`,
+  );
+  return `honua-cloud-native-analysis:v1:${digest}`;
 }
 
 /**
@@ -171,20 +242,32 @@ export function explainCloudNativeAnalysis(
 export async function runCloudNativeAnalysis<T>(
   options: RunCloudNativeAnalysisOptions<T>,
 ): Promise<CloudNativeAnalysisRun<T>> {
-  const { workflowPlan, manifest, range, source, runtime } = options;
+  const { source, runtime } = options;
   const clock = options.now ?? defaultClock;
-  const authorizationContextId = authorizationContext(workflowPlan);
   const registry = createGeoParquetResourceRegistry({ resolver: RESOURCE_RESOLVER, maxEntries: 1 });
+  let workflowPlan: OvertureQueryPlan | undefined;
+  let manifest: OvertureSourceManifest | undefined;
+  let range: OvertureRangeEvidence | undefined;
+  let engineIdentity: CloudNativeEngineIdentity | undefined;
   let executedObject: OvertureObjectManifest | undefined;
   let execution: Awaited<ReturnType<typeof executeQueryPlan<T>>> | undefined;
   let receipt: CloudNativeAnalysisPlanReceipt | undefined;
+  let workflowCacheIdentity: string | undefined;
+  let deadline: ExecutionDeadline | undefined;
   let resultBytes = 0;
   let planMs = 0;
   let engineMs = 0;
   let sourceProbeMs = 0;
 
   try {
-    const object = selectedObject(workflowPlan, manifest, source.descriptor);
+    const acceptedManifest = acceptedManifestInput(options.manifest);
+    const acceptedPlan = acceptedPlanInput(options.workflowPlan, acceptedManifest);
+    const acceptedEngineIdentity = validateEngineIdentity(options.engineIdentity);
+    manifest = acceptedManifest;
+    workflowPlan = acceptedPlan;
+    engineIdentity = acceptedEngineIdentity;
+    const authorizationContextId = authorizationContext(acceptedPlan);
+    const object = selectedObject(acceptedPlan, acceptedManifest, source.descriptor);
     executedObject = object;
     const resource = registry.register({
       id: source.descriptor.id,
@@ -198,45 +281,38 @@ export async function runCloudNativeAnalysis<T>(
         "The GeoParquet Source and dedicated worker runtime must share one lifecycle.",
       );
     }
-    if (range.status === "unsupported") {
-      throw new CloudNativeAnalysisRejectedError("unsupported-range-io", range.limitation);
-    }
-    if (range.objectBytes !== object.bytes) {
-      throw new CloudNativeAnalysisRejectedError(
-        "invalid-workflow-input",
-        "Range evidence object size does not match the selected object manifest.",
-      );
-    }
-    if (
-      !Number.isSafeInteger(range.bytes) ||
-      range.bytes < 0 ||
-      range.bytes > object.bytes ||
-      !Number.isSafeInteger(range.ranges) ||
-      range.ranges < 1
-    ) {
-      throw new CloudNativeAnalysisRejectedError(
-        "invalid-workflow-input",
-        "Range evidence must contain bounded integer byte and request counts.",
-      );
-    }
-    sourceProbeMs = finiteDuration(range.durationMs);
+    range = validateRangeEvidence(options.range, acceptedPlan, object);
+    sourceProbeMs = range.durationMs;
 
     const planStarted = readClock(clock);
-    const plan = buildSdkPlan<T>(workflowPlan, manifest, source.descriptor, object, resource);
+    const plan = buildSdkPlan<T>(acceptedPlan, acceptedManifest, source.descriptor, object, resource);
     planMs = elapsed(planStarted, readClock(clock));
     receipt = planReceipt(plan);
+    workflowCacheIdentity = cloudNativeAnalysisCacheIdentity(acceptedPlan, acceptedManifest, acceptedEngineIdentity);
 
     const engineStarted = readClock(clock);
-    await runtime.query(runtimePolicySql(workflowPlan), options.signal ? { signal: options.signal } : undefined);
-    execution = await executeQueryPlan(plan, source, {
-      ...(options.signal ? { signal: options.signal } : {}),
-      schemaVersion: manifest.schemaVersion,
-      sourceVersion: `${manifest.release}:${object.etag}`,
-      authorizationScope: AUTHORIZATION_SCOPE,
-      authorizationContextId,
-      geoParquetResourceResolver: registry.resolver,
+    const executionDeadline = createExecutionDeadline(acceptedPlan.maxEngineMs, options.signal, () => {
+      void runtime.dispose();
     });
+    deadline = executionDeadline;
+    execution = await waitForAbort(async () => {
+      await runtime.query(runtimePolicySql(acceptedPlan), { signal: executionDeadline.signal });
+      return executeQueryPlan(plan, source, {
+        signal: executionDeadline.signal,
+        schemaVersion: acceptedManifest.schemaVersion,
+        sourceVersion: `${acceptedManifest.release}:${object.etag}`,
+        authorizationScope: AUTHORIZATION_SCOPE,
+        authorizationContextId,
+        geoParquetResourceResolver: registry.resolver,
+      });
+    }, executionDeadline.signal);
     engineMs = elapsed(engineStarted, readClock(clock));
+    if (engineMs > acceptedPlan.maxEngineMs) {
+      throw new CloudNativeAnalysisRejectedError(
+        "engine-budget-exceeded",
+        `Cloud-native engine execution exceeded the ${acceptedPlan.maxEngineMs} ms budget.`,
+      );
+    }
 
     if (execution.result.features.length > workflowPlan.limit) {
       throw new CloudNativeAnalysisRejectedError(
@@ -251,12 +327,28 @@ export async function runCloudNativeAnalysis<T>(
         `Result materialized ${resultBytes} bytes beyond the ${workflowPlan.maxResultBytes}-byte ceiling.`,
       );
     }
+  } catch (cause) {
+    if (deadline?.timedOut) throw deadline.reason;
+    throw cause;
   } finally {
-    registry.dispose();
-    await runtime.dispose();
+    deadline?.dispose();
+    try {
+      registry.dispose();
+    } finally {
+      await runtime.dispose();
+    }
   }
 
-  if (!executedObject || !execution || !receipt) {
+  if (
+    !workflowPlan ||
+    !manifest ||
+    !range ||
+    !engineIdentity ||
+    !executedObject ||
+    !execution ||
+    !receipt ||
+    !workflowCacheIdentity
+  ) {
     throw new CloudNativeAnalysisRejectedError("invalid-workflow-input", "Cloud-native analysis did not execute.");
   }
   const object = executedObject;
@@ -316,13 +408,25 @@ export async function runCloudNativeAnalysis<T>(
         workflowPlan.memoryLimitMiB * 1024 * 1024,
         "Configured DuckDB memory ceiling; this is not observed peak memory.",
       ),
-      resultCeilingBytes: exact(workflowPlan.maxResultBytes, "Fail-closed JavaScript materialization policy."),
-      materializedResultBytes: exact(resultBytes, "UTF-8 byte length of the accepted SDK Result JSON."),
+      resultCeilingBytes: exact(
+        workflowPlan.maxResultBytes,
+        "Post-materialization rejection ceiling; the adapter may allocate a row before this JSON check can measure it.",
+      ),
+      materializedResultBytes: exact(
+        resultBytes,
+        "UTF-8 byte length measured after the adapter materialized the accepted SDK Result JSON.",
+      ),
       observedPeakBytes: unsupported(
         "The browser worker does not expose a reliable per-query peak-memory counter through the public SDK runtime.",
       ),
     },
-    cache: { policy: "bypass", identity: receipt.cacheIdentity },
+    cache: {
+      policy: "bypass",
+      scope: engineIdentity.cacheScope,
+      identity: workflowCacheIdentity,
+      sdkPlanIdentity: receipt.cacheIdentity,
+      engine: engineIdentity,
+    },
     resultFidelity,
     timing: {
       sdkPlanMs: planMs,
@@ -345,10 +449,14 @@ export async function runCloudNativeAnalysis<T>(
 }
 
 function runtimePolicySql(plan: OvertureQueryPlan): string {
-  if (!Number.isSafeInteger(plan.memoryLimitMiB) || plan.memoryLimitMiB < 1 || plan.memoryLimitMiB > 4_096) {
+  if (
+    !Number.isSafeInteger(plan.memoryLimitMiB) ||
+    plan.memoryLimitMiB < 1 ||
+    plan.memoryLimitMiB > OVERTURE_HARD_LIMITS.memoryLimitMiB
+  ) {
     throw new CloudNativeAnalysisRejectedError(
       "invalid-workflow-input",
-      "Worker memory ceiling must be a safe integer from 1 through 4096 MiB.",
+      `Worker memory ceiling must be a safe integer from 1 through ${OVERTURE_HARD_LIMITS.memoryLimitMiB} MiB.`,
     );
   }
   return `SET memory_limit='${plan.memoryLimitMiB}MB'; SET threads=1; SET preserve_insertion_order=false;`;
@@ -398,6 +506,38 @@ function resourceHandle(plan: OvertureQueryPlan, descriptor: SourceDescriptor): 
     authorizationContextId: authorizationContext(plan),
     resourceVersion: selectedPlanObject(plan).etag,
   });
+}
+
+function acceptedResourceHandle(
+  supplied: GeoParquetResourceHandleV1 | undefined,
+  plan: OvertureQueryPlan,
+  descriptor: SourceDescriptor,
+  object: OvertureObjectManifest,
+): GeoParquetResourceHandleV1 {
+  const expected = resourceHandle(plan, descriptor);
+  if (!supplied) return expected;
+  let accepted: GeoParquetResourceHandleV1;
+  try {
+    accepted = parseGeoParquetResourceHandle(supplied);
+  } catch {
+    throw new CloudNativeAnalysisRejectedError(
+      "invalid-workflow-input",
+      "Supplied GeoParquet resource handle is invalid.",
+    );
+  }
+  if (
+    accepted.resource.resolver !== RESOURCE_RESOLVER ||
+    accepted.resource.id !== descriptor.id ||
+    accepted.authorizationContextId !== authorizationContext(plan) ||
+    accepted.resourceVersion !== object.etag ||
+    canonicalStringify(toJsonValue(accepted)) !== canonicalStringify(toJsonValue(expected))
+  ) {
+    throw new CloudNativeAnalysisRejectedError(
+      "invalid-workflow-input",
+      "Supplied GeoParquet resource handle does not match the selected object and authorization context.",
+    );
+  }
+  return accepted;
 }
 
 function authorizationContext(plan: OvertureQueryPlan): string {
@@ -462,6 +602,242 @@ function boundedResultBytes(result: Result<unknown>): number {
   }
 }
 
+function acceptedManifestInput(manifest: OvertureSourceManifest): OvertureSourceManifest {
+  try {
+    return validateOvertureManifest(manifest);
+  } catch (cause) {
+    throw invalidWorkflowCause(cause);
+  }
+}
+
+function acceptedPlanInput(plan: OvertureQueryPlan, manifest: OvertureSourceManifest): OvertureQueryPlan {
+  try {
+    return validateOvertureQueryPlan(plan, manifest);
+  } catch (cause) {
+    throw invalidWorkflowCause(cause);
+  }
+}
+
+function invalidWorkflowCause(cause: unknown): CloudNativeAnalysisRejectedError {
+  return new CloudNativeAnalysisRejectedError(
+    "invalid-workflow-input",
+    cause instanceof OverturePlanRejectedError ? cause.message : "Workflow input validation failed.",
+  );
+}
+
+function validateRangeEvidence(
+  range: OvertureRangeEvidence,
+  plan: OvertureQueryPlan,
+  object: OvertureObjectManifest,
+): OvertureRangeEvidence {
+  if (!isPlainRecord(range)) {
+    throw new CloudNativeAnalysisRejectedError("invalid-workflow-input", "Range evidence must be a plain object.");
+  }
+  if (range.status !== "local-buffer" && range.status !== "verified" && range.status !== "unsupported") {
+    throw new CloudNativeAnalysisRejectedError("invalid-workflow-input", "Range evidence status is invalid.");
+  }
+  let observedAt: string;
+  try {
+    observedAt = validateIsoTimestamp(range.observedAt, "Range evidence observedAt");
+  } catch (cause) {
+    throw invalidWorkflowCause(cause);
+  }
+  if (new Date(observedAt).valueOf() > Date.now() + 5 * 60_000) {
+    throw new CloudNativeAnalysisRejectedError(
+      "invalid-workflow-input",
+      "Range evidence observedAt cannot be more than five minutes in the future.",
+    );
+  }
+  if (
+    range.lane !== plan.lane ||
+    range.objectKey !== object.objectKey ||
+    range.objectVersion !== object.etag ||
+    range.objectBytes !== object.bytes
+  ) {
+    throw new CloudNativeAnalysisRejectedError(
+      "invalid-workflow-input",
+      "Range evidence must identify the selected lane, object key, version, and byte size exactly.",
+    );
+  }
+  if (
+    !Number.isSafeInteger(range.bytes) ||
+    range.bytes < 0 ||
+    range.bytes > object.bytes ||
+    !Number.isSafeInteger(range.ranges) ||
+    range.ranges < 0 ||
+    typeof range.acceptRanges !== "boolean" ||
+    !Number.isFinite(range.durationMs) ||
+    range.durationMs < 0 ||
+    range.durationMs > plan.maxSourceProbeMs ||
+    typeof range.cacheStatus !== "string" ||
+    range.cacheStatus.length < 1 ||
+    range.cacheStatus.length > 256 ||
+    typeof range.limitation !== "string" ||
+    range.limitation.length < 1 ||
+    range.limitation.length > 2_048
+  ) {
+    throw new CloudNativeAnalysisRejectedError(
+      "invalid-workflow-input",
+      "Range evidence contains invalid counts, duration, or bounded text fields.",
+    );
+  }
+  if (range.status === "unsupported") {
+    throw new CloudNativeAnalysisRejectedError("unsupported-range-io", range.limitation);
+  }
+  if (plan.lane === "fixture") {
+    if (
+      range.status !== "local-buffer" ||
+      range.bytes !== object.bytes ||
+      range.ranges !== 1 ||
+      range.acceptRanges ||
+      range.etag !== null ||
+      range.lastModified !== null
+    ) {
+      throw new CloudNativeAnalysisRejectedError(
+        "invalid-workflow-input",
+        "Fixture range evidence must account for the exact selected local buffer and no HTTP ranges.",
+      );
+    }
+  } else {
+    const expectedProbeBytes = 1 + Math.min(RANGE_FOOTER_PROBE_BYTES, object.bytes);
+    if (
+      range.status !== "verified" ||
+      range.bytes !== expectedProbeBytes ||
+      range.ranges !== 2 ||
+      range.etag !== object.etag ||
+      range.lastModified !== object.lastModified
+    ) {
+      throw new CloudNativeAnalysisRejectedError(
+        "invalid-workflow-input",
+        "Live range evidence must prove the exact pinned ETag, object bytes, and two bounded range probes.",
+      );
+    }
+  }
+  return Object.freeze({
+    lane: range.lane,
+    objectKey: range.objectKey,
+    objectVersion: range.objectVersion,
+    status: range.status,
+    observedAt,
+    bytes: range.bytes,
+    ranges: range.ranges,
+    objectBytes: range.objectBytes,
+    acceptRanges: range.acceptRanges,
+    etag: range.etag,
+    lastModified: range.lastModified,
+    cacheStatus: range.cacheStatus,
+    durationMs: range.durationMs,
+    limitation: range.limitation,
+  });
+}
+
+function validateEngineIdentity(supplied?: CloudNativeEngineIdentity): CloudNativeEngineIdentity {
+  const engine = supplied ?? UNKNOWN_ENGINE_IDENTITY;
+  if (
+    !isPlainRecord(engine) ||
+    typeof engine.name !== "string" ||
+    !/^[a-z0-9@][a-z0-9@/._-]{0,127}$/.test(engine.name) ||
+    (engine.version !== null &&
+      (typeof engine.version !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9.+_-]{0,63}$/.test(engine.version))) ||
+    (engine.verification !== "caller-declared" && engine.verification !== "unavailable") ||
+    engine.cacheScope !== "execution-only" ||
+    (engine.verification === "caller-declared" && engine.version === null) ||
+    (engine.verification === "unavailable" && engine.version !== null)
+  ) {
+    throw new CloudNativeAnalysisRejectedError(
+      "invalid-workflow-input",
+      "Engine identity must be a bounded caller declaration and remains execution-only until runtime verification exists.",
+    );
+  }
+  return Object.freeze({
+    name: engine.name,
+    version: engine.version,
+    verification: engine.verification,
+    cacheScope: "execution-only",
+  });
+}
+
+interface ExecutionDeadline {
+  readonly signal: AbortSignal;
+  readonly reason: CloudNativeAnalysisRejectedError;
+  readonly timedOut: boolean;
+  dispose(): void;
+}
+
+function createExecutionDeadline(
+  timeoutMs: number,
+  externalSignal: AbortSignal | undefined,
+  onTimeout: () => void,
+): ExecutionDeadline {
+  const controller = new AbortController();
+  const reason = new CloudNativeAnalysisRejectedError(
+    "engine-budget-exceeded",
+    `Cloud-native engine execution exceeded the ${timeoutMs} ms budget.`,
+  );
+  let timedOut = false;
+  const abortFromCaller = () => controller.abort(cancellationReason());
+  if (externalSignal?.aborted) abortFromCaller();
+  else externalSignal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timer = controller.signal.aborted
+    ? undefined
+    : setTimeout(() => {
+        timedOut = true;
+        controller.abort(reason);
+        onTimeout();
+      }, timeoutMs);
+  return {
+    signal: controller.signal,
+    reason,
+    get timedOut() {
+      return timedOut;
+    },
+    dispose() {
+      if (timer !== undefined) clearTimeout(timer);
+      externalSignal?.removeEventListener("abort", abortFromCaller);
+    },
+  };
+}
+
+function waitForAbort<T>(startOperation: () => Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason ?? cancellationReason());
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => {
+      cleanup();
+      reject(signal.reason ?? cancellationReason());
+    };
+    const cleanup = () => signal.removeEventListener("abort", abort);
+    signal.addEventListener("abort", abort, { once: true });
+    let operation: Promise<T>;
+    try {
+      operation = startOperation();
+    } catch (cause) {
+      cleanup();
+      reject(cause);
+      return;
+    }
+    void operation.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (cause) => {
+        cleanup();
+        reject(cause);
+      },
+    );
+  });
+}
+
+function cancellationReason(): DOMException {
+  return new DOMException("Cloud-native analysis was cancelled.", "AbortError");
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 function exact<T>(value: T, basis: string): CloudNativeMetric<T> {
   return { fidelity: "exact", value, basis };
 }
@@ -487,14 +863,4 @@ function elapsed(start: number, end: number): number {
     throw new CloudNativeAnalysisRejectedError("invalid-workflow-input", "Workflow clock must be monotonic.");
   }
   return end - start;
-}
-
-function finiteDuration(value: number): number {
-  if (!Number.isFinite(value) || value < 0) {
-    throw new CloudNativeAnalysisRejectedError(
-      "invalid-workflow-input",
-      "Source evidence duration must be finite and non-negative.",
-    );
-  }
-  return value;
 }

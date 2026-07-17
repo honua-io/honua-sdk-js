@@ -1,3 +1,4 @@
+import { OVERTURE_HARD_LIMITS, validateOvertureObjectManifest } from "./planner.js";
 import type { OvertureObjectManifest, OvertureRangeEvidence } from "./types.js";
 
 const FOOTER_PROBE_BYTES = 65_536;
@@ -6,7 +7,12 @@ export async function probeAwsRanges(
   object: OvertureObjectManifest,
   options: { readonly fetchFn?: typeof fetch; readonly signal?: AbortSignal; readonly timeoutMs?: number } = {},
 ): Promise<OvertureRangeEvidence> {
+  object = validateOvertureObjectManifest(object, "live");
   const fetchFn = options.fetchFn ?? fetch;
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > OVERTURE_HARD_LIMITS.maxSourceProbeMs) {
+    throw new Error(`AWS range probe timeout must be from 1 through ${OVERTURE_HARD_LIMITS.maxSourceProbeMs} ms.`);
+  }
   const started = performance.now();
   const probes = [
     { start: 0, end: 0 },
@@ -21,7 +27,7 @@ export async function probeAwsRanges(
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, options.timeoutMs ?? 10_000);
+  }, timeoutMs);
   try {
     for (const probe of probes) {
       const range = `bytes=${probe.start}-${probe.end}`;
@@ -34,7 +40,7 @@ export async function probeAwsRanges(
           signal: controller.signal,
         });
       } catch (cause) {
-        if (timedOut) throw new Error(`AWS range probe exceeded the ${options.timeoutMs ?? 10_000} ms deadline.`);
+        if (timedOut) throw new Error(`AWS range probe exceeded the ${timeoutMs} ms deadline.`);
         throw cause;
       }
       responses.push(response);
@@ -71,7 +77,7 @@ export async function probeAwsRanges(
       }
     }
   } catch (cause) {
-    if (timedOut) throw new Error(`AWS range probe exceeded the ${options.timeoutMs ?? 10_000} ms deadline.`);
+    if (timedOut) throw new Error(`AWS range probe exceeded the ${timeoutMs} ms deadline.`);
     throw cause;
   } finally {
     clearTimeout(timeout);
@@ -79,6 +85,9 @@ export async function probeAwsRanges(
   }
   const first = responses[0];
   return {
+    lane: "live",
+    objectKey: object.objectKey,
+    objectVersion: object.etag,
     status: "verified",
     observedAt: new Date().toISOString(),
     bytes: 1 + Math.min(FOOTER_PROBE_BYTES, object.bytes),
@@ -86,7 +95,7 @@ export async function probeAwsRanges(
     objectBytes: object.bytes,
     acceptRanges: first?.headers.get("accept-ranges")?.toLowerCase() === "bytes",
     etag: normalizeEtag(first?.headers.get("etag")),
-    lastModified: first?.headers.get("last-modified") ?? null,
+    lastModified: normalizeLastModified(first?.headers.get("last-modified")),
     cacheStatus: first?.headers.get("x-cache") ?? "not-reported",
     durationMs: performance.now() - started,
     limitation:
@@ -153,6 +162,9 @@ function unsupported(
   limitation: string,
 ): OvertureRangeEvidence {
   return {
+    lane: "live",
+    objectKey: object.objectKey,
+    objectVersion: object.etag,
     status: "unsupported",
     observedAt: new Date().toISOString(),
     bytes: 0,
@@ -160,15 +172,19 @@ function unsupported(
     objectBytes: object.bytes,
     acceptRanges: false,
     etag: response.headers.get("etag"),
-    lastModified: response.headers.get("last-modified"),
+    lastModified: normalizeLastModified(response.headers.get("last-modified")),
     cacheStatus: response.headers.get("x-cache") ?? "not-reported",
     durationMs: performance.now() - started,
     limitation,
   };
 }
 
-export function fixtureRangeEvidence(bytes: number): OvertureRangeEvidence {
+export function fixtureRangeEvidence(object: OvertureObjectManifest, bytes: number): OvertureRangeEvidence {
+  object = validateOvertureObjectManifest(object, "fixture");
   return {
+    lane: "fixture",
+    objectKey: object.objectKey,
+    objectVersion: object.etag,
     status: "local-buffer",
     observedAt: new Date().toISOString(),
     bytes,
@@ -184,5 +200,13 @@ export function fixtureRangeEvidence(bytes: number): OvertureRangeEvidence {
 }
 
 function normalizeEtag(value: string | null | undefined): string | null {
-  return value?.replaceAll('"', "") ?? null;
+  if (value === null || value === undefined) return null;
+  const match = /^"([^"]+)"$/.exec(value);
+  return match?.[1] ?? value;
+}
+
+function normalizeLastModified(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.valueOf()) ? parsed.toISOString() : value;
 }

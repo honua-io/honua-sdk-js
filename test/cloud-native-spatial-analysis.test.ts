@@ -2,19 +2,26 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
-  type CloudNativeAnalysisRejectedError,
+  CloudNativeAnalysisRejectedError,
+  cloudNativeAnalysisCacheIdentity,
   explainCloudNativeAnalysis,
   runCloudNativeAnalysis,
 } from "../examples/overture-geoparquet/src/cloud-native-analysis.js";
 import { planOvertureQuery } from "../examples/overture-geoparquet/src/planner.js";
 import { fixtureRangeEvidence } from "../examples/overture-geoparquet/src/range-evidence.js";
-import { FIXTURE_MANIFEST, OVERTURE_POLICY } from "../examples/overture-geoparquet/src/source-manifests.js";
+import {
+  FIXTURE_MANIFEST,
+  LIVE_MANIFEST,
+  OVERTURE_POLICY,
+} from "../examples/overture-geoparquet/src/source-manifests.js";
+import type { OvertureQueryPlan, OvertureRangeEvidence } from "../examples/overture-geoparquet/src/types.js";
 import { PROTOCOL_DEFAULT_CAPABILITIES, type SourceDescriptor } from "../src/contract/types.js";
 import type { DuckDbDriver } from "../src/geoparquet/driver.js";
 import { GeoparquetRuntime, geoparquetSource } from "../src/geoparquet/index.js";
+import { createGeoParquetResourceHandle } from "../src/query-planner/resource.js";
 // @ts-expect-error — .mjs test helper has no declaration and test fixtures are excluded from tsc.
 import { createNodeDuckDbDriver } from "./helpers/geoparquet-node-driver.mjs";
 
@@ -77,7 +84,7 @@ describe("Cloud-Native Spatial Analysis S1", () => {
     const run = await runCloudNativeAnalysis({
       workflowPlan: workflowPlan(8),
       manifest: FIXTURE_MANIFEST,
-      range: fixtureRangeEvidence(bytes.byteLength),
+      range: fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]!, bytes.byteLength),
       source,
       runtime,
     });
@@ -110,7 +117,7 @@ describe("Cloud-Native Spatial Analysis S1", () => {
     const run = await runCloudNativeAnalysis({
       workflowPlan: workflowPlan(),
       manifest: FIXTURE_MANIFEST,
-      range: fixtureRangeEvidence(bytes.byteLength),
+      range: fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]!, bytes.byteLength),
       source: execution.source,
       runtime: execution.runtime,
       now: () => ticks.shift() ?? 27,
@@ -167,7 +174,19 @@ describe("Cloud-Native Spatial Analysis S1", () => {
       presentation: { fidelity: "unsupported", value: null },
     });
     expect(run.evidence.query.plan.fingerprint).toMatch(/^sha256:[0-9a-f]{64}$/);
-    expect(run.evidence.cache.identity).toBe(`honua-query-plan:2.0:${run.evidence.query.plan.fingerprint}`);
+    expect(run.evidence.cache).toMatchObject({
+      policy: "bypass",
+      scope: "execution-only",
+      sdkPlanIdentity: `honua-query-plan:2.0:${run.evidence.query.plan.fingerprint}`,
+      engine: {
+        name: "unverified-geoparquet-runtime",
+        version: null,
+        verification: "unavailable",
+        cacheScope: "execution-only",
+      },
+    });
+    expect(run.evidence.cache.identity).toMatch(/^honua-cloud-native-analysis:v1:sha256:[0-9a-f]{64}$/);
+    expect(run.evidence.cache.identity).not.toBe(run.evidence.cache.sdkPlanIdentity);
     expect(JSON.stringify(run.evidence.query.plan)).not.toContain(FIXTURE_MANIFEST.objects[0]?.url);
     expect(JSON.stringify(run.evidence)).not.toContain("rows scanned: 8");
   });
@@ -179,6 +198,78 @@ describe("Cloud-Native Spatial Analysis S1", () => {
     expect(second).toEqual(first);
     expect(first).toMatchObject({ version: "2.0", pushdown: "full", fidelity: "exact" });
     expect(JSON.stringify(first)).not.toContain(FIXTURE_MANIFEST.objects[0]?.url);
+  });
+
+  it("rejects internally inconsistent runtime plans before emitting exact evidence", () => {
+    const plan = workflowPlan();
+    const object = plan.selectedObjects[0]!;
+    const hostilePlans: OvertureQueryPlan[] = [
+      { ...plan, aoiSquareDegrees: plan.aoiSquareDegrees + 1 },
+      { ...plan, projection: ["id"] },
+      { ...plan, filesAvailable: 999 },
+      { ...plan, selectedObjectRows: object.rows + 1 },
+      { ...plan, maxEngineMs: plan.maxEngineMs + 1 },
+      { ...plan, policy: { ...plan.policy, memoryLimitMiB: 513 } },
+      { ...plan, selectedObjects: [{ ...object, etag: `sha256:${"0".repeat(64)}` }] },
+    ];
+    for (const hostile of hostilePlans) {
+      expect(() => explainCloudNativeAnalysis(hostile, FIXTURE_MANIFEST, descriptor())).toThrowError(
+        CloudNativeAnalysisRejectedError,
+      );
+    }
+    const wrongHandle = createGeoParquetResourceHandle({
+      resolver: "io.honua.samples.overture",
+      id: descriptor().id,
+      authorizationContextId: "public:anonymous:live",
+      resourceVersion: object.etag,
+    });
+    expect(() => explainCloudNativeAnalysis(plan, FIXTURE_MANIFEST, descriptor(), wrongHandle)).toThrow(
+      "does not match",
+    );
+  });
+
+  it("binds workflow cache identity to policy and declared engine version without portable reuse", () => {
+    const plan = workflowPlan();
+    const engineV1 = {
+      name: "duckdb-wasm",
+      version: "1.32.0",
+      verification: "caller-declared",
+      cacheScope: "execution-only",
+    } as const;
+    const first = cloudNativeAnalysisCacheIdentity(plan, FIXTURE_MANIFEST, engineV1);
+    expect(cloudNativeAnalysisCacheIdentity(plan, FIXTURE_MANIFEST, engineV1)).toBe(first);
+    expect(
+      cloudNativeAnalysisCacheIdentity(plan, FIXTURE_MANIFEST, {
+        ...engineV1,
+        version: "1.33.0",
+      }),
+    ).not.toBe(first);
+    expect(
+      cloudNativeAnalysisCacheIdentity(
+        planOvertureQuery({ lane: "fixture", aoi: AOI, category: "civic", limit: 100 }, OVERTURE_POLICY),
+        FIXTURE_MANIFEST,
+        engineV1,
+      ),
+    ).not.toBe(first);
+    expect(
+      cloudNativeAnalysisCacheIdentity(
+        planOvertureQuery(
+          { lane: "fixture", aoi: AOI, category: "all", limit: 100 },
+          { ...OVERTURE_POLICY, maxEngineMs: OVERTURE_POLICY.maxEngineMs + 1 },
+        ),
+        FIXTURE_MANIFEST,
+        engineV1,
+      ),
+    ).not.toBe(first);
+    expect(first).not.toContain(FIXTURE_MANIFEST.objects[0]!.url);
+    expect(() =>
+      cloudNativeAnalysisCacheIdentity(plan, FIXTURE_MANIFEST, {
+        name: "duckdb-wasm",
+        version: null,
+        verification: "caller-declared",
+        cacheScope: "execution-only",
+      }),
+    ).toThrow("caller declaration");
   });
 
   it("preserves adapter degradation as approximate instead of claiming exact fidelity", async () => {
@@ -208,7 +299,7 @@ describe("Cloud-Native Spatial Analysis S1", () => {
     const run = await runCloudNativeAnalysis({
       workflowPlan: workflowPlan(),
       manifest: FIXTURE_MANIFEST,
-      range: fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]?.bytes ?? 0),
+      range: fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]!, FIXTURE_MANIFEST.objects[0]!.bytes),
       source,
       runtime: execution.runtime,
     });
@@ -230,7 +321,7 @@ describe("Cloud-Native Spatial Analysis S1", () => {
         workflowPlan: workflowPlan(),
         manifest: FIXTURE_MANIFEST,
         range: {
-          ...fixtureRangeEvidence(bytes.byteLength),
+          ...fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]!, bytes.byteLength),
           status: "unsupported",
           limitation: "Range transport is unavailable.",
         },
@@ -245,7 +336,7 @@ describe("Cloud-Native Spatial Analysis S1", () => {
       runCloudNativeAnalysis({
         workflowPlan: workflowPlan(2),
         manifest: FIXTURE_MANIFEST,
-        range: fixtureRangeEvidence(bytes.byteLength),
+        range: fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]!, bytes.byteLength),
         source: overflowExecution.source,
         runtime: overflowExecution.runtime,
       }),
@@ -261,12 +352,152 @@ describe("Cloud-Native Spatial Analysis S1", () => {
       runCloudNativeAnalysis({
         workflowPlan: workflowPlan(1),
         manifest: FIXTURE_MANIFEST,
-        range: fixtureRangeEvidence(bytes.byteLength),
+        range: fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]!, bytes.byteLength),
         source: bytesExecution.source,
         runtime: bytesExecution.runtime,
       }),
     ).rejects.toMatchObject({ code: "unsafe-materialization" });
     expect(bytesExecution.closeCalls()).toBe(1);
+  });
+
+  it("rejects forged fixture and live range evidence before engine startup", async () => {
+    const bytes = readFileSync(FIXTURE_PATH);
+    const fixture = fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]!, bytes.byteLength);
+    const hostileFixtureRanges: OvertureRangeEvidence[] = [
+      { ...fixture, objectKey: "public/other.parquet" },
+      { ...fixture, objectVersion: `sha256:${"0".repeat(64)}` },
+      { ...fixture, bytes: fixture.bytes - 1 },
+      { ...fixture, ranges: 0 },
+      { ...fixture, status: "verified", acceptRanges: true },
+      { ...fixture, observedAt: "not-a-date" },
+      { ...fixture, durationMs: OVERTURE_POLICY.maxSourceProbeMs + 1 },
+    ];
+    for (const range of hostileFixtureRanges) {
+      const execution = harness(async () => {
+        throw new Error("engine must not start");
+      });
+      await expect(
+        runCloudNativeAnalysis({
+          workflowPlan: workflowPlan(),
+          manifest: FIXTURE_MANIFEST,
+          range,
+          source: execution.source,
+          runtime: execution.runtime,
+        }),
+      ).rejects.toMatchObject({ code: "invalid-workflow-input" });
+      expect(execution.sql).toEqual([]);
+      expect(execution.closeCalls()).toBe(0);
+    }
+
+    const livePlan = planOvertureQuery({ lane: "live", aoi: AOI, category: "all", limit: 100 }, OVERTURE_POLICY);
+    const liveObject = livePlan.selectedObjects[0]!;
+    const forgedLive: OvertureRangeEvidence = {
+      ...fixture,
+      lane: "live",
+      objectKey: liveObject.objectKey,
+      objectVersion: liveObject.etag,
+      status: "verified",
+      bytes: 65_537,
+      ranges: 2,
+      objectBytes: liveObject.bytes,
+      acceptRanges: true,
+      etag: "forged",
+      lastModified: liveObject.lastModified,
+    };
+    const liveExecution = harness(async () => {
+      throw new Error("engine must not start");
+    });
+    await expect(
+      runCloudNativeAnalysis({
+        workflowPlan: livePlan,
+        manifest: LIVE_MANIFEST,
+        range: forgedLive,
+        source: liveExecution.source,
+        runtime: liveExecution.runtime,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-workflow-input" });
+    expect(liveExecution.sql).toEqual([]);
+
+    const verifiedWithoutAdvisoryHeader: OvertureRangeEvidence = {
+      ...forgedLive,
+      acceptRanges: false,
+      etag: liveObject.etag,
+    };
+    const headerlessExecution = harness(async () => fixtureRows(1));
+    const accepted = await runCloudNativeAnalysis({
+      workflowPlan: livePlan,
+      manifest: LIVE_MANIFEST,
+      range: verifiedWithoutAdvisoryHeader,
+      source: headerlessExecution.source,
+      runtime: headerlessExecution.runtime,
+    });
+    expect(accepted.evidence.io.rangeRequests).toMatchObject({ fidelity: "exact", value: 2 });
+  });
+
+  it("enforces maxEngineMs across policy and adapter work and tears down listeners", async () => {
+    const shortPlan = planOvertureQuery(
+      { lane: "fixture", aoi: AOI, category: "all", limit: 100 },
+      { ...OVERTURE_POLICY, maxEngineMs: 10 },
+    );
+    const range = fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]!, FIXTURE_MANIFEST.objects[0]!.bytes);
+
+    let policySignal: AbortSignal | undefined;
+    const blockedPolicy = harness(
+      (_statement, options) =>
+        new Promise((_resolve, reject) => {
+          policySignal = options?.signal;
+          options?.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true });
+        }),
+    );
+    await expect(
+      runCloudNativeAnalysis({
+        workflowPlan: shortPlan,
+        manifest: FIXTURE_MANIFEST,
+        range,
+        source: blockedPolicy.source,
+        runtime: blockedPolicy.runtime,
+      }),
+    ).rejects.toMatchObject({ code: "engine-budget-exceeded" });
+    expect(policySignal?.aborted).toBe(true);
+    expect(blockedPolicy.closeCalls()).toBe(1);
+
+    let adapterSignal: AbortSignal | undefined;
+    const blockedAdapter = harness((statement, options) => {
+      if (statement.startsWith("SET memory_limit")) return Promise.resolve([]);
+      return new Promise((_resolve, reject) => {
+        adapterSignal = options?.signal;
+        options?.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true });
+      });
+    });
+    const caller = new AbortController();
+    const removeListener = vi.spyOn(caller.signal, "removeEventListener");
+    await expect(
+      runCloudNativeAnalysis({
+        workflowPlan: shortPlan,
+        manifest: FIXTURE_MANIFEST,
+        range,
+        source: blockedAdapter.source,
+        runtime: blockedAdapter.runtime,
+        signal: caller.signal,
+      }),
+    ).rejects.toMatchObject({ code: "engine-budget-exceeded" });
+    expect(adapterSignal?.aborted).toBe(true);
+    expect(blockedAdapter.closeCalls()).toBe(1);
+    expect(removeListener).toHaveBeenCalledWith("abort", expect.any(Function));
+
+    const overBudgetClock = harness(async () => fixtureRows(1));
+    const ticks = [0, 0, 0, 11];
+    await expect(
+      runCloudNativeAnalysis({
+        workflowPlan: shortPlan,
+        manifest: FIXTURE_MANIFEST,
+        range,
+        source: overBudgetClock.source,
+        runtime: overBudgetClock.runtime,
+        now: () => ticks.shift() ?? 11,
+      }),
+    ).rejects.toMatchObject({ code: "engine-budget-exceeded" });
+    expect(overBudgetClock.closeCalls()).toBe(1);
   });
 
   it("propagates cancellation through the accepted plan and closes the worker runtime", async () => {
@@ -291,7 +522,7 @@ describe("Cloud-Native Spatial Analysis S1", () => {
     const pending = runCloudNativeAnalysis({
       workflowPlan: workflowPlan(),
       manifest: FIXTURE_MANIFEST,
-      range: fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]?.bytes ?? 0),
+      range: fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]!, FIXTURE_MANIFEST.objects[0]!.bytes),
       source: execution.source,
       runtime: execution.runtime,
       signal: controller.signal,
@@ -299,7 +530,27 @@ describe("Cloud-Native Spatial Analysis S1", () => {
     await started;
     controller.abort();
 
-    await expect(pending).rejects.toMatchObject({ name: "HonuaAbortError" });
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
     expect(execution.closeCalls()).toBe(1);
+  });
+
+  it("does not start an operation when the composed caller signal is already aborted", async () => {
+    const execution = harness(async () => {
+      throw new Error("engine must not start");
+    });
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      runCloudNativeAnalysis({
+        workflowPlan: workflowPlan(),
+        manifest: FIXTURE_MANIFEST,
+        range: fixtureRangeEvidence(FIXTURE_MANIFEST.objects[0]!, FIXTURE_MANIFEST.objects[0]!.bytes),
+        source: execution.source,
+        runtime: execution.runtime,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(execution.sql).toEqual([]);
+    expect(execution.closeCalls()).toBe(0);
   });
 });

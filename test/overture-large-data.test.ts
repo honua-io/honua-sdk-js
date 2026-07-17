@@ -3,13 +3,23 @@ import fs from "node:fs";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { OverturePlanRejectedError, parseAoi, planOvertureQuery } from "../examples/overture-geoparquet/src/planner.js";
+import {
+  OVERTURE_HARD_LIMITS,
+  OverturePlanRejectedError,
+  parseAoi,
+  planOvertureQuery,
+} from "../examples/overture-geoparquet/src/planner.js";
 import { probeAwsRanges } from "../examples/overture-geoparquet/src/range-evidence.js";
 import {
   FIXTURE_MANIFEST,
   LIVE_MANIFEST,
   OVERTURE_POLICY,
 } from "../examples/overture-geoparquet/src/source-manifests.js";
+import type {
+  OvertureExecutionPolicy,
+  OvertureQueryInput,
+  OvertureSourceManifest,
+} from "../examples/overture-geoparquet/src/types.js";
 import type { DuckDbDriver } from "../src/geoparquet/driver.js";
 import { GeoparquetRuntime } from "../src/geoparquet/index.js";
 
@@ -68,6 +78,79 @@ describe("Overture large-data flagship", () => {
     expect(() =>
       planOvertureQuery({ lane: "live", aoi: [-77, 28.47, -76.9, 28.48], category: "all", limit: 10 }, OVERTURE_POLICY),
     ).toThrow("requires exactly one object");
+    expect(() => parseAoi("-158x,21.2,-157.65,21.6")).toThrow("finite numbers");
+    expect(() =>
+      planOvertureQuery(
+        { lane: "fixture", aoi: [Number.NaN, 21.2, -157.65, 21.6], category: "all", limit: 10 },
+        OVERTURE_POLICY,
+      ),
+    ).toThrow("finite numbers");
+    expect(() =>
+      planOvertureQuery(
+        {
+          lane: "constructor",
+          aoi: [-158.3, 21.2, -157.65, 21.6],
+          category: "all",
+          limit: 10,
+        } as unknown as OvertureQueryInput,
+        OVERTURE_POLICY,
+      ),
+    ).toThrow("fixture or live");
+    expect(() =>
+      planOvertureQuery(
+        { lane: "fixture", aoi: [-158.3, 21.2, -157.65, 21.6], category: "civic' OR 1=1", limit: 10 },
+        OVERTURE_POLICY,
+      ),
+    ).toThrow("Category");
+  });
+
+  it("validates every bounded policy field against browser-safe hard ceilings", () => {
+    const invalidPolicies: OvertureExecutionPolicy[] = [
+      { ...OVERTURE_POLICY, maxRows: 0 },
+      { ...OVERTURE_POLICY, maxProjectedColumns: 0 },
+      { ...OVERTURE_POLICY, maxAoiSquareDegrees: Number.POSITIVE_INFINITY },
+      { ...OVERTURE_POLICY, memoryLimitMiB: OVERTURE_HARD_LIMITS.memoryLimitMiB + 1 },
+      { ...OVERTURE_POLICY, maxResultBytes: OVERTURE_HARD_LIMITS.maxResultBytes + 1 },
+      { ...OVERTURE_POLICY, renderBatchSize: OVERTURE_POLICY.maxRows + 1 },
+      { ...OVERTURE_POLICY, maxEngineMs: OVERTURE_HARD_LIMITS.maxEngineMs + 1 },
+      { ...OVERTURE_POLICY, maxSourceProbeMs: OVERTURE_HARD_LIMITS.maxSourceProbeMs + 1 },
+      { ...OVERTURE_POLICY, allowFullHttpReads: true as false },
+    ];
+    for (const policy of invalidPolicies) {
+      expect(() =>
+        planOvertureQuery({ lane: "fixture", aoi: [-158.3, 21.2, -157.65, 21.6], category: "all", limit: 10 }, policy),
+      ).toThrowError(OverturePlanRejectedError);
+    }
+  });
+
+  it("rejects inconsistent manifest totals and forged object identity metadata", () => {
+    const first = LIVE_MANIFEST.objects[0]!;
+    const rest = LIVE_MANIFEST.objects.slice(1);
+    const invalidManifests: OvertureSourceManifest[] = [
+      { ...LIVE_MANIFEST, totalRows: LIVE_MANIFEST.totalRows + 1 },
+      { ...LIVE_MANIFEST, totalBytes: LIVE_MANIFEST.totalBytes + 1 },
+      { ...LIVE_MANIFEST, totalRowGroups: LIVE_MANIFEST.totalRowGroups + 1 },
+      { ...LIVE_MANIFEST, totalFiles: LIVE_MANIFEST.totalFiles - 1 },
+      { ...LIVE_MANIFEST, stacUrl: "https://token:secret@stac.overturemaps.org/item.json" },
+      { ...LIVE_MANIFEST, objects: [{ ...first, url: first.url.replace("https:", "http:") }, ...rest] },
+      { ...LIVE_MANIFEST, objects: [{ ...first, etag: "forged" }, ...rest] },
+      { ...LIVE_MANIFEST, objects: [{ ...first, lastModified: "June 17" }, ...rest] },
+      { ...LIVE_MANIFEST, objects: [{ ...first, bytes: 0 }, ...rest] },
+      { ...LIVE_MANIFEST, objects: [{ ...first, rowGroups: 0 }, ...rest] },
+      {
+        ...LIVE_MANIFEST,
+        objects: [first, { ...LIVE_MANIFEST.objects[1]!, id: first.id }, ...LIVE_MANIFEST.objects.slice(2)],
+      },
+    ];
+    for (const manifest of invalidManifests) {
+      expect(() =>
+        planOvertureQuery(
+          { lane: "live", aoi: [-158.3, 21.2, -157.65, 21.6], category: "all", limit: 10 },
+          OVERTURE_POLICY,
+          manifest,
+        ),
+      ).toThrowError(OverturePlanRejectedError);
+    }
   });
 
   it("keys cache identity by release, object version, AOI, projection, category, and policy", () => {
@@ -116,6 +199,24 @@ describe("Overture large-data flagship", () => {
       etag: object.etag,
     });
     expect(evidence.limitation).toContain("not exposed");
+
+    let headerlessProbe = 0;
+    const headerless = await probeAwsRanges(object, {
+      fetchFn: (async () => {
+        headerlessProbe += 1;
+        const start = headerlessProbe === 1 ? 0 : object.bytes - 65_536;
+        const end = headerlessProbe === 1 ? 0 : object.bytes - 1;
+        return new Response(new Uint8Array(end - start + 1), {
+          status: 206,
+          headers: {
+            "content-range": `bytes ${start}-${end}/${object.bytes}`,
+            etag: `"${object.etag}"`,
+            "last-modified": object.lastModified,
+          },
+        });
+      }) as typeof fetch,
+    });
+    expect(headerless).toMatchObject({ status: "verified", acceptRanges: false, etag: object.etag });
 
     const unsupported = await probeAwsRanges(object, {
       fetchFn: (async () => new Response(new Uint8Array(1), { status: 200 })) as typeof fetch,

@@ -23,6 +23,8 @@ export interface OvertureSourceManifest {
   readonly stacUrl: string | null;
   readonly totalFiles: number;
   readonly totalRows: number;
+  readonly totalBytes: number;
+  readonly totalRowGroups: number;
   readonly objects: readonly OvertureObjectManifest[];
   readonly attribution: string;
   readonly crs: "OGC:CRS84";
@@ -63,6 +65,8 @@ export interface OvertureQueryPlan {
   readonly rowGroupPruning: "bbox-predicate-planned-unverified";
   readonly rangeReadPlan: "local-buffer" | "aws-fail-closed-range-io";
   readonly cacheKey: string;
+  /** Complete policy snapshot used to produce this plan. */
+  readonly policy: OvertureExecutionPolicy;
   readonly memoryLimitMiB: number;
   readonly maxResultBytes: number;
   readonly maxEngineMs: number;
@@ -72,6 +76,9 @@ export interface OvertureQueryPlan {
 }
 
 export interface OvertureRangeEvidence {
+  readonly lane: OvertureLane;
+  readonly objectKey: string;
+  readonly objectVersion: string;
   readonly status: "local-buffer" | "verified" | "unsupported";
   readonly observedAt: string;
   readonly bytes: number;

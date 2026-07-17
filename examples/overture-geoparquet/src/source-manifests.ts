@@ -19,6 +19,8 @@ export const FIXTURE_MANIFEST: OvertureSourceManifest = {
   stacUrl: null,
   totalFiles: 1,
   totalRows: 8,
+  totalBytes: 1_939,
+  totalRowGroups: 1,
   objects: [
     {
       id: "fixture",
@@ -59,6 +61,8 @@ export const LIVE_MANIFEST: OvertureSourceManifest = {
   stacUrl: "https://stac.overturemaps.org/2026-06-17.0/places/place/00000/00000.json",
   totalFiles: 16,
   totalRows: 75_642_289,
+  totalBytes: 10_919_698_194,
+  totalRowGroups: 5_120,
   objects: [
     liveObject(
       "00000",

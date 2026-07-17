@@ -430,7 +430,7 @@ async function bootstrap(): Promise<void> {
           const bytes = lane === "fixture" ? await fixtureBytes(abort.signal) : undefined;
           range =
             lane === "fixture"
-              ? fixtureRangeEvidence(bytes?.byteLength ?? 0)
+              ? fixtureRangeEvidence(plan.selectedObjects[0]!, bytes?.byteLength ?? 0)
               : await probeAwsRanges(plan.selectedObjects[0]!, {
                   signal: abort.signal,
                   timeoutMs: OVERTURE_POLICY.maxSourceProbeMs,
