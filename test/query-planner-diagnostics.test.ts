@@ -4,7 +4,15 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Result, Source, SourceDescriptor } from "../src/contract/types.js";
 import { capabilities } from "../src/contract/types.js";
-import { executeQueryPlan, explainQuery, parseQueryPlan, serializeQueryPlan } from "../src/query-planner/index.js";
+import {
+  canonicalStringify,
+  executeQueryPlan,
+  explainQuery,
+  parseQueryPlan,
+  serializeQueryPlan,
+  sha256,
+  toJsonValue,
+} from "../src/query-planner/index.js";
 import type { GeoParquetResourceHandleV1 } from "../src/query-planner/resource.js";
 
 const SHA_A = `sha256:${"a".repeat(64)}` as const;
@@ -107,6 +115,32 @@ describe("structured query-plan decisions", () => {
     }
   });
 
+  it("normalizes bypass identity and discards irrelevant freshness and validator evidence", () => {
+    const first = explainQuery({
+      descriptor: descriptor(),
+      cache: { policy: "bypass", freshness: "fresh", validator: { kind: "etag", value: "bypass-marker-one" } },
+    });
+    const second = explainQuery({
+      descriptor: descriptor(),
+      cache: {
+        policy: "bypass",
+        freshness: "stale",
+        validator: { kind: "revision", value: "bypass-marker-two" },
+      },
+    });
+
+    expect(first.cache).toEqual({
+      version: "1.0",
+      policy: "bypass",
+      action: "bypass",
+      freshness: "unknown",
+      reason: "policy-bypass",
+    });
+    expect(second.cache).toEqual(first.cache);
+    expect(second.fingerprint).toBe(first.fingerprint);
+    expect(serializeQueryPlan(first)).not.toMatch(/bypass-marker/);
+  });
+
   it("reports spatial envelope reduction as approximate at step and plan scope", () => {
     const plan = explainQuery({
       descriptor: {
@@ -158,10 +192,79 @@ describe("structured query-plan decisions", () => {
       fidelity: "equivalent",
       bounds: {
         rows: { confidence: "bounded", upper: 100 },
-        materializationBytes: { confidence: "bounded", upper: 8_192 },
+        serializedMaterializationBytes: { confidence: "bounded", upper: 8_192 },
+        memoryBytes: { confidence: "unknown" },
       },
     });
+    expect(plan.bounds).toMatchObject({
+      requests: { confidence: "unknown", source: "plan-summary", lower: 1 },
+      rows: { confidence: "bounded", source: "plan-summary", lower: 0, upper: 201 },
+      bytes: { confidence: "unknown", source: "plan-summary" },
+      serializedMaterializationBytes: {
+        confidence: "bounded",
+        source: "plan-summary",
+        lower: 0,
+        upper: 8_192,
+      },
+      memoryBytes: { confidence: "unknown", source: "plan-summary" },
+    });
     expect(plan.warnings[0]).toMatchObject({ code: "bounded-local-fallback", path: "$.steps[1]" });
+  });
+
+  it("validates request counts and keeps exact and queryAll request evidence consistent", () => {
+    for (const requests of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => explainQuery({ descriptor: descriptor(), estimates: { requests } })).toThrow(
+        /estimates\.requests must be a safe integer >= 1/,
+      );
+    }
+
+    expect(() => explainQuery({ descriptor: descriptor(), estimates: { requests: 7 } })).toThrow(
+      /must be 1 for the exact single-request query operation/,
+    );
+    const direct = explainQuery({ descriptor: descriptor(), estimates: { requests: 1 } });
+    expect(direct.steps[0]).toMatchObject({
+      requests: 1,
+      bounds: { requests: { confidence: "exact", lower: 1, upper: 1, estimate: 1 } },
+    });
+    expect(direct.bounds.requests).toMatchObject({ confidence: "exact", lower: 1, upper: 1, estimate: 1 });
+
+    const queryAll = explainQuery({
+      descriptor: descriptor({ capabilities: capabilities(["query"]) }),
+      query: { aggregation: { metrics: [{ fn: "count", field: "OBJECTID" }] } },
+      capabilityPolicy: "degraded",
+      fallback: { mode: "bounded-local", maxRows: 10 },
+      estimates: { requests: 3 },
+    });
+    expect(queryAll.steps[0]).toMatchObject({
+      requests: 3,
+      bounds: { requests: { confidence: "estimated", lower: 1, estimate: 3 } },
+    });
+    expect(queryAll.bounds.requests).toMatchObject({
+      confidence: "estimated",
+      source: "plan-summary",
+      lower: 1,
+      estimate: 3,
+    });
+  });
+
+  it("binds source and filter CRS evidence independently of output CRS", () => {
+    const planFor = (wkid: number, srsName: string) =>
+      explainQuery({
+        descriptor: descriptor({ locator: { ...descriptor().locator, srsName } }),
+        query: {
+          spatialFilter: {
+            geometryType: "esriGeometryPoint",
+            geometry: { x: -157.8, y: 21.3, spatialReference: { wkid } },
+          },
+          outSr: 3857,
+        },
+      });
+    const first = planFor(4326, "EPSG:4326");
+    const changedFilter = planFor(4269, "EPSG:4326");
+    const changedSource = planFor(4326, "EPSG:4269");
+
+    expect(changedFilter.validity.crsFingerprint).not.toBe(first.validity.crsFingerprint);
+    expect(changedSource.validity.crsFingerprint).not.toBe(first.validity.crsFingerprint);
   });
 
   it("excludes volatile observation/cursor fields while binding snapshot versus delta mode", () => {
@@ -258,11 +361,16 @@ describe("query-plan validity and redaction", () => {
   });
 
   it("rejects credential-like native expressions and authorization scopes without retaining them", () => {
-    const markers = ["native-secret-123", "eyJabcdefghijk.abcdefghijk.abcdefghijk"];
+    const markers = ["native-secret-123", "eyJabcdefghijk.abcdefghijk.abcdefghijk", "version-marker-123"];
     const errors: unknown[] = [];
     for (const build of [
       () => explainQuery({ descriptor: descriptor(), query: { where: "password = 'native-secret-123'" } }),
       () => explainQuery({ descriptor: descriptor(), authorizationScope: [markers[1]!] }),
+      () =>
+        explainQuery({
+          descriptor: descriptor(),
+          sourceVersion: `https://catalog.example.test/item?token=${markers[2]}`,
+        }),
     ]) {
       try {
         build();
@@ -270,10 +378,57 @@ describe("query-plan validity and redaction", () => {
         errors.push(error);
       }
     }
-    expect(errors).toHaveLength(2);
+    expect(errors).toHaveLength(3);
     for (const error of errors) {
       const surface = `${String(error)}\n${JSON.stringify(error)}\n${error instanceof Error ? error.stack : ""}`;
       for (const marker of markers) expect(surface).not.toContain(marker);
+    }
+  });
+
+  it("bounds and digests schema/source version evidence before persistence", () => {
+    const schemaVersion = "schema-private-evidence-7";
+    const sourceVersion = "source-private-evidence-9";
+    const plan = explainQuery({ descriptor: descriptor({ schemaV2: undefined }), schemaVersion, sourceVersion });
+    const serialized = serializeQueryPlan(plan);
+
+    expect(plan.ir.source.schemaVersion).toBe(schemaVersion);
+    expect(plan.ir.source.sourceVersion).toBe(sourceVersion);
+    expect(plan.provenance.schema).toMatchObject({ fingerprint: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) });
+    expect(plan.provenance.source.versionFingerprint).toMatch(/^sha256:[0-9a-f]{64}$/);
+    if (plan.provenance.schema.state !== "known") throw new Error("expected schema version provenance");
+    expect(plan.provenance.schema.fingerprint).not.toContain(schemaVersion);
+    expect(plan.provenance.source.versionFingerprint).not.toContain(sourceVersion);
+    expect(serialized).toContain(schemaVersion);
+    expect(serialized).toContain(sourceVersion);
+    expect(() => explainQuery({ descriptor: descriptor(), schemaVersion: "s".repeat(1_025) })).toThrow(
+      /schema version identity is invalid/,
+    );
+    expect(() => explainQuery({ descriptor: descriptor(), sourceVersion: "s".repeat(1_025) })).toThrow(
+      /source version identity is invalid/,
+    );
+  });
+
+  it("rejects re-signed nested locator, header, and query credentials without over-redacting benign fields", () => {
+    const base = explainQuery({
+      descriptor: descriptor(),
+      query: { where: "token_count > 0", outFields: ["token_count", "secret_category"] },
+    });
+    expect(() => serializeQueryPlan(base)).not.toThrow();
+
+    const attacks = [
+      { transport: { locator: { url: "https://user:locator-marker@example.test/data" } } },
+      { transport: { headers: { "X-Auth": "header-marker" } } },
+      { transport: { query: { key: "query-marker" } } },
+      { transport: { credentials: { value: "key-marker" } } },
+    ];
+    for (const attack of attacks) {
+      const hostile = structuredClone(base) as unknown as Record<string, unknown>;
+      Object.assign(hostile, attack);
+      resignPlan(hostile);
+      const error = captureError(() => serializeQueryPlan(hostile as never));
+      expect(error).toMatchObject({ code: "invalid-plan" });
+      const surface = `${String(error)}\n${JSON.stringify(error)}\n${error instanceof Error ? error.stack : ""}`;
+      expect(surface).not.toMatch(/(?:locator|header|query|key)-marker/);
     }
   });
 
@@ -297,3 +452,19 @@ describe("query-plan validity and redaction", () => {
     expect(run()).toBe(run());
   });
 });
+
+function resignPlan(plan: Record<string, unknown>): void {
+  const { id: _id, fingerprint: _fingerprint, ...unsigned } = plan;
+  const fingerprint = sha256(canonicalStringify(toJsonValue(unsigned)));
+  plan.fingerprint = fingerprint;
+  plan.id = `plan_${fingerprint.slice("sha256:".length, "sha256:".length + 16)}`;
+}
+
+function captureError(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("expected operation to fail");
+}
