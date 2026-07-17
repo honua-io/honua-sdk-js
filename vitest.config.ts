@@ -113,6 +113,10 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/geocoding/index.ts"),
       },
       {
+        find: "@honua/sdk-js/geometry",
+        replacement: path.resolve(import.meta.dirname, "src/geometry/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/generated-app",
         replacement: path.resolve(import.meta.dirname, "src/generated-app/index.ts"),
       },
