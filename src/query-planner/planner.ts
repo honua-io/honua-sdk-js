@@ -117,6 +117,12 @@ export function explainQuery<T>(
         `Source "${ir.source.id}" does not support ${capability}`,
       );
     }
+    if (estimates.requests !== undefined && estimates.requests !== 1) {
+      throw new HonuaQueryPlanningError(
+        "invalid-query",
+        `estimates.requests must be 1 for the exact single-request ${capability} operation`,
+      );
+    }
     const spatialAggregation = ir.query.aggregation !== undefined && ir.query.spatialFilter !== undefined;
     baseSteps = [
       {
@@ -127,7 +133,7 @@ export function explainQuery<T>(
         reason: spatialAggregation
           ? `${remoteEngineName(ir.source.protocol)} executes the spatial aggregation server-side: the spatial filter constrains the grouped statistics without materializing features.`
           : `${remoteEngineName(ir.source.protocol)} can execute the complete canonical query remotely.`,
-        requests: estimates.requests ?? 1,
+        requests: 1,
         query: ir.query,
         compiled: compileRemoteQuery(ir.source, ir.query),
       },
@@ -256,7 +262,7 @@ export function hashQueryPlanV1(plan: QueryExecutionPlanV1): `sha256:${string}` 
         return undefined;
       }
     }
-    if (containsCredentialBearingPlanText(detached)) return undefined;
+    if (containsCredentialBearingPlanMaterial(detached)) return undefined;
     const { id: _id, fingerprint: _fingerprint, ...unsigned } = detached;
     return sha256(canonicalStringify(toJsonValue(unsigned)));
   } catch {
@@ -505,7 +511,34 @@ interface PersistedPlanSnapshot {
 }
 
 const CREDENTIAL_BEARING_PLAN_TEXT =
-  /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\bBasic\s+[A-Za-z0-9+/=]{8,}|\bAKIA[0-9A-Z]{16}\b|[?&](?:x-amz-signature|signature|sig|token|api[-_]?key)=[^\s&#]*|[a-z][a-z0-9+.-]*:\/\/[^/\s"'<>]*@|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
+  /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\bBasic\s+[A-Za-z0-9+/=]{8,}|\bAKIA[0-9A-Z]{16}\b|[?&;](?:access[-_]?token|id[-_]?token|refresh[-_]?token|x-amz-signature|x-goog-credential|signature|sig|token|api[-_]?key|password|secret)=[^\s&#;]*|\b(?:authorization|proxy[-_]?authorization|x-api-key|password|secret|token|api[-_]?key|account[-_]?key|shared[-_]?access[-_]?signature)\s*(?:=|:)\s*[^\s,;]+|[a-z][a-z0-9+.-]*:\/\/[^/\s"'<>]*@|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
+
+const CREDENTIAL_BEARING_PLAN_KEYS = new Set([
+  "authorization",
+  "proxyauthorization",
+  "cookie",
+  "setcookie",
+  "username",
+  "password",
+  "passwd",
+  "secret",
+  "token",
+  "accesstoken",
+  "refreshtoken",
+  "idtoken",
+  "apikey",
+  "xapikey",
+  "accesskey",
+  "secretkey",
+  "clientsecret",
+  "credential",
+  "credentials",
+  "signature",
+  "xamzsignature",
+  "xgoogcredential",
+  "accountkey",
+  "sharedaccesssignature",
+]);
 
 /** Detach once so hostile accessors/proxies cannot change between validation and hashing. */
 function persistedPlanSnapshot(value: unknown): PersistedPlanSnapshot {
@@ -513,7 +546,7 @@ function persistedPlanSnapshot(value: unknown): PersistedPlanSnapshot {
     const plan = deepFreeze(toJsonValue(value)) as unknown;
     if (!isPlanEnvelope(plan)) throw invalidPersistedPlan();
     assertPlanPersistenceSafe(plan);
-    if (containsCredentialBearingPlanText(plan)) throw invalidPersistedPlan();
+    if (containsCredentialBearingPlanMaterial(plan)) throw invalidPersistedPlan();
     const { id: _id, fingerprint: _fingerprint, ...unsigned } = plan;
     return { plan, hash: sha256(canonicalStringify(toJsonValue(unsigned))) };
   } catch {
@@ -521,11 +554,35 @@ function persistedPlanSnapshot(value: unknown): PersistedPlanSnapshot {
   }
 }
 
-function containsCredentialBearingPlanText(value: unknown): boolean {
+function containsCredentialBearingPlanMaterial(value: unknown, path: readonly string[] = []): boolean {
   if (typeof value === "string") return CREDENTIAL_BEARING_PLAN_TEXT.test(value);
-  if (Array.isArray(value)) return value.some(containsCredentialBearingPlanText);
+  if (Array.isArray(value)) {
+    return value.some((child, index) => containsCredentialBearingPlanMaterial(child, [...path, String(index)]));
+  }
   if (value === null || typeof value !== "object") return false;
-  return Object.values(value).some(containsCredentialBearingPlanText);
+  return Object.entries(value).some(([key, child]) => {
+    const normalizedKey = key.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+    const parent = path
+      .at(-1)
+      ?.replace(/[^A-Za-z0-9]/g, "")
+      .toLowerCase();
+    const sensitiveHeader =
+      parent === "headers" &&
+      (normalizedKey === "xauth" ||
+        normalizedKey === "xauthtoken" ||
+        normalizedKey === "xaccesskey" ||
+        normalizedKey === "xsessiontoken");
+    const sensitiveLocator = parent === "locator" && (normalizedKey === "user" || normalizedKey === "userinfo");
+    const sensitiveQueryParameter =
+      parent === "query" && (normalizedKey === "auth" || normalizedKey === "key" || normalizedKey === "session");
+    return (
+      CREDENTIAL_BEARING_PLAN_KEYS.has(normalizedKey) ||
+      sensitiveHeader ||
+      sensitiveLocator ||
+      sensitiveQueryParameter ||
+      containsCredentialBearingPlanMaterial(child, [...path, key])
+    );
+  });
 }
 
 function isCredentialFreeLegacySource(value: unknown): value is string {
@@ -609,6 +666,9 @@ function normalizeEstimates(estimates?: ExplainQueryOptions["estimates"]): Query
   for (const key of ["rows", "bytes", "requests"] as const) {
     const value = estimates?.[key];
     if (value === undefined) continue;
+    if (key === "requests" && (!Number.isSafeInteger(value) || value < 1)) {
+      throw new HonuaQueryPlanningError("invalid-query", "estimates.requests must be a safe integer >= 1");
+    }
     if (!Number.isFinite(value) || value < 0) {
       throw new HonuaQueryPlanningError("invalid-query", `estimates.${key} must be a finite non-negative number`);
     }

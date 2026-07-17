@@ -776,10 +776,13 @@ Every plan and every step carries `diagnosticsVersion: "1.0"` data. Step
 diagnostics sit beside the step's `engine` and `pushdown` decision so consumers
 do not have to infer safety or fidelity from prose:
 
-- `bounds` describes requests, rows, bytes, transfer bytes, and local
-  materialization bytes. Each quantity declares its unit, evidence source, and
-  `exact`, `bounded`, `estimated`, or `unknown` confidence. Unknown values are
-  never presented as zero.
+- `bounds` describes requests, rows, bytes, transfer bytes, serialized local
+  materialization bytes, and actual heap memory. Each quantity declares its
+  unit, evidence source, and `exact`, `bounded`, `estimated`, or `unknown`
+  confidence. Plan bounds combine every step; incomplete evidence propagates
+  `unknown` instead of being hidden by one known step. `maxBytes` is enforced
+  against deterministic UTF-8 JSON bytes, not claimed as a heap-memory bound;
+  heap memory remains unknown without runtime evidence.
 - `fidelity` is `exact` when the source executes the requested semantics,
   `equivalent` when bounded residual work preserves the result, and
   `approximate` when it does not. Every approximation has a loss record with a
@@ -800,7 +803,9 @@ or `unknown` evidence. The plan records an action (`bypass`, `reuse`,
 `revalidate`, or `refresh`) and reason. ETags, last-modified values, revisions,
 and precomputed fingerprints are normalized to a kind plus digest; raw
 validators do not enter serialized plans. Cache storage and conditional
-requests remain the responsibility of the plan consumer.
+requests remain the responsibility of the plan consumer. `bypass` always
+normalizes to `freshness: "unknown"` with no validator, so irrelevant cache
+observations cannot fragment plan identity.
 
 ## Bounded degraded execution
 
@@ -843,6 +848,9 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
   schema, capabilities, authorization scope, discovery, query, CRS, policy,
   and execution mode. Signals, observation timestamps, expiry clocks, and raw
   realtime cursors are execution state and never enter the fingerprint.
+- CRS validity includes the source SRS, input/filter geometry CRS bindings,
+  output CRS, and the no-implicit-transform policy. It never infers a transform
+  from output CRS alone.
 - Realtime callers select `executionMode: "snapshot"` or `"delta"`; the mode
   is bound to the plan while live cursor bytes remain with the transport.
 - `executeQueryPlan` verifies the complete canonical v2 projection, its
@@ -854,6 +862,12 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
   identity.
 - Structured cache decisions are explanatory. The planner does not fetch,
   persist, or materialize cached feature/query/result data.
+- Schema/source versions are byte-bounded and credential-screened before they
+  enter stable IR; provenance exposes domain-separated SHA-256 evidence instead
+  of repeating those values. Persistence also rejects credential material by
+  nested key and path (including locator, header, and query parameter forms) as
+  well as by value pattern; benign field names such as `token_count` remain
+  valid.
 
 ## Deliberate first-slice boundaries
 

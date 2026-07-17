@@ -54,9 +54,19 @@ export function createQueryPlanProvenance(
     source,
     schema,
   });
+  const versionFingerprint =
+    source.sourceVersion === undefined
+      ? undefined
+      : evidenceFingerprint("source-version", stableText(source.sourceVersion, "sourceVersion"));
   return {
     version: QUERY_PLAN_DIAGNOSTICS_VERSION,
-    source: { id: source.id, protocol: source.protocol, endpointFingerprint, descriptorFingerprint },
+    source: {
+      id: source.id,
+      protocol: source.protocol,
+      endpointFingerprint,
+      descriptorFingerprint,
+      ...(versionFingerprint ? { versionFingerprint } : {}),
+    },
     schema,
     discovery,
     authorizationScope,
@@ -75,20 +85,19 @@ export function createStepProvenance(provenance: QueryPlanProvenanceV1): QueryPl
 
 export function createCacheDecision(options?: QueryPlanCacheOptions): QueryPlanCacheDecisionV1 {
   const policy = options?.policy ?? "bypass";
-  const freshness = options?.freshness ?? "unknown";
   if (!(["bypass", "prefer-cache", "require-fresh"] as const).includes(policy)) invalid("cache.policy");
-  if (!(["fresh", "stale", "unknown"] as const).includes(freshness)) invalid("cache.freshness");
-  const validator = options?.validator ? normalizeValidator(options.validator, "cache.validator") : undefined;
   if (policy === "bypass") {
     return {
       version: QUERY_PLAN_DIAGNOSTICS_VERSION,
       policy,
       action: "bypass",
-      freshness,
-      ...(validator ? { validator } : {}),
+      freshness: "unknown",
       reason: "policy-bypass",
     };
   }
+  const freshness = options?.freshness ?? "unknown";
+  if (!(["fresh", "stale", "unknown"] as const).includes(freshness)) invalid("cache.freshness");
+  const validator = options?.validator ? normalizeValidator(options.validator, "cache.validator") : undefined;
   if (freshness === "fresh") {
     return {
       version: QUERY_PLAN_DIAGNOSTICS_VERSION,
@@ -140,15 +149,14 @@ export function createStepDiagnostics(
 }
 
 export function summarizePlanBounds(steps: readonly { readonly bounds: QueryPlanBoundsV1 }[]): QueryPlanBoundsV1 {
-  const remote = steps.find((step) => step.bounds.requests.lower !== 0)?.bounds ?? steps[0]?.bounds;
-  const materialized = steps.find((step) => step.bounds.materializationBytes.confidence !== "unknown")?.bounds;
   return {
     version: QUERY_PLAN_DIAGNOSTICS_VERSION,
-    requests: remote?.requests ?? unknown("request"),
-    rows: remote?.rows ?? unknown("row"),
-    bytes: remote?.bytes ?? unknown("byte"),
-    transferBytes: remote?.transferBytes ?? unknown("byte"),
-    materializationBytes: materialized?.materializationBytes ?? remote?.materializationBytes ?? unknown("byte"),
+    requests: summarizeQuantity(steps, "requests", "request"),
+    rows: summarizeQuantity(steps, "rows", "row"),
+    bytes: summarizeQuantity(steps, "bytes", "byte"),
+    transferBytes: summarizeQuantity(steps, "transferBytes", "byte"),
+    serializedMaterializationBytes: summarizeQuantity(steps, "serializedMaterializationBytes", "byte"),
+    memoryBytes: summarizeQuantity(steps, "memoryBytes", "byte"),
   };
 }
 
@@ -219,7 +227,7 @@ export function createPlanValidity(
     discoveryFingerprint: provenance.discovery.fingerprint,
     authorizationScopeFingerprint: provenance.authorizationScope.fingerprint,
     queryFingerprint: digest("query", ir.query),
-    crsFingerprint: digest("crs", { outSr: ir.query.outSr ?? null }),
+    crsFingerprint: digest("crs", crsIdentity(ir)),
     policyFingerprint: digest("policy", { capabilityPolicy, fallback }),
   } as const;
   return { ...unsigned, fingerprint: digest("validity", unsigned) };
@@ -233,20 +241,21 @@ function stepBounds(step: DiagnosticStep, estimates: QueryPlanningEstimates): Qu
       rows: step.maxRows === undefined ? unknown("row") : bounded("row", 0, step.maxRows, "fallback-policy"),
       bytes: step.maxBytes === undefined ? unknown("byte") : bounded("byte", 0, step.maxBytes, "fallback-policy"),
       transferBytes: exact("byte", 0),
-      materializationBytes:
+      serializedMaterializationBytes:
         step.maxBytes === undefined
           ? estimates.bytes === undefined
             ? unknown("byte")
             : estimated("byte", estimates.bytes)
           : bounded("byte", 0, step.maxBytes, "fallback-policy"),
+      memoryBytes: unknown("byte"),
     };
   }
-  const queryLimit = step.query?.pagination?.limit;
+  const queryLimit = compiledRowLimit(step.compiled) ?? step.query?.pagination?.limit;
   const queryAll = step.operation === "queryAll";
   const requests = queryAll
     ? estimates.requests === undefined
       ? { ...unknown("request"), lower: 1 }
-      : estimated("request", estimates.requests)
+      : { ...estimated("request", estimates.requests), lower: 1 }
     : exact("request", 1);
   const rows =
     queryLimit !== undefined
@@ -261,7 +270,8 @@ function stepBounds(step: DiagnosticStep, estimates: QueryPlanningEstimates): Qu
     rows,
     bytes,
     transferBytes: bytes,
-    materializationBytes: unknown("byte"),
+    serializedMaterializationBytes: exact("byte", 0),
+    memoryBytes: unknown("byte"),
   };
 }
 
@@ -281,7 +291,11 @@ function schemaProvenance(
     }
   }
   if (schemaVersion !== undefined) {
-    return { state: "known", fingerprint: digest("schema-version", schemaVersion), basis: "version" };
+    return {
+      state: "known",
+      fingerprint: evidenceFingerprint("schema-version", stableText(schemaVersion, "schemaVersion")),
+      basis: "version",
+    };
   }
   return { state: "unavailable", reason: "not-provided" };
 }
@@ -343,6 +357,83 @@ function unknown(unit: QueryPlanQuantityBound["unit"]): QueryPlanQuantityBound {
   return { unit, confidence: "unknown", source: "unavailable" };
 }
 
+function summarizeQuantity(
+  steps: readonly { readonly bounds: QueryPlanBoundsV1 }[],
+  key: Exclude<keyof QueryPlanBoundsV1, "version">,
+  unit: QueryPlanQuantityBound["unit"],
+): QueryPlanQuantityBound {
+  const quantities = steps.map((step) => step.bounds[key]);
+  if (quantities.length === 0) return unknown(unit);
+  if (quantities.length === 1) return quantities[0] as QueryPlanQuantityBound;
+
+  const lower = sumWhenComplete(quantities, "lower");
+  const upper = sumWhenComplete(quantities, "upper");
+  const estimate = sumWhenComplete(quantities, "estimate");
+  const fields = {
+    ...(lower === undefined ? {} : { lower }),
+    ...(upper === undefined ? {} : { upper }),
+    ...(estimate === undefined ? {} : { estimate }),
+  };
+  if (quantities.every((quantity) => quantity.confidence === "exact")) {
+    return { unit, confidence: "exact", source: "plan-summary", ...fields };
+  }
+  if (quantities.some((quantity) => quantity.confidence === "unknown")) {
+    return { unit, confidence: "unknown", source: "plan-summary", ...fields };
+  }
+  if (lower !== undefined && upper !== undefined) {
+    return { unit, confidence: "bounded", source: "plan-summary", ...fields };
+  }
+  if (estimate !== undefined) {
+    return { unit, confidence: "estimated", source: "plan-summary", ...fields };
+  }
+  return { unit, confidence: "unknown", source: "plan-summary", ...fields };
+}
+
+function sumWhenComplete(
+  quantities: readonly QueryPlanQuantityBound[],
+  key: "lower" | "upper" | "estimate",
+): number | undefined {
+  if (quantities.some((quantity) => quantity[key] === undefined)) return undefined;
+  const total = quantities.reduce((sum, quantity) => sum + (quantity[key] as number), 0);
+  return Number.isFinite(total) ? total : undefined;
+}
+
+function compiledRowLimit(compiled: object | undefined): number | undefined {
+  if (!compiled || !("compiler" in compiled)) return undefined;
+  const artifact = compiled as Record<string, unknown>;
+  const field =
+    artifact.compiler === "ogc-api-features-query-v1"
+      ? "limit"
+      : artifact.compiler === "wfs-2.0-get-feature-v1"
+        ? "count"
+        : artifact.compiler === "odata-v4-query-v1"
+          ? "top"
+          : artifact.compiler === "geoservices-rest-query-v1" || artifact.compiler === "honua-grpc-query-features-v1"
+            ? "resultRecordCount"
+            : undefined;
+  if (!field) return undefined;
+  const value = artifact[field];
+  return Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : undefined;
+}
+
+function crsIdentity(ir: QueryIrV1 | QueryIrV2): object {
+  const geometry = ir.query.spatialFilter?.geometry;
+  const filterBinding = geometry
+    ? {
+        geometryType: ir.query.spatialFilter?.geometryType,
+        spatialReference: geometry.spatialReference ?? null,
+        crs: geometry.crs ?? null,
+        srsName: geometry.srsName ?? null,
+      }
+    : null;
+  return {
+    sourceSrsName: "srsName" in ir.source ? (ir.source.srsName ?? null) : null,
+    filter: filterBinding,
+    output: ir.query.outSr ?? null,
+    transformPolicy: "no-implicit-transform-v1",
+  };
+}
+
 function digest(namespace: string, value: unknown): Sha256 {
   return sha256(`${namespace}:v1:${canonicalStringify(toJsonValue(value))}`);
 }
@@ -352,8 +443,17 @@ function verifiedFingerprint(value: string, path: string): Sha256 {
   return value as Sha256;
 }
 
+function evidenceFingerprint(namespace: string, value: string): Sha256 {
+  return /^sha256:[0-9a-f]{64}$/.test(value) ? (value as Sha256) : digest(namespace, value);
+}
+
 function stableText(value: string, path: string): string {
-  if (typeof value !== "string" || value.length === 0 || value.length > 4_096 || containsControlCharacter(value)) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    new TextEncoder().encode(value).byteLength > 4_096 ||
+    containsControlCharacter(value)
+  ) {
     invalid(path);
   }
   return value;

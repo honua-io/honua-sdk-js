@@ -62,7 +62,9 @@ export interface QueryIrSourceIdentity {
   /** Descriptor-derived geometry property used by the metadata-free OData compiler. */
   readonly geometryProperty?: string;
   readonly srsName?: string;
+  /** Bounded, credential-screened schema version identity. */
   readonly schemaVersion?: string;
+  /** Bounded, credential-screened source version identity. */
   readonly sourceVersion?: string;
   /** DuckDB/GeoParquet addressing derived from the descriptor for the SQL compiler. */
   readonly geoparquet?: QueryIrGeoparquetIdentity;
@@ -145,7 +147,13 @@ export interface QueryPlanningEstimates {
 }
 
 export type QueryPlanBoundConfidence = "exact" | "bounded" | "estimated" | "unknown";
-export type QueryPlanBoundSource = "compiler" | "query-limit" | "fallback-policy" | "caller-estimate" | "unavailable";
+export type QueryPlanBoundSource =
+  | "compiler"
+  | "query-limit"
+  | "fallback-policy"
+  | "caller-estimate"
+  | "plan-summary"
+  | "unavailable";
 
 /** One deterministic quantity bound. Missing numbers are deliberately unknown, never zero. */
 export interface QueryPlanQuantityBound {
@@ -164,7 +172,10 @@ export interface QueryPlanBoundsV1 {
   readonly rows: QueryPlanQuantityBound;
   readonly bytes: QueryPlanQuantityBound;
   readonly transferBytes: QueryPlanQuantityBound;
-  readonly materializationBytes: QueryPlanQuantityBound;
+  /** UTF-8 bytes of the deterministic serialized materialization checked by the executor. */
+  readonly serializedMaterializationBytes: QueryPlanQuantityBound;
+  /** Actual JavaScript heap use. Unknown unless a runtime supplies direct evidence. */
+  readonly memoryBytes: QueryPlanQuantityBound;
 }
 
 export type QueryPlanCachePolicy = "bypass" | "prefer-cache" | "require-fresh";
@@ -221,6 +232,7 @@ export interface QueryPlanProvenanceV1 {
     readonly protocol: Protocol;
     readonly endpointFingerprint: `sha256:${string}`;
     readonly descriptorFingerprint: `sha256:${string}`;
+    readonly versionFingerprint?: `sha256:${string}`;
   };
   readonly schema:
     | { readonly state: "known"; readonly fingerprint: `sha256:${string}`; readonly basis: "schema-v2" | "version" }

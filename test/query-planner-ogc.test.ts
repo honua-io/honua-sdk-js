@@ -185,6 +185,13 @@ describe("OGC API Features query planner", () => {
     expect(plan.steps[0]).toMatchObject({
       query: { pagination: { limit: 100 } },
       compiled: { compiler: "ogc-api-features-query-v1", limit: 101 },
+      bounds: { rows: { confidence: "bounded", lower: 0, upper: 101 } },
+    });
+    expect(plan.bounds.rows).toMatchObject({
+      confidence: "bounded",
+      source: "plan-summary",
+      lower: 0,
+      upper: 201,
     });
   });
 
