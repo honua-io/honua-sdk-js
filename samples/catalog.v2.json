@@ -222,6 +222,11 @@
         "receipts",
         "typed-agent-tools"
       ],
+      "capabilityKeys": [
+        "ai.agent-operations",
+        "ai.approval-workflows",
+        "ai.mcp-discovery"
+      ],
       "protocols": [
         "geoservices",
         "honua"
@@ -303,6 +308,7 @@
       "capabilities": [
         "app-bootstrap"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "honua"
       ],
@@ -357,6 +363,7 @@
         "arcgis",
         "migration"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "geoservices"
       ],
@@ -411,6 +418,7 @@
         "map",
         "strategy-selection"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "geoservices",
         "pmtiles",
@@ -468,6 +476,11 @@
         "route-playback",
         "terrain",
         "three-dimensional"
+      ],
+      "capabilityKeys": [
+        "raster.terrain-rgb",
+        "routing.solve",
+        "serve.3d-tiles-scene"
       ],
       "protocols": [
         "geoservices"
@@ -527,6 +540,9 @@
         "editing",
         "optimistic-updates"
       ],
+      "capabilityKeys": [
+        "editing.featureserver-edits"
+      ],
       "protocols": [
         "geoservices",
         "honua"
@@ -583,6 +599,10 @@
         "forward-geocode",
         "reverse-geocode",
         "suggest"
+      ],
+      "capabilityKeys": [
+        "geocoding.forward",
+        "geocoding.reverse"
       ],
       "protocols": [
         "geoservices"
@@ -703,6 +723,9 @@
         "cancel",
         "geoprocessing"
       ],
+      "capabilityKeys": [
+        "process.geoprocessing"
+      ],
       "protocols": [
         "geoservices",
         "ogc-processes"
@@ -781,6 +804,12 @@
         "stac",
         "terrain"
       ],
+      "capabilityKeys": [
+        "raster.cloud-cog-serving",
+        "raster.terrain-rgb",
+        "serve.elevation",
+        "serve.stac"
+      ],
       "protocols": [
         "geoservices",
         "stac",
@@ -856,6 +885,7 @@
         "linked-filters",
         "replay"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "geojson",
         "honua"
@@ -1001,6 +1031,9 @@
         "provenance",
         "query"
       ],
+      "capabilityKeys": [
+        "discovery.capability-manifest"
+      ],
       "protocols": [
         "geoservices",
         "ogc-features"
@@ -1095,6 +1128,9 @@
         "mcp",
         "query"
       ],
+      "capabilityKeys": [
+        "ai.mcp-discovery"
+      ],
       "protocols": [
         "honua",
         "mcp"
@@ -1152,6 +1188,7 @@
         "compatibility",
         "migration"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "geoservices"
       ],
@@ -1210,6 +1247,11 @@
         "map",
         "receipts"
       ],
+      "capabilityKeys": [
+        "ai.agent-operations",
+        "ai.approval-workflows",
+        "ai.mcp-discovery"
+      ],
       "protocols": [
         "honua"
       ],
@@ -1265,6 +1307,7 @@
         "query",
         "server"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "honua"
       ],
@@ -1453,6 +1496,9 @@
         "oauth",
         "session"
       ],
+      "capabilityKeys": [
+        "identity.oidc"
+      ],
       "protocols": [
         "oauth"
       ],
@@ -1511,6 +1557,7 @@
         "progressive-rendering",
         "range-reads"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "geoparquet",
         "s3"
@@ -1574,6 +1621,9 @@
         "planning",
         "query"
       ],
+      "capabilityKeys": [
+        "editing.featureserver-edits"
+      ],
       "protocols": [
         "geoservices",
         "honua"
@@ -1630,6 +1680,9 @@
         "pmtiles",
         "vector-tiles"
       ],
+      "capabilityKeys": [
+        "serve.vector-tiles"
+      ],
       "protocols": [
         "pmtiles"
       ],
@@ -1685,6 +1738,7 @@
         "query",
         "react"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "honua"
       ],
@@ -1769,6 +1823,10 @@
         "reconciliation",
         "safe-editing",
         "sse"
+      ],
+      "capabilityKeys": [
+        "editing.featureserver-edits",
+        "streaming.feature-subscriptions"
       ],
       "protocols": [
         "geoservices",
@@ -1877,6 +1935,7 @@
         "renderer-adapters",
         "runtime"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "honua"
       ],
@@ -1935,6 +1994,9 @@
         "capability-discovery",
         "catalog",
         "protocols"
+      ],
+      "capabilityKeys": [
+        "discovery.capability-manifest"
       ],
       "protocols": [
         "geoservices",
@@ -2070,6 +2132,9 @@
         "selection",
         "temporal"
       ],
+      "capabilityKeys": [
+        "temporal.filtering"
+      ],
       "protocols": [
         "honua"
       ],
@@ -2124,6 +2189,9 @@
         "editing",
         "sketch",
         "snapping"
+      ],
+      "capabilityKeys": [
+        "editing.featureserver-edits"
       ],
       "protocols": [
         "geoservices"
@@ -2185,6 +2253,9 @@
         "explain-plan",
         "linked-views",
         "provenance"
+      ],
+      "capabilityKeys": [
+        "analytics.buffer-aggregate"
       ],
       "protocols": [
         "geoservices",
@@ -2354,6 +2425,10 @@
         "imagery",
         "stac"
       ],
+      "capabilityKeys": [
+        "raster.cloud-cog-serving",
+        "serve.stac"
+      ],
       "protocols": [
         "stac"
       ],
@@ -2413,6 +2488,10 @@
         "storytelling",
         "terrain",
         "three-dimensional"
+      ],
+      "capabilityKeys": [
+        "raster.terrain-rgb",
+        "serve.3d-tiles-scene"
       ],
       "protocols": [
         "honua",
@@ -2510,6 +2589,9 @@
         "realtime",
         "renderer-adapters"
       ],
+      "capabilityKeys": [
+        "streaming.feature-subscriptions"
+      ],
       "protocols": [
         "geojson"
       ],
@@ -2569,6 +2651,10 @@
         "elevation",
         "profile",
         "terrain"
+      ],
+      "capabilityKeys": [
+        "raster.terrain-rgb",
+        "serve.elevation"
       ],
       "protocols": [
         "terrain-rgb"
@@ -2665,6 +2751,9 @@
         "realtime",
         "workspace"
       ],
+      "capabilityKeys": [
+        "streaming.feature-subscriptions"
+      ],
       "protocols": [
         "honua",
         "sse"
@@ -2726,6 +2815,7 @@
         "custom-elements",
         "map"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "honua"
       ],

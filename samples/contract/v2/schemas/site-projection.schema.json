@@ -261,6 +261,7 @@
         "source",
         "sdk",
         "capabilities",
+        "capabilityKeys",
         "protocols",
         "renderers",
         "data",
@@ -280,6 +281,11 @@
         "source": { "$ref": "#/$defs/source" },
         "sdk": { "$ref": "#/$defs/sdk" },
         "capabilities": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "capabilityKeys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*\\.[a-z0-9][a-z0-9-]*$" }
+        },
         "protocols": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
         "renderers": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
         "data": { "$ref": "#/$defs/publicData" },
