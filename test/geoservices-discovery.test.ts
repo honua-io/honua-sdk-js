@@ -164,6 +164,79 @@ describe("GeoServices service discovery", () => {
     ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "unsupported-protocol" });
   });
 
+  it("does not create an ImageServer Source for a noncanonical advertised query route", async () => {
+    const endpoint = "https://example.test/rest/services/Imagery/Catalog/ImageServer";
+    const metadata = {
+      operations: [{ name: "Query", href: "custom-query", methods: ["GET"] }],
+      advancedQueryCapabilities: { supportsPagination: true },
+      fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }],
+    };
+    const fetchFn = vi.fn(async () => json(metadata));
+
+    const discovered = await discoverGeoServices({ endpoint, clientOptions: { fetchFn } });
+    expect(discovered.service.sourceBacked).toBe(false);
+    expect(discovered.sources).toEqual([]);
+    expect(discovered.operations).toEqual([
+      expect.objectContaining({
+        id: "query",
+        href: `${endpoint}/custom-query`,
+        sdkSupported: false,
+      }),
+    ]);
+
+    await expect(
+      connect({
+        endpoint,
+        protocol: "auto",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "unsupported-protocol" });
+  });
+
+  it("does not create an ImageServer Source when the canonical query route is POST-only", async () => {
+    await expect(
+      connect({
+        endpoint: "https://example.test/rest/services/Imagery/Catalog/ImageServer",
+        protocol: "auto",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: {
+          fetchFn: vi.fn(async () =>
+            json({
+              operations: [{ name: "Query", href: "query", methods: ["POST"] }],
+              advancedQueryCapabilities: { supportsPagination: true },
+              fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }],
+            }),
+          ),
+        },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "unsupported-protocol" });
+  });
+
+  it("honors explicit ImageServer query-extent denial while retaining safe query capabilities", async () => {
+    const connection = await connect({
+      endpoint: "https://example.test/rest/services/Imagery/Catalog/ImageServer",
+      protocol: "auto",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: vi.fn(async () =>
+          json({
+            capabilities: "Catalog,Query",
+            advancedQueryCapabilities: {
+              supportsPagination: true,
+              supportsReturningQueryExtent: false,
+            },
+            fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }],
+          }),
+        ),
+      },
+    });
+
+    expect(connection.source().capabilities.has("query")).toBe(true);
+    expect(connection.source().capabilities.has("queryObjectIds")).toBe(true);
+    expect(connection.source().capabilities.has("queryExtent")).toBe(false);
+  });
+
   it("preserves tile placeholders and does not claim SDK support for safe noncanonical operation routes", async () => {
     const endpoint = "https://example.test/rest/services/Imagery/Rendered/ImageServer";
     const discovered = await discoverGeoServices({

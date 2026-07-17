@@ -344,8 +344,8 @@ export async function discoverGeoServicesImageSources(
     });
   }
 
-  const evidence = imageCapabilityEvidence(outcome.value, provenance);
-  const source = imageSourceExecutable(outcome.value)
+  const evidence = imageCapabilityEvidence(outcome.value, target.endpoint, provenance);
+  const source = imageSourceExecutable(outcome.value, target.endpoint)
     ? imageSourceSnapshot(target, outcome.value, evidence)
     : undefined;
   return Object.freeze({
@@ -357,9 +357,9 @@ export async function discoverGeoServicesImageSources(
   });
 }
 
-function imageSourceExecutable(metadata: Readonly<Record<string, unknown>>): boolean {
+function imageSourceExecutable(metadata: Readonly<Record<string, unknown>>, serviceUrl: string): boolean {
   const advertised = imageCapabilityTokens(metadata);
-  const operations = imageOperationNames(metadata).names;
+  const operations = imageOperationNames(metadata, serviceUrl);
   const advanced = readImageOwn(metadata, "advancedQueryCapabilities");
   if (advanced !== undefined && !isImageRecord(advanced)) {
     throw new HonuaDiscoveryError(
@@ -367,7 +367,7 @@ function imageSourceExecutable(metadata: Readonly<Record<string, unknown>>): boo
       "ImageServer advancedQueryCapabilities metadata must be an object.",
     );
   }
-  const queryAdvertised = advertised.has("catalog") || advertised.has("query") || operations.has("query");
+  const queryAdvertised = advertised.has("catalog") || advertised.has("query") || operations.queryExecutable;
   return queryAdvertised && readImageOwn(advanced ?? Object.freeze({}), "supportsPagination") === true;
 }
 
@@ -393,10 +393,11 @@ function imageSourceSnapshot(
 
 function imageCapabilityEvidence(
   metadata: Readonly<Record<string, unknown>>,
+  serviceUrl: string,
   provenance: readonly DiscoveryProvenance[],
 ): readonly DiscoveryCapabilityEvidence[] {
   const advertised = imageCapabilityTokens(metadata);
-  const operations = imageOperationNames(metadata);
+  const operations = imageOperationNames(metadata, serviceUrl);
   const advancedValue = readImageOwn(metadata, "advancedQueryCapabilities");
   if (advancedValue !== undefined && !isImageRecord(advancedValue)) {
     throw new HonuaDiscoveryError(
@@ -409,9 +410,19 @@ function imageCapabilityEvidence(
     throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer tileInfo metadata must be an object.");
   }
   const capabilities: Capability[] = [];
-  const queryAdvertised = advertised.has("catalog") || advertised.has("query") || operations.names.has("query");
+  const queryAdvertised = advertised.has("catalog") || advertised.has("query") || operations.queryExecutable;
   if (queryAdvertised) {
-    capabilities.push("queryExtent", "queryObjectIds");
+    const supportsReturningQueryExtent = advancedValue
+      ? readImageOwn(advancedValue, "supportsReturningQueryExtent")
+      : undefined;
+    if (supportsReturningQueryExtent !== undefined && typeof supportsReturningQueryExtent !== "boolean") {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        "ImageServer supportsReturningQueryExtent metadata must be boolean.",
+      );
+    }
+    capabilities.push("queryObjectIds");
+    if (supportsReturningQueryExtent !== false) capabilities.push("queryExtent");
     if (advancedValue && readImageOwn(advancedValue, "supportsPagination") === true) capabilities.push("query");
   }
   if (advertised.has("image") || operations.names.has("exportimage")) capabilities.push("image", "render");
@@ -452,12 +463,17 @@ function imageCapabilityTokens(metadata: Readonly<Record<string, unknown>>): Rea
   );
 }
 
-function imageOperationNames(metadata: Readonly<Record<string, unknown>>): {
+function imageOperationNames(
+  metadata: Readonly<Record<string, unknown>>,
+  serviceUrl: string,
+): {
   readonly names: ReadonlySet<string>;
   readonly present: boolean;
+  readonly queryExecutable: boolean;
 } {
   const names = new Set<string>();
   let present = false;
+  let queryExecutable = false;
   for (const key of ["supportedOperations", "operations"] as const) {
     const raw = readImageOwn(metadata, key);
     if (raw === undefined) continue;
@@ -473,10 +489,66 @@ function imageOperationNames(metadata: Readonly<Record<string, unknown>>): {
           : (readImageString(object as Readonly<Record<string, unknown>>, "name") ??
             readImageString(object as Readonly<Record<string, unknown>>, "id"));
       if (!value) throw new HonuaDiscoveryError("invalid-endpoint", `ImageServer ${key} operation is missing a name.`);
-      names.add(value.toLowerCase().replace(/[^a-z0-9]/g, ""));
+      const name = value.toLowerCase().replace(/[^a-z0-9]/g, "");
+      names.add(name);
+      if (name === "query") {
+        queryExecutable =
+          canonicalImageQueryHref(serviceUrl, object) && imageOperationSupportsGet(object, `${key} query operation`);
+      }
     }
   }
-  return { names, present };
+  return { names, present, queryExecutable };
+}
+
+function canonicalImageQueryHref(
+  serviceUrl: string,
+  operation: Readonly<Record<string, unknown>> | undefined,
+): boolean {
+  const advertised = operation ? (readImageString(operation, "href") ?? readImageString(operation, "url")) : undefined;
+  let resolved: URL;
+  try {
+    resolved = new URL(advertised ?? "query", `${serviceUrl.replace(/\/$/, "")}/`);
+  } catch {
+    throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer metadata contains an invalid query URL.");
+  }
+  const root = new URL(serviceUrl);
+  const removableFormat = [...resolved.searchParams].every(
+    ([name, value]) =>
+      (name.toLowerCase() === "f" || name.toLowerCase() === "format") &&
+      (value.toLowerCase() === "json" || value.toLowerCase() === "pjson"),
+  );
+  if (
+    resolved.origin !== root.origin ||
+    resolved.username ||
+    resolved.password ||
+    resolved.hash ||
+    (resolved.search && !removableFormat) ||
+    (resolved.pathname !== root.pathname && !resolved.pathname.startsWith(`${root.pathname.replace(/\/$/, "")}/`))
+  ) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "ImageServer query URLs must stay within the credential-free service root.",
+    );
+  }
+  resolved.search = "";
+  const canonical = new URL("query", `${serviceUrl.replace(/\/$/, "")}/`);
+  return resolved.toString().replace(/\/$/, "") === canonical.toString().replace(/\/$/, "");
+}
+
+function imageOperationSupportsGet(operation: Readonly<Record<string, unknown>> | undefined, label: string): boolean {
+  if (!operation) return true;
+  const raw = readImageOwn(operation, "methods");
+  if (raw === undefined) return true;
+  if (!Array.isArray(raw) || raw.length > 16) {
+    throw new HonuaDiscoveryError("invalid-endpoint", `ImageServer ${label} methods must be a bounded array.`);
+  }
+  const methods = raw.map((value) => {
+    if (typeof value !== "string" || !["GET", "POST"].includes(value.toUpperCase())) {
+      throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer operation methods may contain only GET or POST.");
+    }
+    return value.toUpperCase();
+  });
+  return methods.includes("GET");
 }
 
 function imageSourceSchema(metadata: Readonly<Record<string, unknown>>): SourceSchema | undefined {
