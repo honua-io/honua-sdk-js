@@ -10,14 +10,14 @@
   "input": {
     "path": "samples/dist/honua-site-samples.v2.json",
     "schemaPath": "samples/contract/v2/schemas/site-projection.schema.json",
-    "sha256": "2b9fbac7453a791e7e8cd97a73ea90740ca1bb459154d8ec149c9ecc9efbc803"
+    "sha256": "646f5849c09d9cb62a822bab92676e357bfebc41b31098905455da3cad23aa26"
   },
   "assertions": {
-    "sampleCount": 32,
-    "rootExampleCount": 29,
+    "sampleCount": 34,
+    "rootExampleCount": 31,
     "docsExampleCount": 3,
     "goldenJourneyCount": 7,
-    "qualifiedGoldenCount": 1,
+    "qualifiedGoldenCount": 0,
     "routeCount": 21,
     "sampleIdsUnique": true,
     "routeIdsUnique": true,

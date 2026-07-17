@@ -1430,15 +1430,14 @@
     {
       "id": "service-explorer",
       "title": "Universal service explorer",
-      "summary": "Browses heterogeneous spatial services with capability and cache diagnostics.",
+      "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "sourceKind": "root-example",
       "track": "lab",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Become the universal discovery and explain-plan journey.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; live dual-protocol qualification remains pending."
       },
       "validationProfile": "browser-lab",
       "source": {
@@ -1451,9 +1450,14 @@
         "version": "0.1.0-beta.0"
       },
       "capabilities": [
+        "cancellation",
         "capability-discovery",
-        "catalog",
-        "protocols"
+        "explain-plan",
+        "fidelity",
+        "map",
+        "protocols",
+        "provenance",
+        "query"
       ],
       "capabilityKeys": [
         "discovery.capability-manifest"
@@ -1472,12 +1476,11 @@
       ],
       "data": {
         "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed multi-protocol catalog or configured Honua catalog.",
-        "attribution": "Source attribution is retained per selected service.",
-        "freshness": "Metadata cache and live observation timestamps.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+        "authMode": "anonymous",
+        "provenance": "Same-origin deterministic OGC fixture observations or a user-supplied anonymous HTTP(S) endpoint inspected at runtime.",
+        "attribution": "Inspected source attribution remains visible; the maintained browser gate uses Honua synthetic OGC fixtures.",
+        "freshness": "Fixture replay is deterministic; runtime endpoints expose discovery metadata cache state separately from feature freshness.",
+        "configurationStatus": "not-required"
       },
       "evidence": {
         "fixture": {
@@ -1485,11 +1488,11 @@
           "status": "executed"
         },
         "live": {
-          "mode": "authenticated",
+          "mode": "public-live",
           "status": "planned"
         }
       },
-      "expectedDegradation": "Unavailable admin metadata falls back to service discovery with a visible diagnostic."
+      "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
     },
     {
       "id": "shared-renderer-state",
@@ -2157,16 +2160,8 @@
     {
       "id": "two-protocols",
       "route": "demo-two-protocols.html",
-      "ownership": "site-exception",
-      "exceptionReason": "The site currently owns the only three-protocol side-by-side implementation; replace it from the universal discovery flagship.",
-      "title": "Same data, three protocols",
-      "summary": "Compares GeoServices, OGC Features, and OData results.",
-      "track": "lab",
-      "supportTier": "experimental",
-      "capabilities": [
-        "interoperability",
-        "query"
-      ]
+      "ownership": "sdk-projection",
+      "sampleId": "service-explorer"
     },
     {
       "id": "wms-overlay",

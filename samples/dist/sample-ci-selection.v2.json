@@ -1115,6 +1115,8 @@
           "commands": [
             "npm run demo:service-explorer:typecheck",
             "npm run demo:service-explorer:build",
+            "npx vitest run test/service-explorer-truth-model.test.ts",
+            "npx vitest run test/service-explorer-operation-model.test.ts",
             "npm run test:playwright:service-explorer"
           ]
         },
@@ -1130,7 +1132,7 @@
         }
       },
       "liveEvidence": {
-        "mode": "authenticated",
+        "mode": "public-live",
         "status": "planned"
       }
     },

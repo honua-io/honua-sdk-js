@@ -1,6 +1,6 @@
 # Universal GIS Service Explorer
 
-This maintained sample is the URL-to-working-map golden journey for the public
+This maintained sample is the URL-to-working-map journey for the public
 Honua kernel. Paste an HTTP(S) service root, select an explicit protocol hint
 when needed, inspect immutable discovery evidence, and execute only operations
 accepted by both endpoint evidence and the SDK planner.
@@ -59,7 +59,7 @@ Features/Tiles/Maps, WFS, WMS, WMTS, STAC, and OData truth projections. If an
 installed public adapter cannot connect to a supplied protocol, the model
 returns a structured unsupported state rather than simulating discovery.
 
-## Local golden path
+## Local maintained path
 
 The fixture server exposes a small same-origin OGC API Features service at
 `/fixtures/ogc`. It advertises core conformance, one `places` collection, CRS
@@ -98,17 +98,19 @@ stale-result clearing, hostile URL redaction, timeout cancellation, responsive
 layout, axe accessibility, and teardown. The fixture runner also proves loopback
 readiness and complete server shutdown.
 
-The shared maintained-sample runner is the next gate enrolled in S3:
+The shared maintained-sample runner exercises the same source and genuinely
+packed SDK paths:
 
 ```sh
 npm run samples:run -- verify --sample service-explorer --sdk-mode source
 npm run samples:run -- verify --sample service-explorer --sdk-mode packed
 ```
 
-S3 also retires the now-unreferenced legacy helper modules and test, updates the
-canonical catalog/gallery projection, and adds scheduled live GeoServices and
-OGC evidence producers. Until those gates land and execute, this slice uses
-`Refs #544` rather than closing the issue.
+The maintained-sample enrollment retires the superseded legacy helper surface
+and projects both the service-explorer and two-protocols site routes from this
+sample. Public GeoServices and OGC evidence producers, current quality receipts,
+and journey qualification remain separate follow-up gates; this sample does not
+claim those results.
 
 ## Caching and realtime
 

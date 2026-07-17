@@ -41,22 +41,22 @@ Labels: `fixture` · `public-live`
 
 Discover services, layers, schemas, and capability gaps before choosing a workflow.
 
-Labels: `fixture` · `demo-live` · `authenticated` · `degraded`
+Labels: `fixture` · `public-live` · `degraded`
 
 - Guide: [docs/shared-client-contract.md](../shared-client-contract.md)
 - Runnable example: [service-explorer](../../examples/service-explorer)
-- Executable entry: [examples/service-explorer/src/data.ts](../../examples/service-explorer/src/data.ts)
+- Executable entry: [examples/service-explorer/src/main.ts](../../examples/service-explorer/src/main.ts)
 - Example notes: [examples/service-explorer/README.md](../../examples/service-explorer/README.md)
 - Compile check: `npm run demo:service-explorer:typecheck`
-- Sample contract: `lab` · `supported` · `rework`
-- Data and auth: `hybrid` · `api-key`
-- Provenance: Committed multi-protocol catalog or configured Honua catalog.
-- Freshness: Metadata cache and live observation timestamps.
-- Catalog degradation: Unavailable admin metadata falls back to service discovery with a visible diagnostic.
-- Live sample: [sample-service-explorer.html](https://honua.io/sample-service-explorer.html)
-- Supported API imports: `@honua/sdk-js/contract` (`createDataset`); `@honua/sdk-js/honua` (`HonuaClient`)
+- Sample contract: `lab` · `supported` · `active`
+- Data and auth: `hybrid` · `anonymous`
+- Provenance: Same-origin deterministic OGC fixture observations or a user-supplied anonymous HTTP(S) endpoint inspected at runtime.
+- Freshness: Fixture replay is deterministic; runtime endpoints expose discovery metadata cache state separately from feature freshness.
+- Catalog degradation: Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.
+- Live sample: [sample-service-explorer.html](https://honua.io/sample-service-explorer.html) · [demo-two-protocols.html](https://honua.io/demo-two-protocols.html)
+- Supported API imports: `@honua/sdk-js` (`createHonua`, `executeQueryPlan`, `explainQuery`); `@honua/sdk-js/contract` (`PROTOCOLS`); `@honua/sdk-js/map` (`explainAutomaticSourceToMapLibre`, `projectSourceToMapLibre`)
 - honua.io journey: `connect-existing-gis`
-- Degradation: The current shell still uses the 0.1.x app-workspace compatibility shim; #399 owns its supported-import migration.
+- Degradation: Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.
 
 ### 3. Query from Node or browser code
 
