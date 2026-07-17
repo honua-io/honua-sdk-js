@@ -13,12 +13,14 @@ import {
   acquireSampleEvidenceLock,
   assertCredentialFreeContent,
   beginGateReceiptTransaction,
+  canonicalizePlaywrightEvidenceReport,
   ChildSupervisor,
   commandForSpawn,
   commitGateReceiptTransaction,
   forwardedLiveCredentials,
   groupEvidenceGates,
   parseRunnerArgs,
+  publishCanonicalLiveEvidence,
   publishGateReceiptGroup,
   publishGateReceiptGroups,
   pruneUnreferencedEvidenceRuns,
@@ -90,6 +92,61 @@ const artifactKinds = {
   fixture: "fixture-probe-report",
   live: "live-evidence-report",
 };
+
+test("Playwright evidence canonicalizes checkout-owned paths before publication", async () => {
+  const projectRoot = await mkdtemp(path.join(os.tmpdir(), "honua-playwright-evidence-"));
+  try {
+    const report = {
+      config: {
+        configFile: path.join(projectRoot, "playwright.sample.config.mjs"),
+        rootDir: path.join(projectRoot, "test/playwright"),
+        globalSetup: null,
+        globalTeardown: null,
+        projects: [
+          {
+            name: "chromium",
+            testDir: path.join(projectRoot, "test/playwright"),
+            outputDir: path.join(projectRoot, ".tmp/playwright-output"),
+          },
+        ],
+      },
+      suites: [],
+    };
+
+    const portable = canonicalizePlaywrightEvidenceReport(report, projectRoot);
+    assert.equal(portable.config.rootDir, "test/playwright");
+    assert.equal(portable.config.configFile, "playwright.sample.config.mjs");
+    assert.equal(portable.config.projects[0].testDir, "test/playwright");
+    assert.equal(Object.hasOwn(portable.config.projects[0], "outputDir"), false);
+    assert.equal(JSON.stringify(portable).includes(projectRoot), false);
+    assert.equal(report.config.rootDir, path.join(projectRoot, "test/playwright"));
+
+    assert.throws(
+      () =>
+        canonicalizePlaywrightEvidenceReport(
+          { ...report, config: { ...report.config, rootDir: path.join(projectRoot, "test/browser") } },
+          projectRoot,
+        ),
+      /root directory binding mismatch/,
+    );
+    assert.throws(
+      () =>
+        canonicalizePlaywrightEvidenceReport(
+          {
+            ...report,
+            config: {
+              ...report.config,
+              projects: [{ ...report.config.projects[0], outputDir: path.join(os.tmpdir(), "outside") }],
+            },
+          },
+          projectRoot,
+        ),
+      /unsafe/,
+    );
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
+});
 
 function structuralReceipt(sampleId, gate, runId, overrides = {}) {
   const runRoot = `samples/evidence/${sampleId}/runs/${runId}`;
@@ -207,7 +264,6 @@ test("runner argument and manifest boundaries reject substitution and traversal"
     /membership or gates drifted|stale or modified/,
   );
 });
-
 test("npm evidence commands suppress lifecycle hooks without changing their reviewed argv", () => {
   const executable = process.platform === "win32" ? "npm.cmd" : "npm";
   assert.deepEqual(commandForSpawn(["npm", "run", "bench:live", "--", "--sample", "safe-sample"]), [
@@ -341,6 +397,40 @@ test("fixture evidence binds the fixture command and browser evidence binds a lo
   );
 });
 
+test("live evidence publishes a stable canonical envelope and rejects a symlink target", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "honua-live-envelope-"));
+  const sampleId = "safe-sample";
+  const baseRoot = path.join(root, "samples/evidence", sampleId);
+  const runRoot = path.join(baseRoot, "runs/123e4567-e89b-42d3-a456-426614174000");
+  const source = path.join(runRoot, "artifacts/live-evidence.json");
+  const target = path.join(baseRoot, "live.v1.json");
+  try {
+    const evidence = JSON.parse(
+      await readFile("samples/contract/v1/fixtures/sample-evidence.live.json", "utf8"),
+    );
+    evidence.sampleId = sampleId;
+    const bytes = Buffer.from(`${JSON.stringify(evidence, null, 2)}\n`);
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, bytes);
+    const groups = [{ runRoot, receipts: [{ gate: "live" }] }];
+
+    await publishCanonicalLiveEvidence(baseRoot, groups, sampleId, root);
+    assert.deepEqual(await readFile(target), bytes);
+
+    const external = path.join(root, "external.json");
+    await writeFile(external, "external\n");
+    await rm(target);
+    await symlink(external, target);
+    await assert.rejects(
+      publishCanonicalLiveEvidence(baseRoot, groups, sampleId, root),
+      /canonical live evidence target is unsafe/,
+    );
+    assert.equal(await readFile(external, "utf8"), "external\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("packed archive preflight rejects traversal, links, and declared decompression bombs", () => {
   assert.deepEqual(
     validatePackedTarListings(
@@ -428,7 +518,7 @@ test("fixture mock CLIs reject unknown arguments before binding a server", () =>
   for (const file of [
     "examples/migration-workbench/mock-server.mjs",
     "examples/service-explorer/mock-server.mjs",
-    "examples/standalone-quickstart/mock-server.mjs",
+    "examples/maplibre-quickstart/mock-server.mjs",
   ]) {
     const result = spawnSync(process.execPath, [file, "--not-a-real-mode"], {
       cwd: process.cwd(),

@@ -35,7 +35,8 @@ interface ResolvedMapLibreRendererPeer {
 /** Host slice added to the existing source-mutation contract for lifecycle readiness. */
 export interface MapLibreRendererMap extends SourceToMapLibreMap {
   loaded?(): boolean;
-  isStyleLoaded?(): boolean;
+  /** Mirrors MapLibre v5, which returns void after the style has been destroyed. */
+  isStyleLoaded?(): boolean | void;
   getStyle?(): unknown;
   once?(event: string, listener: () => void): unknown;
   off?(event: string, listener: () => void): unknown;

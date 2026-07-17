@@ -1,4 +1,4 @@
-# Honua × MapLibre flagship workflow
+# First Map: endpoint to inspected MapLibre map
 
 This is the canonical five-minute browser journey for the Honua JavaScript SDK:
 
@@ -7,12 +7,25 @@ connect → discover → explain → query → mount
 ```
 
 It composes the accepted north-star journey from the SDK's public, protocol-neutral `Dataset → Source → Query → Result`
-contract, the experimental deterministic query planner, and a small MapLibre mounting function. The future application
-kernel facade remains design-stage; this sample does not pretend that facade has shipped.
+contract and managed application kernel.
 
-The result is more than a map. The page makes endpoint provenance, snapshot/live freshness, authorization mode,
-capabilities, SDK/server/data versions, query fingerprint, pushdown, fidelity, cache behavior, and degradation visible.
-The map, table, attribute filter, detail panel, and popup share one linked exploration context.
+The copyable S1 workflow core lives in [`src/workflow.ts`](./src/workflow.ts). In at most 120 non-comment lines it uses
+only published `@honua/sdk-js` and `@honua/sdk-js/runtime` entrypoints to connect, inspect, explain, execute a bounded
+query, and call `connection.mount()` with the accepted plan. GeoServices and OGC API Features use the same semantic
+workflow; the bounded map query requests WGS84 output for MapLibre. Ambiguous source selection, unsupported
+capability, authentication, overflow, and unexpected errors remain
+explicit states; truncated data is never mounted.
+
+The thin presentation shell runs that workflow directly. It accepts an anonymous GeoServices FeatureServer layer
+or OGC API Features URL, mounts the accepted plan through MapLibre, and adds only presentation concerns: a linked
+table/filter, accessible popup, plan disclosure, copyable call site, runtime budgets, and deterministic teardown. It
+does not adapt source behavior or add a private fallback. The former `standalone-quickstart` and `endpoint-to-map`
+executables now redirect here rather than maintaining duplicate implementations.
+
+The result is more than a map. The page makes endpoint provenance, source identity and attribution, observation time,
+authorization mode, capabilities, SDK/plan versions, accepted feature count, query fingerprint, pushdown, fidelity,
+cache behavior, and degradation visible. The map, table, mounted-result filter, detail panel, and popup share one
+presentation state without changing the accepted query plan.
 
 ## Five-minute fixture run
 
@@ -24,38 +37,41 @@ npm run demo:quickstart:mock
 
 Open the printed `quickstartMockUrl`. The fixture lane is deterministic and self-contained:
 
-1. `connect` checks the SDK/server compatibility contract.
-2. `discover` reads committed layer metadata and reports metadata-cache state.
-3. `explain` creates a deterministic query IR, plan, and SHA-256 fingerprint without fetching rows.
-4. `query` executes that accepted plan through a protocol-neutral `Source`.
-5. `mount` converts the result geometry and links MapLibre to the exploration context.
+1. `connect` negotiates the configured public protocol.
+2. `discover` inspects advertised sources and reports metadata-cache state.
+3. `explain` creates a bounded query plan and SHA-256 fingerprint without fetching rows.
+4. `query` executes that accepted plan through a protocol-neutral source.
+5. `mount` gives the same accepted plan to the SDK's MapLibre renderer.
 
-The fixture is clearly labeled **Fixture replay**, uses no authentication, reports its committed data version and capture
-time, and does not make external network requests. The versioned fixture pack lives in
+The fixture is clearly labeled **Fixture replay**, uses no authentication, reports committed source provenance, and
+does not make external network requests. The versioned fixture pack lives in
 [`samples/fixtures/first-map/v1`](../../samples/fixtures/first-map/v1).
 
-Required CI measures the path from a clean `npm ci` through the first usable fixture map and enforces a
-300-second ceiling. See the [quickstart timing contract](../../docs/quickstart.md#what-the-five-minute-claim-measures).
-The resulting machine evidence demonstrates clean-runner reproducibility, not an observed first-time human session.
+Required CI measures the path from a clean `npm ci` through the first usable fixture map and enforces a 300-second
+ceiling. The browser shell also reports narrower monotonic budgets: 10,000 ms to its first usable fixture frame, 100 ms
+for a synchronous filter/selection update, and 1,000 ms for managed cleanup. See the
+[quickstart timing contract](../../docs/quickstart.md#what-the-five-minute-claim-measures). These are machine budgets,
+not claims about a first-time human session or public-network latency.
 
 ## Secret-free live run
 
-The same code path can use any CORS-enabled Honua FeatureServer layer that allows anonymous reads:
+Paste any anonymous, CORS-enabled GeoServices FeatureServer layer or OGC API Features landing-page URL into the form.
+The same path can also be preconfigured for development:
 
 ```bash
-VITE_HONUA_QUICKSTART_BASE_URL=https://your-public-honua.example \
-VITE_HONUA_QUICKSTART_SERVICE_ID=public-service \
-VITE_HONUA_QUICKSTART_LAYER_ID=0 \
-VITE_HONUA_QUICKSTART_DATA_VERSION=public-service-2026-07 \
+VITE_HONUA_QUICKSTART_ENDPOINT=https://your-public-data.example/ogc/features \
+VITE_HONUA_QUICKSTART_PROTOCOL=ogc-features \
 npm run demo:quickstart
 ```
+
+`VITE_HONUA_QUICKSTART_PROTOCOL` accepts `auto`, `geoservices-feature-service`, or `ogc-features`. The retired
+base/service/layer composition variables are intentionally not browser inputs; paste the final public endpoint.
 
 Optional browser settings:
 
 - `VITE_HONUA_QUICKSTART_WHERE` — source-native filter, default `1=1`.
 - `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT` — positive bounded row limit, default `25`.
 - `VITE_HONUA_QUICKSTART_BASEMAP_STYLE` — MapLibre style URL.
-- `VITE_HONUA_QUICKSTART_CAPTURED_AT` — ISO timestamp when the configured dataset is a published snapshot.
 
 Browser API keys and bearer tokens are intentionally rejected. Do not put durable credentials in Vite environment
 variables: Vite embeds them in public JavaScript. Use an anonymous demo endpoint or a server-side proxy/session flow.
@@ -64,24 +80,11 @@ enter the browser bundle or runtime evidence.
 
 ## Runtime contract
 
-The workflow uses only stable subpath imports plus the explicitly experimental planner subpath:
-
-- `@honua/sdk-js/honua` for `HonuaClient` and GeoServices geometry conversion.
-- `@honua/sdk-js/contract` for `createDataset`, `SourceDescriptor`, `Query`, and `Result`.
-- `@honua/sdk-js/query-planner` for `explainQuery()` and `executeQueryPlan()`.
-- `@honua/sdk-js/exploration` and `@honua/sdk-js/interactions` for linked views.
-
-It does not use the deprecated package-root convenience surface.
-
-For a GeoServices layer, the initial workflow performs:
-
-- `GET /api/v1/admin/capabilities`
-- `GET /rest/services/{serviceId}/FeatureServer/{layerId}?f=json`
-- `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query?...`
-
-Planning is synchronous and side-effect free. Execution validates that the plan fingerprint and source context still
-match, then invokes the accepted remote step. Unsupported capability or unsafe fallback paths fail visibly; they do not
-produce silent empty results.
+The copyable core imports only the reviewed `@honua/sdk-js` root and `@honua/sdk-js/runtime`. It calls `createHonua()`,
+then `connect`, `inspect`, `explain`, `query`, and `mount`; the accepted plan is passed to both query and mount. The
+shell imports MapLibre and reads the returned features only to render its table, popup, and mounted-result filter. It
+does not construct a second dataset/source, plan queries privately, or convert data for the SDK renderer. Unsupported
+capability, authentication, ambiguous source, bounded overflow, and unexpected failures remain explicit states.
 
 ## Evidence and teardown
 
@@ -92,7 +95,8 @@ The page exposes test-friendly runtime state without credentials or full query-b
 - `window.__HONUA_QUICKSTART_DISPOSE__()`
 - `CustomEvent("honua:quickstart")`
 
-The browser smoke calls the disposer and verifies the map, linked bindings, popup, and exploration context are released.
+The browser smoke calls the asynchronous disposer and verifies the SDK mount, event bindings, popup, and borrowed
+MapLibre host are released. Repeated disposal is safe.
 
 ## Validation
 
@@ -100,23 +104,27 @@ Required fixture validation is independent of a live environment:
 
 ```bash
 npm run demo:quickstart:typecheck
-npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts test/quickstart-linked-exploration.test.ts
+npm run demo:quickstart:test
+npm run demo:quickstart:parity
+npm run demo:quickstart:copyability
 npm run demo:quickstart:build
 npm run test:playwright:quickstart
 ```
 
 The Playwright lane verifies all five stages, evidence and plan fields, table/filter/popup linkage, keyboard selection,
-mobile layout, zero page/console errors, and explicit cleanup. Live validation remains separate:
+mobile layout, Axe accessibility, zero external fixture requests, zero page/console errors, and explicit cleanup.
+The release smoke repeats the same focused test across Chromium, Firefox, and WebKit. Live validation remains
+scheduled and explicitly network-gated:
 
 ```bash
-npm run test:quickstart:staging
-npm run bench:live
+HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live
 ```
 
-The catalog publishes the latest validated per-sample live envelope at
-[`evidence/live.v1.json`](./evidence/live.v1.json). The envelope records the
-anonymous source version, semantic outcome, item count, assertions, and timing;
-the live lane never substitutes fixture data.
+The scheduled workflow writes `examples/maplibre-quickstart/evidence/live.v1.json`
+into its retained `honua-sdk-first-map-live-evidence` artifact. The catalog stays
+planned until that envelope and the exact-tree gate receipts are admitted. The
+envelope records the anonymous source version, semantic outcome, item count,
+assertions, and timing; the live lane never substitutes fixture data.
 
 See [`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md) for compatibility and staging
 diagnostics.

@@ -1,0 +1,43 @@
+name: First Map Anonymous Live Evidence
+
+# Scheduled-only public-network proof. Required PR fixture lanes remain
+# externally network-blocked and never substitute this observation.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  anonymous-live:
+    name: Canonical public GeoServices journey
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Observe the fixed anonymous endpoint through First Map
+        env:
+          HONUA_FIRST_MAP_LIVE_ENABLED: "true"
+        run: npm run evidence:first-map:live
+
+      - name: Upload source, freshness, cache, degradation, and visual evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: honua-sdk-first-map-live-evidence
+          path: |
+            examples/maplibre-quickstart/evidence/live.v1.json
+            examples/maplibre-quickstart/evidence/live.v1.png
+          if-no-files-found: error
+          retention-days: 90

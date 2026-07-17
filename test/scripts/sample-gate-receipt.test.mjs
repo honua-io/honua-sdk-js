@@ -117,7 +117,7 @@ function playwrightGateReport({
   extraAttachments = [],
   projects = [{ name: "chromium", browserName: "chromium" }],
 } = {}) {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const payload = (gate, project) => ({
     format: "honua.sdk.sample-gate-assertion.v1",
     sampleId: targetSampleId,
@@ -144,13 +144,13 @@ function playwrightGateReport({
     gate: reportGate,
     command: ["npm", "run", "test:playwright:receipt"],
     playwright: {
-      config: { rootDir: path.resolve("test/playwright") },
+      config: { rootDir: "test/playwright" },
       suites: [
         {
-          file: "standalone-quickstart.spec.mjs",
+          file: "quickstart-map.spec.mjs",
           specs: [
             {
-              title: "standalone quickstart renders public-endpoint features with no Honua server",
+              title: "First Map proves the canonical fixture journey in source or packed mode",
               tests: projects.map((project) => {
                 const attachments = ["accessibility", "browser", "console", "fixture", "responsive"]
                   .map((gate) => ({
@@ -180,7 +180,7 @@ async function validFixtureReceipt() {
 
 test.afterEach(async () => {
   await rm(path.resolve("samples/evidence", sampleId, `runs/${receiptRunId}`), { recursive: true, force: true });
-  await rm(path.resolve(`samples/evidence/standalone-quickstart/runs/${receiptRunId}`), {
+  await rm(path.resolve(`samples/evidence/maplibre-quickstart/runs/${receiptRunId}`), {
     recursive: true,
     force: true,
   });
@@ -188,7 +188,7 @@ test.afterEach(async () => {
     recursive: true,
     force: true,
   });
-  for (const targetSampleId of [sampleId, "standalone-quickstart", "realtime-incident-dashboard"]) {
+  for (const targetSampleId of [sampleId, "maplibre-quickstart", "realtime-incident-dashboard"]) {
     for (const relative of [`samples/evidence/${targetSampleId}/runs`, `samples/evidence/${targetSampleId}`]) {
       try {
         await rmdir(path.resolve(relative));
@@ -239,7 +239,7 @@ test("metadata-only fixture booleans cannot qualify readiness and isolation", as
 });
 
 test("metadata-only accessibility JSON cannot qualify", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const payload = (gate, observations = {}) => ({
     format: "honua.sdk.sample-gate-assertion.v1",
     sampleId: targetSampleId,
@@ -259,13 +259,13 @@ test("metadata-only accessibility JSON cannot qualify", async () => {
     gate: "accessibility",
     command: ["npm", "run", "test:playwright:receipt"],
     playwright: {
-      config: { rootDir: path.resolve("test/playwright") },
+      config: { rootDir: "test/playwright" },
       suites: [
         {
-          file: "standalone-quickstart.spec.mjs",
+          file: "quickstart-map.spec.mjs",
           specs: [
             {
-              title: "standalone quickstart renders public-endpoint features with no Honua server",
+              title: "First Map proves the canonical fixture journey in source or packed mode",
               tests: [
                 {
                   projectName: "chromium",
@@ -287,7 +287,7 @@ test("metadata-only accessibility JSON cannot qualify", async () => {
 });
 
 test("Playwright evidence rejects retries and non-contract attachments", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const retryReport = await artifact("retry.json", playwrightGateReport({ retry: 1 }), targetSampleId);
   await assert.rejects(
     createGateReceipt(receiptOptions("browser", "playwright-gate-report", retryReport, targetSampleId)),
@@ -313,41 +313,41 @@ test("Playwright evidence binds every declared browser engine without assuming o
     { name: "firefox", browserName: "firefox" },
   ];
   const contract = {
-    playwrightFile: "test/playwright/standalone-quickstart.spec.mjs",
-    playwrightTestTitle: "standalone quickstart renders public-endpoint features with no Honua server",
+    playwrightFile: "test/playwright/quickstart-map.spec.mjs",
+    playwrightTestTitle: "First Map proves the canonical fixture journey in source or packed mode",
     playwrightProjects: projects,
     evidenceProject: "chromium",
   };
   const report = playwrightGateReport({ projects }).playwright;
 
-  assert.doesNotThrow(() => validatePlaywrightGate(report, "standalone-quickstart", "browser", contract));
+  assert.doesNotThrow(() => validatePlaywrightGate(report, "maplibre-quickstart", "browser", contract));
   const wrongRoot = structuredClone(report);
-  wrongRoot.config.rootDir = path.resolve("test/browser");
+  wrongRoot.config.rootDir = "test/browser";
   assert.throws(
-    () => validatePlaywrightGate(wrongRoot, "standalone-quickstart", "browser", contract),
+    () => validatePlaywrightGate(wrongRoot, "maplibre-quickstart", "browser", contract),
     /root directory binding mismatch/,
   );
   const externalRoot = structuredClone(report);
   externalRoot.config.rootDir = path.join(os.tmpdir(), "attacker", "test", "playwright");
   assert.throws(
-    () => validatePlaywrightGate(externalRoot, "standalone-quickstart", "browser", contract),
+    () => validatePlaywrightGate(externalRoot, "maplibre-quickstart", "browser", contract),
     /root directory binding mismatch/,
   );
   const wrongFile = structuredClone(report);
   wrongFile.suites[0].file = "service-explorer.spec.mjs";
   assert.throws(
-    () => validatePlaywrightGate(wrongFile, "standalone-quickstart", "browser", contract),
+    () => validatePlaywrightGate(wrongFile, "maplibre-quickstart", "browser", contract),
     /file binding mismatch/,
   );
   report.suites[0].specs[0].tests.pop();
   assert.throws(
-    () => validatePlaywrightGate(report, "standalone-quickstart", "browser", contract),
+    () => validatePlaywrightGate(report, "maplibre-quickstart", "browser", contract),
     /one declared test execution per Playwright project/,
   );
 });
 
 test("renaming text to PNG cannot qualify a screenshot", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const fakePng = await artifact("renamed.png", "not a png", targetSampleId);
   const reportPath = await artifact("screenshot.json", {
     format: "honua.sdk.sample-screenshot-gate.v1",
@@ -370,7 +370,7 @@ test("renaming text to PNG cannot qualify a screenshot", async () => {
 });
 
 test("a CRC-correct PNG with undecodable image data cannot qualify", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const imageBytes = undecodableViewportPng();
   const imagePath = await artifact("undecodable.png", imageBytes, targetSampleId);
   const reportPath = await artifact(
@@ -398,7 +398,7 @@ test("a CRC-correct PNG with undecodable image data cannot qualify", async () =>
 });
 
 test("PNG evidence rejects unknown critical chunks and duplicate IHDR chunks", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const command = ["npm", "run", "test:playwright:receipt"];
   const header = Buffer.alloc(13);
   header.writeUInt32BE(1280, 0);
@@ -437,7 +437,7 @@ test("PNG evidence rejects unknown critical chunks and duplicate IHDR chunks", a
 });
 
 test("console evidence must be finalized after teardown and reject late errors", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const report = playwrightGateReport();
   report.gate = "console";
   for (const execution of report.playwright.suites[0].specs[0].tests) {
@@ -462,7 +462,7 @@ test("console evidence must be finalized after teardown and reject late errors",
 
 test("metadata-only performance, packed-build, and live reports cannot qualify", async () => {
   const command = ["npm", "run", "test:playwright:receipt"];
-  const browserSample = "standalone-quickstart";
+  const browserSample = "maplibre-quickstart";
   const performance = await artifact(
     "performance.json",
     {
@@ -479,7 +479,7 @@ test("metadata-only performance, packed-build, and live reports cannot qualify",
     /browser-observed navigation, resource, interaction, and budget/,
   );
 
-  const packedSample = "standalone-quickstart";
+  const packedSample = "maplibre-quickstart";
   const packed = await artifact(
     "packed.json",
     {
@@ -514,7 +514,7 @@ test("metadata-only performance, packed-build, and live reports cannot qualify",
 });
 
 test("browser-observed navigation, resource, and interaction measurements qualify performance", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const command = ["npm", "run", "test:playwright:receipt"];
   const value = 425;
   const performance = await artifact(
@@ -641,7 +641,7 @@ test("live receipts bind the reviewed command to exactly its reviewed producer",
 });
 
 test("packed receipt re-reads the final dist tree instead of trusting its inventory", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const repository = await mkdtemp(path.join(os.tmpdir(), "honua-packed-receipt-"));
   const artifactRoot = path.join(
     repository,
@@ -665,7 +665,7 @@ test("packed receipt re-reads the final dist tree instead of trusting its invent
       schemaVersion: 1,
       mode: "packed",
       package: { name: "@honua/sdk-js", version: "0.0.0-test" },
-      entrypoints: ["@honua/sdk-js", "@honua/sdk-js/esri-compat", "@honua/sdk-js/honua", "@honua/sdk-js/map"].map(
+      entrypoints: ["@honua/sdk-js", "@honua/sdk-js/runtime"].map(
         (specifier) => ({
           specifier,
           exportTarget: "./dist/index.js",
@@ -946,7 +946,7 @@ test("qualification rejects a receipt with a non-UUID run root", async () => {
 });
 
 test("qualification requires one run per expected command while allowing separate command runs", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const receiptRoot = path.resolve("test-results/qualification-command-groups");
   const receiptDirectory = path.join(receiptRoot, targetSampleId, "receipts");
   const fixtureRun = "11111111-1111-4111-8111-111111111111";

@@ -67,7 +67,7 @@
     {
       "id": "first-map",
       "title": "First Map",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "maplibre-quickstart"
     },
     {
@@ -566,81 +566,6 @@
       ]
     },
     {
-      "id": "endpoint-to-map",
-      "title": "Endpoint to map: the standalone data-to-map bridge",
-      "summary": "mountSource() turns a public FeatureServer into a styled, interactive MapLibre map in four statements.",
-      "sourceKind": "root-example",
-      "track": "recipe",
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "active",
-        "reason": "Headline proof of the data-to-map bridge (#496): connect() plus mountSource() with no MapPackage or server."
-      },
-      "sourcePath": "examples/endpoint-to-map",
-      "docsPath": "examples/endpoint-to-map/README.md",
-      "capabilities": [
-        "direct-connect",
-        "map",
-        "query"
-      ],
-      "protocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "anonymous",
-        "config": [
-          "VITE_ENDPOINT_TO_MAP_BASEMAP_STYLE",
-          "VITE_ENDPOINT_TO_MAP_MAX_FEATURES",
-          "VITE_ENDPOINT_TO_MAP_URL"
-        ],
-        "provenance": "Committed public-response fixture or public Esri Living Atlas endpoint.",
-        "attribution": "Endpoint attribution shown in the sample.",
-        "freshness": "Fixture retrieval metadata or live response time.",
-        "configurationStatus": "approved",
-        "configClassifications": [
-          {
-            "name": "VITE_ENDPOINT_TO_MAP_BASEMAP_STYLE",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_ENDPOINT_TO_MAP_MAX_FEATURES",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_ENDPOINT_TO_MAP_URL",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          }
-        ]
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run demo:endpoint-to-map:mock"
-          ]
-        },
-        "live": {
-          "mode": "public-live",
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Strategy selection, overflow truncation, and capability gaps are reported through the mounted handle's diagnostics.",
-      "validationProfile": "browser-recipe",
-      "validation": [
-        "npm run demo:endpoint-to-map:typecheck",
-        "npm run demo:endpoint-to-map:build"
-      ]
-    },
-    {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
       "summary": "Runs forward, reverse, and suggestion workflows with map feedback.",
@@ -1055,20 +980,20 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "Honua × MapLibre flagship workflow",
-      "summary": "Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence.",
+      "title": "First Map: endpoint to inspected MapLibre map",
+      "summary": "Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result.",
       "sourceKind": "root-example",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "first-map",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Remove the rejected browser credential variables from the supported configuration surface before journey qualification.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Qualified First Map journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous live receipts."
       },
       "sourcePath": "examples/maplibre-quickstart",
       "docsPath": "examples/maplibre-quickstart/README.md",
       "capabilities": [
+        "direct-connect",
         "discovery",
         "explain-plan",
         "linked-views",
@@ -1078,7 +1003,7 @@
       ],
       "protocols": [
         "geoservices",
-        "honua"
+        "ogc-features"
       ],
       "renderers": [
         "maplibre"
@@ -1087,129 +1012,34 @@
         "mode": "hybrid",
         "authMode": "anonymous",
         "config": [
-          "HONUA_QUICKSTART_SDK_DIR",
-          "HONUA_STAGING_API_KEY",
-          "HONUA_STAGING_BASE_URL",
-          "HONUA_STAGING_BEARER_TOKEN",
-          "HONUA_STAGING_CAPTURED_AT",
-          "HONUA_STAGING_DATA_VERSION",
-          "HONUA_STAGING_LAYER_ID",
-          "HONUA_STAGING_RESULT_RECORD_COUNT",
-          "HONUA_STAGING_SERVICE_ID",
-          "HONUA_STAGING_WHERE",
-          "VITE_HONUA_QUICKSTART_API_KEY",
           "VITE_HONUA_QUICKSTART_BASEMAP_STYLE",
-          "VITE_HONUA_QUICKSTART_BASE_URL",
-          "VITE_HONUA_QUICKSTART_BEARER_TOKEN",
-          "VITE_HONUA_QUICKSTART_CAPTURED_AT",
-          "VITE_HONUA_QUICKSTART_DATA_VERSION",
-          "VITE_HONUA_QUICKSTART_LAYER_ID",
+          "VITE_HONUA_QUICKSTART_ENDPOINT",
+          "VITE_HONUA_QUICKSTART_PROTOCOL",
           "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT",
-          "VITE_HONUA_QUICKSTART_SERVICE_ID",
           "VITE_HONUA_QUICKSTART_WHERE"
         ],
-        "provenance": "Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.",
-        "attribution": "Source attribution and protocol identity are shown beside the map.",
-        "freshness": "Fixture capture time and data version, or live response observation time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The source still reads browser API-key and bearer-token variables in order to reject them.",
+        "provenance": "Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.",
+        "attribution": "Endpoint-advertised attribution is shown and preserved; unavailable attribution is stated explicitly.",
+        "freshness": "SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.",
+        "configurationStatus": "approved",
         "configClassifications": [
-          {
-            "name": "HONUA_QUICKSTART_SDK_DIR",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_STAGING_API_KEY",
-            "exposure": "server-only",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "HONUA_STAGING_BASE_URL",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_STAGING_BEARER_TOKEN",
-            "exposure": "server-only",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "HONUA_STAGING_CAPTURED_AT",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_STAGING_DATA_VERSION",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_STAGING_LAYER_ID",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_STAGING_RESULT_RECORD_COUNT",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_STAGING_SERVICE_ID",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_STAGING_WHERE",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_QUICKSTART_API_KEY",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
           {
             "name": "VITE_HONUA_QUICKSTART_BASEMAP_STYLE",
             "exposure": "browser-public",
             "valueKind": "non-secret"
           },
           {
-            "name": "VITE_HONUA_QUICKSTART_BASE_URL",
+            "name": "VITE_HONUA_QUICKSTART_ENDPOINT",
             "exposure": "browser-public",
             "valueKind": "non-secret"
           },
           {
-            "name": "VITE_HONUA_QUICKSTART_BEARER_TOKEN",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_QUICKSTART_CAPTURED_AT",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_QUICKSTART_DATA_VERSION",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_QUICKSTART_LAYER_ID",
+            "name": "VITE_HONUA_QUICKSTART_PROTOCOL",
             "exposure": "browser-public",
             "valueKind": "non-secret"
           },
           {
             "name": "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_QUICKSTART_SERVICE_ID",
             "exposure": "browser-public",
             "valueKind": "non-secret"
           },
@@ -1229,17 +1059,17 @@
           ]
         },
         "live": {
-          "mode": "demo-live",
+          "mode": "public-live",
           "status": "executed",
           "commands": [
-            "npm run bench:live"
+            "npm run evidence:first-map:live"
           ],
-          "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json",
-          "expiresAt": "2026-08-12T02:18:02.654Z"
+          "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
+          "expiresAt": "2026-07-24T15:44:54.411Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
-      "validationProfile": "browser-recipe",
+      "validationProfile": "golden-browser",
       "validation": [
         "npm run demo:quickstart:typecheck",
         "npm run demo:quickstart:build",
@@ -1840,13 +1670,13 @@
     {
       "id": "react-quickstart",
       "title": "React quickstart",
-      "summary": "Uses the React provider, hooks, and map component over the same quickstart contract.",
+      "summary": "Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Maintain framework parity with the canonical quickstart."
+        "reason": "Keep one focused React integration recipe without duplicating or redesigning First Map."
       },
       "sourcePath": "examples/react-quickstart",
       "docsPath": "examples/react-quickstart/README.md",
@@ -2562,107 +2392,6 @@
       ]
     },
     {
-      "id": "standalone-quickstart",
-      "title": "Standalone public-service quickstart",
-      "summary": "Connects a public Esri service directly to MapLibre without a Honua server.",
-      "sourceKind": "root-example",
-      "track": "recipe",
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "merge",
-        "reason": "Make this direct-public path the zero-account mode of the canonical quickstart.",
-        "targetRelease": "0.2.0-beta.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "first-map"
-        }
-      },
-      "sourcePath": "examples/standalone-quickstart",
-      "docsPath": "examples/standalone-quickstart/README.md",
-      "capabilities": [
-        "direct-connect",
-        "map",
-        "query"
-      ],
-      "protocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "anonymous",
-        "config": [
-          "STANDALONE_FEATURE_LAYER_URL",
-          "VITE_STANDALONE_BASEMAP_STYLE",
-          "VITE_STANDALONE_FEATURE_LAYER_URL",
-          "VITE_STANDALONE_MAX_PAGES",
-          "VITE_STANDALONE_OUT_FIELDS",
-          "VITE_STANDALONE_WHERE"
-        ],
-        "provenance": "Committed public-response fixture or public Esri endpoint.",
-        "attribution": "Endpoint attribution shown in the sample.",
-        "freshness": "Fixture retrieval metadata or live response time.",
-        "configurationStatus": "approved",
-        "configClassifications": [
-          {
-            "name": "STANDALONE_FEATURE_LAYER_URL",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_STANDALONE_BASEMAP_STYLE",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_STANDALONE_FEATURE_LAYER_URL",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_STANDALONE_MAX_PAGES",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_STANDALONE_OUT_FIELDS",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_STANDALONE_WHERE",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          }
-        ]
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run demo:standalone:mock"
-          ]
-        },
-        "live": {
-          "mode": "public-live",
-          "status": "planned",
-          "commands": [
-            "npm run demo:standalone:live-smoke"
-          ]
-        }
-      },
-      "expectedDegradation": "Protocol capability gaps are surfaced without requiring a Honua facade.",
-      "validationProfile": "browser-recipe",
-      "validation": [
-        "npm run demo:standalone:typecheck",
-        "npm run demo:standalone:build",
-        "npm run test:playwright:standalone"
-      ]
-    },
-    {
       "id": "storytelling-25d-map",
       "title": "2.5D storytelling map",
       "summary": "Combines terrain, extrusion, OGC overlays, and route playback in a guided story.",
@@ -3098,7 +2827,7 @@
       "id": "expr-builder",
       "route": "sample-expr-builder.html",
       "ownership": "sdk-projection",
-      "sampleId": "standalone-quickstart"
+      "sampleId": "maplibre-quickstart"
     },
     {
       "id": "geocoding",

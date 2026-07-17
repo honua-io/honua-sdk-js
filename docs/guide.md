@@ -302,7 +302,8 @@ mounted.dispose();
 
 - Full cookbook (strategy selection, options, disposal, overflow diagnostics):
   [`docs/data-to-map-bridge.md`](./data-to-map-bridge.md).
-- Runnable fixture/live demo: [`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md).
+- Canonical runnable fixture/live journey: [`examples/maplibre-quickstart/`](../examples/maplibre-quickstart/README.md).
+  The lower-level bridge remains a focused API recipe rather than a second app.
 - First-class renderer objects (`classBreaksRenderer`, `uniqueValueRenderer`, `heatmapRenderer`,
   `clusterRenderer` on `/style`), `mountSource({ renderer })` + `setRenderer()` swaps, and temporal
   playback (`createTemporalPlayback` on `/map`): [`docs/renderers.md`](./renderers.md).
@@ -466,7 +467,7 @@ npm run demo:quickstart:typecheck
 npm run demo:25d:typecheck
 npm run demo:node-backend:typecheck
 npm run demo:unified-ops:typecheck
-npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts
+npm run demo:quickstart:test
 npx vitest run test/node-backend-quickstart.test.ts
 npx vitest run test/unified-ops-workspace.test.ts
 npx vitest run test/cesium-route-playback.test.ts
@@ -478,7 +479,7 @@ npx playwright test test/playwright/cesium-route-playback.spec.mjs
 npm run test:playwright:25d
 npm run test:playwright
 npm run demo:kepler:smoke
-npm run test:quickstart:staging # requires HONUA_STAGING_* env
+HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live # scheduled anonymous public evidence
 npm run test:integration # connect-only; requires HONUA_INTEGRATION_BASE_URL — see docs/integration-tests.md
 npm run scan:arcgis -- ../../path/to/arcgis-app
 npm run migrate:arcgis -- ../../path/to/arcgis-app --write --report migration-report.json

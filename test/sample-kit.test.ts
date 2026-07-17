@@ -46,14 +46,14 @@ describe("shared sample kit", () => {
 
   it("protects truthful reserved Vite defines and undeclared SDK subpaths", () => {
     expect(() =>
-      createSampleViteConfig(new URL("../examples/standalone-quickstart/vite.config.ts", import.meta.url).href, {
+      createSampleViteConfig(new URL("../examples/maplibre-quickstart/vite.config.ts", import.meta.url).href, {
         sdkEntrypoints: ["@honua/sdk-js"],
         define: { __HONUA_SAMPLE_SDK_MODE__: JSON.stringify("packed") },
       }),
     ).toThrow("reserved");
 
     const config = createSampleViteConfig(
-      new URL("../examples/standalone-quickstart/vite.config.ts", import.meta.url).href,
+      new URL("../examples/maplibre-quickstart/vite.config.ts", import.meta.url).href,
       { sdkEntrypoints: ["@honua/sdk-js"] },
     );
     const guard = (config.plugins as Array<{ resolveId?: (source: string) => unknown }>)[0];
@@ -61,7 +61,7 @@ describe("shared sample kit", () => {
     expect(() => guard?.resolveId?.("@honua/sdk-js")).not.toThrow();
 
     const subpathOnly = createSampleViteConfig(
-      new URL("../examples/standalone-quickstart/vite.config.ts", import.meta.url).href,
+      new URL("../examples/maplibre-quickstart/vite.config.ts", import.meta.url).href,
       { sdkEntrypoints: ["@honua/sdk-js/esri-compat"] },
     );
     const subpathGuard = (subpathOnly.plugins as Array<{ resolveId?: (source: string) => unknown }>)[0];
@@ -88,7 +88,7 @@ describe("shared sample kit", () => {
 
   it("starts and closes the Vite dev server without invoking build-only final-byte attestation", async () => {
     const config = createSampleViteConfig(
-      new URL("../examples/standalone-quickstart/vite.config.ts", import.meta.url).href,
+      new URL("../examples/maplibre-quickstart/vite.config.ts", import.meta.url).href,
       { sdkEntrypoints: ["@honua/sdk-js"] },
     );
     const server = await createServer({

@@ -68,6 +68,7 @@ const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
 const MAX_GATE_ARTIFACT_BYTES = 16 * 1024 * 1024;
 const MAX_PACKED_FILES = 6_000;
 const MAX_PACKED_BYTES = 128 * 1024 * 1024;
+const PLAYWRIGHT_EVIDENCE_ROOT = "test/playwright";
 const EVIDENCE_LOCK_OWNER_FORMAT = "honua.sdk.sample-evidence-lock-owner.v1";
 const UUID_V4 = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const evidenceLockStates = new WeakMap();
@@ -287,7 +288,13 @@ export async function validateKit(kit, selection, scripts, options = {}) {
       fail(`${sample.id}: sample kit Playwright script is invalid`);
     }
     safeRelativePath(sample.playwrightFile, `${sample.id}.playwrightFile`);
-    if (scripts[sample.playwrightScript] !== `playwright test ${sample.playwrightFile}`) {
+    const playwrightConfig = sample.playwrightConfig === undefined
+      ? undefined
+      : safeRelativePath(sample.playwrightConfig, `${sample.id}.playwrightConfig`);
+    const expectedPlaywrightCommand = playwrightConfig
+      ? `playwright test --config ${playwrightConfig} ${sample.playwrightFile}`
+      : `playwright test ${sample.playwrightFile}`;
+    if (scripts[sample.playwrightScript] !== expectedPlaywrightCommand) {
       fail(`${sample.id}: sample kit Playwright script does not bind its declared file`);
     }
     if (
@@ -323,6 +330,9 @@ export async function validateKit(kit, selection, scripts, options = {}) {
       await containedRegularFile(root, sourcePath, sample.viteConfig, `${sample.id}.viteConfig`);
       await containedRegularFile(root, sourcePath, sample.tsconfig, `${sample.id}.tsconfig`);
       await containedRegularFile(root, "test/playwright", sample.playwrightFile, `${sample.id}.playwrightFile`);
+      if (playwrightConfig) {
+        await containedRegularFile(root, ".", playwrightConfig, `${sample.id}.playwrightConfig`);
+      }
     }
     if (
       !Array.isArray(sample.sdkEntrypoints) ||
@@ -538,7 +548,7 @@ export class ChildSupervisor {
   }
 }
 
-async function readInputs() {
+async function readInputs(options) {
   const [selection, catalog, kit, packageJson, contract] = await Promise.all([
     readFile(SELECTION_PATH, "utf8").then(JSON.parse),
     readFile(CATALOG_PATH, "utf8").then(JSON.parse),
@@ -546,7 +556,13 @@ async function readInputs() {
     readFile(PACKAGE_PATH, "utf8").then(JSON.parse),
     import("./sample-contract.mjs"),
   ]);
-  await contract.validateCatalog(catalog, packageJson);
+  const qualificationBootstrapSampleId =
+    options.action === "evidence" &&
+    options.gate === undefined &&
+    catalog.samples.some((sample) => sample.id === options.sampleId && sample.track === "golden")
+      ? options.sampleId
+      : undefined;
+  await contract.validateCatalog(catalog, packageJson, { qualificationBootstrapSampleId });
   const expectedSelection = contract.generateCiSelection(catalog);
   await validateSelection(selection, {
     packageScripts: packageJson.scripts,
@@ -883,6 +899,52 @@ async function readGateArtifactJson(absolute, label, minimumMtimeMs) {
   return { ...artifact, value: JSON.parse(artifact.bytes.toString("utf8")) };
 }
 
+function canonicalPlaywrightProjectPath(value, projectRoot, label) {
+  if (typeof value !== "string" || !path.isAbsolute(value) || path.normalize(value) !== value) {
+    fail(`${label} must be an absolute normalized path`);
+  }
+  const relative = path.relative(projectRoot, value).replaceAll(path.sep, "/");
+  return safeRelativePath(relative, label);
+}
+
+export function canonicalizePlaywrightEvidenceReport(report, projectRoot = PROJECT_ROOT) {
+  if (!isPlainRecord(report) || !isPlainRecord(report.config) || !Array.isArray(report.suites)) {
+    fail("Playwright evidence is not a JSON report");
+  }
+  const root = path.resolve(projectRoot);
+  const expectedTestRoot = path.join(root, ...PLAYWRIGHT_EVIDENCE_ROOT.split("/"));
+  if (
+    typeof report.config.rootDir !== "string" ||
+    !path.isAbsolute(report.config.rootDir) ||
+    path.normalize(report.config.rootDir) !== report.config.rootDir ||
+    report.config.rootDir !== expectedTestRoot
+  ) {
+    fail("Playwright evidence root directory binding mismatch");
+  }
+
+  const portable = structuredClone(report);
+  portable.config.rootDir = PLAYWRIGHT_EVIDENCE_ROOT;
+  for (const key of ["configFile", "globalSetup", "globalTeardown"]) {
+    if (typeof portable.config[key] === "string") {
+      portable.config[key] = canonicalPlaywrightProjectPath(portable.config[key], root, `Playwright ${key}`);
+    }
+  }
+  if (Array.isArray(portable.config.projects)) {
+    portable.config.projects = portable.config.projects.map((project, index) => {
+      if (!isPlainRecord(project) || project.testDir !== expectedTestRoot) {
+        fail(`Playwright project ${index} test directory binding mismatch`);
+      }
+      const normalized = { ...project, testDir: PLAYWRIGHT_EVIDENCE_ROOT };
+      if (normalized.outputDir !== undefined) {
+        canonicalPlaywrightProjectPath(normalized.outputDir, root, `Playwright project ${index} outputDir`);
+        delete normalized.outputDir;
+      }
+      return normalized;
+    });
+  }
+  return portable;
+}
+
 async function writeGateReport({
   sample,
   gate,
@@ -909,7 +971,7 @@ async function writeGateReport({
       sourceRevision: revision,
       gate,
       command,
-      playwright: playwright.value,
+      playwright: canonicalizePlaywrightEvidenceReport(playwright.value),
     };
     const reportPath = path.join(artifactRoot, `${gate}.json`);
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, { flag: "wx" });
@@ -1009,6 +1071,42 @@ async function writeGateReport({
   const reportPath = path.join(artifactRoot, `${gate}.json`);
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, { flag: "wx" });
   return { kind, path: path.relative(PROJECT_ROOT, reportPath).replaceAll(path.sep, "/") };
+}
+
+export async function publishCanonicalLiveEvidence(baseRoot, groups, sampleId, projectRoot = PROJECT_ROOT) {
+  const liveGroup = groups.find((group) => group.receipts.some(({ gate }) => gate === "live"));
+  if (!liveGroup) return;
+  const sourcePath = path.join(liveGroup.runRoot, "artifacts/live-evidence.json");
+  const sourceRelative = path.relative(projectRoot, sourcePath).replaceAll(path.sep, "/");
+  const bytes = await readCanonicalBoundedFile(projectRoot, sourceRelative, {
+    label: `${sampleId} canonical live evidence source`,
+    maxBytes: MAX_GATE_ARTIFACT_BYTES,
+  });
+  const evidence = JSON.parse(bytes.toString("utf8"));
+  const { validateEvidenceEnvelope } = await import("./sample-contract.mjs");
+  validateEvidenceEnvelope(evidence);
+  if (evidence.sampleId !== sampleId || evidence.lane !== "live") {
+    fail(`${sampleId}: canonical live evidence source is invalid`);
+  }
+
+  const target = path.join(baseRoot, "live.v1.json");
+  try {
+    const metadata = await lstat(target);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) {
+      fail(`${sampleId}: canonical live evidence target is unsafe`);
+    }
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  const candidate = path.join(baseRoot, `.live.v1.${randomUUID()}.tmp`);
+  try {
+    await writeFile(candidate, bytes, { flag: "wx" });
+    await rename(candidate, target);
+    const published = await readFile(target);
+    if (!published.equals(bytes)) fail(`${sampleId}: canonical live evidence publication drifted`);
+  } finally {
+    await rm(candidate, { force: true });
+  }
 }
 
 export function groupEvidenceGates(sample, gates) {
@@ -2936,6 +3034,7 @@ async function executeEvidence(sample, options, context) {
           sourceSnapshot,
         }));
       }
+      if (playwrightReport) await rm(playwrightReport, { force: true });
       const receipts = [];
       for (const gate of group.gates) {
         const receiptPath = path.join(receiptRoot, `${gate}.v1.json`);
@@ -2963,6 +3062,7 @@ async function executeEvidence(sample, options, context) {
       transaction,
     });
     await commitGateReceiptTransaction(transaction);
+    await publishCanonicalLiveEvidence(baseRoot, publicationGroups, sample.id);
     for (const group of publicationGroups) {
       for (const { gate } of group.receipts) {
         process.stdout.write(`sample gate receipt: ${path.relative(PROJECT_ROOT, path.join(receiptRoot, `${gate}.v1.json`))}\n`);
@@ -3014,7 +3114,7 @@ function printList(samples, json) {
 
 export async function main(argv = process.argv.slice(2)) {
   const options = parseRunnerArgs(argv);
-  const inputs = await readInputs();
+  const inputs = await readInputs(options);
   const samples = selectSamples(inputs.selection, options, new Set(inputs.kit.keys()));
   if (options.sdkMode === "packed") {
     const unsupported = samples.filter((sample) => !inputs.kit.has(sample.id)).map((sample) => sample.id);

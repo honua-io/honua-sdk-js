@@ -1,9 +1,0 @@
-{
-  "recordedAt": "2026-07-06T04:52:24.320Z",
-  "endpoint": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
-  "where": "STUSPS IN ('HI','CA','TX','NY','FL','WA')",
-  "outFields": "OBJECTID,NAME,STUSPS,Total_Pop_2020,Seats_2020",
-  "featureCount": 6,
-  "refreshCommand": "npm run demo:standalone:refresh-fixtures",
-  "note": "Public Esri Living Atlas FeatureServer (services.arcgis.com); US Census (public domain) data. Recorded raw GeoServices JSON; CI replays these files and never hits the network."
-}

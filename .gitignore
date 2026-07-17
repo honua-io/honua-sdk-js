@@ -7,9 +7,11 @@ test-results/coding-agent-eval/
 test-results/cog-live-evidence*.json
 test-results/live-benchmark-evidence.json
 test-results/pr-fast*.json
+test-results/quickstart-time-to-map.json
 test-results/time-to-first-map.json
 test-results/sample-evidence/
 .tmp/
 node_modules
 *.tgz
+!samples/evidence/**/*.tgz
 a.out

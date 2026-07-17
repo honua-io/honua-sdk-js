@@ -59,8 +59,8 @@ For those nine lines the bridge selected a materialization strategy from the sou
 declared capabilities, installed geometry-appropriate default styling, wired click popups
 and hover feature-state, fit the map to the data, and returned one owned handle
 (`setFilter()` diff-updates in place; `dispose()` removes everything the bridge added).
-Run it locally with `npm run demo:endpoint-to-map`
-([`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md)); the full cookbook
+Run the canonical inspected workflow with `npm run demo:quickstart:mock`
+([`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md)); the focused lower-level cookbook
 is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
 For an application that opens more than one source or needs deterministic
@@ -108,10 +108,10 @@ and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 | | 🗺️ **Building on MapLibre** | 🚦 **Leaving ArcGIS** |
 | --- | --- | --- |
 | **You are…** | adding typed data access, styling, and interactions to a MapLibre (or brand-new) app | facing the classic-widget removal at ArcGIS JS 6.0 (planned Q1 2027) |
-| **Start** | [Standalone quickstart](./docs/standalone-quickstart.md) — the SDK against any public endpoint, no Honua server | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner |
+| **Start** | [First Map](./docs/quickstart.md) — paste a public GeoServices or OGC Features endpoint, no account required | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner |
 | **Then** | [Data-to-map bridge cookbook](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` strategies, styling, filters | [Widget survival guide](./docs/widget-survival-guide.md) — all 38 deprecated widgets mapped to automated / assisted / manual dispositions |
 | **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`esri-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) |
-| **Runnable proof** | [`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md) — the headline above, live | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end |
+| **Runnable proof** | [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) — deterministic fixture plus separately gated anonymous-live evidence | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end |
 
 ## Where it fits
 
@@ -322,19 +322,19 @@ const { features } = await client.queryFeatures({
 });
 ```
 
-Run the complete standalone app locally — public endpoint in, MapLibre map out:
+Run the complete First Map app locally — public endpoint in, inspected MapLibre map out:
 
 ```bash
 npm install
-npm run demo:standalone:mock   # deterministic fixture lane (what CI runs)
-npm run demo:standalone        # live lane against the public Esri endpoint
+npm run demo:quickstart:mock   # deterministic fixture lane (what CI runs)
+npm run demo:quickstart        # paste or configure an anonymous public endpoint
 ```
 
-See [`docs/standalone-quickstart.md`](./docs/standalone-quickstart.md) for the
+See [`docs/quickstart.md`](./docs/quickstart.md) for the canonical
 guided server-optional walkthrough,
 [`docs/standalone-capability-matrix.md`](./docs/standalone-capability-matrix.md)
 for the backend-agnostic vs server-enhanced breakdown, and
-[`examples/standalone-quickstart/`](./examples/standalone-quickstart/README.md)
+[`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md)
 for the committed source.
 
 ### Add a Honua Server
@@ -391,14 +391,14 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 34 executable examples: 0 qualified golden samples, 15 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 7 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 32 executable examples: 1 qualified golden sample, 12 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 6 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
-Linking to Honua from a plugin directory or ecosystem list? Point at the
-[server-optional standalone quickstart](./docs/standalone-quickstart.md)
-([hosted walkthrough](https://honua-io.github.io/honua-sdk-js/guides/standalone-quickstart.html),
-[source](./examples/standalone-quickstart/README.md)) — CI keeps it green with a Playwright
-browser smoke on every PR. Prepared directory entries live in
+Linking to Honua from a plugin directory or ecosystem list? Point at
+[First Map](./docs/quickstart.md)
+([hosted walkthrough](https://honua-io.github.io/honua-sdk-js/guides/quickstart.html),
+[source](./examples/maplibre-quickstart/README.md)) — CI keeps its fixture lane externally network-blocked and its
+release smoke green across Chromium, Firefox, and WebKit. Prepared directory entries live in
 [`docs/listings/maplibre-plugin-directory.md`](./docs/listings/maplibre-plugin-directory.md).
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
@@ -953,7 +953,7 @@ current API reference without following the migration notes.
 
 This inventory is generated from [`samples/catalog.v2.json`](../../samples/catalog.v2.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v2` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 34 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v2` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 32 executable examples
 
 ## Golden journey readiness
 
@@ -961,7 +961,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 
 | Journey | Status | Candidate sample |
 | --- | --- | --- |
-| `first-map` | planned | [`maplibre-quickstart`](#maplibre-quickstart) |
+| `first-map` | qualified | [`maplibre-quickstart`](#maplibre-quickstart) |
 | `service-explorer` | planned | [`service-explorer`](#service-explorer) |
 | `planning-permitting` | planned | [`planning-permitting-workbench`](#planning-permitting-workbench) |
 | `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
@@ -979,12 +979,11 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="automatic-source-workflow"></a>[`automatic-source-workflow`](../../docs/examples/automatic-source-workflow/README.md) | fixture | - | internal | active | browser-fixture | fixture | not-required | Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures. |
 | <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
 | <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | rework | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
-| <a id="endpoint-to-map"></a>[`endpoint-to-map`](../../examples/endpoint-to-map/README.md) | recipe | - | experimental | active | browser-recipe | hybrid | approved | mountSource() turns a public FeatureServer into a styled, interactive MapLibre map in four statements. |
 | <a id="geocoding-quickstart"></a>[`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | - | supported | rework | browser-recipe | hybrid | legacy-unsafe | Runs forward, reverse, and suggestion workflows with map feedback. |
 | <a id="geoprocessing-job-runner"></a>[`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
 | <a id="imagery-cog-quickstart"></a>[`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | recipe | imagery-terrain | supported | active | golden-browser | hybrid | approved | Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles. |
 | <a id="kepler-analytics"></a>[`kepler-analytics`](../../examples/kepler-analytics/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Replays operations data through kepler.gl with linked filters and KPI evidence. |
-| <a id="maplibre-quickstart"></a>[`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | recipe | first-map | supported | rework | browser-recipe | hybrid | legacy-unsafe | Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence. |
+| <a id="maplibre-quickstart"></a>[`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | golden | first-map | supported | active | golden-browser | hybrid | approved | Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result. |
 | <a id="mcp-gis-assistant"></a>[`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | lab | - | experimental | rework | browser-lab | fixture | not-required | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
 | <a id="migration-workbench"></a>[`migration-workbench`](../../docs/migration-honua-maplibre.md) | lab | arcgis-migration | supported | active | browser-lab | fixture | not-required | Scans and transforms ArcGIS application source with auditable compatibility results. |
 | <a id="nl-map-control"></a>[`nl-map-control`](../../examples/nl-map-control/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
@@ -993,7 +992,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="overture-geoparquet"></a>[`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | lab | - | experimental | active | browser-lab | hybrid | not-required | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
 | <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | rework | browser-lab | fixture | not-required | Combines parcels, hazards, sketching, editing, and export in a task-oriented application. |
 | <a id="pmtiles-static"></a>[`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Loads a static PMTiles archive without a Honua server. |
-| <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Uses the React provider, hooks, and map component over the same quickstart contract. |
+| <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey. |
 | <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | <a id="runtime-parity-showcase"></a>[`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | lab | - | experimental | replace | browser-lab | fixture | not-required | Compares supported rendering paths and makes fidelity differences explicit. |
 | <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | lab | service-explorer | supported | rework | browser-lab | hybrid | legacy-unsafe | Browses heterogeneous spatial services with capability and cache diagnostics. |
@@ -1001,7 +1000,6 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="sketch-editing"></a>[`sketch-editing`](../../examples/sketch-editing/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
 | <a id="spatial-analytics-workbench"></a>[`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | lab | cloud-native-analysis | experimental | rework | browser-lab | hybrid | approved | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
 | <a id="stac-imagery-browser"></a>[`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Discovers STAC collections and previews supported imagery assets. |
-| <a id="standalone-quickstart"></a>[`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | approved | Connects a public Esri service directly to MapLibre without a Honua server. |
 | <a id="storytelling-25d-map"></a>[`storytelling-25d-map`](../../examples/storytelling-25d-map/README.md) | lab | - | supported | merge | browser-lab | hybrid | legacy-unsafe | Combines terrain, extrusion, OGC overlays, and route playback in a guided story. |
 | <a id="temporal-playback"></a>[`temporal-playback`](../../examples/temporal-playback/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems(). |
 | <a id="terrain-rgb-elevation"></a>[`terrain-rgb-elevation`](../../examples/terrain-rgb-elevation/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Reads Terrain-RGB tiles for point elevation and route profiles. |
@@ -1016,7 +1014,7 @@ The catalog also carries fixture/live evidence, evidence expiry, endpoint config
 
 # Five-minute quickstart: endpoint to linked MapLibre map
 
-The canonical server-connected browser workflow is the tested app in
+The canonical public-endpoint browser workflow is the tested app in
 [`examples/maplibre-quickstart`](../examples/maplibre-quickstart/README.md). It makes the SDK's five-stage journey
 visible instead of hiding network and fallback decisions:
 
@@ -1024,9 +1022,9 @@ visible instead of hiding network and fallback decisions:
 connect → discover → explain → query → mount
 ```
 
-If you do not need a Honua server, start with the
-[`standalone quickstart`](./standalone-quickstart.md). It connects directly to a public GeoServices endpoint. This page
-covers the protocol-neutral Honua lane with compatibility, discovery, planning, evidence, and linked views.
+The overlapping standalone and endpoint-to-map implementations have converged here. Their documentation and npm
+aliases remain stable, but this is the only executable and catalog source. It accepts both public GeoServices layers
+and OGC API Features landing pages.
 
 ## Run the deterministic lane
 
@@ -1037,15 +1035,16 @@ npm run demo:quickstart:mock
 
 Open the printed `quickstartMockUrl`. No account, credential, or network-hosted basemap is required. The app:
 
-1. checks SDK/server compatibility;
-2. discovers layer metadata and constructs the protocol capability contract;
-3. explains a deterministic query plan before fetching rows;
-4. executes that accepted plan through `Dataset → Source → Query → Result`;
-5. mounts the result in MapLibre and links map, table, filter, detail, and popup state.
+1. connects and negotiates the configured protocol;
+2. inspects advertised sources and capabilities;
+3. explains a deterministic bounded query plan before fetching rows;
+4. executes that accepted plan through the kernel connection;
+5. passes the same plan to the SDK's MapLibre renderer.
 
-The page also exposes provenance, capture/observation time, auth mode, SDK/server/data versions, metadata cache state,
-plan fingerprint, pushdown, fidelity, and degradation. Fixture replay is labeled explicitly and never presented as live
-data.
+The thin shell adds only endpoint input, table/filter state over the bounded result, popup selection, plan disclosure,
+copyable code, and managed cleanup. It exposes source identity and attribution, observation time, auth mode, SDK/plan
+versions, metadata cache state, plan fingerprint, pushdown, fidelity, and degradation. Fixture replay is labeled
+explicitly and never presented as live data.
 
 ### What the five-minute claim measures
 
@@ -1068,22 +1067,23 @@ architecture acceptance criterion is complete.
 
 ## Use an anonymous live endpoint
 
-Copy [`.env.example`](../examples/maplibre-quickstart/.env.example), point it at a public CORS-enabled Honua layer, then
-run the same app:
+Paste a public CORS-enabled GeoServices FeatureServer layer or OGC API Features landing-page URL into the visible form.
+The same endpoint can be preconfigured by copying [`.env.example`](../examples/maplibre-quickstart/.env.example):
 
 ```bash
 cp examples/maplibre-quickstart/.env.example examples/maplibre-quickstart/.env
 npm run demo:quickstart
 ```
 
-The required live values are:
+Use the direct endpoint variables:
 
-- `VITE_HONUA_QUICKSTART_BASE_URL`
-- `VITE_HONUA_QUICKSTART_SERVICE_ID`
-- `VITE_HONUA_QUICKSTART_LAYER_ID`
-- `VITE_HONUA_QUICKSTART_DATA_VERSION`
+- `VITE_HONUA_QUICKSTART_ENDPOINT`
+- `VITE_HONUA_QUICKSTART_PROTOCOL` (`auto`, `geoservices-feature-service`, or `ogc-features`)
 
-The filter, bounded record count, basemap style, and optional snapshot timestamp are documented in the
+The former GeoServices base/service/layer composition variables are retired. Provide the complete public endpoint so
+the copied configuration has one unambiguous source identity.
+
+The optional source-native filter, bounded record count, and basemap style are documented in the
 [sample README](../examples/maplibre-quickstart/README.md#secret-free-live-run).
 
 The browser quickstart rejects API keys and bearer tokens because Vite embeds environment values in public JavaScript.
@@ -1091,51 +1091,42 @@ Use an anonymous endpoint or a server-side proxy/session. Protected server-only 
 
 ## The SDK shape
 
-The sample uses stable subpath imports and the explicitly experimental planner:
+The copyable core is [`src/workflow.ts`](../examples/maplibre-quickstart/src/workflow.ts). It imports only the reviewed
+`@honua/sdk-js` root and `@honua/sdk-js/runtime`, then calls `createHonua()`, `connect`, `inspect`, `explain`, `query`,
+and `mount`. It is the source of truth for both fixture protocols, the source bundle, and the packed SDK build. The page
+shows a copy button for the configured call site; presentation code never creates a second dataset or private plan.
 
-```ts doc-test=compile
-import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset } from "@honua/sdk-js/contract";
-import { HonuaClient } from "@honua/sdk-js/honua";
-import { executeQueryPlan, explainQuery } from "@honua/sdk-js/query-planner";
-
-const client = new HonuaClient({ baseUrl: "https://your-public-honua.example" });
-const metadata = await client.getLayerMetadata("public-service", 0);
-const descriptor = {
-  id: "public-features",
-  protocol: "geoservices-feature-service" as const,
-  locator: { url: "https://your-public-honua.example", serviceId: "public-service", layerId: 0 },
-  capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
-  schema: { fields: metadata.fields },
-};
-const dataset = createDataset({ id: "public-map", client, sources: [descriptor] });
-const source = dataset.source("public-features");
-if (!source) throw new Error("Source resolution failed");
-
-const query = { where: "1=1", outFields: ["*"], returnGeometry: true, pagination: { limit: 25 } };
-const plan = explainQuery({ descriptor, query, sourceVersion: "public-service-2026-07" });
-const execution = await executeQueryPlan(plan, source, { sourceVersion: "public-service-2026-07" });
-console.log(execution.result.features);
-```
-
-Planning is synchronous and side-effect free. Execution validates plan integrity and source context before invoking the
-accepted step. Capability gaps and unsafe fallback bounds throw structured errors; they do not become silent empty maps.
+Planning remains side-effect free. Execution validates plan integrity and source context before invoking the accepted
+step. Capability gaps, ambiguous sources, authentication, overflow, and unsafe fallback bounds remain explicit states;
+they do not become silent empty maps.
 
 ## Requests and validation
 
-A healthy startup performs three Honua requests before the basemap's own assets:
-
-1. `GET /api/v1/admin/capabilities`
-2. `GET /rest/services/{serviceId}/FeatureServer/{layerId}?f=json`
-3. `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query?...`
+Request shape follows the negotiated protocol. Both lanes inspect metadata before executing a bounded plan; the mount
+executes that accepted plan again for the SDK-owned renderer projection. The deterministic browser smoke blocks any
+origin outside its fixture server.
 
 The required CI lane is fixture-only:
 
 ```bash
 npm run demo:quickstart:typecheck
-npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts test/quickstart-linked-exploration.test.ts
+npm run demo:quickstart:test
+npm run demo:quickstart:parity
+npm run demo:quickstart:copyability
 npm run demo:quickstart:build
 npm run test:playwright:quickstart
 ```
+
+The focused browser command runs Chromium in required CI; the release smoke repeats it in Chromium, Firefox, and
+WebKit. Fixture requests are actively blocked if they target an origin outside the loopback harness. Anonymous
+public-network evidence is a separate scheduled lane:
+
+```bash
+HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live
+```
+
+It records source identity, attribution availability, observation/freshness, cache status, degradation, timing, and a
+screenshot. It never runs on pull requests.
 
 See [`quickstart-troubleshooting.md`](./quickstart-troubleshooting.md) for compatibility, discovery, configuration,
 geometry, plan, CORS, and staging diagnostics.
@@ -1169,18 +1160,18 @@ Open a public GeoServices endpoint and render useful data without an account.
 
 Labels: `fixture` · `public-live`
 
-- Guide: [docs/standalone-quickstart.md](../standalone-quickstart.md)
-- Runnable example: [standalone-quickstart](../../examples/standalone-quickstart)
-- Executable entry: [examples/standalone-quickstart/src/main.ts](../../examples/standalone-quickstart/src/main.ts)
-- Example notes: [examples/standalone-quickstart/README.md](../../examples/standalone-quickstart/README.md)
-- Compile check: `npm run demo:standalone:typecheck`
-- Sample contract: `recipe` · `supported` · `merge`
+- Guide: [docs/quickstart.md](../quickstart.md)
+- Runnable example: [maplibre-quickstart](../../examples/maplibre-quickstart)
+- Executable entry: [examples/maplibre-quickstart/src/workflow.ts](../../examples/maplibre-quickstart/src/workflow.ts)
+- Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
+- Compile check: `npm run demo:quickstart:typecheck`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Committed public-response fixture or public Esri endpoint.
-- Freshness: Fixture retrieval metadata or live response time.
-- Catalog degradation: Protocol capability gaps are surfaced without requiring a Honua facade.
-- Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html)
-- Supported API imports: `@honua/sdk-js/esri-compat` (`FeatureLayerCompat`); `@honua/sdk-js/honua` (`HonuaClient`); `@honua/sdk-js/map` (`loadHonuaFeatureServiceGeoJson`)
+- Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
+- Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
+- Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
+- Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html) · [demo.html](https://honua.io/demo.html)
+- Supported API imports: `@honua/sdk-js` (`createHonua`); `@honua/sdk-js/runtime` (`maplibreRenderer`)
 - honua.io journey: `connect-existing-gis`
 
 ### 2. Connect and inspect sources
@@ -1228,20 +1219,20 @@ Labels: `fixture` · `demo-live` · `authenticated` · `degraded`
 
 Connect, discover, explain, query, and mount one source with linked MapLibre views and visible runtime evidence.
 
-Labels: `fixture` · `demo-live` · `experimental`
+Labels: `fixture` · `public-live`
 
 - Guide: [docs/quickstart.md](../quickstart.md)
 - Runnable example: [maplibre-quickstart](../../examples/maplibre-quickstart)
-- Executable entry: [examples/maplibre-quickstart/src/main.ts](../../examples/maplibre-quickstart/src/main.ts)
+- Executable entry: [examples/maplibre-quickstart/src/workflow.ts](../../examples/maplibre-quickstart/src/workflow.ts)
 - Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
 - Compile check: `npm run demo:quickstart:typecheck`
-- Sample contract: `recipe` · `supported` · `rework`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.
-- Freshness: Fixture capture time and data version, or live response observation time.
+- Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
+- Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
 - Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
-- Live sample: [demo.html](https://honua.io/demo.html)
-- Supported API imports: `@honua/sdk-js/contract` (`createDataset`); `@honua/sdk-js/exploration` (`createExplorationContext`); `@honua/sdk-js/honua` (`HonuaClient`); `@honua/sdk-js/query-planner` (`executeQueryPlan`, `explainQuery`)
+- Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html) · [demo.html](https://honua.io/demo.html)
+- Supported API imports: `@honua/sdk-js` (`createHonua`); `@honua/sdk-js/runtime` (`maplibreRenderer`)
 - honua.io journey: `query-map-style`
 
 ### 5. Analyze linked spatial views
@@ -1379,339 +1370,131 @@ Labels: `fixture` · `experimental` · `degraded`
 
 # File: docs/standalone-quickstart.md
 
-# Standalone Quickstart: The SDK Against Any Public Endpoint
+# Standalone quickstart moved to First Map
 
-`@honua/sdk-js` is a typed geospatial service client first and a Honua client
-second. Its protocol clients speak raw **Esri GeoServices**, so they work against
-*any* ArcGIS Server / ArcGIS Online endpoint with **no Honua server, no API key,
-and no account**. This is the maintained, MapLibre-targeting successor to
-`esri-leaflet`.
+The server-optional public-endpoint workflow is now the canonical
+[First Map quickstart](./quickstart.md). It accepts anonymous GeoServices FeatureServer layers and OGC API Features
+endpoints, then shows the discovered source, accepted query plan, bounded result, MapLibre map, popup, filter,
+attribution, observation/freshness, cache status, degradation, and cleanup evidence.
 
-Start here. A [Honua Server](https://github.com/honua-io/honua-server) is the
-*upgrade path* (authored MapPackages, realtime, collaboration, MCP) — not the
-entry fee. The [capability matrix](./standalone-capability-matrix.md) draws the
-honest line between what is backend-agnostic and what needs a Honua Server.
-
-## The first code block runs with zero Honua infrastructure
-
-Point the SDK at a public FeatureServer and get typed query results:
-
-```ts doc-test=compile
-import { HonuaClient } from "@honua/sdk-js/honua";
-
-// A public Esri Living Atlas FeatureServer — no key, no account, no Honua server.
-const url =
-  "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0";
-const client = new HonuaClient({ baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis" });
-
-const { features } = await client.queryFeatures({
-  serviceId: "2020_Census_State_Apportionment",
-  layerId: 0,
-  where: "1=1",
-  outFields: ["NAME", "Total_Pop_2020", "Seats_2020"],
-  returnGeometry: false,
-  resultRecordCount: 5,
-});
-
-console.log(`Loaded ${features?.length ?? 0} states`);
-```
-
-`HonuaClient` builds the standard GeoServices request path
-(`/rest/services/{serviceId}/FeatureServer/{layerId}/query`) and joins it to
-whatever origin you pass as `baseUrl`, so `services.arcgis.com`,
-`sampleserver6.arcgisonline.com`, or your own ArcGIS Server all work unchanged.
-
-### Render it on MapLibre in one call
-
-`@honua/sdk-js/map` turns a public FeatureServer URL straight into a MapLibre
-`geojson` source:
-
-```ts doc-test=skip reason="partial excerpt requires application host context"
-import { HonuaClient } from "@honua/sdk-js/honua";
-import { loadHonuaFeatureServiceGeoJson } from "@honua/sdk-js/map";
-import maplibregl from "maplibre-gl";
-
-const client = new HonuaClient({ baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis" });
-const source = await loadHonuaFeatureServiceGeoJson(client, url, { outFields: ["NAME"] });
-
-const map = new maplibregl.Map({ container: "map", style: "https://demotiles.maplibre.org/style.json" });
-map.on("load", () => {
-  map.addSource("states", source);
-  map.addLayer({ id: "states-fill", source: "states", type: "fill", paint: { "fill-color": "#0f766e" } });
-});
-```
-
-### The esri-leaflet migration path works standalone too
-
-Pointing `FeatureLayerCompat` (and the rest of `@honua/sdk-js/esri-compat`) at a
-`services.arcgis.com`-style URL Just Works — it parses the URL, derives the
-origin, and constructs its own client. Existing ArcGIS-shaped code migrates
-file-by-file without standing up any Honua infrastructure:
-
-```ts doc-test=skip reason="partial excerpt requires application host context"
-import { FeatureLayerCompat } from "@honua/sdk-js/esri-compat";
-
-// Same familiar shape as esri-leaflet / arcgis-rest — no server required.
-const layer = new FeatureLayerCompat({ url });
-const { features } = await layer.queryFeatures({ where: "Seats_2020 > 10", outFields: ["NAME"] });
-```
-
-## Run the committed example
-
-The [`examples/standalone-quickstart/`](../examples/standalone-quickstart/README.md)
-app does exactly the above — public GeoServices query → MapLibre render → the
-`FeatureLayerCompat` drop-in proof — and ships two lanes:
-
-```bash
-npm install
-
-# Live lane: hits the pinned public Esri endpoint.
-npm run demo:standalone
-
-# Deterministic lane: replays recorded fixtures on same-origin paths (what CI runs).
-npm run demo:standalone:mock   # prints standaloneMockUrl=http://127.0.0.1:PORT
-```
-
-CI only ever runs the fixture lane, so it never depends on a third party. Refresh
-the recordings from the live endpoints on demand with
-`npm run demo:standalone:refresh-fixtures`. A scheduled, non-blocking workflow
-(`.github/workflows/standalone-live-smoke.yml`) probes the live endpoints weekly
-and never gates a PR.
-
-## Documented public endpoints
-
-These are the pinned, stable public services the docs and example use. All are
-anonymous, read-only, and permitted for demonstration use.
-
-| Endpoint | Protocol | Provider / license note |
-| --- | --- | --- |
-| `https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0` | GeoServices FeatureServer | Esri Living Atlas; US Census apportionment (public-domain data), publicly shared by Esri. |
-| `https://sampleserver6.arcgisonline.com/arcgis/rest/services/SampleWorldCities/MapServer/0` | GeoServices MapServer | Esri's public sample server, hosted expressly for samples/demos. |
-| `https://demo.pygeoapi.io/master/collections` | OGC API Features | pygeoapi's official public demo (MIT project); Natural Earth (public-domain) data. |
-
-> **OGC endpoints and the typed surface.** The GeoServices client is the fully
-> backend-agnostic lane today: it targets raw ArcGIS request paths. The SDK's
-> *typed* OGC API / WFS / STAC surfaces currently address the Honua server's OGC
-> facade paths — see the [capability matrix](./standalone-capability-matrix.md)
-> for the honest, per-capability breakdown and roadmap.
-
-## Add a Honua Server (the upgrade path)
-
-When you want more than reads against open services, a
-[Honua Server](https://github.com/honua-io/honua-server) unlocks:
-
-- **Authored `MapPackage`s** — `loadMapPackage()` + `HonuaMapRuntime` render a
-  server-authored map with styles, layer order, and metadata baked in.
-- **Realtime** — subscription-backed feature updates (`@honua/sdk-js/realtime`).
-- **Collaboration** — shared/saved maps and multi-user sessions.
-- **MCP + AI** — the `@honua/mcp-server` and agent tools surface.
-
-Spin one up locally and point the same code at it:
-
-```bash
-# From a honua-server checkout:
-docker compose up
-# then set baseUrl to your local server, e.g. http://127.0.0.1:8080
-```
-
-See the [maplibre-quickstart](../examples/maplibre-quickstart/README.md) for the
-server-connected lane, [`docs/maplibre-runtime.md`](./maplibre-runtime.md) for
-the `MapPackage` runtime, and [`docs/realtime-subscriptions.md`](./realtime-subscriptions.md)
-for realtime.
-
----
-
-# File: docs/quickstart-troubleshooting.md
-
-# Quickstart Troubleshooting
-
-Use this guide when the committed quickstart app at
-[`examples/maplibre-quickstart/`](../examples/maplibre-quickstart/README.md) does not load as expected.
-
-## Unsupported Compatibility Baseline
-
-Symptoms:
-
-- the app stops before querying data
-- the overlay shows an unsupported compatibility message
-- `window.__HONUA_QUICKSTART_RUNTIME__.serverVersion` or `releaseChannel` is missing or below the SDK baseline
-- the app reports `Server does not expose GET /api/v1/admin/capabilities.`
-
-Checks:
-
-- confirm `GET /api/v1/admin/capabilities` is reachable from the browser
-- confirm the endpoint responds with a JSON object containing `success` and `data.compatibility`
-- confirm the server reports version `>= 1.0.0`
-- confirm `data.compatibility.controlPlaneApi.major` is integer `1` with base path `/api/v1/admin`
-- confirm `data.compatibility.controlPlaneApi.deprecated` is `false`
-- confirm `data.compatibility.metadataSchemas[]` entries include `version` and `deprecated`
-- confirm `data.compatibility.features` includes the expected boolean flags
-- confirm the release channel is `preview` or newer
-
-The quickstart app intentionally fails before the feature query when this contract is not satisfied.
-
-## Protected Endpoint Or Invalid Auth
-
-Symptoms:
-
-- `401` or `403` responses on compatibility or feature-query requests
-- browser console shows a request error before the map becomes ready
-
-Checks:
-
-- use a CORS-enabled endpoint that permits anonymous reads for the browser flagship
-- do not add browser API keys or bearer tokens; the app rejects them because Vite would publish their values
-- put protected browser traffic behind an application backend or session flow
-- for server-only staging CI, set `HONUA_STAGING_API_KEY` or `HONUA_STAGING_BEARER_TOKEN` when required
-
-The page always reports its auth mode. It never renders credential values.
-
-## CORS Or Browser Network Failures
-
-Symptoms:
-
-- the browser reports `TypeError: Failed to fetch`
-- requests work from server-side tools but fail from the browser app
-
-Checks:
-
-- confirm the Honua server allows the browser origin used by Vite or preview
-- confirm preflight responses allow the headers your auth mode sends
-- use the same-origin fixture lane first:
+There is one runnable implementation:
 
 ```bash
 npm run demo:quickstart:mock
 ```
 
-If the fixture lane works but the live lane fails, the problem is likely environment or browser policy rather than the
-example code.
+The historical commands remain compatibility aliases and execute that same app:
 
-## Invalid Quickstart Config
+```bash
+npm run demo:standalone
+npm run demo:standalone:mock
+```
 
-Symptoms:
+The [`examples/standalone-quickstart`](../examples/standalone-quickstart/README.md) directory is documentation-only.
+It must not regain source, fixture, Vite, or Playwright implementations. Existing links can remain stable while new
+guides and sample catalog entries point directly to
+[`examples/maplibre-quickstart`](../examples/maplibre-quickstart/README.md).
 
-- the app fails before the compatibility check runs
-- the overlay or inline status reports `A quickstart layer id must be an integer.`
-- the overlay or inline status reports `A quickstart result record count must be greater than zero.`
-- the overlay reports that the browser quickstart is intentionally secret-free
-- local staging runs fail with `HONUA_STAGING_BASE_URL is required.` or the matching `HONUA_STAGING_*` required-variable message
-- the staging workflow fails during its validation step with `Missing HONUA_STAGING_BASE_URL`, `Missing HONUA_STAGING_SERVICE_ID`, or `Missing HONUA_STAGING_LAYER_ID`
-- `npm run test:quickstart:staging` fails before issuing any network requests when staging env values are malformed
+For the lower-level caller-owned-map API, see the focused
+[`mountSource` data-to-map bridge recipe](./data-to-map-bridge.md). For a framework-specific integration, keep using
+the focused [React quickstart](../examples/react-quickstart/README.md); it is not a second First Map implementation.
 
-Checks:
+---
 
-- set `VITE_HONUA_QUICKSTART_LAYER_ID` to an integer
-- set `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT` to a positive integer
-- remove `VITE_HONUA_QUICKSTART_API_KEY` and `VITE_HONUA_QUICKSTART_BEARER_TOKEN`; use an anonymous endpoint or proxy
-- set `HONUA_STAGING_BASE_URL`, `HONUA_STAGING_SERVICE_ID`, and `HONUA_STAGING_LAYER_ID` for local or CI staging runs
-- for staging CI, keep `HONUA_STAGING_LAYER_ID` integer-valued and `HONUA_STAGING_RESULT_RECORD_COUNT` positive when overridden
+# File: docs/quickstart-troubleshooting.md
 
-These validation failures happen before the app or staging integration issues `GET /api/v1/admin/capabilities`.
+# First Map troubleshooting
 
-## Empty Feature Queries
+Use this guide for the canonical app in
+[`examples/maplibre-quickstart`](../examples/maplibre-quickstart/README.md). Start with the deterministic lane:
 
-Symptoms:
+```bash
+npm run demo:quickstart:mock
+```
 
-- the app reports `The feature query returned no features...`
-- staging integration fails with `featureCount` equal to `0`
+If that lane fails, the problem is in the app, SDK, local browser, or fixture contract. It does not depend on a public
+service or network-hosted basemap.
 
-Checks:
+## Endpoint or protocol errors
 
-- confirm `VITE_HONUA_QUICKSTART_SERVICE_ID` and `VITE_HONUA_QUICKSTART_LAYER_ID`
-- confirm the configured `where` clause matches seeded data
-- reduce filter complexity and retry with `1=1`
-- keep `resultRecordCount` bounded but non-zero
+First Map accepts an absolute HTTP(S) GeoServices FeatureServer layer or OGC API Features endpoint. The visible form
+and `VITE_HONUA_QUICKSTART_ENDPOINT` use the same validator.
 
-The quickstart app expects at least one feature because it fits the map and drives an inspection popup from the query
-result.
+- Remove credentials, query parameters, and fragments from the endpoint URL. A sole `f=json`/`f=pjson` format hint is
+  normalized away.
+- Set `VITE_HONUA_QUICKSTART_PROTOCOL` to `auto`, `geoservices-feature-service`, or `ogc-features`.
+- For an OGC service advertising multiple collections, choose the advertised source when prompted instead of relying
+  on first-source selection.
+- Do not use the retired base/service/layer composition variables. Supply the final endpoint.
 
-## Unsupported Or Missing Geometry
+Authentication failures remain `authentication-required`; unsupported operations remain `unsupported`; ambiguous
+discovery remains `source-selection-required`. They never become an empty successful map.
 
-Symptoms:
+## Browser network and CORS failures
 
-- the app reports `none included renderable geometry`
-- the feature query succeeds but the map never renders data
+An anonymous public endpoint must allow the browser origin. A URL that works from `curl` can still fail CORS.
 
-Checks:
+- Confirm metadata and query responses allow the Vite/preview origin.
+- Do not put API keys or bearer tokens in `VITE_*`; Vite publishes those values in JavaScript.
+- Put protected traffic behind a server-side session/proxy flow. First Map intentionally has no sample-only auth
+  fallback.
+- Use `VITE_HONUA_QUICKSTART_BASEMAP_STYLE` only for a public style whose dependent assets are also reachable.
 
-- confirm the layer returns geometry-bearing features
-- confirm the quickstart query keeps `returnGeometry: true`
-- confirm the requested layer returns geometry that converts into the app's point, line, or polygon render buckets
-- keep `outSr: 4326` so MapLibre receives browser-safe coordinates
+Required fixture Playwright actively aborts any HTTP(S) request outside its loopback origin. Public network evidence
+runs only from `.github/workflows/first-map-live-evidence.yml` or with explicit local opt-in:
 
-The app filters out non-renderable records and only creates render layers for returned points, lines, or polygons.
-That means `featureCount` can be greater than `renderableFeatureCount` when the server returns mixed-quality data.
+```bash
+HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live
+```
 
-## Basemap Style Load Failures
+## Bounds, geometry, and query plans
 
-Symptoms:
+- Keep `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT` a positive integer no greater than the workflow bound.
+- Use `VITE_HONUA_QUICKSTART_WHERE` only when the source protocol supports the filter.
+- Confirm the source returns point, line, or polygon geometry in browser-safe coordinates.
+- Inspect the visible accepted plan. Partial pushdown, warnings, overflow, and renderer diagnostics are reported in the
+  degradation panel rather than hidden.
+- The query receipt fingerprint must match the plan passed to both `query()` and `mount()`.
 
-- the overlay reports `Failed to load the basemap style "..."`
-- Honua requests succeed but the map never initializes
+## Source, freshness, and cache truth
 
-Checks:
+The evidence panel distinguishes:
 
-- confirm `VITE_HONUA_QUICKSTART_BASEMAP_STYLE` is reachable from the browser
-- confirm the style JSON and its dependent assets are public or otherwise accessible
-- use the fixture lane to remove basemap-network variability from the initial debug loop
+- endpoint and discovered protocol/source identity;
+- advertised attribution versus “no attribution advertised”;
+- SDK observation time versus unavailable source validity time;
+- SDK metadata-cache status (`bypass`, `hit`, `miss`, or `refreshed`);
+- exact execution versus explicit degradation reasons.
 
-The fixture lane serves `/__honua-quickstart__/basemap-style.json` locally to keep smoke coverage deterministic.
+The scheduled live envelope and screenshot preserve the same fields. They do not replace deterministic fixture proof.
 
-## Staging CI Config Drift
+## Runtime and cleanup
 
-The live staging suite is triggered by `npm run test:quickstart:staging` and `.github/workflows/quickstart-staging.yml`.
-The deterministic browser smoke lane runs from `.github/workflows/ci.yml` on `trunk` plus `release/**` pushes and pull
-requests.
-
-Required environment variables:
-
-- `HONUA_STAGING_BASE_URL`
-- `HONUA_STAGING_SERVICE_ID`
-- `HONUA_STAGING_LAYER_ID`
-
-Optional environment variables:
-
-- `HONUA_STAGING_WHERE`
-- `HONUA_STAGING_RESULT_RECORD_COUNT`
-- `HONUA_STAGING_API_KEY`
-- `HONUA_STAGING_BEARER_TOKEN`
-- `HONUA_QUICKSTART_STAGING_SUMMARY_FILE`
-
-If staging CI starts failing after an environment change:
-
-- confirm the configured service and layer still exist
-- confirm the environment still exposes non-empty geometry-bearing data
-- confirm the auth policy still matches the configured secret or public access path
-- remember the staging suite reuses the shared quickstart data loader only; it does not open the browser app or fetch the basemap style
-- review the workflow step summary for `serverVersion`, `releaseChannel`, `featureCount`,
-  `renderableFeatureCount`, `geometryTypes`, and `queryDurationMs`
-
-## Inspecting Runtime State
-
-For browser debugging and Playwright smoke assertions, inspect:
+Inspect:
 
 - `window.__HONUA_QUICKSTART_EVENTS__`
 - `window.__HONUA_QUICKSTART_RUNTIME__`
 - `window.__HONUA_QUICKSTART_DISPOSE__()`
 
-Useful fields:
+Useful runtime fields include `sourceProtocol`, `sourceId`, `sourceAttribution`, `sourceObservedAt`, `sourceFreshness`,
+`cacheStatus`, `degradation`, `planFingerprint`, `featureCount`, `layerIds`, timing-budget fields, and cleanup state.
+Disposal is idempotent and must remove the SDK mount, popup, handlers, and borrowed MapLibre resources within the
+published cleanup budget.
 
-- `baseUrl`, `serviceId`, `layerId`
-- `serverVersion`, `releaseChannel`
-- `sdkVersion`, `dataVersion`, `planId`, `planFingerprint`, `planPushdown`
-- `featureCount`, `renderableFeatureCount`, `geometryTypes`
-- `queryDurationMs`
-- `layerIds`, `mapReady`, `selectedFeatureId`, `popupOpen`, `lastError`
-- `journeyComplete`, `disposed`
+## Validation
 
-Every telemetry event is also dispatched as `CustomEvent("honua:quickstart")`.
+```bash
+npm run demo:quickstart:typecheck
+npm run demo:quickstart:test
+npm run demo:quickstart:parity
+npm run demo:quickstart:copyability
+npm run demo:quickstart:build
+npm run test:playwright:quickstart
+```
 
-## External Follow-on
-
-This repo still depends on one bounded external child ticket for long-term staging stability:
-
-- `honua-server`: expose and document a stable staging quickstart dataset for JS SDK CI, including the canonical
-  service, layer, auth policy, and non-empty geometry contract.
+The focused required command covers Chromium. The release workflow repeats the same test in Chromium, Firefox, and
+WebKit and repeats source and packed SDK modes. If only the packed lane fails, inspect
+`honua-sample-sdk-resolution.json` before changing the sample.
 
 ---
 
@@ -1875,7 +1658,7 @@ all.
 ## Try it
 
 - [60-second quickstart](../README.md#60-second-quickstart) — public endpoint in, typed features out.
-- [`standalone-quickstart`](./standalone-quickstart.md) — the CI-kept-green, server-optional example: any public GeoServices endpoint → styled MapLibre map.
+- [`First Map`](./quickstart.md) — the CI-kept-green, server-optional example: public GeoServices or OGC Features endpoint → accepted plan → inspected MapLibre map.
 - [Demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html) — all runnable examples.
 
 ---
@@ -6544,18 +6327,18 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 
 | Capability | Status | Environment | Execution | Backend needed | API | Evidence | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| GeoServices FeatureServer query | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.queryFeatures, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Discovers and uses the raw FeatureServer query path; fixture- and live-proven without a Honua account or server. |
-| GeoServices MapServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.mapService, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts)<br>[fixture: tile-layer-fixtures](../test/tile-layer-compat.test.ts)<br>[integration: map-service-integration](../test/integration/surfaces/map-server.integration.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Discovers and uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles. |
+| GeoServices FeatureServer query | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.queryFeatures, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[live: first-map-live](../scripts/first-map-live-evidence.mjs) | Discovers and uses the raw FeatureServer query path; fixture-proven with scheduled anonymous live verification that needs no Honua account or server. |
+| GeoServices MapServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.mapService, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts)<br>[fixture: tile-layer-fixtures](../test/tile-layer-compat.test.ts)<br>[integration: map-service-integration](../test/integration/surfaces/map-server.integration.ts) | Discovers and uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles. |
 | GeoServices ImageServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[integration: image-service-integration](../test/integration/surfaces/image-server.integration.ts) | Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor. |
 | GeoServices GeometryServer discovery | `supported` | `standalone` | `discovery` | Any ArcGIS Server GeometryServer endpoint | discoverGeoServices() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts) | Returns advertised geometry operations as metadata-only descriptors; it never invents a queryable Source. |
 | GeoServices GPServer discovery | `supported` | `standalone` | `discovery` | Any ArcGIS Server GPServer endpoint | discoverGeoServices() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts) | Returns task execution and job-lifecycle metadata without starting a job or inventing a queryable Source. |
 | Esri compatibility layer | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | @honua/sdk-js/esri-compat | [fixture: esri-compat-fixtures](../test/feature-layer-compat.test.ts) | Compatibility classes parse public GeoServices URLs and create their own client. |
 | ArcGIS scanner and migration codemod | `supported` | `build-time` | `static` | None | @honua/sdk-js/migration, honua-migrate | [fixture: migration-fixtures](../test/migration-codemod.test.ts) | Static analysis and rewrites run locally; no service is involved. |
 | Geometry operations | `supported` | `client-only` | `native` | None | @honua/sdk-js/geometry | [fixture: geometry-fixtures](../test/geometry/ops.test.ts) | Buffer, area, simplify, measure, and reprojection run in the client through optional peers. |
-| OGC API Features | `supported` | `standalone` | `discovery` | Any OGC API Features server | connect(), Source with locator.layout=ogc-api or auto | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path. |
-| WFS 2.0 | `supported` | `standalone` | `discovery` | Any WFS 2.0 server | connect(), Source, HonuaWfs | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path. |
-| STAC API and static catalogs | `supported` | `standalone` | `discovery` | Any STAC API or static catalog | connect(), Source with locator.layout=stac-api or stac-static | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Searches a raw STAC API or walks static catalog links with client-side filtering. |
-| OData v4 | `supported` | `standalone` | `discovery` | Any OData v4 service | connect(), Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
+| OGC API Features | `supported` | `standalone` | `discovery` | Any OGC API Features server | connect(), Source with locator.layout=ogc-api or auto | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts) | Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path. |
+| WFS 2.0 | `supported` | `standalone` | `discovery` | Any WFS 2.0 server | connect(), Source, HonuaWfs | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts) | Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path. |
+| STAC API and static catalogs | `supported` | `standalone` | `discovery` | Any STAC API or static catalog | connect(), Source with locator.layout=stac-api or stac-static | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts) | Searches a raw STAC API or walks static catalog links with client-side filtering. |
+| OData v4 | `supported` | `standalone` | `discovery` | Any OData v4 service | connect(), Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
 | GeoParquet asset discovery | `experimental` | `client-only` | `discovery` | None; caller provides a GeoParquet profiler | connect({ protocol: 'geoparquet', geoparquet: { profiler } }) | [fixture: geoparquet-connect-fixtures](../test/connect-geoparquet.test.ts) | Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver. |
 | OGC API Tiles | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. |
 | OGC API Maps | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. |
@@ -8322,7 +8105,8 @@ mounted.dispose();
 
 - Full cookbook (strategy selection, options, disposal, overflow diagnostics):
   [`docs/data-to-map-bridge.md`](./data-to-map-bridge.md).
-- Runnable fixture/live demo: [`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md).
+- Canonical runnable fixture/live journey: [`examples/maplibre-quickstart/`](../examples/maplibre-quickstart/README.md).
+  The lower-level bridge remains a focused API recipe rather than a second app.
 - First-class renderer objects (`classBreaksRenderer`, `uniqueValueRenderer`, `heatmapRenderer`,
   `clusterRenderer` on `/style`), `mountSource({ renderer })` + `setRenderer()` swaps, and temporal
   playback (`createTemporalPlayback` on `/map`): [`docs/renderers.md`](./renderers.md).
@@ -8486,7 +8270,7 @@ npm run demo:quickstart:typecheck
 npm run demo:25d:typecheck
 npm run demo:node-backend:typecheck
 npm run demo:unified-ops:typecheck
-npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts
+npm run demo:quickstart:test
 npx vitest run test/node-backend-quickstart.test.ts
 npx vitest run test/unified-ops-workspace.test.ts
 npx vitest run test/cesium-route-playback.test.ts
@@ -8498,7 +8282,7 @@ npx playwright test test/playwright/cesium-route-playback.spec.mjs
 npm run test:playwright:25d
 npm run test:playwright
 npm run demo:kepler:smoke
-npm run test:quickstart:staging # requires HONUA_STAGING_* env
+HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live # scheduled anonymous public evidence
 npm run test:integration # connect-only; requires HONUA_INTEGRATION_BASE_URL — see docs/integration-tests.md
 npm run scan:arcgis -- ../../path/to/arcgis-app
 npm run migrate:arcgis -- ../../path/to/arcgis-app --write --report migration-report.json

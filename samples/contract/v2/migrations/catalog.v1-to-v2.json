@@ -55,7 +55,7 @@
     ]
   },
   "goldenJourneys": [
-    { "id": "first-map", "title": "First Map", "status": "planned", "candidateSampleId": "maplibre-quickstart" },
+    { "id": "first-map", "title": "First Map", "status": "qualified", "candidateSampleId": "maplibre-quickstart" },
     { "id": "service-explorer", "title": "Universal Service Explorer", "status": "planned", "candidateSampleId": "service-explorer" },
     { "id": "planning-permitting", "title": "Planning and Permitting", "status": "planned", "candidateSampleId": "planning-permitting-workbench" },
     { "id": "incident-operations", "title": "Realtime Incident Operations", "status": "planned", "candidateSampleId": "realtime-incident-dashboard" },
@@ -181,11 +181,6 @@
       "track": "recipe",
       "validationProfile": "browser-recipe"
     },
-    "endpoint-to-map": {
-      "track": "recipe",
-      "validationProfile": "browser-recipe",
-      "live": { "commands": [] }
-    },
     "geocoding-quickstart": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
@@ -255,22 +250,18 @@
       "live": { "mode": "public-live", "status": "planned", "commands": [] }
     },
     "maplibre-quickstart": {
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "first-map",
-      "validationProfile": "browser-recipe",
+      "validationProfile": "golden-browser",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Remove the rejected browser credential variables from the supported configuration surface before journey qualification."
-      },
-      "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The source still reads browser API-key and bearer-token variables in order to reject them."
+        "state": "active",
+        "reason": "Qualified First Map journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous live receipts."
       },
       "live": {
-        "mode": "demo-live",
+        "mode": "public-live",
         "status": "executed",
-        "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json",
-        "expiresAt": "2026-08-12T02:18:02.654Z"
+        "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
+        "expiresAt": "2026-07-24T15:44:54.411Z"
       }
     },
     "mcp-gis-assistant": {
@@ -381,17 +372,6 @@
         "state": "active",
         "reason": "Retain as the small credential-free STAC discovery recipe; the imagery journey owns full range, comparison, elevation, and terrain qualification."
       }
-    },
-    "standalone-quickstart": {
-      "track": "recipe",
-      "validationProfile": "browser-recipe",
-      "replacement": { "kind": "journey", "id": "first-map" },
-      "validation": [
-        "npm run demo:standalone:typecheck",
-        "npm run demo:standalone:build",
-        "npm run test:playwright:standalone"
-      ],
-      "live": { "mode": "public-live", "status": "planned" }
     },
     "storytelling-25d-map": {
       "track": "lab",

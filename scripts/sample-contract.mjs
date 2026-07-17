@@ -36,7 +36,6 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/ai-spatial-app-builder/mock-server.mjs", "demo:ai-spatial-builder:build"],
   ["examples/app-bootstrap-basic/mock-server.mjs", "demo:app-bootstrap:build"],
   ["examples/edit-workflow-demo/mock-server.mjs", "demo:edit-workflow:build"],
-  ["examples/endpoint-to-map/mock-server.mjs", "demo:endpoint-to-map:build"],
   ["examples/geocoding-quickstart/mock-server.mjs", "demo:geocoding:build"],
   ["examples/geoprocessing-job-runner/mock-server.mjs", "demo:gp-runner:build"],
   ["examples/imagery-cog-quickstart/mock-server.mjs", "demo:imagery-cog:build"],
@@ -54,7 +53,6 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/sketch-editing/mock-server.mjs", "demo:sketch-editing:build"],
   ["examples/spatial-analytics-workbench/mock-server.mjs", "demo:spatial-analytics:build"],
   ["examples/stac-imagery-browser/mock-server.mjs", "demo:stac-browser:build"],
-  ["examples/standalone-quickstart/mock-server.mjs", "demo:standalone:build"],
   ["examples/storytelling-25d-map/mock-server.mjs", "demo:25d:build"],
   ["examples/terrain-rgb-elevation/mock-server.mjs", "demo:terrain-elevation:build"],
   ["examples/unified-ops-workspace/mock-server.mjs", "demo:unified-ops:build"],
@@ -163,10 +161,12 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     },
   ],
   [
-    "demo:standalone:live-smoke",
+    "evidence:first-map:live",
     {
-      definition: "node scripts/standalone-live-smoke.mjs",
-      generatorPath: "scripts/standalone-live-smoke.mjs",
+      definition: "node scripts/first-map-live-evidence.mjs --output examples/maplibre-quickstart/evidence/live.v1.json",
+      generatorPath: "scripts/first-map-live-evidence.mjs",
+      sampleId: "maplibre-quickstart",
+      operation: "first-map-anonymous-public-endpoint",
     },
   ],
   [
@@ -194,7 +194,6 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "ai-spatial-builder",
   "app-bootstrap",
   "edit-workflow",
-  "endpoint-to-map",
   "geocoding",
   "gp-runner",
   "imagery-cog",
@@ -213,7 +212,6 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "sketch-editing",
   "spatial-analytics",
   "stac-browser",
-  "standalone",
   "temporal-playback",
   "terrain-elevation",
   "unified-ops",
@@ -239,7 +237,6 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:service-explorer",
   "test:playwright:sketch-editing",
   "test:playwright:spatial-analytics",
-  "test:playwright:standalone",
 ]);
 const BOUNDED_VALIDATION_SEGMENTS = [
   /^npm --prefix examples\/kepler-analytics run build$/,
@@ -249,6 +246,7 @@ const BOUNDED_VALIDATION_SEGMENTS = [
   /^node examples\/overture-geoparquet\/prepare-duckdb-extension\.mjs$/,
   /^node scripts\/ensure-kepler-demo-deps\.mjs$/,
   /^playwright test test\/playwright\/[a-z0-9.-]+\.spec\.mjs$/,
+  /^playwright test --config playwright\.first-map\.config\.mjs test\/playwright\/quickstart-map\.spec\.mjs$/,
   /^tsc -p examples\/[a-z0-9-]+\/tsconfig(?:\.build)?\.json(?: --noEmit)?$/,
   /^vite build --config examples\/[a-z0-9-]+\/vite\.config\.ts$/,
   /^vitest run(?: test\/[a-z0-9.-]+\.test\.ts)+$/,
@@ -2540,6 +2538,11 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
 }
 
 export async function validateCatalog(catalog, packageJson, options = {}) {
+  invariant(
+    options.qualificationBootstrapSampleId === undefined ||
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(options.qualificationBootstrapSampleId),
+    "qualification bootstrap sample id is invalid",
+  );
   validateSensitiveMetadata(catalog, "catalog");
   await validateJsonSchema(catalog, CATALOG_SCHEMA_PATH);
   await validateFixtureBuildHarnesses();
@@ -2852,6 +2855,12 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   const goldenSamples = catalog.samples.filter((sample) => sample.track === "golden");
   const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
   invariant(
+    options.qualificationBootstrapSampleId === undefined ||
+      goldenSamples.some((sample) => sample.id === options.qualificationBootstrapSampleId),
+    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
+  );
+  let qualificationBootstrapConsumed = false;
+  invariant(
     goldenSamples.length === qualifiedJourneys.length,
     "golden sample count must match the qualified journey count",
   );
@@ -2875,6 +2884,10 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
       },
     };
+    if (options.qualificationBootstrapSampleId === sample.id) {
+      qualificationBootstrapConsumed = true;
+      continue;
+    }
     await validateQualificationReceiptSet({
       sample: selectedSample,
       profile,
@@ -2885,6 +2898,10 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       verifyCheckout: options.verifyCheckout,
     });
   }
+  invariant(
+    options.qualificationBootstrapSampleId === undefined || qualificationBootstrapConsumed,
+    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
+  );
 
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
@@ -2955,6 +2972,15 @@ export async function validateLiveEvidenceProducer(evidence, sample) {
     sha256(generatorBytes) === producer.sha256,
     `${sample.id}: producer generator digest drift`,
   );
+  if (binding.sampleId) {
+    invariant(sample.id === binding.sampleId, `${sample.id}: producer generator does not support this sample`);
+  }
+  if (binding.operation) {
+    invariant(
+      evidence.semantics.operation === binding.operation,
+      `${sample.id}: producer generator does not support this journey`,
+    );
+  }
   if (parsed.script === "bench:live") {
     const generator = generatorBytes.toString("utf8");
     const sampleLiteral = `sampleId: "${sample.id}"`;
@@ -3494,10 +3520,10 @@ export function validateEvidenceEnvelope(evidence, options = {}) {
   return evidence;
 }
 
-async function runContract(command) {
+async function runContract(command, options = {}) {
   const catalog = await readJson(CATALOG_PATH);
   const packageJson = await readJson("package.json");
-  await validateCatalog(catalog, packageJson);
+  await validateCatalog(catalog, packageJson, options);
   for (const fixturePath of [
     "samples/contract/v1/fixtures/sample-evidence.fixture.json",
     "samples/contract/v1/fixtures/sample-evidence.live.json",
@@ -3529,17 +3555,30 @@ async function runContract(command) {
 async function main(argv) {
   const [command = "check", ...args] = argv;
   if (["check", "write"].includes(command)) {
-    invariant(args.length === 0, `${command} does not accept arguments`);
-    await runContract(command);
+    let qualificationBootstrapSampleId;
+    if (command === "write" && args.length === 2 && args[0] === "--qualification-bootstrap") {
+      qualificationBootstrapSampleId = args[1];
+    } else {
+      invariant(args.length === 0, `${command} does not accept arguments`);
+    }
+    await runContract(command, { qualificationBootstrapSampleId });
     return;
   }
   if (command === "migrate-v1") {
-    invariant(args.length === 0, "migrate-v1 does not accept arguments");
+    let qualificationBootstrapSampleId;
+    if (args.length === 2 && args[0] === "--qualification-bootstrap") {
+      qualificationBootstrapSampleId = args[1];
+    } else {
+      invariant(args.length === 0, "migrate-v1 does not accept arguments");
+    }
     const catalog = await migrateCatalogV1ToV2(
       await readJson(V1_CATALOG_PATH),
       await readJson(V1_MIGRATION_PATH),
     );
-    await validateCatalog(catalog, await readJson("package.json"), { verifyCheckout: false });
+    await validateCatalog(catalog, await readJson("package.json"), {
+      qualificationBootstrapSampleId,
+      verifyCheckout: false,
+    });
     await writeFile(path.join(PROJECT_ROOT, CATALOG_PATH), stableJson(catalog), "utf8");
     process.stdout.write(`Migrated ${catalog.samples.length} executable examples to ${CATALOG_PATH}\n`);
     return;

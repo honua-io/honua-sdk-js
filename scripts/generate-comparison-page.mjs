@@ -489,7 +489,7 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
     "## Try it",
     "",
     "- [60-second quickstart](../README.md#60-second-quickstart) — public endpoint in, typed features out.",
-    "- [`standalone-quickstart`](./standalone-quickstart.md) — the CI-kept-green, server-optional example: any public GeoServices endpoint → styled MapLibre map.",
+    "- [`First Map`](./quickstart.md) — the CI-kept-green, server-optional example: public GeoServices or OGC Features endpoint → accepted plan → inspected MapLibre map.",
     "- [Demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html) — all runnable examples.",
     "",
   );

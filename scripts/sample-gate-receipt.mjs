@@ -767,15 +767,16 @@ function declaredPlaywrightProjects(contract, sampleId) {
   return contract.playwrightProjects;
 }
 
-function exactPlaywrightResults(report, sampleId, contractOverride, root) {
+function exactPlaywrightResults(report, sampleId, contractOverride) {
   const contract = contractOverride ?? playwrightContracts.get(sampleId);
   invariant(contract, `${sampleId} has no declared Playwright evidence contract`);
   const reportRoot = report.config?.rootDir;
   invariant(
     typeof reportRoot === "string" &&
-      path.isAbsolute(reportRoot) &&
-      path.normalize(reportRoot) === reportRoot &&
-      reportRoot === path.join(path.resolve(root), "test/playwright"),
+      !path.isAbsolute(reportRoot) &&
+      !reportRoot.includes("\\") &&
+      path.posix.normalize(reportRoot) === reportRoot &&
+      reportRoot === "test/playwright",
     `${sampleId} Playwright root directory binding mismatch`,
   );
   const expectedFile = path.posix.relative("test/playwright", contract.playwrightFile);
@@ -834,9 +835,9 @@ function assertionPayload(result, sampleId, gate) {
   return payload.observations;
 }
 
-export function validatePlaywrightGate(report, sampleId, gate, contractOverride, root = projectRoot) {
+export function validatePlaywrightGate(report, sampleId, gate, contractOverride) {
   invariant(report?.config && Array.isArray(report.suites), `${sampleId} ${gate} artifact is not a Playwright JSON report`);
-  const { contract, results } = exactPlaywrightResults(report, sampleId, contractOverride, root);
+  const { contract, results } = exactPlaywrightResults(report, sampleId, contractOverride);
   for (const { project, result } of results) {
     const observations = assertionPayload(result, sampleId, gate);
     if (gate === "browser") {
@@ -1131,7 +1132,7 @@ async function validateGateSemantics(receipt, artifact, root) {
       report.format === "honua.sdk.sample-playwright-gate.v1" && report.gate === receipt.gate,
       `${receipt.sampleId} ${receipt.gate} Playwright wrapper binding mismatch`,
     );
-    validatePlaywrightGate(report.playwright, receipt.sampleId, receipt.gate, undefined, root);
+    validatePlaywrightGate(report.playwright, receipt.sampleId, receipt.gate);
     return;
   }
   if (receipt.gate === "fixture") {

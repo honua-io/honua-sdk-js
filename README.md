@@ -49,8 +49,8 @@ For those nine lines the bridge selected a materialization strategy from the sou
 declared capabilities, installed geometry-appropriate default styling, wired click popups
 and hover feature-state, fit the map to the data, and returned one owned handle
 (`setFilter()` diff-updates in place; `dispose()` removes everything the bridge added).
-Run it locally with `npm run demo:endpoint-to-map`
-([`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md)); the full cookbook
+Run the canonical inspected workflow with `npm run demo:quickstart:mock`
+([`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md)); the focused lower-level cookbook
 is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
 For an application that opens more than one source or needs deterministic
@@ -98,10 +98,10 @@ and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 | | 🗺️ **Building on MapLibre** | 🚦 **Leaving ArcGIS** |
 | --- | --- | --- |
 | **You are…** | adding typed data access, styling, and interactions to a MapLibre (or brand-new) app | facing the classic-widget removal at ArcGIS JS 6.0 (planned Q1 2027) |
-| **Start** | [Standalone quickstart](./docs/standalone-quickstart.md) — the SDK against any public endpoint, no Honua server | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner |
+| **Start** | [First Map](./docs/quickstart.md) — paste a public GeoServices or OGC Features endpoint, no account required | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner |
 | **Then** | [Data-to-map bridge cookbook](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` strategies, styling, filters | [Widget survival guide](./docs/widget-survival-guide.md) — all 38 deprecated widgets mapped to automated / assisted / manual dispositions |
 | **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`esri-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) |
-| **Runnable proof** | [`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md) — the headline above, live | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end |
+| **Runnable proof** | [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) — deterministic fixture plus separately gated anonymous-live evidence | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end |
 
 ## Where it fits
 
@@ -312,19 +312,19 @@ const { features } = await client.queryFeatures({
 });
 ```
 
-Run the complete standalone app locally — public endpoint in, MapLibre map out:
+Run the complete First Map app locally — public endpoint in, inspected MapLibre map out:
 
 ```bash
 npm install
-npm run demo:standalone:mock   # deterministic fixture lane (what CI runs)
-npm run demo:standalone        # live lane against the public Esri endpoint
+npm run demo:quickstart:mock   # deterministic fixture lane (what CI runs)
+npm run demo:quickstart        # paste or configure an anonymous public endpoint
 ```
 
-See [`docs/standalone-quickstart.md`](./docs/standalone-quickstart.md) for the
+See [`docs/quickstart.md`](./docs/quickstart.md) for the canonical
 guided server-optional walkthrough,
 [`docs/standalone-capability-matrix.md`](./docs/standalone-capability-matrix.md)
 for the backend-agnostic vs server-enhanced breakdown, and
-[`examples/standalone-quickstart/`](./examples/standalone-quickstart/README.md)
+[`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md)
 for the committed source.
 
 ### Add a Honua Server
@@ -381,14 +381,14 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 34 executable examples: 0 qualified golden samples, 15 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 7 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 32 executable examples: 1 qualified golden sample, 12 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 6 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
-Linking to Honua from a plugin directory or ecosystem list? Point at the
-[server-optional standalone quickstart](./docs/standalone-quickstart.md)
-([hosted walkthrough](https://honua-io.github.io/honua-sdk-js/guides/standalone-quickstart.html),
-[source](./examples/standalone-quickstart/README.md)) — CI keeps it green with a Playwright
-browser smoke on every PR. Prepared directory entries live in
+Linking to Honua from a plugin directory or ecosystem list? Point at
+[First Map](./docs/quickstart.md)
+([hosted walkthrough](https://honua-io.github.io/honua-sdk-js/guides/quickstart.html),
+[source](./examples/maplibre-quickstart/README.md)) — CI keeps its fixture lane externally network-blocked and its
+release smoke green across Chromium, Firefox, and WebKit. Prepared directory entries live in
 [`docs/listings/maplibre-plugin-directory.md`](./docs/listings/maplibre-plugin-directory.md).
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
