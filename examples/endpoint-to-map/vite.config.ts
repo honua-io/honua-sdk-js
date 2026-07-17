@@ -12,6 +12,10 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: "@honua/sdk-js/runtime",
+        replacement: path.resolve(repoRoot, "src/runtime/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/map",
         replacement: path.resolve(repoRoot, "src/map/index.ts"),
       },

@@ -23,10 +23,13 @@ test("endpoint-to-map bridge mounts a public endpoint as styled MapLibre layers"
     expect(state.featureCount).toBeGreaterThan(0);
     expect(state.layerIds.some((id) => id.endsWith("-polygon"))).toBe(true);
     expect(state.layerIds.some((id) => id.endsWith("-polygon-outline"))).toBe(true);
+    expect(state.kernelMountReady).toBe(true);
+    expect(state.kernelMountDisposed).toBe(true);
 
     await expect(page.locator("#status-strategy")).toHaveText("geojson");
     await expect(page.locator("#status-feature-count")).not.toHaveText("0");
     await expect(page.locator("#status-error")).toHaveText("None");
+    await expect(page.locator("#status-kernel-mount")).toHaveText("Ready → disposed; host survived");
     await expect(page.locator("#strategy-reasons li").first()).toContainText("query-capability");
 
     // The live-filter dropdown drives mounted.setFilter() diff updates.

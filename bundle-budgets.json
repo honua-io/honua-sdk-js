@@ -54,7 +54,8 @@
     "'tree-shake:root-createHonua' guards the managed application-kernel facade established by #532 and extended by #533: importing only createHonua retains reviewed discovery, lifecycle/inspection, and canonical accepted-plan execution, while renderer, plugin, application-platform, Arrow, and DuckDB runtime systems remain shakeable. Measured createHonua is 445,050 minified / 116,741 gzip bytes; /honua is 626,543 / 166,605 after retaining the same facade; /query-planner is 528,880 / 103,412 after cooperative local-fallback cancellation. Each affected ceiling is measured actual plus 10% headroom. The standalone root-connect fixture remains independently guarded.",
     "/query-planner was reset for deterministic CQL2 JSON/text and WFS 2.0 FES compilation (#527): explicit conformance/capability evidence, typed escaping, executable CRS axis ordering, and shared adversarial equivalence fixtures measure 479,395 minified / 91,471 gzip bytes. Both ceilings are measured actual plus 10% headroom; the compiler remains opt-in under /query-planner, so root and browser entrypoints remain unchanged.",
     "/query-planner's exceeded minified ceiling was reset for exact GeoServices SQL-92 and OData v4 semantic artifacts (#528): deterministic identifier/literal compilation, logical-to-physical path evidence, source-version request identity, and fail-closed spatial metadata admission measure 471,030 minified bytes. Only the exceeded minified metric is reset to measured size plus 10% headroom; gzip remains below its existing ceiling and root/browser entrypoints remain unchanged.",
-    "/query-planner was reset for structured plan diagnostics and persisted-claim validation (#530): versioned bounds, fidelity losses, cache decisions, provenance, validity reasons, and credential-safe warning evidence measure 529,749 minified / 103,586 gzip bytes. Both exceeded ceilings are measured actual plus 10% headroom; root and browser measurements remain within their existing ceilings."
+    "/query-planner was reset for structured plan diagnostics and persisted-claim validation (#530): versioned bounds, fidelity losses, cache decisions, provenance, validity reasons, and credential-safe warning evidence measure 529,749 minified / 103,586 gzip bytes. Both exceeded ceilings are measured actual plus 10% headroom; root and browser measurements remain within their existing ceilings.",
+    "/runtime and 'tree-shake:map-source-workflow' were reset for the connection-level MapLibre lifecycle (#534): the caller-injected renderer reuses automatic feature/vector/PMTiles/raster mounting, while the map workflow shares the lightweight accepted-plan context guard with the canonical executor. Measured sizes are 512,677 / 137,337 bytes for /runtime and 41,657 / 13,059 bytes for the isolated map workflow; each ceiling is measured actual plus 10% headroom."
   ],
   "entrypoints": {
     ".": {
@@ -98,8 +99,8 @@
       "gzip": 25947
     },
     "/runtime": {
-      "min": 469747,
-      "gzip": 134911
+      "min": 563945,
+      "gzip": 151071
     },
     "/realtime": {
       "min": 50483,
@@ -198,8 +199,8 @@
       "gzip": 62870
     },
     "tree-shake:map-source-workflow": {
-      "min": 38631,
-      "gzip": 12278
+      "min": 45823,
+      "gzip": 14365
     },
     "tree-shake:runtime-terra-draw-sketch": {
       "min": 3386,

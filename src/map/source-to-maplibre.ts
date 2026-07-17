@@ -10,6 +10,7 @@ import type { Result, Source } from "../contract/types.js";
 import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
+import { assertQueryPlanExecutionContextV1 } from "../query-planner/execution-context.js";
 import { queryFromCanonical, queryIrSourceIdentity } from "../query-planner/ir.js";
 import { hashQueryPlanV1 } from "../query-planner/planner.js";
 import {
@@ -334,7 +335,7 @@ export function projectSourceToMapLibre<T>(
 /**
  * Execute an accepted plan, mount its projection, and return one lifecycle.
  * Omitted execution bindings inherit the accepted plan; explicit overrides
- * are still validated and fail closed when they describe another context.
+ * remain fail-closed when they describe another context.
  */
 export async function mountSourceToMapLibre<T>(
   map: SourceToMapLibreMap,
@@ -368,8 +369,7 @@ export async function mountSourceToMapLibre<T>(
     ...executionOptions(plan, options),
     signal: combineSignals([lifecycleController.signal, options.signal]),
   };
-  assertExecutionContext(source, plan, executeOptions);
-  const result = await executeAcceptedFeaturePlan(plan, source, executeOptions.signal);
+  const result = await executeAcceptedFeaturePlan(plan, source, executeOptions);
   throwIfAborted(executeOptions.signal);
   let projection = projectSourceToMapLibre(source, plan, result, options);
   throwIfAborted(executeOptions.signal);
@@ -411,8 +411,7 @@ export async function mountSourceToMapLibre<T>(
       ...refreshOptions,
       signal: effectiveSignal,
     };
-    assertExecutionContext(source, plan, nextExecutionOptions);
-    const nextResult = await executeAcceptedFeaturePlan(plan, source, effectiveSignal);
+    const nextResult = await executeAcceptedFeaturePlan(plan, source, nextExecutionOptions);
     throwIfAborted(effectiveSignal);
     if (isDisposed())
       throw new HonuaMapLibreSourceAdapterError("disposed", "MapLibre source mount was disposed during refresh.");
@@ -565,37 +564,6 @@ function assertProjectionPlanContext<T>(source: Source<T>, plan: QueryExecutionP
   }
 }
 
-function assertExecutionContext<T>(
-  source: Source<T>,
-  plan: QueryExecutionPlanV1,
-  options: ExecuteQueryPlanOptions,
-): void {
-  const current = queryIrSourceIdentity(source.descriptor, options);
-  if (canonicalStringify(toJsonValue(current)) !== canonicalStringify(toJsonValue(plan.ir.source))) {
-    throw new HonuaQueryPlanExecutionError(
-      "plan-context-mismatch",
-      "Source identity, version, capabilities, or authorization scope changed after planning; explain a replacement plan",
-    );
-  }
-}
-
-function executeAcceptedFeaturePlan<T>(
-  plan: QueryExecutionPlanV1,
-  source: Source<T>,
-  signal: AbortSignal,
-): Promise<Result<T>> {
-  const step = plan.steps[0];
-  if (!step || step.engine !== "remote" || (step.operation !== "query" && step.operation !== "queryAll")) {
-    throw new HonuaMapLibreSourceAdapterError(
-      "unsupported-plan",
-      "MapLibre GeoJSON mounting requires one remote feature-query step.",
-      { planId: plan.id },
-    );
-  }
-  const query = queryFromCanonical<T>(step.query, signal);
-  return step.operation === "queryAll" ? source.queryAll(query) : source.query(query);
-}
-
 function assertFeaturePlan<T>(plan: QueryExecutionPlanV1, result?: Result<T>): void {
   const first = plan.steps[0];
   const featureShape =
@@ -610,6 +578,31 @@ function assertFeaturePlan<T>(plan: QueryExecutionPlanV1, result?: Result<T>): v
       "MapLibre GeoJSON mounting requires a feature-query plan; aggregate or client-materialization plans are not renderable by this strategy.",
       { planId: plan.id, operations: plan.steps.map((step) => step.operation) },
     );
+  }
+}
+
+async function executeAcceptedFeaturePlan<T>(
+  plan: QueryExecutionPlanV1,
+  source: Source<T>,
+  options: ExecuteQueryPlanOptions,
+): Promise<Result<T>> {
+  try {
+    assertQueryPlanExecutionContextV1(plan, source, options);
+    const step = plan.steps[0];
+    if (!step || step.engine !== "remote" || (step.operation !== "query" && step.operation !== "queryAll")) {
+      throw new HonuaMapLibreSourceAdapterError(
+        "unsupported-plan",
+        "MapLibre GeoJSON mounting requires one remote feature-query step.",
+        { planId: plan.id },
+      );
+    }
+    const query = queryFromCanonical<T>(step.query, options.signal);
+    return step.operation === "queryAll" ? await source.queryAll(query) : await source.query(query);
+  } catch (error) {
+    // Preserve this bridge's established AbortSignal reason while the shared
+    // canonical execution-context boundary supplies plan validation.
+    if (options.signal?.aborted) options.signal.throwIfAborted();
+    throw error;
   }
 }
 

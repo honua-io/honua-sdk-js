@@ -222,6 +222,23 @@ describe("projectSourceToMapLibre", () => {
 });
 
 describe("mountSourceToMapLibre", () => {
+  it("inherits omitted discovery and execution bindings from the accepted plan", async () => {
+    const inheritedPlan = explainQuery({
+      descriptor,
+      query: { pagination: { limit: 10 }, returnGeometry: true },
+      ...context,
+      discovery: { state: "metadata", source: "catalog:parcels", validator: { kind: "revision", value: "r7" } },
+      executionMode: "delta",
+    });
+    const source = fakeSource([mixedResult]);
+    const map = fakeMap();
+
+    const mounted = await mountSourceToMapLibre(map, source, inheritedPlan);
+    expect(source.query).toHaveBeenCalledOnce();
+    expect(map.sources.has("honua-mixed-parcels")).toBe(true);
+    mounted.dispose();
+  });
+
   it("mounts once, refreshes through setData, and disposes idempotently", async () => {
     const nextResult: Result<Record<string, unknown>> = {
       exceededTransferLimit: false,
@@ -390,12 +407,85 @@ describe("mountSourceToMapLibre", () => {
   it("lets the query planner reject stale context before map mutation", async () => {
     const source = fakeSource([mixedResult]);
     const map = fakeMap();
-    await expect(mountSourceToMapLibre(map, source, plan, { ...context, sourceVersion: "stale" })).rejects.toThrow(
-      /changed after planning/,
-    );
+    await expect(
+      mountSourceToMapLibre(map, source, plan, { ...context, sourceVersion: "stale" }),
+    ).rejects.toMatchObject({ code: "stale-plan", reason: "source-version-changed" });
     expect(source.query).not.toHaveBeenCalled();
     expect(map.operations).toEqual([]);
   });
+
+  it.each([
+    {
+      drift: "plan fingerprint",
+      acceptedPlan: { ...plan, cache: "tampered" as never },
+      source: () => fakeSource([mixedResult]),
+      options: context,
+      expected: { code: "invalid-plan" },
+    },
+    {
+      drift: "source identity",
+      acceptedPlan: plan,
+      source: () =>
+        fakeSource([mixedResult], {
+          ...descriptor,
+          locator: { ...descriptor.locator, url: "https://other.example.test/FeatureServer" },
+        }),
+      options: context,
+      expected: { code: "plan-context-mismatch" },
+    },
+    {
+      drift: "capabilities",
+      acceptedPlan: plan,
+      source: () => fakeSource([mixedResult], { ...descriptor, capabilities: capabilities([]) }),
+      options: context,
+      expected: { code: "plan-context-mismatch" },
+    },
+    {
+      drift: "source version",
+      acceptedPlan: plan,
+      source: () => fakeSource([mixedResult]),
+      options: { ...context, sourceVersion: "snapshot-8" },
+      expected: { code: "stale-plan", reason: "source-version-changed" },
+    },
+    {
+      drift: "schema",
+      acceptedPlan: plan,
+      source: () => fakeSource([mixedResult]),
+      options: { ...context, schemaVersion: "schema-4" },
+      expected: { code: "stale-plan", reason: "schema-changed" },
+    },
+    {
+      drift: "discovery",
+      acceptedPlan: plan,
+      source: () => fakeSource([mixedResult]),
+      options: { ...context, discovery: { state: "metadata" as const, source: "catalog:parcels" } },
+      expected: { code: "stale-plan", reason: "discovery-changed" },
+    },
+    {
+      drift: "authorization scope",
+      acceptedPlan: plan,
+      source: () => fakeSource([mixedResult]),
+      options: { ...context, authorizationScope: ["parcels:admin"] },
+      expected: { code: "foreign-plan", reason: "authorization-scope-changed" },
+    },
+    {
+      drift: "execution mode",
+      acceptedPlan: plan,
+      source: () => fakeSource([mixedResult]),
+      options: { ...context, executionMode: "delta" as const },
+      expected: { code: "foreign-plan", reason: "execution-mode-changed" },
+    },
+  ])(
+    "rejects $drift drift before query I/O or map mutation",
+    async ({ acceptedPlan, source: createSource, options, expected }) => {
+      const source = createSource();
+      const map = fakeMap();
+
+      await expect(mountSourceToMapLibre(map, source, acceptedPlan, options)).rejects.toMatchObject(expected);
+      expect(source.query).not.toHaveBeenCalled();
+      expect(map.operations).toEqual([]);
+    },
+  );
 
   it("aborts an in-flight refresh when disposed", async () => {
     const source = fakeSource([mixedResult]);

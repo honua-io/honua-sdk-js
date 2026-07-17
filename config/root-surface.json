@@ -1,5 +1,5 @@
 {
-  "$comment": "Reviewed final root surface for issues #451, #532, and #533. Generated migration rows partition the b6e89a4 transition-era root; regenerate fixtures and migration documentation after reviewed additions.",
+  "$comment": "Reviewed final root surface for issues #451, #532, #533, and #534. Generated migration rows partition the b6e89a4 transition-era root; regenerate fixtures and migration documentation after reviewed additions.",
   "schemaVersion": 1,
   "inclusionRule": [
     "Include symbols used directly by the committed connect-query-explain-mount golden root workflow.",
@@ -185,7 +185,10 @@
       "MapLibreSourceStrategy",
       "MapLibreSourceWorkflowState",
       "MAX_LOCAL_MATERIALIZATION_ROWS",
+      "MountedMap",
       "MountedMapLibreSource",
+      "MountedMapRefreshOptions",
+      "MountOptions",
       "mountSourceToMapLibre",
       "MountSourceToMapLibreOptions",
       "PaginationSpec",
@@ -211,6 +214,14 @@
       "QueryPlanStep",
       "RemoteCompiledQueryV1",
       "RemoteQueryPlanStep",
+      "RendererAdapter",
+      "RendererDiagnostic",
+      "RendererEnvironment",
+      "RendererKind",
+      "RendererMountRequest",
+      "RendererOwnership",
+      "RendererSession",
+      "RendererTarget",
       "Result",
       "sanitizeHonuaErrorContext",
       "SerializedHonuaError",
@@ -265,6 +276,50 @@
     },
     {
       "symbol": "InspectOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "MountedMap",
+      "kind": "type"
+    },
+    {
+      "symbol": "MountedMapRefreshOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "MountOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "RendererAdapter",
+      "kind": "type"
+    },
+    {
+      "symbol": "RendererDiagnostic",
+      "kind": "type"
+    },
+    {
+      "symbol": "RendererEnvironment",
+      "kind": "type"
+    },
+    {
+      "symbol": "RendererKind",
+      "kind": "type"
+    },
+    {
+      "symbol": "RendererMountRequest",
+      "kind": "type"
+    },
+    {
+      "symbol": "RendererOwnership",
+      "kind": "type"
+    },
+    {
+      "symbol": "RendererSession",
+      "kind": "type"
+    },
+    {
+      "symbol": "RendererTarget",
       "kind": "type"
     },
     {

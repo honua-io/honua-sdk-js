@@ -1,5 +1,8 @@
-/** Compile-only proof of the implemented kernel connect/inspect/explain/query slice. */
+/** Compile-only proof of the implemented kernel connect/inspect/explain/query/mount slice. */
 import { type ConnectionInspection, type HonuaKernelConnection, createHonua } from "../../../src/index.js";
+import { type MapLibreRendererPeer, maplibreRenderer } from "../../../src/runtime/index.js";
+
+declare const maplibrePeer: MapLibreRendererPeer;
 
 interface Parcel {
   readonly id: string;
@@ -29,8 +32,13 @@ export async function inspectManagedConnection(signal: AbortSignal): Promise<Con
   const result = await connection.query(plan, { signal });
   plan.fingerprint satisfies `sha256:${string}`;
   result.execution.terminal.state satisfies "completed";
-  // @ts-expect-error Renderer mounting belongs to a later implementation issue.
-  connection.mount("#map", {});
+  const mounted = await connection.mount("#map", {
+    renderer: maplibreRenderer(maplibrePeer),
+    style: "auto",
+  });
+  await mounted.ready;
+  mounted.raw("maplibre")?.triggerRepaint?.();
+  await mounted.dispose();
 
   await connection.dispose();
   await honua.dispose();

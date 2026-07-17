@@ -52,6 +52,17 @@ export type {
   HonuaKernelConnection,
   HonuaKernelOptions,
   InspectOptions,
+  MountOptions,
+  MountedMap,
+  MountedMapRefreshOptions,
+  RendererAdapter,
+  RendererDiagnostic,
+  RendererEnvironment,
+  RendererKind,
+  RendererMountRequest,
+  RendererOwnership,
+  RendererSession,
+  RendererTarget,
 } from "./kernel/index.js";
 export {
   MIGRATION_EVIDENCE_STATES,

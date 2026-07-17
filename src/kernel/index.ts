@@ -45,7 +45,32 @@ import {
   disposeKernelConnectionResult,
   snapshotKernelConnectOptions,
 } from "./lifecycle.js";
+import type {
+  MountOptions,
+  MountedMap,
+  MountedMapRefreshOptions,
+  RendererAdapter,
+  RendererKind,
+  RendererMountRequest,
+  RendererOwnership,
+  RendererSession,
+  RendererTarget,
+} from "./renderer.js";
 import { snapshotOwnDataArray, snapshotOwnDataObject } from "./stable-data.js";
+
+export type {
+  MountOptions,
+  MountedMap,
+  MountedMapRefreshOptions,
+  RendererAdapter,
+  RendererDiagnostic,
+  RendererEnvironment,
+  RendererKind,
+  RendererMountRequest,
+  RendererOwnership,
+  RendererSession,
+  RendererTarget,
+} from "./renderer.js";
 
 /** A source URL plus the discovery and source-selection hints that belong to it. */
 export interface ConnectLocator {
@@ -174,6 +199,10 @@ export interface HonuaKernelConnection<T = Record<string, unknown>> extends Asyn
   explain(query: Readonly<Query<T>>, options?: ExplainOptions): Promise<QueryExecutionPlanV1>;
   query(query: Readonly<Query<T>>, options?: QueryOptions): Promise<FeatureQueryResult<T>>;
   query(plan: QueryExecutionPlanV1, options?: QueryOptions): Promise<FeatureQueryResult<T>>;
+  mount<TKind extends RendererKind, TRaw, TRendererOptions = unknown>(
+    target: RendererTarget,
+    options: MountOptions<T, TKind, TRaw, TRendererOptions>,
+  ): Promise<MountedMap<TKind, TRaw>>;
   dispose(): Promise<void>;
 }
 
@@ -282,6 +311,10 @@ interface ManagedQueryContext<T> {
   readonly discovery: QueryPlanDiscoveryContext;
 }
 
+interface ConnectionOwnedMount {
+  dispose(): Promise<void>;
+}
+
 class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
   readonly #abortController = new AbortController();
   readonly #lifecycle: KernelLifecycle;
@@ -290,6 +323,7 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
   readonly #selectedSourceId: SourceId | undefined;
   readonly #secrets: readonly string[];
   readonly #ownedDiscoveries = new Set<DiscoveredHonuaConnection>();
+  readonly #ownedMounts = new Set<ConnectionOwnedMount>();
   readonly #cleanupReentryCompletion = Promise.resolve();
   #current: ManagedConnectionState;
   #invokingAdapterCleanup = false;
@@ -297,6 +331,7 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
   #state: "active" | "disposing" | "disposed" = "active";
   #disposePromise: Promise<void> | undefined;
   #querySequence = 0;
+  #mountSequence = 0;
   public readonly id: string;
 
   public constructor(init: ManagedConnectionInit) {
@@ -502,6 +537,127 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
     }
   }
 
+  public async mount<TKind extends RendererKind, TRaw, TRendererOptions = unknown>(
+    target: RendererTarget,
+    options: MountOptions<T, TKind, TRaw, TRendererOptions>,
+  ): Promise<MountedMap<TKind, TRaw>> {
+    this.#assertActive("mount a renderer");
+    const mountOptions = snapshotMountOptions(options);
+    const adapter = validateRendererAdapter(mountOptions.renderer);
+    validateRendererTarget(target);
+    // Reflection on caller-owned adapter/target values may reenter disposal.
+    this.#assertActive("mount a renderer");
+    const mountAbortController = new AbortController();
+    const signal = combineAbortSignals(this.#abortController.signal, mountOptions.signal, mountAbortController.signal);
+    throwIfAborted(signal);
+    const state = this.#current;
+    const suppliedPlan =
+      mountOptions.query !== undefined && looksLikeQueryPlan(mountOptions.query)
+        ? acceptedFeaturePlan(mountOptions.query)
+        : undefined;
+    const query =
+      suppliedPlan === undefined ? boundedMountQuery(mountOptions.query as Readonly<Query<T>> | undefined) : undefined;
+    const context = this.#queryContext(
+      mountOptions.sourceId ?? suppliedPlan?.ir.source.id,
+      state,
+      suppliedPlan !== undefined,
+    );
+    if (suppliedPlan !== undefined) assertConnectionPlanBinding(suppliedPlan, context.sourceVersion);
+    let planned: Promise<QueryExecutionPlanV1> | undefined;
+    const planQuery = (): Promise<QueryExecutionPlanV1> => {
+      try {
+        this.#assertActive("plan a renderer query");
+        throwIfAborted(signal);
+      } catch (error) {
+        return Promise.reject(credentialSafeError(error, this.#secrets));
+      }
+      if (planned !== undefined) return planned;
+      planned = Promise.resolve()
+        .then(() => {
+          this.#assertActive("plan a renderer query");
+          throwIfAborted(signal);
+          return (
+            suppliedPlan ??
+            explainQuery({
+              descriptor: context.descriptor,
+              query,
+              capabilityPolicy: mountOptions.capabilityPolicy,
+              fallback: mountOptions.fallback,
+              estimates: mountOptions.estimates,
+              cache: mountOptions.cache ?? defaultPlanCache(),
+              schemaVersion: context.schemaVersion,
+              sourceVersion: context.sourceVersion,
+              authorizationScope: context.authorizationScope,
+              discovery: context.discovery,
+            })
+          );
+        })
+        .catch((error: unknown) => {
+          throw credentialSafeError(error, this.#secrets);
+        });
+      return planned;
+    };
+    let ownership: RendererOwnership;
+    try {
+      ownership = mountOptions.ownership ?? adapter.defaultOwnership(target);
+      if (ownership !== "owned" && ownership !== "borrowed") throw new TypeError("Renderer ownership is invalid.");
+      // A custom adapter may synchronously reenter connection disposal.
+      this.#assertActive("mount a renderer");
+      throwIfAborted(signal);
+    } catch (error) {
+      throw credentialSafeError(error, this.#secrets);
+    }
+    const request: RendererMountRequest<T, TRendererOptions> = Object.freeze({
+      source: context.source,
+      ...(mountOptions.rendererOptions === undefined ? {} : { rendererOptions: mountOptions.rendererOptions }),
+      ...(mountOptions.style === undefined ? {} : { style: mountOptions.style }),
+      ownership,
+      signal,
+      queryIntent: mountOptions.query === undefined ? "default" : "explicit",
+      ...(suppliedPlan === undefined ? {} : { queryPlan: suppliedPlan }),
+      execution: Object.freeze({
+        signal,
+        sourceVersion: context.sourceVersion,
+        ...(context.schemaVersion === undefined ? {} : { schemaVersion: context.schemaVersion }),
+        authorizationScope: context.authorizationScope,
+        discovery: context.discovery,
+      }),
+      planQuery,
+    });
+
+    let candidateSession: unknown;
+    let session: RendererSession<TRaw> | undefined;
+    try {
+      candidateSession = await adapter.mount(target, request);
+      session = validateRendererSession(candidateSession as RendererSession<TRaw>);
+      throwIfAborted(signal);
+      this.#assertActive("publish a mounted renderer");
+      const id = `mount_${sha256(`honua.kernel.mount.v1\0${this.id}\0${++this.#mountSequence}\0${adapter.kind}`).slice(7, 23)}`;
+      const mounted = new ManagedMountedMap<TKind, TRaw>({
+        id,
+        renderer: adapter.kind,
+        session,
+        signal,
+        abortController: mountAbortController,
+        secrets: this.#secrets,
+        release: (resource) => this.#ownedMounts.delete(resource),
+        invokeCleanup: (cleanup) => this.#invokeAdapterCleanup(cleanup),
+      });
+      this.#ownedMounts.add(mounted);
+      return mounted;
+    } catch (error) {
+      mountAbortController.abort(new HonuaAbortError("Renderer mount was not adopted"));
+      const cleanupError = await cleanupRejectedRendererSession(session ?? candidateSession);
+      if (cleanupError !== undefined) {
+        throw credentialSafeError(
+          new AggregateError([error, cleanupError], "Renderer mount failed and rollback did not complete"),
+          this.#secrets,
+        );
+      }
+      throw credentialSafeError(error, this.#secrets);
+    }
+  }
+
   #queryContext(
     requested: SourceId | undefined,
     state: ManagedConnectionState,
@@ -547,9 +703,8 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
   }
 
   public dispose(): Promise<void> {
-    if (this.#disposePromise) {
-      return this.#invokingAdapterCleanup ? this.#cleanupReentryCompletion : this.#disposePromise;
-    }
+    if (this.#invokingAdapterCleanup) return this.#cleanupReentryCompletion;
+    if (this.#disposePromise) return this.#disposePromise;
     this.#state = "disposing";
 
     let beginCleanup: () => void = () => undefined;
@@ -561,17 +716,19 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
     const completion = cleanupGate
       .then(async () => {
         const failures: unknown[] = [];
+        const mounts = [...this.#ownedMounts].reverse();
+        for (const mount of mounts) {
+          try {
+            await mount.dispose();
+          } catch (error) {
+            failures.push(error);
+          }
+        }
         const discoveries = [...this.#ownedDiscoveries];
         this.#ownedDiscoveries.clear();
         for (const discovery of discoveries) {
           try {
-            this.#invokingAdapterCleanup = true;
-            let result: Promise<void>;
-            try {
-              result = disposeKernelConnectionResult(discovery);
-            } finally {
-              this.#invokingAdapterCleanup = false;
-            }
+            const result = this.#invokeAdapterCleanup(() => disposeKernelConnectionResult(discovery));
             await result;
           } catch (error) {
             failures.push(error);
@@ -606,6 +763,15 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
     return completion;
   }
 
+  #invokeAdapterCleanup<TResult>(cleanup: () => TResult): TResult {
+    this.#invokingAdapterCleanup = true;
+    try {
+      return cleanup();
+    } finally {
+      this.#invokingAdapterCleanup = false;
+    }
+  }
+
   public [Symbol.asyncDispose](): Promise<void> {
     return this.dispose();
   }
@@ -614,6 +780,128 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
     if (this.#state !== "active") {
       throw new Error(`Honua connection cannot ${operation} after disposal has started.`);
     }
+  }
+}
+
+interface ManagedMountedMapInit<TKind extends RendererKind, TRaw> {
+  readonly id: string;
+  readonly renderer: TKind;
+  readonly session: RendererSession<TRaw>;
+  readonly signal: AbortSignal;
+  readonly abortController: AbortController;
+  readonly secrets: readonly string[];
+  readonly release: (resource: ConnectionOwnedMount) => void;
+  readonly invokeCleanup: <TResult>(cleanup: () => TResult) => TResult;
+}
+
+class ManagedMountedMap<TKind extends RendererKind, TRaw> implements MountedMap<TKind, TRaw>, ConnectionOwnedMount {
+  readonly #session: RendererSession<TRaw>;
+  readonly #signal: AbortSignal;
+  readonly #abortController: AbortController;
+  readonly #secrets: readonly string[];
+  readonly #release: (resource: ConnectionOwnedMount) => void;
+  readonly #invokeCleanup: ManagedMountedMapInit<TKind, TRaw>["invokeCleanup"];
+  #state: "active" | "disposing" | "disposed" = "active";
+  #disposePromise: Promise<void> | undefined;
+  public readonly id: string;
+  public readonly renderer: TKind;
+  public readonly ready: Promise<void>;
+
+  public constructor(init: ManagedMountedMapInit<TKind, TRaw>) {
+    this.id = init.id;
+    this.renderer = init.renderer;
+    this.#session = init.session;
+    this.#signal = init.signal;
+    this.#abortController = init.abortController;
+    this.#secrets = init.secrets;
+    this.#release = init.release;
+    this.#invokeCleanup = init.invokeCleanup;
+    const ready = init.session.ready.catch(async (error: unknown) => {
+      const failure = credentialSafeError(error, this.#secrets);
+      try {
+        await this.dispose();
+      } catch (cleanupError) {
+        throw credentialSafeError(
+          new AggregateError([failure, cleanupError], "Renderer readiness failed and rollback did not complete"),
+          this.#secrets,
+        );
+      }
+      throw failure;
+    });
+    // The caller still observes the original rejection. This internal branch
+    // prevents disposal-before-first-frame from becoming an unhandled rejection
+    // when an application intentionally never awaits the readiness handle.
+    void ready.catch(() => undefined);
+    this.ready = ready;
+  }
+
+  public get diagnostics(): RendererSession<TRaw>["diagnostics"] {
+    return this.#session.diagnostics;
+  }
+
+  public raw(kind: TKind): TRaw | undefined {
+    return this.#state === "active" && kind === this.renderer ? this.#session.raw : undefined;
+  }
+
+  public async refresh(options: MountedMapRefreshOptions = {}): Promise<void> {
+    this.#assertActive("refresh");
+    const snapshot = snapshotOwnDataObject(options, "mounted-map refresh options");
+    this.#assertActive("refresh");
+    const signal = combineAbortSignals(this.#signal, snapshot.signal as AbortSignal | undefined);
+    throwIfAborted(signal);
+    try {
+      await this.#session.refresh({ signal });
+      throwIfAborted(signal);
+      this.#assertActive("complete refresh");
+    } catch (error) {
+      throw credentialSafeError(error, this.#secrets);
+    }
+  }
+
+  public dispose(): Promise<void> {
+    if (this.#disposePromise !== undefined) return this.#disposePromise;
+    this.#state = "disposing";
+    let beginCleanup: () => void = () => undefined;
+    const cleanupGate = new Promise<void>((resolve) => {
+      beginCleanup = resolve;
+    });
+    let cleanupResult: void | Promise<void> = undefined;
+    let synchronousFailure: unknown;
+    let hasSynchronousFailure = false;
+    const completion = cleanupGate
+      .then(async () => {
+        if (hasSynchronousFailure) throw synchronousFailure;
+        await cleanupResult;
+      })
+      .then(
+        () => {
+          this.#state = "disposed";
+          this.#release(this);
+        },
+        (error: unknown) => {
+          this.#state = "disposed";
+          throw credentialSafeError(error, this.#secrets);
+        },
+      );
+    this.#disposePromise = completion;
+    this.#abortController.abort(new HonuaAbortError("Mounted renderer was disposed"));
+    try {
+      cleanupResult = this.#invokeCleanup(() => this.#session.dispose());
+    } catch (error) {
+      synchronousFailure = error;
+      hasSynchronousFailure = true;
+    } finally {
+      beginCleanup();
+    }
+    return completion;
+  }
+
+  public [Symbol.asyncDispose](): Promise<void> {
+    return this.dispose();
+  }
+
+  #assertActive(operation: string): void {
+    if (this.#state !== "active") throw new Error(`Mounted renderer cannot ${operation} after disposal has started.`);
   }
 }
 
@@ -830,6 +1118,155 @@ function snapshotExplainOptions(value: ExplainOptions): ExplainOptions {
     ...(snapshot.fallback !== undefined ? { fallback: snapshot.fallback as QueryFallbackPolicy } : {}),
     ...(snapshot.estimates !== undefined ? { estimates: snapshot.estimates as QueryPlanningEstimates } : {}),
     ...(snapshot.cache !== undefined ? { cache: snapshot.cache as QueryPlanCacheOptions } : {}),
+  });
+}
+
+function snapshotMountOptions<T, TKind extends RendererKind, TRaw, TRendererOptions>(
+  value: MountOptions<T, TKind, TRaw, TRendererOptions>,
+): MountOptions<T, TKind, TRaw, TRendererOptions> {
+  const snapshot = snapshotOwnDataObject(value, "connection mount options");
+  const query =
+    snapshot.query === undefined || looksLikeQueryPlan(snapshot.query)
+      ? snapshot.query
+      : snapshotQuery(snapshot.query as Readonly<Query<T>>);
+  const rendererOptions =
+    snapshot.rendererOptions === undefined
+      ? undefined
+      : (snapshotOwnDataObject(snapshot.rendererOptions, "renderer options") as TRendererOptions);
+  const style =
+    snapshot.style === undefined || snapshot.style === "auto"
+      ? snapshot.style
+      : snapshotOwnDataObject(snapshot.style, "renderer style");
+  return Object.freeze({
+    renderer: snapshot.renderer as RendererAdapter<TKind, TRaw, TRendererOptions>,
+    ...(snapshot.sourceId === undefined ? {} : { sourceId: snapshot.sourceId as SourceId }),
+    ...(query === undefined ? {} : { query: query as Readonly<Query<T>> | QueryExecutionPlanV1 }),
+    ...(snapshot.capabilityPolicy === undefined
+      ? {}
+      : { capabilityPolicy: snapshot.capabilityPolicy as CapabilityPolicy }),
+    ...(snapshot.fallback === undefined ? {} : { fallback: snapshot.fallback as QueryFallbackPolicy }),
+    ...(snapshot.estimates === undefined ? {} : { estimates: snapshot.estimates as QueryPlanningEstimates }),
+    ...(snapshot.cache === undefined ? {} : { cache: snapshot.cache as QueryPlanCacheOptions }),
+    ...(rendererOptions === undefined ? {} : { rendererOptions }),
+    ...(style === undefined ? {} : { style: style as "auto" | Readonly<Record<string, unknown>> }),
+    ...(snapshot.ownership === undefined ? {} : { ownership: snapshot.ownership as RendererOwnership }),
+    ...(snapshot.signal === undefined ? {} : { signal: snapshot.signal as AbortSignal }),
+  });
+}
+
+function validateRendererAdapter<TKind extends RendererKind, TRaw, TRendererOptions>(
+  value: RendererAdapter<TKind, TRaw, TRendererOptions>,
+): RendererAdapter<TKind, TRaw, TRendererOptions> {
+  const snapshot = snapshotOwnDataObject(value, "renderer adapter");
+  const kind = snapshot.kind;
+  if (
+    typeof kind !== "string" ||
+    kind.length === 0 ||
+    kind.length > 128 ||
+    (kind !== "maplibre" && !/^[a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)+$/.test(kind))
+  ) {
+    throw new TypeError("Renderer adapter kind must be maplibre or a stable namespaced identifier.");
+  }
+  const environments = snapshotOwnDataArray(snapshot.environments, "renderer adapter environments");
+  if (
+    environments.length === 0 ||
+    environments.some((environment) => environment !== "browser" && environment !== "node" && environment !== "worker")
+  ) {
+    throw new TypeError("Renderer adapter environments are invalid.");
+  }
+  if (typeof snapshot.defaultOwnership !== "function" || typeof snapshot.mount !== "function") {
+    throw new TypeError("Renderer adapter must expose defaultOwnership() and mount().");
+  }
+  if (!Object.hasOwn(snapshot, "peer")) throw new TypeError("Renderer adapter must retain its injected peer.");
+  const defaultOwnership = snapshot.defaultOwnership as RendererAdapter<
+    TKind,
+    TRaw,
+    TRendererOptions
+  >["defaultOwnership"];
+  const mount = snapshot.mount as RendererAdapter<TKind, TRaw, TRendererOptions>["mount"];
+  const stable: RendererAdapter<TKind, TRaw, TRendererOptions> = {
+    kind: kind as TKind,
+    environments: Object.freeze([...environments]) as RendererAdapter<TKind, TRaw, TRendererOptions>["environments"],
+    peer: snapshot.peer,
+    defaultOwnership: (target) => Reflect.apply(defaultOwnership, stable, [target]) as RendererOwnership,
+    mount: (target, request) => Reflect.apply(mount, stable, [target, request]) as Promise<RendererSession<TRaw>>,
+  };
+  return Object.freeze(stable);
+}
+
+function validateRendererSession<TRaw>(value: RendererSession<TRaw>): RendererSession<TRaw> {
+  const snapshot = snapshotOwnDataObject(value, "renderer session");
+  if (!Object.hasOwn(snapshot, "raw")) throw new TypeError("Renderer session must expose raw.");
+  const ready = snapshot.ready;
+  if (
+    (typeof ready !== "object" && typeof ready !== "function") ||
+    ready === null ||
+    typeof (ready as PromiseLike<void>).then !== "function"
+  ) {
+    throw new TypeError("Renderer session ready must be a promise.");
+  }
+  const diagnostics = snapshotOwnDataArray(snapshot.diagnostics, "renderer session diagnostics").map((entry) =>
+    Object.freeze(snapshotOwnDataObject(entry, "renderer diagnostic")),
+  ) as unknown as readonly RendererSession<TRaw>["diagnostics"][number][];
+  if (typeof snapshot.refresh !== "function" || typeof snapshot.dispose !== "function") {
+    throw new TypeError("Renderer session must expose refresh() and dispose().");
+  }
+  const refresh = snapshot.refresh as RendererSession<TRaw>["refresh"];
+  const dispose = snapshot.dispose as RendererSession<TRaw>["dispose"];
+  const stable: RendererSession<TRaw> = {
+    raw: snapshot.raw as TRaw,
+    ready: Promise.resolve(ready as PromiseLike<void>),
+    diagnostics: Object.freeze([...diagnostics]),
+    refresh: (options) => Reflect.apply(refresh, stable, [options]) as Promise<void>,
+    dispose: () => Reflect.apply(dispose, stable, []) as void | Promise<void>,
+  };
+  return Object.freeze(stable);
+}
+
+async function cleanupRejectedRendererSession(value: unknown): Promise<unknown | undefined> {
+  if ((typeof value !== "object" && typeof value !== "function") || value === null) return undefined;
+  let descriptor: PropertyDescriptor | undefined;
+  try {
+    descriptor = Reflect.getOwnPropertyDescriptor(value, "dispose");
+  } catch (error) {
+    return error;
+  }
+  if (descriptor === undefined || !("value" in descriptor) || typeof descriptor.value !== "function") {
+    return undefined;
+  }
+  try {
+    await Reflect.apply(descriptor.value, value, []);
+    return undefined;
+  } catch (error) {
+    return error;
+  }
+}
+
+function validateRendererTarget(target: RendererTarget): void {
+  if (typeof target === "string") {
+    if (target.length === 0 || target.trim() !== target) throw new TypeError("Renderer target selector is invalid.");
+    return;
+  }
+  if (typeof target !== "object" || target === null) throw new TypeError("Renderer target is invalid.");
+}
+
+const DEFAULT_MOUNT_QUERY_LIMIT = 10_000;
+
+function boundedMountQuery<T>(input: Readonly<Query<T>> | undefined): Readonly<Query<T>> {
+  const query: Readonly<Query<T>> = input ?? Object.freeze({});
+  const paginationSnapshot =
+    query.pagination === undefined ? undefined : snapshotOwnDataObject(query.pagination, "mount query pagination");
+  const pagination =
+    paginationSnapshot === undefined
+      ? Object.freeze({ limit: DEFAULT_MOUNT_QUERY_LIMIT })
+      : Object.freeze({
+          ...paginationSnapshot,
+          ...(paginationSnapshot.limit === undefined ? { limit: DEFAULT_MOUNT_QUERY_LIMIT } : {}),
+        });
+  return Object.freeze({
+    ...query,
+    pagination,
+    ...(query.returnGeometry === undefined ? { returnGeometry: true } : {}),
   });
 }
 
@@ -1343,12 +1780,17 @@ function sanitizeInspectionString(value: string, secrets: readonly string[]): st
 function sanitizeEmbeddedUrl(match: string): string {
   let candidate = match;
   let suffix = "";
-  while (/[.),\]}]$/.test(candidate)) {
+  const mapTileTemplate = /\{(?:z|x|y)\}/i.test(candidate);
+  while (!mapTileTemplate && /[.),\]}]$/.test(candidate)) {
     suffix = `${candidate.at(-1)}${suffix}`;
     candidate = candidate.slice(0, -1);
   }
   try {
-    return `${normalizeDiscoveryEndpoint(candidate)}${suffix}`;
+    const normalized = normalizeDiscoveryEndpoint(candidate)
+      .replace(/%7Bz%7D/giu, "{z}")
+      .replace(/%7Bx%7D/giu, "{x}")
+      .replace(/%7By%7D/giu, "{y}");
+    return `${normalized}${suffix}`;
   } catch {
     return `[redacted-url]${suffix}`;
   }
