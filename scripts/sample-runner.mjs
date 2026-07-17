@@ -385,10 +385,14 @@ export function selectSamples(selection, options, kitIds) {
   return [...selection.samples];
 }
 
-function commandsForAction(sample, action) {
+export function commandsForAction(sample, action, kitSample) {
   const commands = sample.commandPlan.validation.commands.map(parseSampleCommand);
   if (action === "verify") return commands;
-  return commands.filter((argv) => classifySampleCommand(argv) === action);
+  const selected = commands.filter((argv) => classifySampleCommand(argv) === action);
+  if (action === "test" && selected.length === 0 && kitSample) {
+    return [["npm", "run", kitSample.playwrightScript]];
+  }
+  return selected;
 }
 
 export { expectedGateCommand };
@@ -773,7 +777,7 @@ async function executeAction(sample, action, context) {
     });
     return;
   }
-  const commands = commandsForAction(sample, action);
+  const commands = commandsForAction(sample, action, context.kitSample);
   if (commands.length === 0 && action !== "verify") fail(`${sample.id} declares no ${action} command`);
   let packedTypechecked = false;
   for (const argv of commands) {
@@ -3142,7 +3146,7 @@ export async function main(argv = process.argv.slice(2)) {
             )
           : options.action === "dev"
             ? [["npx", "--no-install", "vite", "--config", inputs.kit.get(sample.id)?.viteConfig ?? `${sample.sourcePath}/vite.config.ts`]]
-            : commandsForAction(sample, options.action),
+            : commandsForAction(sample, options.action, inputs.kit.get(sample.id)),
     }));
     process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
     return;

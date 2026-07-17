@@ -35,9 +35,27 @@ button {
 }
 
 button:hover,
-button[aria-pressed="true"] {
+button[aria-selected="true"] {
   border-color: #2563eb;
   background: #eaf2ff;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="tabpanel"]:focus-visible,
+.skip-link:focus-visible {
+  outline: 3px solid #0b65c2;
+  outline-offset: 2px;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 select,
@@ -85,6 +103,34 @@ h3 {
   gap: 14px;
   padding: 14px;
   min-height: 100vh;
+}
+
+.skip-link {
+  position: fixed;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+  z-index: 100;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #fff;
+  background: #0b65c2;
+  transform: translateY(-150%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .left-rail,
@@ -149,6 +195,16 @@ h3 {
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
+}
+
+.search-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.search-form .field-label {
+  grid-column: 1 / -1;
 }
 
 .field-label {
@@ -234,6 +290,10 @@ h3 {
 
 .module-view[data-active="true"] {
   display: flex;
+}
+
+.module-view[hidden] {
+  display: none !important;
 }
 
 .stage-heading {
@@ -520,8 +580,12 @@ td button {
 }
 
 .edit-message[data-degraded="true"] {
-  color: #b35309;
+  color: #8a3f00;
   font-weight: 600;
+}
+
+.workflow-truth {
+  border-color: #9fbeb4;
 }
 
 .detail-panel h3 {
@@ -572,6 +636,34 @@ td button {
   }
 
   .map-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-strip {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .workbench-shell {
+    padding: 8px;
+  }
+
+  .stage-heading,
+  .filter-row,
+  .summary-strip {
+    flex-direction: column;
+  }
+
+  .search-form {
+    grid-template-columns: 1fr;
+  }
+
+  .search-form .field-label {
+    grid-column: auto;
+  }
+
+  .button-grid {
     grid-template-columns: 1fr;
   }
 }

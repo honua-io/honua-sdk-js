@@ -16,6 +16,7 @@ import {
   canonicalizePlaywrightEvidenceReport,
   ChildSupervisor,
   commandForSpawn,
+  commandsForAction,
   commitGateReceiptTransaction,
   forwardedLiveCredentials,
   groupEvidenceGates,
@@ -276,6 +277,17 @@ test("npm evidence commands suppress lifecycle hooks without changing their revi
     "safe-sample",
   ]);
   assert.deepEqual(commandForSpawn([process.execPath, "script.mjs"]), [process.execPath, "script.mjs"]);
+});
+
+test("kit-bound browser tests remain runnable when catalog validation omits Playwright", () => {
+  const sample = selection().samples[0];
+  sample.commandPlan.validation.commands = sample.commandPlan.validation.commands.filter(
+    (command) => !command.includes("test:playwright"),
+  );
+  assert.deepEqual(commandsForAction(sample, "test", { playwrightScript: "test:playwright:safe" }), [
+    ["npm", "run", "test:playwright:safe"],
+  ]);
+  assert.deepEqual(commandsForAction(sample, "test"), []);
 });
 
 test("kit configs are regular files bound to the selected sample and Playwright root", async () => {
