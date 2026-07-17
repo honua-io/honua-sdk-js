@@ -28,6 +28,7 @@ const SDK_ALIAS_SUBPATHS: ReadonlyArray<readonly [find: string, exportKey: strin
   ["@honua/sdk-js/query-planner", "./query-planner", "src/query-planner/index.ts"],
   ["@honua/sdk-js/interactions", "./interactions", "src/interactions/index.ts"],
   ["@honua/sdk-js/honua", "./honua", "src/honua.ts"],
+  ["@honua/sdk-js/runtime", "./runtime", "src/runtime/index.ts"],
   ["@honua/sdk-js", ".", "src/index.ts"],
 ];
 

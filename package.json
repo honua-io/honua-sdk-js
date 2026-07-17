@@ -323,6 +323,8 @@
     "demo:quickstart:preview": "vite preview --config examples/maplibre-quickstart/vite.config.ts --host 127.0.0.1",
     "demo:quickstart:mock": "node examples/maplibre-quickstart/mock-server.mjs",
     "demo:quickstart:typecheck": "tsc -p examples/maplibre-quickstart/tsconfig.json --noEmit",
+    "demo:quickstart:test": "vitest run --config vitest.first-map.config.ts",
+    "demo:quickstart:parity": "npm run prepare:test-sdk --silent && node scripts/verify-first-map-semantic-parity.mjs",
     "demo:react-quickstart": "vite --config examples/react-quickstart/vite.config.ts",
     "demo:react-quickstart:build": "vite build --config examples/react-quickstart/vite.config.ts",
     "demo:react-quickstart:preview": "vite preview --config examples/react-quickstart/vite.config.ts --host 127.0.0.1",

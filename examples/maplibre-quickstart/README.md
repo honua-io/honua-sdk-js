@@ -7,8 +7,16 @@ connect → discover → explain → query → mount
 ```
 
 It composes the accepted north-star journey from the SDK's public, protocol-neutral `Dataset → Source → Query → Result`
-contract, the experimental deterministic query planner, and a small MapLibre mounting function. The future application
-kernel facade remains design-stage; this sample does not pretend that facade has shipped.
+contract and managed application kernel.
+
+The copyable S1 workflow core lives in [`src/workflow.ts`](./src/workflow.ts). In at most 120 non-comment lines it uses
+only published `@honua/sdk-js` and `@honua/sdk-js/runtime` entrypoints to connect, inspect, explain, execute a bounded
+query, and call `connection.mount()` with the accepted plan. GeoServices and OGC API Features use the same semantic
+workflow. Ambiguous source selection, unsupported capability, authentication, overflow, and unexpected errors remain
+explicit states; truncated data is never mounted.
+
+This slice intentionally does not replace the existing presentation shell or retire overlapping sample routes. Those
+portfolio and interaction changes belong to the later First Map slices.
 
 The result is more than a map. The page makes endpoint provenance, snapshot/live freshness, authorization mode,
 capabilities, SDK/server/data versions, query fingerprint, pushdown, fidelity, cache behavior, and degradation visible.
@@ -100,7 +108,8 @@ Required fixture validation is independent of a live environment:
 
 ```bash
 npm run demo:quickstart:typecheck
-npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts test/quickstart-linked-exploration.test.ts
+npm run demo:quickstart:test
+npm run demo:quickstart:parity
 npm run demo:quickstart:build
 npm run test:playwright:quickstart
 ```
