@@ -55,7 +55,8 @@
     "/query-planner was reset for deterministic CQL2 JSON/text and WFS 2.0 FES compilation (#527): explicit conformance/capability evidence, typed escaping, executable CRS axis ordering, and shared adversarial equivalence fixtures measure 479,395 minified / 91,471 gzip bytes. Both ceilings are measured actual plus 10% headroom; the compiler remains opt-in under /query-planner, so root and browser entrypoints remain unchanged.",
     "/query-planner's exceeded minified ceiling was reset for exact GeoServices SQL-92 and OData v4 semantic artifacts (#528): deterministic identifier/literal compilation, logical-to-physical path evidence, source-version request identity, and fail-closed spatial metadata admission measure 471,030 minified bytes. Only the exceeded minified metric is reset to measured size plus 10% headroom; gzip remains below its existing ceiling and root/browser entrypoints remain unchanged.",
     "Root and browser minified ceilings were reset for the structured planner-diagnostics slice (#530): versioned bounds, cache/freshness decisions, fidelity loss, provenance, warnings, and validity checks measure 438,924 root / 439,574 browser IIFE / 438,252 browser ESM minified bytes. Only the exceeded minified ceilings are reset to measured size plus 10% headroom; gzip and the dedicated /query-planner ceiling remain unchanged.",
-    "The final reviewed planner-diagnostics boundary (#530) adds all-step bound aggregation, explicit serialized-materialization versus heap-memory evidence, filter/source CRS validity, bounded version digests, and key/path-aware credential rejection. The newly exceeded metrics measure 115,921 root gzip / 452,640 query-planner minified / 116,155 browser IIFE gzip / 115,861 browser ESM gzip bytes. Only those four ceilings are reset to exact measured size plus 10% headroom."
+    "The final reviewed planner-diagnostics boundary (#530) adds all-step bound aggregation, explicit serialized-materialization versus heap-memory evidence, filter/source CRS validity, bounded version digests, and key/path-aware credential rejection. The newly exceeded metrics measure 115,921 root gzip / 452,640 query-planner minified / 116,155 browser IIFE gzip / 115,861 browser ESM gzip bytes. Only those four ceilings are reset to exact measured size plus 10% headroom.",
+    "/runtime and 'tree-shake:map-source-workflow' were reset for the connection-level MapLibre lifecycle (#534): the caller-injected renderer reuses automatic feature/vector/PMTiles/raster mounting, while the map workflow shares the lightweight accepted-plan context guard with the canonical executor. Measured sizes are 512,677 / 137,337 bytes for /runtime and 41,657 / 13,059 bytes for the isolated map workflow; each ceiling is measured actual plus 10% headroom."
   ],
   "entrypoints": {
     ".": {
@@ -99,8 +100,8 @@
       "gzip": 25947
     },
     "/runtime": {
-      "min": 469747,
-      "gzip": 134911
+      "min": 563945,
+      "gzip": 151071
     },
     "/realtime": {
       "min": 50483,
@@ -199,8 +200,8 @@
       "gzip": 62870
     },
     "tree-shake:map-source-workflow": {
-      "min": 38631,
-      "gzip": 12278
+      "min": 45823,
+      "gzip": 14365
     },
     "tree-shake:runtime-terra-draw-sketch": {
       "min": 3386,

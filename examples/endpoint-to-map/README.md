@@ -38,6 +38,14 @@ What the bridge did for those four statements:
    (the demo's filter dropdown), and `mounted.dispose()` /
    `await using` removes every source, layer, and listener the bridge added.
 
+The demo shell also runs a focused proof of the higher-level application-kernel
+path added in #534. It mounts the same connection through
+`connection.mount(map, { renderer: maplibreRenderer(maplibregl) })`, waits for
+the first usable frame, disposes the connection-owned resources, and verifies
+that the borrowed map and the bridge's original source/layers survive. The
+status panel and Playwright smoke expose that lifecycle evidence; it is not
+counted in the four-statement bridge headline above.
+
 See [`docs/data-to-map-bridge.md`](../../docs/data-to-map-bridge.md) for the
 full cookbook.
 

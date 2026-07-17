@@ -192,6 +192,35 @@ src/runtime/
 
 ## Public surface
 
+### Connection-owned automatic mount
+
+The application kernel can own discovery, accepted-plan execution, renderer
+resources, and disposal as one path while MapLibre remains caller-injected:
+
+```ts doc-test=skip reason="requires a browser MapLibre peer and public endpoint"
+import maplibregl from "maplibre-gl";
+import { createHonua } from "@honua/sdk-js";
+import { maplibreRenderer } from "@honua/sdk-js/runtime";
+
+const honua = createHonua();
+const connection = await honua.connect(PUBLIC_FEATURE_LAYER_URL);
+const mounted = await connection.mount("#map", {
+  renderer: maplibreRenderer(maplibregl),
+  style: "auto",
+});
+await mounted.ready; // first usable render frame, not merely source mutation
+await honua.dispose(); // cascades through connection, layers/sources, and owned map
+```
+
+Passing an existing `maplibregl.Map` borrows it by default: disposal removes
+only Honua-created sources and layers. `style` and
+`rendererOptions.mapOptions` are owned-map construction controls and are
+rejected for an existing host rather than ignored. An explicit `query` is
+materialized only through the accepted `geojson-query` strategy; native
+vector, PMTiles, and raster strategies fail closed instead of displaying the
+unfiltered source. Use `mounted.raw("maplibre")` only for renderer-specific
+escape hatches.
+
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
@@ -211,6 +240,7 @@ runtime.dispose();
 
 | Export | Shape | Notes |
 | --- | --- | --- |
+| `maplibreRenderer(peer, opts)` | `RendererAdapter<"maplibre", MapLibreRendererMap, MapLibreRendererOptions>` | Caller-injected connection adapter. Reuses automatic feature/vector/PMTiles/raster planning, exposes first-frame readiness/refresh/diagnostics, and never enters the root runtime graph as a value import. |
 | `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | Inline-package load entry point. Throws `HonuaMapPackageError` for binding failures under `sourceErrorPolicy: "fail-fast"`; under the default `"tolerant"` policy a single per-source binding failure does not abort the load — see *Tolerant binding* below. Query-time adapter failures surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient` interceptor chain; consumers can broadcast them through `runtime.reportSourceError(sourceId, error)` to convert query-time rejections into the canonical `source-error` event. |
 | `fetchMapPackage(idOrLocator, opts)` | `Promise<FetchMapPackageResult>` | Fetches a hosted package through `HonuaClient.pipelineFetch`, validates it, resolves style refs when a resolver is supplied, and uses ETag / Last-Modified validators from the server when available. |
 | `loadMapPackageFromId(idOrLocator, map, opts)` | `Promise<LoadMapPackageFromIdResult>` | Builder-style helper: fetches a hosted package, then delegates to `loadMapPackage`. The result includes the runtime plus fetch diagnostics/cache state. |

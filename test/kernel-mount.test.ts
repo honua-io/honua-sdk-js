@@ -21,9 +21,19 @@ class FakeMap implements MapLibreRendererMap {
   failLayerAfterMutation = false;
   failRemoveLayer = false;
   removeCount = 0;
+  fullyLoaded = true;
+  styleLoaded = true;
 
   loaded(): boolean {
-    return true;
+    return this.fullyLoaded;
+  }
+
+  isStyleLoaded(): boolean {
+    return this.styleLoaded;
+  }
+
+  getStyle(): unknown {
+    return { version: 8, sources: {}, layers: [] };
   }
 
   getSource(id: string): unknown {
@@ -91,6 +101,48 @@ class FakeMap implements MapLibreRendererMap {
   remove(): void {
     this.removeCount += 1;
     this.calls.push("removeMap");
+  }
+}
+
+class ReadinessRaceMap extends FakeMap {
+  readonly #readinessEvent: "load" | "style.load";
+  #pendingRace = true;
+
+  constructor(readinessEvent: "load" | "style.load") {
+    super();
+    this.#readinessEvent = readinessEvent;
+    this.fullyLoaded = false;
+    this.styleLoaded = false;
+  }
+
+  override once(event: string, listener: () => void): void {
+    if (this.#pendingRace && event === this.#readinessEvent) {
+      this.#pendingRace = false;
+      this.fullyLoaded = true;
+      this.styleLoaded = true;
+      // Reproduce readiness flipping and the event firing after the false
+      // predicate check but before the listener is installed.
+      this.emit(event);
+    }
+    super.once(event, listener);
+  }
+}
+
+class SynchronousReadyMap extends FakeMap {
+  constructor() {
+    super();
+    this.fullyLoaded = false;
+    this.styleLoaded = false;
+  }
+
+  override once(event: string, listener: () => void): void {
+    if (event === "style.load" && !this.styleLoaded) {
+      this.fullyLoaded = true;
+      this.styleLoaded = true;
+      listener();
+      return;
+    }
+    super.once(event, listener);
   }
 }
 
@@ -293,6 +345,119 @@ describe("connection MapLibre mount", () => {
     expect(map.removeCount).toBe(0);
 
     await kernel.dispose();
+  });
+
+  it("waits for a borrowed map's in-progress style reload before source mutation", async () => {
+    const descriptor: SourceDescriptor = {
+      id: "imagery",
+      protocol: "maplibre-raster",
+      locator: { url: "https://tiles.example.test/reloading/{z}/{x}/{y}.png" },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["maplibre-raster"],
+    };
+    const data = fixture<Record<string, unknown>>(
+      descriptor,
+      vi.fn(async () => emptyResult<Record<string, unknown>>()),
+    );
+    const kernel = createHonuaKernel({ connectDelegate: async () => data.connection });
+    const connection = await kernel.connect(descriptor.locator.url, { protocol: "maplibre-raster" });
+    const map = new FakeMap();
+    map.fullyLoaded = false;
+    map.styleLoaded = false;
+
+    const mounting = connection.mount(map, { renderer: maplibreRenderer({}) });
+    await vi.waitFor(() => expect(map.listeners.get("style.load")?.size).toBe(1));
+    expect(map.getStyle()).toBeDefined();
+    expect(map.calls).toEqual([]);
+
+    map.emit("data");
+    await vi.waitFor(() => expect(map.listeners.get("style.load")?.size).toBe(1));
+    expect(map.calls).toEqual([]);
+
+    map.styleLoaded = true;
+    map.emit("style.load");
+    const mounted = await mounting;
+    expect(map.calls).toContain("addSource:honua-imagery");
+
+    map.emit("render");
+    await mounted.ready;
+    await kernel.dispose();
+  });
+
+  it("closes the borrowed style-ready check-to-subscribe race", async () => {
+    const descriptor: SourceDescriptor = {
+      id: "imagery",
+      protocol: "maplibre-raster",
+      locator: { url: "https://tiles.example.test/borrowed-race/{z}/{x}/{y}.png" },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["maplibre-raster"],
+    };
+    const data = fixture<Record<string, unknown>>(
+      descriptor,
+      vi.fn(async () => emptyResult<Record<string, unknown>>()),
+    );
+    const kernel = createHonuaKernel({ connectDelegate: async () => data.connection });
+    const connection = await kernel.connect(descriptor.locator.url, { protocol: "maplibre-raster" });
+    const map = new ReadinessRaceMap("style.load");
+
+    const mounted = await connection.mount(map, { renderer: maplibreRenderer({}) });
+    expect(map.calls).toContain("addSource:honua-imagery");
+    map.emit("render");
+    await mounted.ready;
+    await kernel.dispose();
+  });
+
+  it("does not register later readiness events after a synchronous host settles", async () => {
+    const descriptor: SourceDescriptor = {
+      id: "imagery",
+      protocol: "maplibre-raster",
+      locator: { url: "https://tiles.example.test/synchronous-ready/{z}/{x}/{y}.png" },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["maplibre-raster"],
+    };
+    const data = fixture<Record<string, unknown>>(
+      descriptor,
+      vi.fn(async () => emptyResult<Record<string, unknown>>()),
+    );
+    const kernel = createHonuaKernel({ connectDelegate: async () => data.connection });
+    const connection = await kernel.connect(descriptor.locator.url, { protocol: "maplibre-raster" });
+    const map = new SynchronousReadyMap();
+
+    const mounted = await connection.mount(map, { renderer: maplibreRenderer({}) });
+    expect(map.listeners.get("data")?.size ?? 0).toBe(0);
+    map.emit("render");
+    await mounted.ready;
+    await kernel.dispose();
+  });
+
+  it("closes the owned initial-load check-to-subscribe race", async () => {
+    const descriptor: SourceDescriptor = {
+      id: "imagery",
+      protocol: "maplibre-raster",
+      locator: { url: "https://tiles.example.test/owned-race/{z}/{x}/{y}.png" },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["maplibre-raster"],
+    };
+    const data = fixture<Record<string, unknown>>(
+      descriptor,
+      vi.fn(async () => emptyResult<Record<string, unknown>>()),
+    );
+    const kernel = createHonuaKernel({ connectDelegate: async () => data.connection });
+    const connection = await kernel.connect(descriptor.locator.url, { protocol: "maplibre-raster" });
+    const created: OwnedReadinessRaceMap[] = [];
+    class OwnedReadinessRaceMap extends ReadinessRaceMap {
+      constructor(readonly options: Readonly<Record<string, unknown>>) {
+        super("load");
+        created.push(this);
+      }
+    }
+
+    const mounted = await connection.mount("#map", {
+      renderer: maplibreRenderer({ Map: OwnedReadinessRaceMap }),
+      style: "auto",
+    });
+    const map = created[0]!;
+    expect(map.calls).toContain("addSource:honua-imagery");
+    map.emit("render");
+    await mounted.ready;
+    await kernel.dispose();
+    expect(map.removeCount).toBe(1);
   });
 
   it("creates and owns a map for a selector target, then cascades cleanup from the connection", async () => {
@@ -782,6 +947,33 @@ describe("connection MapLibre mount", () => {
     await kernel.dispose();
   });
 
+  it("observes readiness rejection when connection disposal precedes the first frame", async () => {
+    const descriptor: SourceDescriptor = {
+      id: "imagery",
+      protocol: "maplibre-raster",
+      locator: { url: "https://tiles.example.test/unobserved-ready/{z}/{x}/{y}.png" },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["maplibre-raster"],
+    };
+    const data = fixture<Record<string, unknown>>(
+      descriptor,
+      vi.fn(async () => emptyResult<Record<string, unknown>>()),
+    );
+    const kernel = createHonuaKernel({ connectDelegate: async () => data.connection });
+    const connection = await kernel.connect(descriptor.locator.url, { protocol: "maplibre-raster" });
+    const unhandled: unknown[] = [];
+    const recordUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", recordUnhandled);
+    try {
+      await connection.mount(new FakeMap(), { renderer: maplibreRenderer({}) });
+      await connection.dispose();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", recordUnhandled);
+      await kernel.dispose();
+    }
+  });
+
   it("rejects a discovery-stale accepted plan before renderer mutation", async () => {
     const descriptor: SourceDescriptor = {
       id: "incidents",
@@ -943,6 +1135,51 @@ describe("connection MapLibre mount", () => {
     expect(dispose).toHaveBeenCalledOnce();
     await expect(mounted.dispose()).resolves.toBeUndefined();
     await connection.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
+    await kernel.dispose();
+  });
+
+  it("does not deadlock when renderer cleanup synchronously acknowledges connection disposal", async () => {
+    const descriptor: SourceDescriptor = {
+      id: "incidents",
+      protocol: "ogc-features",
+      locator: { url: "https://features.example.test/ogc", collectionId: "incidents" },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+    };
+    const data = fixture<Record<string, unknown>>(
+      descriptor,
+      vi.fn(async () => emptyResult<Record<string, unknown>>()),
+    );
+    const kernel = createHonuaKernel({ connectDelegate: async () => data.connection });
+    const connection = await kernel.connect(descriptor.locator.url, { protocol: "ogc-features" });
+    let cleanupAcknowledgement: Promise<void> | undefined;
+    const dispose = vi.fn(async () => {
+      cleanupAcknowledgement = connection.dispose();
+      await cleanupAcknowledgement;
+    });
+    const adapter = {
+      kind: "test.reentrant-cleanup" as const,
+      environments: ["browser" as const],
+      peer: Object.freeze({}),
+      defaultOwnership: () => "borrowed" as const,
+      async mount() {
+        return {
+          raw: Object.freeze({ fixture: true }),
+          ready: Promise.resolve(),
+          diagnostics: [],
+          refresh: async () => undefined,
+          dispose,
+        };
+      },
+    } satisfies RendererAdapter<"test.reentrant-cleanup", Readonly<{ fixture: true }>>;
+    await connection.mount({}, { renderer: adapter });
+
+    const ownerDisposal = connection.dispose();
+    await ownerDisposal;
+
+    expect(cleanupAcknowledgement).toBeDefined();
+    expect(cleanupAcknowledgement).not.toBe(ownerDisposal);
+    await expect(cleanupAcknowledgement).resolves.toBeUndefined();
     expect(dispose).toHaveBeenCalledOnce();
     await kernel.dispose();
   });
