@@ -435,7 +435,7 @@ const STYLE_CSS = `:root{--bg:#ffffff;--fg:#1a202c;--muted:#5a6572;--border:#e2e
 @media (prefers-color-scheme:dark){:root{--bg:#0f141a;--fg:#e6edf3;--muted:#9aa7b4;--border:#232c36;--accent:#6ba5e0;--accent-soft:#16202c;--code-bg:#161c23;--sidebar-bg:#111820}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:var(--bg);line-height:1.6}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}

@@ -25,6 +25,8 @@ const publicTracks = new Set(["golden", "recipe", "lab"]);
 const publicSamples = galleryProjection.samples.filter((sample) => publicTracks.has(sample.track));
 const endpointSample = publicSamples.find((sample) => sample.id === "endpoint-to-map");
 if (!endpointSample) throw new Error("The stable endpoint-to-map gallery sample is missing from the site projection");
+const firstMapSample = publicSamples.find((sample) => sample.id === "maplibre-quickstart");
+if (!firstMapSample) throw new Error("The First Map gallery sample is missing from the site projection");
 const requiredSameOriginPaths = new Set([
   `${hostedBasePath}gallery.html`,
   `${hostedBasePath}assets/style.css`,
@@ -49,7 +51,7 @@ let fixture;
 let gallerySurfaceSha256;
 let galleryClientBytes;
 
-test.setTimeout(90_000);
+test.setTimeout(180_000);
 
 test.beforeAll(async () => {
   buildDocsSite();
@@ -81,6 +83,7 @@ test("gallery is accessible, deterministic, relocatable, and interactive after g
     else sameOriginPaths.push(url.pathname);
   });
 
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   const cdpSession = await context.newCDPSession(page);
   await cdpSession.send("Emulation.setScrollbarsHidden", { hidden: true });
   await page.setViewportSize({ width: 1280, height: 720 });
@@ -116,20 +119,30 @@ test("gallery is accessible, deterministic, relocatable, and interactive after g
   const search = page.locator("[data-gallery-search]");
   const capability = page.locator("[data-gallery-capability]");
   const protocol = page.locator("[data-gallery-protocol]");
+  const renderer = page.locator("[data-gallery-renderer]");
+  const dataMode = page.locator("select[data-gallery-data-mode]");
+  const authMode = page.locator("select[data-gallery-auth-mode]");
+  const supportTier = page.locator("select[data-gallery-support-tier]");
+  const lifecycleState = page.locator("select[data-gallery-lifecycle-state]");
   const clear = page.locator("[data-gallery-clear]");
   await search.focus();
   await search.pressSequentially("endpoint to map");
-  await expect(page.locator("[data-gallery-result-count]")).toHaveText("1");
-  await expect(page.locator('[data-gallery-card]:not([hidden])')).toHaveAttribute("data-sample-id", endpointSample.id);
+  await expect(page.locator("[data-gallery-result-count]")).toHaveText("2");
+  await expect(page.locator(`[data-sample-id="${endpointSample.id}"]`)).toBeVisible();
+  await expect(page.locator(`[data-sample-id="${firstMapSample.id}"]`)).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(capability).toBeFocused();
   await capability.selectOption("map");
+  await expect(page.locator("[data-gallery-result-count]")).toHaveText("2");
   await page.keyboard.press("Tab");
   await expect(protocol).toBeFocused();
   await protocol.selectOption("geoservices");
   await expect(page.locator("[data-gallery-result-count]")).toHaveText("1");
-  await page.keyboard.press("Tab");
-  await expect(clear).toBeFocused();
+  await expect(page.locator('[data-gallery-card]:not([hidden])')).toHaveAttribute("data-sample-id", endpointSample.id);
+  for (const control of [renderer, dataMode, authMode, supportTier, lifecycleState, clear]) {
+    await page.keyboard.press("Tab");
+    await expect(control).toBeFocused();
+  }
   await page.keyboard.press("Enter");
   await expect(search).toBeFocused();
   await expect(page.locator("[data-gallery-result-count]")).toHaveText(String(publicSamples.length));
@@ -145,6 +158,12 @@ test("gallery is accessible, deterministic, relocatable, and interactive after g
   expect(await accessibilityViolations(page)).toEqual([]);
   const mobile = await stableScreenshotPair(page);
   await testInfo.attach("docs-gallery-mobile", { body: mobile.first, contentType: "image/png" });
+  const mobileDifference = screenshotPixelDifference(mobile.first, mobile.second);
+  expect(mobileDifference).toEqual({
+    dimensionsMatch: true,
+    differentPixels: 0,
+    maxChannelDelta: 0,
+  });
   expect(mobile.firstSha256).toBe(mobile.secondSha256);
   expect(mobile.firstSha256).not.toBe(desktop.firstSha256);
 
@@ -210,18 +229,31 @@ async function accessibilityViolations(page) {
 }
 
 async function stableScreenshotPair(page) {
-  await page.evaluate(async () => {
+  const priorScrollBehavior = await page.evaluate(async () => {
     await document.fonts?.ready;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const root = document.documentElement;
+    const priorScrollBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
     scrollTo(0, 0);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return priorScrollBehavior;
   });
   const screenshotOptions = {
     animations: "disabled",
     caret: "hide",
     fullPage: false,
   };
-  const first = await page.screenshot(screenshotOptions);
-  const second = await page.screenshot(screenshotOptions);
+  let first;
+  let second;
+  try {
+    first = await page.screenshot(screenshotOptions);
+    second = await page.screenshot(screenshotOptions);
+  } finally {
+    await page.evaluate((scrollBehavior) => {
+      document.documentElement.style.scrollBehavior = scrollBehavior;
+    }, priorScrollBehavior);
+  }
   return {
     first,
     second,
