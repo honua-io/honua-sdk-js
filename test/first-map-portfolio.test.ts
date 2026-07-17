@@ -39,7 +39,7 @@ describe("First Map portfolio convergence", () => {
       { track?: string; journeyId?: string; validationProfile?: string }
     >;
     expect(overrides["maplibre-quickstart"]).toMatchObject({
-      track: "recipe",
+      track: "golden",
       journeyId: "first-map",
       validationProfile: "golden-browser",
     });

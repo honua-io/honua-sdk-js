@@ -30,7 +30,7 @@ import {
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
-const validationTime = { now: "2026-07-17T12:00:00.000Z" };
+const validationTime = { now: "2026-07-17T16:00:00.000Z" };
 const goldenJourneyIds = [
   "first-map",
   "service-explorer",
@@ -56,12 +56,12 @@ describe("sample publication contract", () => {
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(0);
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(1);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      0,
+      1,
     );
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
-      7,
+      6,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
@@ -1264,10 +1264,11 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === "maplibre-quickstart");
     expect(sample.evidence.live).toMatchObject({
       mode: "public-live",
-      status: "planned",
+      status: "executed",
       commands: ["npm run evidence:first-map:live"],
+      evidencePath: "samples/evidence/maplibre-quickstart/live.v1.json",
     });
-    expect(sample.evidence.live).not.toHaveProperty("evidencePath");
+    expect(sample.evidence.live.expiresAt).toMatch(/^2026-07-24T/);
     const evidence = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
     evidence.sampleId = sample.id;
     delete evidence.realtime;
