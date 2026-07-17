@@ -1,0 +1,87 @@
+{
+  "format": "honua.sdk.sample-resolution.v1",
+  "schemaVersion": 1,
+  "mode": "packed",
+  "package": {
+    "name": "@honua/sdk-js",
+    "version": "0.1.0-beta.0"
+  },
+  "entrypoints": [
+    {
+      "specifier": "@honua/sdk-js/contract",
+      "exportTarget": "./dist/src/contract/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "e698b2c8459bca19e7fe7b06d15e3ee5ac8c80eeafefc1275b984e3b0a6c77bc"
+    },
+    {
+      "specifier": "@honua/sdk-js/map",
+      "exportTarget": "./dist/src/map/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "65a8472389de8c12e5447988a6c71a6ed3035e60b865fb15ed407132449d55dd"
+    },
+    {
+      "specifier": "@honua/sdk-js",
+      "exportTarget": "./dist/src/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "3b5477fe887b0b14841ee14fba1cc83381938a23f031b9179f0ce0aa6cfa2e3e"
+    }
+  ],
+  "bundle": [
+    {
+      "fileName": "assets/index-DkAxUiDN.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 1532444,
+      "sha256": "4f1d1a151c73d0b9a063ea46eadcdf5cc271bd67b81563b59e713b075a7f034d"
+    },
+    {
+      "fileName": "assets/esm-B6JxQVfq.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 18554,
+      "sha256": "2c8845228a3a137328cbe52780016f610ad156f527a0f4118fccbd870fac92ed"
+    },
+    {
+      "fileName": "assets/esm-Dkp4hTJD.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 8257,
+      "sha256": "ed8683530812824b82d50a8597a6d63bb05562ec56e7053dfda40be4056ff11b"
+    },
+    {
+      "fileName": "assets/esm-ekSsJ3Q_.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 69474,
+      "sha256": "5fefd8e962d5ad55e8b642137e6ace36d1670677d122d8c6133ffcbfe9e7fe6b"
+    },
+    {
+      "fileName": "assets/feature_service_pb-Cd1RP8H0.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 9215,
+      "sha256": "a3ba6f6bbd079de3df8127216230ccc866e2530123ceb03b1ee62f6d8e93bc3b"
+    },
+    {
+      "fileName": "assets/file-CWyy5pTp.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 64697,
+      "sha256": "b4f4e5446744d7322aa0ebe38d0403a6cce03a043c655b06d1c766c473af7ce2"
+    },
+    {
+      "fileName": "assets/grpc-adapter-CSEUBFRY.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 11375,
+      "sha256": "1bdced70c5ff5ee843b887b72f29d4e30ad60717c3ba3ff4da4a3eb3df750cd9"
+    },
+    {
+      "fileName": "assets/index-xxD2Ltiu.css",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 77359,
+      "sha256": "15988035e75c9034600e67d190be0b438630013b907eb831f5a0e6fa81c2a94e"
+    }
+  ]
+}

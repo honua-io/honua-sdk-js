@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "service-explorer",
+  "gate": "screenshot",
+  "status": "passed",
+  "sdkMode": "packed",
+  "sourceRevision": "4d49cf7e719334bccbd55820e1dcd26092116c52",
+  "sourceDigest": "22bd9b75f2f5c3968ff205017a2ae2fd51f0ecc63c1197166a2c96e7d2dc60e0",
+  "runRoot": "samples/evidence/service-explorer/runs/6f1bba15-40c4-4daf-85d1-70145173b6d3",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "test:playwright:service-explorer",
+      "--",
+      "--reporter=json"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "ae51dabb23ff8d9408ddbcf5c2cac62af62e1cdb3d62ed1f63eefac9d2aa45e2"
+  },
+  "observedAt": "2026-07-17T17:11:10.074Z",
+  "expiresAt": "2026-07-24T17:11:10.074Z",
+  "durationMs": 4965.147059,
+  "artifacts": [
+    {
+      "kind": "screenshot-report",
+      "path": "samples/evidence/service-explorer/runs/6f1bba15-40c4-4daf-85d1-70145173b6d3/artifacts/screenshot.json",
+      "bytes": 634,
+      "sha256": "883a52b292fade03dea7a4d0ec900f217c93851ca1294018f1bb4d7f0ec8c372"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "format": "honua.sdk.sample-fixture-gate.v1",
+  "sampleId": "service-explorer",
+  "sourceRevision": "4d49cf7e719334bccbd55820e1dcd26092116c52",
+  "command": [
+    "npm",
+    "run",
+    "demo:service-explorer:mock",
+    "--",
+    "--evidence-once"
+  ],
+  "transport": "loopback-http",
+  "networkScope": "loopback-only",
+  "host": "127.0.0.1",
+  "port": 37557,
+  "ready": true,
+  "started": true,
+  "probe": {
+    "method": "GET",
+    "path": "/",
+    "status": 200,
+    "bodyBytes": 7816,
+    "bodySha256": "79eff1f2e7e040cd64fe71626be1c0dadc521895b48ef78f247823869964d54d",
+    "contentType": "text/html; charset=utf-8"
+  },
+  "closed": true,
+  "listeningAfterClose": false,
+  "activeConnectionsAfterClose": 0
+}

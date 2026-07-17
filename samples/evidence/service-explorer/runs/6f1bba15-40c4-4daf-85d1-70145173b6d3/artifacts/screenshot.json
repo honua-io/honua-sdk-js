@@ -1,0 +1,23 @@
+{
+  "format": "honua.sdk.sample-screenshot-gate.v1",
+  "sampleId": "service-explorer",
+  "sourceRevision": "4d49cf7e719334bccbd55820e1dcd26092116c52",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:service-explorer",
+    "--",
+    "--reporter=json"
+  ],
+  "screenshot": {
+    "projectName": "chromium",
+    "browserName": "chromium",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "path": "samples/evidence/service-explorer/runs/6f1bba15-40c4-4daf-85d1-70145173b6d3/artifacts/screenshot.png",
+    "bytes": 70740,
+    "sha256": "e2525c5c3836d361f15778b97b27ae6f220cb26059b65b717da49a651ed0fc2f"
+  }
+}
