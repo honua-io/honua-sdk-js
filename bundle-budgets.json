@@ -56,7 +56,8 @@
     "/query-planner's exceeded minified ceiling was reset for exact GeoServices SQL-92 and OData v4 semantic artifacts (#528): deterministic identifier/literal compilation, logical-to-physical path evidence, source-version request identity, and fail-closed spatial metadata admission measure 471,030 minified bytes. Only the exceeded minified metric is reset to measured size plus 10% headroom; gzip remains below its existing ceiling and root/browser entrypoints remain unchanged.",
     "/query-planner was reset for structured plan diagnostics and persisted-claim validation (#530): versioned bounds, fidelity losses, cache decisions, provenance, validity reasons, and credential-safe warning evidence measure 529,749 minified / 103,586 gzip bytes. Both exceeded ceilings are measured actual plus 10% headroom; root and browser measurements remain within their existing ceilings.",
     "/runtime and 'tree-shake:map-source-workflow' were reset for the connection-level MapLibre lifecycle (#534): the caller-injected renderer reuses automatic feature/vector/PMTiles/raster mounting, while the map workflow shares the lightweight accepted-plan context guard with the canonical executor. Measured sizes are 512,677 / 137,337 bytes for /runtime and 41,657 / 13,059 bytes for the isolated map workflow; each ceiling is measured actual plus 10% headroom.",
-    "Root, /source-schema, browser, root-connect, and root-createHonua ceilings were reset for bounded static STAC discovery (#552): same-origin traversal, byte/structure ceilings, validator-bound caching, and evidence-based COG/GeoParquet/PMTiles/tile classification are intentionally part of universal connect. The reviewed root measures 529,272 minified / 139,865 gzip bytes; each affected ceiling is measured actual plus 10% headroom."
+    "Root, /source-schema, browser, root-connect, and root-createHonua ceilings were reset for bounded static STAC discovery (#552): same-origin traversal, byte/structure ceilings, validator-bound caching, and evidence-based COG/GeoParquet/PMTiles/tile classification are intentionally part of universal connect. The reviewed root measures 529,272 minified / 139,865 gzip bytes; each affected ceiling is measured actual plus 10% headroom.",
+    "WMS/WMTS universal discovery (#551) adds bounded XML parsing, credential-safe operation selection, exact raster request bindings, matrix-set validation, and schema/capability projections. The exceeded measurements are /honua 727,236 minified / 194,800 gzip, /source-capability-discovery 767,259 / 166,087, tree-shake:root-connect 440,738 / 115,236, and tree-shake:root-createHonua 144,980 gzip bytes. Only exceeded metrics are reset to measured actual plus 10% headroom; root and browser remain within existing ceilings."
   ],
   "entrypoints": {
     ".": {
@@ -64,8 +65,8 @@
       "gzip": 153852
     },
     "/honua": {
-      "min": 689198,
-      "gzip": 183266
+      "min": 799960,
+      "gzip": 214280
     },
     "/contract": {
       "min": 294195,
@@ -80,8 +81,8 @@
       "gzip": 34010
     },
     "/source-capability-discovery": {
-      "min": 750909,
-      "gzip": 156309
+      "min": 843985,
+      "gzip": 182696
     },
     "/plugin": {
       "min": 64080,
@@ -172,8 +173,8 @@
       "gzip": 59002
     },
     "tree-shake:root-connect": {
-      "min": 433370,
-      "gzip": 112115
+      "min": 484812,
+      "gzip": 126760
     },
     "tree-shake:source-capabilities-evaluate": {
       "min": 18332,
@@ -181,7 +182,7 @@
     },
     "tree-shake:root-createHonua": {
       "min": 548138,
-      "gzip": 144633
+      "gzip": 159478
     },
     "/react": {
       "min": 457456,

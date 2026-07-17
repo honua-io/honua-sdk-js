@@ -90,7 +90,7 @@ const TARGETS = [
     key: "/source-capability-discovery",
     kind: "bundle",
     entry: "dist/src/source-capability-discovery.js",
-    label: "`/source-capability-discovery` (GeoServices/OData schema-bound evaluation)",
+    label: "`/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation)",
   },
   { key: "/plugin", kind: "bundle", entry: "dist/src/plugin/index.js", label: "`/plugin` (registry + certification, no heavy peers)" },
   { key: "/agent-tools", kind: "bundle", entry: "dist/src/agent-tools/index.js", label: "`/agent-tools`" },

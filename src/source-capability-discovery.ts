@@ -1,5 +1,5 @@
 /**
- * Focused SourceSchemaV2-bound capability discovery for GeoServices and OData.
+ * Focused SourceSchemaV2-bound capability discovery for reviewed service metadata.
  *
  * The pure evaluator remains in `./source-capabilities`; this entrypoint owns
  * the heavier connect/discovery graph so evaluator-only consumers can still
@@ -58,12 +58,12 @@ export { sourceCapabilityEndpointIdentity } from "./source-capability-discovery-
 export type { CapabilityDiscoveryProtocol } from "./source-capability-discovery-endpoint.js";
 
 const CAPABILITY_DISCOVERY_PROJECTION_IDENTITY = "honua.source-capability-discovery@1.0";
-const CERTIFIED_PROTOCOLS = new Set(["geoservices-feature-service", "geoservices-map-service", "odata"]);
+const CERTIFIED_PROTOCOLS = new Set(["geoservices-feature-service", "geoservices-map-service", "odata", "wms", "wmts"]);
 
-/** Connect options accepted by the first certified capability-discovery rollout. */
+/** Connect options accepted by the certified capability-discovery rollout. */
 export type SourceCapabilityConnectOptions = Omit<ConnectOptions, "protocol" | "capabilityPolicy"> & {
-  /** `auto` is structural and therefore resolves only canonical GeoServices URLs. */
-  readonly protocol: "auto" | "geoservices-feature-service" | "geoservices-map-service" | "odata";
+  /** `auto` remains structural; WMS/WMTS require a canonical path or SERVICE query. */
+  readonly protocol: "auto" | "geoservices-feature-service" | "geoservices-map-service" | "odata" | "wms" | "wmts";
 };
 
 /** Fresh dynamic inputs reapplied after every raw discovery-cache read. */
@@ -113,7 +113,7 @@ export type HonuaConnectionWithCapabilityProfiles = Omit<HonuaConnection, "datas
 };
 
 /**
- * Discover GeoServices or OData sources once, bind evidence to each canonical
+ * Discover certified service sources once, bind evidence to each canonical
  * descriptor/schema endpoint, and evaluate current support. Raw metadata and
  * SourceSchemaV2 remain the only cached values; policy, peers, environment,
  * authorization, clock, and freshness are reapplied after every cache read.
@@ -295,7 +295,7 @@ function assertCertifiedProtocol(protocol: SourceCapabilityConnectOptions["proto
   if (protocol === "auto" || CERTIFIED_PROTOCOLS.has(protocol)) return;
   throw new HonuaDiscoveryError(
     "unsupported-protocol",
-    `Capability-aware discovery is currently certified for GeoServices and OData, not "${String(protocol)}".`,
+    `Capability-aware discovery is currently certified for GeoServices, OData, WMS, and WMTS, not "${String(protocol)}".`,
     { protocol },
   );
 }
