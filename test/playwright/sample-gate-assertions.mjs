@@ -97,7 +97,9 @@ async function writeBrowserEvidenceArtifacts({
         if (!navigation || navigation.entryType !== "navigation") {
           throw new Error("PerformanceNavigationTiming is unavailable");
         }
-        const resources = performance.getEntriesByType("resource");
+        const resources = performance
+          .getEntriesByType("resource")
+          .filter((entry) => entry.responseEnd > 0 && entry.responseEnd <= readyMs);
         return {
           navigation: {
             entryType: navigation.entryType,

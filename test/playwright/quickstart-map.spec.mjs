@@ -48,6 +48,7 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.journeyComplete === true))
       .toBe(true);
+    const sampleReadyDurationMs = await page.evaluate(() => performance.now());
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText("every decision in the open");
     await expect(page.getByTestId("honua-sample-mode")).toHaveText("Fixture replay");
@@ -123,7 +124,6 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await expect(page.locator("#workflow-code")).toContainText('"protocol": "ogc-features"');
 
     const runtimeReady = await page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.journeyComplete === true);
-    const sampleReadyDurationMs = await page.evaluate(() => performance.now());
     await attestBrowserQuality({
       page,
       testInfo,
