@@ -55,7 +55,7 @@
     ]
   },
   "goldenJourneys": [
-    { "id": "first-map", "title": "First Map", "status": "planned", "candidateSampleId": "maplibre-quickstart" },
+    { "id": "first-map", "title": "First Map", "status": "qualified", "candidateSampleId": "maplibre-quickstart" },
     { "id": "service-explorer", "title": "Universal Service Explorer", "status": "planned", "candidateSampleId": "service-explorer" },
     { "id": "planning-permitting", "title": "Planning and Permitting", "status": "planned", "candidateSampleId": "planning-permitting-workbench" },
     { "id": "incident-operations", "title": "Realtime Incident Operations", "status": "planned", "candidateSampleId": "realtime-incident-dashboard" },
@@ -250,16 +250,18 @@
       "live": { "mode": "public-live", "status": "planned", "commands": [] }
     },
     "maplibre-quickstart": {
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "first-map",
       "validationProfile": "golden-browser",
       "lifecycle": {
         "state": "active",
-        "reason": "Accepted First Map implementation; formal golden promotion awaits immutable complete gate receipts."
+        "reason": "Qualified First Map journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous live receipts."
       },
       "live": {
         "mode": "public-live",
-        "status": "planned"
+        "status": "executed",
+        "evidencePath": "samples/evidence/maplibre-quickstart/runs/507b3b6f-341d-4037-a725-0dfb4dc4d695/artifacts/live-evidence.json",
+        "expiresAt": "2026-07-24T15:44:54.411Z"
       }
     },
     "mcp-gis-assistant": {

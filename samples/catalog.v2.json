@@ -67,7 +67,7 @@
     {
       "id": "first-map",
       "title": "First Map",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "maplibre-quickstart"
     },
     {
@@ -983,12 +983,12 @@
       "title": "First Map: endpoint to inspected MapLibre map",
       "summary": "Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result.",
       "sourceKind": "root-example",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "first-map",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Accepted First Map implementation; formal golden promotion awaits immutable complete gate receipts."
+        "reason": "Qualified First Map journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous live receipts."
       },
       "sourcePath": "examples/maplibre-quickstart",
       "docsPath": "examples/maplibre-quickstart/README.md",
@@ -1060,10 +1060,12 @@
         },
         "live": {
           "mode": "public-live",
-          "status": "planned",
+          "status": "executed",
           "commands": [
             "npm run evidence:first-map:live"
-          ]
+          ],
+          "evidencePath": "samples/evidence/maplibre-quickstart/runs/507b3b6f-341d-4037-a725-0dfb4dc4d695/artifacts/live-evidence.json",
+          "expiresAt": "2026-07-24T15:44:54.411Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
