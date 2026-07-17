@@ -8,26 +8,26 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-17 at commit `146f7289`._
+_Generated 2026-07-17 at commit `de58929c`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 478.0 KiB | 488.7 KiB | 126.1 KiB | 127.9 KiB |
-| `/honua` | 625.0 KiB | 673.0 KiB | 166.5 KiB | 179.0 KiB |
-| `/contract` | 259.0 KiB | 287.3 KiB | 68.3 KiB | 72.9 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 631.2 KiB | 663.7 KiB | 129.3 KiB | 134.0 KiB |
+| `.` (root) | 516.8 KiB | 568.5 KiB | 136.6 KiB | 150.2 KiB |
+| `/honua` | 663.8 KiB | 673.0 KiB | 177.1 KiB | 179.0 KiB |
+| `/contract` | 264.6 KiB | 287.3 KiB | 70.0 KiB | 72.9 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 670.0 KiB | 737.0 KiB | 140.0 KiB | 154.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 253.7 KiB | 257.5 KiB | 31.2 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData schema-bound evaluation) | 663.8 KiB | 733.3 KiB | 138.0 KiB | 152.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData schema-bound evaluation) | 702.7 KiB | 733.3 KiB | 148.7 KiB | 152.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 53.2 KiB | 62.6 KiB | 16.5 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 52.4 KiB | 55.2 KiB | 15.2 KiB | 15.8 KiB |
 | `/nl-map-control` | 73.8 KiB | 84.5 KiB | 22.2 KiB | 25.3 KiB |
-| `/runtime` | 501.8 KiB | 550.7 KiB | 134.6 KiB | 147.5 KiB |
+| `/runtime` | 507.2 KiB | 550.7 KiB | 136.3 KiB | 147.5 KiB |
 | `/realtime` | 41.2 KiB | 49.3 KiB | 11.4 KiB | 13.5 KiB |
 | `/offline` | 36.6 KiB | 44.3 KiB | 11.1 KiB | 13.2 KiB |
 | `/query-planner` (worker runtime injected) | 521.4 KiB | 568.1 KiB | 102.7 KiB | 111.1 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 92.7 KiB | 100.0 KiB | 28.7 KiB | 30.8 KiB |
-| `/esri-compat` | 978.1 KiB | 1026.2 KiB | 243.2 KiB | 253.6 KiB |
+| `/esri-compat` | 979.3 KiB | 1026.2 KiB | 243.6 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 25.1 KiB | 31.6 KiB | 7.3 KiB | 9.1 KiB |
@@ -37,15 +37,15 @@ _Generated 2026-07-17 at commit `146f7289`._
 | `/map` | 173.3 KiB | 182.2 KiB | 48.8 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 46.9 KiB | 53.6 KiB | 14.8 KiB | 16.8 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 432.9 KiB | 446.7 KiB | 114.4 KiB | 117.2 KiB |
+| `/react` (react/react-dom external) | 438.5 KiB | 446.7 KiB | 116.0 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 478.5 KiB | 489.3 KiB | 126.3 KiB | 128.1 KiB |
-| browser ESM (`./browser`) | 477.2 KiB | 487.9 KiB | 126.0 KiB | 127.9 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 210.5 KiB | 229.7 KiB | 53.2 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 345.9 KiB | 359.2 KiB | 89.0 KiB | 92.8 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 517.4 KiB | 569.1 KiB | 136.8 KiB | 150.4 KiB |
+| browser ESM (`./browser`) | 516.1 KiB | 567.7 KiB | 136.5 KiB | 150.1 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 211.7 KiB | 229.7 KiB | 53.6 KiB | 57.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 384.7 KiB | 423.1 KiB | 99.5 KiB | 109.5 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 447.7 KiB | 478.1 KiB | 117.9 KiB | 125.4 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 225.3 KiB | 245.9 KiB | 56.6 KiB | 61.4 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 486.6 KiB | 535.2 KiB | 128.4 KiB | 141.2 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 226.4 KiB | 245.9 KiB | 56.9 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 40.7 KiB | 44.7 KiB | 12.8 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
