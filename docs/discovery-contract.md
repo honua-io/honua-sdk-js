@@ -110,8 +110,9 @@ The experimental `connect()` facade composes this truth contract for raw OGC
 API Features and STAC API landing pages, raw OGC API Records catalog roots, raw
 OGC API Tiles and Maps service roots (render-only sources),
 WFS 2.0 endpoints, OData v4 service
-roots, static-file GeoParquet assets, and canonical
-GeoServices `FeatureServer` / `MapServer` service or layer URLs. OGC, STAC,
+roots, static-file GeoParquet assets, and canonical GeoServices
+`FeatureServer` / `MapServer` service or layer URLs plus executable
+`ImageServer` raster catalogs. OGC, STAC,
 WFS, OData, Records, Tiles, Maps, and GeoParquet endpoints require an explicit
 `protocol: "ogc-features"`,
 `protocol: "stac"`, `protocol: "wfs"`, `protocol: "odata"`,
@@ -120,7 +121,7 @@ WFS, OData, Records, Tiles, Maps, and GeoParquet endpoints require an explicit
 Source-backed protocol; `connect()` rejects `protocol: "ogc-processes"` and
 directs callers to `discoverOgcProcesses()`, which returns a
 capability/metadata result rather than a `Source` (see below).
-Canonical GeoServices URLs may use
+Canonical source-backed GeoServices URLs may use
 `protocol: "auto"`: classification comes entirely from the URL path and makes
 no network request. An ambiguous auto target throws `HonuaDiscoveryError` with
 code `ambiguous-protocol` before cache hooks, authentication, or network
@@ -192,6 +193,61 @@ At a service root, if one optional layer metadata request fails, service-level
 evidence retains known-safe operations and the affected source reports
 `partial-discovery`; no adapter default is silently substituted. Layer fields
 and the object-id primary key are projected into the common source schema.
+
+### Service-shaped GeoServices discovery
+
+`discoverGeoServices()` from `@honua/sdk-js/honua` accepts canonical
+`FeatureServer`, `MapServer`, `ImageServer`, `GeometryServer`, and `GPServer`
+URLs. It shares `connect()`'s strict classifier, including nested service
+folders, optional numeric FeatureServer/MapServer layers, selected GP task
+names, and removable JSON-format query parameters. Credentials, fragments,
+identity-bearing queries, unsafe relative paths, and non-canonical selected
+resources fail before authentication or metadata work.
+
+```ts doc-test=compile
+import { discoverGeoServices } from "@honua/sdk-js/honua";
+
+const discovery = await discoverGeoServices({
+  endpoint:
+    "https://sampleserver.example/arcgis/rest/services/Analysis/Visibility/GPServer",
+});
+
+for (const task of discovery.operations) {
+  console.log(task.id, task.execution, task.availability, task.href);
+}
+```
+
+Every result retains a common service identity, credential-free authentication
+evidence, advertised formats, CRS values, numeric limits, provenance, and
+structured diagnostics. GeometryServer and GPServer are operation-shaped, so
+they always return an empty `sources` array. ImageServer becomes a Source only
+when metadata explicitly advertises catalog/query and pagination support—the
+existing raster-catalog adapter can then uphold both `query()` and the
+canonical bounded `queryAll()` contract. Export-only, secured, or otherwise
+unproven imagery remains a service/operation result. Discovery never converts
+image/export evidence into feature edits, attachments, relationships, or
+streaming capabilities.
+
+Geometry operations come only from advertised operation metadata. GP discovery
+reads the advertised task list with concurrency four and classifies task
+metadata as synchronous `execute`, asynchronous `submitJob` plus inert job URL
+templates, or unknown. It never invokes an operation, requests an image,
+submits or polls a job, reads results, or starts a stream. Relative operation
+links must remain inside the credential-free service root.
+
+HTTP 401/403 and ArcGIS 498/499 error codes preserve the URL-proven service
+kind while publishing no inferred operations or capabilities. A failed GP task
+metadata request yields an unavailable task beside successful siblings. The
+decoded response stream is capped at 1,048,576 bytes before JSON parsing even
+when `Content-Length` is absent or false. Parsed metadata is additionally
+bounded to 32 levels, 50,000 values, 10,000 array entries or object keys, 65,536
+code units per string, and one million string code units overall. Redirects are
+not followed for discovery metadata; the successful response authority and
+service path must exactly match the requested endpoint. The nested `metadata`
+option therefore exposes only the honored HTTP cache directive (`default` or
+`bypass`); TTL and stale fallback are not accepted because this raw service
+facade does not own an SDK-local metadata cache. Malformed or oversized
+metadata fails closed with a typed discovery error.
 
 At an OGC service root, all advertised collections become `Dataset` source
 descriptors; at a GeoServices root, advertised layers and tables do. A layer
@@ -355,16 +411,18 @@ alter object prototypes. A bound violation fails without a network fallback.
 Cache hooks must not persist access tokens, API keys, or raw authorization
 material.
 
-This slice is intentionally not universal-connect completion: static STAC and
-the GeoServices Image/Geometry/GP services still fail as unsupported rather than
-falling through to heuristic detection.
+This slice is intentionally not universal-connect completion: static STAC
+classification remains unsupported, while GeometryServer and GPServer are
+operation-shaped and therefore fail through `connect()`; callers use
+`discoverGeoServices()` instead. Export-only or otherwise unproven ImageServer
+metadata follows the same service-shaped path. No protocol falls through to
+heuristic detection.
 
 ## Remaining #391 work
 
 - Static asset classification for GeoParquet via `auto` (structural URL
   recognition) and an explicit ambiguity-recovery contract; today GeoParquet
   requires an explicit `protocol: "geoparquet"` hint plus a metadata reader.
-- GeoServices ImageServer, GeometryServer, and GPServer metadata projections.
 - Remaining protocol adapters, normalized schema/queryables, and partial
   metadata diagnostics. The instance-scoped `createHonua()` owner now consumes
   this contract without changing its lower-level discovery semantics.

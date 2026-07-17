@@ -41,7 +41,8 @@
     "ogc-tiles",
     "ogc-maps",
     "geoservices-feature-service",
-    "geoservices-map-service"
+    "geoservices-map-service",
+    "geoservices-image-service"
   ],
   "protocolOperations": [
     "query",
@@ -419,6 +420,12 @@
       "id": "connect-fixtures",
       "kind": "fixture",
       "path": "test/connect.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "geoservices-discovery-fixtures",
+      "kind": "fixture",
+      "path": "test/geoservices-discovery.test.ts",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -1260,6 +1267,7 @@
       "label": "GeoServices ImageServer reads",
       "protocol": "geoservices-image-service",
       "operations": [
+        "discovery",
         "query",
         "render",
         "tiles",
@@ -1269,11 +1277,46 @@
       "executionMode": "native",
       "status": "supported",
       "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
-      "api": "HonuaClient.imageService, Source.protocol()",
-      "notes": "Uses raw ImageServer paths for raster-catalog queries, export, identify, and cached tiles.",
+      "api": "connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol()",
+      "notes": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor.",
       "evidence": [
+        "geoservices-discovery-fixtures",
         "geoservices-conformance",
         "image-service-integration"
+      ]
+    },
+    {
+      "id": "geoservices-geometry-discovery-standalone",
+      "label": "GeoServices GeometryServer discovery",
+      "protocol": "geoservices-geometry-service",
+      "operations": [
+        "discovery"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "supported",
+      "backendNeeded": "Any ArcGIS Server GeometryServer endpoint",
+      "api": "discoverGeoServices()",
+      "notes": "Returns advertised geometry operations as metadata-only descriptors; it never invents a queryable Source.",
+      "evidence": [
+        "geoservices-discovery-fixtures"
+      ]
+    },
+    {
+      "id": "geoservices-gp-discovery-standalone",
+      "label": "GeoServices GPServer discovery",
+      "protocol": "geoservices-gp-service",
+      "operations": [
+        "discovery"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "supported",
+      "backendNeeded": "Any ArcGIS Server GPServer endpoint",
+      "api": "discoverGeoServices()",
+      "notes": "Returns task execution and job-lifecycle metadata without starting a job or inventing a queryable Source.",
+      "evidence": [
+        "geoservices-discovery-fixtures"
       ]
     },
     {

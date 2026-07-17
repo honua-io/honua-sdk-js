@@ -14,7 +14,12 @@ import {
   type GeoParquetSourceProfiler,
   discoverGeoParquetSources,
 } from "./connect-geoparquet.js";
-import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
+import {
+  type ConnectTarget,
+  discoverGeoServicesImageSources,
+  discoverGeoServicesSources,
+  resolveConnectTarget,
+} from "./connect-geoservices.js";
 export type { GeoParquetSourceProfiler } from "./connect-geoparquet.js";
 import { discoverOdataSources } from "./connect-odata.js";
 import {
@@ -127,11 +132,11 @@ export interface ConnectSourceCapabilityProjection {
 }
 
 /** Schema version for values stored through {@link ConnectDiscoveryCache}. */
-export const HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION = 4 as const;
+export const HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION = 5 as const;
 /** Adapter version used to invalidate logical discovery identities. */
-export const HONUA_CONNECT_ADAPTER_VERSION = "honua-connect@4";
+export const HONUA_CONNECT_ADAPTER_VERSION = "honua-connect@5";
 /** Normalized facade projection version used to invalidate cached snapshots. */
-export const HONUA_CONNECT_PROJECTION_VERSION = "honua-connect-source-descriptor@2";
+export const HONUA_CONNECT_PROJECTION_VERSION = "honua-connect-source-descriptor@3";
 
 export type ConnectProtocolHint = Protocol | "auto";
 export type ConnectCacheStatus = "bypass" | "hit" | "miss" | "refreshed";
@@ -267,6 +272,7 @@ export const CONNECT_SOURCE_PROTOCOLS = [
   "ogc-maps",
   "geoservices-feature-service",
   "geoservices-map-service",
+  "geoservices-image-service",
 ] as const satisfies readonly Protocol[];
 
 export type ConnectResolvedProtocol = (typeof CONNECT_SOURCE_PROTOCOLS)[number];
@@ -389,7 +395,9 @@ export async function connectWithSourceSchemaProjection(
                     ? await discoverOgcTiles(client, identity, target, options)
                     : target.protocol === "ogc-maps"
                       ? await discoverOgcMaps(client, identity, target, options)
-                      : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
+                      : target.protocol === "geoservices-image-service"
+                        ? await discoverGeoServicesImage(client, identity, target, options)
+                        : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
     if (
       options.cache &&
       (!sourceSchemaProjection ||
@@ -728,6 +736,31 @@ async function discoverGeoServices(
     protocol: target.protocol,
     retrievedAt: discovered.retrievedAt,
     evidence: Object.freeze([]),
+    sources: discovered.sources,
+  });
+}
+
+async function discoverGeoServicesImage(
+  client: HonuaClient,
+  identity: DiscoveryCacheIdentity,
+  target: ConnectTarget,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const discovered = await discoverGeoServicesImageSources(client, target, options);
+  if (discovered.sources.length === 0) {
+    throw new HonuaDiscoveryError(
+      "unsupported-protocol",
+      "ImageServer metadata did not prove an executable raster-catalog Source; use discoverGeoServices() for imagery service and operation discovery.",
+      { endpoint: identity.endpoint, protocol: target.protocol },
+    );
+  }
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "geoservices-image-service",
+    retrievedAt: discovered.retrievedAt,
+    evidence: discovered.evidence,
     sources: discovered.sources,
   });
 }
@@ -1522,6 +1555,20 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
       throw new HonuaDiscoveryError(
         "invalid-discovery-cache",
         `Cached ${family} source locator does not match the service endpoint.`,
+      );
+    }
+    return;
+  }
+  if (target.protocol === "geoservices-image-service") {
+    if (
+      locator.url !== target.clientBaseUrl ||
+      locator.serviceId !== target.serviceId ||
+      locator.layerId !== undefined ||
+      sourceId !== target.serviceId
+    ) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Cached ImageServer source locator does not match the service endpoint.",
       );
     }
     return;

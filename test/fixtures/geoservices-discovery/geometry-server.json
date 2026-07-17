@@ -1,0 +1,16 @@
+{
+  "name": "Geometry Utilities",
+  "serviceDescription": "Projection and topology operations",
+  "supportedInputFormats": ["esriJSON", "geoJSON"],
+  "supportedOutputFormats": "esriJSON,geoJSON",
+  "spatialReference": { "wkid": 4326 },
+  "supportedOperations": ["Project", "Buffer", "Simplify", "Intersect", "Union", "Clip", "Difference"],
+  "operations": [
+    { "name": "Project", "href": "./project", "methods": ["GET", "POST"] },
+    { "name": "Buffer", "href": "buffer", "methods": ["POST"] }
+  ],
+  "authInfo": {
+    "isTokenBasedSecurity": true,
+    "tokenServicesUrl": "../../../tokens/generateToken"
+  }
+}

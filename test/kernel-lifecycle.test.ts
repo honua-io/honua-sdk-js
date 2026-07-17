@@ -17,7 +17,7 @@ function identity(key: string): DiscoveryCacheIdentity {
 
 function snapshot(cacheIdentity: DiscoveryCacheIdentity): ConnectDiscoverySnapshot {
   return Object.freeze({
-    version: 4,
+    version: 5,
     identityKey: cacheIdentity.key,
     endpoint: cacheIdentity.endpoint,
     protocol: "ogc-features",

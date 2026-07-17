@@ -603,7 +603,7 @@ export class HonuaClient {
    * base origin (re-running the {@link resolveRequestUrl} origin guard).
    * Cross-origin redirects throw before the credentialed request is replayed.
    */
-  private async fetchWithSafeRedirects(url: string, init: RequestInit): Promise<Response> {
+  private async fetchWithSafeRedirects(url: string, init: RequestInit, followRedirects = true): Promise<Response> {
     let currentUrl = url;
     let currentInit: RequestInit = init;
     for (let redirects = 0; ; redirects += 1) {
@@ -621,6 +621,10 @@ export class HonuaClient {
       }
 
       if (!REDIRECT_STATUSES.has(response.status)) {
+        return response;
+      }
+
+      if (!followRedirects) {
         return response;
       }
 
@@ -1141,7 +1145,11 @@ export class HonuaClient {
     path: string,
     init?: RequestInit,
     callerSignal?: AbortSignal,
-    options: { okStatuses?: readonly number[] } = {},
+    options: {
+      okStatuses?: readonly number[];
+      followRedirects?: boolean;
+      discardErrorBody?: boolean;
+    } = {},
   ): Promise<Response> {
     const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
@@ -1158,6 +1166,15 @@ export class HonuaClient {
     return this.executeRequest<Response>(request, {
       callerSignal,
       ...(options.okStatuses ? { okStatuses: options.okStatuses } : {}),
+      followRedirects: options.followRedirects !== false,
+      ...(options.discardErrorBody
+        ? {
+            errorBody: (response: Response) => {
+              void response.body?.cancel().catch(() => undefined);
+              return Promise.resolve({});
+            },
+          }
+        : {}),
       finalize: async (response, _durationMs, _request, runAfter) => {
         await runAfter();
         return response;
@@ -1947,6 +1964,7 @@ export class HonuaClient {
     initialRequest: HonuaRequestContext,
     options: {
       callerSignal?: AbortSignal;
+      followRedirects?: boolean;
       okStatuses?: readonly number[];
       errorBody?: (response: Response) => Promise<unknown>;
       shortCircuit?: (
@@ -1973,11 +1991,15 @@ export class HonuaClient {
       const timeout = createTimeoutSignal(options.callerSignal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
       try {
-        response = await this.fetchWithSafeRedirects(request.url, {
-          ...request.init,
-          method: request.method,
-          signal: timeout.signal,
-        });
+        response = await this.fetchWithSafeRedirects(
+          request.url,
+          {
+            ...request.init,
+            method: request.method,
+            signal: timeout.signal,
+          },
+          options.followRedirects !== false,
+        );
       } catch (error) {
         const durationMs = performance.now() - startTime;
         const normalizedError = timeout.didTimeout
