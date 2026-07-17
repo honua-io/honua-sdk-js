@@ -4675,10 +4675,25 @@ const openAiTools = toNlMapControlOpenAiToolDefinitions();
 ```
 
 `proposeMapPlan` is a read tool (planning only); `executeMapPlan` is an
-action tool that requires opt-in and accepts a serialized plan plus an
-optional approval bundle — the same plan-only, envelope-gated contract as
-the in-app API. MCP servers hosting these tools keep the identical safety
-semantics because they delegate to `createNlMapControl`.
+action tool that requires opt-in and accepts a serialized plan plus the
+approval bundle indicated by the proposal's `approvalRequired` field.
+`@honua/mcp-server` hosts these definitions through
+`createNlMapControlMcpHost` and `createServer(client, { nlMapControl })`. The
+MCP boundary additionally requires an atomic approval-use consumer, matches
+transport authorization scopes to the exact signed source binding, verifies the
+approval before inspecting its requested scopes, propagates cancellation, and
+refuses credential/cursor/endpoint-bearing plans before mutation. Plans and
+approvals are snapshotted as bounded JSON without invoking accessors before any
+asynchronous authorization callback. Its content-addressed execution receipt
+omits the raw instruction and tool result payloads while retaining the exact
+plan and SDK receipt digests.
+
+Unlike the in-app controller's default read-only auto-execution policy, the MCP
+host also requires an approval for a read-only step that names a `sourceId`
+(including `runWidgetQuery`). The signed source binding is the authority from
+which the host derives required transport scopes; without it, a protected-source
+read is refused before the runtime is called. Read-only map inspection that does
+not name a source can still use the controller's auto-execution policy.
 
 ## Errors
 
@@ -12484,6 +12499,40 @@ mutation on the standalone server. The descriptor requires a bounded exact name
 and a deterministic `countRows(result)` callback; missing or invalid row counts
 fail instead of being reported as zero.
 
+### Optional natural-language map-plan tools
+
+Embedded hosts with a map runtime, BYO-LLM callback, approval verifier, and
+atomic approval-use store can opt into two additional tools:
+
+- `proposeMapPlan` — compiles an instruction into an inspectable, content-addressed plan and never executes it.
+- `executeMapPlan` — accepts that plan plus a signed approval envelope and executes only after scope, signature,
+  expiry, single-use, cancellation, and plan-identity checks. The envelope is required for effects and for every
+  read step that names a `sourceId`; only non-source inspection may use read-only auto-execution.
+
+```ts
+import { createNlMapControlMcpHost, createServer } from "@honua/mcp-server";
+
+const nlMapControl = createNlMapControlMcpHost({
+  control: {
+    tools: { runtime },
+    llm: callYourModel,
+    approvalVerifier,
+    receiptSigner,
+  },
+  approvalUseConsumer, // host-owned atomic consume + verify callbacks
+  resolveAuthorizationScopes: (transportScopes) => transportScopes,
+});
+
+const server = createServer(honuaClient, { nlMapControl });
+```
+
+The callbacks are deliberately not inferred from environment variables: model
+transport, map authority, signing keys, and replay storage remain host-owned.
+The MCP response omits raw tool results and the original instruction from its
+execution receipt. Plans containing credential, cursor, or endpoint material
+are refused instead of returning a redacted plan that could no longer match its
+approval fingerprint.
+
 ## MCP Resources
 
 - `honua://services`
@@ -12521,8 +12570,15 @@ npm run certify
 
 # CI entry points (also runnable locally):
 npm run test:certification            # gate: runs harness tests + certifier, exits non-zero on failure
+npm run test:certification:nl-map-control # gate: approval/scope/replay/cancellation/receipt security matrix
 npm run test:certification:artifact   # evidence: writes artifacts, always exits 0
 ```
+
+The certification test lane also hosts the optional NL tools over an in-memory
+MCP transport with a deterministic fixture completion and mock map runtime. It proves
+propose→approve→execute plus missing, expired, replayed, wrong-scope, tampered,
+cancelled, deterministic-receipt, and redaction cases without a model, API key,
+network service, or wall-clock dependency.
 
 ### Platform-free certification lane
 
