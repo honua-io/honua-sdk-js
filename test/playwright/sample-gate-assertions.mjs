@@ -62,19 +62,24 @@ async function writeBrowserEvidenceArtifacts({
 
   if (screenshotOutput) {
     await mkdir(path.dirname(screenshotOutput.absolute), { recursive: true });
-    await page.setViewportSize(SAMPLE_SCREENSHOT_VIEWPORT);
-    const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), "screenshot.png");
-    await page.screenshot({ path: screenshotPath, animations: "disabled", fullPage: false });
-    const bytes = await readFile(screenshotPath);
-    const report = {
-      projectName,
-      browserName,
-      viewport: SAMPLE_SCREENSHOT_VIEWPORT,
-      path: path.relative(process.cwd(), screenshotPath).replaceAll(path.sep, "/"),
-      bytes: bytes.byteLength,
-      sha256: createHash("sha256").update(bytes).digest("hex"),
-    };
-    await writeFile(screenshotOutput.absolute, `${JSON.stringify(report, null, 2)}\n`);
+    const previousViewport = page.viewportSize();
+    try {
+      await page.setViewportSize(SAMPLE_SCREENSHOT_VIEWPORT);
+      const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), "screenshot.png");
+      await page.screenshot({ path: screenshotPath, animations: "disabled", fullPage: false });
+      const bytes = await readFile(screenshotPath);
+      const report = {
+        projectName,
+        browserName,
+        viewport: SAMPLE_SCREENSHOT_VIEWPORT,
+        path: path.relative(process.cwd(), screenshotPath).replaceAll(path.sep, "/"),
+        bytes: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      };
+      await writeFile(screenshotOutput.absolute, `${JSON.stringify(report, null, 2)}\n`);
+    } finally {
+      if (previousViewport) await page.setViewportSize(previousViewport);
+    }
   }
 
   if (performanceOutput) {
