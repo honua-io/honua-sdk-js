@@ -899,18 +899,18 @@ function connectionAuthorizationScope(value: string | undefined): readonly strin
 function connectionSourceVersion(inspection: ConnectionInspection, descriptor: SourceDescriptor): string {
   const identity = canonicalStringify(
     toJsonValue({
-      version: 2,
+      version: 3,
       connectionId: inspection.id,
       endpoint: inspection.endpoint,
       protocol: inspection.protocol,
-      descriptor: semanticSourceDescriptor(descriptor),
+      source: semanticSourceAddress(descriptor),
     }),
   );
   return `connection-source:${sha256(identity)}`;
 }
 
-/** Project execution-relevant descriptor truth without retaining URL credentials or observation clocks. */
-function semanticSourceDescriptor(descriptor: SourceDescriptor): Readonly<Record<string, unknown>> {
+/** Project stable source addressing without retaining URL credentials or mutable discovery truth. */
+function semanticSourceAddress(descriptor: SourceDescriptor): Readonly<Record<string, unknown>> {
   const { url, geoparquet, ...locatorCoordinates } = descriptor.locator;
   const locator = {
     ...locatorCoordinates,
@@ -926,32 +926,10 @@ function semanticSourceDescriptor(descriptor: SourceDescriptor): Readonly<Record
           },
         }),
   };
-  const capabilityProfile = descriptor.capabilityProfile;
   return {
     id: descriptor.id,
     protocol: descriptor.protocol,
     locator,
-    capabilities: sortedUniqueStrings([...descriptor.capabilities]),
-    ...(descriptor.schema === undefined ? {} : { schema: descriptor.schema }),
-    ...(descriptor.schemaV2 === undefined ? {} : { schemaV2: descriptor.schemaV2 }),
-    ...(capabilityProfile === undefined
-      ? {}
-      : {
-          capabilityProfile: {
-            kind: capabilityProfile.kind,
-            version: capabilityProfile.version,
-            sourceFingerprint: capabilityProfile.sourceFingerprint,
-            sourceEndpointFingerprint: capabilityProfile.sourceEndpointFingerprint,
-            entries: canonicalUnique(
-              capabilityProfile.entries.map((entry) => ({
-                id: entry.id,
-                effective: entry.effective,
-              })),
-            ),
-          },
-        }),
-    ...(descriptor.analytics === undefined ? {} : { analytics: descriptor.analytics }),
-    ...(descriptor.attribution === undefined ? {} : { attribution: descriptor.attribution }),
   };
 }
 
@@ -970,10 +948,11 @@ function connectionDiscoveryContext(
   );
   const evidence = canonicalStringify(
     toJsonValue({
-      version: 2,
+      version: 3,
       discovery: inspection.discovery,
       provenance,
       capabilityDecisions,
+      capabilityProfileFingerprint: inspection.descriptor.capabilityProfile?.fingerprint ?? null,
       policy: normalizeDiscoveryCapabilityPolicy(policy),
     }),
   );
@@ -989,7 +968,7 @@ function connectionDiscoveryContext(
   ]);
   return Object.freeze({
     state: plannerDiscoveryState(inspection),
-    sourceFingerprint: sha256(`honua.kernel.discovery-evidence.v2\0${evidence}`),
+    sourceFingerprint: sha256(`honua.kernel.discovery-evidence.v3\0${evidence}`),
     ...(validators.length > 0
       ? {
           validator: {

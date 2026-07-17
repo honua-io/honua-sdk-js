@@ -38,7 +38,9 @@ interface ConnectionFixtureOptions {
   readonly observedAt?: string;
   readonly validator?: string;
   readonly schemaField?: string;
+  readonly schemaV2Fingerprint?: `sha256:${string}`;
   readonly capabilities?: readonly ("query" | "queryAggregate")[];
+  readonly capabilityProfile?: SourceDescriptor["capabilityProfile"];
   readonly locator?: Partial<SourceDescriptor["locator"]>;
   readonly provenance?: readonly DiscoveryProvenance[];
   readonly capabilityDecisions?: readonly DiscoveryCapabilityDecision[];
@@ -46,6 +48,13 @@ interface ConnectionFixtureOptions {
   readonly query?: Source<Incident>["query"];
   readonly queryAll?: Source<Incident>["queryAll"];
 }
+
+const SCHEMA_FINGERPRINT_A = `sha256:${"a".repeat(64)}` as `sha256:${string}`;
+const SCHEMA_FINGERPRINT_B = `sha256:${"b".repeat(64)}` as `sha256:${string}`;
+const PROFILE_FINGERPRINT_A = `sha256:${"c".repeat(64)}` as `sha256:${string}`;
+const PROFILE_FINGERPRINT_B = `sha256:${"d".repeat(64)}` as `sha256:${string}`;
+const EVIDENCE_FINGERPRINT = `sha256:${"e".repeat(64)}` as `sha256:${string}`;
+const ENDPOINT_FINGERPRINT = `sha256:${"f".repeat(64)}` as `sha256:${string}`;
 
 function fixtureCapabilityDecision(
   capability: "query" | "queryAggregate",
@@ -69,6 +78,37 @@ function fixtureCapabilityDecision(
     positiveEvidence: true,
     policyAllowed: true,
     reason: `${capability} advertised by fixture metadata`,
+  };
+}
+
+function fixtureCapabilityProfile(options: {
+  readonly fingerprint: `sha256:${string}`;
+  readonly evaluatedAt: string;
+  readonly validUntil: string;
+}): NonNullable<SourceDescriptor["capabilityProfile"]> {
+  return {
+    kind: "honua.capabilities",
+    version: "1.0",
+    fingerprint: options.fingerprint,
+    evidenceFingerprint: EVIDENCE_FINGERPRINT,
+    sourceFingerprint: SCHEMA_FINGERPRINT_A,
+    sourceEndpointFingerprint: ENDPOINT_FINGERPRINT,
+    evaluatedAt: options.evaluatedAt,
+    validUntil: options.validUntil,
+    context: {
+      availablePeers: [],
+      authorization: { grantedScopes: [], deniedScopes: [] },
+    },
+    entries: [
+      {
+        id: "query",
+        claimed: "supported",
+        observed: "supported",
+        effective: "supported",
+        evidence: [],
+        reasons: ["supported-by-claim-and-observation"],
+      },
+    ],
   };
 }
 
@@ -98,6 +138,16 @@ function connectionFixture(options: ConnectionFixtureOptions): {
         { name: options.schemaField ?? "status", type: "esriFieldTypeString" },
       ],
     },
+    ...(options.schemaV2Fingerprint === undefined
+      ? {}
+      : {
+          schemaV2: {
+            kind: "honua.source-schema" as const,
+            version: "2.0" as const,
+            fingerprint: options.schemaV2Fingerprint,
+          },
+        }),
+    ...(options.capabilityProfile === undefined ? {} : { capabilityProfile: options.capabilityProfile }),
   };
   const source = {
     descriptor,
@@ -373,11 +423,22 @@ describe("connection discovery plan identity", () => {
       change: "locator binding",
       first: {},
       refreshed: { locator: { collectionId: "alternate-incidents" } },
+      code: "foreign-plan",
+      reason: "source-identity-changed",
     },
     {
-      change: "schema",
+      change: "legacy schema",
       first: {},
       refreshed: { schemaField: "state" },
+      code: "stale-plan",
+      reason: "schema-changed",
+    },
+    {
+      change: "schemaV2 identity",
+      first: { schemaV2Fingerprint: SCHEMA_FINGERPRINT_A },
+      refreshed: { schemaV2Fingerprint: SCHEMA_FINGERPRINT_B },
+      code: "stale-plan",
+      reason: "schema-changed",
     },
     {
       change: "effective capabilities",
@@ -389,8 +450,10 @@ describe("connection discovery plan identity", () => {
         capabilities: ["query"],
         capabilityDecisions: [fixtureCapabilityDecision("query"), fixtureCapabilityDecision("queryAggregate")],
       },
+      code: "stale-plan",
+      reason: "capabilities-changed",
     },
-  ] as const)("rejects an accepted plan after a same-id descriptor $change change", async ({ first, refreshed }) => {
+  ] as const)("classifies a same-id $change change as $code/$reason", async ({ first, refreshed, code, reason }) => {
     const endpoint = "https://descriptor-refresh.example.test/ogc/features";
     const initialFixture = connectionFixture({ endpoint, protocol: "ogc-features", ...first });
     const refreshedFixture = connectionFixture({
@@ -412,12 +475,96 @@ describe("connection discovery plan identity", () => {
 
     await connection.inspect({ refresh: true });
 
-    await expect(connection.query(plan)).rejects.toMatchObject({
-      code: "foreign-plan",
-      reason: "source-identity-changed",
-    });
+    await expect(connection.query(plan)).rejects.toMatchObject({ code, reason });
     expect(initialFixture.source.query).not.toHaveBeenCalled();
     expect(refreshedFixture.source.query).not.toHaveBeenCalled();
+    await kernel.dispose();
+  });
+
+  it("treats a changed capability-profile fingerprint as discovery staleness when effective capabilities match", async () => {
+    const endpoint = "https://capability-profile-refresh.example.test/ogc/features";
+    const first = connectionFixture({
+      endpoint,
+      protocol: "ogc-features",
+      schemaV2Fingerprint: SCHEMA_FINGERPRINT_A,
+      capabilityProfile: fixtureCapabilityProfile({
+        fingerprint: PROFILE_FINGERPRINT_A,
+        evaluatedAt: "2026-07-16T00:00:00.000Z",
+        validUntil: "2026-07-16T01:00:00.000Z",
+      }),
+    });
+    const refreshed = connectionFixture({
+      endpoint,
+      protocol: "ogc-features",
+      schemaV2Fingerprint: SCHEMA_FINGERPRINT_A,
+      capabilityProfile: fixtureCapabilityProfile({
+        fingerprint: PROFILE_FINGERPRINT_B,
+        evaluatedAt: "2026-07-16T00:30:00.000Z",
+        validUntil: "2026-07-16T01:30:00.000Z",
+      }),
+    });
+    const queue = [first.connection, refreshed.connection];
+    const kernel = createHonuaKernel({
+      connectDelegate: async () => {
+        const next = queue.shift();
+        if (!next) throw new Error("fixture queue exhausted");
+        return next;
+      },
+    });
+    const connection = await kernel.connect<Incident>(endpoint, { protocol: "ogc-features" });
+    const plan = await connection.explain({ where: "status = 'open'" });
+
+    await connection.inspect({ refresh: true });
+
+    await expect(connection.query(plan)).rejects.toMatchObject({
+      code: "stale-plan",
+      reason: "discovery-changed",
+    });
+    expect(first.source.query).not.toHaveBeenCalled();
+    expect(refreshed.source.query).not.toHaveBeenCalled();
+    await kernel.dispose();
+  });
+
+  it("keeps clock-only capability-profile reevaluation out of plan identity", async () => {
+    const endpoint = "https://capability-profile-clock.example.test/ogc/features";
+    const first = connectionFixture({
+      endpoint,
+      protocol: "ogc-features",
+      schemaV2Fingerprint: SCHEMA_FINGERPRINT_A,
+      capabilityProfile: fixtureCapabilityProfile({
+        fingerprint: PROFILE_FINGERPRINT_A,
+        evaluatedAt: "2026-07-16T00:00:00.000Z",
+        validUntil: "2026-07-16T01:00:00.000Z",
+      }),
+    });
+    const refreshed = connectionFixture({
+      endpoint,
+      protocol: "ogc-features",
+      observedAt: "2026-07-16T00:15:00.000Z",
+      schemaV2Fingerprint: SCHEMA_FINGERPRINT_A,
+      capabilityProfile: fixtureCapabilityProfile({
+        fingerprint: PROFILE_FINGERPRINT_A,
+        evaluatedAt: "2026-07-16T00:15:00.000Z",
+        validUntil: "2026-07-16T01:15:00.000Z",
+      }),
+    });
+    const queue = [first.connection, refreshed.connection];
+    const kernel = createHonuaKernel({
+      connectDelegate: async () => {
+        const next = queue.shift();
+        if (!next) throw new Error("fixture queue exhausted");
+        return next;
+      },
+    });
+    const connection = await kernel.connect<Incident>(endpoint, { protocol: "ogc-features" });
+    const plan = await connection.explain({ where: "status = 'open'" });
+
+    await connection.inspect({ refresh: true });
+    const refreshedPlan = await connection.explain({ where: "status = 'open'" });
+
+    expect(refreshedPlan.fingerprint).toBe(plan.fingerprint);
+    await expect(connection.query(plan)).resolves.toMatchObject({ format: "features" });
+    expect(refreshed.source.query).toHaveBeenCalledOnce();
     await kernel.dispose();
   });
 
@@ -570,8 +717,8 @@ describe("connection accepted-plan safety", () => {
 
     await connection.inspect({ refresh: true });
     await expect(connection.query(plan)).rejects.toMatchObject({
-      code: "foreign-plan",
-      reason: "source-identity-changed",
+      code: "stale-plan",
+      reason: "schema-changed",
     });
     expect(refreshed.source.query).not.toHaveBeenCalled();
 
