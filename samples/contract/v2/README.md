@@ -23,6 +23,8 @@ execution evidence so none of those meanings has to be inferred from another.
   coverage contract. `samples/dist/capability-sample-matrix.v1.json` joins the
   support manifest, exact package exports, catalog v2, and validated golden
   qualification receipts without creating another support inventory.
+  Its compact fixture has a companion adversarial fixture that pins orphan,
+  stale, and overstated-join rejection cases.
 - `migrations/catalog.v1-to-v2.json` is the reviewed one-time migration overlay.
   `npm run samples:migrate:v1` reproduces `samples/catalog.v2.json` from the
   frozen v1 catalog and this overlay.
@@ -58,6 +60,18 @@ experimental SDK cells remain `experimental`, default protocol gaps remain
 validated receipt set can produce `qualified`. The projection contains no
 wall-clock generation value and hashes all four authority inputs, so identical
 inputs produce identical bytes.
+
+Qualified matrix cells resolve through content-derived evidence-binding IDs.
+Each binding names canonical SDK source at one evidence-neutral revision and
+digest, at least one source-mode receipt, and the packed-build receipt and
+report with their byte and SHA-256 bindings. Matrix generation validates the
+complete receipt semantics and exact evidence directory/run inventory, then
+rejects orphan sample trees, unreferenced runs, expired receipts, missing or
+changed reports, and protocol/claim/entrypoint joins that overstate the
+catalog. Freshness fields are copied only from the signed receipts; the matrix
+does not add an observation or generation clock. With no qualified journeys,
+the canonical matrix has zero receipts, zero evidence bindings, and no
+qualified cells.
 
 CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence

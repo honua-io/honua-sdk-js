@@ -48,8 +48,12 @@ export interface QualificationEvidenceInventory {
       sdkMode: "source" | "packed";
       sourceRevision: string;
       sourceDigest: string;
+      runRoot: string;
+      observedAt: string;
+      expiresAt: string;
       path: string;
       sha256: string;
+      artifact: { kind: string; path: string; bytes: number; sha256: string };
     }>;
   }>;
 }
@@ -59,7 +63,35 @@ export interface MatrixCoverage {
   reason: string;
   candidateSampleIds: string[];
   qualifyingSampleIds: string[];
+  evidenceBindingIds: string[];
   selectedSampleId?: string;
+}
+
+export interface MatrixReceiptEvidenceBinding {
+  gate: string;
+  sdkMode: "source" | "packed";
+  receiptPath: string;
+  receiptSha256: string;
+  runRoot: string;
+  observedAt: string;
+  expiresAt: string;
+  reportKind: string;
+  reportPath: string;
+  reportBytes: number;
+  reportSha256: string;
+}
+
+export interface MatrixEvidenceBinding {
+  id: string;
+  sampleId: string;
+  source: {
+    repository: "honua-io/honua-sdk-js";
+    path: string;
+    revision: string;
+    evidenceNeutralSha256: string;
+    receipts: MatrixReceiptEvidenceBinding[];
+  };
+  packed: MatrixReceiptEvidenceBinding & { gate: "packed-build"; sdkMode: "packed" };
 }
 
 export interface CapabilitySampleMatrix {
@@ -78,6 +110,7 @@ export interface CapabilitySampleMatrix {
     coverage: MatrixCoverage;
   }>;
   samples: Array<Record<string, unknown> & { id: string; qualification: { state: SampleCoverageState } }>;
+  evidenceBindings: MatrixEvidenceBinding[];
   protocolOperations: Array<Record<string, unknown> & { id: string; coverage: MatrixCoverage }>;
   supportClaims: Array<Record<string, unknown> & { id: string; coverage: MatrixCoverage }>;
   packageEntrypoints: Array<Record<string, unknown> & { subpath: string; coverage: MatrixCoverage }>;
@@ -162,8 +195,6 @@ export function generatedOutputs(
   packageJson: Record<string, unknown> & { name: string; version: string },
   options?: {
     supportTruth?: Record<string, unknown>;
-    qualificationEvidence?: QualificationEvidenceInventory;
-    receiptRoot?: string;
   },
 ): Promise<Map<string, string>>;
 export function generatedOutputDrift(
