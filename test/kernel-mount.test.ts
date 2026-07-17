@@ -5,7 +5,7 @@ import { type SourceDiscoveryInspection, normalizeDiscoveryEndpoint } from "../s
 import type { Dataset, Query, Result, Source, SourceDescriptor, SourceId } from "../src/contract/types.js";
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "../src/contract/types.js";
 import { createHonuaKernel } from "../src/kernel/index.js";
-import type { RendererAdapter } from "../src/kernel/index.js";
+import type { RendererAdapter, RendererMountRequest } from "../src/kernel/index.js";
 import { canonicalStringify, sha256, toJsonValue } from "../src/query-planner/canonical.js";
 import { queryIrSourceIdentity } from "../src/query-planner/ir.js";
 import { explainQuery, hashQueryPlanV1 } from "../src/query-planner/planner.js";
@@ -257,7 +257,7 @@ function multiFixture<T>(
   } as unknown as HonuaConnection;
 }
 
-function acceptedPlanBoundToNativeFixture(descriptor: SourceDescriptor): QueryExecutionPlanV1 {
+function fabricatedFeaturePlanBoundToNativeFixture(descriptor: SourceDescriptor): QueryExecutionPlanV1 {
   const authorizationScope = Object.freeze([`scope:${sha256("honua.kernel.authorization-scope.v1\0anonymous")}`]);
   const template = explainQuery({
     descriptor: {
@@ -794,7 +794,7 @@ describe("connection MapLibre mount", () => {
     }
   });
 
-  it("rejects accepted query plans before native vector, PMTiles, or raster mutation", async () => {
+  it("rejects fabricated feature plans before native vector, PMTiles, or raster mutation", async () => {
     const scenarios: readonly {
       readonly descriptor: SourceDescriptor;
       readonly rendererOptions: MapLibreRendererOptions;
@@ -838,7 +838,7 @@ describe("connection MapLibre mount", () => {
       });
       const map = new FakeMap();
       const addProtocol = vi.fn();
-      const plan = acceptedPlanBoundToNativeFixture(scenario.descriptor);
+      const plan = fabricatedFeaturePlanBoundToNativeFixture(scenario.descriptor);
 
       await expect(
         connection.mount(map, {
@@ -855,7 +855,7 @@ describe("connection MapLibre mount", () => {
           rendererOptions: scenario.rendererOptions,
           query: plan,
         }),
-      ).rejects.toMatchObject({ code: "no-eligible-strategy" });
+      ).rejects.toMatchObject({ code: "invalid-plan" });
       expect(map.calls).toEqual([]);
       expect(addProtocol).not.toHaveBeenCalled();
       expect(query).not.toHaveBeenCalled();
@@ -1136,6 +1136,49 @@ describe("connection MapLibre mount", () => {
     await expect(mounted.dispose()).resolves.toBeUndefined();
     await connection.dispose();
     expect(dispose).toHaveBeenCalledOnce();
+    await kernel.dispose();
+  });
+
+  it("invalidates a renderer-retained plan callback when its mount lifecycle ends", async () => {
+    const descriptor: SourceDescriptor = {
+      id: "incidents",
+      protocol: "ogc-features",
+      locator: { url: "https://features.example.test/ogc", collectionId: "incidents" },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+    };
+    const data = fixture<Record<string, unknown>>(
+      descriptor,
+      vi.fn(async () => emptyResult<Record<string, unknown>>()),
+    );
+    const kernel = createHonuaKernel({ connectDelegate: async () => data.connection });
+    const connection = await kernel.connect(descriptor.locator.url, { protocol: "ogc-features" });
+    let retainedPlanQuery: RendererMountRequest["planQuery"] | undefined;
+    const adapter = {
+      kind: "test.retained-planner" as const,
+      environments: ["browser" as const],
+      peer: Object.freeze({}),
+      defaultOwnership: () => "borrowed" as const,
+      async mount<T>(_target: string | object, request: RendererMountRequest<T>) {
+        retainedPlanQuery = request.planQuery;
+        return {
+          raw: Object.freeze({ fixture: true }),
+          ready: Promise.resolve(),
+          diagnostics: [],
+          refresh: async () => undefined,
+          dispose: async () => undefined,
+        };
+      },
+    } satisfies RendererAdapter<"test.retained-planner", Readonly<{ fixture: true }>>;
+
+    const mounted = await connection.mount({}, { renderer: adapter });
+    const planQuery = retainedPlanQuery;
+    expect(planQuery).toBeTypeOf("function");
+    await expect(planQuery?.()).resolves.toMatchObject({ version: "1.0" });
+
+    await mounted.dispose();
+    const rejected = planQuery?.();
+    expect(rejected).toBeInstanceOf(Promise);
+    await expect(rejected).rejects.toMatchObject({ name: "HonuaAbortError" });
     await kernel.dispose();
   });
 

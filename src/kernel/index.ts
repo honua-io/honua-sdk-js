@@ -565,22 +565,36 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
     if (suppliedPlan !== undefined) assertConnectionPlanBinding(suppliedPlan, context.sourceVersion);
     let planned: Promise<QueryExecutionPlanV1> | undefined;
     const planQuery = (): Promise<QueryExecutionPlanV1> => {
+      try {
+        this.#assertActive("plan a renderer query");
+        throwIfAborted(signal);
+      } catch (error) {
+        return Promise.reject(credentialSafeError(error, this.#secrets));
+      }
       if (planned !== undefined) return planned;
-      planned = Promise.resolve(
-        suppliedPlan ??
-          explainQuery({
-            descriptor: context.descriptor,
-            query,
-            capabilityPolicy: mountOptions.capabilityPolicy,
-            fallback: mountOptions.fallback,
-            estimates: mountOptions.estimates,
-            cache: mountOptions.cache ?? defaultPlanCache(),
-            schemaVersion: context.schemaVersion,
-            sourceVersion: context.sourceVersion,
-            authorizationScope: context.authorizationScope,
-            discovery: context.discovery,
-          }),
-      );
+      planned = Promise.resolve()
+        .then(() => {
+          this.#assertActive("plan a renderer query");
+          throwIfAborted(signal);
+          return (
+            suppliedPlan ??
+            explainQuery({
+              descriptor: context.descriptor,
+              query,
+              capabilityPolicy: mountOptions.capabilityPolicy,
+              fallback: mountOptions.fallback,
+              estimates: mountOptions.estimates,
+              cache: mountOptions.cache ?? defaultPlanCache(),
+              schemaVersion: context.schemaVersion,
+              sourceVersion: context.sourceVersion,
+              authorizationScope: context.authorizationScope,
+              discovery: context.discovery,
+            })
+          );
+        })
+        .catch((error: unknown) => {
+          throw credentialSafeError(error, this.#secrets);
+        });
       return planned;
     };
     let ownership: RendererOwnership;
