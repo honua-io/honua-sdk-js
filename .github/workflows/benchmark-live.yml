@@ -37,6 +37,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build public SDK entrypoints
+        run: npm run build
+
       - name: Probe canonical live sources
         env:
           HONUA_BENCH_LIVE_ENABLED: "true"

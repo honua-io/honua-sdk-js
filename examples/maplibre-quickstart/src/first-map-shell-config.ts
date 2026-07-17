@@ -32,6 +32,15 @@ const FIXTURE_BASEMAP_PATH = "/__honua-quickstart__/basemap-style.json";
 const PUBLIC_BASEMAP_STYLE = "https://demotiles.maplibre.org/style.json";
 export const FIRST_MAP_RUNTIME_BUDGET_MS = 5_000;
 
+export function evaluateFirstMapRuntime(
+  mode: FirstMapMode,
+  durationMs: number,
+): { withinBudget: boolean; preserveSuccessfulMap: boolean } {
+  if (!Number.isFinite(durationMs) || durationMs < 0) throw new RangeError("First Map runtime must be non-negative.");
+  const withinBudget = durationMs <= FIRST_MAP_RUNTIME_BUDGET_MS;
+  return { withinBudget, preserveSuccessfulMap: withinBudget || mode === "public-live" };
+}
+
 export function resolveFirstMapShellConfig(
   environment: FirstMapEnvironment,
   browserOrigin: string,

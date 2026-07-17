@@ -4,6 +4,7 @@ import { resolveFirstMapConfig } from "../examples/maplibre-quickstart/src/first
 import { firstMapCopyCode } from "../examples/maplibre-quickstart/src/first-map-copy.js";
 import {
   FIRST_MAP_RUNTIME_BUDGET_MS,
+  evaluateFirstMapRuntime,
   resolveFirstMapShellConfig,
   toFirstMapConfigInput,
 } from "../examples/maplibre-quickstart/src/first-map-shell-config.js";
@@ -61,6 +62,21 @@ describe("First Map shell configuration", () => {
       protocol: "auto",
     });
     expect(resolveFirstMapConfig(input).mode).toBe("public-live");
+  });
+
+  it("keeps a successful slow public map while controlled qualification still fails closed", () => {
+    expect(evaluateFirstMapRuntime("public-live", FIRST_MAP_RUNTIME_BUDGET_MS + 1)).toEqual({
+      withinBudget: false,
+      preserveSuccessfulMap: true,
+    });
+    expect(evaluateFirstMapRuntime("fixture", FIRST_MAP_RUNTIME_BUDGET_MS + 1)).toEqual({
+      withinBudget: false,
+      preserveSuccessfulMap: false,
+    });
+    expect(evaluateFirstMapRuntime("public-live", FIRST_MAP_RUNTIME_BUDGET_MS)).toEqual({
+      withinBudget: true,
+      preserveSuccessfulMap: true,
+    });
   });
 
   it("renders the selected bounded filter through copyable public-SDK code without executable markup", () => {

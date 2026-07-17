@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MAX_FIRST_MAP_FEATURES, resolveFirstMapConfig } from "../examples/maplibre-quickstart/src/first-map-config.js";
 import { runFirstMapWorkflow } from "../examples/maplibre-quickstart/src/workflow.js";
 import { type SampleFixtureHarness, loadFixturePack, startSampleFixtureHarness } from "../samples/scenarios/index.mjs";
+import { EvidenceMap } from "../scripts/lib/evidence-map.mjs";
 
 const fixturePack = loadFixturePack("first-map");
 const fixtureFiles = fixturePack.manifest.schema.files as Record<string, string>;
@@ -27,6 +28,7 @@ function multiCollectionFetch(): typeof fetch {
     if (pathname === "/ogc/features") return json(fixture("ogcLanding"));
     if (pathname === "/ogc/features/conformance") return json(fixture("ogcConformance"));
     if (pathname === "/ogc/features/collections") return json({ collections: [collection, second] });
+    if (pathname.endsWith("/items")) return json(fixture("ogcItems"));
     return new Response("Not found", { status: 404 });
   };
 }
@@ -43,12 +45,14 @@ describe("First Map workflow core", () => {
   });
 
   it("connects the deterministic GeoServices projection and returns a bounded strategy handoff", async () => {
+    const map = new EvidenceMap();
     const result = await runFirstMapWorkflow(
       resolveFirstMapConfig({
         endpoint: `${harness.origin}/rest/services/natural-earth/FeatureServer/0`,
         mode: "fixture",
-        maxFeatures: 2,
+        maxFeatures: 3,
       }),
+      { map },
     );
 
     expect(result.state).toBe("ready");
@@ -62,23 +66,32 @@ describe("First Map workflow core", () => {
         capabilities: expect.arrayContaining(["query"]),
       },
       strategy: "geojson",
-      maxFeatures: 2,
+      maxFeatures: 3,
     });
     expect(result.mount.options).toMatchObject({
       strategy: "geojson",
-      maxGeoJsonFeatures: 2,
-      query: { pagination: { limit: 2 }, returnGeometry: true },
+      maxGeoJsonFeatures: 3,
+      query: { pagination: { limit: 3 }, returnGeometry: true },
     });
     expect(result.mount.source.descriptor.id).toBe("0");
+    expect(result.mounted).toMatchObject({
+      strategy: "geojson",
+      diagnostics: { featureCount: 3, geometryKinds: ["polygon"] },
+    });
+    expect(map.sources.size).toBe(1);
+    expect(map.layers.size).toBe(4);
     const requests = (await (await fetch(`${harness.origin}/__fixture__/runs/default/requests`)).json()) as {
       requests: Array<{ routeId: string }>;
     };
-    expect(requests.requests.some(({ routeId }) => routeId === "first-map-query")).toBe(false);
+    expect(requests.requests.filter(({ routeId }) => routeId === "first-map-query")).toHaveLength(2);
     await result.dispose();
+    expect(map.sources.size).toBe(0);
+    expect(map.layers.size).toBe(0);
     await expect(result.dispose()).resolves.toBeUndefined();
   });
 
   it("connects the same fixture through OGC API Features with an explicit protocol and source", async () => {
+    const map = new EvidenceMap();
     const result = await runFirstMapWorkflow(
       resolveFirstMapConfig({
         endpoint: `${harness.origin}/ogc/features`,
@@ -86,6 +99,7 @@ describe("First Map workflow core", () => {
         protocol: "ogc-features",
         sourceId: "operations-areas",
       }),
+      { map },
     );
 
     expect(result.state).toBe("ready");
@@ -96,12 +110,16 @@ describe("First Map workflow core", () => {
       capabilities: expect.arrayContaining(["query"]),
     });
     expect(result.view.strategyReasons[0]?.code).toBe("query-capability");
+    expect(result.mounted.diagnostics).toMatchObject({ featureCount: 3, geometryKinds: ["polygon"] });
     await result.dispose();
   });
 
   it("never chooses the first advertised source under ambiguity", async () => {
     const base = { endpoint: "https://fixture.example/ogc/features", protocol: "ogc-features" as const };
-    const ambiguous = await runFirstMapWorkflow(resolveFirstMapConfig(base), { fetchFn: multiCollectionFetch() });
+    const ambiguous = await runFirstMapWorkflow(resolveFirstMapConfig(base), {
+      map: new EvidenceMap(),
+      fetchFn: multiCollectionFetch(),
+    });
 
     expect(ambiguous).toMatchObject({
       state: "source-selection-required",
@@ -110,11 +128,13 @@ describe("First Map workflow core", () => {
     });
 
     const invalid = await runFirstMapWorkflow(resolveFirstMapConfig({ ...base, sourceId: "missing" }), {
+      map: new EvidenceMap(),
       fetchFn: multiCollectionFetch(),
     });
     expect(invalid).toMatchObject({ state: "source-selection-required", reason: "invalid-selection" });
 
     const selected = await runFirstMapWorkflow(resolveFirstMapConfig({ ...base, sourceId: "response-zones" }), {
+      map: new EvidenceMap(),
       fetchFn: multiCollectionFetch(),
     });
     expect(selected).toMatchObject({ state: "ready", view: { source: { id: "response-zones" } } });
@@ -133,6 +153,7 @@ describe("First Map workflow core", () => {
           endpoint: `${unsupportedHarness.origin}/rest/services/natural-earth/FeatureServer/0`,
           mode: "fixture",
         }),
+        { map: new EvidenceMap() },
       );
       expect(unsupported).toMatchObject({
         state: "unsupported",
@@ -144,6 +165,7 @@ describe("First Map workflow core", () => {
 
     const endpoint = "https://fixture.example/rest/services/public/FeatureServer/0";
     const authentication = await runFirstMapWorkflow(resolveFirstMapConfig({ endpoint }), {
+      map: new EvidenceMap(),
       fetchFn: async () => json({ error: { message: "Authentication required" } }, 401),
     });
     expect(authentication).toMatchObject({
@@ -151,11 +173,13 @@ describe("First Map workflow core", () => {
       error: { code: "core.http.rejected", retryable: false },
     });
     const expired = await runFirstMapWorkflow(resolveFirstMapConfig({ endpoint }), {
+      map: new EvidenceMap(),
       fetchFn: async () => json({ error: { code: 498, message: "Token expired" } }),
     });
     expect(expired.state).toBe("authentication-required");
 
     const malformed = await runFirstMapWorkflow(resolveFirstMapConfig({ endpoint }), {
+      map: new EvidenceMap(),
       fetchFn: async () => new Response("not-json", { status: 200 }),
     });
     expect(malformed.state).toBe("error");
@@ -176,9 +200,13 @@ describe("First Map workflow core", () => {
       resolveFirstMapConfig({
         endpoint: "https://fixture.example/data",
         maxFeatures: 10,
-        query: { pagination: { limit: 100 } },
+        query: { pagination: { limit: 100 }, returnGeometry: false },
       }).query.pagination?.limit,
     ).toBe(10);
+    expect(
+      resolveFirstMapConfig({ endpoint: "https://fixture.example/data", query: { returnGeometry: false } }).query
+        .returnGeometry,
+    ).toBe(true);
   });
 
   it("keeps the copyable workflow within the 120-line non-comment budget", () => {

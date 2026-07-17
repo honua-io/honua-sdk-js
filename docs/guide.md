@@ -457,7 +457,7 @@ npm run demo:quickstart:typecheck
 npm run demo:25d:typecheck
 npm run demo:node-backend:typecheck
 npm run demo:unified-ops:typecheck
-npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts
+npm test -- test/first-map-workflow.test.ts test/quickstart-config.test.ts
 npx vitest run test/node-backend-quickstart.test.ts
 npx vitest run test/unified-ops-workspace.test.ts
 npx vitest run test/cesium-route-playback.test.ts

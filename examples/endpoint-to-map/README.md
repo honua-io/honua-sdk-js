@@ -1,5 +1,9 @@
 # Endpoint to Map
 
+> Focused recipe: this keeps the smallest `mountSource()` bridge proof. For the canonical endpoint discovery, plan,
+> filter, popup, provenance, and cleanup journey, start with [First Map](../maplibre-quickstart/README.md). Existing
+> commands and routes remain supported.
+
 The headline of the standalone data-to-map bridge (`mountSource`, issue #496):
 a **public Esri Living Atlas FeatureServer** becomes a styled, interactive
 MapLibre map with **no MapPackage, no Honua server, no API key, and no

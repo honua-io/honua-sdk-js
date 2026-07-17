@@ -116,7 +116,6 @@
         "geocoding-quickstart",
         "geoprocessing-job-runner",
         "imagery-cog-quickstart",
-        "maplibre-quickstart",
         "oauth-signin",
         "pmtiles-static",
         "react-quickstart",
@@ -139,7 +138,9 @@
         "performance": true,
         "liveEvidence": true
       },
-      "sampleIds": []
+      "sampleIds": [
+        "maplibre-quickstart"
+      ]
     },
     {
       "id": "headless-recipe",
@@ -629,16 +630,16 @@
       "track": "recipe",
       "journeyId": "first-map",
       "supportTier": "supported",
-      "validationProfile": "browser-recipe",
+      "validationProfile": "golden-browser",
       "gates": {
         "packedBuild": true,
         "browser": true,
         "accessibility": true,
         "console": true,
         "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
+        "screenshot": true,
+        "performance": true,
+        "liveEvidence": true
       },
       "commandPlan": {
         "validation": {
@@ -666,7 +667,7 @@
         "mode": "demo-live",
         "status": "executed",
         "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json",
-        "expiresAt": "2026-08-12T02:18:02.654Z"
+        "expiresAt": "2026-08-17T01:54:47.866Z"
       }
     },
     {
@@ -1082,7 +1083,7 @@
         "targetMode": "demo-live",
         "status": "skipped",
         "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
-        "expiresAt": "2026-07-26T02:18:02.730Z"
+        "expiresAt": "2026-07-30T18:58:12.274Z"
       }
     },
     {

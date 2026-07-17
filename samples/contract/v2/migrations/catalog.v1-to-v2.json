@@ -232,20 +232,16 @@
     "maplibre-quickstart": {
       "track": "recipe",
       "journeyId": "first-map",
-      "validationProfile": "browser-recipe",
+      "validationProfile": "golden-browser",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Remove the rejected browser credential variables from the supported configuration surface before journey qualification."
-      },
-      "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The source still reads browser API-key and bearer-token variables in order to reject them."
+        "state": "active",
+        "reason": "Canonical anonymous GeoServices and OGC Features First Map journey, enrolled for full golden-browser evidence."
       },
       "live": {
         "mode": "demo-live",
         "status": "executed",
         "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json",
-        "expiresAt": "2026-08-12T02:18:02.654Z"
+        "expiresAt": "2026-08-17T01:54:47.866Z"
       }
     },
     "mcp-gis-assistant": {
@@ -311,7 +307,7 @@
         "targetMode": "demo-live",
         "status": "skipped",
         "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
-        "expiresAt": "2026-07-26T02:18:02.730Z"
+        "expiresAt": "2026-07-30T18:58:12.274Z"
       }
     },
     "runtime-parity-showcase": {

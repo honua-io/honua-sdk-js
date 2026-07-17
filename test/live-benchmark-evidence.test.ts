@@ -83,12 +83,15 @@ describe("live benchmark evidence", () => {
   });
 
   it("records unavailable realtime capability as an explicit per-sample skip", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => liveFixtureResponse(input, { realtime: false })),
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) =>
+      liveFixtureResponse(input, { realtime: false }),
     );
+    vi.stubGlobal("fetch", fetchMock);
 
-    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
+    const report = await collectLiveEvidence({
+      HONUA_BENCH_LIVE_ENABLED: "true",
+      HONUA_BENCH_LIVE_API_KEY: "must-not-reach-first-map",
+    });
     const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
     const quickstart = report.targets.find((target) => target.id === "honua-demo-maplibre-quickstart");
 
@@ -102,15 +105,105 @@ describe("live benchmark evidence", () => {
         realtime: { reconnectOutcome: "not-attempted-capability-unavailable" },
       },
     });
-    expect(report.run.status).toBe("passed");
+    expect(quickstart?.status, quickstart?.error).toBe("passed");
     expect(quickstart).toMatchObject({
       status: "passed",
-      endpoint: "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
-      protocolVersion: "geoservices-feature-service",
+      endpoint: "https://demo.honua.io",
+      authMode: "anonymous",
+      protocolVersion: "geoservices-feature-service+ogc-api-features-1",
+      checks: {
+        protocolsObserved: ["geoservices", "ogc-features"],
+        rawEndpointHealth: {
+          kind: "availability-only",
+          requestCount: 6,
+          geoservices: { renderableGeometry: true },
+          ogcFeatures: { renderableGeometry: true },
+        },
+        publicSdkWorkflowQualification: {
+          kind: "connect-inspect-explain-bounded-query-mount",
+          cleanup: "verified-empty-map-host-after-each-execution",
+          executions: [
+            {
+              protocol: "geoservices-feature-service",
+              strategy: "geojson",
+              featureCount: 1,
+              layerCount: 4,
+              queryLimit: 1,
+              withinBudget: true,
+            },
+            {
+              protocol: "ogc-features",
+              strategy: "geojson",
+              featureCount: 1,
+              layerCount: 4,
+              queryLimit: 1,
+              withinBudget: true,
+            },
+          ],
+        },
+      },
       sampleEvidence: {
         sampleId: "maplibre-quickstart",
-        source: { identity: "honua-demo:maui-parcels:1" },
-        semantics: { operation: "compatibility-layer-query-renderable-geometry" },
+        source: { identity: "honua-demo:maui-parcels:1:geoservices+ogc-features" },
+        semantics: {
+          operation: "first-map-dual-protocol-bounded-query",
+          assertions: expect.arrayContaining([
+            'protocolsObserved=["geoservices","ogc-features"]',
+            expect.stringContaining('rawEndpointHealth={"kind":"availability-only"'),
+            expect.stringContaining(
+              'publicSdkWorkflowQualification={"kind":"connect-inspect-explain-bounded-query-mount"',
+            ),
+          ]),
+        },
+      },
+    });
+    expect(report.run.status).toBe("passed");
+    const firstMapRequests = fetchMock.mock.calls.filter(([input]) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      return (
+        url.pathname.startsWith("/rest/services/maui-parcels/FeatureServer/1") ||
+        url.pathname.startsWith("/ogc/features")
+      );
+    });
+    expect(firstMapRequests).toHaveLength(14);
+    for (const [input, init] of firstMapRequests) {
+      const headers = input instanceof Request ? input.headers : new Headers(init?.headers);
+      expect(headers.get("x-api-key")).toBeNull();
+      expect(headers.get("authorization")).toBeNull();
+    }
+    expect(JSON.stringify(report)).not.toContain("must-not-reach-first-map");
+  });
+
+  it("fails First Map evidence when either required anonymous protocol fails", async () => {
+    let ogcItemsRequests = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(input instanceof Request ? input.url : input.toString());
+        if (url.pathname.endsWith("/ogc/features/collections/1/items")) {
+          ogcItemsRequests += 1;
+          if (ogcItemsRequests > 1) return new Response("unavailable", { status: 503 });
+        }
+        return liveFixtureResponse(input, { realtime: false });
+      }),
+    );
+
+    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
+    const quickstart = report.targets.find((target) => target.id === "honua-demo-maplibre-quickstart");
+
+    expect(report.run.status).toBe("failed");
+    expect(quickstart).toMatchObject({
+      status: "failed",
+      authMode: "anonymous",
+      error: expect.stringContaining("ogc-features First Map workflow did not become ready"),
+      sampleEvidence: {
+        sampleId: "maplibre-quickstart",
+        status: "failed",
+        reason: expect.stringContaining("ogc-features First Map workflow did not become ready"),
+        degradation: {
+          state: "unexpected",
+          reasons: [expect.stringContaining("ogc-features First Map workflow did not become ready")],
+        },
       },
     });
   });
@@ -165,6 +258,11 @@ function liveFixtureResponse(
       name: "maui-parcels",
       capabilities: "Query",
       geometryType: "esriGeometryPolygon",
+      advancedQueryCapabilities: {
+        supportsPagination: true,
+        supportsReturningQueryExtent: false,
+        supportsStatistics: false,
+      },
     });
   }
   if (url.pathname.endsWith("/rest/services/maui-parcels/FeatureServer/1/query")) {
@@ -183,6 +281,26 @@ function liveFixtureResponse(
           },
         },
       ],
+    });
+  }
+  if (url.pathname === "/ogc/features") {
+    return json({ links: [{ rel: "conformance", href: `${url.origin}/ogc/features/conformance` }] });
+  }
+  if (url.pathname === "/ogc/features/conformance") {
+    return json({
+      conformsTo: [
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson",
+      ],
+    });
+  }
+  if (url.pathname === "/ogc/features/collections") {
+    return json({ collections: [{ id: "1", title: "maui-parcels" }] });
+  }
+  if (url.pathname === "/ogc/features/collections/1/items") {
+    return json({
+      type: "FeatureCollection",
+      features: [{ type: "Feature", properties: { id: 1 }, geometry: { type: "Point", coordinates: [0, 0] } }],
     });
   }
   if (url.pathname === "/v1") return json({ stac_version: "1.0.0" });

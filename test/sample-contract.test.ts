@@ -30,7 +30,7 @@ import {
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
-const validationTime = { now: "2026-07-13T12:00:00.000Z" };
+const validationTime = { now: "2026-07-17T03:00:00.000Z" };
 const goldenJourneyIds = [
   "first-map",
   "service-explorer",
@@ -416,15 +416,13 @@ describe("sample publication contract", () => {
       "kepler-analytics: browser-public credentials require legacy-unsafe status and bounded rework",
     );
 
-    const unboundedBrowserPromotion = structuredClone(catalog);
-    const maplibre = unboundedBrowserPromotion.samples.find(
+    const maplibre = catalog.samples.find(
       (sample: { id: string }) => sample.id === "maplibre-quickstart",
     );
-    maplibre.data.configurationStatus = "approved";
-    delete maplibre.data.configurationGap;
-    await expect(validateCatalog(unboundedBrowserPromotion, packageJson, validationTime)).rejects.toThrow(
-      "maplibre-quickstart: approved configuration cannot expose a whole environment object",
-    );
+    expect(maplibre.data.configurationStatus).toBe("approved");
+    await expect(
+      inspectSampleConfiguration(maplibre.sourcePath, catalog.configuration.environmentReadExemptions),
+    ).resolves.toMatchObject({ wholeEnvironmentEscapes: [] });
 
     const inventedExemption = structuredClone(catalog);
     inventedExemption.configuration.environmentReadExemptions.push({
