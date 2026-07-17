@@ -127,11 +127,26 @@ async function fetchCapabilities(
   const version = protocol === "wms" ? "1.3.0" : "1.0.0";
   const source = capabilitiesUrl(target.endpoint, protocol, version);
   const metadata = normalizeHonuaMetadataRequestOptions(options.metadata);
+  const maxBytes = boundedLimit(
+    options.capabilitiesLimits?.maxBytes,
+    CONNECT_CAPABILITIES_MAX_BYTES,
+    "capabilitiesLimits.maxBytes",
+  );
+  const timeoutMs = boundedLimit(
+    options.capabilitiesLimits?.timeoutMs,
+    CONNECT_CAPABILITIES_TIMEOUT_MS,
+    "capabilitiesLimits.timeoutMs",
+  );
   const cacheKey = `${protocol}:${source}:${identity.authorizationScopeDigest}`;
   const cache = cacheFor(client);
   // Bypass is a complete read/write bypass: no freshness hit, validator, or
   // stale-if-error fallback may observe an SDK-local entry.
-  const cached = metadata.cache === "bypass" ? undefined : cache.get(cacheKey);
+  const candidate = metadata.cache === "bypass" ? undefined : cache.get(cacheKey);
+  // A tighter caller limit is an admission boundary even when an earlier call
+  // populated the shared client cache under the default ceiling. Treat an
+  // oversized entry as absent so it cannot be returned, conditionally
+  // revalidated, or used as stale-if-error metadata for this call.
+  const cached = candidate && utf8Length(candidate.xml) <= maxBytes ? candidate : undefined;
   const now = Date.now();
   if (
     metadata.cache !== "bypass" &&
@@ -143,16 +158,6 @@ async function fetchCapabilities(
     return parsedDocument(protocol, cached.xml, source, new Date(cached.cachedAtMs).toISOString(), cached.validator);
   }
 
-  const maxBytes = boundedLimit(
-    options.capabilitiesLimits?.maxBytes,
-    CONNECT_CAPABILITIES_MAX_BYTES,
-    "capabilitiesLimits.maxBytes",
-  );
-  const timeoutMs = boundedLimit(
-    options.capabilitiesLimits?.timeoutMs,
-    CONNECT_CAPABILITIES_TIMEOUT_MS,
-    "capabilitiesLimits.timeoutMs",
-  );
   const deadline = discoveryDeadline(options.signal, timeoutMs);
   try {
     try {
@@ -1315,6 +1320,10 @@ function boundedLimit(value: number | undefined, maximum: number, label: string)
     );
   }
   return value;
+}
+
+function utf8Length(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
 }
 
 function assertXmlContentType(value: string | null, protocol: "wms" | "wmts"): void {

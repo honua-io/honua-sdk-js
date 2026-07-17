@@ -692,6 +692,30 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
     ).rejects.toBeInstanceOf(HonuaTimeoutError);
   });
 
+  it("reapplies caller limits before replaying a fresh capabilities cache entry", async () => {
+    const fetchFn = capabilitiesFetch(WMS_CAPABILITIES);
+    const client = new HonuaClient({ baseUrl: "https://maps.example", fetchFn });
+    const options = {
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms" as const,
+      authorizationScopeFingerprint: "anonymous",
+      client,
+    };
+
+    await connect(options);
+    await expect(connect({ ...options, capabilitiesLimits: { maxBytes: 128 } })).rejects.toMatchObject({
+      name: "HonuaDiscoveryError",
+      code: "invalid-endpoint",
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+
+    await expect(connect({ ...options, capabilitiesLimits: { maxBytes: 0 } })).rejects.toMatchObject({
+      name: "HonuaDiscoveryError",
+      code: "invalid-endpoint",
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
   it("does not use stale metadata for authorization failures", async () => {
     let calls = 0;
     const fetchFn = vi.fn(async () => {
@@ -896,5 +920,21 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
         cache: { get: () => tampered, set: vi.fn() },
       }),
     ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+  });
+
+  it.each([
+    ["CDATA outside the document root", `<![CDATA[TOP-SECRET]]>${WMS_CAPABILITIES}`],
+    ["a multi-colon element QName", WMS_CAPABILITIES.replace("<WMS_Capabilities", "<bad:WMS:Capabilities")],
+    ["a multi-colon attribute QName", WMS_CAPABILITIES.replace('version="1.3.0"', 'bad:version:name="1.3.0"')],
+  ])("maps hostile capabilities XML with %s to a redacted discovery error", async (_name, body) => {
+    const error = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: capabilitiesFetch(body) },
+    }).catch((cause: unknown) => cause);
+
+    expect(error).toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+    expect(JSON.stringify(error)).not.toContain("TOP-SECRET");
   });
 });

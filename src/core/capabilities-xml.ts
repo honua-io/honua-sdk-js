@@ -35,7 +35,8 @@ interface MutableCapabilitiesXmlElement {
   localName: string;
   attributes: Record<string, string>;
   children: MutableCapabilitiesXmlElement[];
-  text: string;
+  textChunks: string[];
+  textBytes: number;
 }
 
 export function parseCapabilitiesXml(xml: string, family: "WMS" | "WMTS"): CapabilitiesXmlElement {
@@ -70,7 +71,9 @@ export function parseCapabilitiesXml(xml: string, family: "WMS" | "WMTS"): Capab
     if (xml.startsWith("<![CDATA[", angle)) {
       const end = xml.indexOf("]]>", angle + 9);
       if (end < 0) throw new Error(`${family} Capabilities contains unterminated CDATA`);
-      appendDecodedText(stack.at(-1), xml.slice(angle + 9, end), family);
+      const node = stack.at(-1);
+      if (!node) throw new Error(`${family} Capabilities contains CDATA outside its root element`);
+      appendDecodedText(node, xml.slice(angle + 9, end), family);
       cursor = end + 3;
       continue;
     }
@@ -87,7 +90,11 @@ export function parseCapabilitiesXml(xml: string, family: "WMS" | "WMTS"): Capab
     const close = findTagEnd(xml, angle);
     if (close < 0) throw new Error(`${family} Capabilities contains an unterminated tag`);
     const closing = xml.charCodeAt(angle + 1) === 47;
-    const raw = xml.slice(angle + (closing ? 2 : 1), close).trim();
+    const rawTag = xml.slice(angle + (closing ? 2 : 1), close);
+    if (rawTag.length === 0 || isWhitespace(rawTag.charCodeAt(0))) {
+      throw new Error(`${family} Capabilities contains an invalid tag`);
+    }
+    const raw = trimXmlWhitespaceEnd(rawTag);
     if (closing) {
       const expected = stack.at(-1);
       if (!expected || raw !== expected.name) {
@@ -100,14 +107,14 @@ export function parseCapabilitiesXml(xml: string, family: "WMS" | "WMTS"): Capab
       continue;
     }
 
-    const selfClosing = raw.endsWith("/");
-    const body = selfClosing ? raw.slice(0, -1).trim() : raw;
+    const selfClosing = rawTag.endsWith("/");
+    const body = selfClosing ? trimXmlWhitespaceEnd(raw.slice(0, -1)) : raw;
     const { name, attributes } = parseOpeningTag(body, family);
     elements += 1;
     if (elements > OGC_CAPABILITIES_XML_LIMITS.maxElements) {
       throw new Error(`${family} Capabilities exceeds the ${OGC_CAPABILITIES_XML_LIMITS.maxElements}-element limit`);
     }
-    if (!selfClosing && stack.length + 1 > OGC_CAPABILITIES_XML_LIMITS.maxDepth) {
+    if (stack.length + 1 > OGC_CAPABILITIES_XML_LIMITS.maxDepth) {
       throw new Error(`${family} Capabilities exceeds the ${OGC_CAPABILITIES_XML_LIMITS.maxDepth}-level XML limit`);
     }
     const node: MutableCapabilitiesXmlElement = {
@@ -115,7 +122,8 @@ export function parseCapabilitiesXml(xml: string, family: "WMS" | "WMTS"): Capab
       localName: localName(name),
       attributes,
       children: [],
-      text: "",
+      textChunks: [],
+      textBytes: 0,
     };
     const parent = stack.at(-1);
     if (parent) parent.children.push(node);
@@ -159,19 +167,23 @@ export function xmlText(node: CapabilitiesXmlElement | undefined): string | unde
 function appendText(node: MutableCapabilitiesXmlElement | undefined, value: string, family: string): void {
   if (value.length === 0) return;
   if (!node) {
-    if (value.trim().length > 0) throw new Error(`${family} Capabilities contains text outside its root element`);
+    if (!isXmlWhitespaceText(value)) {
+      throw new Error(`${family} Capabilities contains text outside its root element`);
+    }
     return;
   }
   appendDecodedText(node, decodeCapabilitiesText(value, family), family);
 }
 
-function appendDecodedText(node: MutableCapabilitiesXmlElement | undefined, value: string, family: string): void {
-  if (!node || value.length === 0) return;
+function appendDecodedText(node: MutableCapabilitiesXmlElement, value: string, family: string): void {
+  if (value.length === 0) return;
   assertXmlCharacters(value, family);
-  if (utf8Length(node.text) + utf8Length(value) > OGC_CAPABILITIES_XML_LIMITS.maxTextBytes) {
+  const valueBytes = utf8Length(value);
+  if (valueBytes > OGC_CAPABILITIES_XML_LIMITS.maxTextBytes - node.textBytes) {
     throw new Error(`${family} Capabilities element text exceeds the bounded text limit`);
   }
-  node.text += value;
+  node.textBytes += valueBytes;
+  node.textChunks.push(value);
 }
 
 function parseOpeningTag(body: string, family: string): { name: string; attributes: Record<string, string> } {
@@ -189,6 +201,10 @@ function parseOpeningTag(body: string, family: string): { name: string; attribut
     while (cursor < body.length && !isWhitespace(body.charCodeAt(cursor)) && body[cursor] !== "=") cursor += 1;
     const attributeName = body.slice(nameStart, cursor);
     if (!validXmlName(attributeName)) throw new Error(`${family} Capabilities contains an invalid attribute name`);
+    count += 1;
+    if (count > OGC_CAPABILITIES_XML_LIMITS.maxAttributesPerElement) {
+      throw new Error(`${family} Capabilities element exceeds the bounded attribute count`);
+    }
     while (cursor < body.length && isWhitespace(body.charCodeAt(cursor))) cursor += 1;
     if (body[cursor] !== "=") throw new Error(`${family} Capabilities attribute "${attributeName}" lacks '='`);
     cursor += 1;
@@ -211,19 +227,19 @@ function parseOpeningTag(body: string, family: string): { name: string; attribut
       throw new Error(`${family} Capabilities repeats attribute "${attributeName}"`);
     }
     const local = localName(attributeName);
-    if (!attributeName.startsWith("xmlns") && attributeLocals.has(local)) {
+    const namespaceDeclaration = attributeName === "xmlns" || attributeName.startsWith("xmlns:");
+    if (!namespaceDeclaration && attributeLocals.has(local)) {
       throw new Error(`${family} Capabilities repeats namespace-local attribute "${local}"`);
     }
     attributes[attributeName] = value;
-    if (!attributeName.startsWith("xmlns")) {
+    if (!namespaceDeclaration) {
       attributeLocals.add(local);
       if (attributeName !== local) attributes[local] = value;
     }
-    count += 1;
-    if (count > OGC_CAPABILITIES_XML_LIMITS.maxAttributesPerElement) {
-      throw new Error(`${family} Capabilities element exceeds the bounded attribute count`);
-    }
     cursor = end + 1;
+    if (cursor < body.length && !isWhitespace(body.charCodeAt(cursor))) {
+      throw new Error(`${family} Capabilities attributes must be separated by XML whitespace`);
+    }
   }
   return { name, attributes };
 }
@@ -296,7 +312,8 @@ function findTagEnd(xml: string, start: number): number {
 }
 
 function validXmlName(value: string): boolean {
-  return /^[A-Za-z_][A-Za-z0-9_.:-]*$/.test(value);
+  const parts = value.split(":");
+  return parts.length <= 2 && parts.every((part) => /^[A-Za-z_][A-Za-z0-9_.-]*$/u.test(part));
 }
 
 function localName(value: string): string {
@@ -306,6 +323,19 @@ function localName(value: string): string {
 
 function isWhitespace(value: number): boolean {
   return value === 32 || value === 9 || value === 10 || value === 13;
+}
+
+function isXmlWhitespaceText(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    if (!isWhitespace(value.charCodeAt(index))) return false;
+  }
+  return true;
+}
+
+function trimXmlWhitespaceEnd(value: string): string {
+  let end = value.length;
+  while (end > 0 && isWhitespace(value.charCodeAt(end - 1))) end -= 1;
+  return value.slice(0, end);
 }
 
 function utf8Length(value: string): number {
@@ -319,6 +349,6 @@ function freezeElement(node: MutableCapabilitiesXmlElement): CapabilitiesXmlElem
     localName: node.localName,
     attributes: Object.freeze({ ...node.attributes }),
     children,
-    text: node.text,
+    text: node.textChunks.join(""),
   });
 }
