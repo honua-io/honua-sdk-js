@@ -647,14 +647,14 @@
     {
       "id": "imagery-cog-quickstart",
       "title": "Imagery and COG quickstart",
-      "summary": "Compares WMS imagery, COG-backed ImageServer tiles, and export previews.",
+      "summary": "Searches STAC, inspects bounded COG range transport, compares published imagery, and samples terrain elevation profiles.",
       "sourceKind": "root-example",
       "track": "recipe",
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
       "lifecycle": {
         "state": "rework",
-        "reason": "Consolidate the imagery candidate and its overlapping recipes before journey qualification.",
+        "reason": "The deterministic S1 data workflow is consolidated; accessible presentation, live evidence, and route convergence remain before journey qualification.",
         "targetRelease": "0.2.0-beta.0"
       },
       "validationProfile": "browser-recipe",
@@ -669,11 +669,18 @@
       },
       "capabilities": [
         "cog",
+        "elevation",
         "imagery",
-        "raster"
+        "profile",
+        "range-requests",
+        "raster",
+        "stac",
+        "terrain"
       ],
       "protocols": [
         "geoservices",
+        "stac",
+        "terrain-rgb",
         "wms"
       ],
       "renderers": [
@@ -682,9 +689,9 @@
       "data": {
         "mode": "hybrid",
         "authMode": "api-key",
-        "provenance": "Committed imagery metadata or configured Honua imagery service.",
-        "attribution": "Imagery-provider attribution is rendered on the map.",
-        "freshness": "Capture metadata or live response observation time.",
+        "provenance": "Committed STAC, bounded TIFF-header range, imagery, and terrain fixtures or a configured Honua imagery service.",
+        "attribution": "STAC and elevation provider attribution, license, version, checksum, and ETag remain visible in workflow receipts; published imagery attribution remains rendered on the map.",
+        "freshness": "Fixture acquisition/version metadata or live response observation time.",
         "configurationStatus": "legacy-unsafe",
         "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables."
       },
@@ -698,7 +705,7 @@
           "status": "planned"
         }
       },
-      "expectedDegradation": "Unavailable raster operations remain visible and the supported preview lane stays usable."
+      "expectedDegradation": "CORS, missing range support, unsupported CRS/format, and nodata return structured outcomes; direct COG rendering remains a #537 gap while WMS/ImageServer previews stay usable."
     },
     {
       "id": "kepler-analytics",

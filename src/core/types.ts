@@ -1642,12 +1642,48 @@ export interface StacSearchRequest {
   stacBasePath?: string;
 }
 
+/** One band declaration from the STAC Raster extension. */
+export interface HonuaStacRasterBand extends Record<string, unknown> {
+  name?: string;
+  common_name?: string;
+  description?: string;
+  data_type?: string;
+  nodata?: number | null;
+  unit?: string;
+  scale?: number;
+  offset?: number;
+  spatial_resolution?: number;
+}
+
+/**
+ * Asset metadata carried by a STAC item.
+ *
+ * The index signature intentionally preserves extension fields that the SDK
+ * does not yet interpret. Common Projection, Raster, File, and Checksum
+ * fields are named so applications can inspect provenance and compatibility
+ * without casting the entire asset to an untyped record.
+ */
+export interface HonuaStacAsset extends Record<string, unknown> {
+  href: string;
+  type?: string;
+  title?: string;
+  description?: string;
+  roles?: readonly string[];
+  "proj:code"?: string;
+  "proj:epsg"?: number;
+  "raster:bands"?: readonly HonuaStacRasterBand[];
+  "file:size"?: number;
+  "file:checksum"?: string;
+  "checksum:multihash"?: string;
+}
+
 /** Single STAC item (a GeoJSON feature with STAC-specific extensions). */
 export interface HonuaStacItemResponse extends HonuaOgcFeatureResponse {
   collection?: string;
+  bbox?: readonly number[];
   stac_version?: string;
   stac_extensions?: readonly string[];
-  assets?: Record<string, { href: string; type?: string; title?: string; roles?: readonly string[] }>;
+  assets?: Record<string, HonuaStacAsset>;
 }
 
 /** Response from STAC `/search`. */

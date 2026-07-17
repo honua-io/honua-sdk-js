@@ -607,6 +607,8 @@ export type {
   HonuaStacItemCollectionResponse,
   HonuaStacItemResponse,
   HonuaStacLandingResponse,
+  HonuaStacAsset,
+  HonuaStacRasterBand,
   HonuaErrorContext,
   HonuaRequestContext,
   HonuaRequestInterceptor,
