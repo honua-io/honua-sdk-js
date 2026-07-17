@@ -2533,6 +2533,11 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
 }
 
 export async function validateCatalog(catalog, packageJson, options = {}) {
+  invariant(
+    options.qualificationBootstrapSampleId === undefined ||
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(options.qualificationBootstrapSampleId),
+    "qualification bootstrap sample id is invalid",
+  );
   validateSensitiveMetadata(catalog, "catalog");
   await validateJsonSchema(catalog, CATALOG_SCHEMA_PATH);
   await validateFixtureBuildHarnesses();
@@ -2845,6 +2850,12 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   const goldenSamples = catalog.samples.filter((sample) => sample.track === "golden");
   const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
   invariant(
+    options.qualificationBootstrapSampleId === undefined ||
+      goldenSamples.some((sample) => sample.id === options.qualificationBootstrapSampleId),
+    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
+  );
+  let qualificationBootstrapConsumed = false;
+  invariant(
     goldenSamples.length === qualifiedJourneys.length,
     "golden sample count must match the qualified journey count",
   );
@@ -2868,6 +2879,10 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
       },
     };
+    if (options.qualificationBootstrapSampleId === sample.id) {
+      qualificationBootstrapConsumed = true;
+      continue;
+    }
     await validateQualificationReceiptSet({
       sample: selectedSample,
       profile,
@@ -2878,6 +2893,10 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       verifyCheckout: options.verifyCheckout,
     });
   }
+  invariant(
+    options.qualificationBootstrapSampleId === undefined || qualificationBootstrapConsumed,
+    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
+  );
 
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
@@ -3487,10 +3506,10 @@ export function validateEvidenceEnvelope(evidence, options = {}) {
   return evidence;
 }
 
-async function runContract(command) {
+async function runContract(command, options = {}) {
   const catalog = await readJson(CATALOG_PATH);
   const packageJson = await readJson("package.json");
-  await validateCatalog(catalog, packageJson);
+  await validateCatalog(catalog, packageJson, options);
   for (const fixturePath of [
     "samples/contract/v1/fixtures/sample-evidence.fixture.json",
     "samples/contract/v1/fixtures/sample-evidence.live.json",
@@ -3522,8 +3541,13 @@ async function runContract(command) {
 async function main(argv) {
   const [command = "check", ...args] = argv;
   if (["check", "write"].includes(command)) {
-    invariant(args.length === 0, `${command} does not accept arguments`);
-    await runContract(command);
+    let qualificationBootstrapSampleId;
+    if (command === "write" && args.length === 2 && args[0] === "--qualification-bootstrap") {
+      qualificationBootstrapSampleId = args[1];
+    } else {
+      invariant(args.length === 0, `${command} does not accept arguments`);
+    }
+    await runContract(command, { qualificationBootstrapSampleId });
     return;
   }
   if (command === "migrate-v1") {

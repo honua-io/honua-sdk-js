@@ -322,7 +322,7 @@
     "service-explorer": {
       "track": "lab",
       "journeyId": "service-explorer",
-      "validationProfile": "browser-lab",
+      "validationProfile": "golden-browser",
       "lifecycle": {
         "state": "active",
         "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."

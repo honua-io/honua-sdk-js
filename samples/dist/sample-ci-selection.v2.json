@@ -90,7 +90,6 @@
         "planning-permitting-workbench",
         "realtime-incident-dashboard",
         "runtime-parity-showcase",
-        "service-explorer",
         "shared-renderer-state",
         "spatial-analytics-workbench",
         "storytelling-25d-map",
@@ -139,7 +138,9 @@
         "performance": true,
         "liveEvidence": true
       },
-      "sampleIds": []
+      "sampleIds": [
+        "service-explorer"
+      ]
     },
     {
       "id": "headless-recipe",
@@ -1131,16 +1132,16 @@
       "track": "lab",
       "journeyId": "service-explorer",
       "supportTier": "supported",
-      "validationProfile": "browser-lab",
+      "validationProfile": "golden-browser",
       "gates": {
         "packedBuild": true,
         "browser": true,
         "accessibility": true,
         "console": true,
         "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
+        "screenshot": true,
+        "performance": true,
+        "liveEvidence": true
       },
       "commandPlan": {
         "validation": {

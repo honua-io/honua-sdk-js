@@ -1069,6 +1069,20 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       await expect(
         validateCatalog(metadataOnly.catalog, packageJson, { ...validationTime, verifyCheckout: false }),
       ).rejects.toThrow("realtime-incident-dashboard: missing gate receipt directory");
+      await expect(
+        validateCatalog(metadataOnly.catalog, packageJson, {
+          ...validationTime,
+          qualificationBootstrapSampleId: "realtime-incident-dashboard",
+          verifyCheckout: false,
+        }),
+      ).resolves.toBeUndefined();
+      await expect(
+        validateCatalog(metadataOnly.catalog, packageJson, {
+          ...validationTime,
+          qualificationBootstrapSampleId: "not-a-golden-sample",
+          verifyCheckout: false,
+        }),
+      ).rejects.toThrow("qualification bootstrap requires a qualified golden sample");
     } finally {
       await rm(evidencePath, { force: true });
     }
