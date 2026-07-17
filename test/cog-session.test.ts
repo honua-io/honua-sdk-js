@@ -420,6 +420,65 @@ describe("direct STAC-to-COG S1 boundary", () => {
     await session.dispose();
   });
 
+  it("cancels a pending range body when its fetch implementation ignores the abort signal", async () => {
+    let requestCount = 0;
+    const cancelBody = vi.fn();
+    const fetchFn = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestCount += 1;
+      const range = new Headers(init?.headers).get("range")!;
+      const match = /^bytes=(\d+)-(\d+)$/.exec(range)!;
+      const start = Number(match[1]);
+      const end = Number(match[2]);
+      const headers = {
+        "Content-Range": `bytes ${start}-${end}/${fixtureBytes.byteLength}`,
+        "Content-Length": String(end - start + 1),
+        ETag: '"asset-v1"',
+      };
+      if (requestCount === 1) {
+        const body = new ReadableStream<Uint8Array>({
+          pull() {
+            // Deliberately never settles; the transport must cancel this reader directly.
+          },
+          cancel() {
+            cancelBody();
+          },
+        });
+        return new Response(body, { status: 206, headers });
+      }
+      return new Response(fixtureBytes.slice(start, end + 1), { status: 206, headers });
+    }) as typeof fetch;
+    const session = openStacCogAsset(candidate(), {
+      decoderFactory: async () =>
+        fixtureDecoder({
+          async inspect() {
+            return fixture.metadata;
+          },
+          async readWindow(request, { readRange }) {
+            const offset = request.x === 0 ? 64 : 68;
+            const values = await readRange({ offset, length: 4 });
+            return { width: 2, height: 2, bands: [{ band: 1, values }] };
+          },
+        }),
+      fetchFn,
+    });
+
+    await session.inspect();
+    const first = session.readWindow({ x: 0, y: 0, width: 2, height: 2, bands: [1] });
+    await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    const second = session.readWindow({ x: 1, y: 0, width: 2, height: 2, bands: [1] });
+
+    await expect(first).rejects.toMatchObject({ code: "obsolete-read" });
+    await expect(second).resolves.toMatchObject({ window: { x: 1 } });
+    expect(cancelBody).toHaveBeenCalledTimes(1);
+    expect(session.transfer().ranges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sequence: 1, outcome: "aborted", errorCode: "aborted" }),
+        expect.objectContaining({ sequence: 2, outcome: "success" }),
+      ]),
+    );
+    await session.dispose();
+  });
+
   it("maps external aborts and closes a decoder that settles after disposal", async () => {
     const controller = new AbortController();
     const session = openStacCogAsset(candidate(), {

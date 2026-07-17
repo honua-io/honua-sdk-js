@@ -389,6 +389,9 @@ async function readExactBody(
     throw new HonuaCogError("invalid-range-response", "The COG range response has no readable body.");
   }
   const reader = response.body.getReader();
+  const abort = () => void reader.cancel().catch(() => undefined);
+  if (signal.aborted) abort();
+  else signal.addEventListener("abort", abort, { once: true });
   const output = new Uint8Array(expectedLength);
   let written = 0;
   try {
@@ -413,6 +416,7 @@ async function readExactBody(
     if (cause instanceof HonuaCogError) throw cause;
     throw new HonuaCogError("invalid-range-response", "The COG range response stream failed.", { cause });
   } finally {
+    signal.removeEventListener("abort", abort);
     reader.releaseLock();
   }
   if (written !== expectedLength) {
