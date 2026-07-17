@@ -1,0 +1,27 @@
+{
+  "format": "honua.sdk.capability-sample-matrix-adversaries.v1",
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "orphan-evidence-binding",
+      "kind": "orphan-binding",
+      "sampleId": "missing-sample",
+      "bindingId": "qualification:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "expectedFailure": "capability matrix evidence binding is orphaned from a sample"
+    },
+    {
+      "id": "stale-packed-evidence",
+      "kind": "stale-receipts",
+      "observedAt": "2026-07-01T12:00:00.000Z",
+      "expiresAt": "2026-07-08T12:00:00.000Z",
+      "expectedFailure": "qualification evidence is stale"
+    },
+    {
+      "id": "overstated-ambiguous-protocol-join",
+      "kind": "overstated-protocol-join",
+      "targetId": "geoservices-feature-service:query:protocol-adapter:native",
+      "qualifiedCoverageSourceId": "grpc:query:honua-facade:native",
+      "expectedFailure": "capability matrix coverage is orphaned, stale, or overstated"
+    }
+  ]
+}

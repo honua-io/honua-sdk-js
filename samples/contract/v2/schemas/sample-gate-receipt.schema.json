@@ -97,5 +97,17 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "gate": { "const": "packed-build" } },
+        "required": ["gate"]
+      },
+      "then": {
+        "properties": { "sdkMode": { "const": "packed" } },
+        "required": ["sdkMode"]
+      }
+    }
+  ],
   "additionalProperties": false
 }

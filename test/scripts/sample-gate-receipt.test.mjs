@@ -14,6 +14,7 @@ import {
   readCanonicalBoundedFile,
   requiredReceiptGates,
   validateGateReceipt,
+  validateGateReceiptStructure,
   validatePlaywrightGate,
   validateQualificationReceiptSet,
   verifyEvidenceNeutralCheckout,
@@ -202,6 +203,14 @@ test.afterEach(async () => {
 test("arbitrary text cannot qualify a fixture gate", async () => {
   const file = await artifact("fixture.json", "plain text");
   await assert.rejects(createGateReceipt(receiptOptions("fixture", "fixture-probe-report", file)), /must be JSON/);
+});
+
+test("packed-build receipts require packed SDK mode", async () => {
+  const receipt = await validFixtureReceipt();
+  receipt.gate = "packed-build";
+  receipt.sdkMode = "source";
+  receipt.artifacts[0].kind = "packed-build-report";
+  assert.throws(() => validateGateReceiptStructure(receipt), /sdkMode/);
 });
 
 test("receipt creation rejects run roots that are not lowercase UUIDv4", async () => {
