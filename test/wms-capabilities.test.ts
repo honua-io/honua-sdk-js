@@ -119,6 +119,18 @@ describe("parseWmsCapabilities", () => {
     expect(parcels?.queryable).toBe(true);
   });
 
+  it("ignores an EX_GeographicBoundingBox outside WGS84 coordinate ranges", () => {
+    const invalid = BASIC_WMS_CAPABILITIES.replace(
+      "<westBoundLongitude>-180</westBoundLongitude>",
+      "<westBoundLongitude>-181</westBoundLongitude>",
+    );
+    const caps = parseWmsCapabilities(invalid);
+    const parcels = findWmsLayer(caps, "parcels");
+
+    expect(parcels?.bbox.some((bbox) => bbox.crs === "CRS:84")).toBe(false);
+    expect(caps.warnings).toContain("WMS EX_GeographicBoundingBox metadata was malformed and ignored.");
+  });
+
   it("emits styles with optional legend URLs and titles", () => {
     const caps = parseWmsCapabilities(BASIC_WMS_CAPABILITIES);
     const parcels = findWmsLayer(caps, "parcels");
@@ -224,6 +236,15 @@ describe("parseWmsCapabilities", () => {
     const caps = parseWmsCapabilities(xml);
     expect(caps.service.title).toBe("Honua & Co");
   });
+
+  it("rejects duplicate request operation metadata", () => {
+    const duplicate = BASIC_WMS_CAPABILITIES.replace(
+      "</GetMap>",
+      "</GetMap><GetMap><Format>image/png</Format></GetMap>",
+    );
+
+    expect(() => parseWmsCapabilities(duplicate)).toThrow(HonuaWmsCapabilitiesParseError);
+  });
 });
 
 const BASIC_WMTS_CAPABILITIES = `<?xml version="1.0" encoding="UTF-8"?>
@@ -288,6 +309,19 @@ describe("parseWmtsCapabilities", () => {
     expect(() => parseWmtsCapabilities("<NotCapabilities/>")).toThrow(HonuaWmtsCapabilitiesParseError);
   });
 
+  it("rejects duplicate operation metadata", () => {
+    const duplicate = BASIC_WMTS_CAPABILITIES.replace(
+      "<Contents>",
+      `<ows:OperationsMetadata>
+        <ows:Operation name="GetTile"/>
+        <ows:Operation name="GetTile"/>
+      </ows:OperationsMetadata>
+      <Contents>`,
+    );
+
+    expect(() => parseWmtsCapabilities(duplicate)).toThrow(HonuaWmtsCapabilitiesParseError);
+  });
+
   it("collects layer metadata, formats, styles, and TMS links", () => {
     const caps = parseWmtsCapabilities(BASIC_WMTS_CAPABILITIES);
     expect(caps.version).toBe("1.0.0");
@@ -300,6 +334,39 @@ describe("parseWmtsCapabilities", () => {
     expect(layer.styles[0]?.isDefault).toBe(true);
     expect(layer.tileMatrixSetIds).toEqual(["WebMercatorQuad"]);
     expect(layer.bbox).toEqual({ west: -180, south: -85, east: 180, north: 85 });
+  });
+
+  it("ignores WGS84 bounds outside geographic ranges", () => {
+    const invalid = BASIC_WMTS_CAPABILITIES.replace(
+      "<ows:LowerCorner>-180 -85</ows:LowerCorner>",
+      "<ows:LowerCorner>-181 -85</ows:LowerCorner>",
+    );
+    const caps = parseWmtsCapabilities(invalid);
+
+    expect(caps.layers[0]?.bbox).toBeUndefined();
+    expect(caps.warnings).toContain("WMTS WGS84BoundingBox metadata was malformed and ignored.");
+  });
+
+  it("reports malformed Style and Dimension boolean metadata", () => {
+    const invalid = BASIC_WMTS_CAPABILITIES.replace('isDefault="true"', 'isDefault="yes"').replace(
+      "<TileMatrixSetLink>",
+      `<Dimension>
+        <ows:Identifier>time</ows:Identifier>
+        <Current>sometimes</Current>
+        <Value>2026-07-16</Value>
+      </Dimension>
+      <TileMatrixSetLink>`,
+    );
+    const caps = parseWmtsCapabilities(invalid);
+
+    expect(caps.layers[0]?.styles[0]?.isDefault).toBe(false);
+    expect(caps.layers[0]?.dimensions[0]?.current).toBe(false);
+    expect(caps.warnings).toEqual(
+      expect.arrayContaining([
+        "WMTS Style isDefault metadata was malformed and treated as false.",
+        "WMTS Dimension Current metadata was malformed and treated as false.",
+      ]),
+    );
   });
 
   it("captures RESTful tile and FeatureInfo templates", () => {
@@ -319,5 +386,23 @@ describe("parseWmtsCapabilities", () => {
     expect(tms?.matrices[0]?.tileWidth).toBe(256);
     expect(tms?.matrices[1]?.matrixWidth).toBe(2);
     expect(tms?.supportedCrs).toBe("urn:ogc:def:crs:EPSG::3857");
+  });
+
+  it.each([
+    ["TileWidth", "0"],
+    ["TileHeight", "1.5"],
+    ["MatrixWidth", "9007199254740992"],
+    ["MatrixHeight", "Infinity"],
+    ["ScaleDenominator", "0"],
+  ] as const)("ignores a tile matrix with invalid %s value %s", (field, value) => {
+    const invalid = BASIC_WMTS_CAPABILITIES.replace(
+      new RegExp(`<${field}>[^<]+</${field}>`),
+      `<${field}>${value}</${field}>`,
+    );
+    const caps = parseWmtsCapabilities(invalid);
+    const tms = findWmtsTileMatrixSet(caps, "WebMercatorQuad");
+
+    expect(tms?.matrices.map((matrix) => matrix.identifier)).toEqual(["1"]);
+    expect(caps.warnings).toContain("WMTS TileMatrix metadata with invalid numeric fields was ignored.");
   });
 });

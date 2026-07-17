@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ConnectDiscoverySnapshot } from "../src/connect.js";
@@ -12,6 +14,14 @@ import {
 
 const OBSERVED_AT = "2026-07-15T00:00:00.000Z";
 const EVALUATED_AT = "2026-07-15T00:01:00Z";
+const WMS_CAPABILITIES = readFileSync(
+  new URL("./fixtures/backend-agnostic/wms/capabilities.xml", import.meta.url),
+  "utf8",
+);
+const WMTS_CAPABILITIES = readFileSync(
+  new URL("./fixtures/backend-agnostic/wmts/capabilities.xml", import.meta.url),
+  "utf8",
+);
 
 afterEach(() => vi.useRealTimers());
 
@@ -113,6 +123,29 @@ describe("capability discovery endpoint binding", () => {
         }),
       ).toThrow(/routable path identifier/);
     }
+  });
+
+  it("binds WMS and WMTS service/layer identities without retaining operation URLs", () => {
+    const wms = rasterDescriptor("wms", "https://example.test/ogc/wms", "parcels");
+    const wmts = rasterDescriptor("wmts", "https://example.test/ogc/wmts", "imagery");
+
+    expect(sourceCapabilityEndpointIdentity(wms)).toEqual({
+      endpoint: "https://example.test/ogc/wms",
+      protocol: "wms",
+      sourceId: "parcels",
+    });
+    expect(sourceCapabilityEndpointIdentity(wmts)).toEqual({
+      endpoint: "https://example.test/ogc/wmts",
+      protocol: "wmts",
+      sourceId: "imagery",
+    });
+    expect(() => sourceCapabilityEndpointIdentity({ ...wms, id: "roads" })).toThrow(/must match locator\.typeName/);
+    expect(() =>
+      sourceCapabilityEndpointIdentity({
+        ...wmts,
+        locator: { ...wmts.locator, url: "https://example.test/ogc/wmts?token=secret" },
+      }),
+    ).toThrow(/query or fragment/);
   });
 });
 
@@ -256,6 +289,126 @@ describe("connectWithSourceCapabilities", () => {
     expect([...connection.source().capabilities]).toEqual([]);
   });
 
+  it("projects WMS/WMTS schema authority and operation-aware capability truth", async () => {
+    useDiscoveryClock();
+    const wms = await connectWithSourceCapabilities(
+      rasterOptions("wms", "https://maps.example/ogc/wms", "parcels", WMS_CAPABILITIES),
+      { evaluatedAt: EVALUATED_AT, policy: { deny: ["tiles"] } },
+    );
+    const wmts = await connectWithSourceCapabilities(
+      rasterOptions("wmts", "https://tiles.example/ogc/wmts", "imagery", WMTS_CAPABILITIES),
+      { evaluatedAt: EVALUATED_AT },
+    );
+
+    expect(wms.source().descriptor.schemaV2).toMatchObject({
+      fields: [],
+      key: { state: "none" },
+      geometry: { state: "unknown", reason: "metadata-unavailable" },
+      openContent: "unknown",
+    });
+    expect(wmts.source().descriptor.schemaV2).toMatchObject({
+      fields: [],
+      key: { state: "none" },
+      geometry: { state: "none", reason: "no-geometry-fields" },
+      openContent: "closed",
+    });
+    for (const connection of [wms, wmts]) {
+      const source = connection.source();
+      expect(source.descriptor.schemaV2.fingerprint).toBe(source.capabilityProfile.sourceFingerprint);
+      expect(source.capabilityProfile.sourceEndpointFingerprint).toBe(
+        createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(source.descriptor)),
+      );
+      expect(JSON.stringify(source.capabilityProfile)).not.toContain("https://");
+    }
+    expect(capability(wms.source(), "render")).toMatchObject({
+      claimed: "supported",
+      observed: "supported",
+      effective: "supported",
+    });
+    expect(capability(wms.source(), "tiles")).toMatchObject({
+      claimed: "supported",
+      observed: "supported",
+      effective: "policy-disabled",
+      reasons: ["policy-disabled"],
+    });
+    expect(capability(wms.source(), "query")).toMatchObject({
+      claimed: "supported",
+      observed: "unsupported",
+      effective: "unsupported",
+      reasons: ["unsupported-by-observation"],
+    });
+    expect(wms.source().supports("render")).toBe(true);
+    expect(wms.source().supports("tiles")).toBe(false);
+    expect(wms.source().supports("query")).toBe(false);
+    expect(capability(wmts.source(), "render")).toMatchObject({
+      claimed: "supported",
+      observed: "supported",
+      effective: "supported",
+    });
+    expect(capability(wmts.source(), "tiles")).toMatchObject({
+      claimed: "supported",
+      observed: "supported",
+      effective: "supported",
+    });
+    expect(capability(wmts.source(), "query")).toMatchObject({
+      claimed: "unsupported",
+      observed: "not-observed",
+      effective: "unsupported",
+      reasons: ["unsupported-by-claim"],
+    });
+  });
+
+  it("retains canonical Honua WMS FeatureInfo truth and reapplies policy after a raw cache hit", async () => {
+    useDiscoveryClock();
+    let snapshot: ConnectDiscoverySnapshot | undefined;
+    const canonicalOptions = rasterOptions(
+      "wms",
+      "https://maps.example/rest/services/Public/Map/MapServer/WMS",
+      "parcels",
+      WMS_CAPABILITIES,
+    );
+    const first = await connectWithSourceCapabilities(
+      {
+        ...canonicalOptions,
+        cache: {
+          get: () => undefined,
+          set: (_identity, value) => {
+            snapshot = value;
+          },
+        },
+      },
+      { evaluatedAt: EVALUATED_AT },
+    );
+    expect(capability(first.source(), "query")).toMatchObject({
+      observed: "supported",
+      effective: "supported",
+    });
+    if (!snapshot) throw new Error("expected WMS discovery snapshot");
+    expect(snapshot.sources[0]).not.toHaveProperty("capabilityProfile");
+
+    const fetchFn = vi.fn(async () => new Response("unexpected", { status: 500 }));
+    const replay = await connectWithSourceCapabilities(
+      {
+        endpoint: canonicalOptions.endpoint,
+        protocol: "wms",
+        typeName: "parcels",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn },
+        cache: { get: () => structuredClone(snapshot), set: vi.fn() },
+      },
+      { evaluatedAt: EVALUATED_AT, policy: { deny: ["query"] } },
+    );
+
+    expect(replay.inspection.cacheStatus).toBe("hit");
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(capability(replay.source(), "query")).toMatchObject({
+      observed: "supported",
+      effective: "policy-disabled",
+      reasons: ["policy-disabled"],
+    });
+    expect(replay.source().supports("query")).toBe(false);
+  });
+
   it("re-evaluates policy and freshness after a raw cache hit without fetching or caching evaluated truth", async () => {
     useDiscoveryClock();
     let snapshot: ConnectDiscoverySnapshot | undefined;
@@ -327,7 +480,7 @@ describe("connectWithSourceCapabilities", () => {
         } as unknown as SourceCapabilityConnectOptions,
         { evaluatedAt: EVALUATED_AT },
       ),
-    ).rejects.toThrow(/currently certified for GeoServices and OData/);
+    ).rejects.toThrow(/currently certified for GeoServices, OData, WMS, and WMTS/);
     await expect(
       connectWithSourceCapabilities(odataOptions("https://example.test/odata"), {
         evaluatedAt: EVALUATED_AT,
@@ -370,6 +523,37 @@ function geoDescriptor(
     id: String(layerId),
     protocol: "geoservices-feature-service",
     locator: { url, serviceId, layerId },
+  };
+}
+
+function rasterDescriptor(
+  protocol: "wms" | "wmts",
+  url: string,
+  typeName: string,
+): Pick<SourceDescriptor, "id" | "protocol" | "locator"> {
+  return { id: typeName, protocol, locator: { url, typeName } };
+}
+
+function rasterOptions(
+  protocol: "wms" | "wmts",
+  endpoint: string,
+  typeName: string,
+  capabilities: string,
+): SourceCapabilityConnectOptions {
+  return {
+    endpoint,
+    protocol,
+    typeName,
+    authorizationScopeFingerprint: "anonymous",
+    clientOptions: {
+      fetchFn: vi.fn(
+        async () =>
+          new Response(capabilities, {
+            status: 200,
+            headers: { "Content-Type": "application/xml", ETag: '"capabilities-v1"' },
+          }),
+      ),
+    },
   };
 }
 
