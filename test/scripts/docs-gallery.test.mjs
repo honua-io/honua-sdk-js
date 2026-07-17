@@ -400,7 +400,7 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
     kind: "journey",
     id: "service-explorer",
     title: "Universal Service Explorer",
-    status: "planned",
+    status: "qualified",
     candidateSampleId: "service-explorer",
     publicSampleId: "service-explorer",
   });
