@@ -8,7 +8,13 @@
  * @module
  */
 
-import { type HonuaErrorCode, HonuaSdkError, isRetryableNetworkOrTimeoutHonuaError } from "../core/error-envelope.js";
+import {
+  type HonuaErrorCode,
+  HonuaSdkError,
+  isRetryableNetworkOrTimeoutHonuaError,
+  ownDataProperty,
+  withHonuaErrorReasonClassification,
+} from "../core/error-base.js";
 
 export type ReplicaSyncErrorCode =
   | "unsupported-sync"
@@ -23,23 +29,39 @@ export type ReplicaSyncErrorCode =
   | "transport-failure";
 
 export class HonuaReplicaSyncError extends HonuaSdkError {
-  public readonly code: ReplicaSyncErrorCode;
-  public readonly details: unknown;
+  public declare readonly code: ReplicaSyncErrorCode;
+  public declare readonly details: unknown;
 
   public constructor(
     code: ReplicaSyncErrorCode,
     message: string,
     options: { readonly details?: unknown; readonly cause?: unknown } = {},
   ) {
-    const cause = options.cause;
-    super(replicaSyncSdkCode(code, cause), message, {
-      ...(cause === undefined ? {} : { cause }),
-      context: { reasonCode: replicaSyncContextReason(code) },
-    });
-    this.name = "HonuaReplicaSyncError";
+    const cause = ownDataProperty(options, "cause");
+    const sdkCode = replicaSyncSdkCode(code, cause);
+    super(
+      sdkCode,
+      message,
+      withHonuaErrorReasonClassification(
+        cause === undefined ? {} : { cause },
+        sdkCode,
+        "HonuaReplicaSyncError",
+        "offline",
+        replicaSyncErrorCategory(sdkCode),
+        sdkCode === "offline.transport.transient",
+        replicaSyncContextReason(code),
+      ),
+    );
     this.code = code;
-    this.details = options.details;
+    this.details = ownDataProperty(options, "details");
   }
+}
+
+function replicaSyncErrorCategory(code: HonuaErrorCode) {
+  if (code === "offline.replica-sync.capability") return "capability" as const;
+  if (code === "offline.replica-sync.permission-denied") return "authentication" as const;
+  if (code === "offline.transport.failure" || code === "offline.transport.transient") return "network" as const;
+  return "validation" as const;
 }
 
 export function isHonuaReplicaSyncError(error: unknown): error is HonuaReplicaSyncError {

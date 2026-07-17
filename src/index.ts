@@ -72,11 +72,11 @@ export {
   HonuaHttpError,
   HonuaNetworkError,
   HonuaTimeoutError,
-  isHonuaError,
 } from "./core/errors.js";
 export {
   HONUA_ERROR_KIND,
   HonuaSdkError,
+  isHonuaError,
   isHonuaErrorCode,
   sanitizeHonuaErrorContext,
   serializeHonuaError,

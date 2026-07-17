@@ -7,7 +7,13 @@
  */
 
 import type { Result, Source } from "../contract/types.js";
-import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorOptions,
+  HonuaSdkError,
+  mergeHonuaErrorContext,
+  ownHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { assertQueryPlanExecutionContextV1 } from "../query-planner/execution-context.js";
@@ -67,28 +73,33 @@ export type MapLibreSourceAdapterErrorCode =
 
 /** A stable, machine-readable adapter failure. */
 export class HonuaMapLibreSourceAdapterError extends HonuaSdkError {
+  public declare readonly code: MapLibreSourceAdapterErrorCode;
+  public declare readonly detail?: Readonly<Record<string, unknown>> | undefined;
+
   public constructor(
-    public readonly code: MapLibreSourceAdapterErrorCode,
+    code: MapLibreSourceAdapterErrorCode,
     message: string,
-    public readonly detail?: Readonly<Record<string, unknown>>,
+    detail?: Readonly<Record<string, unknown>> | undefined,
     options: HonuaErrorOptions = {},
   ) {
-    super(MAPLIBRE_SOURCE_ADAPTER_CODES[code], message, {
-      ...options,
-      context: mergeHonuaErrorContext(detail, options.context),
-    });
-    this.name = "HonuaMapLibreSourceAdapterError";
+    const sdkCode = `map.source-adapter.${code}` as const;
+    super(
+      sdkCode,
+      message,
+      withHonuaErrorClassification(
+        options,
+        sdkCode,
+        "HonuaMapLibreSourceAdapterError",
+        "map",
+        code === "unsupported-plan" ? "capability" : code === "map-mutation-failed" ? "internal" : "validation",
+        false,
+        mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
+      ),
+    );
+    this.code = code;
+    this.detail = detail;
   }
 }
-
-const MAPLIBRE_SOURCE_ADAPTER_CODES = {
-  disposed: "map.source-adapter.disposed",
-  "source-conflict": "map.source-adapter.source-conflict",
-  "layer-conflict": "map.source-adapter.layer-conflict",
-  "unsupported-plan": "map.source-adapter.unsupported-plan",
-  "invalid-option": "map.source-adapter.invalid-option",
-  "map-mutation-failed": "map.source-adapter.map-mutation-failed",
-} as const satisfies Record<MapLibreSourceAdapterErrorCode, `map.source-adapter.${string}`>;
 
 /** Minimal injected MapLibre map surface. */
 export interface SourceToMapLibreMap {

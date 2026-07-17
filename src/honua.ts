@@ -327,12 +327,12 @@ export {
   HonuaCapabilityNotSupportedError,
   HonuaExplorationContextError,
   HonuaWfsExceptionError,
-  isHonuaError,
 } from "./core/errors.js";
 export type { HonuaError, HonuaAuthErrorCode, HonuaGeometryErrorCode } from "./core/errors.js";
 export {
   HONUA_ERROR_KIND,
   HonuaSdkError,
+  isHonuaError,
   isHonuaErrorCode,
   sanitizeHonuaErrorContext,
   serializeHonuaError,
