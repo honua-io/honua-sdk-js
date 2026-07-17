@@ -478,7 +478,8 @@ order is honored per WMS 1.3 §6.7.3.2 — `EPSG:4326` is swapped to
 (x, y) tuples. MapLibre integration ships through
 `buildWmsRasterSourceSpec(descriptor)`, which emits a `raster` source
 spec with a pre-baked KVP `tiles` template using MapLibre's runtime
-`{bbox-epsg3857}` / `{width}` / `{height}` placeholders.
+`{bbox-epsg-3857}` placeholder plus validated 1–4096 literal `WIDTH` /
+`HEIGHT` values equal to `tileSize`.
 
 ### WMTS
 First-party WMTS 1.0.0 adapter. Render-only — `Source.query()` throws

@@ -45,7 +45,12 @@ test("automatic Source→MapLibre workflow drives selection, filter, popup, and 
 }) => {
   const server = await startServer();
   const pageErrors = [];
+  const wmsRequests = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/wms" && url.searchParams.get("REQUEST") === "GetMap") wmsRequests.push(url.href);
+  });
   try {
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("fixture server failed to bind");
@@ -74,6 +79,22 @@ test("automatic Source→MapLibre workflow drives selection, filter, popup, and 
     ];
     for (const name of strategyNames) {
       expect(result.strategies[name]?.match, `${name} strategy selection`).toBe(true);
+    }
+
+    const wmsTemplate = result.strategies["wms-raster"]?.tileTemplate;
+    expect(wmsTemplate).toContain("BBOX={bbox-epsg-3857}");
+    expect(wmsTemplate).toContain("WIDTH=256");
+    expect(wmsTemplate).toContain("HEIGHT=256");
+    expect(wmsTemplate).not.toMatch(/\{(?:bbox-epsg3857|width|height)\}/u);
+    expect(wmsRequests.length).toBeGreaterThan(0);
+    for (const href of wmsRequests) {
+      const url = new URL(href);
+      const bbox = url.searchParams.get("BBOX")?.split(",").map(Number);
+      expect(bbox).toHaveLength(4);
+      expect(bbox?.every(Number.isFinite)).toBe(true);
+      expect(url.searchParams.get("WIDTH")).toBe("256");
+      expect(url.searchParams.get("HEIGHT")).toBe("256");
+      expect(href).not.toMatch(/%7B|%7D|\{|\}/iu);
     }
 
     // Native strategies mount and dispose cleanly on the real renderer.
