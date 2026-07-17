@@ -211,8 +211,8 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
         },
         closeBundle() {
           if (!buildMode) return;
-          if (!outputRoot) throw new Error("sample bundle closed without a resolved output root");
-          if (!emittedBundle) return;
+          if (!outputRoot || !emittedBundle)
+            throw new Error("sample bundle closed without a resolved output inventory");
           const finalOutputRoot = outputRoot;
           const bundleEvidence = emittedBundle.map((entry) => {
             const absolute = path.resolve(finalOutputRoot, entry.fileName);
