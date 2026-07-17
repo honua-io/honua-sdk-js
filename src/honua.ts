@@ -57,6 +57,26 @@ export type {
   StacStaticTraversalOptions,
   StacStaticTraversalPolicy,
 } from "./connect.js";
+export { discoverGeoServices } from "./geoservices-discovery.js";
+export type {
+  GeoServicesAuthenticationDescriptor,
+  GeoServicesAuthenticationRequirement,
+  GeoServicesCrsDescriptor,
+  GeoServicesDiscoveryDiagnostic,
+  GeoServicesDiscoveryDiagnosticCode,
+  GeoServicesDiscoveryOptions,
+  GeoServicesDiscoveryResult,
+  GeoServicesDiscoveryState,
+  GeoServicesFormatDescriptor,
+  GeoServicesLimitDescriptor,
+  GeoServicesOperationAvailability,
+  GeoServicesOperationDescriptor,
+  GeoServicesOperationExecution,
+  GeoServicesServiceDescriptor,
+} from "./geoservices-discovery.js";
+export type { GeoServicesServiceKind, GeoServicesServiceProtocol } from "./geoservices-endpoint.js";
+export { HONUA_GEOSERVICES_METADATA_MAX_BYTES } from "./geoservices-metadata.js";
+export type { GeoServicesMetadataRequestOptions } from "./geoservices-metadata.js";
 export { createHonua } from "./kernel/index.js";
 export type {
   ConnectLocator,
