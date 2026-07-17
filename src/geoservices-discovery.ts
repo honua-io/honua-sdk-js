@@ -328,26 +328,24 @@ async function discoverImageService(
   }
   if (isRecord(readOptional(metadata, "tileInfo"))) operationNames.add("tile");
   const operations = Object.freeze(
-    [...operationNames]
-      .sort((left, right) => left.localeCompare(right))
-      .map((operation) => {
-        const advertised = findOperation(operationsMetadata, operation);
-        const path = operation === "tile" ? "tile/{level}/{row}/{col}" : operation;
-        return operationDescriptor({
-          id: operation,
-          kind: "image",
-          operation,
-          ...(source ? { sourceId: source.id } : {}),
-          href: resolveOperationHref(target.serviceUrl, advertised?.href, path, operation === "tile"),
-          methods: advertised?.methods ?? (operation === "tile" ? ["GET"] : ["GET", "POST"]),
-          execution: "synchronous",
-          sdkSupported: IMAGE_SDK_OPERATIONS.has(operation.toLowerCase()),
-          formats,
-          crs,
-          limits,
-          provenance,
-        });
-      }),
+    [...operationNames].sort(compareCodeUnits).map((operation) => {
+      const advertised = findOperation(operationsMetadata, operation);
+      const path = operation === "tile" ? "tile/{level}/{row}/{col}" : operation;
+      return operationDescriptor({
+        id: operation,
+        kind: "image",
+        operation,
+        ...(source ? { sourceId: source.id } : {}),
+        href: resolveOperationHref(target.serviceUrl, advertised?.href, path, operation === "tile"),
+        methods: advertised?.methods ?? (operation === "tile" ? ["GET"] : ["GET", "POST"]),
+        execution: "synchronous",
+        sdkSupported: IMAGE_SDK_OPERATIONS.has(operation.toLowerCase()),
+        formats,
+        crs,
+        limits,
+        provenance,
+      });
+    }),
   );
   const diagnostics =
     operations.length === 0 && discovered.evidence.some((entry) => entry.kind === "unavailable")
@@ -435,7 +433,7 @@ async function discoverGeometryService(
           provenance,
         });
       })
-      .sort((left, right) => left.id.localeCompare(right.id)),
+      .sort((left, right) => compareCodeUnits(left.id, right.id)),
   );
   const diagnostics =
     operations.length === 0
@@ -1126,7 +1124,11 @@ function positiveIntegerValue(record: Readonly<Record<string, unknown>>, key: st
 }
 
 function uniqueStrings(values: readonly string[]): string[] {
-  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+  return [...new Set(values)].sort(compareCodeUnits);
+}
+
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function evidenceProvenance(evidence: readonly DiscoveryCapabilityEvidence[]): readonly DiscoveryProvenance[] {
