@@ -254,9 +254,9 @@ class BoundedBodyError extends Error {}
 /**
  * Headless S1 orchestration for the Imagery and Terrain golden journey.
  *
- * It deliberately stops at a bounded TIFF-header/range inspection. Direct
- * GeoTIFF decoding and MapLibre COG rendering remain the separate #537 gap;
- * the existing ImageServer/WMS paths remain the supported render comparison.
+ * It owns search, bounded header inspection, elevation, and cancellation. The
+ * browser composes its ready selection with the opt-in `@honua/sdk-js/cog`
+ * session, while ImageServer/WMS remain independent comparison paths.
  */
 export class ImageryTerrainJourney {
   readonly #client: HonuaClient;
@@ -429,9 +429,10 @@ export class ImageryTerrainJourney {
         comparison: {
           status: "available",
           wmsPath: this.#wmsComparisonPath,
-          note: "Use the supported WMS/ImageServer preview for pixels while this receipt proves only COG range transport.",
+          note: "Compare the direct COG mount with the independent WMS/ImageServer publication paths.",
         },
-        limitation: "Header/range inspection only; direct COG decoding and rendering remain tracked by #537.",
+        limitation:
+          "This receipt proves header/range metadata; the browser records direct decoding and MapLibre mounting separately.",
       };
     } catch (error) {
       if (controller.signal.aborted || generation !== this.#selectionGeneration) {

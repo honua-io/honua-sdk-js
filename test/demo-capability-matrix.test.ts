@@ -11,6 +11,7 @@ const requiredCapabilities = [
   "FeatureServer",
   "MapServer",
   "ImageServer",
+  "Direct COG and terrain elevation",
   "Geometry Service",
   "GP/OGC Processes",
   "OGC Features",
@@ -96,7 +97,7 @@ function parseMatrixRows(markdown: string): MatrixRow[] {
 }
 
 describe("demo capability matrix", () => {
-  it("lists every issue #70 required capability", () => {
+  it("lists every required capability", () => {
     const rows = parseMatrixRows(readMatrixDoc());
     const capabilities = new Set(rows.map((row) => row.capability));
 

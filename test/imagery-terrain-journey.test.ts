@@ -87,7 +87,7 @@ describe("Imagery and Terrain S1 journey", () => {
     });
     expect(inspection.cache.key).toMatch(/^raster-v1:sha256:[a-f0-9]{64}$/u);
     expect(inspection.comparison.wmsPath).toBe("/rest/services/OahuImagery/MapServer/WMS");
-    expect(inspection.limitation).toContain("#537");
+    expect(inspection.limitation).toContain("records direct decoding and MapLibre mounting separately");
     expect(journey.resources()).toMatchObject({ activeRequests: 0, disposed: false });
   });
 

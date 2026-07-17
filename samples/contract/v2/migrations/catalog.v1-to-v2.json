@@ -210,35 +210,37 @@
     "imagery-cog-quickstart": {
       "track": "recipe",
       "title": "Imagery and Terrain journey",
-      "summary": "Searches STAC, inspects bounded COG range transport, compares published imagery, and samples terrain elevation profiles.",
+      "summary": "Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles.",
       "journeyId": "imagery-terrain",
       "capabilities": ["cog", "elevation", "imagery", "profile", "range-requests", "raster", "stac", "terrain"],
       "protocols": ["geoservices", "stac", "terrain-rgb", "wms"],
       "validationProfile": "golden-browser",
       "lifecycle": {
         "state": "active",
-        "reason": "The fixture-first browser workflow, public-helper rendering, pinned live producer, and legacy publication routes now converge on one runnable journey; golden receipt qualification remains intentionally planned."
+        "reason": "The fixture-first browser workflow, opt-in /cog renderer, pinned live semantic probe, and legacy WMS/Terrain routes now converge on one runnable journey; golden receipt qualification remains intentionally planned."
       },
       "configuration": {
         "status": "approved"
       },
       "data": {
         "authMode": "host-mediated",
-        "provenance": "Committed STAC, bounded TIFF-header range, imagery, and terrain fixtures; a configured same-origin Honua service; or the scheduled pinned Element 84 Earth Search Sentinel-2 item.",
-        "attribution": "STAC and elevation provider attribution, license, version, checksum, and ETag remain visible in workflow receipts; the pinned lane reports Copernicus Sentinel data 2023 cataloged by Element 84 Earth Search.",
+        "provenance": "Committed STAC, bounded COG range/decoded-window, imagery, and terrain fixtures; a configured same-origin Honua service; or the scheduled pinned Element 84 Earth Search Sentinel-2 item.",
+        "attribution": "STAC and elevation provider attribution, license, version, checksum, and ETag remain visible in workflow receipts; the pinned lane records ESA, Sinergise, AWS, and Element 84 attribution from its reviewed contract.",
         "freshness": "Fixture acquisition/version metadata, configured-service response observation time, or the scheduled pinned-item observation time."
       },
       "live": {
         "mode": "public-live",
         "status": "planned",
-        "commands": ["npm run evidence:imagery-terrain:live"]
+        "commands": ["npm run evidence:cog:live"]
       },
-      "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes. The pinned public COG permits ranged CORS but does not expose range identity headers to browser JavaScript, so configured browsers require a same-origin Honua proxy for receipts; direct COG rendering remains a #537 gap while WMS/ImageServer previews stay usable.",
+      "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
       "validation": [
         "npm run demo:imagery-cog:typecheck",
         "npm run demo:imagery-cog:build",
         "npx vitest run test/imagery-cog-quickstart.test.ts",
-        "npx vitest run test/imagery-terrain-live-evidence.test.ts",
+        "npx vitest run test/cog-live-evidence.test.ts",
+        "npx vitest run test/cog-session.test.ts",
+        "npx vitest run test/cog-maplibre.test.ts",
         "npx vitest run test/imagery-terrain-journey.test.ts",
         "npm run test:playwright:imagery-cog"
       ]

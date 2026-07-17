@@ -1,6 +1,19 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { type ElevationCoordinate, HonuaClient, HonuaImageService } from "@honua/sdk-js/honua";
+import { connect } from "@honua/sdk-js";
+import {
+  type CogDecoderFactory,
+  type CogInspection,
+  type CogMapLibreSnapshot,
+  type CogTransferLedger,
+  HonuaCogError,
+  type MountedStacCogAssetToMapLibre,
+  type StacCogAssetSession,
+  type StacCogAssetToMapLibreMap,
+  mountStacCogAssetToMapLibre,
+  openStacCogAsset,
+} from "@honua/sdk-js/cog";
+import { type ElevationCoordinate, HonuaClient, HonuaImageService, type StacAssetCandidate } from "@honua/sdk-js/honua";
 import maplibregl, { type GeoJSONSource, type MapMouseEvent } from "maplibre-gl";
 
 import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
@@ -43,6 +56,27 @@ const POINT_LAYER_ID = "journey-elevation-point-layer";
 const ROUTE_SOURCE_ID = "journey-elevation-route";
 const ROUTE_LAYER_ID = "journey-elevation-route-layer";
 const DEFAULT_ASSET_KEY = "cog";
+const DIRECT_COG_SOURCE_ID = "honua-direct-cog";
+const DIRECT_COG_LAYER_ID = "honua-direct-cog-layer";
+
+interface DirectCogEvidence {
+  readonly phase: "discovering" | "inspecting" | "reading" | "rendering" | "ready" | "failed" | "disposed";
+  readonly generation: number;
+  readonly selectedAssetKey?: string;
+  readonly candidateCount: number;
+  readonly errorCode?: string;
+  readonly errorMessage?: string;
+  readonly mapSourceMounted: boolean;
+  readonly mapLayerMounted: boolean;
+  readonly inspection?: CogInspection;
+  readonly render?: CogMapLibreSnapshot;
+  readonly transfer?: CogTransferLedger;
+  readonly decoderModuleLoads: number;
+  readonly decoderLoads: number;
+  readonly decoderDisposals: number;
+  readonly abortedOperations: number;
+  readonly staleCompletions: number;
+}
 
 interface ImageryTerrainBrowserRuntime {
   readonly ready: boolean;
@@ -59,8 +93,11 @@ interface ImageryTerrainBrowserRuntime {
   readonly terrainEnabled: boolean;
   readonly interactionCount: number;
   readonly resources: ReturnType<ImageryTerrainJourney["resources"]>;
+  readonly directCog: DirectCogEvidence;
   search(): Promise<boolean>;
   selectAsset(assetKey: string): Promise<RasterAssetInspectionOutcome | undefined>;
+  selectCogAsset(assetKey: string): Promise<void>;
+  disposeCog(): Promise<void>;
   lookupAt(longitude: number, latitude: number): Promise<ElevationLookupOutcome | undefined>;
   runFixtureProfile(): Promise<ElevationProfileOutcome | undefined>;
   setTerrainEnabled(enabled: boolean): void;
@@ -119,15 +156,15 @@ const presentation = mountSamplePresentation({
   evidence: {
     SDK: `@honua/sdk-js ${__HONUA_SDK_VERSION__}`,
     Search: "HonuaClient.stac().search",
-    Range: "HonuaClient.pipelineFetch · bytes=0-63",
+    Range: "HonuaClient.pipelineFetch + @honua/sdk-js/cog bounded reads",
     Elevation: "HonuaClient.pipelineRequestJson + sampleElevationProfile",
-    Rendering: "MapLibre WMS / ImageServer / Terrain-RGB",
-    Limitation: "Direct COG decoding remains #537",
+    Rendering: "MapLibre direct COG / WMS / ImageServer / Terrain-RGB",
+    Limitation: "Fixture decoder is deterministic; public UTM reprojection is not claimed",
   },
   onDispose: () => dispose(),
 });
 presentation.showDegradation([
-  "Direct STAC-to-COG pixels are not rendered while #537 remains open; the bounded receipt is compared with published WMS/ImageServer pixels.",
+  "The runnable fixture renders direct COG pixels through the opt-in /cog surface; scheduled public evidence qualifies bounded decoding but not browser-side UTM reprojection.",
   "Cesium remains a lab and is not loaded by this journey.",
 ]);
 cleanup.add(() => presentation.root.remove());
@@ -169,12 +206,14 @@ interface ActiveCogResources {
   readonly controller: AbortController;
   session?: StacCogAssetSession;
   mount?: MountedStacCogAssetToMapLibre;
+  released?: boolean;
 }
 
 let directCandidates: StacAssetCandidate[] = [];
 let directGeneration = 0;
 let activeCog: ActiveCogResources | undefined;
 let fixtureDecoderModule: Awaited<typeof import("./fixture-cog-decoder.js")> | undefined;
+let configuredDecoderFactory: CogDecoderFactory | undefined;
 let directEvidence: DirectCogEvidence = {
   phase: "discovering",
   generation: 0,
@@ -266,14 +305,63 @@ async function loadFixtureDecoderFactory() {
   return fixtureDecoderModule.createFixtureCogDecoderFactory(fixtureDecoderTelemetry);
 }
 
+function instrumentConfiguredDecoderFactory(factory: CogDecoderFactory): CogDecoderFactory {
+  return async (context) => {
+    const decoder = await factory(context);
+    let released = false;
+    fixtureDecoderTelemetry.created();
+    return {
+      async inspect(operation) {
+        try {
+          return await decoder.inspect(operation);
+        } catch (error) {
+          if (operation.signal.aborted) fixtureDecoderTelemetry.aborted();
+          throw error;
+        }
+      },
+      async readWindow(request, operation) {
+        try {
+          return await decoder.readWindow(request, operation);
+        } catch (error) {
+          if (operation.signal.aborted) fixtureDecoderTelemetry.aborted();
+          throw error;
+        }
+      },
+      async dispose() {
+        if (released) return;
+        released = true;
+        try {
+          await decoder.dispose?.();
+        } finally {
+          fixtureDecoderTelemetry.disposed();
+        }
+      },
+    };
+  };
+}
+
+async function loadSelectedDecoderFactory(): Promise<CogDecoderFactory> {
+  if (config.mode === "fixture-safe") return loadFixtureDecoderFactory();
+  if (!configuredDecoderFactory) {
+    const adapter = await import("../../../scripts/lib/geotiff-cog-decoder.mjs");
+    configuredDecoderFactory = instrumentConfiguredDecoderFactory(await adapter.loadGeoTiffCogDecoderFactory());
+    setDirectEvidence({ decoderModuleLoads: directEvidence.decoderModuleLoads + 1 });
+  }
+  return configuredDecoderFactory;
+}
+
 async function disposeCogResources(resources: ActiveCogResources | undefined): Promise<void> {
-  if (!resources) return;
+  if (!resources || resources.released) return;
+  resources.released = true;
+  const heldRasterResources = Boolean(resources.mount || resources.session);
   resources.controller.abort();
   try {
     if (resources.mount) await resources.mount.dispose();
     else if (resources.session) await resources.session.dispose();
   } catch {
     // Cleanup diagnostics are retained by the mount; switching remains usable.
+  } finally {
+    if (heldRasterResources) releasedRasterResources += 1;
   }
 }
 
@@ -292,7 +380,10 @@ function cogError(error: unknown): { code: string; message: string } {
 
 const directCogFetch: typeof fetch = async (input, init) => {
   const request = new Request(input, init);
-  if (request.headers.has("range") && new URL(request.url).pathname.endsWith("/cors-blocked")) {
+  if (
+    request.headers.has("range") &&
+    ["/cors-blocked", "/cors-cog"].some((suffix) => new URL(request.url).pathname.endsWith(suffix))
+  ) {
     throw new TypeError("Fixture CORS policy blocked the direct asset range request.");
   }
   return fetch(request);
@@ -321,10 +412,8 @@ async function selectDirectCogAsset(assetKey: string): Promise<void> {
     mapSourceMounted: false,
     mapLayerMounted: false,
   });
-  getElement<HTMLSelectElement>("#direct-cog-asset").value = assetKey;
-
   try {
-    const decoderFactory = await loadFixtureDecoderFactory();
+    const decoderFactory = await loadSelectedDecoderFactory();
     if (!currentCogGeneration(resources)) return;
     const session = openStacCogAsset(candidate, {
       decoderFactory,
@@ -357,8 +446,8 @@ async function selectDirectCogAsset(assetKey: string): Promise<void> {
     setDirectEvidence({ phase: "rendering", transfer: boundedRead.transfer });
 
     const mount = mountStacCogAssetToMapLibre(map as unknown as StacCogAssetToMapLibreMap, session, {
-      sourceId: "honua-direct-cog",
-      layerId: "honua-direct-cog-layer",
+      sourceId: DIRECT_COG_SOURCE_ID,
+      layerId: DIRECT_COG_LAYER_ID,
       bands: { mode: "rgb", red: 1, green: 2, blue: 3 },
       resampling: "bilinear",
       disposeSession: true,
@@ -366,12 +455,15 @@ async function selectDirectCogAsset(assetKey: string): Promise<void> {
     resources.mount = mount;
     const renderSnapshot = await mount.ready;
     if (!currentCogGeneration(resources)) return;
+    if (renderSnapshot.state === "ready" && map.getLayer(DIRECT_COG_LAYER_ID)) {
+      map.setPaintProperty(DIRECT_COG_LAYER_ID, "raster-opacity", comparisonValue / 100);
+    }
     setDirectEvidence({
       phase: renderSnapshot.state === "ready" ? "ready" : "failed",
       render: renderSnapshot,
       transfer: session.transfer(),
-      mapSourceMounted: Boolean(map.getSource("honua-direct-cog")),
-      mapLayerMounted: Boolean(map.getLayer("honua-direct-cog-layer")),
+      mapSourceMounted: Boolean(map.getSource(DIRECT_COG_SOURCE_ID)),
+      mapLayerMounted: Boolean(map.getLayer(DIRECT_COG_LAYER_ID)),
       ...(renderSnapshot.state === "ready"
         ? {}
         : {
@@ -399,39 +491,96 @@ async function selectDirectCogAsset(assetKey: string): Promise<void> {
   }
 }
 
-async function initializeDirectCog(): Promise<void> {
-  setDirectEvidence({ phase: "discovering" });
-  const endpoint = new URL("/fixtures/cog/item.json", window.location.href).href;
-  const connection = await connect({
-    endpoint,
-    protocol: "stac",
-    authorizationScopeFingerprint: "anonymous",
-    clientOptions: { fetchFn: fetch },
+async function refuseDirectCogAsset(assetKey: string, code: string, message: string): Promise<void> {
+  const generation = ++directGeneration;
+  const previous = activeCog;
+  activeCog = undefined;
+  await disposeCogResources(previous);
+  if (generation !== directGeneration) return;
+  setDirectEvidence({
+    phase: "failed",
+    generation,
+    selectedAssetKey: assetKey,
+    errorCode: code,
+    errorMessage: message,
+    inspection: undefined,
+    render: undefined,
+    transfer: undefined,
+    mapSourceMounted: false,
+    mapLayerMounted: false,
   });
-  directCandidates = (connection.inspection.stacStatic?.assetCandidates ?? []).filter(
-    (candidate) => candidate.state === "classified" && candidate.kind === "cog" && Boolean(candidate.href),
-  );
-  if (directCandidates.length === 0) throw new Error("The fixture STAC item exposed no classified COG candidates.");
-  setDirectEvidence({ candidateCount: directCandidates.length });
+}
 
-  const labels: Readonly<Record<string, string>> = {
-    "visual-a": "Natural color A — successful COG",
-    "visual-b": "Natural color B — successful COG",
-    "visual-slow": "Slow asset — cancellation proof",
-    "range-unsupported": "Failure: server ignores Range",
-    "cors-blocked": "Failure: CORS blocks Range",
-    "unsupported-crs": "Failure: unsupported CRS",
-    "unsupported-format": "Failure: GeoTIFF is not COG",
-  };
-  const select = getElement<HTMLSelectElement>("#direct-cog-asset");
-  select.innerHTML = directCandidates
-    .map(
-      (candidate) =>
-        `<option value="${escapeHtml(candidate.assetKey)}">${escapeHtml(labels[candidate.assetKey] ?? candidate.assetKey)}</option>`,
-    )
-    .join("");
-  select.addEventListener("change", () => void selectDirectCogAsset(select.value));
-  await selectDirectCogAsset("visual-a");
+async function initializeDirectCog(signal: AbortSignal): Promise<boolean> {
+  const generation = ++directGeneration;
+  const previous = activeCog;
+  activeCog = undefined;
+  directCandidates = [];
+  await disposeCogResources(previous);
+  if (signal.aborted || generation !== directGeneration || disposed) return false;
+  setDirectEvidence({
+    phase: "discovering",
+    generation,
+    candidateCount: 0,
+    selectedAssetKey: undefined,
+    errorCode: undefined,
+    errorMessage: undefined,
+    inspection: undefined,
+    render: undefined,
+    transfer: undefined,
+    mapSourceMounted: false,
+    mapLayerMounted: false,
+  });
+
+  const scene = activeScene();
+  if (!scene) {
+    setDirectEvidence({
+      phase: "failed",
+      errorCode: "stac-item-unavailable",
+      errorMessage: "No selected STAC item is available for direct COG classification.",
+    });
+    return false;
+  }
+  const endpoint =
+    config.mode === "fixture-safe"
+      ? new URL("/fixtures/cog/item.json", window.location.href).href
+      : new URL(
+          `stac/collections/${encodeURIComponent(scene.collectionId)}/items/${encodeURIComponent(scene.id)}`,
+          `${config.honuaBaseUrl}/`,
+        ).href;
+
+  try {
+    const connection = await connect({
+      endpoint,
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: fetch },
+      signal,
+    });
+    if (signal.aborted || generation !== directGeneration || disposed) return false;
+    directCandidates = (connection.inspection.stacStatic?.assetCandidates ?? []).filter(
+      (candidate) => candidate.state === "classified" && candidate.kind === "cog" && Boolean(candidate.href),
+    );
+    if (directCandidates.length === 0) {
+      setDirectEvidence({
+        phase: "failed",
+        errorCode: "cog-candidate-unavailable",
+        errorMessage: "The selected STAC item exposed no evidence-classified COG candidate.",
+      });
+      return false;
+    }
+    setDirectEvidence({ candidateCount: directCandidates.length });
+    return true;
+  } catch (error) {
+    if (signal.aborted || generation !== directGeneration || disposed) return false;
+    const failure = cogError(error);
+    setDirectEvidence({
+      phase: "failed",
+      errorCode: failure.code,
+      errorMessage: `Direct COG candidate discovery failed: ${failure.message}`,
+    });
+    return false;
+  }
 }
 
 async function disposeDirectCog(): Promise<void> {
@@ -442,6 +591,10 @@ async function disposeDirectCog(): Promise<void> {
   setDirectEvidence({
     phase: "disposed",
     generation: directGeneration,
+    errorCode: undefined,
+    errorMessage: undefined,
+    inspection: undefined,
+    transfer: undefined,
     render: undefined,
     mapSourceMounted: false,
     mapLayerMounted: false,
@@ -467,6 +620,7 @@ function activeScene() {
 
 function render(): void {
   renderStatus();
+  renderDirectCog();
   renderScenes();
   renderAssetPicker();
   renderInspection();
@@ -488,7 +642,8 @@ function renderStatus(): void {
       : summarizeImageryCache(renderPlan.dataset),
   );
   const terrainCount = terrainEnabled ? 1 : 0;
-  setText("#active-layer-count", `${activeImageryLayerCount(renderPlan) + terrainCount} active`);
+  const directCogCount = directEvidence.mapLayerMounted ? 1 : 0;
+  setText("#active-layer-count", `${activeImageryLayerCount(renderPlan) + terrainCount + directCogCount} active`);
   setText(
     "#endpoint-state",
     terrainEnabled
@@ -598,7 +753,7 @@ function renderInspection(): void {
       )} · ${escapeHtml(inspectionOutcome.identity.version ?? "unknown")}</dd></div>
       <div><dt>License</dt><dd>${escapeHtml(inspectionOutcome.provenance.license)}</dd></div>
     </dl>
-    <p class="limitation-note">${escapeHtml(inspectionOutcome.limitation)} Pixels use the published comparison path below.</p>
+      <p class="limitation-note">${escapeHtml(inspectionOutcome.limitation)} The direct COG receipt and published comparison remain independently visible.</p>
   `;
   setText(
     "#attribution-state",
@@ -712,8 +867,11 @@ function renderFidelity(): void {
       text: "Published WMS and ImageServer pixels use MapLibre raster sources; buildWmsRasterSourceSpec emits the exact MapLibre bbox token and literal tile dimensions.",
     },
     {
-      level: "degraded",
-      text: "COG is metadata plus a bounded TIFF range receipt; direct decoding/rendering remains #537.",
+      level: "supported",
+      text:
+        directEvidence.phase === "ready"
+          ? `The classified STAC COG is decoded through bounded reads and mounted in MapLibre (${directEvidence.transfer?.bytesFetched ?? 0} bytes fetched).`
+          : `Direct COG rendering is available through the opt-in /cog surface; the current scenario is ${directEvidence.phase}${directEvidence.errorCode ? ` (${directEvidence.errorCode})` : ""}.`,
     },
     {
       level: "supported",
@@ -721,7 +879,7 @@ function renderFidelity(): void {
     },
     {
       level: "degraded",
-      text: "Visual raster filtering uses MapLibre defaults; scientific resampling and raster analysis are not claimed.",
+      text: "Fixture pixels use bilinear visual resampling; scientific raster analysis and public UTM browser reprojection are not claimed.",
     },
     { level: "lab", text: "Cesium production is intentionally excluded; the separate adapter remains a lab." },
   ] as const;
@@ -824,13 +982,15 @@ function setComparison(value: number): void {
   comparisonValue = Math.max(0, Math.min(100, Math.round(value)));
   const preview = renderPlan.layers.find((state) => state.layer.accessPath === "image-server-tile");
   if (preview) {
-    renderPlan = setImageryLayerOpacity(renderPlan, preview.layer.id, comparisonValue / 100);
-    if (map.getLayer(preview.mapLayerId))
-      map.setPaintProperty(preview.mapLayerId, "raster-opacity", comparisonValue / 100);
+    renderPlan = setImageryLayerOpacity(renderPlan, preview.layer.id, 1);
+    if (map.getLayer(preview.mapLayerId)) map.setPaintProperty(preview.mapLayerId, "raster-opacity", 1);
+  }
+  if (map.getLayer(DIRECT_COG_LAYER_ID)) {
+    map.setPaintProperty(DIRECT_COG_LAYER_ID, "raster-opacity", comparisonValue / 100);
   }
   const slider = getElement<HTMLInputElement>("#comparison-slider");
   slider.value = String(comparisonValue);
-  setText("#comparison-value", `${comparisonValue}% ImageServer over WMS`);
+  setText("#comparison-value", `${comparisonValue}% direct COG over published imagery`);
   renderStatus();
 }
 
@@ -893,7 +1053,11 @@ async function runSearch(): Promise<boolean> {
         : `${receipt.numberMatched} scene matched · ${receipt.scenes.length} loaded through ${receipt.sdkSurface}.`,
     );
     render();
-    if (selectedItemId && selectedAssetKey) await inspectAsset(selectedAssetKey);
+    if (selectedItemId && selectedAssetKey) {
+      await initializeDirectCog(controller.signal);
+      if (controller.signal.aborted || disposed) return false;
+      await inspectAsset(selectedAssetKey);
+    }
     if (!disposed) {
       ready = true;
       renderStatus();
@@ -925,7 +1089,20 @@ async function inspectAsset(assetKey: string): Promise<RasterAssetInspectionOutc
   renderInspection();
   let outcome: RasterAssetInspectionOutcome;
   try {
-    outcome = await journey.inspectAsset(selectedItemId, assetKey, bootstrapController.signal);
+    const inspectionPromise = journey.inspectAsset(selectedItemId, assetKey, bootstrapController.signal);
+    const directCandidate = directCandidates.some((candidate) => candidate.assetKey === assetKey);
+    const directPromise = directCandidate ? selectDirectCogAsset(assetKey) : undefined;
+    outcome = await inspectionPromise;
+    if (directPromise) await directPromise;
+    else if (generation === selectionGeneration && !disposed) {
+      await refuseDirectCogAsset(
+        assetKey,
+        outcome.status === "unsupported" ? outcome.code : "not-classified",
+        outcome.status === "unsupported"
+          ? outcome.message
+          : "The selected STAC asset has no evidence-classified COG candidate for direct rendering.",
+      );
+    }
   } catch (error) {
     if (bootstrapController.signal.aborted) return undefined;
     presentation.showError(error);
@@ -946,14 +1123,25 @@ async function inspectAsset(assetKey: string): Promise<RasterAssetInspectionOutc
       releasedRasterResources += 1;
       setPreviewVisible(false);
     });
-    setText("#asset-switch-state", `${assetKey} ready · published preview retained until the next switch.`);
+    setText(
+      "#asset-switch-state",
+      directEvidence.phase === "ready"
+        ? `${assetKey} ready · direct COG and published comparison retained until the next switch.`
+        : `${assetKey} range receipt ready · direct rendering failed visibly as ${directEvidence.errorCode ?? directEvidence.phase}.`,
+    );
     presentation.updateEvidence({
       SDK: `@honua/sdk-js ${__HONUA_SDK_VERSION__}`,
       Search: searchReceipt?.sdkSurface ?? "not run",
       Range: `${outcome.range.contentRange} · ${outcome.range.tiffByteOrder}`,
       Cache: `${outcome.cache.status} · ${outcome.cache.etag ?? outcome.cache.checksum ?? "unversioned"}`,
-      Rendering: "MapLibre WMS / ImageServer / Terrain-RGB",
-      Limitation: outcome.limitation,
+      Rendering:
+        directEvidence.phase === "ready"
+          ? "MapLibre direct COG / WMS / ImageServer / Terrain-RGB"
+          : "MapLibre WMS / ImageServer / Terrain-RGB (direct COG degraded)",
+      Limitation:
+        directEvidence.phase === "ready"
+          ? "Direct fixture COG rendered; public UTM browser reprojection remains outside the claim"
+          : (directEvidence.errorMessage ?? outcome.limitation),
     });
   } else if (outcome.status === "unsupported") {
     setPreviewVisible(false);
@@ -1080,7 +1268,10 @@ async function dispose(): Promise<void> {
   pointController?.abort("Imagery and Terrain demo disposed.");
   profileController?.abort("Imagery and Terrain demo disposed.");
   bootstrapController.abort("Imagery and Terrain demo disposed.");
-  disposePromise = cleanup.dispose();
+  disposePromise = (async () => {
+    await disposeDirectCog();
+    await cleanup.dispose();
+  })();
   await disposePromise;
 }
 
@@ -1092,11 +1283,12 @@ const runtime: ImageryTerrainBrowserRuntime = {
     return disposed && cleanup.disposed;
   },
   get activeLayerCount() {
-    return activeImageryLayerCount(renderPlan) + (terrainEnabled ? 1 : 0);
+    return activeImageryLayerCount(renderPlan) + (terrainEnabled ? 1 : 0) + (directEvidence.mapLayerMounted ? 1 : 0);
   },
   get layerIds() {
     return [
       ...renderPlan.layers.map((state) => state.mapLayerId),
+      DIRECT_COG_LAYER_ID,
       TERRAIN_HILLSHADE_LAYER_ID,
       POINT_LAYER_ID,
       ROUTE_LAYER_ID,
@@ -1135,8 +1327,13 @@ const runtime: ImageryTerrainBrowserRuntime = {
   get resources() {
     return journey.resources();
   },
+  get directCog() {
+    return directEvidence;
+  },
   search: runSearch,
   selectAsset: inspectAsset,
+  selectCogAsset: selectDirectCogAsset,
+  disposeCog: disposeDirectCog,
   lookupAt(longitude, latitude) {
     return lookupAt([longitude, latitude]);
   },
@@ -1163,7 +1360,12 @@ cleanup.listen(getElement<HTMLElement>("#scene-results"), "click", (event) => {
     activeScene()?.assets.find((asset) => asset.key === DEFAULT_ASSET_KEY)?.key ?? activeScene()?.assets[0]?.key;
   renderScenes();
   renderAssetPicker();
-  if (selectedAssetKey) void inspectAsset(selectedAssetKey);
+  if (selectedAssetKey) {
+    void (async () => {
+      await initializeDirectCog(bootstrapController.signal);
+      if (!bootstrapController.signal.aborted && selectedAssetKey) await inspectAsset(selectedAssetKey);
+    })();
+  }
 });
 cleanup.listen(getElement<HTMLSelectElement>("#asset-picker"), "change", (event) => {
   const picker = event.currentTarget as HTMLSelectElement;
@@ -1227,5 +1429,3 @@ void bootstrap().catch((error) => {
   presentation.showError(error);
   announce(`Imagery and Terrain failed: ${error instanceof Error ? error.message : "unknown error"}`);
 });
-
-window.addEventListener("pagehide", () => void disposeDirectCog(), { once: true });

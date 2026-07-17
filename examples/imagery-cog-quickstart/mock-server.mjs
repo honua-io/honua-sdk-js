@@ -146,9 +146,9 @@ function wmsBounds(requestUrl) {
 
 const LEGEND_PNG = fixtureRasterPng([-158.22, 21.21, -157.66, 21.64], "published");
 
-// This deliberately tiny fixture proves HTTP range semantics and the TIFF
-// signature only. It is not a renderable COG and must not be used to claim the
-// direct STAC-to-COG rendering capability tracked by #537.
+// This deliberately tiny fixture proves the journey's independent header-range
+// receipt only. Direct rendering uses the separate /fixtures/cog asset contract
+// and lazy deterministic decoder below.
 const COG_RANGE_FIXTURE = Buffer.concat([
   Buffer.from([0x49, 0x49, 0x2a, 0x00]),
   Buffer.from("Honua deterministic COG range transport fixture v1"),
@@ -255,6 +255,45 @@ const STAC_ITEMS = [
     assets: { cog: rasterAsset("/fixtures/imagery/cog/oahu-cloudy.tif") },
   },
 ];
+
+const DIRECT_COG_MEDIA_TYPE = "image/tiff; application=geotiff; profile=cloud-optimized";
+const DIRECT_COG_BYTES = Buffer.alloc(16 * 1024);
+for (let index = 0; index < DIRECT_COG_BYTES.length; index += 1) {
+  DIRECT_COG_BYTES[index] = (index * 31 + 17) % 256;
+}
+const DIRECT_COG_ASSET_KEYS = [
+  "cog",
+  "cog-alt",
+  "slow-cog",
+  "no-range-cog",
+  "cors-cog",
+  "unsupported-crs",
+  "unsupported-format",
+];
+const DIRECT_COG_STAC_ITEM = {
+  stac_version: "1.1.0",
+  type: "Feature",
+  id: STAC_ITEMS[0].id,
+  collection: STAC_ITEMS[0].collection,
+  bbox: STAC_ITEMS[0].bbox,
+  geometry: STAC_ITEMS[0].geometry,
+  properties: {
+    ...STAC_ITEMS[0].properties,
+    "proj:code": "EPSG:4326",
+  },
+  links: [],
+  assets: Object.fromEntries(
+    DIRECT_COG_ASSET_KEYS.map((key) => [
+      key,
+      {
+        href: `./assets/${key}`,
+        type: DIRECT_COG_MEDIA_TYPE,
+        roles: ["data", "visual"],
+        title: `Oahu direct COG ${key} fixture`,
+      },
+    ]),
+  ),
+};
 
 const WMS_CAPABILITIES = `<?xml version="1.0" encoding="UTF-8"?>
 <WMS_Capabilities version="1.3.0" xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -463,6 +502,69 @@ function serveElevationValue(requestUrl, res) {
   serveJson(res, response);
 }
 
+function maybeServeDirectCogFixture(req, requestUrl, res) {
+  if (requestUrl.pathname === "/fixtures/cog/item.json") {
+    res.writeHead(200, {
+      "content-type": "application/geo+json; charset=utf-8",
+      "cache-control": "no-store",
+      etag: '"oahu-direct-stac-v1"',
+    });
+    res.end(JSON.stringify(DIRECT_COG_STAC_ITEM));
+    return true;
+  }
+
+  const match = /^\/fixtures\/cog\/assets\/([^/]+)$/.exec(requestUrl.pathname);
+  if (!match || !DIRECT_COG_ASSET_KEYS.includes(match[1])) return false;
+  const key = match[1];
+  const commonHeaders = {
+    "content-type": DIRECT_COG_MEDIA_TYPE,
+    "accept-ranges": "bytes",
+    "access-control-allow-origin": "*",
+    "access-control-expose-headers": "Accept-Ranges, Content-Length, Content-Range, ETag",
+    "cache-control": "public, max-age=3600",
+    etag: `"fixture-${key}-v1"`,
+  };
+  if (req.method === "HEAD") {
+    res.writeHead(200, { ...commonHeaders, "content-length": String(DIRECT_COG_BYTES.length) });
+    res.end();
+    return true;
+  }
+
+  const range = req.headers.range;
+  if (key === "no-range-cog" && range) {
+    res.writeHead(200, { ...commonHeaders, "content-length": String(DIRECT_COG_BYTES.length) });
+    res.end(DIRECT_COG_BYTES);
+    return true;
+  }
+  const rangeMatch = typeof range === "string" ? /^bytes=(\d+)-(\d+)$/.exec(range) : undefined;
+  if (!rangeMatch) {
+    res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+    res.end("An exact byte Range is required for this fixture.");
+    return true;
+  }
+  const start = Number(rangeMatch[1]);
+  const requestedEnd = Number(rangeMatch[2]);
+  const end = Math.min(requestedEnd, DIRECT_COG_BYTES.length - 1);
+  if (start > end) {
+    res.writeHead(416, { ...commonHeaders, "content-range": `bytes */${DIRECT_COG_BYTES.length}` });
+    res.end();
+    return true;
+  }
+  const body = DIRECT_COG_BYTES.subarray(start, end + 1);
+  const serveRange = () => {
+    if (res.destroyed) return;
+    res.writeHead(206, {
+      ...commonHeaders,
+      "content-range": `bytes ${start}-${end}/${DIRECT_COG_BYTES.length}`,
+      "content-length": String(body.length),
+    });
+    res.end(body);
+  };
+  if (key === "slow-cog") setTimeout(serveRange, 180);
+  else serveRange();
+  return true;
+}
+
 function maybeServeHonuaFixture(req, requestUrl, res) {
   if (requestUrl.pathname === "/favicon.ico") {
     res.writeHead(204);
@@ -615,6 +717,10 @@ export async function startImageryCogFixtureServer({ build = true } = {}) {
 
   const server = http.createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
+
+    if (maybeServeDirectCogFixture(req, requestUrl, res)) {
+      return;
+    }
 
     if (maybeServeHonuaFixture(req, requestUrl, res)) {
       return;

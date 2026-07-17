@@ -13,6 +13,7 @@
     "paths": {
       "@honua/sdk-js": ["src/index.ts"],
       "@honua/sdk-js/app-workspace": ["src/_deprecated/app-workspace.ts"],
+      "@honua/sdk-js/cog": ["src/cog/index.ts"],
       "@honua/sdk-js/contract": ["src/contract/index.ts"],
       "@honua/sdk-js/esri-compat": ["src/esri-compat-entry.ts"],
       "@honua/sdk-js/exploration": ["src/exploration/index.ts"],
