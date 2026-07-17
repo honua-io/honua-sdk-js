@@ -647,7 +647,7 @@
     {
       "id": "imagery-cog-quickstart",
       "title": "Imagery and COG quickstart",
-      "summary": "Compares WMS imagery, COG-backed ImageServer tiles, and export previews.",
+      "summary": "Discovers a STAC COG, discloses bounded reads, and renders it in MapLibre with published raster paths for comparison.",
       "sourceKind": "root-example",
       "track": "recipe",
       "journeyId": "imagery-terrain",
@@ -674,6 +674,7 @@
       ],
       "protocols": [
         "geoservices",
+        "stac",
         "wms"
       ],
       "renderers": [
@@ -682,9 +683,9 @@
       "data": {
         "mode": "hybrid",
         "authMode": "api-key",
-        "provenance": "Committed imagery metadata or configured Honua imagery service.",
-        "attribution": "Imagery-provider attribution is rendered on the map.",
-        "freshness": "Capture metadata or live response observation time.",
+        "provenance": "Committed offline STAC/COG scenarios plus one immutable Earth Search item and asset pin.",
+        "attribution": "Fixture provenance is visible in-app; live evidence records Copernicus/Element 84 attribution.",
+        "freshness": "Acquisition time is distinct from probe time; a weekly scheduled probe produces evidence valid for eight days.",
         "configurationStatus": "legacy-unsafe",
         "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables."
       },
@@ -694,11 +695,11 @@
           "status": "executed"
         },
         "live": {
-          "mode": "authenticated",
+          "mode": "public-live",
           "status": "planned"
         }
       },
-      "expectedDegradation": "Unavailable raster operations remain visible and the supported preview lane stays usable."
+      "expectedDegradation": "Range, CORS, CRS, and non-COG format refusals remain typed and visible while another classified asset stays usable."
     },
     {
       "id": "kepler-analytics",

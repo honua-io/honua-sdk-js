@@ -1,0 +1,52 @@
+{
+  "format": "honua.sdk.cog-public-contract.v1",
+  "schemaVersion": 1,
+  "provider": {
+    "name": "Element 84 Earth Search",
+    "attribution": "ESA; Sinergise; AWS; Element 84",
+    "license": "proprietary"
+  },
+  "stac": {
+    "itemUrl": "https://earth-search.aws.element84.com/v1/collections/sentinel-2-l2a/items/S2B_21WWV_20260706_0_L2A",
+    "collectionId": "sentinel-2-l2a",
+    "itemId": "S2B_21WWV_20260706_0_L2A",
+    "acquisitionAt": "2026-07-06T16:02:45.822000Z",
+    "assetKey": "visual"
+  },
+  "asset": {
+    "url": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/21/W/WV/2026/7/S2B_21WWV_20260706_0_L2A/TCI.tif",
+    "mediaType": "image/tiff;application=geotiff;profile=cloud-optimized",
+    "byteLength": 42399590,
+    "etag": "\"c742ab386c2b9f2bc5264ff36a15b50f-6\"",
+    "lastModified": "Mon, 06 Jul 2026 18:59:56 GMT",
+    "prefix": {
+      "offset": 0,
+      "length": 64,
+      "sha256": "fd55271d3154514b178327d0baef7d5c6b595d3a75fbda9e666941c65863452e"
+    }
+  },
+  "expectedInspection": {
+    "format": "cog",
+    "width": 10980,
+    "height": 10980,
+    "crs": "EPSG:32621",
+    "bandCount": 3,
+    "dataTypes": ["uint8", "uint8", "uint8"],
+    "resolution": { "x": 10, "y": 10, "unit": "metre" },
+    "overviewDecimations": [2, 4, 8, 16]
+  },
+  "boundedRead": {
+    "x": 5000,
+    "y": 5000,
+    "width": 256,
+    "height": 256,
+    "bands": [1, 2, 3],
+    "sampling": { "width": 16, "height": 16, "overviewDecimation": 16, "resampling": "bilinear" }
+  },
+  "freshness": {
+    "contractObservedAt": "2026-07-17T10:50:38.000Z",
+    "scheduledCadenceDays": 7,
+    "evidenceValidityDays": 8,
+    "policy": "The item and asset are immutable pins; only a newly executed scheduled probe is current evidence. Acquisition time is never reported as probe time."
+  }
+}

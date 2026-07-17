@@ -51,6 +51,7 @@
     "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom.",
     "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation.",
     "/cog gained its first dedicated guard for #537 S1: the evidence-bound STAC candidate gate, caller-injected decoder contract, exact partial-range transport, deterministic transfer ledger, typed metadata/window validation, and lifecycle cancellation measure 26,653 minified / 7,927 gzip bytes. The ceiling is measured actual plus 10% headroom; the raster decoder remains injected and the subpath is explicitly forbidden from the root createHonua graph.",
+    "The #537 S2/S3 closeout resets /cog for its bounded MapLibre image-source adapter at 52,231 minified / 14,980 gzip bytes and adds explicit GeoTIFF/MapLibre/Cesium retention attribution. Root, /honua, browser, source-schema, and connect/createHonua fixtures are remeasured after bounded static STAC discovery landed immediately before S1; their exceeded ceilings are reset to actual plus 10% headroom. Direct COG and GeoTIFF.js remain absent from all stable/browser graphs.",
     "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged.",
     "'tree-shake:root-createHonua' guards the managed application-kernel facade (#532): importing only createHonua retains reviewed discovery plus instance lifecycle/inspection logic, while renderer, query-planner, plugin, and application-platform systems remain shakeable. The fixture explicitly rejects those systems plus Arrow and DuckDB inputs. The standalone root-connect fixture remains unchanged at 345.9 KiB minified / 89.0 KiB gzip. Root and browser ceilings were reset from the measured managed-facade totals (root 454,923 / 119,064; IIFE 455,539 / 119,255; ESM 454,215 / 119,031) to actual plus ~10% headroom.",
     "/query-planner was reset for deterministic CQL2 JSON/text and WFS 2.0 FES compilation (#527): explicit conformance/capability evidence, typed escaping, executable CRS axis ordering, and shared adversarial equivalence fixtures measure 479,395 minified / 91,471 gzip bytes. Both ceilings are measured actual plus 10% headroom; the compiler remains opt-in under /query-planner, so root and browser entrypoints remain unchanged.",
@@ -59,20 +60,20 @@
   ],
   "entrypoints": {
     ".": {
-      "min": 500416,
-      "gzip": 130971
+      "min": 561015,
+      "gzip": 147770
     },
     "/honua": {
-      "min": 579760,
-      "gzip": 153185
+      "min": 655725,
+      "gzip": 173136
     },
     "/contract": {
       "min": 294195,
       "gzip": 74642
     },
     "/source-schema": {
-      "min": 679677,
-      "gzip": 137190
+      "min": 753471,
+      "gzip": 157369
     },
     "/source-capabilities": {
       "min": 263724,
@@ -155,36 +156,36 @@
       "gzip": 17174
     },
     "/cog": {
-      "min": 29319,
-      "gzip": 8720
+      "min": 57455,
+      "gzip": 16478
     },
     "/deckgl": {
       "min": 16916,
       "gzip": 5687
     },
     "browser-iife": {
-      "min": 501093,
-      "gzip": 131181
+      "min": 561677,
+      "gzip": 148012
     },
     "browser-esm": {
-      "min": 499637,
-      "gzip": 130935
+      "min": 560219,
+      "gzip": 147727
     },
     "tree-shake:HonuaClient": {
       "min": 235231,
       "gzip": 59002
     },
     "tree-shake:root-connect": {
-      "min": 367787,
-      "gzip": 95076
+      "min": 432075,
+      "gzip": 111813
     },
     "tree-shake:source-capabilities-evaluate": {
       "min": 18332,
       "gzip": 6372
     },
     "tree-shake:root-createHonua": {
-      "min": 407259,
-      "gzip": 105067
+      "min": 456058,
+      "gzip": 118247
     },
     "/react": {
       "min": 457456,

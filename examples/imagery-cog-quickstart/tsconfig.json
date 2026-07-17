@@ -5,6 +5,7 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
+      "@honua/sdk-js/cog": ["../../src/cog/index.ts"],
       "@honua/sdk-js": ["../../src/index.ts"],
       "@honua/sdk-js/honua": ["../../src/honua.ts"],
       "@honua/sdk-js/contract": ["../../src/contract/index.ts"],
