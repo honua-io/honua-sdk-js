@@ -16,7 +16,7 @@ export default defineConfig({
     ],
   },
   test: {
-    include: ["test/first-map-workflow.test.ts"],
+    include: ["test/first-map-workflow.test.ts", "test/first-map-presentation.test.ts"],
     fileParallelism: false,
   },
 });

@@ -24,6 +24,7 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
     await page.setViewportSize({ width: 1440, height: 1000 });
     const navigation = await page.goto(fixtureServer.url);
     expect(navigation?.headers()["content-security-policy"]).toContain("connect-src 'self'");
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: fixtureOrigin });
 
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.journeyComplete === true))
@@ -37,13 +38,14 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
       await expect(page.locator(`#journey-${stage} small`)).not.toHaveText("Waiting");
     }
 
-    await expect(page.locator("#status-compatibility")).toHaveText(/Compatible/);
-    await expect(page.locator("#status-feature-count")).toHaveText("3 renderable of 3");
+    await expect(page.locator("#status-compatibility")).toHaveText(/geoservices-feature-service/);
+    await expect(page.locator("#status-feature-count")).toHaveText("3 accepted");
     await expect(page.locator("#status-geometry-types")).toHaveText("polygon");
-    await expect(page.locator("#evidence-auth")).toHaveText("none");
-    await expect(page.locator("#evidence-freshness")).toContainText("snapshot captured");
-    await expect(page.locator("#evidence-data-version")).toContainText("honolulu-operations-v1");
-    await expect(page.locator("#evidence-degradation")).toContainText("exact remote pushdown");
+    await expect(page.locator("#evidence-auth")).toHaveText("anonymous public");
+    await expect(page.locator("#evidence-freshness")).toContainText("Source observation advertised");
+    await expect(page.locator("#evidence-data-version")).toContainText("3 accepted feature(s)");
+    await expect(page.locator("#evidence-degradation")).toContainText("exact accepted plan");
+    await expect(page.locator("#evidence-timing")).toHaveText(/\d+ ms \/ 10000 ms/);
     await expect(page.locator("#capability-list")).toContainText("query");
     await expect(page.locator("#plan-pushdown")).toHaveText("full");
     await expect(page.locator("#plan-fidelity")).toHaveText("exact");
@@ -51,9 +53,11 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
     await expect(page.locator("#plan-json")).toContainText('"fingerprint"');
 
     const runtime = await page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__);
-    expect(runtime?.layerIds).toContain("quickstart-fill");
+    expect(runtime?.layerIds).toContain("first-map-feature-polygon");
     expect(runtime?.planFingerprint).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(runtime?.sdkVersion).toMatch(/^\d+\.\d+\.\d+/);
+    expect(runtime?.firstMapBudgetMs).toBe(10_000);
+    expect(runtime?.firstMapBudgetMet).toBe(true);
 
     await expect(page.locator("#linked-visible-count")).toHaveText("3");
     await page.locator("#attribute-filter").selectOption({ label: "STATUS: Ready" });
@@ -61,7 +65,11 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
     await expect(page.locator("#map-visible-count")).toHaveText("1 visible");
     await expect(page.locator("#feature-list")).toContainText("Kakaako utility corridor");
     await expect(page.locator("#feature-list")).not.toContainText("Harbor response district");
-    await expect(page.locator("#linked-query-projection")).toContainText('"STATUS"');
+    await expect(page.locator("#linked-query-projection")).toContainText('"scope": "mounted bounded result"');
+    await expect(page.locator("#linked-query-projection")).toContainText('"field": "STATUS"');
+    const filterTiming = await page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__);
+    expect(filterTiming?.interactionBudgetMet).toBe(true);
+    expect(filterTiming?.interactionDurationMs).toBeLessThanOrEqual(100);
     await page.locator("#clear-filter-button").click();
     await expect(page.locator("#linked-visible-count")).toHaveText("3");
 
@@ -75,6 +83,19 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
       .poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.selectedFeatureId))
       .toBe("2");
 
+    await page.locator("#copy-code-button").click();
+    await expect(page.locator("#copy-code-status")).toHaveText("Copied workflow call site.");
+    await expect(page.locator("#workflow-code")).toContainText("runFirstMapWorkflow");
+    await expect(page.locator("#workflow-code")).toContainText("result.state !== \"ready\"");
+
+    await page.locator("#endpoint-url").fill(`${fixtureOrigin}/ogc/features`);
+    await page.locator("#endpoint-protocol").selectOption("ogc-features");
+    await page.locator("#load-endpoint-button").click();
+    await expect(page.locator("#evidence-source")).toContainText("ogc-features · operations-areas");
+    await expect(page.locator("#map-overlay")).toHaveAttribute("data-state", "ready");
+    await expect(page.locator("#status-feature-count")).toHaveText("3 accepted");
+    await expect(page.locator("#workflow-code")).toContainText('"protocol": "ogc-features"');
+
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole("application", { name: "Interactive map of queried features" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Linked table" })).toBeVisible();
@@ -82,8 +103,11 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
       await page.evaluate(() => ({ documentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth })),
     ).toEqual({ documentWidth: 390, viewportWidth: 390 });
 
-    await page.evaluate(() => window.__HONUA_QUICKSTART_DISPOSE__?.());
+    await page.evaluate(async () => await window.__HONUA_QUICKSTART_DISPOSE__?.());
     await expect.poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.disposed)).toBe(true);
+    const cleanup = await page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__);
+    expect(cleanup?.cleanupBudgetMet).toBe(true);
+    expect(cleanup?.cleanupDurationMs).toBeLessThanOrEqual(1_000);
     await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
