@@ -622,6 +622,30 @@ itself, so callers can — and should — pass a bare ObjectId on
 from the entity-set key parens to produce
 `/odata/Layers(<n>)/Features(<objectId>)` directly.
 
+Exact EDM write encoding is available through the explicit
+`odataSource(..., { writeEncoding: "lossless-json" })` opt-in. The option
+preflights the complete edit envelope against the adapter's existing cached
+`$metadata` snapshot. It preserves `Edm.Int64` and `Edm.Decimal` values as
+validated JSON strings, recursively encodes complex values and collections,
+uses `NaN` / `INF` / `-INF` for non-finite `Edm.Single` and `Edm.Double`
+values, and formats URL keys by their declared metadata types. A body receives
+`application/json;IEEE754Compatible=true` only when it contains a non-null
+Int64 or Decimal; JSON `$batch` carries that media type on the individual
+request part. Direct and atomic edits consume the same preflight projection.
+Nesting, container breadth, and aggregate value nodes are hard-bounded;
+malformed or over-budget values and keys fail locally with a bounded,
+value-redacted path. When the option is omitted, the original body bytes, ordinary
+`application/json` media type, and legacy key formatter are unchanged.
+
+The codec module is lazy and memoized, so legacy/default writes do not load it.
+Lossless updates reject a scalar `feature.id` that disagrees with the
+metadata-encoded single key in `attributes`, and reject scalar ids altogether
+for composite updates because equivalence to the named components cannot be
+proved. The generic `deletes: FeatureId[]` envelope cannot carry a structured
+composite identity; opted-in composite deletes therefore fail before any
+direct or `$batch` request. Legacy preformatted composite delete expressions
+remain available only on the unchanged legacy encoding path.
+
 When `EditEnvelope.rollbackOnFailure === true` AND `$metadata`
 advertises `Capabilities.BatchSupported`, the adapter collapses the
 envelope into a single `$batch` request whose every operation carries
