@@ -350,8 +350,8 @@
     {
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
-      "exportCount": 1154,
-      "signatureSha256": "118fb15e0d62e72d7eeffbb3ffdd435c8bb39a9ac5c09d6750de731e48db29d3",
+      "exportCount": 1156,
+      "signatureSha256": "38254b55acc93d9e86e09092d981cc650c2a4ecf190e103b9dca4d064e4419d5",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -865,9 +865,11 @@
         "HonuaSourceBase — interface",
         "HonuaSourceSpecification — type",
         "HonuaSpatialReference — interface",
+        "HonuaStacAsset — interface",
         "HonuaStacItemCollectionResponse — interface",
         "HonuaStacItemResponse — interface",
         "HonuaStacLandingResponse — interface",
+        "HonuaStacRasterBand — interface",
         "HonuaStacSearch — class",
         "HonuaStacSearchAllRequest — interface",
         "HonuaStacSearchOptions — interface",
