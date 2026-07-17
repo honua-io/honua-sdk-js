@@ -1,0 +1,36 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "planning-permitting-workbench",
+  "gate": "live",
+  "status": "passed",
+  "sdkMode": "packed",
+  "sourceRevision": "4bfbc3bb18c68a0160aa653fe515bd2983293f9f",
+  "sourceDigest": "8a475939db73653727617497e0a3640d9d343a116306b78e7d7399dc9a60f4d4",
+  "runRoot": "samples/evidence/planning-permitting-workbench/runs/308641ad-4dae-4985-a1e1-14418636c79f",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "evidence:planning:live"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "adfc05d9f0ae260b7c0a53d15f6e8e256e2feb197df478d39c178c6cf1c9f9b1"
+  },
+  "observedAt": "2026-07-17T17:38:49.339Z",
+  "expiresAt": "2026-07-24T17:38:49.339Z",
+  "durationMs": 22148.045025,
+  "artifacts": [
+    {
+      "kind": "live-evidence-report",
+      "path": "samples/evidence/planning-permitting-workbench/runs/308641ad-4dae-4985-a1e1-14418636c79f/artifacts/live.json",
+      "bytes": 2614,
+      "sha256": "8a08a64407703dc39ab13281c39ed7a37c5ea5175c88ae2515d751037c3b78f0"
+    }
+  ]
+}

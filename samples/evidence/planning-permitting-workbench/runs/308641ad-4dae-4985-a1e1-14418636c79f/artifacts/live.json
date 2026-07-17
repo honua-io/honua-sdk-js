@@ -1,0 +1,75 @@
+{
+  "format": "honua.sdk.sample-live-gate.v1",
+  "sampleId": "planning-permitting-workbench",
+  "sourceRevision": "4bfbc3bb18c68a0160aa653fe515bd2983293f9f",
+  "command": [
+    "npm",
+    "run",
+    "evidence:planning:live"
+  ],
+  "evidencePath": "samples/evidence/planning-permitting-workbench/runs/308641ad-4dae-4985-a1e1-14418636c79f/artifacts/live-evidence.json",
+  "evidence": {
+    "format": "honua.sdk.sample-evidence.v1",
+    "schemaVersion": 1,
+    "sampleId": "planning-permitting-workbench",
+    "lane": "live",
+    "status": "executed",
+    "reason": null,
+    "observedAt": "2026-07-17T17:38:48.437Z",
+    "authMode": "anonymous",
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.0-beta.0",
+      "gitCommit": "4bfbc3bb18c68a0160aa653fe515bd2983293f9f"
+    },
+    "source": {
+      "provider": "OpenStreetMap Nominatim and Hawaii Statewide GIS",
+      "identity": "honolulu-hale:ParcelsZoning:MapServer:3",
+      "endpoint": "https://geodata.hawaii.gov/arcgis/rest/services/ParcelsZoning/MapServer/3",
+      "deploymentVersion": "11.5",
+      "dataVersion": "2023-09-15T10:00:00.000Z"
+    },
+    "provenance": {
+      "sourceId": "nominatim:honolulu-hale+hawaii-gis:ParcelsZoning:3",
+      "observedAt": "2026-07-17T17:38:48.437Z",
+      "validAt": "2023-09-15T10:00:00.000Z",
+      "state": "live",
+      "attribution": "Data © OpenStreetMap contributors, ODbL 1.0; City and County of Honolulu; Hawaii Statewide GIS Program"
+    },
+    "semantics": {
+      "operation": "public-address-to-zoning-read-check",
+      "outcome": "address-resolved-and-bounded-zoning-context-returned",
+      "itemCount": 1,
+      "assertions": [
+        "nominatim-requests=1",
+        "hawaii-zoning-metadata-query-only",
+        "point-intersection-result-limit=3",
+        "observed-requests=3/3",
+        "observed-response-bytes=27874/1048576",
+        "credentials-sent=false",
+        "redirects-followed=0",
+        "sdk-mode=packed",
+        "edits-attachments-conflicts-not-executed"
+      ]
+    },
+    "timing": {
+      "totalMs": 828.216154,
+      "firstSuccessfulInteractionMs": 236.26270100000002
+    },
+    "degradation": {
+      "state": "expected",
+      "reasons": [
+        "public-live-slice-is-read-only",
+        "edit-attachment-conflict-and-rollback-remain-fixture-only",
+        "live-result-is-context-not-a-regulatory-determination"
+      ]
+    },
+    "artifacts": [
+      {
+        "kind": "producer-generator",
+        "path": "scripts/planning-live-evidence.mjs",
+        "sha256": "a448dc05f2715963337515743dc79df4bea416c15d34da1ba4d09e5209d60f9b"
+      }
+    ]
+  }
+}
