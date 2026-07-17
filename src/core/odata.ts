@@ -28,6 +28,7 @@ import {
   withoutHonuaCacheState,
 } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
+import { encodeOdataKeyPredicatePath } from "./odata-key-path.js";
 import { trimTrailingSlashes } from "./path-utils.js";
 import type { HonuaFieldInfo } from "./types.js";
 
@@ -124,6 +125,17 @@ export interface HonuaOdataBatchOptions {
   signal?: AbortSignal;
 }
 
+/** Transport options for one OData add or update request. */
+export interface HonuaOdataWriteRequestOptions {
+  signal?: AbortSignal;
+  /**
+   * Request media type. The canonical source adapter sets the OData
+   * `IEEE754Compatible` parameter after metadata-driven lossless encoding.
+   * Defaults to ordinary `application/json`.
+   */
+  contentType?: string;
+}
+
 /** SDK-shaped projection of an OData CSDL `$metadata` document. */
 export interface HonuaOdataMetadata {
   /** Entity-set name → declared entity type. */
@@ -166,22 +178,34 @@ interface HonuaOdataSourceSchemaProjectionDetails {
 export function getOdataSourceSchemaProjectionSafety(
   metadata: HonuaOdataMetadata,
 ): HonuaOdataSourceSchemaProjectionSafety | undefined {
-  return (
-    metadata as HonuaOdataMetadata & {
-      readonly [ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY]?: HonuaOdataSourceSchemaProjectionSafety;
-    }
-  )[ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY];
+  return odataProjectionEvidence<HonuaOdataSourceSchemaProjectionSafety>(
+    metadata,
+    ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY,
+  );
 }
 
 /** @internal Read rich CSDL state without changing the legacy string-keyed metadata shape. */
 export function getOdataSourceSchemaProjectionDetails(
   metadata: HonuaOdataMetadata,
 ): HonuaOdataSourceSchemaProjectionDetails | undefined {
-  return (
-    metadata as HonuaOdataMetadata & {
-      readonly [ODATA_SOURCE_SCHEMA_PROJECTION_DETAILS]?: HonuaOdataSourceSchemaProjectionDetails;
-    }
-  )[ODATA_SOURCE_SCHEMA_PROJECTION_DETAILS];
+  return odataProjectionEvidence<HonuaOdataSourceSchemaProjectionDetails>(
+    metadata,
+    ODATA_SOURCE_SCHEMA_PROJECTION_DETAILS,
+  );
+}
+
+function odataProjectionEvidence<T>(metadata: HonuaOdataMetadata, key: symbol): T | undefined {
+  let descriptor: PropertyDescriptor | undefined;
+  try {
+    descriptor = Object.getOwnPropertyDescriptor(metadata, key);
+  } catch {
+    throw new TypeError("OData metadata projection evidence is inaccessible");
+  }
+  if (!descriptor) return undefined;
+  if (!("value" in descriptor)) {
+    throw new TypeError("OData metadata projection evidence must be a data property");
+  }
+  return descriptor.value as T | undefined;
 }
 
 /** Per-field metadata carried by {@link HonuaOdataMetadata.fields}. */
@@ -429,11 +453,11 @@ export class HonuaOdataEntitySet {
   /** Insert a row via `POST /<entitySet>`. */
   public async add<T = Record<string, unknown>>(
     body: Record<string, unknown>,
-    options: { signal?: AbortSignal } = {},
+    options: HonuaOdataWriteRequestOptions = {},
   ): Promise<T> {
     const path = this.entitySetPath();
     return this.requestJson<T>("POST", path, undefined, options.signal, JSON.stringify(body), {
-      "Content-Type": "application/json",
+      "Content-Type": options.contentType ?? "application/json",
     });
   }
 
@@ -447,17 +471,17 @@ export class HonuaOdataEntitySet {
   public async update<T = Record<string, unknown>>(
     key: string,
     body: Record<string, unknown>,
-    options: { signal?: AbortSignal } = {},
+    options: HonuaOdataWriteRequestOptions = {},
   ): Promise<T | undefined> {
-    const path = `${this.entitySetPath()}(${encodeOdataKey(key)})`;
+    const path = `${this.entitySetPath()}(${encodeOdataKeyPredicatePath(key)})`;
     return this.requestJson<T | undefined>("PATCH", path, undefined, options.signal, JSON.stringify(body), {
-      "Content-Type": "application/json",
+      "Content-Type": options.contentType ?? "application/json",
     });
   }
 
   /** Delete a row via `DELETE /<entitySet>(<key>)`. */
   public async delete(key: string, options: { signal?: AbortSignal } = {}): Promise<void> {
-    const path = `${this.entitySetPath()}(${encodeOdataKey(key)})`;
+    const path = `${this.entitySetPath()}(${encodeOdataKeyPredicatePath(key)})`;
     await this.requestJson<unknown>("DELETE", path, undefined, options.signal);
   }
 
@@ -733,46 +757,6 @@ function ensureLeadingSlash(path: string): string {
 
 function stripLeadingSlash(path: string): string {
   return path.startsWith("/") ? path.slice(1) : path;
-}
-
-/**
- * Make an OData entity key safe to interpolate into the URL path segment
- * `<entitySet>(<key>)`. A raw key containing characters such as `&`, `?`,
- * `#`, `/`, space, or `'` would otherwise split or mis-target the path
- * (e.g. `Customers(A&B)`).
- *
- * The key is treated as an OData literal: single-quoted spans are kept as
- * quoted string literals (with embedded `'` doubled per OData v4 §5.1.1.6.1),
- * and structural characters that delimit composite keys (`,`, `=`) and
- * literal quotes are preserved. Everything else is percent-encoded so the
- * resulting segment is a single, correctly-targeted URL path component.
- */
-function encodeOdataKey(key: string | number): string {
-  const raw = String(key);
-  let out = "";
-  let inQuote = false;
-  for (let i = 0; i < raw.length; i += 1) {
-    const ch = raw[i];
-    if (ch === "'") {
-      // Toggle quoted-literal state and keep the (URL-safe) quote verbatim.
-      inQuote = !inQuote;
-      out += "'";
-      continue;
-    }
-    if (!inQuote && (ch === "," || ch === "=")) {
-      // Composite-key delimiters stay structural outside quoted spans.
-      out += ch;
-      continue;
-    }
-    // Percent-encode anything that is unsafe in a path segment. Unreserved
-    // characters (RFC 3986) pass through untouched.
-    if (/[A-Za-z0-9\-._~]/.test(ch)) {
-      out += ch;
-    } else {
-      out += encodeURIComponent(ch);
-    }
-  }
-  return out;
 }
 
 /**
