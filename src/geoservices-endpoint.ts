@@ -72,7 +72,7 @@ const SERVICE_TYPES: Readonly<Record<string, ServiceTypeDefinition>> = Object.fr
 });
 
 const GEOSERVICES_PATH =
-  /^(.*)\/rest\/services\/(.+?)\/(FeatureServer|MapServer|ImageServer|GeometryServer|GPServer)(?:\/([^/]+))?\/?$/i;
+  /^(.*)\/rest\/services\/(.+)\/(FeatureServer|MapServer|ImageServer|GeometryServer|GPServer)(?:\/([^/]+))?\/?$/i;
 const MAX_GEOSERVICES_ENDPOINT_LENGTH = 16_384;
 
 /**

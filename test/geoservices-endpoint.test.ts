@@ -43,6 +43,28 @@ describe("GeoServices endpoint normalization", () => {
     ).toBe("Export Web Map Task");
   });
 
+  it("matches the terminal service kind when a service-id segment resembles a service kind", () => {
+    expect(
+      normalizeGeoServicesEndpoint("https://example.test/arcgis/rest/services/Foo/FeatureServer/MapServer"),
+    ).toEqual({
+      endpoint: "https://example.test/arcgis/rest/services/Foo/FeatureServer/MapServer",
+      clientBaseUrl: "https://example.test/arcgis",
+      serviceUrl: "https://example.test/arcgis/rest/services/Foo/FeatureServer/MapServer",
+      serviceId: "Foo/FeatureServer",
+      serviceKind: "map",
+      protocol: "geoservices-map-service",
+    });
+
+    expect(
+      normalizeGeoServicesEndpoint("https://example.test/rest/services/Foo/MapServer/FeatureServer/7"),
+    ).toMatchObject({
+      serviceId: "Foo/MapServer",
+      serviceKind: "feature",
+      protocol: "geoservices-feature-service",
+      layerId: 7,
+    });
+  });
+
   it("returns undefined for other layouts without guessing a service kind", () => {
     expect(parseGeoServicesEndpoint("https://example.test/ogc/features")).toBeUndefined();
     expect(parseGeoServicesEndpoint("https://example.test/rest/services/Parcels/FeatureServerish")).toBeUndefined();
