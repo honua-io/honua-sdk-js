@@ -48,10 +48,10 @@ Labels: `fixture` · `public-live` · `degraded`
 - Executable entry: [examples/service-explorer/src/main.ts](../../examples/service-explorer/src/main.ts)
 - Example notes: [examples/service-explorer/README.md](../../examples/service-explorer/README.md)
 - Compile check: `npm run demo:service-explorer:typecheck`
-- Sample contract: `lab` · `supported` · `active`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.
-- Freshness: Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics.
+- Freshness: Fixture replay is deterministic; scheduled public evidence records its observation time without changing feature-cache semantics.
 - Catalog degradation: Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.
 - Live sample: [sample-service-explorer.html](https://honua.io/sample-service-explorer.html) · [demo-two-protocols.html](https://honua.io/demo-two-protocols.html)
 - Supported API imports: `@honua/sdk-js` (`createHonua`, `executeQueryPlan`, `explainQuery`); `@honua/sdk-js/contract` (`PROTOCOLS`); `@honua/sdk-js/map` (`explainAutomaticSourceToMapLibre`, `projectSourceToMapLibre`)

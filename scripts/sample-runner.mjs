@@ -1058,6 +1058,42 @@ async function writeGateReport({
   return { kind, path: path.relative(PROJECT_ROOT, reportPath).replaceAll(path.sep, "/") };
 }
 
+export async function publishCanonicalLiveEvidence(baseRoot, groups, sampleId, projectRoot = PROJECT_ROOT) {
+  const liveGroup = groups.find((group) => group.receipts.some(({ gate }) => gate === "live"));
+  if (!liveGroup) return;
+  const sourcePath = path.join(liveGroup.runRoot, "artifacts/live-evidence.json");
+  const sourceRelative = path.relative(projectRoot, sourcePath).replaceAll(path.sep, "/");
+  const bytes = await readCanonicalBoundedFile(projectRoot, sourceRelative, {
+    label: `${sampleId} canonical live evidence source`,
+    maxBytes: MAX_GATE_ARTIFACT_BYTES,
+  });
+  const evidence = JSON.parse(bytes.toString("utf8"));
+  const { validateEvidenceEnvelope } = await import("./sample-contract.mjs");
+  validateEvidenceEnvelope(evidence);
+  if (evidence.sampleId !== sampleId || evidence.lane !== "live") {
+    fail(`${sampleId}: canonical live evidence source is invalid`);
+  }
+
+  const target = path.join(baseRoot, "live.v1.json");
+  try {
+    const metadata = await lstat(target);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) {
+      fail(`${sampleId}: canonical live evidence target is unsafe`);
+    }
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  const candidate = path.join(baseRoot, `.live.v1.${randomUUID()}.tmp`);
+  try {
+    await writeFile(candidate, bytes, { flag: "wx" });
+    await rename(candidate, target);
+    const published = await readFile(target);
+    if (!published.equals(bytes)) fail(`${sampleId}: canonical live evidence publication drifted`);
+  } finally {
+    await rm(candidate, { force: true });
+  }
+}
+
 export function groupEvidenceGates(sample, gates) {
   const groups = new Map();
   for (const gate of gates) {
@@ -3011,6 +3047,7 @@ async function executeEvidence(sample, options, context) {
       transaction,
     });
     await commitGateReceiptTransaction(transaction);
+    await publishCanonicalLiveEvidence(baseRoot, publicationGroups, sample.id);
     for (const group of publicationGroups) {
       for (const { gate } of group.receipts) {
         process.stdout.write(`sample gate receipt: ${path.relative(PROJECT_ROOT, path.join(receiptRoot, `${gate}.v1.json`))}\n`);

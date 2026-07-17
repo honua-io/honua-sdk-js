@@ -73,7 +73,7 @@
     {
       "id": "service-explorer",
       "title": "Universal Service Explorer",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "service-explorer"
     },
     {
@@ -2098,12 +2098,12 @@
       "title": "Universal service explorer",
       "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "sourceKind": "root-example",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."
+        "reason": "Qualified Universal Service Explorer journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous dual-protocol live receipts."
       },
       "sourcePath": "examples/service-explorer",
       "docsPath": "examples/service-explorer/README.md",
@@ -2137,7 +2137,7 @@
         ],
         "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.",
         "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.",
-        "freshness": "Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics.",
+        "freshness": "Fixture replay is deterministic; scheduled public evidence records its observation time without changing feature-cache semantics.",
         "configurationStatus": "approved",
         "configClassifications": [
           {
@@ -2157,10 +2157,12 @@
         },
         "live": {
           "mode": "public-live",
-          "status": "planned",
+          "status": "executed",
           "commands": [
             "npm run demo:service-explorer:live-evidence"
-          ]
+          ],
+          "evidencePath": "samples/evidence/service-explorer/live.v1.json",
+          "expiresAt": "2026-07-24T17:37:35.785Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",

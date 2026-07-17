@@ -76,6 +76,16 @@
             },
             "additionalProperties": false
           },
+          "data": {
+            "type": "object",
+            "minProperties": 1,
+            "properties": {
+              "provenance": { "type": "string", "minLength": 1 },
+              "attribution": { "type": "string", "minLength": 1 },
+              "freshness": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          },
           "fixture": {
             "type": "object",
             "properties": {

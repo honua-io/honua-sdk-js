@@ -2468,6 +2468,7 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
       renderers: [...sample.renderers],
       data: {
         ...structuredClone(sample.data),
+        ...structuredClone(override.data ?? {}),
         configurationStatus,
         ...(override.configuration?.gap ? { configurationGap: override.configuration.gap } : {}),
         config,

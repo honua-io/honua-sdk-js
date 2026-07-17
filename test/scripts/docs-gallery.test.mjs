@@ -393,7 +393,7 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const byId = new Map(cards.map((card) => [card.sample.id, card]));
 
   assert.equal(gallery.cardCount, 32);
-  assert.deepEqual(counts, { recipe: 15, lab: 17 });
+  assert.deepEqual(counts, { golden: 1, recipe: 15, lab: 16 });
   assert.ok(!byId.has("arcgis-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
   assert.deepEqual(byId.get("runtime-parity-showcase").replacement, {
@@ -412,8 +412,13 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   });
   assert.equal(byId.get("web-components-basic").sample.lifecycle.state, "retire");
   assert.equal(byId.get("realtime-incident-dashboard").journey.title, "Realtime Incident Operations");
-  assert.ok(cards.every((card) => card.qualification.label.includes("not receipt-qualified")));
-  assert.ok(cards.every((card) => card.qualification.state !== "receipt-qualified-golden"));
+  assert.equal(byId.get("service-explorer").qualification.state, "receipt-qualified-golden");
+  assert.equal(byId.get("service-explorer").qualification.label, "Receipt-qualified golden journey");
+  assert.ok(
+    cards
+      .filter((card) => card.sample.id !== "service-explorer")
+      .every((card) => card.qualification.label.includes("not receipt-qualified")),
+  );
   assert.deepEqual(byId.get("endpoint-to-map").qualification.requiredGates, [
     "packedBuild",
     "browser",

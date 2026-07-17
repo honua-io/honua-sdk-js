@@ -56,12 +56,12 @@ describe("sample publication contract", () => {
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(0);
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(1);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      0,
+      1,
     );
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
-      7,
+      6,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
@@ -141,6 +141,9 @@ describe("sample publication contract", () => {
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
+    expect(
+      projection.goldenJourneys.find((journey: { id: string }) => journey.id === "service-explorer"),
+    ).toMatchObject({ status: "qualified", candidateSampleId: "service-explorer" });
     expect(ciSelection.samples).toHaveLength(34);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);

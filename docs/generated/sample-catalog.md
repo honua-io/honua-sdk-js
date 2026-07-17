@@ -11,7 +11,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | Journey | Status | Candidate sample |
 | --- | --- | --- |
 | `first-map` | planned | [`maplibre-quickstart`](#maplibre-quickstart) |
-| `service-explorer` | planned | [`service-explorer`](#service-explorer) |
+| `service-explorer` | qualified | [`service-explorer`](#service-explorer) |
 | `planning-permitting` | planned | [`planning-permitting-workbench`](#planning-permitting-workbench) |
 | `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
 | `imagery-terrain` | planned | [`imagery-cog-quickstart`](#imagery-cog-quickstart) |
@@ -45,7 +45,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Uses the React provider, hooks, and map component over the same quickstart contract. |
 | <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | <a id="runtime-parity-showcase"></a>[`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | lab | - | experimental | replace | browser-lab | fixture | not-required | Compares supported rendering paths and makes fidelity differences explicit. |
-| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | lab | service-explorer | supported | active | golden-browser | hybrid | approved | Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code. |
+| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | golden | service-explorer | supported | active | golden-browser | hybrid | approved | Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code. |
 | <a id="shared-renderer-state"></a>[`shared-renderer-state`](../../docs/examples/shared-renderer-state/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | Exercises loop-safe camera, selection, filter, and time synchronization across MapLibre and Cesium. |
 | <a id="sketch-editing"></a>[`sketch-editing`](../../examples/sketch-editing/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
 | <a id="spatial-analytics-workbench"></a>[`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | lab | cloud-native-analysis | experimental | rework | browser-lab | hybrid | approved | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |

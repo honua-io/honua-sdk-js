@@ -20,6 +20,7 @@ import {
   forwardedLiveCredentials,
   groupEvidenceGates,
   parseRunnerArgs,
+  publishCanonicalLiveEvidence,
   publishGateReceiptGroup,
   publishGateReceiptGroups,
   pruneUnreferencedEvidenceRuns,
@@ -395,6 +396,40 @@ test("fixture evidence binds the fixture command and browser evidence binds a lo
     groups.map((group) => group.gates),
     [["browser", "screenshot", "performance"], ["fixture"], ["packed-build"]],
   );
+});
+
+test("live evidence publishes a stable canonical envelope and rejects a symlink target", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "honua-live-envelope-"));
+  const sampleId = "safe-sample";
+  const baseRoot = path.join(root, "samples/evidence", sampleId);
+  const runRoot = path.join(baseRoot, "runs/123e4567-e89b-42d3-a456-426614174000");
+  const source = path.join(runRoot, "artifacts/live-evidence.json");
+  const target = path.join(baseRoot, "live.v1.json");
+  try {
+    const evidence = JSON.parse(
+      await readFile("samples/contract/v1/fixtures/sample-evidence.live.json", "utf8"),
+    );
+    evidence.sampleId = sampleId;
+    const bytes = Buffer.from(`${JSON.stringify(evidence, null, 2)}\n`);
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, bytes);
+    const groups = [{ runRoot, receipts: [{ gate: "live" }] }];
+
+    await publishCanonicalLiveEvidence(baseRoot, groups, sampleId, root);
+    assert.deepEqual(await readFile(target), bytes);
+
+    const external = path.join(root, "external.json");
+    await writeFile(external, "external\n");
+    await rm(target);
+    await symlink(external, target);
+    await assert.rejects(
+      publishCanonicalLiveEvidence(baseRoot, groups, sampleId, root),
+      /canonical live evidence target is unsafe/,
+    );
+    assert.equal(await readFile(external, "utf8"), "external\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("packed archive preflight rejects traversal, links, and declared decompression bombs", () => {

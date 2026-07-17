@@ -391,7 +391,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 34 executable examples: 0 qualified golden samples, 15 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 7 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 34 executable examples: 1 qualified golden sample, 15 recipes, 16 labs, and 2 fixtures. Seven journey IDs are reserved; 6 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at the
@@ -961,7 +961,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | Journey | Status | Candidate sample |
 | --- | --- | --- |
 | `first-map` | planned | [`maplibre-quickstart`](#maplibre-quickstart) |
-| `service-explorer` | planned | [`service-explorer`](#service-explorer) |
+| `service-explorer` | qualified | [`service-explorer`](#service-explorer) |
 | `planning-permitting` | planned | [`planning-permitting-workbench`](#planning-permitting-workbench) |
 | `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
 | `imagery-terrain` | planned | [`imagery-cog-quickstart`](#imagery-cog-quickstart) |
@@ -995,7 +995,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Uses the React provider, hooks, and map component over the same quickstart contract. |
 | <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | <a id="runtime-parity-showcase"></a>[`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | lab | - | experimental | replace | browser-lab | fixture | not-required | Compares supported rendering paths and makes fidelity differences explicit. |
-| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | lab | service-explorer | supported | active | browser-lab | hybrid | approved | Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code. |
+| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | golden | service-explorer | supported | active | golden-browser | hybrid | approved | Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code. |
 | <a id="shared-renderer-state"></a>[`shared-renderer-state`](../../docs/examples/shared-renderer-state/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | Exercises loop-safe camera, selection, filter, and time synchronization across MapLibre and Cesium. |
 | <a id="sketch-editing"></a>[`sketch-editing`](../../examples/sketch-editing/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
 | <a id="spatial-analytics-workbench"></a>[`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | lab | cloud-native-analysis | experimental | rework | browser-lab | hybrid | approved | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
@@ -1193,10 +1193,10 @@ Labels: `fixture` · `public-live` · `degraded`
 - Executable entry: [examples/service-explorer/src/main.ts](../../examples/service-explorer/src/main.ts)
 - Example notes: [examples/service-explorer/README.md](../../examples/service-explorer/README.md)
 - Compile check: `npm run demo:service-explorer:typecheck`
-- Sample contract: `lab` · `supported` · `active`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.
-- Freshness: Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics.
+- Freshness: Fixture replay is deterministic; scheduled public evidence records its observation time without changing feature-cache semantics.
 - Catalog degradation: Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.
 - Live sample: [sample-service-explorer.html](https://honua.io/sample-service-explorer.html) · [demo-two-protocols.html](https://honua.io/demo-two-protocols.html)
 - Supported API imports: `@honua/sdk-js` (`createHonua`, `executeQueryPlan`, `explainQuery`); `@honua/sdk-js/contract` (`PROTOCOLS`); `@honua/sdk-js/map` (`explainAutomaticSourceToMapLibre`, `projectSourceToMapLibre`)
