@@ -164,6 +164,52 @@ describe("GeoServices service discovery", () => {
     ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "unsupported-protocol" });
   });
 
+  it("preserves tile placeholders and does not claim SDK support for safe noncanonical operation routes", async () => {
+    const endpoint = "https://example.test/rest/services/Imagery/Rendered/ImageServer";
+    const discovered = await discoverGeoServices({
+      endpoint,
+      clientOptions: {
+        fetchFn: vi.fn(async () =>
+          json({
+            capabilities: "Image",
+            operations: [
+              { name: "Tile", href: "tile/{level}/{row}/{col}", methods: ["GET"] },
+              { name: "Export Image", href: "custom-export", methods: ["POST"] },
+            ],
+          }),
+        ),
+      },
+    });
+
+    expect(discovered.operations.find((operation) => operation.id === "tile")).toMatchObject({
+      href: `${endpoint}/tile/{level}/{row}/{col}`,
+      sdkSupported: true,
+    });
+    expect(discovered.operations.find((operation) => operation.id === "exportImage")).toMatchObject({
+      href: `${endpoint}/custom-export`,
+      sdkSupported: false,
+    });
+  });
+
+  it("does not claim SDK support for a GP task advertised on a noncanonical route", async () => {
+    const endpoint = "https://example.test/rest/services/Analysis/Tools/GPServer";
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const pathname = new URL(new Request(input, init).url).pathname;
+      return pathname.endsWith("/GPServer")
+        ? json({ tasks: [{ name: "Viewshed", href: "custom/Viewshed" }] })
+        : json(gpAsyncMetadata);
+    });
+    const discovered = await discoverGeoServices({ endpoint, clientOptions: { fetchFn } });
+
+    expect(discovered.operations).toEqual([
+      expect.objectContaining({
+        id: "Viewshed",
+        href: `${endpoint}/custom/Viewshed/submitJob`,
+        sdkSupported: false,
+      }),
+    ]);
+  });
+
   it("rejects ImageServer catalog ids before authentication or network work", async () => {
     const fetchFn = vi.fn<typeof fetch>();
     const auth = vi.fn(async () => "secret");
@@ -715,5 +761,29 @@ describe("GeoServices service discovery", () => {
       }),
     ).rejects.toBeInstanceOf(HonuaAbortError);
     expect(requests).toEqual(["/rest/services/Analysis/Tools/GPServer"]);
+  });
+
+  it("cancels a pending metadata body read when the caller aborts", async () => {
+    const controller = new AbortController();
+    let bodyCancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull: () => new Promise<void>(() => undefined),
+      cancel: () => {
+        bodyCancelled = true;
+      },
+    });
+    const fetchFn = vi.fn(async () => {
+      setTimeout(() => controller.abort(), 0);
+      return new Response(body, { headers: { "Content-Type": "application/json" } });
+    });
+
+    await expect(
+      discoverGeoServices({
+        endpoint: "https://example.test/rest/services/Utilities/Geometry/GeometryServer",
+        signal: controller.signal,
+        clientOptions: { fetchFn },
+      }),
+    ).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(bodyCancelled).toBe(true);
   });
 });

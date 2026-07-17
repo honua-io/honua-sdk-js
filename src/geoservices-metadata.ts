@@ -183,10 +183,13 @@ async function readBoundedJson(response: Response, signal: AbortSignal | undefin
   let total = 0;
   const reader = response.body?.getReader();
   if (reader) {
+    const abort = () => void reader.cancel().catch(() => undefined);
+    signal?.addEventListener("abort", abort, { once: true });
     try {
       for (;;) {
         throwIfAborted(signal);
         const { done, value } = await reader.read();
+        throwIfAborted(signal);
         if (done) break;
         total += value.byteLength;
         if (total > HONUA_GEOSERVICES_METADATA_MAX_BYTES) {
@@ -196,6 +199,7 @@ async function readBoundedJson(response: Response, signal: AbortSignal | undefin
         chunks.push(value);
       }
     } finally {
+      signal?.removeEventListener("abort", abort);
       reader.releaseLock();
     }
   }

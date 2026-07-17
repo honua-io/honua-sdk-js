@@ -331,15 +331,22 @@ async function discoverImageService(
     [...operationNames].sort(compareCodeUnits).map((operation) => {
       const advertised = findOperation(operationsMetadata, operation);
       const path = operation === "tile" ? "tile/{level}/{row}/{col}" : operation;
+      const template = operation === "tile";
+      const href = resolveOperationHref(target.serviceUrl, advertised?.href, path, template);
+      const methods = advertised?.methods ?? (template ? ["GET"] : ["GET", "POST"]);
+      const adapterHref = resolveOperationHref(target.serviceUrl, undefined, path, template);
       return operationDescriptor({
         id: operation,
         kind: "image",
         operation,
         ...(source ? { sourceId: source.id } : {}),
-        href: resolveOperationHref(target.serviceUrl, advertised?.href, path, operation === "tile"),
-        methods: advertised?.methods ?? (operation === "tile" ? ["GET"] : ["GET", "POST"]),
+        href,
+        methods,
         execution: "synchronous",
-        sdkSupported: IMAGE_SDK_OPERATIONS.has(operation.toLowerCase()),
+        sdkSupported:
+          IMAGE_SDK_OPERATIONS.has(operation.toLowerCase()) &&
+          href === adapterHref &&
+          (template ? methods.includes("GET") : methods.length > 0),
         formats,
         crs,
         limits,
@@ -581,6 +588,9 @@ async function discoverGpTask(
     const execution = executionFromMetadata(metadata);
     const operation = execution === "asynchronous" ? "submitJob" : execution === "synchronous" ? "execute" : "task";
     const href = operation === "task" ? taskHref : resolveOperationHref(taskHref, undefined, operation);
+    const canonicalTaskHref = resolveOperationHref(target.serviceUrl, undefined, encodeURIComponent(taskName));
+    const canonicalOperationHref =
+      operation === "task" ? canonicalTaskHref : resolveOperationHref(canonicalTaskHref, undefined, operation);
     return Object.freeze({
       operation: operationDescriptor({
         id: taskName,
@@ -591,7 +601,7 @@ async function discoverGpTask(
         href,
         methods: Object.freeze(["POST"]),
         execution,
-        sdkSupported: execution === "asynchronous",
+        sdkSupported: execution === "asynchronous" && taskHref === canonicalTaskHref && href === canonicalOperationHref,
         formats: formatsFromMetadata(metadata),
         crs: crsFromMetadata(metadata),
         limits: limitsFromMetadata(metadata),
@@ -809,7 +819,19 @@ function resolveOperationHref(
     );
   }
   if (resolved.search) resolved.search = "";
-  return resolved.toString().replace(/\/$/, "");
+  const normalized = resolved.toString().replace(/\/$/, "");
+  if (!template) return normalized;
+  const restored = normalized.replace(/%7B(level|row|col)%7D/gi, (_match, name: string) => `{${name.toLowerCase()}}`);
+  if (
+    !["level", "row", "col"].every((name) => restored.includes(`{${name}}`)) ||
+    /%7B|%7D|[{}]/i.test(restored.replace(/\{(?:level|row|col)\}/g, ""))
+  ) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "GeoServices tile operation templates require exactly the level, row, and col placeholders.",
+    );
+  }
+  return restored;
 }
 
 function formatsFromMetadata(metadata: Readonly<Record<string, unknown>>): GeoServicesFormatDescriptor {
