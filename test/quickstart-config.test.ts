@@ -93,6 +93,9 @@ describe("First Map shell configuration", () => {
     expect(code).toContain('from "@honua/sdk-js"');
     expect(code).toContain('from "@honua/sdk-js/map"');
     expect(code).toContain('await map.once("load")');
+    expect(code).toContain("let disposal;");
+    expect(code).toContain("[() => mounted.dispose(), () => map.remove(), () => honua.dispose()]");
+    expect(code).toContain('new AggregateError(failures, "First Map cleanup failed.")');
     expect(code).toContain("\\u003cscript>");
     expect(code).not.toContain("<script>");
   });

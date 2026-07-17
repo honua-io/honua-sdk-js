@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { createHonua } from "@honua/sdk-js";
 import { MAX_FIRST_MAP_FEATURES, resolveFirstMapConfig } from "../examples/maplibre-quickstart/src/first-map-config.js";
 import { runFirstMapWorkflow } from "../examples/maplibre-quickstart/src/workflow.js";
 import { type SampleFixtureHarness, loadFixturePack, startSampleFixtureHarness } from "../samples/scenarios/index.mjs";
@@ -112,6 +113,62 @@ describe("First Map workflow core", () => {
     expect(result.view.strategyReasons[0]?.code).toBe("query-capability");
     expect(result.mounted.diagnostics).toMatchObject({ featureCount: 3, geometryKinds: ["polygon"] });
     await result.dispose();
+  });
+
+  it("disposes the Honua kernel once even when mounted map cleanup fails", async () => {
+    const honua = createHonua();
+    const disposeKernel = vi.spyOn(honua, "dispose");
+    const map = new EvidenceMap();
+    const removeLayer = map.removeLayer.bind(map);
+    map.removeLayer = (id) => {
+      removeLayer(id);
+      throw new Error("fixture map cleanup failed");
+    };
+    const result = await runFirstMapWorkflow(
+      resolveFirstMapConfig({
+        endpoint: `${harness.origin}/rest/services/natural-earth/FeatureServer/0`,
+        mode: "fixture",
+        maxFeatures: 1,
+      }),
+      { map, createKernel: () => honua },
+    );
+
+    expect(result.state).toBe("ready");
+    if (result.state !== "ready") return;
+    const disposal = result.dispose();
+    await expect(disposal).rejects.toMatchObject({ code: "map-mutation-failed" });
+    expect(result.dispose()).toBe(disposal);
+    expect(disposeKernel).toHaveBeenCalledTimes(1);
+    expect(map.sources.size).toBe(0);
+  });
+
+  it("aggregates independent mounted-map and kernel cleanup failures", async () => {
+    const honua = createHonua();
+    const disposeHonua = honua.dispose.bind(honua);
+    const disposeKernel = vi.spyOn(honua, "dispose").mockImplementation(async () => {
+      await disposeHonua();
+      throw new Error("fixture kernel cleanup failed");
+    });
+    const map = new EvidenceMap();
+    map.removeLayer = () => {
+      throw new Error("fixture map cleanup failed");
+    };
+    const result = await runFirstMapWorkflow(
+      resolveFirstMapConfig({
+        endpoint: `${harness.origin}/rest/services/natural-earth/FeatureServer/0`,
+        mode: "fixture",
+        maxFeatures: 1,
+      }),
+      { map, createKernel: () => honua },
+    );
+
+    expect(result.state).toBe("ready");
+    if (result.state !== "ready") return;
+    const failure = await result.dispose().catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect((failure as AggregateError).errors).toHaveLength(2);
+    expect((failure as AggregateError).errors[1]).toMatchObject({ message: "fixture kernel cleanup failed" });
+    expect(disposeKernel).toHaveBeenCalledTimes(1);
   });
 
   it("never chooses the first advertised source under ambiguity", async () => {

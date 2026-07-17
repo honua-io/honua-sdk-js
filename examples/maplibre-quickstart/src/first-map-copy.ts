@@ -45,11 +45,20 @@ const mounted = await mountSource(map, source, {
   popup: { factory: () => new maplibregl.Popup() },
 });
 
-const dispose = async () => {
-  mounted.dispose();
-  map.remove();
-  await honua.dispose();
-};
+let disposal;
+const dispose = () =>
+  (disposal ??= (async () => {
+    const failures = [];
+    for (const cleanup of [() => mounted.dispose(), () => map.remove(), () => honua.dispose()]) {
+      try {
+        await cleanup();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) throw new AggregateError(failures, "First Map cleanup failed.");
+  })());
 window.addEventListener("pagehide", () => void dispose(), { once: true });`;
 }
 

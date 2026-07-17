@@ -208,6 +208,49 @@ describe("live benchmark evidence", () => {
     });
   });
 
+  it("aborts and explicitly classifies a never-resolving First Map workflow fetch", async () => {
+    let layerMetadataRequests = 0;
+    let workflowSignal: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(input instanceof Request ? input.url : input.toString());
+        if (url.pathname.endsWith("/rest/services/maui-parcels/FeatureServer/1")) {
+          layerMetadataRequests += 1;
+          if (layerMetadataRequests > 1) {
+            workflowSignal = input instanceof Request ? input.signal : (init?.signal ?? undefined);
+            return new Promise<Response>((_resolve, reject) => {
+              const abort = () => reject(workflowSignal?.reason ?? new DOMException("aborted", "AbortError"));
+              if (workflowSignal?.aborted) abort();
+              else workflowSignal?.addEventListener("abort", abort, { once: true });
+            });
+          }
+        }
+        return Promise.resolve(liveFixtureResponse(input, { realtime: false }));
+      }),
+    );
+
+    const startedAt = performance.now();
+    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" }, { firstMapDeadlineMs: 20 });
+    const quickstart = report.targets.find((target) => target.id === "honua-demo-maplibre-quickstart");
+
+    expect(performance.now() - startedAt).toBeLessThan(1_000);
+    expect(workflowSignal?.aborted).toBe(true);
+    expect(report.run.status).toBe("failed");
+    expect(quickstart).toMatchObject({
+      status: "failed",
+      error: "geoservices-feature-service First Map workflow deadline exceeded after 20 ms",
+      sampleEvidence: {
+        status: "failed",
+        reason: "geoservices-feature-service First Map workflow deadline exceeded after 20 ms",
+        degradation: {
+          state: "unexpected",
+          reasons: ["geoservices-feature-service First Map workflow deadline exceeded after 20 ms"],
+        },
+      },
+    });
+  });
+
   it("uses an opaque cursor for reconnect without publishing it in evidence", async () => {
     const secretCursor = "opaque-secret-cursor";
     vi.stubGlobal(

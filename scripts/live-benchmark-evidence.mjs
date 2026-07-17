@@ -109,11 +109,14 @@ async function withFirstMapRuntime(callback) {
   }
 }
 
-async function qualifyFirstMapProtocol(runtime, configuration) {
+async function qualifyFirstMapProtocol(runtime, configuration, deadlineMs) {
   const map = new EvidenceMap();
   const requests = [];
+  const controller = new AbortController();
+  const deadlineMessage = `${configuration.protocol} First Map workflow deadline exceeded after ${deadlineMs} ms`;
+  const timer = setTimeout(() => controller.abort(new DOMException(deadlineMessage, "TimeoutError")), deadlineMs);
   const anonymousFetch = async (input, init) => {
-    const request = new Request(input, init);
+    const request = new Request(input, { ...init, signal: controller.signal });
     for (const name of ["authorization", "x-api-key"]) {
       if (request.headers.has(name)) throw new Error(`First Map workflow attempted credential header ${name}`);
     }
@@ -128,6 +131,7 @@ async function qualifyFirstMapProtocol(runtime, configuration) {
     result = await runtime.runFirstMapWorkflow(runtime.resolveFirstMapConfig(configuration), {
       map,
       fetchFn: anonymousFetch,
+      signal: controller.signal,
     });
     if (result.state !== "ready") {
       const reason = result.state === "source-selection-required" ? result.reason : `${result.error.code}: ${result.error.message}`;
@@ -156,7 +160,11 @@ async function qualifyFirstMapProtocol(runtime, configuration) {
       withinBudget: true,
       requestCount: requests.length,
     };
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error(deadlineMessage, { cause: error });
+    throw error;
   } finally {
+    clearTimeout(timer);
     if (result?.state === "ready") await result.dispose();
     if (map.sources.size !== 0 || map.layers.size !== 0) {
       throw new Error(`${configuration.protocol} First Map workflow did not clean up its mounted map resources`);
@@ -361,7 +369,7 @@ export function toSampleEvidence(target, sdk, generatedAt, producerArtifact) {
   });
 }
 
-export async function collectLiveEvidence(env = process.env) {
+export async function collectLiveEvidence(env = process.env, options = {}) {
   const generatedAt = new Date().toISOString();
   const packageJson = JSON.parse(await readFile("package.json", "utf8"));
   const producerArtifact = await contentBoundProducerArtifact();
@@ -420,6 +428,10 @@ export async function collectLiveEvidence(env = process.env) {
         return { ...target, sampleEvidence: toSampleEvidence(rawTarget, sdk, generatedAt, producerArtifact) };
       }),
     };
+  }
+  const firstMapDeadlineMs = options.firstMapDeadlineMs ?? FIRST_MAP_RUNTIME_BUDGET_MS;
+  if (!Number.isSafeInteger(firstMapDeadlineMs) || firstMapDeadlineMs < 1 || firstMapDeadlineMs > TIMEOUT_MS) {
+    throw new Error(`First Map workflow deadline must be an integer between 1 and ${TIMEOUT_MS} ms`);
   }
 
   const honuaBaseUrl = sanitizedBaseUrl(env.HONUA_BENCH_LIVE_BASE_URL ?? "https://demo.honua.io");
@@ -633,7 +645,7 @@ export async function collectLiveEvidence(env = process.env) {
             sourceId: String(quickstartLayerId),
             maxFeatures: 1,
             query: { returnGeometry: true, pagination: { limit: 1 } },
-          }),
+          }, firstMapDeadlineMs),
           await qualifyFirstMapProtocol(runtime, {
             endpoint: ogcLandingUrl,
             mode: "public-live",
@@ -641,7 +653,7 @@ export async function collectLiveEvidence(env = process.env) {
             sourceId: quickstartOgcCollectionId,
             maxFeatures: 1,
             query: { returnGeometry: true, pagination: { limit: 1 } },
-          }),
+          }, firstMapDeadlineMs),
         ]);
         const workflowLatencyMs = workflowExecutions.reduce((total, execution) => total + execution.runtimeMs, 0);
         const totalLatencyMs = healthProbeLatencyMs + workflowLatencyMs;
