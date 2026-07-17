@@ -1,62 +1,88 @@
-# Planning & Permitting Workbench
+# Planning & Permitting golden journey
 
-Flagship aggregate demo for issue `#289` (parent epic `#288`). One cohesive
-gov/AEC workbench over the seeded Maui datasets that composes many SDK
-capabilities into a single linked application, in contrast to the single-purpose
-quickstart demos.
+The deterministic golden-journey candidate for `#545`: address search, parcel and regulatory
+context, a bounded proposal-footprint check, metadata-backed editing, explicit
+failure recovery, and a portable review artifact.
 
-It mirrors a real planning workflow: a planner opens the map (parcels + zoning +
-flood hazard + permits), searches/geocodes to a parcel, runs a zoning/flood
-query that drives a linked map/table/chart, sketches a proposed footprint and
-checks it against the flood overlay, edits a permit on a writable layer, then
-prints/exports the result.
+The headless workflow in `src/model.ts` has no application-shell dependency.
+It connects through `createHonua()`, selects a discovered `Source`, and uses the
+public query, geocoding, geometry, edit-session, attachment, and normalized
+error contracts directly. The browser is a thin accessible adapter over that
+same workflow.
 
-## Commands
+## Run it
 
 ```sh
-npm run demo:planning-workbench
-npm run demo:planning-workbench:build
+npm run demo:planning-workbench:mock
 npm run demo:planning-workbench:typecheck
+npm run demo:planning-workbench:build
+npx vitest run test/planning-permitting-workbench.test.ts
 npm run test:playwright:planning-workbench
 ```
 
-## Aggregated SDK capabilities (NFR-001: >= 5)
+`demo:planning-workbench:mock` builds the packed app and starts a resettable,
+same-origin raw GeoServices/GeocodeServer fixture. It does not silently replace
+the service with an in-memory `Source` implementation.
 
-1. `HonuaAppWorkspace` (`@honua/sdk-js/app-workspace`) holds layout, sources,
-   realtime records, and the saved-workspace document used for print/export.
-2. `ExplorationContext` + linked-view bindings (`@honua/sdk-js/exploration`,
-   `@honua/sdk-js/interactions`) keep the map, parcel table, zoning chart,
-   filter controls, and detail panel in one shared query context.
-3. Query & expressions: zoning + regulated-flood filters and a drawn AOI extent
-   drive a linked map/table/chart projection (REQ-002).
-4. Editing lane via `createEditSession` (`@honua/sdk-js/contract`) against a
-   writable OData-style permit `Source`, including version-conflict surfacing,
-   and graceful **local-optimistic** degradation when writes are not licensed
-   (REQ-003).
-5. Sketch + measure + flood-overlay check, and print/export of a workspace
-   manifest (REQ-004).
+## One executable workflow
 
-## Graceful degraded states (NFR-001)
+1. `HonuaGeocodingClient.forwardGeocode()` resolves `300 Hana Hwy` and preserves
+   its parcel identifier in provider attributes.
+2. `createHonua().connect()` discovers an editable FeatureServer layer;
+   `Source.query()` retrieves the selected parcel/application.
+3. A second, capped spatial query retrieves at most 25 candidates. Curated
+   `@honua/geometry` operations compute area, perimeter, and hazard intersection.
+4. `createEditSession()` validates the metadata-backed form, applies optimistic
+   hooks, submits edits, and stages the site-plan attachment.
+5. `reviewArtifact()` exports the exact query/analysis/edit evidence and recovery
+   receipts as `honua.planning-permitting-review` JSON.
 
-- Sources are labeled by tier (`community` / `pro`) and writability. When the
-  permit source is read-only or rejects with
-  `HonuaCapabilityNotSupportedError`, the editor applies a local-optimistic
-  update and the form clearly flags the degraded write.
-- Version conflicts on the writable source are surfaced as a failed save rather
-  than being silently dropped.
+The analysis receipt distinguishes source execution from client execution. Its
+`exact-client-geometry` fidelity applies only to the checked-in fixture polygon;
+the artifact says explicitly that it is not a current regulatory determination.
 
-## Layout
+## Deterministic outcome matrix
 
-- `src/types.ts` — domain types (parcels, zoning, flood, permits, projections).
-- `src/fixtures.ts` — Maui seed data, zoning/flood domains, map presets.
-- `src/model.ts` — workspace wiring, linked-view query projection, editable
-  permit `Source`, sketch/measure, and print/export.
-- `src/main.ts` — DOM rendering and control bindings for the three modules.
+| Scenario | Contract result | Recovery shown to the user |
+| --- | --- | --- |
+| Valid create + site plan | `succeeded` | None; feature and attachment commit |
+| Invalid permit domain | `validation-failed` | Select a coded metadata value and resubmit |
+| Stale version | `failed`, normalized `conflict`/409 | Refresh version, review, and explicitly reapply |
+| Oversized site plan | `partial`, normalized attachment/413 | Keep the committed feature and retry only the attachment |
+| Read-only layer | `unsupported`, capability failures | Select a source advertising edits and attachments |
 
-## Validation
+Conflict and attachment failures execute optimistic apply/rollback hooks. Domain
+and capability failures stop in preflight and do not issue a mutation request.
 
-- Browser smoke: `npm run test:playwright:planning-workbench` (asserts no JS
-  errors on load and walks query -> select -> sketch/measure -> print ->
-  edit/conflict).
-- Typecheck/build run in the `demo:examples:typecheck` and
-  `demo:examples:build` CI lanes.
+## Requirement traceability
+
+| Specifica requirement | Evidence |
+| --- | --- |
+| REQ-001 complete planning workbench | One `search → analyze → submit → export` workflow and browser route |
+| REQ-002 public contracts | Direct imports from `honua`, `contract`, `geocoding`, and `geometry` subpaths |
+| REQ-003 edit semantics | Metadata domains plus success, rollback, partial, conflict, and unsupported receipts |
+| REQ-004 bounded analysis | 25-record cap, execution plan, discovery provenance, fidelity, and caveat |
+| REQ-005 deterministic failures | Raw fixture routes and assertions for all five scenarios |
+
+Source-level evidence comes from the Vitest test that imports `src/model.ts`.
+Packed evidence comes from Playwright against the Vite output served by the same
+raw fixture service. Both assert the same `search-analyze-edit-export` semantic
+contract. Playwright also checks keyboard focus, a 390 px viewport, browser
+console cleanliness, fixture request evidence, and server cleanup.
+
+## Focused companion recipes
+
+- `geocoding-quickstart` remains the provider/suggest/reverse-geocode recipe.
+- `sketch-editing` remains the terra-draw and snapping binding recipe.
+- `edit-workflow-demo` remains the isolated edit-session mechanics recipe.
+
+Those recipes teach individual surfaces. This route owns the complete planning
+outcome and is the only route that should be presented as the Planning &
+Permitting golden journey.
+
+## Fixture boundaries
+
+Metadata and coded domains are cacheable. Every edit result invalidates feature
+state; the deterministic fixture stores mutations only for the life of its
+server and exposes `/__fixture__/reset`, `/__fixture__/state`, and
+`/__fixture__/requests` for validation. Planning state is not realtime.

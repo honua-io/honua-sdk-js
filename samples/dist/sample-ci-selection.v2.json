@@ -937,13 +937,16 @@
           "execution": "automatic",
           "commands": [
             "npm run demo:planning-workbench:typecheck",
-            "npm run demo:planning-workbench:build"
+            "npm run demo:planning-workbench:build",
+            "npx vitest run test/planning-permitting-workbench.test.ts",
+            "npm run test:playwright:planning-workbench"
           ]
         },
         "fixtureEvidence": {
           "execution": "orchestrated",
           "commands": [
-            "npm run demo:planning-workbench:mock"
+            "npx vitest run test/planning-permitting-workbench.test.ts",
+            "npm run test:playwright:planning-workbench"
           ]
         },
         "liveEvidence": {
@@ -952,8 +955,8 @@
         }
       },
       "liveEvidence": {
-        "mode": "demo-live",
-        "status": "planned"
+        "mode": "unavailable",
+        "status": "not-applicable"
       }
     },
     {

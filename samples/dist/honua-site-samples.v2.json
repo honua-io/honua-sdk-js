@@ -434,7 +434,7 @@
       "supportTier": "supported",
       "lifecycle": {
         "state": "rework",
-        "reason": "Keep the workflow and add an isolated resettable live dataset.",
+        "reason": "Focused edit-session mechanics recipe; the Planning and Permitting golden route owns the complete outcome.",
         "targetRelease": "0.2.0-beta.0"
       },
       "validationProfile": "browser-recipe",
@@ -1139,15 +1139,15 @@
     },
     {
       "id": "planning-permitting-workbench",
-      "title": "Planning and permitting workbench",
-      "summary": "Combines parcels, hazards, sketching, editing, and export in a task-oriented application.",
+      "title": "Planning and Permitting golden journey",
+      "summary": "Executes address-to-parcel search, bounded hazard analysis, recoverable edits and attachments, and review export through public SDK contracts.",
       "sourceKind": "root-example",
       "track": "lab",
       "journeyId": "planning-permitting",
       "supportTier": "supported",
       "lifecycle": {
         "state": "rework",
-        "reason": "Retain as the primary complete-application journey and simplify its first task.",
+        "reason": "S1 headless contract and S2 accessible fixture shell are executable; S3 visual, performance, live-evidence, and route-consolidation qualification remain.",
         "targetRelease": "0.2.0-beta.0"
       },
       "validationProfile": "browser-lab",
@@ -1161,24 +1161,28 @@
         "version": "0.1.0-beta.0"
       },
       "capabilities": [
+        "attachments",
         "editing",
-        "map",
+        "forward-geocode",
+        "geometry",
+        "optimistic-updates",
         "planning",
-        "query"
+        "provenance",
+        "query",
+        "spatial-filtering"
       ],
       "protocols": [
-        "geoservices",
-        "honua"
+        "geoservices"
       ],
       "renderers": [
-        "maplibre"
+        "svg"
       ],
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "provenance": "Committed Maui planning fixtures.",
-        "attribution": "Dataset attribution is visible per layer.",
-        "freshness": "Fixture version committed with the repository.",
+        "provenance": "Resettable raw GeoServices and GeocodeServer planning-permitting.v1 fixture.",
+        "attribution": "Synthetic Maui planning data; regulatory caveat is exported with every analysis.",
+        "freshness": "Deterministic fixture version and generated-at value are exported in the review artifact.",
         "configurationStatus": "not-required"
       },
       "evidence": {
@@ -1187,11 +1191,11 @@
           "status": "executed"
         },
         "live": {
-          "mode": "demo-live",
-          "status": "planned"
+          "mode": "unavailable",
+          "status": "not-applicable"
         }
       },
-      "expectedDegradation": "Mutation and print actions disable with explicit reasons when capabilities are absent."
+      "expectedDegradation": "Invalid domains stop in preflight; conflicts roll back; attachment failures remain partial and retryable; read-only sources report unsupported without mutation."
     },
     {
       "id": "pmtiles-static",
@@ -1540,7 +1544,7 @@
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Canonical terra-draw binding demo for the Esri widget-cliff sketch gap."
+        "reason": "Focused terra-draw and snapping recipe; the Planning and Permitting golden route owns the complete outcome."
       },
       "validationProfile": "browser-recipe",
       "source": {

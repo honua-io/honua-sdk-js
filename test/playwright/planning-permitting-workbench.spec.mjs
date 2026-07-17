@@ -2,69 +2,83 @@ import { expect, test } from "@playwright/test";
 
 import { startPlanningWorkbenchFixtureServer } from "../../examples/planning-permitting-workbench/mock-server.mjs";
 
-test.setTimeout(90_000);
+let fixture;
 
-test("planning workbench links map, query, editing, and print with no JS errors", async ({ page }) => {
-  const pageErrors = [];
-  page.on("pageerror", (error) => {
-    pageErrors.push(error.message);
+test.beforeAll(async () => {
+  fixture = await startPlanningWorkbenchFixtureServer();
+});
+
+test.afterAll(async () => {
+  await fixture?.close();
+});
+
+test("packed planning journey preserves public SDK semantics, recovery, accessibility, and mobile layout", async ({
+  page,
+}) => {
+  const browserErrors = [];
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") browserErrors.push(message.text());
   });
 
-  const fixtureServer = await startPlanningWorkbenchFixtureServer();
+  await page.goto(fixture.url);
+  await expect(page.getByText("createHonua().connect → Source")).toBeVisible();
+  await expect(page.locator("main")).toHaveAttribute("aria-busy", "false");
 
-  try {
-    await page.goto(fixtureServer.url);
+  const address = page.getByLabel("Maui address or parcel");
+  await address.focus();
+  await expect(address).toBeFocused();
+  await address.press("ControlOrMeta+A");
+  await address.fill("300 Hana Hwy");
+  await address.press("Enter");
+  await expect(page.getByText(/Source.query selected feature 5001/)).toBeVisible();
+  await expect(page.getByText("3-7-010-031", { exact: true })).toBeVisible();
 
-    await expect
-      .poll(async () => page.evaluate(() => window.__HONUA_PLANNING_WORKBENCH_RUNTIME__?.ready === true))
-      .toBe(true);
+  await page.getByRole("button", { name: "Run bounded analysis" }).click();
+  await expect(page.getByText("exact-client-geometry")).toBeVisible();
+  await expect(page.getByText(/GeoServices envelope query capped at 25/)).toBeVisible();
+  await expect(page.getByText(/not a current regulatory determination/)).toBeVisible();
 
-    await expect(page.getByRole("button", { name: "Review Board" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator("#parcel-count")).toHaveText("8");
-
-    // Query: filter to a zoning class drives the linked map/table/chart context.
-    await page.locator("#zoning-filter").selectOption("B-2");
-    await expect(page.locator("#filter-count")).toHaveText("1");
-    await expect(page.locator("#parcel-count")).toHaveText("2");
-
-    await page.getByRole("button", { name: "Clear" }).click();
-    await expect(page.locator("#filter-count")).toHaveText("0");
-    await expect(page.locator("#parcel-count")).toHaveText("8");
-
-    // Select a parcel; detail panel shows zoning + flood overlay warning.
-    await page.getByRole("button", { name: "Open 8 Amala Pl, Kahului" }).first().click();
-    await expect(page.locator("#detail-title")).toHaveText("8 Amala Pl, Kahului");
-    await expect(page.locator("#flood-warning")).toHaveAttribute("data-active", "true");
-
-    // Sketch + measure + flood check.
-    await page.getByRole("button", { name: "Query & Analysis" }).click();
-    await page.getByRole("button", { name: "Sketch AOI" }).click();
-    await expect(page.locator("#sketch-status")).toHaveText("AOI drawn");
-    await page.getByRole("button", { name: "Measure", exact: true }).click();
-    await expect(page.locator("#measure-readout")).not.toHaveText("0 m");
-
-    // Print/export manifest.
-    await page.getByRole("button", { name: "Generate print manifest" }).click();
-    await expect(page.locator("#print-status")).toHaveText("generated");
-    await expect
-      .poll(async () => page.evaluate(() => window.__HONUA_PLANNING_WORKBENCH_RUNTIME__?.printId))
-      .not.toBeNull();
-
-    // Editing lane against the writable permit layer.
-    await page.getByRole("button", { name: "Permit Editing" }).click();
-    await expect(page.locator("#permit-count")).toHaveText("4");
-    await page.getByRole("button", { name: /B2026-0455/ }).click();
-    await page.locator("#edit-status-field").selectOption("approved");
-    await page.getByRole("button", { name: "Save permit", exact: true }).click();
-    await expect(page.locator("#edit-status-readout")).toHaveText("applied");
-
-    // Conflict path is surfaced, not silently dropped.
-    await page.getByRole("button", { name: "Force conflict" }).click();
-    await page.getByRole("button", { name: "Save permit", exact: true }).click();
-    await expect(page.locator("#edit-status-readout")).toHaveText("failed");
-
-    expect(pageErrors).toEqual([]);
-  } finally {
-    await fixtureServer.close();
+  for (const [name, scenario, status] of [
+    ["Success + attachment", "success", "succeeded"],
+    ["Invalid domain", "invalid-domain", "validation-failed"],
+    ["Version conflict", "conflict", "failed"],
+    ["Attachment failure", "attachment-failure", "partial"],
+    ["Unsupported edits", "unsupported", "unsupported"],
+  ]) {
+    await page.getByRole("button", { name }).click();
+    await expect(page.locator(`#outcomes li[data-scenario="${scenario}"][data-status="${status}"]`)).toBeVisible();
   }
+
+  const recover = page.getByRole("button", { name: "Recover with valid submission" });
+  await expect(recover).toBeVisible();
+  await recover.click();
+  await expect(page.locator('#outcomes li[data-scenario="success"][data-status="succeeded"]')).toHaveCount(2);
+  await expect(recover).toBeHidden();
+  await page.getByRole("button", { name: "Generate review artifact" }).click();
+  await expect(page.getByLabel("Planning review JSON")).toContainText("honua.planning-permitting-review");
+  await expect(page.getByLabel("Source and packed semantic contract")).toContainText("search-analyze-edit-export");
+
+  const semantic = await page.evaluate(() => window.__HONUA_PLANNING_EVIDENCE__?.semantic);
+  expect(semantic).toEqual({
+    workflow: "search-analyze-edit-export",
+    publicSurfaces: ["kernel-query", "geocoding", "geometry", "edit-session", "attachments"],
+    failureScenarios: ["invalid-domain", "conflict", "attachment-failure", "unsupported"],
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("heading", { name: "Planning & Permitting" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("button", { name: "Generate review artifact" }).focus();
+  await expect(page.getByRole("button", { name: "Generate review artifact" })).toBeFocused();
+
+  const requestEvidence = await (await fetch(`${fixture.url}/__fixture__/requests`)).json();
+  expect(requestEvidence.requests.map((request) => request.pathname)).toEqual(
+    expect.arrayContaining([
+      "/rest/services/Maui/GeocodeServer/findAddressCandidates",
+      "/rest/services/Maui/Planning/FeatureServer/0/query",
+      "/rest/services/Maui/Planning/FeatureServer/0/applyEdits",
+    ]),
+  );
+  expect(browserErrors).toEqual([]);
 });

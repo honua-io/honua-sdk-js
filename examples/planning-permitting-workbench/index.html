@@ -3,267 +3,125 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Maui Planning &amp; Permitting Workbench</title>
+    <meta name="description" content="Honua Planning and Permitting golden journey" />
+    <title>Honua | Planning &amp; Permitting golden journey</title>
+    <script type="module" src="/src/main.ts"></script>
   </head>
   <body>
-    <main class="workbench-shell">
-      <aside class="left-rail" aria-label="Workbench controls">
-        <header class="app-header">
-          <p class="eyebrow">Honua Planning</p>
-          <h1>Planning &amp; Permitting Workbench</h1>
-          <p class="tier-badge" id="tier-badge">Community + Pro</p>
-        </header>
+    <a class="skip-link" href="#journey">Skip to planning workflow</a>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Golden journey · deterministic fixture</p>
+        <h1>Planning &amp; Permitting</h1>
+        <p class="lede">Search a parcel, prove a bounded spatial check, submit through public edit contracts, and export the review receipt.</p>
+      </div>
+      <dl class="runtime-proof" aria-label="Runtime evidence">
+        <div><dt>SDK path</dt><dd id="runtime-path">Connecting…</dd></div>
+        <div><dt>Protocol</dt><dd id="runtime-protocol">—</dd></div>
+        <div><dt>Fixture</dt><dd>planning-permitting.v1</dd></div>
+      </dl>
+    </header>
 
-        <nav class="module-switcher" aria-label="Workbench modules">
-          <button type="button" data-module="review-board" aria-pressed="true">Review Board</button>
-          <button type="button" data-module="query-analysis" aria-pressed="false">Query &amp; Analysis</button>
-          <button type="button" data-module="permit-editing" aria-pressed="false">Permit Editing</button>
-        </nav>
-
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Search</h2>
-            <span id="search-status">geocode</span>
-          </div>
-          <label class="field-label" for="search-input">Address or TMK</label>
-          <input id="search-input" type="search" placeholder="120 Market St / 3-8-001-014" autocomplete="off" />
-          <ul id="search-results" class="stack-list search-list"></ul>
-        </section>
-
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Layers</h2>
-            <span id="layer-count">0 on</span>
-          </div>
-          <label class="source-toggle">
-            <input id="layer-parcels" type="checkbox" checked />
-            <span><strong>Parcels</strong><em id="parcels-status">ready</em></span>
-          </label>
-          <label class="source-toggle">
-            <input id="layer-zoning" type="checkbox" checked />
-            <span><strong>Zoning</strong><em id="zoning-status">ready</em></span>
-          </label>
-          <label class="source-toggle">
-            <input id="layer-flood" type="checkbox" checked />
-            <span><strong>Flood hazard</strong><em id="flood-status">ready</em></span>
-          </label>
-          <label class="source-toggle">
-            <input id="layer-permits" type="checkbox" checked />
-            <span><strong>Permits</strong><em id="permits-status">writable</em></span>
-          </label>
-        </section>
-
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Legend</h2>
-            <span>zoning / flood</span>
-          </div>
-          <div id="zoning-legend" class="legend"></div>
-          <div id="flood-legend" class="legend"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Extent</h2>
-            <span id="extent-label">Maui Nui</span>
-          </div>
-          <div id="map-presets" class="button-grid"></div>
-          <p id="extent-readout" class="readout">-</p>
-        </section>
-      </aside>
-
-      <section class="module-stage" aria-live="polite">
-        <section id="review-board-module" class="module-view" data-active="true">
-          <div class="stage-heading">
-            <div>
-              <p class="eyebrow">Review Board</p>
-              <h2>Map, Parcel Table, and Detail</h2>
+    <main id="journey" class="journey" aria-busy="true">
+      <section class="step" aria-labelledby="search-heading">
+        <div class="step-number" aria-hidden="true">1</div>
+        <div class="step-content">
+          <p class="step-kicker">Geocoding + Source.query</p>
+          <h2 id="search-heading">Find the review parcel</h2>
+          <form id="search-form" class="inline-form">
+            <label for="address">Maui address or parcel</label>
+            <div class="field-row">
+              <input id="address" name="address" value="300 Hana Hwy" autocomplete="street-address" required />
+              <button id="search-submit" type="submit">Search parcel</button>
             </div>
-            <dl class="summary-strip">
-              <div><dt>Parcels</dt><dd id="parcel-count">0</dd></div>
-              <div><dt>Flood-exposed</dt><dd id="flood-count">0</dd></div>
-              <div><dt>Assessed</dt><dd id="assessed-total">$0</dd></div>
-            </dl>
-          </div>
-
-          <div class="map-workspace">
-            <div id="workbench-map" class="workbench-map" aria-label="Linked parcel map"></div>
-            <div class="queue-panel">
-              <div class="panel-heading">
-                <h3>Parcels</h3>
-                <span id="selection-count">0 selected</span>
-              </div>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr><th>TMK</th><th>Address</th><th>Zoning</th><th></th></tr>
-                  </thead>
-                  <tbody id="parcel-table-body"></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <section class="panel filter-panel">
-            <div class="panel-heading">
-              <h3>Query filters</h3>
-              <span><strong id="filter-count">0</strong> active</span>
-            </div>
-            <div class="filter-row">
-              <label class="field-label" for="zoning-filter">Zoning</label>
-              <select id="zoning-filter">
-                <option value="">Any zone</option>
-              </select>
-              <label class="checkbox">
-                <input id="flood-filter" type="checkbox" />
-                <span>Regulated flood only</span>
-              </label>
-              <button id="clear-filters" type="button">Clear</button>
-            </div>
-          </section>
-        </section>
-
-        <section id="query-analysis-module" class="module-view" data-active="false">
-          <div class="stage-heading">
-            <div>
-              <p class="eyebrow">Query &amp; Analysis</p>
-              <h2>Linked Map / Table / Chart</h2>
-            </div>
-            <dl class="summary-strip">
-              <div><dt>In AOI</dt><dd id="aoi-count">0</dd></div>
-              <div><dt>Sketch acres</dt><dd id="sketch-acres">0</dd></div>
-              <div><dt>Measure</dt><dd id="measure-readout">0 m</dd></div>
-            </dl>
-          </div>
-
-          <div class="analysis-grid">
-            <section class="panel chart-panel">
-              <div class="panel-heading">
-                <h3>Parcels by zoning</h3>
-                <span>shared context</span>
-              </div>
-              <div id="zoning-chart" class="zoning-chart"></div>
-            </section>
-
-            <section class="panel">
-              <div class="panel-heading">
-                <h3>Sketch proposed footprint</h3>
-                <span id="sketch-status">no sketch</span>
-              </div>
-              <p class="hint">Draws a sample AOI ring, then checks it against the flood-hazard overlay.</p>
-              <div class="button-row">
-                <button id="sketch-footprint" type="button">Sketch AOI</button>
-                <button id="measure-footprint" type="button">Measure</button>
-                <button id="clear-sketch" type="button">Clear</button>
-              </div>
-              <ul id="sketch-readout" class="stack-list"></ul>
-            </section>
-
-            <section class="panel">
-              <div class="panel-heading">
-                <h3>Print / export</h3>
-                <span id="print-status">not generated</span>
-              </div>
-              <div class="button-row">
-                <button id="generate-print" type="button">Generate print manifest</button>
-                <button id="export-workspace" type="button">Export workspace</button>
-              </div>
-              <pre id="print-json" class="json-readout"></pre>
-            </section>
-          </div>
-        </section>
-
-        <section id="permit-editing-module" class="module-view" data-active="false">
-          <div class="stage-heading">
-            <div>
-              <p class="eyebrow">Permit Editing</p>
-              <h2>Writable Permit Layer</h2>
-            </div>
-            <dl class="summary-strip">
-              <div><dt>Permits</dt><dd id="permit-count">0</dd></div>
-              <div><dt>Mode</dt><dd id="permit-mode">update</dd></div>
-              <div><dt>Status</dt><dd id="edit-status-readout">ready</dd></div>
-            </dl>
-          </div>
-
-          <div class="field-edit-grid">
-            <section class="panel">
-              <div class="panel-heading">
-                <h3>Permits</h3>
-                <button id="new-permit" type="button">New permit</button>
-              </div>
-              <ul id="permit-list" class="stack-list edit-list"></ul>
-            </section>
-
-            <section class="panel edit-form-panel">
-              <div class="panel-heading">
-                <h3>Permit form</h3>
-                <span id="edit-permit-no">-</span>
-              </div>
-              <label class="field-label" for="edit-parcel-field">Parcel TMK</label>
-              <input id="edit-parcel-field" type="text" />
-              <label class="field-label" for="edit-type-field">Permit type</label>
-              <select id="edit-type-field">
-                <option value="residential">Residential</option>
-                <option value="commercial">Commercial</option>
-                <option value="grading">Grading</option>
-                <option value="shoreline">Shoreline</option>
-                <option value="demolition">Demolition</option>
-              </select>
-              <label class="field-label" for="edit-status-field">Status</label>
-              <select id="edit-status-field">
-                <option value="intake">Intake</option>
-                <option value="under-review">Under review</option>
-                <option value="approved">Approved</option>
-                <option value="issued">Issued</option>
-                <option value="denied">Denied</option>
-              </select>
-              <label class="field-label" for="edit-reviewer-field">Reviewer</label>
-              <input id="edit-reviewer-field" type="text" />
-              <label class="field-label" for="edit-valuation-field">Valuation ($)</label>
-              <input id="edit-valuation-field" type="number" min="0" step="1000" />
-              <label class="field-label" for="edit-description-field">Description</label>
-              <textarea id="edit-description-field" rows="3"></textarea>
-              <div class="button-row">
-                <button id="force-conflict" type="button">Force conflict</button>
-                <button id="save-permit" type="button">Save permit</button>
-              </div>
-              <p id="edit-message" class="edit-message">-</p>
-            </section>
-
-            <section class="panel">
-              <div class="panel-heading">
-                <h3>Capability readiness</h3>
-                <span id="edit-capability-state">-</span>
-              </div>
-              <ul id="edit-readiness-list" class="stack-list"></ul>
-            </section>
-          </div>
-        </section>
+          </form>
+          <p id="search-status" class="status" role="status" aria-live="polite">Waiting for the SDK connection.</p>
+          <dl id="parcel-result" class="result-grid" aria-label="Selected parcel" hidden>
+            <div><dt>Address</dt><dd id="parcel-address">—</dd></div>
+            <div><dt>TMK</dt><dd id="parcel-tmk">—</dd></div>
+            <div><dt>Zoning</dt><dd id="parcel-zoning">—</dd></div>
+            <div><dt>Flood zone</dt><dd id="parcel-flood">—</dd></div>
+          </dl>
+        </div>
       </section>
 
-      <aside class="detail-rail" aria-label="Parcel detail">
-        <section class="panel detail-panel">
-          <div class="panel-heading">
-            <h2>Detail</h2>
-            <span id="detail-source">-</span>
+      <section class="step" aria-labelledby="analysis-heading">
+        <div class="step-number" aria-hidden="true">2</div>
+        <div class="step-content two-column">
+          <div>
+            <p class="step-kicker">Bounded query + @honua/geometry</p>
+            <h2 id="analysis-heading">Check the proposal footprint</h2>
+            <p>The fixture polygon overlaps a regulatory-hazard fixture. The receipt separates source execution, client geometry, fidelity, and caveats.</p>
+            <button id="run-analysis" type="button" disabled>Run bounded analysis</button>
+            <dl id="analysis-result" class="result-grid" aria-label="Analysis result" hidden>
+              <div><dt>Proposal area</dt><dd id="analysis-area">—</dd></div>
+              <div><dt>Hazard overlap</dt><dd id="analysis-overlap">—</dd></div>
+              <div><dt>Candidates</dt><dd id="analysis-candidates">—</dd></div>
+              <div><dt>Fidelity</dt><dd id="analysis-fidelity">—</dd></div>
+            </dl>
           </div>
-          <h3 id="detail-title">No selected parcel</h3>
-          <p id="detail-summary">-</p>
-          <dl id="detail-attributes" class="metric-list"></dl>
-          <div id="flood-warning" class="flood-warning" data-active="false"></div>
-        </section>
+          <figure class="map-proof" aria-labelledby="map-caption">
+            <svg viewBox="0 0 480 280" role="img" aria-labelledby="map-title map-desc">
+              <title id="map-title">Proposal and flood hazard overlap</title>
+              <desc id="map-desc">A proposal polygon overlaps part of a flood hazard polygon near the selected parcel.</desc>
+              <rect width="480" height="280" rx="18" fill="#e8f1ee" />
+              <path d="M30 210 C110 160 150 235 235 175 S370 100 455 130" fill="none" stroke="#b8d5cc" stroke-width="34" />
+              <polygon points="210,55 424,55 424,235 210,235" fill="#ef665f" fill-opacity="0.26" stroke="#ad342f" stroke-width="3" />
+              <polygon points="150,100 330,100 330,205 150,205" fill="#157f68" fill-opacity="0.35" stroke="#075e4d" stroke-width="4" />
+              <circle cx="246" cy="150" r="8" fill="#172d28" />
+              <text x="26" y="35">Deterministic spatial evidence</text>
+            </svg>
+            <figcaption id="map-caption"><span class="legend proposal"></span>Proposal <span class="legend hazard"></span>Flood fixture</figcaption>
+          </figure>
+          <ol id="analysis-plan" class="plan" aria-label="Executed analysis plan"></ol>
+          <p id="analysis-caveat" class="caveat" hidden></p>
+        </div>
+      </section>
 
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Linked context</h2>
-            <span id="context-active-view">review-board</span>
-          </div>
-          <pre id="context-json" class="json-readout"></pre>
-        </section>
-      </aside>
+      <section class="step" aria-labelledby="edit-heading">
+        <div class="step-number" aria-hidden="true">3</div>
+        <div class="step-content">
+          <p class="step-kicker">Metadata form + edit session + attachments</p>
+          <h2 id="edit-heading">Submit and recover deliberately</h2>
+          <form id="permit-form" class="edit-form">
+            <label for="permit-type">Permit type</label>
+            <select id="permit-type" name="permit-type" disabled></select>
+            <label for="height">Proposed height (feet)</label>
+            <input id="height" name="height" type="number" min="0" max="60" value="28" disabled />
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="3" maxlength="240" disabled>Two-story tenant improvement with a deterministic site-plan attachment.</textarea>
+          </form>
+          <fieldset id="scenario-controls" disabled>
+            <legend>Run a normalized outcome</legend>
+            <div class="scenario-grid">
+              <button type="button" data-scenario="success">Success + attachment</button>
+              <button type="button" data-scenario="invalid-domain">Invalid domain</button>
+              <button type="button" data-scenario="conflict">Version conflict</button>
+              <button type="button" data-scenario="attachment-failure">Attachment failure</button>
+              <button type="button" data-scenario="unsupported">Unsupported edits</button>
+            </div>
+          </fieldset>
+          <div id="submission-status" class="status outcome" role="status" aria-live="polite">Complete steps 1 and 2 to enable submission.</div>
+          <button id="recover" class="secondary" type="button" hidden>Recover with valid submission</button>
+          <ol id="outcomes" class="outcomes" aria-label="Submission outcomes"></ol>
+        </div>
+      </section>
+
+      <section class="step export-step" aria-labelledby="export-heading">
+        <div class="step-number" aria-hidden="true">4</div>
+        <div class="step-content">
+          <p class="step-kicker">Portable review evidence</p>
+          <h2 id="export-heading">Export what actually ran</h2>
+          <p>The artifact includes the source protocol, bounded plan, fixture provenance, fidelity caveat, normalized failures, and recovery guidance.</p>
+          <button id="export-review" type="button" disabled>Generate review artifact</button>
+          <pre id="review-json" tabindex="0" aria-label="Planning review JSON" hidden></pre>
+          <output id="journey-semantic" class="semantic-proof" aria-label="Source and packed semantic contract"></output>
+        </div>
+      </section>
     </main>
 
-    <script type="module" src="/src/main.ts"></script>
+    <footer>
+      Focused recipes remain available for geocoding, sketch-tool bindings, and edit-session mechanics; this route owns the complete planning outcome.
+    </footer>
   </body>
 </html>
