@@ -19,16 +19,24 @@ import { ensurePmtilesProtocol } from "./pmtiles-protocol.js";
 
 /** MapLibre module slice consumed from the caller-injected optional peer. */
 export interface MapLibreRendererPeer {
+  /** Runtime-validated so the real MapLibre constructor remains structurally injectable. */
+  readonly Map?: unknown;
+  readonly addProtocol?: unknown;
+  readonly removeProtocol?: unknown;
+  readonly default?: unknown;
+}
+
+interface ResolvedMapLibreRendererPeer {
   readonly Map?: new (options: Readonly<Record<string, unknown>>) => unknown;
   readonly addProtocol?: (scheme: string, handler: unknown) => void;
   readonly removeProtocol?: (scheme: string) => void;
-  readonly default?: MapLibreRendererPeer;
 }
 
 /** Host slice added to the existing source-mutation contract for lifecycle readiness. */
 export interface MapLibreRendererMap extends SourceToMapLibreMap {
   loaded?(): boolean;
   isStyleLoaded?(): boolean;
+  getStyle?(): unknown;
   once?(event: string, listener: () => void): unknown;
   off?(event: string, listener: () => void): unknown;
   triggerRepaint?(): void;
@@ -81,7 +89,7 @@ export function maplibreRenderer(
       const host = resolveMapHost(maplibre, target, request, rendererOptions);
       const map = host.map;
       try {
-        await waitUntilStyleReady(map, request.signal);
+        await waitUntilStyleReady(map, request.signal, host.owned);
         let queryPlan = request.queryPlan;
         let plan = explainAutomaticSourceToMapLibre(request.source, {
           ...automaticOptions(rendererOptions),
@@ -179,13 +187,26 @@ function automaticOptions(options: MapLibreRendererOptions): ExplainAutomaticMap
   return automatic;
 }
 
-function maplibrePeer(value: MapLibreRendererPeer): MapLibreRendererPeer {
+function maplibrePeer(value: MapLibreRendererPeer): ResolvedMapLibreRendererPeer {
   if (typeof value !== "object" || value === null) throw new TypeError("maplibreRenderer() requires an injected peer.");
-  return value.default && typeof value.default === "object" ? value.default : value;
+  const fallback =
+    value.default !== null && typeof value.default === "object" ? (value.default as MapLibreRendererPeer) : undefined;
+  const MapConstructor = fallback?.Map ?? value.Map;
+  const addProtocol = value.addProtocol ?? fallback?.addProtocol;
+  const removeProtocol = value.removeProtocol ?? fallback?.removeProtocol;
+  return Object.freeze({
+    ...(typeof MapConstructor === "function" ? { Map: MapConstructor as ResolvedMapLibreRendererPeer["Map"] } : {}),
+    ...(typeof addProtocol === "function"
+      ? { addProtocol: addProtocol as ResolvedMapLibreRendererPeer["addProtocol"] }
+      : {}),
+    ...(typeof removeProtocol === "function"
+      ? { removeProtocol: removeProtocol as ResolvedMapLibreRendererPeer["removeProtocol"] }
+      : {}),
+  });
 }
 
 function resolveMapHost<T>(
-  peer: MapLibreRendererPeer,
+  peer: ResolvedMapLibreRendererPeer,
   target: RendererTarget,
   request: RendererMountRequest<T, MapLibreRendererOptions>,
   options: MapLibreRendererOptions,
@@ -279,11 +300,26 @@ function isMapHost(value: unknown): value is MapLibreRendererMap {
   }
 }
 
-async function waitUntilStyleReady(map: MapLibreRendererMap, signal: AbortSignal): Promise<void> {
+async function waitUntilStyleReady(map: MapLibreRendererMap, signal: AbortSignal, owned: boolean): Promise<void> {
   throwIfAborted(signal);
   assertReadinessHost(map);
-  if (map.loaded?.() === true || map.isStyleLoaded?.() === true) return;
-  await waitForEvent(map, "load", signal);
+  const event = owned ? "load" : "style.load";
+  if (typeof map.isStyleLoaded === "function") {
+    const isReady = (): boolean => map.isStyleLoaded?.() === true;
+    while (!isReady()) {
+      await (owned
+        ? waitForEvent(map, event, signal, isReady)
+        : waitForAnyEvent(map, [event, "data"], signal, isReady));
+    }
+    return;
+  }
+  if (typeof map.loaded === "function") {
+    const isReady = (): boolean => map.loaded?.() === true;
+    while (!isReady()) await waitForEvent(map, event, signal, isReady);
+    return;
+  }
+  if (!owned && typeof map.getStyle === "function" && map.getStyle() !== undefined) return;
+  await waitForEvent(map, event, signal);
 }
 
 async function firstUsableFrame(
@@ -298,12 +334,26 @@ async function firstUsableFrame(
   await frame;
 }
 
-function waitForEvent(map: ReadinessMapLibreRendererMap, event: string, signal: AbortSignal): Promise<void> {
+function waitForEvent(
+  map: ReadinessMapLibreRendererMap,
+  event: string,
+  signal: AbortSignal,
+  isReady?: () => boolean,
+): Promise<void> {
+  return waitForAnyEvent(map, [event], signal, isReady);
+}
+
+function waitForAnyEvent(
+  map: ReadinessMapLibreRendererMap,
+  events: readonly string[],
+  signal: AbortSignal,
+  isReady?: () => boolean,
+): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     let settled = false;
     const cleanup = () => {
       signal.removeEventListener("abort", aborted);
-      map.off(event, completed);
+      for (const event of events) map.off(event, completed);
     };
     const completed = () => {
       if (settled) return;
@@ -323,9 +373,13 @@ function waitForEvent(map: ReadinessMapLibreRendererMap, event: string, signal: 
       return;
     }
     try {
-      map.once(event, completed);
+      for (const event of events) {
+        if (settled) break;
+        map.once(event, completed);
+      }
+      if (isReady?.()) completed();
       if (signal.aborted) {
-        if (settled) map.off(event, completed);
+        if (settled) for (const event of events) map.off(event, completed);
         else aborted();
       }
     } catch (error) {

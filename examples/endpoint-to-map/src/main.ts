@@ -1,5 +1,6 @@
-import { connect } from "@honua/sdk-js";
+import { connect, createHonua } from "@honua/sdk-js";
 import { type MountedSource, type MountedSourceDiagnostics, mountSource } from "@honua/sdk-js/map";
+import { maplibreRenderer } from "@honua/sdk-js/runtime";
 import maplibregl from "maplibre-gl";
 
 import { type EndpointToMapConfig, resolveEndpointToMapConfig } from "./config.js";
@@ -18,7 +19,7 @@ const config = resolveEndpointToMapConfig({
  * 120-column formatting); everything below `endpointToMap()` is demo-shell
  * chrome (status panel, filter UI).
  */
-async function endpointToMap(): Promise<MountedSource> {
+async function endpointToMap(): Promise<{ readonly map: maplibregl.Map; readonly mounted: MountedSource }> {
   // ── headline start ──────────────────────────────────────────────
   const map = new maplibregl.Map({ container: "map", style: config.basemapStyle, center: [-98, 39], zoom: 3 });
   await map.once("load");
@@ -34,10 +35,41 @@ async function endpointToMap(): Promise<MountedSource> {
     fitBounds: true,
   });
   // ── headline end ────────────────────────────────────────────────
-  return mounted;
+  return { map, mounted };
 }
 
 // ── Demo shell (not counted): status panel, diagnostics, live filter ──
+
+async function proveConnectionMountLifecycle(map: maplibregl.Map): Promise<void> {
+  const kernel = createHonua();
+  const sourceId = "honua-kernel-lifecycle-proof";
+  const layerId = `${sourceId}-features`;
+  try {
+    const connection = await kernel.connect(config.featureLayerUrl, {
+      protocol: "auto",
+      authorizationScopeFingerprint: "public",
+    });
+    const sourceCount = Object.keys(map.getStyle().sources).length;
+    const layerCount = map.getStyle().layers.length;
+    const mounted = await connection.mount(map, {
+      renderer: maplibreRenderer(maplibregl),
+      rendererOptions: { sourceId, layerId },
+    });
+    await mounted.ready;
+    const borrowedMapReady = mounted.raw("maplibre") === map && map.getSource(sourceId) !== undefined;
+    await mounted.dispose();
+    const disposed =
+      mounted.raw("maplibre") === undefined &&
+      map.getSource(sourceId) === undefined &&
+      ["point", "line", "polygon"].every((kind) => map.getLayer(`${layerId}-${kind}`) === undefined) &&
+      Object.keys(map.getStyle().sources).length === sourceCount &&
+      map.getStyle().layers.length === layerCount;
+    patchState({ kernelMountReady: borrowedMapReady, kernelMountDisposed: disposed });
+    setText("status-kernel-mount", borrowedMapReady && disposed ? "Ready → disposed; host survived" : "Failed proof");
+  } finally {
+    await kernel.dispose();
+  }
+}
 
 interface EndpointToMapState {
   ready?: boolean;
@@ -45,6 +77,8 @@ interface EndpointToMapState {
   featureCount?: number;
   layerIds?: readonly string[];
   overflow?: boolean;
+  kernelMountReady?: boolean;
+  kernelMountDisposed?: boolean;
   error?: string;
 }
 
@@ -122,7 +156,8 @@ function setOverlay(state: "loading" | "ready" | "error", title: string, body: s
 async function main(): Promise<void> {
   setText("status-endpoint", new URL(config.featureLayerUrl).host || "same-origin fixture");
   try {
-    const mounted = await endpointToMap();
+    const { map, mounted } = await endpointToMap();
+    await proveConnectionMountLifecycle(map);
     renderDiagnostics(mounted.diagnostics);
     wireFilter(config, mounted);
     setOverlay("ready", "Mounted", "Click a feature for a popup; hover for feature-state.");

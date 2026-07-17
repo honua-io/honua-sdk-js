@@ -11,6 +11,13 @@ ADR's `connection.mount(target)` contract
 the bridge borrows a caller-owned map, mutates it transactionally, and returns
 one handle that owns every source, layer, and event listener it created.
 
+The connection-owned form now ships as `connection.mount(target, {
+renderer: maplibreRenderer(peer) })`. Use it when discovery, accepted-plan
+validation, first-frame readiness, and renderer cleanup should share the
+kernel lifecycle. Keep using this lower-level `mountSource()` bridge when the
+application needs its richer popup, hover, filter, and fit-bounds controls
+directly; both paths reuse the existing source-to-map strategy code.
+
 The module never imports `maplibre-gl`. The map parameter is duck-typed
 (`DataToMapLibreMap`); any MapLibre GL `Map` instance works, and so do the
 test doubles used by the SDK's own suites.

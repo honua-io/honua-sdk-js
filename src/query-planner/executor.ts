@@ -2,7 +2,8 @@ import type { Query, Result, Source } from "../contract/types.js";
 import { HonuaAbortError } from "../core/errors.js";
 import { canonicalStringify, toJsonValue } from "./canonical.js";
 import { createPlanValidity, createQueryPlanProvenance } from "./diagnostics.js";
-import { queryFromCanonical, queryIrSourceIdentity, queryIrSourceIdentityV2 } from "./ir.js";
+import { assertQueryPlanExecutionContextV1 } from "./execution-context.js";
+import { queryFromCanonical, queryIrSourceIdentityV2 } from "./ir.js";
 import { aggregateLocally } from "./local-aggregate.js";
 import { validateQueryPlanSnapshot } from "./planner.js";
 import { parseGeoParquetResourceHandle, resolveGeoParquetResource } from "./resource.js";
@@ -42,10 +43,11 @@ export async function executeQueryPlan<T>(
 }
 
 function assertPlanContext<T>(plan: QueryExecutionPlan, source: Source<T>, options: ExecuteQueryPlanOptions): void {
-  const current =
-    plan.version === "2.0"
-      ? queryIrSourceIdentityV2(source.descriptor, plan.ir.source.geoparquet.resource, options)
-      : queryIrSourceIdentity(source.descriptor, options);
+  if (plan.version === "1.0") {
+    assertQueryPlanExecutionContextV1(plan, source, options);
+    return;
+  }
+  const current = queryIrSourceIdentityV2(source.descriptor, plan.ir.source.geoparquet.resource, options);
   const executionMode = options.executionMode ?? plan.validity.executionMode;
   const currentIr = { ...plan.ir, source: current } as QueryExecutionPlan["ir"];
   const currentProvenance = createQueryPlanProvenance(source.descriptor, current, options);

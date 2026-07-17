@@ -627,6 +627,7 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
         abortController: mountAbortController,
         secrets: this.#secrets,
         release: (resource) => this.#ownedMounts.delete(resource),
+        invokeCleanup: (cleanup) => this.#invokeAdapterCleanup(cleanup),
       });
       this.#ownedMounts.add(mounted);
       return mounted;
@@ -688,9 +689,8 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
   }
 
   public dispose(): Promise<void> {
-    if (this.#disposePromise) {
-      return this.#invokingAdapterCleanup ? this.#cleanupReentryCompletion : this.#disposePromise;
-    }
+    if (this.#invokingAdapterCleanup) return this.#cleanupReentryCompletion;
+    if (this.#disposePromise) return this.#disposePromise;
     this.#state = "disposing";
 
     let beginCleanup: () => void = () => undefined;
@@ -714,13 +714,7 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
         this.#ownedDiscoveries.clear();
         for (const discovery of discoveries) {
           try {
-            this.#invokingAdapterCleanup = true;
-            let result: Promise<void>;
-            try {
-              result = disposeKernelConnectionResult(discovery);
-            } finally {
-              this.#invokingAdapterCleanup = false;
-            }
+            const result = this.#invokeAdapterCleanup(() => disposeKernelConnectionResult(discovery));
             await result;
           } catch (error) {
             failures.push(error);
@@ -755,6 +749,15 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
     return completion;
   }
 
+  #invokeAdapterCleanup<TResult>(cleanup: () => TResult): TResult {
+    this.#invokingAdapterCleanup = true;
+    try {
+      return cleanup();
+    } finally {
+      this.#invokingAdapterCleanup = false;
+    }
+  }
+
   public [Symbol.asyncDispose](): Promise<void> {
     return this.dispose();
   }
@@ -774,6 +777,7 @@ interface ManagedMountedMapInit<TKind extends RendererKind, TRaw> {
   readonly abortController: AbortController;
   readonly secrets: readonly string[];
   readonly release: (resource: ConnectionOwnedMount) => void;
+  readonly invokeCleanup: <TResult>(cleanup: () => TResult) => TResult;
 }
 
 class ManagedMountedMap<TKind extends RendererKind, TRaw> implements MountedMap<TKind, TRaw>, ConnectionOwnedMount {
@@ -782,6 +786,7 @@ class ManagedMountedMap<TKind extends RendererKind, TRaw> implements MountedMap<
   readonly #abortController: AbortController;
   readonly #secrets: readonly string[];
   readonly #release: (resource: ConnectionOwnedMount) => void;
+  readonly #invokeCleanup: ManagedMountedMapInit<TKind, TRaw>["invokeCleanup"];
   #state: "active" | "disposing" | "disposed" = "active";
   #disposePromise: Promise<void> | undefined;
   public readonly id: string;
@@ -796,7 +801,8 @@ class ManagedMountedMap<TKind extends RendererKind, TRaw> implements MountedMap<
     this.#abortController = init.abortController;
     this.#secrets = init.secrets;
     this.#release = init.release;
-    this.ready = init.session.ready.catch(async (error: unknown) => {
+    this.#invokeCleanup = init.invokeCleanup;
+    const ready = init.session.ready.catch(async (error: unknown) => {
       const failure = credentialSafeError(error, this.#secrets);
       try {
         await this.dispose();
@@ -808,6 +814,11 @@ class ManagedMountedMap<TKind extends RendererKind, TRaw> implements MountedMap<
       }
       throw failure;
     });
+    // The caller still observes the original rejection. This internal branch
+    // prevents disposal-before-first-frame from becoming an unhandled rejection
+    // when an application intentionally never awaits the readiness handle.
+    void ready.catch(() => undefined);
+    this.ready = ready;
   }
 
   public get diagnostics(): RendererSession<TRaw>["diagnostics"] {
@@ -836,8 +847,18 @@ class ManagedMountedMap<TKind extends RendererKind, TRaw> implements MountedMap<
   public dispose(): Promise<void> {
     if (this.#disposePromise !== undefined) return this.#disposePromise;
     this.#state = "disposing";
-    const completion = Promise.resolve()
-      .then(() => this.#session.dispose())
+    let beginCleanup: () => void = () => undefined;
+    const cleanupGate = new Promise<void>((resolve) => {
+      beginCleanup = resolve;
+    });
+    let cleanupResult: void | Promise<void> = undefined;
+    let synchronousFailure: unknown;
+    let hasSynchronousFailure = false;
+    const completion = cleanupGate
+      .then(async () => {
+        if (hasSynchronousFailure) throw synchronousFailure;
+        await cleanupResult;
+      })
       .then(
         () => {
           this.#state = "disposed";
@@ -850,6 +871,14 @@ class ManagedMountedMap<TKind extends RendererKind, TRaw> implements MountedMap<
       );
     this.#disposePromise = completion;
     this.#abortController.abort(new HonuaAbortError("Mounted renderer was disposed"));
+    try {
+      cleanupResult = this.#invokeCleanup(() => this.#session.dispose());
+    } catch (error) {
+      synchronousFailure = error;
+      hasSynchronousFailure = true;
+    } finally {
+      beginCleanup();
+    }
     return completion;
   }
 

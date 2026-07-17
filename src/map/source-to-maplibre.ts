@@ -10,8 +10,8 @@ import type { Result, Source } from "../contract/types.js";
 import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
-import { executeQueryPlan } from "../query-planner/executor.js";
-import { queryIrSourceIdentity } from "../query-planner/ir.js";
+import { assertQueryPlanExecutionContextV1 } from "../query-planner/execution-context.js";
+import { queryFromCanonical, queryIrSourceIdentity } from "../query-planner/ir.js";
 import { hashQueryPlanV1 } from "../query-planner/planner.js";
 import {
   type ExecuteQueryPlanOptions,
@@ -335,7 +335,7 @@ export function projectSourceToMapLibre<T>(
 /**
  * Execute an accepted plan, mount its projection, and return one lifecycle.
  * Omitted execution bindings inherit the accepted plan; explicit overrides
- * are still validated and fail closed when they describe another context.
+ * remain fail-closed when they describe another context.
  */
 export async function mountSourceToMapLibre<T>(
   map: SourceToMapLibreMap,
@@ -587,10 +587,20 @@ async function executeAcceptedFeaturePlan<T>(
   options: ExecuteQueryPlanOptions,
 ): Promise<Result<T>> {
   try {
-    return (await executeQueryPlan(plan, source, options)).result;
+    assertQueryPlanExecutionContextV1(plan, source, options);
+    const step = plan.steps[0];
+    if (!step || step.engine !== "remote" || (step.operation !== "query" && step.operation !== "queryAll")) {
+      throw new HonuaMapLibreSourceAdapterError(
+        "unsupported-plan",
+        "MapLibre GeoJSON mounting requires one remote feature-query step.",
+        { planId: plan.id },
+      );
+    }
+    const query = queryFromCanonical<T>(step.query, options.signal);
+    return step.operation === "queryAll" ? await source.queryAll(query) : await source.query(query);
   } catch (error) {
-    // Preserve this bridge's established AbortSignal reason while the
-    // canonical executor supplies all non-cancellation plan validation.
+    // Preserve this bridge's established AbortSignal reason while the shared
+    // canonical execution-context boundary supplies plan validation.
     if (options.signal?.aborted) options.signal.throwIfAborted();
     throw error;
   }
