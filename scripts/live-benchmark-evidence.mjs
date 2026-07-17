@@ -6,16 +6,22 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { EvidenceMap } from "./lib/evidence-map.mjs";
 import { validateEvidenceEnvelope } from "./sample-contract.mjs";
 
 const TIMEOUT_MS = 30_000;
+const FIRST_MAP_RUNTIME_BUDGET_MS = 5_000;
 const INCIDENT_OBSERVATION_WINDOW_MS = 12_000;
 const PRODUCER_PATH = "scripts/live-benchmark-evidence.mjs";
+const FIRST_MAP_RUNTIME_SOURCES = [
+  "examples/maplibre-quickstart/src/first-map-config.ts",
+  "examples/maplibre-quickstart/src/workflow.ts",
+];
 
 class SkipTargetError extends Error {
   constructor(message) {
@@ -72,6 +78,90 @@ function sanitizedBaseUrl(value) {
   parsed.search = "";
   parsed.hash = "";
   return parsed.href.replace(/\/$/, "");
+}
+
+async function withFirstMapRuntime(callback) {
+  await mkdir(path.join(process.cwd(), "test-results"), { recursive: true });
+  const runtimeRoot = await mkdtemp(path.join(process.cwd(), "test-results/.first-map-runtime-"));
+  try {
+    const ts = (await import("typescript")).default;
+    for (const sourcePath of FIRST_MAP_RUNTIME_SOURCES) {
+      const source = await readFile(sourcePath, "utf8");
+      const output = ts.transpileModule(source, {
+        fileName: sourcePath,
+        compilerOptions: {
+          module: ts.ModuleKind.ES2022,
+          target: ts.ScriptTarget.ES2022,
+          verbatimModuleSyntax: true,
+        },
+      }).outputText;
+      await writeFile(path.join(runtimeRoot, `${path.basename(sourcePath, ".ts")}.mjs`), output, "utf8");
+    }
+    const nonce = `?run=${Date.now()}-${process.pid}`;
+    const config = await import(`${pathToFileURL(path.join(runtimeRoot, "first-map-config.mjs")).href}${nonce}`);
+    const workflow = await import(`${pathToFileURL(path.join(runtimeRoot, "workflow.mjs")).href}${nonce}`);
+    return await callback({
+      resolveFirstMapConfig: config.resolveFirstMapConfig,
+      runFirstMapWorkflow: workflow.runFirstMapWorkflow,
+    });
+  } finally {
+    await rm(runtimeRoot, { recursive: true, force: true });
+  }
+}
+
+async function qualifyFirstMapProtocol(runtime, configuration) {
+  const map = new EvidenceMap();
+  const requests = [];
+  const anonymousFetch = async (input, init) => {
+    const request = new Request(input, init);
+    for (const name of ["authorization", "x-api-key"]) {
+      if (request.headers.has(name)) throw new Error(`First Map workflow attempted credential header ${name}`);
+    }
+    const url = new URL(request.url);
+    if (url.username || url.password) throw new Error("First Map workflow attempted URL credentials");
+    requests.push(`${url.pathname}${url.search}`);
+    return fetch(request);
+  };
+  let result;
+  const startedAt = performance.now();
+  try {
+    result = await runtime.runFirstMapWorkflow(runtime.resolveFirstMapConfig(configuration), {
+      map,
+      fetchFn: anonymousFetch,
+    });
+    if (result.state !== "ready") {
+      const reason = result.state === "source-selection-required" ? result.reason : `${result.error.code}: ${result.error.message}`;
+      throw new Error(`${configuration.protocol} First Map workflow did not become ready (${reason})`);
+    }
+    const runtimeMs = performance.now() - startedAt;
+    const diagnostics = result.mounted.diagnostics;
+    if (!(diagnostics.featureCount > 0) || !(diagnostics.geometryKinds?.length > 0)) {
+      throw new Error(`${configuration.protocol} First Map workflow did not mount renderable geometry`);
+    }
+    if (runtimeMs > FIRST_MAP_RUNTIME_BUDGET_MS) {
+      throw new Error(
+        `${configuration.protocol} First Map workflow exceeded its ${FIRST_MAP_RUNTIME_BUDGET_MS} ms qualification budget`,
+      );
+    }
+    return {
+      protocol: result.view.connection.protocol,
+      sourceId: result.view.source.id,
+      strategy: result.mounted.strategy,
+      featureCount: diagnostics.featureCount,
+      geometryKinds: [...diagnostics.geometryKinds],
+      layerCount: result.mounted.layerIds.length,
+      queryLimit: configuration.maxFeatures,
+      runtimeMs,
+      budgetMs: FIRST_MAP_RUNTIME_BUDGET_MS,
+      withinBudget: true,
+      requestCount: requests.length,
+    };
+  } finally {
+    if (result?.state === "ready") await result.dispose();
+    if (map.sources.size !== 0 || map.layers.size !== 0) {
+      throw new Error(`${configuration.protocol} First Map workflow did not clean up its mounted map resources`);
+    }
+  }
 }
 
 async function requestJson(url, headers = {}) {
@@ -284,10 +374,10 @@ export async function collectLiveEvidence(env = process.env) {
       {
         id: "honua-demo-maplibre-quickstart",
         sampleId: "maplibre-quickstart",
-        journeyId: "compatibility-layer-query-renderable-geometry",
+        journeyId: "first-map-dual-protocol-bounded-query",
         status: "skipped",
         provider: "honua-demo",
-        endpoint: "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
+        endpoint: "https://demo.honua.io",
         authMode: "anonymous",
         attribution: "Honua canonical demo data",
         skipReason: reason,
@@ -339,11 +429,16 @@ export async function collectLiveEvidence(env = process.env) {
   const awsBaseUrl = "https://earth-search.aws.element84.com/v1";
   const quickstartServiceId = env.HONUA_BENCH_LIVE_QUICKSTART_SERVICE_ID ?? "maui-parcels";
   const quickstartLayerId = Number(env.HONUA_BENCH_LIVE_QUICKSTART_LAYER_ID ?? "1");
+  const quickstartOgcCollectionId =
+    env.HONUA_BENCH_LIVE_QUICKSTART_OGC_COLLECTION_ID ?? String(quickstartLayerId);
   if (!/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(quickstartServiceId)) {
     throw new Error("Quickstart live service id contains unsupported characters");
   }
   if (!Number.isInteger(quickstartLayerId) || quickstartLayerId < 0) {
     throw new Error("Quickstart live layer id must be a non-negative integer");
+  }
+  if (!/^[a-zA-Z0-9_.~-]+$/.test(quickstartOgcCollectionId)) {
+    throw new Error("Quickstart live OGC collection id contains unsupported characters");
   }
   const quickstartLayerUrl = `${honuaBaseUrl}/rest/services/${quickstartServiceId
     .split("/")
@@ -455,17 +550,15 @@ export async function collectLiveEvidence(env = process.env) {
     probeTarget({
       id: "honua-demo-maplibre-quickstart",
       sampleId: "maplibre-quickstart",
-      journeyId: "compatibility-layer-query-renderable-geometry",
+      journeyId: "first-map-dual-protocol-bounded-query",
       provider: "honua-demo",
-      endpoint: quickstartLayerUrl,
-      authMode,
+      endpoint: honuaBaseUrl,
+      authMode: "anonymous",
       attribution: "Honua canonical demo data",
       skipReason: env.HONUA_BENCH_LIVE_SKIP_HONUA_REASON || undefined,
       async run() {
-        const capabilitiesUrl = `${honuaBaseUrl}/api/v1/admin/capabilities`;
-        const capabilities = await requestJson(capabilitiesUrl, authHeaders);
         const layerUrl = `${quickstartLayerUrl}?f=json`;
-        const layer = await requestJson(layerUrl, authHeaders);
+        const layer = await requestJson(layerUrl);
         if (layer.body?.error || layer.body?.id !== quickstartLayerId || typeof layer.body?.name !== "string") {
           throw new Error("Quickstart GeoServices layer metadata was unavailable or mismatched");
         }
@@ -473,7 +566,7 @@ export async function collectLiveEvidence(env = process.env) {
           throw new Error("Quickstart GeoServices layer did not advertise Query");
         }
         const queryUrl = `${quickstartLayerUrl}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json`;
-        const query = await requestJson(queryUrl, authHeaders);
+        const query = await requestJson(queryUrl);
         if (query.body?.error || !Array.isArray(query.body?.features) || query.body.features.length < 1) {
           throw new Error("Quickstart GeoServices query did not return a bounded feature result");
         }
@@ -481,26 +574,115 @@ export async function collectLiveEvidence(env = process.env) {
         if (!firstFeature?.geometry || typeof firstFeature.geometry !== "object") {
           throw new Error("Quickstart GeoServices result did not contain renderable geometry");
         }
+
+        const ogcLandingUrl = `${honuaBaseUrl}/ogc/features`;
+        const ogcLanding = await requestJson(ogcLandingUrl);
+        const landingLinks = Array.isArray(ogcLanding.body?.links) ? ogcLanding.body.links : [];
+        if (!landingLinks.some((link) => link?.rel === "conformance")) {
+          throw new Error("Quickstart OGC Features landing page did not advertise conformance");
+        }
+        const ogcConformanceUrl = `${ogcLandingUrl}/conformance`;
+        const ogcConformance = await requestJson(ogcConformanceUrl);
+        const conformsTo = Array.isArray(ogcConformance.body?.conformsTo)
+          ? ogcConformance.body.conformsTo
+          : [];
+        if (
+          !conformsTo.includes("http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core") ||
+          !conformsTo.includes("http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson")
+        ) {
+          throw new Error("Quickstart OGC Features endpoint did not advertise Core and GeoJSON conformance");
+        }
+        const ogcCollectionsUrl = `${ogcLandingUrl}/collections`;
+        const ogcCollections = await requestJson(ogcCollectionsUrl);
+        const collection = Array.isArray(ogcCollections.body?.collections)
+          ? ogcCollections.body.collections.find(
+              (candidate) => String(candidate?.id) === quickstartOgcCollectionId,
+            )
+          : undefined;
+        if (!collection || typeof collection.title !== "string") {
+          throw new Error("Quickstart OGC Features collection was unavailable or mismatched");
+        }
+        if (collection.title !== layer.body.name) {
+          throw new Error("Quickstart GeoServices layer and OGC Features collection did not identify the same source");
+        }
+        const ogcItemsUrl = `${ogcLandingUrl}/collections/${encodeURIComponent(quickstartOgcCollectionId)}/items?limit=1`;
+        const ogcItems = await requestJson(ogcItemsUrl);
+        if (
+          ogcItems.body?.type !== "FeatureCollection" ||
+          !Array.isArray(ogcItems.body?.features) ||
+          ogcItems.body.features.length < 1
+        ) {
+          throw new Error("Quickstart OGC Features query did not return a bounded FeatureCollection");
+        }
+        const firstOgcFeature = ogcItems.body.features[0];
+        if (!firstOgcFeature?.geometry || typeof firstOgcFeature.geometry !== "object") {
+          throw new Error("Quickstart OGC Features result did not contain renderable geometry");
+        }
+        const healthProbeLatencyMs =
+          layer.latencyMs +
+          query.latencyMs +
+          ogcLanding.latencyMs +
+          ogcConformance.latencyMs +
+          ogcCollections.latencyMs +
+          ogcItems.latencyMs;
+        const workflowExecutions = await withFirstMapRuntime(async (runtime) => [
+          await qualifyFirstMapProtocol(runtime, {
+            endpoint: quickstartLayerUrl,
+            mode: "public-live",
+            protocol: "geoservices-feature-service",
+            sourceId: String(quickstartLayerId),
+            maxFeatures: 1,
+            query: { returnGeometry: true, pagination: { limit: 1 } },
+          }),
+          await qualifyFirstMapProtocol(runtime, {
+            endpoint: ogcLandingUrl,
+            mode: "public-live",
+            protocol: "ogc-features",
+            sourceId: quickstartOgcCollectionId,
+            maxFeatures: 1,
+            query: { returnGeometry: true, pagination: { limit: 1 } },
+          }),
+        ]);
+        const workflowLatencyMs = workflowExecutions.reduce((total, execution) => total + execution.runtimeMs, 0);
+        const totalLatencyMs = healthProbeLatencyMs + workflowLatencyMs;
         return {
-          endpointVersion: capabilities.body?.data?.serverVersion ?? null,
-          protocolVersion: "geoservices-feature-service",
-          latencyMs: capabilities.latencyMs + layer.latencyMs + query.latencyMs,
+          endpointVersion: null,
+          protocolVersion: "geoservices-feature-service+ogc-api-features-1",
+          latencyMs: totalLatencyMs,
           checks: {
-            compatibilityChecked: true,
-            serviceId: quickstartServiceId,
-            layerId: quickstartLayerId,
-            layerName: layer.body.name,
-            geometryType: layer.body.geometryType ?? "unreported",
-            returnedFeatureCount: query.body.features.length,
-            renderableGeometry: true,
+            protocolsObserved: ["geoservices", "ogc-features"],
+            sharedSourceTitle: layer.body.name,
+            rawEndpointHealth: {
+              kind: "availability-only",
+              requestCount: 6,
+              latencyMs: healthProbeLatencyMs,
+              geoservices: {
+                serviceId: quickstartServiceId,
+                layerId: quickstartLayerId,
+                geometryType: layer.body.geometryType ?? "unreported",
+                returnedFeatureCount: query.body.features.length,
+                renderableGeometry: true,
+              },
+              ogcFeatures: {
+                collectionId: quickstartOgcCollectionId,
+                coreConformance: true,
+                geoJsonConformance: true,
+                returnedFeatureCount: ogcItems.body.features.length,
+                renderableGeometry: true,
+              },
+            },
+            publicSdkWorkflowQualification: {
+              kind: "connect-inspect-explain-bounded-query-mount",
+              executions: workflowExecutions,
+              cleanup: "verified-empty-map-host-after-each-execution",
+            },
           },
           journey: {
-            id: "compatibility-layer-query-renderable-geometry",
-            timeToFirstSuccessfulInteractionMs:
-              capabilities.latencyMs + layer.latencyMs + query.latencyMs,
+            id: "first-map-dual-protocol-bounded-query",
+            timeToFirstSuccessfulInteractionMs: totalLatencyMs,
             visibleOutcome: {
-              kind: "geoservices-renderable-feature",
-              itemCount: query.body.features.length,
+              kind: "dual-protocol-public-sdk-workflow-mounted-feature",
+              itemCount: workflowExecutions.reduce((total, execution) => total + execution.featureCount, 0),
             },
             console: {
               applicable: false,
@@ -512,15 +694,22 @@ export async function collectLiveEvidence(env = process.env) {
             },
           },
           freshness: {
-            observedAt: query.observedAt,
-            serverDate: query.serverDate,
+            observedAt: ogcItems.observedAt,
+            serverDate: ogcItems.serverDate ?? query.serverDate,
             sourceDataTimestamp: null,
-            etag: layer.etag ?? query.etag,
-            lastModified: layer.lastModified ?? query.lastModified,
+            etag: ogcItems.etag ?? layer.etag ?? query.etag,
+            lastModified: ogcItems.lastModified ?? layer.lastModified ?? query.lastModified,
           },
           provenance: {
-            source: `honua-demo:${quickstartServiceId}:${quickstartLayerId}`,
-            requestedUrls: [capabilitiesUrl, layerUrl, queryUrl],
+            source: `honua-demo:${quickstartServiceId}:${quickstartLayerId}:geoservices+ogc-features`,
+            requestedUrls: [
+              layerUrl,
+              queryUrl,
+              ogcLandingUrl,
+              ogcConformanceUrl,
+              ogcCollectionsUrl,
+              ogcItemsUrl,
+            ],
           },
         };
       },
@@ -617,13 +806,14 @@ async function main() {
   const persisted = selectedEvidence ?? evidence;
   await mkdir(path.dirname(output), { recursive: true });
   await writeFile(output, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
+  const selection = selectedEvidence ? `${receiptSampleId}: ${selectedEvidence.status}; ` : "";
   process.stdout.write(
-    `Live benchmark evidence: ${evidence.run.status}; ${evidence.targets.length} target(s); ${output}\n`,
+    `Live benchmark evidence: ${evidence.run.status}; ${selection}${evidence.targets.length} target(s); ${output}\n`,
   );
   for (const target of evidence.targets) {
     process.stdout.write(`  ${target.id}: ${target.status}${target.skipReason ? ` (${target.skipReason})` : ""}\n`);
   }
-  if (options.strict && evidence.run.status === "failed") process.exitCode = 1;
+  if (options.strict && (selectedEvidence?.status ?? evidence.run.status) === "failed") process.exitCode = 1;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

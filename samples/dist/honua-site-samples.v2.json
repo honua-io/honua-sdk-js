@@ -757,18 +757,17 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "Honua × MapLibre flagship workflow",
-      "summary": "Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence.",
+      "title": "First Map: public endpoint to MapLibre",
+      "summary": "Discovers GeoServices or OGC Features, explains a bounded query, and mounts an inspectable MapLibre map.",
       "sourceKind": "root-example",
       "track": "recipe",
       "journeyId": "first-map",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Remove the rejected browser credential variables from the supported configuration surface before journey qualification.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Canonical anonymous GeoServices and OGC Features First Map journey, enrolled for full golden-browser evidence."
       },
-      "validationProfile": "browser-recipe",
+      "validationProfile": "golden-browser",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/maplibre-quickstart",
@@ -781,14 +780,16 @@
       "capabilities": [
         "discovery",
         "explain-plan",
+        "filter",
         "linked-views",
         "map",
+        "popup",
         "provenance",
         "query"
       ],
       "protocols": [
         "geoservices",
-        "honua"
+        "ogc-features"
       ],
       "renderers": [
         "maplibre"
@@ -796,11 +797,10 @@
       "data": {
         "mode": "hybrid",
         "authMode": "anonymous",
-        "provenance": "Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.",
+        "provenance": "Versioned Honolulu fixture replay or an anonymous public GeoServices/OGC source, identified in runtime evidence.",
         "attribution": "Source attribution and protocol identity are shown beside the map.",
-        "freshness": "Fixture capture time and data version, or live response observation time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The source still reads browser API-key and bearer-token variables in order to reject them."
+        "freshness": "Fixture capture time or live response observation time.",
+        "configurationStatus": "approved"
       },
       "evidence": {
         "fixture": {
@@ -811,10 +811,10 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json",
-          "expiresAt": "2026-08-12T02:18:02.654Z"
+          "expiresAt": "2026-08-17T01:54:47.866Z"
         }
       },
-      "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
+      "expectedDegradation": "Capability misses, plan warnings, overflow, unsafe filters, and the 5-second qualification budget are explicit. A slow successful public-live map remains mounted with a warning; controlled qualification still fails its gate."
     },
     {
       "id": "mcp-gis-assistant",
@@ -1352,7 +1352,7 @@
           "targetMode": "demo-live",
           "status": "skipped",
           "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-07-26T02:18:02.730Z"
+          "expiresAt": "2026-07-30T18:58:12.274Z"
         }
       },
       "expectedDegradation": "Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile."

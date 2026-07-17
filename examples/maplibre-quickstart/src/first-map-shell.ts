@@ -1,7 +1,6 @@
 import maplibregl from "maplibre-gl";
 
 import type { Query } from "@honua/sdk-js";
-import { mountSource } from "@honua/sdk-js/map";
 import type { MountedSource, MountedSourceDiagnostics } from "@honua/sdk-js/map";
 
 import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
@@ -12,6 +11,7 @@ import type { FirstMapReady } from "./first-map-model.js";
 import {
   FIRST_MAP_RUNTIME_BUDGET_MS,
   type FirstMapShellConfig,
+  evaluateFirstMapRuntime,
   resolveFirstMapShellConfig,
   toFirstMapConfigInput,
 } from "./first-map-shell-config.js";
@@ -119,6 +119,7 @@ async function runFromForm(): Promise<void> {
   resetJourney();
   hide("workflow-error");
   hide("overflow-warning");
+  hide("runtime-warning");
   const abort = new AbortController();
   const resources: ActiveRun = { abort };
   active = resources;
@@ -143,7 +144,32 @@ async function runFromForm(): Promise<void> {
   resources.config = config;
   setMode(config.mode);
   const startedAt = performance.now();
-  const result = await runFirstMapWorkflow(config, { signal: abort.signal });
+  try {
+    await createFirstMap(shellConfig.basemapStyle, resources);
+  } catch (error) {
+    if (!abort.signal.aborted) renderFailure(error);
+    if (active === resources) active = undefined;
+    reportCleanupFailures(await disposeRun(resources));
+    setRunning(false);
+    return;
+  }
+  if (!resources.map || runId !== generation || abort.signal.aborted || shellDisposed) {
+    reportCleanupFailures(await disposeRun(resources));
+    return;
+  }
+  telemetry.emit("query-started", { sourceId: config.sourceId ?? "discovery-default", limit: config.maxFeatures });
+  const result = await runFirstMapWorkflow(config, {
+    map: resources.map,
+    signal: abort.signal,
+    mount: {
+      fitBounds: { padding: 56 },
+      hover: true,
+      popup: {
+        factory: () => new maplibregl.Popup({ maxWidth: "22rem" }),
+        render: ({ features }) => popupContent(features[0]?.properties ?? {}, "Map feature"),
+      },
+    },
+  });
   if (runId !== generation || abort.signal.aborted || shellDisposed) {
     if (result.state === "ready") resources.ready = result;
     reportCleanupFailures(await disposeRun(resources));
@@ -170,6 +196,7 @@ async function runFromForm(): Promise<void> {
     return;
   }
   resources.ready = result;
+  resources.mounted = result.mounted;
   completeStage("connect", startedAt, result.view.connection.protocol);
   completeStage("discover", startedAt, result.view.source.id);
   completeStage("explain", startedAt, result.view.strategy);
@@ -177,8 +204,7 @@ async function runFromForm(): Promise<void> {
   renderWorkflowEvidence(config, result);
   renderCopyCode(config, config.query);
   try {
-    telemetry.emit("query-started", { sourceId: result.view.source.id, limit: result.view.maxFeatures });
-    await mountReadyResult(result, shellConfig.basemapStyle, resources);
+    await nextMapIdle(resources.map);
     if (runId !== generation || abort.signal.aborted) return;
     const diagnostics = resources.mounted?.diagnostics;
     if (!diagnostics) throw new Error("First Map mount completed without diagnostics.");
@@ -186,9 +212,16 @@ async function runFromForm(): Promise<void> {
     completeStage("mount", startedAt, `${resources.mounted?.layerIds.length ?? 0} layers`);
     renderMountedDiagnostics(diagnostics);
     const firstMapDurationMs = Math.round(performance.now() - startedAt);
-    const withinRuntimeBudget = firstMapDurationMs <= FIRST_MAP_RUNTIME_BUDGET_MS;
+    const budget = evaluateFirstMapRuntime(config.mode, firstMapDurationMs);
+    const withinRuntimeBudget = budget.withinBudget;
     text("evidence-runtime", `${firstMapDurationMs} / ${FIRST_MAP_RUNTIME_BUDGET_MS} ms`);
-    setOverlay("ready", "Map ready", "Filter the source or inspect a visible feature with the keyboard.");
+    setOverlay(
+      "ready",
+      "Map ready",
+      withinRuntimeBudget
+        ? "Filter the source or inspect a visible feature with the keyboard."
+        : "The public service was slow, but its successful map remains available for inspection.",
+    );
     telemetry.emit("query-finished", { featureCount: diagnostics.featureCount, totalCount: diagnostics.totalCount });
     telemetry.emit("map-ready", {
       strategy: diagnostics.strategy,
@@ -222,10 +255,18 @@ async function runFromForm(): Promise<void> {
       firstMap: `${firstMapDurationMs} ms`,
       runtimeBudget: `${FIRST_MAP_RUNTIME_BUDGET_MS} ms (${withinRuntimeBudget ? "pass" : "exceeded"})`,
     });
-    presentation?.showDegradation(result.view.connection.diagnostics.map(({ code, message }) => `${code}: ${message}`));
+    const degradation = result.view.connection.diagnostics.map(({ code, message }) => `${code}: ${message}`);
     if (!withinRuntimeBudget) {
-      throw new Error(`First Map exceeded its ${FIRST_MAP_RUNTIME_BUDGET_MS} ms runtime budget.`);
+      const warning = budget.preserveSuccessfulMap
+        ? `First Map exceeded its ${FIRST_MAP_RUNTIME_BUDGET_MS} ms qualification budget; the successful public map remains available.`
+        : `First Map exceeded its ${FIRST_MAP_RUNTIME_BUDGET_MS} ms controlled qualification budget.`;
+      degradation.push(warning);
+      text("runtime-warning", warning);
+      show("runtime-warning");
+      presentation?.showDegradation(degradation);
+      if (!budget.preserveSuccessfulMap) throw new Error(warning);
     }
+    if (withinRuntimeBudget) presentation?.showDegradation(degradation);
   } catch (error) {
     if (!abort.signal.aborted) {
       renderFailure(error);
@@ -237,7 +278,7 @@ async function runFromForm(): Promise<void> {
   }
 }
 
-async function mountReadyResult(result: Ready, basemapStyle: string, resources: ActiveRun): Promise<void> {
+async function createFirstMap(basemapStyle: string, resources: ActiveRun): Promise<void> {
   const map = new maplibregl.Map({
     container: "map",
     style: basemapStyle,
@@ -248,17 +289,6 @@ async function mountReadyResult(result: Ready, basemapStyle: string, resources: 
   resources.map = map;
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
   await mapLoaded(map, resources.abort.signal);
-  resources.mounted = await mountSource(map, result.mount.source, {
-    ...result.mount.options,
-    signal: resources.abort.signal,
-    fitBounds: { padding: 56 },
-    hover: true,
-    popup: {
-      factory: () => new maplibregl.Popup({ maxWidth: "22rem" }),
-      render: ({ features }) => popupContent(features[0]?.properties ?? {}, "Map feature"),
-    },
-  });
-  await nextMapIdle(map);
 }
 
 async function applyFilter(): Promise<void> {

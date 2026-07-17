@@ -3,6 +3,23 @@
   "schemaVersion": 1,
   "samples": [
     {
+      "id": "maplibre-quickstart",
+      "viteConfig": "examples/maplibre-quickstart/vite.config.ts",
+      "tsconfig": "examples/maplibre-quickstart/tsconfig.json",
+      "playwrightScript": "test:playwright:quickstart",
+      "playwrightFile": "test/playwright/quickstart-map.spec.mjs",
+      "playwrightTestTitle": "First Map proves the bounded public-endpoint journey in source or packed mode",
+      "playwrightProjects": [
+        { "name": "chromium", "browserName": "chromium" },
+        { "name": "firefox", "browserName": "firefox" },
+        { "name": "webkit", "browserName": "webkit" }
+      ],
+      "evidenceProject": "chromium",
+      "sdkEntrypoints": ["@honua/sdk-js", "@honua/sdk-js/map"],
+      "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
+      "workflowSelectors": ["#endpoint-form", "#map", "#filter-form", "#copyable-code"]
+    },
+    {
       "id": "migration-workbench",
       "viteConfig": "examples/migration-workbench/vite.config.ts",
       "tsconfig": "examples/migration-workbench/tsconfig.json",

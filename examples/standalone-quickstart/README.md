@@ -1,5 +1,9 @@
 # Standalone Quickstart
 
+> Focused migration recipe: this preserves the raw GeoServices and Esri compatibility proof. New users should start
+> with [First Map](../maplibre-quickstart/README.md), which now owns the canonical anonymous public-endpoint journey.
+> Existing standalone commands and routes remain supported.
+
 The server-optional front door: this app points `@honua/sdk-js` at a **public
 Esri GeoServices endpoint** and renders it on MapLibre with **no Honua server, no
 API key, and no account**. It is the runnable proof that the SDK is a

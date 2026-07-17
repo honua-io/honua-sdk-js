@@ -1,14 +1,17 @@
 {
-  "$schema": "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
   "format": "honua.sdk.sample-evidence.v1",
   "schemaVersion": 1,
   "sampleId": "realtime-incident-dashboard",
   "lane": "live",
   "status": "skipped",
-  "reason": "Realtime feature streams are not enabled; requires Pro",
-  "observedAt": "2026-07-12T02:18:02.730Z",
+  "reason": "Live benchmark enablement is not true; live probes are opt-in",
+  "observedAt": "2026-07-17T01:55:44.153Z",
   "authMode": "anonymous",
-  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b" },
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.0-beta.0",
+    "gitCommit": "ad9ae2985d06ab88ee9d941e91506fbb97b7d96b"
+  },
   "source": {
     "provider": "honua-demo",
     "identity": "honua-demo-incident-realtime",
@@ -23,23 +26,28 @@
     "itemCount": null,
     "assertions": []
   },
-  "timing": { "totalMs": null, "firstSuccessfulInteractionMs": null },
+  "timing": {
+    "totalMs": null,
+    "firstSuccessfulInteractionMs": null
+  },
   "degradation": {
     "state": "unavailable",
-    "reasons": ["Realtime feature streams are not enabled; requires Pro"]
+    "reasons": [
+      "Live benchmark enablement is not true; live probes are opt-in"
+    ]
   },
   "realtime": {
     "snapshotAt": null,
     "cursor": null,
     "lagMs": null,
     "observationWindowMs": 12000,
-    "reconnectOutcome": "not-attempted-capability-unavailable"
+    "reconnectOutcome": "not-attempted-live-probes-disabled"
   },
   "artifacts": [
     {
       "kind": "producer-generator",
       "path": "scripts/live-benchmark-evidence.mjs",
-      "sha256": "5c43cfddeb103dca32419b4bfd008f6fba80b6a8f1d15dcd9f4bc9b8d59b2607"
+      "sha256": "275ee8f20e4284ef9e3963968b8cf563755539ef5dbb84cad9c453ba5b36cbe7"
     }
   ]
 }

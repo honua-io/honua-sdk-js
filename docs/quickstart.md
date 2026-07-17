@@ -1,125 +1,83 @@
-# Five-minute quickstart: endpoint to linked MapLibre map
+# First Map: the five-minute Honua SDK path
 
-The canonical server-connected browser workflow is the tested app in
-[`examples/maplibre-quickstart`](../examples/maplibre-quickstart/README.md). It makes the SDK's five-stage journey
-visible instead of hiding network and fallback decisions:
+The canonical first experience is the runnable [`maplibre-quickstart`](../examples/maplibre-quickstart/README.md):
 
 ```text
-connect → discover → explain → query → mount
+public endpoint → connect → discover → explain → bounded query → MapLibre mount
 ```
 
-If you do not need a Honua server, start with the
-[`standalone quickstart`](./standalone-quickstart.md). It connects directly to a public GeoServices endpoint. This page
-covers the protocol-neutral Honua lane with compatibility, discovery, planning, evidence, and linked views.
-
-## Run the deterministic lane
+It requires no Honua account, browser credential, private server, or internal import. Start with the deterministic lane:
 
 ```bash
 npm ci
 npm run demo:quickstart:mock
 ```
 
-Open the printed `quickstartMockUrl`. No account, credential, or network-hosted basemap is required. The app:
+Open the printed URL. The page explains the selected source and map strategy before it executes the query. You can apply
+a source-native filter, inspect a popup with the keyboard, and copy the same published-SDK path used by the running app.
 
-1. checks SDK/server compatibility;
-2. discovers layer metadata and constructs the protocol capability contract;
-3. explains a deterministic query plan before fetching rows;
-4. executes that accepted plan through `Dataset → Source → Query → Result`;
-5. mounts the result in MapLibre and links map, table, filter, detail, and popup state.
+## The copyable core
 
-The page also exposes provenance, capture/observation time, auth mode, SDK/server/data versions, metadata cache state,
-plan fingerprint, pushdown, fidelity, and degradation. Fixture replay is labeled explicitly and never presented as live
-data.
+The complete protocol-neutral workflow is in
+[`examples/maplibre-quickstart/src/workflow.ts`](../examples/maplibre-quickstart/src/workflow.ts). It is held to 120
+non-comment lines and uses `createHonua()`, `connect()`, `inspect()`, `explainDataToMapStrategy()`, and `mountSource()`.
+Discovery ambiguity requires an explicit source; unsupported capability and overflow states stay visible.
 
-### What the five-minute claim measures
+The deterministic fixture covers both a GeoServices FeatureServer layer and an OGC API Features landing page. Public
+mode accepts the same two endpoint families through the same workflow.
 
-Required CI sets up the pinned Node runtime, then starts a monotonic clock before `npm ci`, provisions Chromium, builds
-this fixture app, and stops only after all five stages complete with renderable features and a mounted MapLibre canvas.
-The 300-second ceiling is enforced by:
+## Public endpoint mode
 
-```bash
-npm run docs:quickstart:time-to-map
-```
+Run the Vite app, paste an anonymous URL, and choose its protocol hint. Endpoint URLs must use HTTP(S) and cannot include
+userinfo, query parameters, or fragments. Basemap style URLs follow the same credential-free rule.
 
-CI uploads `quickstart-time-to-map.json` on success or failure. It records the actual elapsed duration, fixture mode,
-completed stages, renderable feature count, package version, and revision; it never substitutes a configured or
-estimated duration. A local invocation measures script-to-map because dependencies and the browser are already
-installed. Only CI evidence with `cleanInstallIncluded: true` covers runtime setup and a clean install.
-
-This automated gate proves the documented path is reproducible within the budget on a fresh runner. It is not evidence
-of a first-time human usability study; that separate observation remains required before claiming the broader learning
-architecture acceptance criterion is complete.
-
-## Use an anonymous live endpoint
-
-Copy [`.env.example`](../examples/maplibre-quickstart/.env.example), point it at a public CORS-enabled Honua layer, then
-run the same app:
+For a preconfigured run:
 
 ```bash
-cp examples/maplibre-quickstart/.env.example examples/maplibre-quickstart/.env
+VITE_HONUA_FIRST_MAP_URL=https://public.example/rest/services/places/FeatureServer/0 \
+VITE_HONUA_FIRST_MAP_MODE=public-live \
+VITE_HONUA_FIRST_MAP_PROTOCOL=auto \
 npm run demo:quickstart
 ```
 
-The required live values are:
+Use `ogc-features` for an OGC API Features landing page. If it advertises multiple collections, choose one in the source
+picker; the SDK does not silently pick the first.
 
-- `VITE_HONUA_QUICKSTART_BASE_URL`
-- `VITE_HONUA_QUICKSTART_SERVICE_ID`
-- `VITE_HONUA_QUICKSTART_LAYER_ID`
-- `VITE_HONUA_QUICKSTART_DATA_VERSION`
+## What the five-minute claim measures
 
-The filter, bounded record count, basemap style, and optional snapshot timestamp are documented in the
-[sample README](../examples/maplibre-quickstart/README.md#secret-free-live-run).
+CI starts a monotonic 300-second clock before `npm ci`, provisions Chromium, builds the fixture app, starts the closed
+fixture harness, and waits for all five stages plus a mounted MapLibre canvas. Failure evidence records the exact stage.
+That is a clean-runner reproducibility bound, not a claim about how quickly every person reads the explanation.
 
-The browser quickstart rejects API keys and bearer tokens because Vite embeds environment values in public JavaScript.
-Use an anonymous endpoint or a server-side proxy/session. Protected server-only staging validation remains separate.
+The app also has a tighter 5,000 ms browser-runtime qualification budget after submission. Its build enforces raw and
+gzip ceilings from [`budgets.v1.json`](../examples/maplibre-quickstart/budgets.v1.json). Controlled fixture and evidence
+runs fail the runtime gate. A successful arbitrary public service that takes longer remains mounted and usable with an
+explicit exceeded-budget warning, so a performance miss does not erase the user's successful map.
 
-## The SDK shape
-
-The sample uses stable subpath imports and the explicitly experimental planner:
-
-```ts doc-test=compile
-import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset } from "@honua/sdk-js/contract";
-import { HonuaClient } from "@honua/sdk-js/honua";
-import { executeQueryPlan, explainQuery } from "@honua/sdk-js/query-planner";
-
-const client = new HonuaClient({ baseUrl: "https://your-public-honua.example" });
-const metadata = await client.getLayerMetadata("public-service", 0);
-const descriptor = {
-  id: "public-features",
-  protocol: "geoservices-feature-service" as const,
-  locator: { url: "https://your-public-honua.example", serviceId: "public-service", layerId: 0 },
-  capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
-  schema: { fields: metadata.fields },
-};
-const dataset = createDataset({ id: "public-map", client, sources: [descriptor] });
-const source = dataset.source("public-features");
-if (!source) throw new Error("Source resolution failed");
-
-const query = { where: "1=1", outFields: ["*"], returnGeometry: true, pagination: { limit: 25 } };
-const plan = explainQuery({ descriptor, query, sourceVersion: "public-service-2026-07" });
-const execution = await executeQueryPlan(plan, source, { sourceVersion: "public-service-2026-07" });
-console.log(execution.result.features);
-```
-
-Planning is synchronous and side-effect free. Execution validates plan integrity and source context before invoking the
-accepted step. Capability gaps and unsafe fallback bounds throw structured errors; they do not become silent empty maps.
-
-## Requests and validation
-
-A healthy startup performs three Honua requests before the basemap's own assets:
-
-1. `GET /api/v1/admin/capabilities`
-2. `GET /rest/services/{serviceId}/FeatureServer/{layerId}?f=json`
-3. `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query?...`
-
-The required CI lane is fixture-only:
+## Evidence matrix
 
 ```bash
 npm run demo:quickstart:typecheck
-npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts test/quickstart-linked-exploration.test.ts
+npm test -- test/first-map-workflow.test.ts test/quickstart-config.test.ts
 npm run demo:quickstart:build
 npm run test:playwright:quickstart
+npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode source
+npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode packed
 ```
 
-See [`quickstart-troubleshooting.md`](./quickstart-troubleshooting.md) for compatibility, discovery, configuration,
-geometry, plan, CORS, and staging diagnostics.
+The sample-kit declaration binds Chromium, Firefox, and WebKit release evidence, accessibility, responsive, console,
+screenshot, performance, fixture, packed-build, and live gates to this exact sample and test identity. PR validation is
+deterministic and network-closed. `npm run bench:live` and `npm run test:quickstart:staging` are separate scheduled,
+anonymous-live checks.
+
+## Where the other quickstarts fit
+
+- [`standalone-quickstart`](../examples/standalone-quickstart/README.md) is the focused Esri compatibility/migration recipe.
+- [`endpoint-to-map`](../examples/endpoint-to-map/README.md) is the minimal four-statement `mountSource()` recipe.
+- [`react-quickstart`](../examples/react-quickstart/README.md) is the focused React provider/hooks recipe.
+
+Their existing commands and site routes remain valid, but new users should begin with First Map so discovery, capability
+truth, bounds, provenance, and cleanup are learned once.
+
+See [`quickstart-troubleshooting.md`](./quickstart-troubleshooting.md) for endpoint, CORS, capability, geometry, and browser
+diagnostics.

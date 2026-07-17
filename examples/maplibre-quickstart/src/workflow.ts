@@ -1,26 +1,16 @@
 import { HonuaCapabilityNotSupportedError, HonuaHttpError, createHonua, isHonuaError } from "@honua/sdk-js";
 import type { ConnectionInspection, HonuaKernel } from "@honua/sdk-js";
-import { explainDataToMapStrategy } from "@honua/sdk-js/map";
+import { explainDataToMapStrategy, mountSource } from "@honua/sdk-js/map";
 
 import type { FirstMapConfig } from "./first-map-config.js";
-import type {
-  FirstMapConnectionView,
-  FirstMapFailure,
-  FirstMapSourceChoice,
-  FirstMapSourceDescriptor,
-  FirstMapWorkflowOptions,
-  FirstMapWorkflowResult,
-} from "./first-map-model.js";
+import type { FirstMapConnectionView, FirstMapFailure, FirstMapSourceChoice } from "./first-map-model.js";
+import type { FirstMapSourceDescriptor, FirstMapWorkflowOptions, FirstMapWorkflowResult } from "./first-map-model.js";
 
-export type {
-  FirstMapReady,
-  FirstMapStrategyBoundary,
-  FirstMapWorkflowResult,
-} from "./first-map-model.js";
+export type { FirstMapReady, FirstMapStrategyBoundary, FirstMapWorkflowResult } from "./first-map-model.js";
 
 export async function runFirstMapWorkflow<T = Record<string, unknown>>(
   config: FirstMapConfig<T>,
-  options: FirstMapWorkflowOptions = {},
+  options: FirstMapWorkflowOptions<T>,
 ): Promise<FirstMapWorkflowResult<T>> {
   const honua = createHonua();
   try {
@@ -48,6 +38,11 @@ export async function runFirstMapWorkflow<T = Record<string, unknown>>(
     const seedOptions = { query: config.query, maxGeoJsonFeatures: config.maxFeatures };
     const explanation = await explainDataToMapStrategy(source, seedOptions);
     const mount = Object.freeze({ source, options: Object.freeze({ ...seedOptions, strategy: explanation.strategy }) });
+    const mounted = await mountSource(options.map, source, {
+      ...options.mount,
+      ...mount.options,
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
     return {
       state: "ready",
       view: {
@@ -59,7 +54,11 @@ export async function runFirstMapWorkflow<T = Record<string, unknown>>(
         maxFeatures: config.maxFeatures,
       },
       mount,
-      dispose: () => honua.dispose(),
+      mounted,
+      dispose: async () => {
+        mounted.dispose();
+        await honua.dispose();
+      },
     };
   } catch (error) {
     await honua.dispose();

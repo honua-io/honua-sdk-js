@@ -19,10 +19,7 @@ jobs:
       HONUA_STAGING_BASE_URL: ${{ vars.HONUA_STAGING_BASE_URL }}
       HONUA_STAGING_SERVICE_ID: ${{ vars.HONUA_STAGING_SERVICE_ID }}
       HONUA_STAGING_LAYER_ID: ${{ vars.HONUA_STAGING_LAYER_ID }}
-      HONUA_STAGING_WHERE: ${{ vars.HONUA_STAGING_WHERE }}
       HONUA_STAGING_RESULT_RECORD_COUNT: ${{ vars.HONUA_STAGING_RESULT_RECORD_COUNT }}
-      HONUA_STAGING_API_KEY: ${{ secrets.HONUA_STAGING_API_KEY }}
-      HONUA_STAGING_BEARER_TOKEN: ${{ secrets.HONUA_STAGING_BEARER_TOKEN }}
       HONUA_QUICKSTART_STAGING_SUMMARY_FILE: test-results/quickstart-staging-summary.json
     steps:
       - uses: actions/checkout@v7
@@ -80,13 +77,11 @@ jobs:
           const lines = [
             "## Quickstart Staging Summary",
             "",
-            `- Base URL: \`${summary.baseUrl}\``,
-            `- Service / Layer: \`${summary.serviceId}\` / \`${summary.layerId}\``,
-            `- Server Version: \`${summary.serverVersion}\``,
-            `- Release Channel: \`${summary.releaseChannel}\``,
-            `- Feature Count: \`${summary.featureCount}\` (${summary.renderableFeatureCount} renderable)`,
-            `- Geometry Types: \`${summary.geometryTypes.join(", ")}\``,
-            `- Query Duration: \`${summary.queryDurationMs} ms\``,
+            `- Endpoint origin: \`${summary.endpointOrigin}\``,
+            `- Protocol / source: \`${summary.protocol}\` / \`${summary.sourceId}\``,
+            `- Metadata cache: \`${summary.cacheStatus}\``,
+            `- Strategy: \`${summary.strategy}\``,
+            `- Feature count: \`${summary.featureCount}\` (${summary.geometryCount} with geometry)`,
           ];
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
           EOF

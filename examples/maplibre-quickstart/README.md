@@ -84,11 +84,15 @@ kernel, form listeners, global hooks, and sample-kit presentation. It is idempot
 [`budgets.v1.json`](./budgets.v1.json) pins the browser first-map ceiling at 5,000 ms and sets raw/gzip ceilings for the
 complete application JavaScript, CSS, and output tree. `npm run demo:quickstart:build` fails if any bundle ceiling is
 exceeded. The repository-wide clean-install-to-first-map gate separately keeps the complete `npm ci` → browser → usable
-map path under 300 seconds.
+map path under 300 seconds. A controlled fixture or qualification run fails the 5-second gate. A successful arbitrary
+public service that takes longer remains mounted and usable with an explicit exceeded-budget warning.
 
-The S3 portfolio slice will enroll this finished interaction shell in the shared source/packed and release-browser evidence
-matrix. The S2 deterministic browser smoke is network-closed and already covers accessibility, responsive behavior,
-console cleanliness, performance, and fixture cleanup.
+The sample is enrolled in the shared source/packed and release-browser evidence matrix. Its deterministic browser smoke
+is network-closed and covers accessibility, responsive behavior, console cleanliness, performance, and fixture cleanup.
+The scheduled live producer records raw endpoint-health probes separately, then anonymously executes the real
+`runFirstMapWorkflow` connect → inspect → explain → bounded query → mount path against the same Maui parcels source
+through both GeoServices and OGC Features. Each workflow must mount geometry within 5 seconds and clean up its source and
+layers; either protocol failing marks the First Map evidence failed rather than silently accepting partial coverage.
 
 ## Validation
 
@@ -97,13 +101,15 @@ npm run demo:quickstart:typecheck
 npm test -- test/first-map-workflow.test.ts test/quickstart-config.test.ts
 npm run demo:quickstart:build
 npm run test:playwright:quickstart
+npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode source
+npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode packed
 ```
 
 The browser test covers both fixture protocols, the plan, filter, popup, copied code, desktop/mobile layout, keyboard and
 axe checks, zero page/console errors, no external fixture requests, and explicit cleanup.
 
-S3 will reclassify the overlapping standalone, four-statement bridge, and React apps as focused recipes while preserving
-their existing routes and commands. This sample owns the interaction design for the canonical First Map learning path.
+The overlapping standalone, four-statement bridge, and React apps remain focused recipes with their existing routes and
+commands. This sample owns the interaction design for the canonical First Map learning path.
 
 See [`docs/quickstart.md`](../../docs/quickstart.md) for the learning path and
 [`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md) for diagnostics.

@@ -1,5 +1,9 @@
 # Standalone Quickstart: The SDK Against Any Public Endpoint
 
+This guide is now the focused GeoServices and ArcGIS migration reference. The canonical first-run experience is
+[`First Map`](../examples/maplibre-quickstart/README.md), which carries anonymous GeoServices and OGC Features discovery,
+strategy disclosure, filtering, popup inspection, source/packed evidence, and lifecycle cleanup in one journey.
+
 `@honua/sdk-js` is a typed geospatial service client first and a Honua client
 second. Its protocol clients speak raw **Esri GeoServices**, so they work against
 *any* ArcGIS Server / ArcGIS Online endpoint with **no Honua server, no API key,

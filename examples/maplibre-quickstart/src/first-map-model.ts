@@ -1,5 +1,11 @@
 import type { Capability, ConnectionInspection, Source } from "@honua/sdk-js";
-import type { DataToMapDiagnostic, DataToMapStrategy, MountSourceOptions } from "@honua/sdk-js/map";
+import type {
+  DataToMapDiagnostic,
+  DataToMapLibreMap,
+  DataToMapStrategy,
+  MountSourceOptions,
+  MountedSource,
+} from "@honua/sdk-js/map";
 
 import type { FirstMapConfig } from "./first-map-config.js";
 
@@ -39,6 +45,7 @@ export interface FirstMapReady<T> {
   readonly state: "ready";
   readonly view: FirstMapViewModel;
   readonly mount: FirstMapStrategyBoundary<T>;
+  readonly mounted: MountedSource<T>;
   dispose(): Promise<void>;
 }
 
@@ -56,7 +63,9 @@ export interface FirstMapFailure {
 
 export type FirstMapWorkflowResult<T> = FirstMapReady<T> | FirstMapSourceSelection | FirstMapFailure;
 
-export interface FirstMapWorkflowOptions {
+export interface FirstMapWorkflowOptions<T = Record<string, unknown>> {
+  readonly map: DataToMapLibreMap;
+  readonly mount?: Readonly<Omit<MountSourceOptions<T>, "maxGeoJsonFeatures" | "query" | "signal" | "strategy">>;
   readonly fetchFn?: typeof fetch;
   readonly signal?: AbortSignal;
 }

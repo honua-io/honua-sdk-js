@@ -1,5 +1,9 @@
 # Honua React Quickstart
 
+> Focused framework recipe: learn endpoint discovery and the bounded map workflow in
+> [First Map](../maplibre-quickstart/README.md), then use this app for React provider, hook, selection, and StrictMode
+> integration. Existing React commands and routes remain supported.
+
 Browser sample for the `@honua/sdk-js/react` bindings (published standalone as `@honua/react`). It demonstrates:
 
 - an **externally-created plain `maplibre-gl` map** owned by the app (the `@vis.gl/react-maplibre` interop shape), published to Honua through `HonuaMapProvider`

@@ -49,8 +49,8 @@ export function resolveFirstMapConfig<T = Record<string, unknown>>(input: FirstM
     throw new RangeError("First Map query pagination.limit must be a positive safe integer.");
   }
   const query = Object.freeze({
-    returnGeometry: true,
     ...input.query,
+    returnGeometry: true,
     pagination: Object.freeze({ ...input.query?.pagination, limit: Math.min(requestedLimit, maxFeatures) }),
   }) as Readonly<Omit<Query<T>, "signal">>;
   return Object.freeze({
