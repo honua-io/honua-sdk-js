@@ -26,3 +26,29 @@ projection from a pinned SDK commit or published npm tarball. It must not infer
 stability from `package.json` export presence. The v1 sample contract remains
 available only as a frozen compatibility surface for consumers completing
 their v2 migration.
+
+## Versioned gallery handoff
+
+The SDK also publishes
+[`honua-site-consumer-handoff.v1.json`](../samples/dist/honua-site-consumer-handoff.v1.json).
+It is the content-addressed consumer projection for the gallery rather than a
+second application implementation. It joins the v2 presentation projection,
+the generated capability-to-sample matrix, and current golden visual evidence;
+then exposes canonical public cards, filter dimensions, visible coverage gaps,
+legacy route dispositions, and lifecycle replacement or retirement notices.
+
+Public detail routes are stable `samples/<sample-id>.html` paths. Existing
+SDK-owned aliases use permanent redirects to those paths. Internal fixtures and
+site-owned exceptions require explicit status pages and cannot be silently
+redirected to unrelated samples. External listings use only the canonical
+paths. Executable source remains in this repository and is represented only by
+repository/path references in the handoff.
+
+The generated
+[`honua-site-consumer.v3.json`](../samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json)
+fixture pins the handoff digest and expected task, capability, protocol,
+keyboard, accessibility, and desktop/mobile behavior. These are requirements
+for the presentation consumer. Publishing the SDK artifact does not by itself
+prove that `honua-site` has adopted it: site CI must validate the fixture and
+pass its static build plus browser accessibility/responsive smoke before the
+cross-repository rollout is complete.

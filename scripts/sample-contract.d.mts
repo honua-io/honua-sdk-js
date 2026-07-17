@@ -109,7 +109,12 @@ export interface CapabilitySampleMatrix {
     supportStatus: string;
     coverage: MatrixCoverage;
   }>;
-  samples: Array<Record<string, unknown> & { id: string; qualification: { state: SampleCoverageState } }>;
+  samples: Array<
+    Record<string, unknown> & {
+      id: string;
+      qualification: Record<string, unknown> & { state: SampleCoverageState };
+    }
+  >;
   evidenceBindings: MatrixEvidenceBinding[];
   protocolOperations: Array<Record<string, unknown> & { id: string; coverage: MatrixCoverage }>;
   supportClaims: Array<Record<string, unknown> & { id: string; coverage: MatrixCoverage }>;
@@ -157,6 +162,79 @@ export interface GoldenJourneyVisualEvidence {
     semanticEvidence: MatrixReceiptEvidenceBinding[];
     liveEvidence: Record<string, unknown>;
   }>;
+}
+
+export interface SiteConsumerCard {
+  id: string;
+  title: string;
+  summary: string;
+  canonicalPath: string;
+  track: "golden" | "recipe" | "lab";
+  journey: { id: string; title: string; status: "planned" | "qualified" } | null;
+  source: { repository: "honua-io/honua-sdk-js"; path: string; docsPath: string };
+  sdk: { package: "@honua/sdk-js"; version: string };
+  tasks: string[];
+  capabilities: string[];
+  protocols: string[];
+  catalogProtocols: string[];
+  renderers: string[];
+  data: Record<string, unknown> & { mode: string; authMode: string };
+  supportTier: string;
+  lifecycle: Record<string, unknown> & { state: string; reason: string };
+  evidence: Record<string, unknown>;
+  expectedDegradation: string;
+  qualification: Record<string, unknown> & { state: SampleCoverageState };
+  evidenceBindingId: string | null;
+  visualEvidence: GoldenJourneyVisualEvidence["qualifiedGoldenJourneys"][number] | null;
+  searchText: string;
+}
+
+export interface SiteConsumerHandoff {
+  format: "honua.site.sdk-sample-consumer-handoff.v1";
+  schemaVersion: 1;
+  sdk: { package: string; version: string };
+  ownership: Record<string, unknown>;
+  inputs: Record<
+    "siteProjection" | "capabilityMatrix" | "visualEvidence",
+    {
+      path: string;
+      schemaPath: string;
+      format: string;
+      schemaVersion: number;
+      bytes: number;
+      sha256: string;
+    }
+  >;
+  policy: Record<string, unknown> & { interaction: Record<string, unknown> };
+  filters: Record<string, string[]>;
+  counts: Record<string, unknown> & { cards: number; qualifiedJourneys: number };
+  cards: SiteConsumerCard[];
+  qualifiedJourneys: Array<Record<string, unknown> & { journeyId: string; sampleId: string }>;
+  canonicalRoutes: Array<Record<string, unknown> & { sampleId: string; path: string }>;
+  legacyRoutes: Array<
+    Record<string, unknown> & {
+      path: string;
+      routeIds: string[];
+      resolution: "canonical-sample" | "not-public" | "site-exception";
+      reason: string;
+    }
+  >;
+  lifecycleNotices: Array<Record<string, unknown>>;
+  gaps: Array<Record<string, unknown>>;
+}
+
+export interface SiteConsumerFixtureV3 {
+  format: "honua.site.sdk-sample-consumer-fixture.v3";
+  schemaVersion: 3;
+  accepts: Record<string, unknown>;
+  input: Record<string, unknown>;
+  assertions: Record<string, unknown>;
+  filterCases: Array<{
+    id: string;
+    filters: Record<string, string>;
+    expectedSampleIds: string[];
+  }>;
+  interaction: Record<string, unknown>;
 }
 
 export interface BrowserArtifactManifest {
@@ -224,6 +302,45 @@ export function validateGoldenJourneyVisualEvidence(
   visualEvidence: unknown,
   catalog: SampleCatalog,
   qualificationEvidence: QualificationEvidenceInventory,
+): Promise<void>;
+export function generateSiteConsumerHandoff(
+  projection: Record<string, unknown>,
+  matrix: CapabilitySampleMatrix,
+  visualEvidence: GoldenJourneyVisualEvidence,
+): SiteConsumerHandoff;
+export function validateSiteConsumerHandoff(
+  handoff: unknown,
+  inputs?: {
+    projection?: Record<string, unknown>;
+    matrix?: CapabilitySampleMatrix;
+    visualEvidence?: GoldenJourneyVisualEvidence;
+    catalog?: SampleCatalog;
+    packageJson?: Record<string, unknown>;
+    supportTruth?: Record<string, unknown>;
+    qualificationEvidence?: QualificationEvidenceInventory;
+    authoritiesValidated?: boolean;
+    verifyCheckout?: boolean;
+  },
+): Promise<void>;
+export function filterSiteConsumerCards(
+  cards: SiteConsumerCard[],
+  filters?: {
+    text?: string;
+    task?: string;
+    capability?: string;
+    protocol?: string;
+    renderer?: string;
+    dataMode?: string;
+    authMode?: string;
+    supportTier?: string;
+    lifecycleState?: string;
+    qualificationState?: string;
+  },
+): SiteConsumerCard[];
+export function generateSiteConsumerFixtureV3(handoff: SiteConsumerHandoff): SiteConsumerFixtureV3;
+export function validateSiteConsumerFixtureV3(
+  fixture: unknown,
+  handoff: SiteConsumerHandoff,
 ): Promise<void>;
 export function validateCapabilitySampleMatrix(
   matrix: unknown,

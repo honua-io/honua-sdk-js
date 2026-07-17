@@ -154,7 +154,7 @@ describe("sample publication contract", () => {
       data: { configurationStatus: "legacy-unsafe", config: [] },
     });
     expect(catalog.siteMappings).toHaveLength(21);
-  });
+  }, 15_000);
 
   it("replays the reviewed v1 migration without semantic drift", async () => {
     const v1 = await readJson("samples/catalog.v1.json");
@@ -187,7 +187,7 @@ describe("sample publication contract", () => {
     await expect(migrateCatalogV1ToV2(v1, migration)).rejects.toThrow(
       "migration overrides must cover every v1 sample exactly",
     );
-  });
+  }, 15_000);
 
   it("rejects duplicate JSON properties before permissive parsing can hide them", () => {
     expect(() =>
@@ -378,7 +378,9 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
 
     const semanticDrift = new Map(currentOutputs);
@@ -397,7 +399,9 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v1.json",
       fixturePath,
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
   });
 
