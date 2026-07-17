@@ -15,7 +15,7 @@
  * @module
  */
 
-import { HonuaSdkError } from "../core/error-envelope.js";
+import { HonuaSdkError, withHonuaErrorClassification } from "../core/error-base.js";
 
 // ── Public contracts ─────────────────────────────────────────────
 
@@ -122,8 +122,18 @@ export interface TemporalPlayback {
 /** Raised for invalid playback options. @experimental */
 export class HonuaTemporalPlaybackError extends HonuaSdkError {
   public constructor(message: string) {
-    super("map.temporal-playback.invalid-option", message);
-    this.name = "HonuaTemporalPlaybackError";
+    super(
+      "map.temporal-playback.invalid-option",
+      message,
+      withHonuaErrorClassification(
+        {},
+        "map.temporal-playback.invalid-option",
+        "HonuaTemporalPlaybackError",
+        "map",
+        "validation",
+        false,
+      ),
+    );
   }
 }
 

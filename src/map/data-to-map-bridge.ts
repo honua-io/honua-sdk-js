@@ -14,7 +14,13 @@
 
 import type { QueryTileSourceDescriptor } from "../contract/tiles.js";
 import type { Query, Result, Source } from "../contract/types.js";
-import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorOptions,
+  HonuaSdkError,
+  mergeHonuaErrorContext,
+  ownHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import type { FeatureStateMap, HoverHandle, MapEventTarget } from "../interactions/feature-state.js";
 import { createHoverHandler } from "../interactions/feature-state.js";
@@ -133,17 +139,34 @@ export type DataToMapBridgeErrorCode =
 
 /** A stable, machine-readable bridge failure. @experimental */
 export class HonuaDataToMapBridgeError extends HonuaSdkError {
+  public declare readonly code: DataToMapBridgeErrorCode;
+  public declare readonly detail?: Readonly<Record<string, unknown>> | undefined;
+
   public constructor(
-    public readonly code: DataToMapBridgeErrorCode,
+    code: DataToMapBridgeErrorCode,
     message: string,
-    public readonly detail?: Readonly<Record<string, unknown>>,
+    detail?: Readonly<Record<string, unknown>> | undefined,
     options: HonuaErrorOptions = {},
   ) {
-    super(DATA_TO_MAP_ERROR_CODES[code], message, {
-      ...options,
-      context: mergeHonuaErrorContext(detail, options.context),
-    });
-    this.name = "HonuaDataToMapBridgeError";
+    super(
+      DATA_TO_MAP_ERROR_CODES[code],
+      message,
+      withHonuaErrorClassification(
+        options,
+        DATA_TO_MAP_ERROR_CODES[code],
+        "HonuaDataToMapBridgeError",
+        "map",
+        code === "map-mutation-failed"
+          ? "internal"
+          : code === "interaction-unsupported" || code === "filter-unsupported"
+            ? "capability"
+            : "validation",
+        false,
+        mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
+      ),
+    );
+    this.code = code;
+    this.detail = detail;
   }
 }
 

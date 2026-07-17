@@ -8,7 +8,7 @@ import type {
   Source,
   SourceDescriptor,
 } from "../contract/types.js";
-import { type HonuaErrorOptions, HonuaSdkError } from "../core/error-envelope.js";
+import { type HonuaErrorOptions, HonuaSdkError, withHonuaErrorClassification } from "../core/error-base.js";
 import type { EsriGeometryType, EsriSpatialRel } from "../core/types.js";
 import type { GeoParquetResourceHandleV1, GeoParquetResourceResolver } from "./resource.js";
 
@@ -556,13 +556,23 @@ export type QueryPlanningErrorCode =
   | "unsafe-materialization";
 
 export class HonuaQueryPlanningError extends HonuaSdkError {
-  public constructor(
-    public readonly code: QueryPlanningErrorCode,
-    message: string,
-    options: HonuaErrorOptions = {},
-  ) {
-    super(QUERY_PLANNING_CODES[code], message, options);
-    this.name = "HonuaQueryPlanningError";
+  public declare readonly code: QueryPlanningErrorCode;
+
+  public constructor(code: QueryPlanningErrorCode, message: string, options: HonuaErrorOptions = {}) {
+    const sdkCode = QUERY_PLANNING_CODES[code];
+    super(
+      sdkCode,
+      message,
+      withHonuaErrorClassification(
+        options,
+        sdkCode,
+        "HonuaQueryPlanningError",
+        "query",
+        code === "invalid-query" || code === "unsafe-materialization" ? "validation" : "capability",
+        false,
+      ),
+    );
+    this.code = code;
   }
 }
 
@@ -579,14 +589,30 @@ export type QueryPlanExecutionErrorCode =
   | "resource-execution-failed";
 
 export class HonuaQueryPlanExecutionError extends HonuaSdkError {
+  public declare readonly code: QueryPlanExecutionErrorCode;
+  public declare readonly reason?: QueryPlanExecutionFailureReason | undefined;
+
   public constructor(
-    public readonly code: QueryPlanExecutionErrorCode,
+    code: QueryPlanExecutionErrorCode,
     message: string,
     options: HonuaErrorOptions = {},
-    public readonly reason?: QueryPlanExecutionFailureReason,
+    reason?: QueryPlanExecutionFailureReason,
   ) {
-    super(QUERY_EXECUTION_CODES[code], message, options);
-    this.name = "HonuaQueryPlanExecutionError";
+    const sdkCode = QUERY_EXECUTION_CODES[code];
+    super(
+      sdkCode,
+      message,
+      withHonuaErrorClassification(
+        options,
+        sdkCode,
+        "HonuaQueryPlanExecutionError",
+        "query",
+        code.endsWith("failed") ? "internal" : code.startsWith("resource-") ? "authentication" : "validation",
+        false,
+      ),
+    );
+    this.code = code;
+    this.reason = reason;
   }
 }
 

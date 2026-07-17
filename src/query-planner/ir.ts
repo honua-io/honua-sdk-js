@@ -217,11 +217,13 @@ function optionalPlanMetadata(value: unknown, label: string): string | undefined
 const CREDENTIAL_MATERIAL =
   /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\bBasic\s+[A-Za-z0-9+/=]{8,}|\bAKIA[0-9A-Z]{16}\b|[?&;](?:access[-_]?token|id[-_]?token|refresh[-_]?token|x-amz-signature|x-goog-credential|signature|sig|token|api[-_]?key|password|secret)=[^\s&#;]*|\b(?:authorization|password|secret|token|api[-_]?key|account[-_]?key|shared[-_]?access[-_]?signature)\s*(?:=|:)\s*[^\s,;]+|[a-z][a-z0-9+.-]*:\/\/[^/\s"'<>]*@|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
 
-function containsCredentialMaterial(value: string): boolean {
+/** @internal Shared credential-text admission used by persisted v1 plan integrity. */
+export function containsCredentialMaterial(value: string): boolean {
   return CREDENTIAL_MATERIAL.test(value);
 }
 
-function containsControlCharacter(value: string): boolean {
+/** @internal Shared control-character admission used by persisted v1 plan integrity. */
+export function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);
     if (code <= 0x1f || code === 0x7f) return true;

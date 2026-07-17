@@ -7,11 +7,17 @@
  */
 
 import type { Result, Source } from "../contract/types.js";
-import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorOptions,
+  HonuaSdkError,
+  mergeHonuaErrorContext,
+  ownHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
-import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
+import { toJsonValue } from "../query-planner/canonical.js";
 import { queryFromCanonical, queryIrSourceIdentity } from "../query-planner/ir.js";
-import { hashQueryPlanV1 } from "../query-planner/planner.js";
+import { hashQueryPlanV1, hashQueryPlanV1WithSubtleCrypto } from "../query-planner/plan-integrity.js";
 import {
   type ExecuteQueryPlanOptions,
   HonuaQueryPlanExecutionError,
@@ -66,28 +72,33 @@ export type MapLibreSourceAdapterErrorCode =
 
 /** A stable, machine-readable adapter failure. */
 export class HonuaMapLibreSourceAdapterError extends HonuaSdkError {
+  public declare readonly code: MapLibreSourceAdapterErrorCode;
+  public declare readonly detail?: Readonly<Record<string, unknown>> | undefined;
+
   public constructor(
-    public readonly code: MapLibreSourceAdapterErrorCode,
+    code: MapLibreSourceAdapterErrorCode,
     message: string,
-    public readonly detail?: Readonly<Record<string, unknown>>,
+    detail?: Readonly<Record<string, unknown>> | undefined,
     options: HonuaErrorOptions = {},
   ) {
-    super(MAPLIBRE_SOURCE_ADAPTER_CODES[code], message, {
-      ...options,
-      context: mergeHonuaErrorContext(detail, options.context),
-    });
-    this.name = "HonuaMapLibreSourceAdapterError";
+    const sdkCode = `map.source-adapter.${code}` as const;
+    super(
+      sdkCode,
+      message,
+      withHonuaErrorClassification(
+        options,
+        sdkCode,
+        "HonuaMapLibreSourceAdapterError",
+        "map",
+        code === "unsupported-plan" ? "capability" : code === "map-mutation-failed" ? "internal" : "validation",
+        false,
+        mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
+      ),
+    );
+    this.code = code;
+    this.detail = detail;
   }
 }
-
-const MAPLIBRE_SOURCE_ADAPTER_CODES = {
-  disposed: "map.source-adapter.disposed",
-  "source-conflict": "map.source-adapter.source-conflict",
-  "layer-conflict": "map.source-adapter.layer-conflict",
-  "unsupported-plan": "map.source-adapter.unsupported-plan",
-  "invalid-option": "map.source-adapter.invalid-option",
-  "map-mutation-failed": "map.source-adapter.map-mutation-failed",
-} as const satisfies Record<MapLibreSourceAdapterErrorCode, `map.source-adapter.${string}`>;
 
 /** Minimal injected MapLibre map surface. */
 export interface SourceToMapLibreMap {
@@ -154,7 +165,16 @@ export function projectSourceToMapLibre<T>(
   result: Result<T>,
   options: ProjectSourceToMapLibreOptions = {},
 ): MapLibreSourceProjection {
-  assertProjectionPlanContext(source, plan);
+  assertProjectionPlanContext(source, plan, hashQueryPlanV1(plan));
+  return projectAcceptedSourceToMapLibre(source, plan, result, options);
+}
+
+function projectAcceptedSourceToMapLibre<T>(
+  source: Source<T>,
+  plan: QueryExecutionPlanV1,
+  result: Result<T>,
+  options: ProjectSourceToMapLibreOptions,
+): MapLibreSourceProjection {
   assertFeaturePlan(plan, result);
   assertQueryable(source);
   validateStaticOptions(options);
@@ -165,15 +185,8 @@ export function projectSourceToMapLibre<T>(
   const requestedKind = options.geometry === "auto" || options.geometry === undefined ? undefined : options.geometry;
   // Auto mode installs a stable three-layer geometry matrix. Refresh can then
   // move between geometry kinds through setData without structural layer churn.
-  const renderKinds: readonly MapLibreGeometryKind[] = requestedKind
-    ? [requestedKind]
-    : options.cluster
-      ? ["point"]
-      : ["point", "line", "polygon"];
-  if (
-    options.cluster &&
-    (requestedKind !== undefined ? requestedKind !== "point" : presentKinds.some((kind) => kind !== "point"))
-  ) {
+  const renderKinds = projectedGeometryKinds(options);
+  if (options.cluster && requestedKind === undefined && presentKinds.some((kind) => kind !== "point")) {
     throw new HonuaMapLibreSourceAdapterError(
       "invalid-option",
       "MapLibre clustering is supported only for point GeoJSON sources.",
@@ -287,9 +300,7 @@ export function projectSourceToMapLibre<T>(
     data: converted.data,
     promoteId: source.descriptor.schema?.primaryKey,
     attribution: options.attribution ?? source.descriptor.attribution,
-    ...(options.cluster
-      ? { cluster: true, clusterRadius: positiveInteger(options.clusterRadius, 50, "clusterRadius") }
-      : {}),
+    ...(options.cluster ? { cluster: true, clusterRadius: options.clusterRadius ?? 50 } : {}),
   };
   removeUndefined(mapSource);
 
@@ -342,38 +353,25 @@ export async function mountSourceToMapLibre<T>(
   plan: QueryExecutionPlanV1,
   options: MountSourceToMapLibreOptions = {},
 ): Promise<MountedMapLibreSource> {
-  assertProjectionPlanContext(source, plan);
+  assertProjectionPlanContext(source, plan, await hashQueryPlanV1WithSubtleCrypto(plan));
   assertFeaturePlan(plan);
   assertQueryable(source);
   validateStaticOptions(options);
   const intendedSourceId = options.sourceId ?? `honua-${safeId(source.descriptor.id)}`;
-  if (map.getSource(intendedSourceId)) {
-    throw new HonuaMapLibreSourceAdapterError(
-      "source-conflict",
-      `MapLibre source "${intendedSourceId}" already exists.`,
-      {
-        sourceId: intendedSourceId,
-      },
-    );
-  }
-  for (const layerId of projectedLayerIds(intendedSourceId, options)) {
-    if (map.getLayer(layerId)) {
-      throw new HonuaMapLibreSourceAdapterError("layer-conflict", `MapLibre layer "${layerId}" already exists.`, {
-        layerId,
-      });
-    }
-  }
+  assertMapIdsAvailable(map, intendedSourceId, projectedLayerIds(intendedSourceId, options));
   const lifecycleController = new AbortController();
   const executeOptions = {
     ...executionOptions(plan, options),
-    signal: combineSignals([lifecycleController.signal, options.signal]),
+    signal: options.signal ? AbortSignal.any([lifecycleController.signal, options.signal]) : lifecycleController.signal,
   };
   assertExecutionContext(source, plan, executeOptions);
   const result = await executeAcceptedFeaturePlan(plan, source, executeOptions.signal);
-  throwIfAborted(executeOptions.signal);
-  let projection = projectSourceToMapLibre(source, plan, result, options);
-  throwIfAborted(executeOptions.signal);
-  assertMapIdsAvailable(map, projection);
+  executeOptions.signal.throwIfAborted();
+  assertProjectionPlanContext(source, plan, await hashQueryPlanV1WithSubtleCrypto(plan));
+  let projection = projectAcceptedSourceToMapLibre(source, plan, result, options);
+  executeOptions.signal.throwIfAborted();
+  const layerIds = projection.layers.map((layer) => String(layer.id));
+  assertMapIdsAvailable(map, projection.sourceId, layerIds);
   const attemptedLayerIds: string[] = [];
   try {
     map.addSource(projection.sourceId, projection.source);
@@ -398,14 +396,14 @@ export async function mountSourceToMapLibre<T>(
 
   let state: MapLibreSourceWorkflowState = projection.state;
   let diagnostics = [...projection.diagnostics];
-  const layerIds = projection.layers.map((layer) => String(layer.id));
-  const isDisposed = (): boolean => state === "disposed";
   let refreshTail: Promise<void> = Promise.resolve();
   const runRefresh = async (refreshOptions: ExecuteQueryPlanOptions): Promise<MapLibreSourceProjection> => {
-    if (isDisposed())
+    if (state === "disposed")
       throw new HonuaMapLibreSourceAdapterError("disposed", "Cannot refresh a disposed MapLibre source mount.");
-    const effectiveSignal = combineSignals([lifecycleController.signal, refreshOptions.signal]);
-    throwIfAborted(effectiveSignal);
+    const effectiveSignal = refreshOptions.signal
+      ? AbortSignal.any([lifecycleController.signal, refreshOptions.signal])
+      : lifecycleController.signal;
+    effectiveSignal.throwIfAborted();
     const nextExecutionOptions = {
       ...executeOptions,
       ...refreshOptions,
@@ -413,11 +411,12 @@ export async function mountSourceToMapLibre<T>(
     };
     assertExecutionContext(source, plan, nextExecutionOptions);
     const nextResult = await executeAcceptedFeaturePlan(plan, source, effectiveSignal);
-    throwIfAborted(effectiveSignal);
-    if (isDisposed())
+    effectiveSignal.throwIfAborted();
+    if ((state as MapLibreSourceWorkflowState) === "disposed")
       throw new HonuaMapLibreSourceAdapterError("disposed", "MapLibre source mount was disposed during refresh.");
-    const next = projectSourceToMapLibre(source, plan, nextResult, options);
-    throwIfAborted(effectiveSignal);
+    assertProjectionPlanContext(source, plan, await hashQueryPlanV1WithSubtleCrypto(plan));
+    const next = projectAcceptedSourceToMapLibre(source, plan, nextResult, options);
+    effectiveSignal.throwIfAborted();
     const handle = map.getSource(projection.sourceId) as GeoJsonSourceHandle | undefined;
     if (!handle || typeof handle.setData !== "function") {
       throw new HonuaMapLibreSourceAdapterError(
@@ -425,7 +424,7 @@ export async function mountSourceToMapLibre<T>(
         `Mounted source "${projection.sourceId}" no longer exposes setData().`,
       );
     }
-    throwIfAborted(effectiveSignal);
+    effectiveSignal.throwIfAborted();
     const previousData = projection.source.data as AdapterGeoJsonFeatureCollection;
     try {
       handle.setData(next.source.data as AdapterGeoJsonFeatureCollection);
@@ -480,14 +479,6 @@ export async function mountSourceToMapLibre<T>(
     state = next.state;
     return projection;
   };
-  const enqueueRefresh = (refreshOptions: ExecuteQueryPlanOptions): Promise<MapLibreSourceProjection> => {
-    const result = refreshTail.then(() => runRefresh(refreshOptions));
-    refreshTail = result.then(
-      () => undefined,
-      () => undefined,
-    );
-    return result;
-  };
   return {
     strategy: "geojson-query",
     sourceId: projection.sourceId,
@@ -501,24 +492,17 @@ export async function mountSourceToMapLibre<T>(
       return diagnostics;
     },
     refresh(refreshOptions = {}) {
-      return enqueueRefresh(refreshOptions);
+      const result = refreshTail.then(() => runRefresh(refreshOptions));
+      refreshTail = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
     },
     dispose() {
       if (state === "disposed") return;
       lifecycleController.abort(new DOMException("MapLibre source mount disposed", "AbortError"));
-      const failures: unknown[] = [];
-      for (const layerId of [...layerIds].reverse()) {
-        try {
-          if (map.getLayer(layerId)) map.removeLayer(layerId);
-        } catch (error) {
-          failures.push(error);
-        }
-      }
-      try {
-        if (map.getSource(projection.sourceId)) map.removeSource(projection.sourceId);
-      } catch (error) {
-        failures.push(error);
-      }
+      const failures = rollbackMapMutation(map, projection.sourceId, layerIds);
       state = "disposed";
       if (failures.length > 0) {
         throw new HonuaMapLibreSourceAdapterError(
@@ -538,8 +522,12 @@ function assertQueryable<T>(source: Source<T>): void {
   }
 }
 
-function assertProjectionPlanContext<T>(source: Source<T>, plan: QueryExecutionPlanV1): void {
-  if (hashQueryPlanV1(plan) !== plan.fingerprint) {
+function assertProjectionPlanContext<T>(
+  source: Source<T>,
+  plan: QueryExecutionPlanV1,
+  calculatedFingerprint: `sha256:${string}` | undefined,
+): void {
+  if (calculatedFingerprint !== plan.fingerprint) {
     throw new HonuaQueryPlanExecutionError(
       "invalid-plan",
       "Plan content does not match its fingerprint; project only the accepted immutable plan.",
@@ -553,10 +541,11 @@ function assertProjectionPlanContext<T>(source: Source<T>, plan: QueryExecutionP
   const runtimeCapabilities = [...source.capabilities].sort();
   const descriptorCapabilities = [...source.descriptor.capabilities].sort();
   const planCapabilities = [...plan.ir.source.capabilities].sort();
+  const runtimeKey = JSON.stringify(toJsonValue(runtimeCapabilities));
   if (
-    canonicalStringify(toJsonValue(identity)) !== canonicalStringify(toJsonValue(plan.ir.source)) ||
-    canonicalStringify(toJsonValue(runtimeCapabilities)) !== canonicalStringify(toJsonValue(descriptorCapabilities)) ||
-    canonicalStringify(toJsonValue(runtimeCapabilities)) !== canonicalStringify(toJsonValue(planCapabilities))
+    JSON.stringify(toJsonValue(identity)) !== JSON.stringify(toJsonValue(plan.ir.source)) ||
+    runtimeKey !== JSON.stringify(toJsonValue(descriptorCapabilities)) ||
+    runtimeKey !== JSON.stringify(toJsonValue(planCapabilities))
   ) {
     throw new HonuaQueryPlanExecutionError(
       "plan-context-mismatch",
@@ -570,8 +559,10 @@ function assertExecutionContext<T>(
   plan: QueryExecutionPlanV1,
   options: ExecuteQueryPlanOptions,
 ): void {
-  const current = queryIrSourceIdentity(source.descriptor, options);
-  if (canonicalStringify(toJsonValue(current)) !== canonicalStringify(toJsonValue(plan.ir.source))) {
+  if (
+    JSON.stringify(toJsonValue(queryIrSourceIdentity(source.descriptor, options))) !==
+    JSON.stringify(toJsonValue(plan.ir.source))
+  ) {
     throw new HonuaQueryPlanExecutionError(
       "plan-context-mismatch",
       "Source identity, version, capabilities, or authorization scope changed after planning; explain a replacement plan",
@@ -613,25 +604,17 @@ function assertFeaturePlan<T>(plan: QueryExecutionPlanV1, result?: Result<T>): v
   }
 }
 
-function assertMapIdsAvailable(map: SourceToMapLibreMap, projection: MapLibreSourceProjection): void {
-  if (map.getSource(projection.sourceId)) {
-    throw new HonuaMapLibreSourceAdapterError(
-      "source-conflict",
-      `MapLibre source "${projection.sourceId}" already exists.`,
-      {
-        sourceId: projection.sourceId,
-      },
-    );
+function assertMapIdsAvailable(map: SourceToMapLibreMap, sourceId: string, layerIds: readonly string[]): void {
+  if (map.getSource(sourceId)) {
+    throw new HonuaMapLibreSourceAdapterError("source-conflict", `MapLibre source "${sourceId}" already exists.`, {
+      sourceId,
+    });
   }
-  for (const layer of projection.layers) {
-    if (map.getLayer(String(layer.id))) {
-      throw new HonuaMapLibreSourceAdapterError(
-        "layer-conflict",
-        `MapLibre layer "${String(layer.id)}" already exists.`,
-        {
-          layerId: layer.id,
-        },
-      );
+  for (const layerId of layerIds) {
+    if (map.getLayer(layerId)) {
+      throw new HonuaMapLibreSourceAdapterError("layer-conflict", `MapLibre layer "${layerId}" already exists.`, {
+        layerId,
+      });
     }
   }
 }
@@ -691,54 +674,40 @@ function executionOptions(plan: QueryExecutionPlanV1, options: MountSourceToMapL
   };
 }
 
-function combineSignals(signals: readonly (AbortSignal | undefined)[]): AbortSignal {
-  const available = signals.filter((signal): signal is AbortSignal => signal !== undefined);
-  return available.length === 1 ? (available[0] as AbortSignal) : AbortSignal.any(available);
-}
-
-function throwIfAborted(signal: AbortSignal): void {
-  signal.throwIfAborted();
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function positiveInteger(value: number | undefined, fallback: number, name: string): number {
-  if (value === undefined) return fallback;
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new HonuaMapLibreSourceAdapterError("invalid-option", `${name} must be a positive integer.`, {
-      [name]: value,
-    });
-  }
-  return value;
-}
-
 function validateStaticOptions(options: ProjectSourceToMapLibreOptions): void {
-  if (options.clusterRadius !== undefined && options.cluster !== true) {
-    throw new HonuaMapLibreSourceAdapterError("invalid-option", "clusterRadius requires cluster: true.", {
-      clusterRadius: options.clusterRadius,
-    });
-  }
-  if (options.cluster) {
-    positiveInteger(options.clusterRadius, 50, "clusterRadius");
-    if (options.geometry !== undefined && options.geometry !== "auto" && options.geometry !== "point") {
-      throw new HonuaMapLibreSourceAdapterError(
-        "invalid-option",
-        "MapLibre clustering is supported only for point GeoJSON sources.",
-        { geometry: options.geometry },
-      );
+  const { cluster, clusterRadius, geometry } = options;
+  if (clusterRadius !== undefined) {
+    if (cluster !== true) {
+      throw new HonuaMapLibreSourceAdapterError("invalid-option", "clusterRadius requires cluster: true.", {
+        clusterRadius,
+      });
     }
+    if (!Number.isInteger(clusterRadius) || clusterRadius <= 0) {
+      throw new HonuaMapLibreSourceAdapterError("invalid-option", "clusterRadius must be a positive integer.", {
+        clusterRadius,
+      });
+    }
+  }
+  if (cluster && geometry !== undefined && geometry !== "auto" && geometry !== "point") {
+    throw new HonuaMapLibreSourceAdapterError(
+      "invalid-option",
+      "MapLibre clustering is supported only for point GeoJSON sources.",
+      { geometry },
+    );
   }
 }
 
 function projectedLayerIds(sourceId: string, options: ProjectSourceToMapLibreOptions): readonly string[] {
   const base = options.layerId ?? `${sourceId}-features`;
-  const kind = options.geometry === "auto" ? undefined : options.geometry;
-  const kinds: readonly MapLibreGeometryKind[] = kind
-    ? [kind]
-    : options.cluster
-      ? ["point"]
-      : ["point", "line", "polygon"];
+  const kinds = projectedGeometryKinds(options);
   return kinds.length === 1 ? [base] : kinds.map((entry) => `${base}-${entry}`);
+}
+
+function projectedGeometryKinds(options: ProjectSourceToMapLibreOptions): readonly MapLibreGeometryKind[] {
+  const kind = options.geometry === "auto" ? undefined : options.geometry;
+  return kind ? [kind] : options.cluster ? ["point"] : ["point", "line", "polygon"];
 }

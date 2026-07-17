@@ -10,7 +10,7 @@
  */
 
 import type { SourceId } from "../contract/types.js";
-import { type HonuaErrorCode, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import { type HonuaErrorCode, HonuaSdkError, withHonuaErrorReasonClassification } from "../core/error-base.js";
 import type {
   RealtimeDeleteEvent,
   RealtimeDeltaEvent,
@@ -147,16 +147,25 @@ export interface ResumableRealtimeSubscription<TFeature = unknown> {
  * does not reconnect a transport or request a replacement snapshot.
  */
 export class HonuaRealtimeResumeError extends HonuaSdkError {
-  public constructor(
-    public readonly code: ResumableRealtimeReasonCode,
-    message: string,
-    options?: ErrorOptions,
-  ) {
-    super(realtimeResumeSdkCode(code), message, {
-      ...options,
-      context: mergeHonuaErrorContext({ reasonCode: realtimeResumeContextReason(code) }),
-    });
-    this.name = "HonuaRealtimeResumeError";
+  public declare readonly code: ResumableRealtimeReasonCode;
+
+  public constructor(code: ResumableRealtimeReasonCode, message: string, options?: ErrorOptions) {
+    const sdkCode = realtimeResumeSdkCode(code);
+    const [category, retryable] = realtimeResumeClassification(sdkCode);
+    super(
+      sdkCode,
+      message,
+      withHonuaErrorReasonClassification(
+        options ?? {},
+        sdkCode,
+        "HonuaRealtimeResumeError",
+        "realtime",
+        category,
+        retryable,
+        realtimeResumeContextReason(code),
+      ),
+    );
+    this.code = code;
   }
 }
 
@@ -189,6 +198,15 @@ const REALTIME_RESUME_ERROR_CODES = {
 
 function realtimeResumeSdkCode(code: ResumableRealtimeReasonCode): HonuaErrorCode {
   return isRegisteredRealtimeResumeReason(code) ? REALTIME_RESUME_ERROR_CODES[code] : "realtime.protocol.terminal";
+}
+
+function realtimeResumeClassification(
+  code: HonuaErrorCode,
+): readonly ["cancellation" | "network" | "protocol" | "validation", boolean] {
+  if (code === "realtime.cancelled") return ["cancellation", false];
+  if (code === "realtime.transport.reconnectable") return ["network", true];
+  if (code === "realtime.checkpoint.invalid") return ["validation", false];
+  return ["protocol", code === "realtime.sequence.gap"];
 }
 
 function realtimeResumeContextReason(code: ResumableRealtimeReasonCode): ResumableRealtimeReasonCode {

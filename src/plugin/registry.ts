@@ -1,4 +1,9 @@
-import { type HonuaErrorCode, HonuaSdkError } from "../core/error-envelope.js";
+import {
+  type HonuaErrorCode,
+  HonuaSdkError,
+  ownDataProperty,
+  withHonuaErrorReasonClassification,
+} from "../core/error-base.js";
 import { certifyHonuaPluginManifest, validateHonuaPluginCertificationHost } from "./certification.js";
 import type {
   HonuaPluginDependency,
@@ -268,19 +273,41 @@ function pluginReasonCode(code: unknown): KnownPluginRegistryErrorCode | "PLUGIN
  * cause. Raw causes and cleanup failures remain local to the instance.
  */
 export class HonuaPluginRegistryError extends HonuaSdkError {
-  readonly code: string;
-  readonly cleanupErrors: readonly unknown[];
+  declare readonly code: string;
+  declare readonly cleanupErrors: readonly unknown[];
 
   constructor(code: string, options: { cause?: unknown; cleanupErrors?: readonly unknown[] } = {}) {
-    const cause = options.cause;
-    super(pluginSdkCode(code), typeof code === "string" ? code : "PLUGIN_UNKNOWN", {
-      ...(cause === undefined ? {} : { cause }),
-      context: { reasonCode: pluginReasonCode(code) },
-    });
-    this.name = "HonuaPluginRegistryError";
+    const cause = ownDataProperty(options, "cause");
+    const sdkCode = pluginSdkCode(code);
+    super(
+      sdkCode,
+      typeof code === "string" ? code : "PLUGIN_UNKNOWN",
+      withHonuaErrorReasonClassification(
+        cause === undefined ? {} : { cause },
+        sdkCode,
+        "HonuaPluginRegistryError",
+        "plugin",
+        pluginErrorCategory(sdkCode),
+        false,
+        pluginReasonCode(code),
+      ),
+    );
     this.code = code;
-    this.cleanupErrors = Object.freeze([...(options.cleanupErrors ?? [])]);
+    const cleanupErrors = ownDataProperty(options, "cleanupErrors");
+    this.cleanupErrors = Object.freeze(Array.isArray(cleanupErrors) ? [...cleanupErrors] : []);
   }
+}
+
+function pluginErrorCategory(code: HonuaErrorCode) {
+  if (code === "plugin.registry.validation" || code === "plugin.execution.validation") return "validation" as const;
+  if (
+    code === "plugin.compatibility" ||
+    code === "plugin.execution.policy-denied" ||
+    code === "plugin.capability-unavailable"
+  )
+    return "capability" as const;
+  if (code === "plugin.cancelled") return "cancellation" as const;
+  return "internal" as const;
 }
 
 /** Instance-scoped registry. It never imports plugin entrypoints or mutates global state. */

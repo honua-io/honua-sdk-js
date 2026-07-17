@@ -1,4 +1,4 @@
-import { normalizeDiscoveryEndpoint } from "../contract/discovery.js";
+import { tryNormalizeDiscoveryEndpoint } from "../contract/discovery-endpoint.js";
 import {
   type CreateOfflineRegionManifestInput,
   DEFAULT_OFFLINE_REGION_MAX_ATTRIBUTIONS,
@@ -890,18 +890,11 @@ function credentialFreeEndpoint(value: unknown, budget: TrustBudget, normalizedR
   if (typeof value !== "string" && !(value instanceof URL)) invalid("endpoint must be a string or URL.", "endpoint");
   const raw = value instanceof URL ? value.href : value;
   budget.string(raw, "endpoint", false);
-  try {
-    const normalized = normalizeDiscoveryEndpoint(value as string | URL);
-    if (normalizedRequired && raw !== normalized)
-      invalid("endpoint contains credentials or is not normalized.", "endpoint");
-    return normalized;
-  } catch (cause) {
-    if (cause instanceof HonuaOfflineRegionError) throw cause;
-    throw new HonuaOfflineRegionError("invalid-manifest", "endpoint must be a valid absolute URL.", {
-      cause,
-      path: "endpoint",
-    });
-  }
+  const normalized = tryNormalizeDiscoveryEndpoint(value as string | URL);
+  if (normalized === undefined) invalid("endpoint must be a valid absolute URL.", "endpoint");
+  if (normalizedRequired && raw !== normalized)
+    invalid("endpoint contains credentials or is not normalized.", "endpoint");
+  return normalized;
 }
 
 function integrityString(

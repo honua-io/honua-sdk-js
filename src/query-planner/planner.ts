@@ -21,6 +21,13 @@ import { compileGrpcQuery } from "./grpc.js";
 import { createGeoParquetQueryIr, createQueryIr, deepFreeze, queryFromCanonical } from "./ir.js";
 import { compileOdataQuery } from "./odata.js";
 import { compileOgcApiFeaturesQuery } from "./ogc-features.js";
+import {
+  containsControlCharacter,
+  containsCredentialBearingPlanMaterial,
+  hashQueryPlanV1,
+  isCredentialFreeLegacySource,
+  isPlanEnvelope,
+} from "./plan-integrity.js";
 import { type GeoParquetResourceHandleV1, parseGeoParquetResourceHandle } from "./resource.js";
 import {
   type CanonicalQuery,
@@ -249,26 +256,7 @@ export function hashQueryPlan(plan: QueryExecutionPlan): `sha256:${string}` {
   return persistedPlanSnapshot(plan).hash;
 }
 
-/** @internal Lightweight v1 integrity path for stable consumers that cannot execute v2 resources. */
-export function hashQueryPlanV1(plan: QueryExecutionPlanV1): `sha256:${string}` | undefined {
-  try {
-    const detached = toJsonValue(plan) as unknown;
-    if (!isPlanEnvelope(detached) || detached.version !== QUERY_PLAN_VERSION || detached.ir.version !== "1.0") {
-      return undefined;
-    }
-    if (detached.ir.source.protocol === "geoparquet") {
-      const sources = detached.ir.source.geoparquet?.sources;
-      if (!sources || sources.length === 0 || sources.some((source) => !isCredentialFreeLegacySource(source))) {
-        return undefined;
-      }
-    }
-    if (containsCredentialBearingPlanMaterial(detached)) return undefined;
-    const { id: _id, fingerprint: _fingerprint, ...unsigned } = detached;
-    return sha256(canonicalStringify(toJsonValue(unsigned)));
-  } catch {
-    return undefined;
-  }
-}
+export { hashQueryPlanV1 };
 
 /** Internal executor boundary: validate once and continue with an immutable detached snapshot. */
 export function validateQueryPlanSnapshot(plan: QueryExecutionPlan): QueryExecutionPlan {
@@ -721,36 +709,6 @@ interface PersistedPlanSnapshot {
   readonly hash: `sha256:${string}`;
 }
 
-const CREDENTIAL_BEARING_PLAN_TEXT =
-  /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\bBasic\s+[A-Za-z0-9+/=]{8,}|\bAKIA[0-9A-Z]{16}\b|[?&;](?:access[-_]?token|id[-_]?token|refresh[-_]?token|x-amz-signature|x-goog-credential|signature|sig|token|api[-_]?key|password|secret)=[^\s&#;]*|\b(?:authorization|proxy[-_]?authorization|x-api-key|password|secret|token|api[-_]?key|account[-_]?key|shared[-_]?access[-_]?signature)\s*(?:=|:)\s*[^\s,;]+|[a-z][a-z0-9+.-]*:\/\/[^/\s"'<>]*@|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
-
-const CREDENTIAL_BEARING_PLAN_KEYS = new Set([
-  "authorization",
-  "proxyauthorization",
-  "cookie",
-  "setcookie",
-  "username",
-  "password",
-  "passwd",
-  "secret",
-  "token",
-  "accesstoken",
-  "refreshtoken",
-  "idtoken",
-  "apikey",
-  "xapikey",
-  "accesskey",
-  "secretkey",
-  "clientsecret",
-  "credential",
-  "credentials",
-  "signature",
-  "xamzsignature",
-  "xgoogcredential",
-  "accountkey",
-  "sharedaccesssignature",
-]);
-
 /** Detach once so hostile accessors/proxies cannot change between validation and hashing. */
 function persistedPlanSnapshot(value: unknown): PersistedPlanSnapshot {
   try {
@@ -763,74 +721,6 @@ function persistedPlanSnapshot(value: unknown): PersistedPlanSnapshot {
   } catch {
     throw invalidPersistedPlan();
   }
-}
-
-function containsCredentialBearingPlanMaterial(value: unknown, path: readonly string[] = []): boolean {
-  if (typeof value === "string") return CREDENTIAL_BEARING_PLAN_TEXT.test(value);
-  if (Array.isArray(value)) {
-    return value.some((child, index) => containsCredentialBearingPlanMaterial(child, [...path, String(index)]));
-  }
-  if (value === null || typeof value !== "object") return false;
-  return Object.entries(value).some(([key, child]) => {
-    const normalizedKey = key.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
-    const parent = path
-      .at(-1)
-      ?.replace(/[^A-Za-z0-9]/g, "")
-      .toLowerCase();
-    const sensitiveHeader =
-      parent === "headers" &&
-      (normalizedKey === "xauth" ||
-        normalizedKey === "xauthtoken" ||
-        normalizedKey === "xaccesskey" ||
-        normalizedKey === "xsessiontoken");
-    const sensitiveLocator = parent === "locator" && (normalizedKey === "user" || normalizedKey === "userinfo");
-    const sensitiveQueryParameter =
-      parent === "query" && (normalizedKey === "auth" || normalizedKey === "key" || normalizedKey === "session");
-    return (
-      CREDENTIAL_BEARING_PLAN_KEYS.has(normalizedKey) ||
-      sensitiveHeader ||
-      sensitiveLocator ||
-      sensitiveQueryParameter ||
-      containsCredentialBearingPlanMaterial(child, [...path, key])
-    );
-  });
-}
-
-function isCredentialFreeLegacySource(value: unknown): value is string {
-  if (typeof value !== "string" || value.length === 0 || value.trim() !== value || containsControlCharacter(value)) {
-    return false;
-  }
-  try {
-    const url = new URL(value);
-    return !url.username && !url.password && !url.search && !url.hash;
-  } catch {
-    return !value.includes("?") && !value.includes("#") && !value.includes("@");
-  }
-}
-
-function containsControlCharacter(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code <= 0x1f || code === 0x7f) return true;
-  }
-  return false;
-}
-
-function isPlanEnvelope(value: unknown): value is QueryExecutionPlan {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-  const plan = value as Partial<QueryExecutionPlan>;
-  return (
-    plan.kind === QUERY_PLAN_KIND &&
-    (plan.version === QUERY_PLAN_VERSION || plan.version === QUERY_PLAN_V2_VERSION) &&
-    plan.diagnosticsVersion === QUERY_PLAN_DIAGNOSTICS_VERSION &&
-    typeof plan.id === "string" &&
-    typeof plan.fingerprint === "string" &&
-    /^sha256:[0-9a-f]{64}$/.test(plan.fingerprint) &&
-    plan.ir !== null &&
-    typeof plan.ir === "object" &&
-    Array.isArray(plan.steps) &&
-    Array.isArray(plan.warnings)
-  );
 }
 
 function normalizeExecutionMode(value: ExplainQueryOptions["executionMode"]): "snapshot" | "delta" {

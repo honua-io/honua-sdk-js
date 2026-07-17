@@ -13,7 +13,7 @@
  */
 
 import type { FeatureId } from "../contract/types.js";
-import { HonuaSdkError } from "../core/error-envelope.js";
+import { HonuaSdkError, withHonuaErrorClassification } from "../core/error-base.js";
 import {
   type FilterClause,
   type FilterRegistry,
@@ -37,13 +37,28 @@ import type { AutomaticMapLibrePlan, MountedAutomaticMapLibreSource } from "./au
 export type AutomaticMapLibreIntegrationErrorCode = "disposed" | "invalid-target";
 
 export class HonuaAutomaticMapLibreIntegrationError extends HonuaSdkError {
+  public declare readonly code: AutomaticMapLibreIntegrationErrorCode;
+  public declare readonly detail?: Readonly<Record<string, unknown>> | undefined;
+
   public constructor(
-    public readonly code: AutomaticMapLibreIntegrationErrorCode,
+    code: AutomaticMapLibreIntegrationErrorCode,
     message: string,
-    public readonly detail?: Readonly<Record<string, unknown>>,
+    detail?: Readonly<Record<string, unknown>> | undefined,
   ) {
-    super(AUTOMATIC_MAPLIBRE_INTEGRATION_ERROR_CODES[code], message, { context: detail });
-    this.name = "HonuaAutomaticMapLibreIntegrationError";
+    super(
+      AUTOMATIC_MAPLIBRE_INTEGRATION_ERROR_CODES[code],
+      message,
+      withHonuaErrorClassification(
+        { context: detail },
+        AUTOMATIC_MAPLIBRE_INTEGRATION_ERROR_CODES[code],
+        "HonuaAutomaticMapLibreIntegrationError",
+        "map",
+        "validation",
+        false,
+      ),
+    );
+    this.code = code;
+    this.detail = detail;
   }
 }
 
