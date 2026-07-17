@@ -9,7 +9,11 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { expectedGateCommand } from "./lib/sample-gates.mjs";
-import { validateQualificationReceiptSet } from "./sample-gate-receipt.mjs";
+import {
+  requiredReceiptGates,
+  validateGateReceiptStructure,
+  validateQualificationReceiptSet,
+} from "./sample-gate-receipt.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -24,6 +28,11 @@ const MIGRATION_SCHEMA_PATH = "samples/contract/v2/schemas/catalog-migration.sch
 const GENERATED_CATALOG_PATH = "docs/generated/sample-catalog.md";
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
+const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH =
+  "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
+const SUPPORT_TRUTH_PATH = "config/support-manifest.v1.json";
+const QUALIFICATION_EVIDENCE_ROOT = "samples/evidence";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
@@ -3047,6 +3056,733 @@ export function generateSiteProjection(catalog, packageJson) {
   };
 }
 
+function orderedUnique(values) {
+  return [...new Set(values)].sort();
+}
+
+function normalizedPackageExports(packageJson, supportTruth) {
+  invariant(
+    packageJson.exports && typeof packageJson.exports === "object" && !Array.isArray(packageJson.exports),
+    "package exports must be an object",
+  );
+  const lifecycleBySubpath = new Map();
+  for (const entrypoint of supportTruth.packageLifecycle.entrypoints) {
+    invariant(!lifecycleBySubpath.has(entrypoint.subpath), `duplicate support entrypoint ${entrypoint.subpath}`);
+    lifecycleBySubpath.set(entrypoint.subpath, entrypoint);
+  }
+  const exportSubpaths = Object.keys(packageJson.exports).sort();
+  const lifecycleSubpaths = [...lifecycleBySubpath.keys()].sort();
+  invariant(
+    JSON.stringify(exportSubpaths) === JSON.stringify(lifecycleSubpaths),
+    "package exports and support lifecycle entrypoints must match exactly",
+  );
+  for (const entrypoint of lifecycleBySubpath.values()) {
+    if (entrypoint.apiEquivalent) {
+      invariant(
+        lifecycleBySubpath.has(entrypoint.apiEquivalent),
+        `${entrypoint.subpath}: unknown API-equivalent export ${entrypoint.apiEquivalent}`,
+      );
+    }
+  }
+
+  return exportSubpaths.map((subpath) => {
+    const target = packageJson.exports[subpath];
+    invariant(target && typeof target === "object" && !Array.isArray(target), `${subpath}: export target must be an object`);
+    invariant(
+      Object.keys(target).sort().join(",") === "default,types",
+      `${subpath}: export target must declare exactly default and types`,
+    );
+    for (const [condition, value] of Object.entries(target)) {
+      invariant(typeof value === "string", `${subpath}: ${condition} export target must be a string`);
+      invariant(
+        value.startsWith("./dist/") &&
+          !value.includes("\\") &&
+          `./${path.posix.normalize(value.slice(2))}` === value,
+        `${subpath}: ${condition} export target must be a normalized dist path`,
+      );
+    }
+    invariant(target.types.endsWith(".d.ts"), `${subpath}: types export target must end in .d.ts`);
+    invariant(target.default.endsWith(".js"), `${subpath}: default export target must end in .js`);
+    return {
+      subpath,
+      lifecycle: lifecycleBySubpath.get(subpath),
+      targets: { types: target.types, default: target.default },
+    };
+  });
+}
+
+function validateSupportTruthForMatrix(supportTruth, packageJson) {
+  invariant(supportTruth.format === "honua.sdk.support-manifest.v1", "capability matrix support truth must be v1");
+  invariant(supportTruth.schemaVersion === 1, "capability matrix support truth schemaVersion must be 1");
+  invariant(
+    supportTruth.consumerContracts?.sampleCatalog?.format === "honua.sdk.sample-catalog.v2" &&
+      supportTruth.consumerContracts.sampleCatalog.source === CATALOG_PATH,
+    "support truth sample-catalog consumer binding drift",
+  );
+  const protocolIds = new Set(supportTruth.protocols.map((protocol) => protocol.id));
+  const claimProtocolIds = new Set([...protocolIds, ...supportTruth.claimOnlyProtocols]);
+  const claimIds = new Set(supportTruth.supportClaims.map((claim) => claim.id));
+  const evidenceIds = new Set(supportTruth.evidence.map((evidence) => evidence.id));
+  invariant(protocolIds.size === supportTruth.protocols.length, "support truth protocol IDs must be unique");
+  invariant(claimIds.size === supportTruth.supportClaims.length, "support truth claim IDs must be unique");
+  invariant(evidenceIds.size === supportTruth.evidence.length, "support truth evidence IDs must be unique");
+  const operationIds = new Set(supportTruth.protocolOperations);
+  const claimOperationIds = new Set([...supportTruth.protocolOperations, ...supportTruth.claimCapabilities]);
+  for (const protocol of supportTruth.protocols) {
+    for (const claim of protocol.operationClaims) {
+      for (const operation of claim.operations) {
+        invariant(operationIds.has(operation), `${protocol.id}: unknown protocol operation ${operation}`);
+      }
+      for (const evidenceId of claim.evidence) {
+        invariant(evidenceIds.has(evidenceId), `${protocol.id}: unknown support evidence ${evidenceId}`);
+      }
+    }
+  }
+  for (const claim of supportTruth.supportClaims) {
+    if (claim.protocol) {
+      invariant(claimProtocolIds.has(claim.protocol), `${claim.id}: unknown support protocol ${claim.protocol}`);
+    }
+    for (const operation of claim.operations) {
+      invariant(claimOperationIds.has(operation), `${claim.id}: unknown support-claim operation ${operation}`);
+    }
+    for (const evidenceId of claim.evidence) {
+      invariant(evidenceIds.has(evidenceId), `${claim.id}: unknown support evidence ${evidenceId}`);
+    }
+  }
+  for (const [token, binding] of Object.entries(supportTruth.consumerContracts.sampleCatalog.protocols)) {
+    for (const protocolId of binding.protocolIds) {
+      invariant(claimProtocolIds.has(protocolId), `${token}: unknown catalog protocol binding ${protocolId}`);
+    }
+    for (const claimId of binding.supportClaimIds) {
+      invariant(claimIds.has(claimId), `${token}: unknown catalog support-claim binding ${claimId}`);
+    }
+  }
+  return normalizedPackageExports(packageJson, supportTruth);
+}
+
+function packageEntrypointsInApi(api, packageJson) {
+  const escapedName = packageJson.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const references = api.match(new RegExp(`${escapedName}(?:/[a-z0-9-]+(?:/[a-z0-9-]+)*)?`, "g")) ?? [];
+  return orderedUnique(
+    references.map((reference) =>
+      reference === packageJson.name ? "." : `./${reference.slice(packageJson.name.length + 1)}`,
+    ),
+  );
+}
+
+function sampleSupportBinding(sample, supportTruth) {
+  const protocolIds = [];
+  const supportClaimIds = [];
+  const protocolBindings = [];
+  for (const token of sample.protocols) {
+    const binding = supportTruth.consumerContracts.sampleCatalog.protocols[token];
+    invariant(binding, `${sample.id}: no support-truth join exists for catalog protocol ${token}`);
+    protocolIds.push(...binding.protocolIds);
+    supportClaimIds.push(...binding.supportClaimIds);
+    protocolBindings.push({
+      catalogProtocol: token,
+      protocolIds: [...binding.protocolIds],
+      supportClaimIds: [...binding.supportClaimIds],
+      external: binding.external,
+    });
+  }
+  return {
+    protocolIds: orderedUnique(protocolIds),
+    supportClaimIds: orderedUnique(supportClaimIds),
+    protocolBindings,
+  };
+}
+
+function qualificationEvidenceSummary(entry) {
+  if (!entry) return undefined;
+  return {
+    receiptCount: entry.receipts.length,
+    gates: orderedUnique(entry.receipts.map((receipt) => receipt.gate)),
+    sdkModes: orderedUnique(entry.receipts.map((receipt) => receipt.sdkMode)),
+    sourceRevisions: orderedUnique(entry.receipts.map((receipt) => receipt.sourceRevision)),
+    sha256: sha256(Buffer.from(stableJson(entry))),
+  };
+}
+
+function validateQualificationEvidenceInput(qualificationEvidence, catalog) {
+  invariant(
+    qualificationEvidence?.format === "honua.sdk.sample-qualification-evidence.v1",
+    "qualification evidence format must be v1",
+  );
+  invariant(qualificationEvidence.schemaVersion === 1, "qualification evidence schemaVersion must be 1");
+  invariant(Array.isArray(qualificationEvidence.samples), "qualification evidence samples must be an array");
+  const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+  const profileById = new Map(catalog.qualityProfiles.map((profile) => [profile.id, profile]));
+  const qualifiedIds = catalog.goldenJourneys
+    .filter((journey) => journey.status === "qualified")
+    .map((journey) => journey.candidateSampleId)
+    .sort();
+  const evidenceIds = qualificationEvidence.samples.map((entry) => entry.sampleId);
+  invariant(
+    JSON.stringify(evidenceIds) === JSON.stringify([...new Set(evidenceIds)].sort()),
+    "qualification evidence sample IDs must be unique and sorted",
+  );
+  invariant(
+    JSON.stringify(evidenceIds) === JSON.stringify(qualifiedIds),
+    "qualification evidence must exactly cover catalog-qualified golden samples",
+  );
+  for (const entry of qualificationEvidence.samples) {
+    const sample = sampleById.get(entry.sampleId);
+    invariant(sample?.track === "golden", `${entry.sampleId}: qualification evidence requires a golden sample`);
+    const profile = profileById.get(sample.validationProfile);
+    invariant(profile, `${entry.sampleId}: qualification evidence references an unknown profile`);
+    const gates = entry.receipts.map((receipt) => receipt.gate);
+    invariant(
+      JSON.stringify(gates) === JSON.stringify([...new Set(gates)].sort()),
+      `${entry.sampleId}: qualification receipt gates must be unique and sorted`,
+    );
+    invariant(
+      JSON.stringify(gates) === JSON.stringify(requiredReceiptGates(profile)),
+      `${entry.sampleId}: qualification receipt gates do not match its quality profile`,
+    );
+    for (const receipt of entry.receipts) {
+      invariant(["source", "packed"].includes(receipt.sdkMode), `${entry.sampleId}: invalid receipt SDK mode`);
+      invariant(/^[a-f0-9]{40}$/.test(receipt.sourceRevision), `${entry.sampleId}: invalid receipt source revision`);
+      invariant(/^[a-f0-9]{64}$/.test(receipt.sourceDigest), `${entry.sampleId}: invalid receipt source digest`);
+      invariant(/^[a-f0-9]{64}$/.test(receipt.sha256), `${entry.sampleId}: invalid receipt digest`);
+      invariant(
+        receipt.path === `${QUALIFICATION_EVIDENCE_ROOT}/${entry.sampleId}/receipts/${receipt.gate}.v1.json`,
+        `${entry.sampleId}: qualification receipt path drift`,
+      );
+    }
+  }
+}
+
+export async function collectQualificationEvidence(catalog, options = {}) {
+  const receiptRoot = path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT));
+  const profileById = new Map(catalog.qualityProfiles.map((profile) => [profile.id, profile]));
+  const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+  const samples = [];
+  for (const journey of [...catalog.goldenJourneys]
+    .filter((candidate) => candidate.status === "qualified")
+    .sort((left, right) => left.candidateSampleId.localeCompare(right.candidateSampleId))) {
+    const sample = sampleById.get(journey.candidateSampleId);
+    const profile = profileById.get(sample.validationProfile);
+    const receipts = [];
+    for (const gate of requiredReceiptGates(profile)) {
+      const receiptPath = path.join(receiptRoot, sample.id, "receipts", `${gate}.v1.json`);
+      const bytes = await readFile(receiptPath);
+      const receipt = parseJsonDocument(bytes.toString("utf8"), receiptPath);
+      validateGateReceiptStructure(receipt, { sampleId: sample.id, gate });
+      receipts.push({
+        gate,
+        sdkMode: receipt.sdkMode,
+        sourceRevision: receipt.sourceRevision,
+        sourceDigest: receipt.sourceDigest,
+        path: `${QUALIFICATION_EVIDENCE_ROOT}/${sample.id}/receipts/${gate}.v1.json`,
+        sha256: sha256(bytes),
+      });
+    }
+    samples.push({ sampleId: sample.id, receipts });
+  }
+  const evidence = {
+    format: "honua.sdk.sample-qualification-evidence.v1",
+    schemaVersion: 1,
+    samples,
+  };
+  validateQualificationEvidenceInput(evidence, catalog);
+  return evidence;
+}
+
+function sampleQualification(sample, catalog, evidenceBySample) {
+  const journey = sample.journeyId
+    ? catalog.goldenJourneys.find((candidate) => candidate.id === sample.journeyId)
+    : undefined;
+  const evidence = evidenceBySample.get(sample.id);
+  if (evidence) {
+    invariant(
+      sample.track === "golden" && journey?.status === "qualified",
+      `${sample.id}: qualification receipts cannot promote an unqualified catalog sample`,
+    );
+    return {
+      state: "qualified",
+      catalogStatus: "qualified",
+      evidence: qualificationEvidenceSummary(evidence),
+    };
+  }
+  if (sample.supportTier === "experimental") {
+    return { state: "experimental", catalogStatus: journey?.status ?? "not-a-golden-journey" };
+  }
+  if (
+    sample.supportTier === "internal" ||
+    sample.supportTier === "deprecated" ||
+    ["replace", "retire"].includes(sample.lifecycle.state)
+  ) {
+    return { state: "unsupported", catalogStatus: journey?.status ?? "not-a-golden-journey" };
+  }
+  if (journey || sample.evidence.fixture.status !== "executed") {
+    return { state: "planned", catalogStatus: journey?.status ?? "not-a-golden-journey" };
+  }
+  return { state: "partial", catalogStatus: "not-a-golden-journey" };
+}
+
+const SAMPLE_COVERAGE_ORDER = new Map([
+  ["qualified", 0],
+  ["partial", 1],
+  ["planned", 2],
+  ["experimental", 3],
+  ["unsupported", 4],
+]);
+const SAMPLE_TRACK_ORDER = new Map([
+  ["golden", 0],
+  ["recipe", 1],
+  ["lab", 2],
+  ["fixture", 3],
+]);
+
+function orderedCandidateIds(candidates) {
+  return [...candidates]
+    .sort(
+      (left, right) =>
+        SAMPLE_COVERAGE_ORDER.get(left.qualification.state) - SAMPLE_COVERAGE_ORDER.get(right.qualification.state) ||
+        SAMPLE_TRACK_ORDER.get(left.track) - SAMPLE_TRACK_ORDER.get(right.track) ||
+        left.id.localeCompare(right.id),
+    )
+    .map((sample) => sample.id);
+}
+
+function coverageForSupport(supportStatus, candidates, qualifyingSampleIds) {
+  const candidateSampleIds = orderedCandidateIds(candidates);
+  const orderedQualifyingIds = candidateSampleIds.filter((sampleId) => qualifyingSampleIds.includes(sampleId));
+  const selectedSampleId = orderedQualifyingIds[0] ?? candidateSampleIds[0];
+  if (supportStatus === "unsupported" || supportStatus === "deprecated") {
+    return {
+      state: "unsupported",
+      reason: "SDK support truth marks this cell unsupported or deprecated.",
+      candidateSampleIds,
+      qualifyingSampleIds: [],
+      ...(selectedSampleId ? { selectedSampleId } : {}),
+    };
+  }
+  if (supportStatus === "experimental" || supportStatus === "beta") {
+    return {
+      state: "experimental",
+      reason: "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+      candidateSampleIds,
+      qualifyingSampleIds: orderedQualifyingIds,
+      ...(selectedSampleId ? { selectedSampleId } : {}),
+    };
+  }
+  if (orderedQualifyingIds.length > 0) {
+    return {
+      state: "qualified",
+      reason: "A catalog-qualified sample has a complete current qualification receipt set for this exact cell.",
+      candidateSampleIds,
+      qualifyingSampleIds: orderedQualifyingIds,
+      selectedSampleId: orderedQualifyingIds[0],
+    };
+  }
+  if (
+    candidates.some(
+      (sample) => sample.qualification.state === "partial" || sample.qualification.state === "qualified",
+    )
+  ) {
+    return {
+      state: "partial",
+      reason: "Executable sample coverage exists without complete current qualification receipts.",
+      candidateSampleIds,
+      qualifyingSampleIds: [],
+      ...(selectedSampleId ? { selectedSampleId } : {}),
+    };
+  }
+  if (candidates.some((sample) => sample.qualification.state === "experimental")) {
+    return {
+      state: "experimental",
+      reason: "Only experimental catalog samples map to this supported SDK cell.",
+      candidateSampleIds,
+      qualifyingSampleIds: [],
+      ...(selectedSampleId ? { selectedSampleId } : {}),
+    };
+  }
+  return {
+    state: "planned",
+    reason:
+      candidateSampleIds.length > 0
+        ? "A catalog candidate is planned but has no complete current qualification receipts."
+        : "SDK support is present, but no catalog sample maps to this exact cell.",
+    candidateSampleIds,
+    qualifyingSampleIds: [],
+    ...(selectedSampleId ? { selectedSampleId } : {}),
+  };
+}
+
+function matrixGap(targetType, targetId, supportStatus, coverage) {
+  return {
+    targetType,
+    targetId,
+    supportStatus,
+    coverageState: coverage.state,
+    candidateSampleIds: [...coverage.candidateSampleIds],
+    reason: coverage.reason,
+  };
+}
+
+/**
+ * Project SDK support and catalog truth without treating sample metadata as
+ * qualification evidence. Only validated gate receipts can produce a
+ * `qualified` coverage state; missing evidence remains explicitly visible.
+ */
+export function generateCapabilitySampleMatrix(catalog, packageJson, supportTruth, qualificationEvidence) {
+  const packageExports = validateSupportTruthForMatrix(supportTruth, packageJson);
+  validateQualificationEvidenceInput(qualificationEvidence, catalog);
+  const evidenceBySample = new Map(qualificationEvidence.samples.map((entry) => [entry.sampleId, entry]));
+  const bindings = new Map(
+    catalog.samples.map((sample) => [sample.id, sampleSupportBinding(sample, supportTruth)]),
+  );
+  const samples = catalog.samples
+    .map((sample) => ({
+      id: sample.id,
+      title: sample.title,
+      sourcePath: sample.sourcePath,
+      track: sample.track,
+      ...(sample.journeyId ? { journeyId: sample.journeyId } : {}),
+      tasks: [...sample.capabilities],
+      catalogProtocols: [...sample.protocols],
+      protocolIds: [...bindings.get(sample.id).protocolIds],
+      supportClaimIds: [...bindings.get(sample.id).supportClaimIds],
+      protocolBindings: structuredClone(bindings.get(sample.id).protocolBindings),
+      renderers: [...sample.renderers],
+      dataMode: sample.data.mode,
+      authMode: sample.data.authMode,
+      supportTier: sample.supportTier,
+      lifecycleState: sample.lifecycle.state,
+      qualification: sampleQualification(sample, catalog, evidenceBySample),
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const sampleById = new Map(samples.map((sample) => [sample.id, sample]));
+  const qualifiedSampleIds = new Set(
+    samples.filter((sample) => sample.qualification.state === "qualified").map((sample) => sample.id),
+  );
+
+  const protocolOperations = [];
+  for (const protocol of [...supportTruth.protocols].sort((left, right) => left.id.localeCompare(right.id))) {
+    for (const operation of [...supportTruth.protocolOperations].sort()) {
+      const matchingClaims = protocol.operationClaims.filter((claim) => claim.operations.includes(operation));
+      const candidates = samples.filter(
+        (sample) => sample.protocolIds.includes(protocol.id) && sample.tasks.includes(operation),
+      );
+      const qualifyingIds = candidates
+        .filter(
+          (sample) =>
+            qualifiedSampleIds.has(sample.id) &&
+            sample.protocolBindings.some(
+              (binding) => binding.protocolIds.length === 1 && binding.protocolIds[0] === protocol.id,
+            ),
+        )
+        .map((sample) => sample.id);
+      if (matchingClaims.length === 0) {
+        const coverage = coverageForSupport(protocol.defaultOperationStatus, candidates, qualifyingIds);
+        protocolOperations.push({
+          id: `${protocol.id}:${operation}:default`,
+          protocolId: protocol.id,
+          protocolLabel: protocol.label,
+          operation,
+          authority: "default",
+          supportStatus: protocol.defaultOperationStatus,
+          truthEvidence: [],
+          coverage,
+        });
+        continue;
+      }
+      for (const claim of matchingClaims) {
+        const coverage = coverageForSupport(claim.status, candidates, qualifyingIds);
+        protocolOperations.push({
+          id: `${protocol.id}:${operation}:${claim.environment}:${claim.executionMode}`,
+          protocolId: protocol.id,
+          protocolLabel: protocol.label,
+          operation,
+          authority: "claim",
+          supportStatus: claim.status,
+          environment: claim.environment,
+          executionMode: claim.executionMode,
+          truthEvidence: [...claim.evidence],
+          coverage,
+        });
+      }
+    }
+  }
+  protocolOperations.sort((left, right) => left.id.localeCompare(right.id));
+
+  const packageExportSubpaths = new Set(packageExports.map((entrypoint) => entrypoint.subpath));
+  const supportClaims = supportTruth.supportClaims
+    .map((claim) => {
+      const apiEntrypoints = packageEntrypointsInApi(claim.api, packageJson);
+      for (const subpath of apiEntrypoints) {
+        invariant(packageExportSubpaths.has(subpath), `${claim.id}: API references missing package export ${subpath}`);
+      }
+      const apiTokens = apiEntrypoints
+        .filter((subpath) => subpath !== ".")
+        .map((subpath) => subpath.slice(2));
+      const candidateEvidence = samples
+        .map((sample) => {
+          const explicitlyBound = sample.supportClaimIds.includes(claim.id);
+          const apiBound = apiTokens.some((token) => sample.tasks.includes(token));
+          const idBound = sample.tasks.includes(claim.id);
+          if (!explicitlyBound && !apiBound && !idBound) return undefined;
+          const matchedOperations = claim.operations.filter((operation) => sample.tasks.includes(operation));
+          if (matchedOperations.length === 0) return undefined;
+          const exactProtocolBinding = sample.protocolBindings.some(
+            (binding) =>
+              binding.supportClaimIds.length === 1 && binding.supportClaimIds[0] === claim.id,
+          );
+          return {
+            sampleId: sample.id,
+            matchedOperations,
+            binding: apiBound || idBound || exactProtocolBinding ? "exact" : "ambiguous",
+          };
+        })
+        .filter(Boolean)
+        .sort((left, right) => left.sampleId.localeCompare(right.sampleId));
+      const candidates = candidateEvidence.map((entry) => sampleById.get(entry.sampleId));
+      const qualifyingIds = candidateEvidence
+        .filter(
+          (entry) =>
+            entry.binding === "exact" &&
+            qualifiedSampleIds.has(entry.sampleId) &&
+            entry.matchedOperations.length === claim.operations.length,
+        )
+        .map((entry) => entry.sampleId);
+      return {
+        id: claim.id,
+        label: claim.label,
+        ...(claim.protocol ? { protocolId: claim.protocol } : {}),
+        operations: [...claim.operations],
+        api: claim.api,
+        apiEntrypoints,
+        supportStatus: claim.status,
+        environment: claim.environment,
+        executionMode: claim.executionMode,
+        truthEvidence: [...claim.evidence],
+        candidateEvidence,
+        coverage: coverageForSupport(claim.status, candidates, qualifyingIds),
+      };
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  const claimCandidatesByEntrypoint = new Map();
+  const claimQualifyingByEntrypoint = new Map();
+  for (const claim of supportClaims) {
+    for (const subpath of claim.apiEntrypoints) {
+      const candidates = claimCandidatesByEntrypoint.get(subpath) ?? [];
+      candidates.push(...claim.coverage.candidateSampleIds);
+      claimCandidatesByEntrypoint.set(subpath, orderedUnique(candidates));
+      const qualifying = claimQualifyingByEntrypoint.get(subpath) ?? [];
+      qualifying.push(...claim.coverage.qualifyingSampleIds);
+      claimQualifyingByEntrypoint.set(subpath, orderedUnique(qualifying));
+    }
+  }
+  const packageEntrypoints = packageExports
+    .map(({ subpath, lifecycle, targets }) => {
+      const token = subpath === "." ? packageJson.name : subpath.slice(2);
+      const directlyBoundSamples = samples.filter(
+        (sample) =>
+          sample.tasks.includes(token) ||
+          (subpath !== "." && sample.catalogProtocols.includes(token)),
+      );
+      const candidateIds = orderedUnique([
+        ...(claimCandidatesByEntrypoint.get(subpath) ?? []),
+        ...directlyBoundSamples.map((sample) => sample.id),
+      ]);
+      const candidates = candidateIds.map((sampleId) => sampleById.get(sampleId));
+      const qualifyingIds = orderedUnique([
+        ...(claimQualifyingByEntrypoint.get(subpath) ?? []),
+        ...directlyBoundSamples
+          .filter((sample) => qualifiedSampleIds.has(sample.id))
+          .map((sample) => sample.id),
+      ]);
+      return {
+        subpath,
+        supportStatus: lifecycle.status,
+        ...(lifecycle.replacement ? { replacement: lifecycle.replacement } : {}),
+        targets,
+        coverage: coverageForSupport(lifecycle.status, candidates, qualifyingIds),
+      };
+    })
+    .sort((left, right) => left.subpath.localeCompare(right.subpath));
+
+  const supportTierMap = supportTruth.consumerContracts.sampleCatalog.supportTierMap;
+  const goldenJourneys = catalog.goldenJourneys.map((journey) => {
+    const sample = sampleById.get(journey.candidateSampleId);
+    const supportStatus = supportTierMap[sample.supportTier] ?? "unsupported";
+    const coverage = coverageForSupport(
+      supportStatus,
+      [sample],
+      qualifiedSampleIds.has(sample.id) ? [sample.id] : [],
+    );
+    return {
+      id: journey.id,
+      title: journey.title,
+      candidateSampleId: journey.candidateSampleId,
+      catalogStatus: journey.status,
+      supportStatus,
+      coverage,
+    };
+  });
+
+  const gaps = [
+    ...goldenJourneys
+      .filter((journey) => journey.coverage.state !== "qualified")
+      .map((journey) =>
+        matrixGap(
+          "golden-journey",
+          journey.id,
+          supportTierMap[sampleById.get(journey.candidateSampleId).supportTier] ?? "unsupported",
+          journey.coverage,
+        ),
+      ),
+    ...protocolOperations
+      .filter((cell) => cell.coverage.state !== "qualified")
+      .map((cell) =>
+        matrixGap("protocol-operation", cell.id, cell.supportStatus, cell.coverage),
+      ),
+    ...supportClaims
+      .filter((claim) => claim.coverage.state !== "qualified")
+      .map((claim) => matrixGap("support-claim", claim.id, claim.supportStatus, claim.coverage)),
+    ...packageEntrypoints
+      .filter((entrypoint) => entrypoint.coverage.state !== "qualified")
+      .map((entrypoint) =>
+        matrixGap("package-entrypoint", entrypoint.subpath, entrypoint.supportStatus, entrypoint.coverage),
+      ),
+  ].sort(
+    (left, right) =>
+      left.targetType.localeCompare(right.targetType) || left.targetId.localeCompare(right.targetId),
+  );
+
+  const packageExportInput = {
+    name: packageJson.name,
+    version: packageJson.version,
+    exports: packageJson.exports,
+  };
+  return {
+    format: "honua.site.sdk-capability-sample-matrix.v1",
+    schemaVersion: 1,
+    sdk: { package: packageJson.name, version: packageJson.version },
+    inputs: {
+      supportTruth: {
+        path: SUPPORT_TRUTH_PATH,
+        format: supportTruth.format,
+        schemaVersion: supportTruth.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(supportTruth))),
+      },
+      packageExports: {
+        path: "package.json",
+        package: packageJson.name,
+        sha256: sha256(Buffer.from(stableJson(packageExportInput))),
+      },
+      catalog: {
+        path: CATALOG_PATH,
+        format: catalog.format,
+        schemaVersion: catalog.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(catalog))),
+      },
+      qualificationEvidence: {
+        root: QUALIFICATION_EVIDENCE_ROOT,
+        format: qualificationEvidence.format,
+        schemaVersion: qualificationEvidence.schemaVersion,
+        receiptCount: qualificationEvidence.samples.reduce(
+          (count, entry) => count + entry.receipts.length,
+          0,
+        ),
+        sha256: sha256(Buffer.from(stableJson(qualificationEvidence))),
+      },
+    },
+    statusVocabulary: {
+      coverage: ["qualified", "partial", "planned", "experimental", "unsupported"],
+      support: [...supportTruth.statusVocabulary],
+    },
+    dimensions: {
+      tasks: orderedUnique(catalog.samples.flatMap((sample) => sample.capabilities)),
+      catalogProtocols: orderedUnique(catalog.samples.flatMap((sample) => sample.protocols)),
+      protocolIds: orderedUnique([
+        ...supportTruth.protocols.map((protocol) => protocol.id),
+        ...supportTruth.claimOnlyProtocols,
+      ]),
+      renderers: orderedUnique(catalog.samples.flatMap((sample) => sample.renderers)),
+      dataModes: orderedUnique(catalog.samples.map((sample) => sample.data.mode)),
+      authModes: orderedUnique(catalog.samples.map((sample) => sample.data.authMode)),
+      supportTiers: orderedUnique(catalog.samples.map((sample) => sample.supportTier)),
+      lifecycleStates: orderedUnique(catalog.samples.map((sample) => sample.lifecycle.state)),
+      packageEntrypoints: packageEntrypoints.map((entrypoint) => entrypoint.subpath),
+    },
+    goldenJourneys,
+    samples,
+    protocolOperations,
+    supportClaims,
+    packageEntrypoints,
+    gaps,
+  };
+}
+
+export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
+  validateSensitiveMetadata(matrix, "capability sample matrix");
+  await validateJsonSchema(matrix, CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH);
+  const sampleById = new Map(matrix.samples.map((sample) => [sample.id, sample]));
+  invariant(sampleById.size === matrix.samples.length, "capability matrix sample IDs must be unique");
+  const expectedGaps = [];
+  for (const collection of [matrix.goldenJourneys, matrix.protocolOperations, matrix.supportClaims, matrix.packageEntrypoints]) {
+    for (const item of collection) {
+      const coverage = item.coverage;
+      invariant(
+        coverage.candidateSampleIds.every((sampleId) => sampleById.has(sampleId)),
+        "capability matrix coverage references an unknown sample",
+      );
+      invariant(
+        !coverage.selectedSampleId || coverage.candidateSampleIds.includes(coverage.selectedSampleId),
+        "capability matrix selected sample must be one of its candidates",
+      );
+      invariant(
+        coverage.qualifyingSampleIds.every(
+          (sampleId) =>
+            coverage.candidateSampleIds.includes(sampleId) &&
+            sampleById.get(sampleId)?.qualification.state === "qualified",
+        ),
+        "capability matrix qualification is not bound to qualified sample evidence",
+      );
+      invariant(
+        coverage.state !== "qualified" || coverage.qualifyingSampleIds.length > 0,
+        "capability matrix qualified coverage requires qualifying sample evidence",
+      );
+    }
+  }
+  for (const [targetType, collection, idField] of [
+    ["golden-journey", matrix.goldenJourneys, "id"],
+    ["protocol-operation", matrix.protocolOperations, "id"],
+    ["support-claim", matrix.supportClaims, "id"],
+    ["package-entrypoint", matrix.packageEntrypoints, "subpath"],
+  ]) {
+    invariant(
+      new Set(collection.map((item) => item[idField])).size === collection.length,
+      `capability matrix ${targetType} IDs must be unique`,
+    );
+    for (const item of collection) {
+      if (item.coverage.state === "qualified") continue;
+      expectedGaps.push(matrixGap(targetType, item[idField], item.supportStatus, item.coverage));
+    }
+  }
+  expectedGaps.sort(
+    (left, right) =>
+      left.targetType.localeCompare(right.targetType) || left.targetId.localeCompare(right.targetId),
+  );
+  invariant(
+    JSON.stringify(matrix.gaps) === JSON.stringify(expectedGaps),
+    "capability matrix visible-gap coverage drift",
+  );
+  if (inputs.catalog && inputs.packageJson && inputs.supportTruth && inputs.qualificationEvidence) {
+    const expected = generateCapabilitySampleMatrix(
+      inputs.catalog,
+      inputs.packageJson,
+      inputs.supportTruth,
+      inputs.qualificationEvidence,
+    );
+    invariant(JSON.stringify(matrix) === JSON.stringify(expected), "capability matrix does not match its source truth");
+  }
+}
+
 export function generateCiSelection(catalog) {
   const profiles = catalog.qualityProfiles.map((profile) => ({
     id: profile.id,
@@ -3204,13 +3940,29 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-export async function generatedOutputs(catalog, packageJson) {
+export async function generatedOutputs(catalog, packageJson, options = {}) {
   const readme = await readFile(path.join(PROJECT_ROOT, "README.md"), "utf8");
   const projection = generateSiteProjection(catalog, packageJson);
   const ciSelection = generateCiSelection(catalog);
+  const supportTruth = options.supportTruth ?? (await readJson(SUPPORT_TRUTH_PATH));
+  const qualificationEvidence =
+    options.qualificationEvidence ?? (await collectQualificationEvidence(catalog, options));
+  const capabilityMatrix = generateCapabilitySampleMatrix(
+    catalog,
+    packageJson,
+    supportTruth,
+    qualificationEvidence,
+  );
+  await validateCapabilitySampleMatrix(capabilityMatrix, {
+    catalog,
+    packageJson,
+    supportTruth,
+    qualificationEvidence,
+  });
   return new Map([
     [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
+    [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
     [SITE_CONSUMER_FIXTURE_PATH, stableJson(generateSiteConsumerFixture(projection))],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
