@@ -8,6 +8,7 @@ import {
   runCogLiveEvidence,
   validateCogPublicContract,
 } from "../scripts/cog-live-evidence.mjs";
+import { geoTiffResolutionUnit } from "../scripts/lib/geotiff-cog-decoder.mjs";
 import { validateEvidenceEnvelope } from "../scripts/sample-contract.mjs";
 
 const contract = JSON.parse(
@@ -84,6 +85,15 @@ describe("direct COG scheduled semantic evidence", () => {
     expect(packageJson.dependencies?.geotiff).toBeUndefined();
     expect(packageJson.peerDependencies?.geotiff).toBeUndefined();
     expect(packageJson.devDependencies.geotiff).toBe("3.0.5");
+  });
+
+  it("derives resolution units from GeoTIFF unit keys rather than CRS code prefixes", () => {
+    expect(geoTiffResolutionUnit({ ProjectedCSTypeGeoKey: 32621, ProjLinearUnitsGeoKey: 9001 })).toBe("metre");
+    expect(geoTiffResolutionUnit({ ProjectedCSTypeGeoKey: 2227, ProjLinearUnitsGeoKey: 9003 })).toBe("us-survey-foot");
+    expect(geoTiffResolutionUnit({ GeographicTypeGeoKey: 6668, GeogAngularUnitsGeoKey: 9102 })).toBe("degree");
+    expect(geoTiffResolutionUnit({ ProjectedCSTypeGeoKey: 32621, ProjLinearUnitsGeoKey: 9015 })).toBe("EPSG:9015");
+    expect(geoTiffResolutionUnit({ GeographicTypeGeoKey: 4326 })).toBeUndefined();
+    expect(geoTiffResolutionUnit({ ProjectedCSTypeGeoKey: 32767, ProjLinearUnitsGeoKey: 9001 })).toBeUndefined();
   });
 
   it("cancels a live prefix response before it can exceed the pinned byte ceiling", async () => {

@@ -70,6 +70,31 @@ function crsFromImage(image) {
   };
 }
 
+const GEOTIFF_UNIT_NAMES = new Map([
+  [9001, "metre"],
+  [9002, "foot"],
+  [9003, "us-survey-foot"],
+  [9101, "radian"],
+  [9102, "degree"],
+  [9103, "arc-minute"],
+  [9104, "arc-second"],
+]);
+
+function authoritativeGeoKey(value) {
+  return Number.isInteger(value) && value > 0 && value !== 32767;
+}
+
+/** Resolve a GeoTIFF resolution unit without guessing from a CRS code prefix. */
+export function geoTiffResolutionUnit(keys) {
+  const code = authoritativeGeoKey(keys.ProjectedCSTypeGeoKey)
+    ? keys.ProjLinearUnitsGeoKey
+    : authoritativeGeoKey(keys.GeographicTypeGeoKey)
+      ? keys.GeogAngularUnitsGeoKey
+      : undefined;
+  if (!authoritativeGeoKey(code)) return undefined;
+  return GEOTIFF_UNIT_NAMES.get(code) ?? `EPSG:${code}`;
+}
+
 function colorInterpretation(photometric, sample, sampleCount) {
   if (photometric === 2 && sampleCount >= 3) return ["red", "green", "blue"][sample] ?? "alpha";
   if (sample === 0) return "gray";
@@ -105,8 +130,10 @@ function decoderFactory(GeoTIFF) {
         if (!base) throw new Error(`GeoTIFF ${assetUrl} contains no images.`);
 
         const tiledPyramid = images.every((image, index) => image.isTiled && (index === 0 || isReducedImage(image)));
+        const geoKeys = base.getGeoKeys() ?? {};
         const [minX, minY, maxX, maxY] = base.getBoundingBox();
         const [resolutionX, resolutionY] = base.getResolution();
+        const resolutionUnit = geoTiffResolutionUnit(geoKeys);
         const sampleCount = base.getSamplesPerPixel();
         const photometric = base.getFileDirectory().getValue("PhotometricInterpretation");
         const nodata = base.getGDALNoData();
@@ -131,7 +158,7 @@ function decoderFactory(GeoTIFF) {
           resolution: {
             x: Math.abs(resolutionX),
             y: Math.abs(resolutionY),
-            unit: crsFromImage(base).code?.startsWith("4") ? "degree" : "metre",
+            ...(resolutionUnit ? { unit: resolutionUnit } : {}),
           },
           footprint: {
             type: "Polygon",
