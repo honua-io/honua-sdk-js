@@ -1743,13 +1743,13 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-17 at commit `cc89ac4d`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-17 at commit `1bb4c044`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 460.3 KiB | 120.9 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 469.4 KiB | 123.7 KiB |
 | Importing only `HonuaClient` (tree-shake guard) | 210.5 KiB | 53.2 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 36.0 KiB | 11.4 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 259.0 KiB | 68.3 KiB |
@@ -1772,8 +1772,8 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 460.3 KiB ≈
-1.45 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 469.4 KiB ≈
+1.46 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
 0.38 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.
@@ -2403,8 +2403,59 @@ into a versioned, serializable IR and an immutable explain plan. Explaining is
 synchronous and side-effect free: it does not fetch metadata or rows, mutate a
 renderer, or execute the query.
 
-The subpath is experimental while the remaining compiler and columnar slices
-land. It is intentionally not exported from the root barrel.
+The complete subpath is experimental while the remaining compiler and columnar
+slices land. The stable root promotes only the reviewed plan/execution subset
+used by the managed connection and MapLibre source workflows.
+
+## Managed connection workflow
+
+The reviewed planner subset is also wired into the lifecycle-owned root
+connection. This is the shortest feature-result workflow for applications that
+do not need to compose planner and executor options themselves:
+
+```ts doc-test=compile
+import { createHonua } from "@honua/sdk-js";
+
+const honua = createHonua();
+const connection = await honua.connect({
+  url: "https://example.test/ogc/features",
+  protocol: "ogc-features",
+  sourceId: "incidents",
+});
+const plan = await connection.explain({
+  where: "status = 'open'",
+  pagination: { limit: 100 },
+});
+const result = await connection.query(plan);
+
+console.log(result.execution.plan.fingerprint, result.features.length);
+await honua.dispose();
+```
+
+`explain()` returns the canonical serializable `QueryExecutionPlanV1` rather
+than a facade-specific plan. `query(query)` plans once and executes through the
+same executor as `query(plan)`. The connection binds its logical identity,
+selected source, schema, discovered capability evidence, authorization-scope
+digest, and policy into that plan. Accepted plans are integrity-checked and
+must still match the current connection observation; mutation, a foreign
+connection or scope, and refreshed schema/capability evidence fail rather than
+silently re-planning.
+
+The returned feature result adds a credential-free terminal receipt containing
+plan identity, timings, hash-only provenance, discovery observation, structured
+diagnostics, and completion counts. Cancellation is combined with the kernel
+lifecycle and propagated through remote paging and bounded local fallback.
+Columnar and realtime plans are deliberately rejected here until their explicit
+engines own a corresponding result and cancellation contract.
+
+Discovery metadata caching and query-result caching are separate truths. The
+managed connection has no implicit query-result cache, so its default plan
+cache decision is `bypass` even when discovery metadata was a cache hit or was
+revalidated. Callers may supply an explicit query-cache observation through
+the planning options. Discovery `cacheStatus` and `retrievedAt` stay in the
+execution receipt as observation evidence; clock-only refreshes do not change
+semantic plan identity, while descriptor, source, validator, capability
+evidence, or capability-policy changes do.
 
 ## Typed semantic query AST
 
@@ -7914,12 +7965,12 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-17 at commit `cc89ac4d`._
+_Generated 2026-07-17 at commit `1bb4c044`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 460.3 KiB | 488.7 KiB | 120.9 KiB | 127.9 KiB |
-| `/honua` | 544.4 KiB | 566.2 KiB | 143.4 KiB | 149.6 KiB |
+| `.` (root) | 469.4 KiB | 488.7 KiB | 123.7 KiB | 127.9 KiB |
+| `/honua` | 616.5 KiB | 673.0 KiB | 164.2 KiB | 179.0 KiB |
 | `/contract` | 259.0 KiB | 287.3 KiB | 68.3 KiB | 72.9 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 631.2 KiB | 663.7 KiB | 129.3 KiB | 134.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 253.7 KiB | 257.5 KiB | 31.2 KiB | 33.2 KiB |
@@ -7928,10 +7979,10 @@ _Generated 2026-07-17 at commit `cc89ac4d`._
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 52.4 KiB | 55.2 KiB | 15.2 KiB | 15.8 KiB |
 | `/nl-map-control` | 73.8 KiB | 84.5 KiB | 22.2 KiB | 25.3 KiB |
-| `/runtime` | 451.4 KiB | 458.7 KiB | 119.4 KiB | 131.7 KiB |
+| `/runtime` | 452.6 KiB | 458.7 KiB | 119.8 KiB | 131.7 KiB |
 | `/realtime` | 41.2 KiB | 49.3 KiB | 11.4 KiB | 13.5 KiB |
 | `/offline` | 36.6 KiB | 44.3 KiB | 11.1 KiB | 13.2 KiB |
-| `/query-planner` (worker runtime injected) | 519.8 KiB | 569.1 KiB | 101.8 KiB | 111.3 KiB |
+| `/query-planner` (worker runtime injected) | 520.3 KiB | 568.1 KiB | 102.0 KiB | 111.1 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 92.7 KiB | 100.0 KiB | 28.7 KiB | 30.8 KiB |
 | `/esri-compat` | 978.1 KiB | 1026.2 KiB | 243.2 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
@@ -7940,17 +7991,17 @@ _Generated 2026-07-17 at commit `cc89ac4d`._
 | `/routing` | 18.7 KiB | 24.6 KiB | 6.0 KiB | 7.6 KiB |
 | `/auth` | 24.1 KiB | 30.6 KiB | 7.0 KiB | 8.7 KiB |
 | `/style` | 59.1 KiB | 69.0 KiB | 14.6 KiB | 17.2 KiB |
-| `/map` | 167.3 KiB | 182.2 KiB | 46.7 KiB | 50.7 KiB |
+| `/map` | 168.4 KiB | 182.2 KiB | 47.2 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 46.9 KiB | 53.6 KiB | 14.8 KiB | 16.8 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 432.9 KiB | 446.7 KiB | 114.4 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 460.9 KiB | 489.3 KiB | 121.1 KiB | 128.1 KiB |
-| browser ESM (`./browser`) | 459.6 KiB | 487.9 KiB | 120.9 KiB | 127.9 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 470.0 KiB | 489.3 KiB | 123.9 KiB | 128.1 KiB |
+| browser ESM (`./browser`) | 468.7 KiB | 487.9 KiB | 123.7 KiB | 127.9 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 210.5 KiB | 229.7 KiB | 53.2 KiB | 57.6 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 345.9 KiB | 359.2 KiB | 89.0 KiB | 92.8 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery facade only) | 367.2 KiB | 397.7 KiB | 94.8 KiB | 102.6 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 439.2 KiB | 478.1 KiB | 115.5 KiB | 125.4 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 225.3 KiB | 245.9 KiB | 56.6 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 36.0 KiB | 37.7 KiB | 11.4 KiB | 12.0 KiB |

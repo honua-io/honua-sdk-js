@@ -331,7 +331,11 @@ export function projectSourceToMapLibre<T>(
   });
 }
 
-/** Execute an accepted plan, mount its projection, and return one lifecycle. */
+/**
+ * Execute an accepted plan, mount its projection, and return one lifecycle.
+ * Omitted execution bindings inherit the accepted plan; explicit overrides
+ * are still validated and fail closed when they describe another context.
+ */
 export async function mountSourceToMapLibre<T>(
   map: SourceToMapLibreMap,
   source: Source<T>,
@@ -361,7 +365,7 @@ export async function mountSourceToMapLibre<T>(
   }
   const lifecycleController = new AbortController();
   const executeOptions = {
-    ...executionOptions(options),
+    ...executionOptions(plan, options),
     signal: combineSignals([lifecycleController.signal, options.signal]),
   };
   assertExecutionContext(source, plan, executeOptions);
@@ -671,12 +675,19 @@ function diagnostic<T>(
   };
 }
 
-function executionOptions(options: MountSourceToMapLibreOptions): ExecuteQueryPlanOptions {
+function executionOptions(plan: QueryExecutionPlanV1, options: MountSourceToMapLibreOptions): ExecuteQueryPlanOptions {
+  const schemaVersion = options.schemaVersion ?? plan.ir.source.schemaVersion;
+  const sourceVersion = options.sourceVersion ?? plan.ir.source.sourceVersion;
+  const authorizationScope = options.authorizationScope ?? plan.ir.source.authorizationScope;
+  const discovery = options.discovery ?? plan.provenance.discovery;
+  const executionMode = options.executionMode ?? plan.validity.executionMode;
   return {
     ...(options.signal ? { signal: options.signal } : {}),
-    ...(options.schemaVersion ? { schemaVersion: options.schemaVersion } : {}),
-    ...(options.sourceVersion ? { sourceVersion: options.sourceVersion } : {}),
-    ...(options.authorizationScope ? { authorizationScope: options.authorizationScope } : {}),
+    ...(schemaVersion !== undefined ? { schemaVersion } : {}),
+    ...(sourceVersion !== undefined ? { sourceVersion } : {}),
+    ...(authorizationScope !== undefined ? { authorizationScope } : {}),
+    ...(discovery !== undefined ? { discovery } : {}),
+    ...(executionMode !== undefined ? { executionMode } : {}),
   };
 }
 

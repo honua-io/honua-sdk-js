@@ -1,12 +1,5 @@
 /** Compile-only proof of the final root connect -> query -> explain -> mount workflow. */
-import {
-  type Query,
-  type SourceToMapLibreMap,
-  createHonua,
-  envelope,
-  explainQuery,
-  mountSourceToMapLibre,
-} from "@honua/sdk-js";
+import { type Query, type SourceToMapLibreMap, createHonua, envelope, mountSourceToMapLibre } from "@honua/sdk-js";
 
 declare const map: SourceToMapLibreMap;
 
@@ -23,10 +16,12 @@ const query: Query<{ status: string }> = {
   pagination: { limit: 100 },
 };
 
-const plan = explainQuery({ descriptor: source.descriptor, query });
+const plan = await connection.explain(query);
+const result = await connection.query(plan);
+result.execution.terminal.state satisfies "completed";
 const mounted = await mountSourceToMapLibre(map, source, plan);
 mounted.dispose();
 await honua.dispose();
 
-// Headless callers may use executeQueryPlan(plan, source) instead of mounting;
-// it is an alternative terminal path, not an additional step before mount.
+// Headless callers stop at connection.query(plan). Mounting an accepted plan is
+// the renderer-oriented alternative terminal path shown here for surface proof.

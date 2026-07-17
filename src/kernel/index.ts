@@ -6,13 +6,37 @@ import {
   validateConnectEndpoint,
 } from "../connect.js";
 import {
+  type DiscoveryCapabilityDecision,
   type DiscoveryCapabilityPolicy,
   type DiscoveryDiagnostic,
+  type DiscoveryEvidenceKind,
+  type DiscoveryProvenance,
   type SourceDiscoveryInspection,
   normalizeDiscoveryEndpoint,
 } from "../contract/discovery.js";
-import type { Dataset, Source, SourceDescriptor, SourceId } from "../contract/types.js";
+import type {
+  CapabilityPolicy,
+  Dataset,
+  Query,
+  Result,
+  Source,
+  SourceDescriptor,
+  SourceId,
+} from "../contract/types.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "../core/errors.js";
+import { canonicalStringify, sha256, toJsonValue } from "../query-planner/canonical.js";
+import { executeQueryPlan } from "../query-planner/executor.js";
+import { explainQuery, parseQueryPlan, serializeQueryPlan } from "../query-planner/planner.js";
+import {
+  HonuaQueryPlanExecutionError,
+  HonuaQueryPlanningError,
+  type QueryExecutionPlan,
+  type QueryExecutionPlanV1,
+  type QueryFallbackPolicy,
+  type QueryPlanCacheOptions,
+  type QueryPlanDiscoveryContext,
+  type QueryPlanningEstimates,
+} from "../query-planner/types.js";
 import {
   type KernelConnectOptions,
   type KernelLifecycle,
@@ -46,6 +70,70 @@ export interface InspectOptions {
   readonly refresh?: boolean;
   readonly signal?: AbortSignal;
 }
+
+/** Planning controls for the connection-owned, feature-result query workflow. */
+export interface ExplainOptions {
+  /** Select a source explicitly when the connection advertises more than one. */
+  readonly sourceId?: SourceId;
+  /** Refresh discovery before planning. The resulting observation is bound into the plan. */
+  readonly refresh?: boolean;
+  readonly signal?: AbortSignal;
+  readonly capabilityPolicy?: CapabilityPolicy;
+  readonly fallback?: QueryFallbackPolicy;
+  readonly estimates?: QueryPlanningEstimates;
+  /** Explicit query-result cache observation; discovery metadata cache state is never inferred here. */
+  readonly cache?: QueryPlanCacheOptions;
+}
+
+/** Execution controls. Planning controls apply only when `query()` receives a query, not an accepted plan. */
+export type QueryOptions = ExplainOptions;
+
+/** Credential-free terminal evidence attached to a completed connection query. */
+export interface ExecutionReceipt {
+  readonly version: "1.0";
+  readonly operationId: string;
+  readonly plan: {
+    readonly id: string;
+    readonly fingerprint: `sha256:${string}`;
+  };
+  readonly timings: {
+    readonly startedAt: string;
+    readonly finishedAt: string;
+    readonly durationMs: number;
+  };
+  readonly provenance: {
+    readonly sourceFingerprint: `sha256:${string}`;
+    readonly schemaFingerprint?: `sha256:${string}`;
+    readonly discoveryFingerprint: `sha256:${string}`;
+    readonly authorizationScopeFingerprint: `sha256:${string}`;
+  };
+  readonly observation: {
+    readonly connectionFingerprint: `sha256:${string}`;
+    readonly protocol: SourceDescriptor["protocol"];
+    readonly discovery: SourceDiscoveryInspection["discovery"];
+    readonly cacheStatus: ConnectCacheStatus;
+    readonly observedAt?: string;
+  };
+  readonly diagnostics: readonly {
+    readonly source: "discovery" | "planner";
+    readonly code: string;
+    readonly severity: "info" | "warning";
+    readonly message: string;
+    readonly path?: string;
+    readonly remediation?: string;
+  }[];
+  readonly terminal: {
+    readonly state: "completed";
+    readonly featureCount: number;
+    readonly exceededTransferLimit: boolean;
+  };
+}
+
+/** Existing feature result contract plus its accepted-plan execution evidence. */
+export type FeatureQueryResult<T = Record<string, unknown>> = Result<T> & {
+  readonly format: "features";
+  readonly execution: ExecutionReceipt;
+};
 
 /**
  * Credential-safe connection snapshot.
@@ -83,6 +171,9 @@ export interface HonuaKernelConnection<T = Record<string, unknown>> extends Asyn
   readonly sourceDescriptors: readonly SourceDescriptor[];
   inspect(options?: InspectOptions): Promise<ConnectionInspection>;
   source<TSource = T>(id?: SourceId): Source<TSource>;
+  explain(query: Readonly<Query<T>>, options?: ExplainOptions): Promise<QueryExecutionPlanV1>;
+  query(query: Readonly<Query<T>>, options?: QueryOptions): Promise<FeatureQueryResult<T>>;
+  query(plan: QueryExecutionPlanV1, options?: QueryOptions): Promise<FeatureQueryResult<T>>;
   dispose(): Promise<void>;
 }
 
@@ -180,6 +271,17 @@ interface ManagedConnectionState {
   readonly sourceIds: readonly SourceId[];
 }
 
+interface ManagedQueryContext<T> {
+  readonly state: ManagedConnectionState;
+  readonly sourceInspection: SourceDiscoveryInspection;
+  readonly descriptor: SourceDescriptor;
+  readonly source: Source<T>;
+  readonly schemaVersion?: string;
+  readonly sourceVersion: string;
+  readonly authorizationScope: readonly string[];
+  readonly discovery: QueryPlanDiscoveryContext;
+}
+
 class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
   readonly #abortController = new AbortController();
   readonly #lifecycle: KernelLifecycle;
@@ -194,6 +296,7 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
   #refreshGeneration = 0;
   #state: "active" | "disposing" | "disposed" = "active";
   #disposePromise: Promise<void> | undefined;
+  #querySequence = 0;
   public readonly id: string;
 
   public constructor(init: ManagedConnectionInit) {
@@ -289,6 +392,158 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
     } catch (error) {
       throw credentialSafeError(error, this.#secrets);
     }
+  }
+
+  public async explain(query: Readonly<Query<T>>, options: ExplainOptions = {}): Promise<QueryExecutionPlanV1> {
+    this.#assertActive("explain a query");
+    const querySnapshot = snapshotQuery(query);
+    const optionSnapshot = snapshotExplainOptions(options);
+    const signal = combineAbortSignals(this.#abortController.signal, optionSnapshot.signal, querySnapshot.signal);
+    throwIfAborted(signal);
+    if (optionSnapshot.refresh === true) await this.inspect({ refresh: true, signal });
+    this.#assertActive("explain a query");
+    throwIfAborted(signal);
+    try {
+      const context = this.#queryContext(optionSnapshot.sourceId, this.#current);
+      return explainQuery({
+        descriptor: context.descriptor,
+        query: querySnapshot,
+        capabilityPolicy: optionSnapshot.capabilityPolicy,
+        fallback: optionSnapshot.fallback,
+        estimates: optionSnapshot.estimates,
+        cache: optionSnapshot.cache ?? defaultPlanCache(),
+        schemaVersion: context.schemaVersion,
+        sourceVersion: context.sourceVersion,
+        authorizationScope: context.authorizationScope,
+        discovery: context.discovery,
+      });
+    } catch (error) {
+      throw credentialSafeError(error, this.#secrets);
+    }
+  }
+
+  public async query(
+    queryOrPlan: Readonly<Query<T>> | QueryExecutionPlanV1,
+    options: QueryOptions = {},
+  ): Promise<FeatureQueryResult<T>> {
+    this.#assertActive("execute a query");
+    const optionSnapshot = snapshotExplainOptions(options);
+    const planInput = looksLikeQueryPlan(queryOrPlan);
+    const querySnapshot = planInput ? undefined : snapshotQuery(queryOrPlan as Readonly<Query<T>>);
+    const signal = combineAbortSignals(this.#abortController.signal, optionSnapshot.signal, querySnapshot?.signal);
+    throwIfAborted(signal);
+    if (optionSnapshot.refresh === true) await this.inspect({ refresh: true, signal });
+    this.#assertActive("execute a query");
+    throwIfAborted(signal);
+
+    const state = this.#current;
+    let plan: QueryExecutionPlanV1;
+    let context: ManagedQueryContext<T>;
+    try {
+      if (planInput) {
+        assertAcceptedPlanExecutionOptions(optionSnapshot);
+        plan = acceptedFeaturePlan(queryOrPlan);
+        const sourceId = optionSnapshot.sourceId ?? plan.ir.source.id;
+        context = this.#queryContext(sourceId, state, true);
+        assertConnectionPlanBinding(plan, context.sourceVersion);
+      } else {
+        context = this.#queryContext(optionSnapshot.sourceId, state);
+        plan = explainQuery({
+          descriptor: context.descriptor,
+          query: querySnapshot,
+          capabilityPolicy: optionSnapshot.capabilityPolicy,
+          fallback: optionSnapshot.fallback,
+          estimates: optionSnapshot.estimates,
+          cache: optionSnapshot.cache ?? defaultPlanCache(),
+          schemaVersion: context.schemaVersion,
+          sourceVersion: context.sourceVersion,
+          authorizationScope: context.authorizationScope,
+          discovery: context.discovery,
+        });
+      }
+    } catch (error) {
+      throw credentialSafeError(error, this.#secrets);
+    }
+
+    const sequence = ++this.#querySequence;
+    const startedAtMs = Date.now();
+    const startedAt = new Date(startedAtMs).toISOString();
+    const monotonicStart = monotonicNow();
+    try {
+      const execution = await executeQueryPlan(plan, context.source, {
+        signal,
+        schemaVersion: context.schemaVersion,
+        sourceVersion: context.sourceVersion,
+        authorizationScope: context.authorizationScope,
+        discovery: context.discovery,
+        executionMode: "snapshot",
+      });
+      throwIfAborted(signal);
+      this.#assertActive("complete a query");
+      const finishedAtMs = Date.now();
+      const receipt = createExecutionReceipt({
+        sequence,
+        plan,
+        state,
+        sourceInspection: context.sourceInspection,
+        result: execution.result,
+        startedAt,
+        finishedAt: new Date(finishedAtMs).toISOString(),
+        durationMs: Math.max(0, monotonicNow() - monotonicStart),
+      });
+      return {
+        ...execution.result,
+        format: "features",
+        execution: receipt,
+      };
+    } catch (error) {
+      if (signal.aborted) throw new HonuaAbortError();
+      throw credentialSafeError(error, this.#secrets);
+    }
+  }
+
+  #queryContext(
+    requested: SourceId | undefined,
+    state: ManagedConnectionState,
+    acceptedPlan = false,
+  ): ManagedQueryContext<T> {
+    let sourceId: SourceId;
+    try {
+      sourceId = resolveSourceId(requested, this.#selectedSourceId, state);
+    } catch (error) {
+      if (acceptedPlan && requested !== undefined) {
+        throw new HonuaQueryPlanExecutionError(
+          "foreign-plan",
+          "Query plan belongs to a foreign connection or source; explain a replacement plan",
+          { context: { reason: "source-identity-changed" } },
+          "source-identity-changed",
+        );
+      }
+      throw error;
+    }
+    const sourceInspection = state.inspection.sources.find((entry) => entry.descriptor.id === sourceId);
+    if (!sourceInspection) throw sourceSelectionError(state.sourceIds);
+    const descriptor = sourceInspection.descriptor;
+    const authorizationScope = connectionAuthorizationScope(this.#options.authorizationScopeFingerprint);
+    const discovery = connectionDiscoveryContext(sourceInspection, this.#lifecycle.policy.capabilities);
+    const schemaVersion = legacySchemaVersion(descriptor);
+    const sourceVersion = connectionSourceVersion(state.inspection, descriptor);
+    let delegate: Source<T>;
+    try {
+      delegate = state.discovered.source<T>(sourceId);
+    } catch (error) {
+      throw credentialSafeError(error, this.#secrets);
+    }
+    return {
+      state,
+      sourceInspection,
+      descriptor,
+      source: plannerSource(delegate, descriptor),
+      authorizationScope,
+      discovery,
+      ...(schemaVersion ? { schemaVersion } : {}),
+      sourceVersion,
+    };
   }
 
   public dispose(): Promise<void> {
@@ -563,6 +818,359 @@ function sourceSelectionError(sourceIds: readonly SourceId[]): HonuaDiscoveryErr
   );
 }
 
+function snapshotExplainOptions(value: ExplainOptions): ExplainOptions {
+  const snapshot = snapshotOwnDataObject(value, "connection query options");
+  return Object.freeze({
+    ...(snapshot.sourceId !== undefined ? { sourceId: snapshot.sourceId as SourceId } : {}),
+    ...(snapshot.refresh !== undefined ? { refresh: snapshot.refresh as boolean } : {}),
+    ...(snapshot.signal !== undefined ? { signal: snapshot.signal as AbortSignal } : {}),
+    ...(snapshot.capabilityPolicy !== undefined
+      ? { capabilityPolicy: snapshot.capabilityPolicy as CapabilityPolicy }
+      : {}),
+    ...(snapshot.fallback !== undefined ? { fallback: snapshot.fallback as QueryFallbackPolicy } : {}),
+    ...(snapshot.estimates !== undefined ? { estimates: snapshot.estimates as QueryPlanningEstimates } : {}),
+    ...(snapshot.cache !== undefined ? { cache: snapshot.cache as QueryPlanCacheOptions } : {}),
+  });
+}
+
+function snapshotQuery<T>(value: Readonly<Query<T>>): Readonly<Query<T>> {
+  return snapshotOwnDataObject(value, "connection query") as Readonly<Query<T>>;
+}
+
+function looksLikeQueryPlan(value: unknown): boolean {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  try {
+    return ["kind", "version", "fingerprint", "ir", "steps", "validity"].some(
+      (key) => Reflect.getOwnPropertyDescriptor(value, key) !== undefined,
+    );
+  } catch {
+    // Unstable reflection is never allowed to fall through to silent replanning.
+    return true;
+  }
+}
+
+function acceptedFeaturePlan(value: unknown): QueryExecutionPlanV1 {
+  const accepted = parseQueryPlan(serializeQueryPlan(value as QueryExecutionPlan));
+  if (accepted.version !== "1.0" || accepted.ir.version !== "1.0") {
+    throw new HonuaQueryPlanExecutionError(
+      "invalid-plan",
+      "Connection query accepts version 1 feature plans; columnar and realtime execution require an explicit engine",
+    );
+  }
+  return accepted;
+}
+
+function assertAcceptedPlanExecutionOptions(options: QueryOptions): void {
+  if (
+    options.capabilityPolicy !== undefined ||
+    options.fallback !== undefined ||
+    options.estimates !== undefined ||
+    options.cache !== undefined
+  ) {
+    throw new HonuaQueryPlanExecutionError(
+      "invalid-plan",
+      "Planning options cannot be applied while executing an accepted plan; explain a replacement plan instead",
+    );
+  }
+}
+
+function assertConnectionPlanBinding(plan: QueryExecutionPlanV1, sourceVersion: string): void {
+  if (plan.validity.executionMode !== "snapshot") {
+    throw new HonuaQueryPlanExecutionError(
+      "invalid-plan",
+      "Connection query accepts snapshot feature plans; realtime execution requires an explicit engine",
+    );
+  }
+  if (plan.ir.source.sourceVersion !== sourceVersion) {
+    throw new HonuaQueryPlanExecutionError(
+      "foreign-plan",
+      "Query plan belongs to a foreign connection or source; explain a replacement plan",
+      { context: { reason: "source-identity-changed" } },
+      "source-identity-changed",
+    );
+  }
+}
+
+function connectionAuthorizationScope(value: string | undefined): readonly string[] {
+  const fingerprint = value?.trim() || "anonymous";
+  return Object.freeze([`scope:${sha256(`honua.kernel.authorization-scope.v1\0${fingerprint}`)}`]);
+}
+
+function connectionSourceVersion(inspection: ConnectionInspection, descriptor: SourceDescriptor): string {
+  const identity = canonicalStringify(
+    toJsonValue({
+      version: 3,
+      connectionId: inspection.id,
+      endpoint: inspection.endpoint,
+      protocol: inspection.protocol,
+      source: semanticSourceAddress(descriptor),
+    }),
+  );
+  return `connection-source:${sha256(identity)}`;
+}
+
+/** Project stable source addressing without retaining URL credentials or mutable discovery truth. */
+function semanticSourceAddress(descriptor: SourceDescriptor): Readonly<Record<string, unknown>> {
+  const { url, geoparquet, ...locatorCoordinates } = descriptor.locator;
+  const locator = {
+    ...locatorCoordinates,
+    url: normalizeDiscoveryEndpoint(url),
+    ...(geoparquet === undefined
+      ? {}
+      : {
+          geoparquet: {
+            ...geoparquet,
+            ...(geoparquet.urls === undefined
+              ? {}
+              : { urls: sortedUniqueStrings(geoparquet.urls.map((entry) => normalizeDiscoveryEndpoint(entry))) }),
+          },
+        }),
+  };
+  return {
+    id: descriptor.id,
+    protocol: descriptor.protocol,
+    locator,
+  };
+}
+
+function legacySchemaVersion(descriptor: SourceDescriptor): string | undefined {
+  if (descriptor.schemaV2 !== undefined || descriptor.schema === undefined) return undefined;
+  return `legacy-schema:${sha256(canonicalStringify(toJsonValue(descriptor.schema)))}`;
+}
+
+function connectionDiscoveryContext(
+  inspection: SourceDiscoveryInspection,
+  policy: DiscoveryCapabilityPolicy,
+): QueryPlanDiscoveryContext {
+  const provenance = normalizeDiscoveryProvenance(inspection.provenance);
+  const capabilityDecisions = canonicalUnique(
+    inspection.capabilityDecisions.map((decision) => normalizeDiscoveryCapabilityDecision(decision)),
+  );
+  const evidence = canonicalStringify(
+    toJsonValue({
+      version: 3,
+      discovery: inspection.discovery,
+      provenance,
+      capabilityDecisions,
+      capabilityProfileFingerprint: inspection.descriptor.capabilityProfile?.fingerprint ?? null,
+      policy: normalizeDiscoveryCapabilityPolicy(policy),
+    }),
+  );
+  const validators = sortedUniqueStrings([
+    ...provenance.flatMap((entry) => (entry.validator === undefined ? [] : [entry.validator])),
+    ...capabilityDecisions.flatMap((decision) =>
+      decision.evidence.flatMap((entry) =>
+        entry.provenance.flatMap((provenanceEntry) =>
+          provenanceEntry.validator === undefined ? [] : [provenanceEntry.validator],
+        ),
+      ),
+    ),
+  ]);
+  return Object.freeze({
+    state: plannerDiscoveryState(inspection),
+    sourceFingerprint: sha256(`honua.kernel.discovery-evidence.v3\0${evidence}`),
+    ...(validators.length > 0
+      ? {
+          validator: {
+            kind: "fingerprint" as const,
+            fingerprint: sha256(`honua.kernel.discovery-validator.v2\0${canonicalStringify(toJsonValue(validators))}`),
+          },
+        }
+      : {}),
+  });
+}
+
+interface SemanticDiscoveryProvenance {
+  readonly source: string;
+  readonly validator?: string;
+}
+
+interface SemanticDiscoveryEvidence {
+  readonly kind: DiscoveryEvidenceKind;
+  readonly supported: boolean;
+  readonly reason?: string;
+  readonly provenance: readonly SemanticDiscoveryProvenance[];
+}
+
+interface SemanticDiscoveryCapabilityDecision {
+  readonly capability: DiscoveryCapabilityDecision["capability"];
+  readonly effective: boolean;
+  readonly code: DiscoveryCapabilityDecision["code"];
+  readonly evidence: readonly SemanticDiscoveryEvidence[];
+  readonly adapterSupported: boolean;
+  readonly positiveEvidence: boolean;
+  readonly policyAllowed: boolean;
+}
+
+/** Strip receipt-only clocks and canonicalize set-like discovery evidence before hashing plan identity. */
+function normalizeDiscoveryProvenance(
+  provenance: readonly DiscoveryProvenance[],
+): readonly SemanticDiscoveryProvenance[] {
+  return canonicalUnique(
+    provenance.map((entry) => ({
+      source: entry.source,
+      ...(typeof entry.validator === "string" && entry.validator.length > 0 ? { validator: entry.validator } : {}),
+    })),
+  );
+}
+
+function normalizeDiscoveryCapabilityDecision(
+  decision: DiscoveryCapabilityDecision,
+): SemanticDiscoveryCapabilityDecision {
+  return {
+    capability: decision.capability,
+    effective: decision.effective,
+    code: decision.code,
+    evidence: canonicalUnique(
+      decision.evidence.map((entry) => ({
+        kind: entry.kind,
+        supported: entry.supported,
+        ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+        provenance: normalizeDiscoveryProvenance(entry.provenance),
+      })),
+    ),
+    adapterSupported: decision.adapterSupported,
+    positiveEvidence: decision.positiveEvidence,
+    policyAllowed: decision.policyAllowed,
+  };
+}
+
+function normalizeDiscoveryCapabilityPolicy(policy: DiscoveryCapabilityPolicy): Readonly<{
+  allow?: readonly DiscoveryCapabilityDecision["capability"][];
+  deny: readonly DiscoveryCapabilityDecision["capability"][];
+  acceptInferred: boolean;
+}> {
+  return {
+    ...(policy.allow === undefined ? {} : { allow: sortedUniqueStrings(policy.allow) }),
+    deny: sortedUniqueStrings(policy.deny ?? []),
+    acceptInferred: policy.acceptInferred === true,
+  };
+}
+
+function canonicalUnique<T>(values: readonly T[]): readonly T[] {
+  const keyed = new Map<string, T>();
+  for (const value of values) {
+    const key = canonicalStringify(toJsonValue(value));
+    if (!keyed.has(key)) keyed.set(key, value);
+  }
+  return [...keyed.entries()]
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([, value]) => value);
+}
+
+function sortedUniqueStrings<T extends string>(values: readonly T[]): readonly T[] {
+  return [...new Set(values)].sort();
+}
+
+function plannerDiscoveryState(inspection: SourceDiscoveryInspection): DiscoveryEvidenceKind {
+  if (inspection.discovery !== "mixed") return inspection.discovery;
+  const kinds = new Set(
+    inspection.capabilityDecisions.flatMap((decision) => decision.evidence.map((entry) => entry.kind)),
+  );
+  if (kinds.has("metadata")) return "metadata";
+  if (kinds.has("declared")) return "declared";
+  if (kinds.has("inferred")) return "inferred";
+  return "unavailable";
+}
+
+function defaultPlanCache(): QueryPlanCacheOptions {
+  // A discovery-metadata cache observation says nothing about query-result
+  // reuse. Managed queries execute the adapter unless the caller supplies an
+  // explicit query-cache observation to the planner.
+  return Object.freeze({ policy: "bypass" });
+}
+
+/** Bind execution to the immutable inspection descriptor while preserving the adapter implementation. */
+function plannerSource<T>(delegate: Source<T>, descriptor: SourceDescriptor): Source<T> {
+  return {
+    descriptor,
+    capabilities: descriptor.capabilities,
+    query: (request) => delegate.query(request),
+    queryAll: (request) => delegate.queryAll(request),
+    queryAggregate: (request) => delegate.queryAggregate(request),
+    protocol: (kind) => delegate.protocol(kind),
+  } as Source<T>;
+}
+
+interface CreateExecutionReceiptOptions<T> {
+  readonly sequence: number;
+  readonly plan: QueryExecutionPlanV1;
+  readonly state: ManagedConnectionState;
+  readonly sourceInspection: SourceDiscoveryInspection;
+  readonly result: Result<T>;
+  readonly startedAt: string;
+  readonly finishedAt: string;
+  readonly durationMs: number;
+}
+
+function createExecutionReceipt<T>(options: CreateExecutionReceiptOptions<T>): ExecutionReceipt {
+  const observedAt = options.sourceInspection.provenance
+    .map((entry) => entry.retrievedAt)
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .sort()
+    .at(-1);
+  const diagnostics = Object.freeze([
+    ...options.sourceInspection.diagnostics.map((diagnostic) =>
+      Object.freeze({
+        source: "discovery" as const,
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+      }),
+    ),
+    ...options.plan.warnings.map((warning) =>
+      Object.freeze({
+        source: "planner" as const,
+        code: warning.code,
+        severity: warning.severity,
+        message: warning.message,
+        path: warning.path,
+        remediation: warning.remediation,
+      }),
+    ),
+  ]);
+  const schemaFingerprint =
+    options.plan.provenance.schema.state === "known" ? options.plan.provenance.schema.fingerprint : undefined;
+  const operationFingerprint = sha256(
+    `honua.kernel.query-operation.v1\0${options.plan.fingerprint}\0${options.sequence}\0${options.startedAt}`,
+  );
+  return Object.freeze({
+    version: "1.0",
+    operationId: `query_${operationFingerprint.slice("sha256:".length, "sha256:".length + 20)}`,
+    plan: Object.freeze({ id: options.plan.id, fingerprint: options.plan.fingerprint }),
+    timings: Object.freeze({
+      startedAt: options.startedAt,
+      finishedAt: options.finishedAt,
+      durationMs: Number(options.durationMs.toFixed(3)),
+    }),
+    provenance: Object.freeze({
+      sourceFingerprint: options.plan.provenance.source.descriptorFingerprint,
+      ...(schemaFingerprint ? { schemaFingerprint } : {}),
+      discoveryFingerprint: options.plan.provenance.discovery.fingerprint,
+      authorizationScopeFingerprint: options.plan.provenance.authorizationScope.fingerprint,
+    }),
+    observation: Object.freeze({
+      connectionFingerprint: sha256(
+        `honua.kernel.connection-receipt.v1\0${options.state.inspection.id}\0${options.state.inspection.endpoint}`,
+      ),
+      protocol: options.sourceInspection.descriptor.protocol,
+      discovery: options.sourceInspection.discovery,
+      cacheStatus: options.state.inspection.cacheStatus,
+      ...(observedAt ? { observedAt } : {}),
+    }),
+    diagnostics,
+    terminal: Object.freeze({
+      state: "completed",
+      featureCount: options.result.features.length,
+      exceededTransferLimit: options.result.exceededTransferLimit,
+    }),
+  });
+}
+
+function monotonicNow(): number {
+  return typeof performance === "object" && typeof performance.now === "function" ? performance.now() : Date.now();
+}
+
 function cloneInspection(value: ConnectionInspection, secrets: readonly string[]): ConnectionInspection {
   const seen = new Set<object>();
   return cloneInspectionValue(value, secrets, seen, 0) as ConnectionInspection;
@@ -772,6 +1380,17 @@ function credentialSafeError(error: unknown, secrets: readonly string[]): unknow
     }
   }
   if (error instanceof HonuaAbortError) return new HonuaAbortError(sanitizedMessage);
+  if (error instanceof HonuaQueryPlanExecutionError) {
+    return new HonuaQueryPlanExecutionError(
+      error.code,
+      sanitizedMessage,
+      error.reason ? { context: { reason: error.reason } } : {},
+      error.reason,
+    );
+  }
+  if (error instanceof HonuaQueryPlanningError) {
+    return new HonuaQueryPlanningError(error.code, sanitizedMessage);
+  }
   const sanitized = new Error(sanitizedMessage);
   const name = stableStringProperty(error, "name");
   if (name.safe && name.value !== undefined) sanitized.name = name.value;
@@ -854,8 +1473,11 @@ function containsCredentialMaterial(
   }
 }
 
-function combineAbortSignals(owner: AbortSignal, caller: AbortSignal | undefined): AbortSignal {
-  return caller && caller !== owner ? AbortSignal.any([owner, caller]) : owner;
+function combineAbortSignals(owner: AbortSignal, ...callers: readonly (AbortSignal | undefined)[]): AbortSignal {
+  const signals = [owner, ...callers.filter((signal): signal is AbortSignal => signal !== undefined)].filter(
+    (signal, index, values) => values.indexOf(signal) === index,
+  );
+  return signals.length === 1 ? owner : AbortSignal.any(signals);
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
