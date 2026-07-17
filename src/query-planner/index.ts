@@ -14,10 +14,10 @@
 export { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
 export { compileDuckDbQuery, compileDuckDbQueryV2, compileSemanticDuckDbQuery } from "./duckdb.js";
 export { executeQueryPlan } from "./executor.js";
-export { compileGeoServicesQuery } from "./geoservices.js";
+export { compileGeoServicesQuery, compileSemanticGeoServicesQuery } from "./geoservices.js";
 export { compileGrpcQuery, compileSemanticGrpcQuery } from "./grpc.js";
 export { compileOgcApiFeaturesQuery, compileSemanticOgcApiFeaturesQuery } from "./ogc-features.js";
-export { compileOdataQuery } from "./odata.js";
+export { compileOdataQuery, compileSemanticOdataQuery } from "./odata.js";
 export { compileSemanticWfsQuery, compileWfsQuery } from "./wfs.js";
 export {
   canonicalizeQuery,
@@ -60,6 +60,7 @@ export type {
   SemanticCompilerUnsupportedCode,
   SemanticSqlParameter,
 } from "./semantic-compiler.js";
+export type { SemanticCompilerFieldMapping } from "./semantic-literals.js";
 export { semanticFilterFromCql2Json, semanticFilterToCql2Json } from "./cql2-json.js";
 export {
   MAX_SEMANTIC_QUERY_BYTES,
@@ -132,12 +133,28 @@ export type {
   TopologicalSpatialPredicate,
 } from "./semantic-types.js";
 export type {
+  SemanticOdataCompileOptions,
+  SemanticOdataCompiledQueryV1,
+  SemanticOdataOutputGeometry,
+  SemanticOdataSourceIdentity,
+  SemanticOdataSpatialFunction,
+} from "./odata.js";
+export type {
   SemanticDuckDbCompileOptions,
   SemanticDuckDbCompiledQueryV1,
   SemanticDuckDbGeometrySource,
   SemanticDuckDbOutputGeometry,
   SemanticDuckDbSpatialCompilation,
 } from "./duckdb.js";
+export type {
+  SemanticGeoServicesCompileOptions,
+  SemanticGeoServicesCompiledQueryV1,
+  SemanticGeoServicesGeometry,
+  SemanticGeoServicesProtocol,
+  SemanticGeoServicesSourceIdentity,
+  SemanticGeoServicesSpatialReference,
+  SemanticGeoServicesSpatialRelationship,
+} from "./geoservices.js";
 export type {
   SemanticGrpcCompileOptions,
   SemanticGrpcCompiledQueryV1,

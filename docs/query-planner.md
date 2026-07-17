@@ -304,9 +304,10 @@ Existing v1 planning still serializes `where` as `{ kind: "source-native",
 expression }`, preserving compatibility while consumers migrate to semantic
 compiler artifacts. New code should use typed builders instead of the bridge.
 
-## Semantic DuckDB and Honua gRPC compilers
+## Semantic protocol compilers
 
-`compileSemanticDuckDbQuery()` and `compileSemanticGrpcQuery()` are pure
+`compileSemanticGeoServicesQuery()`, `compileSemanticOdataQuery()`,
+`compileSemanticDuckDbQuery()`, and `compileSemanticGrpcQuery()` are pure
 compiler boundaries for the validated semantic AST. They return a
 discriminated result: `compiled` contains a frozen artifact and its fidelity;
 `unsupported` contains a stable code, exact query path, and bounded diagnostic.
@@ -348,6 +349,105 @@ if (compilation.outcome === "compiled") {
   console.warn(compilation.diagnostics[0]);
 }
 ```
+
+GeoServices artifacts target standardized SQL-92 and the layer `query` request
+vocabulary. Every public semantic field is resolved to its exact physical
+`SourceSchemaV2.path`; SQL identifiers are delimited, string literals use quote
+doubling, finite numbers never use exponent notation, and UTC temporal values
+become typed SQL literals only with exact layer field-type evidence.
+`esriFieldTypeDate` uses timezone-aware schema metadata and second-precision
+`TIMESTAMP`; `esriFieldTypeDateOnly`, `esriFieldTypeTimeOnly`, and
+`esriFieldTypeTimestampOffset` use their standardized `DATE`, `TIME`, and
+offset-bearing `TIMESTAMP` forms. Precision that the native type cannot carry
+fails closed. An unfiltered query omits `where` instead of
+inventing `1=1`. Raw REST field parameters (`outFields`, ordering, grouping,
+and statistic operands) additionally require one delimiter-free Unicode
+identifier; a physical name that is safe only when SQL-delimited may be used in
+`where`, but never leaks into a comma-delimited request field. Geometry output
+emits explicit `returnZ`/`returnM` flags for `xy`, `xyz`, `xym`, and `xyzm`;
+unknown layout metadata fails closed. `outSr` is accepted only when it is
+identical to the source geometry CRS because this artifact has no explicit
+datum-transformation evidence. Spatial predicates compile to the separate
+geometry request parameters only when the schema identifies the target geometry
+property and executable CRS/layout, and the caller supplies the relationship advertised by
+the layer's `supportedSpatialRelationships` metadata. A spatial predicate
+inside `OR` or `NOT`, multiple spatial predicates, an implicit CRS transform,
+or an unadvertised relationship fails closed. `orderByFields` requires an
+explicit `supportsAdvancedQueries: true`; feature paging requires
+`supportsPagination: true`; statistics require `supportsStatistics: true`;
+and paged aggregate requests additionally require
+`supportsPaginationOnAggregatedQueries: true`. Missing or false metadata never
+becomes inferred support. See the
+[GeoServices query request reference](https://developers.arcgis.com/rest/services-reference/enterprise/query-feature-service-layer/).
+
+OData artifacts target the v4.0 URL conventions. Physical property paths retain
+their exact `/`-separated Unicode segments, so a public `city` field may map to
+`Address/City` without exposing that physical spelling in the semantic AST.
+String, decimal, integer, float, boolean, UUID, date/time, duration, null, list,
+range, and temporal predicates have deterministic v4 literal forms. `in` is
+lowered to an exact parenthesized equality disjunction because OData v4.0 has no
+portable `in` operator. Only LIKE shapes exactly expressible as `startswith`,
+`endswith`, or `contains` compile; `_`, interior `%`, case folding, and
+always-true wildcard patterns are rejected. See the
+[OData v4 URL conventions](https://docs.oasis-open.org/odata/odata/v4.0/os/part2-url-conventions/odata-v4.0-os-part2-url-conventions.html).
+
+```ts doc-test=compile
+import type { SourceSchemaV2 } from "@honua/sdk-js/source-schema";
+import {
+  compileSemanticOdataQuery,
+  createSemanticQueryBuilder,
+} from "@honua/sdk-js/query-planner";
+
+interface Place {
+  id: number;
+  city: string;
+}
+
+declare const schema: SourceSchemaV2;
+
+const odata = createSemanticQueryBuilder<Place, "odata", "non-spatial">();
+const query = odata.features({
+  select: ["id", "city"] as const,
+  geometry: "omit",
+  filter: odata.comparison("eq", odata.property("city"), "Honolulu"),
+});
+const compilation = compileSemanticOdataQuery({
+  query,
+  schema,
+  source: { entitySet: "Places", sourceVersion: "metadata:42" },
+});
+
+if (compilation.outcome === "compiled") {
+  console.log(compilation.artifact.filter, compilation.artifact.requestFingerprint);
+}
+```
+
+OData spatial compilation additionally requires one exact, whitelisted OData
+v4 `Edm.Geography*`/`Edm.Geometry*` primitive type, executable EPSG CRS and
+`xy` layout metadata for the property, and explicit source evidence for
+`geo.intersects`. Filtering admits only the normative signatures
+`geo.intersects(Edm.GeographyPoint, Edm.GeographyPolygon)` and its
+`Edm.Geometry` equivalent. A Point property therefore precedes a Polygon
+literal; a Polygon property is emitted second after a Point literal. Bounding
+boxes are Polygon literals and can target only exact Point properties. Generic,
+line, multi, collection, mixed, or unknown filter-property kinds fail closed,
+while geometry output may still use the broader whitelisted spatial types.
+Geography requires angular CRS axes, Geometry requires linear CRS axes, and the
+literal CRS must match the property CRS byte-for-byte at the executable binding
+level; the compiler never inserts a transform. Other topological predicates and
+distance modes return path-addressed unsupported diagnostics. Portable
+`$apply` aggregation remains outside this compiler slice rather than
+approximating aggregate semantics.
+
+Both request artifacts include `schemaFingerprint`, `queryFingerprint`, and a
+domain-separated `requestFingerprint`. The latter incorporates the exact
+request pre-image and an explicit null/version slot for source metadata, so
+cache and approval identities change when either semantics or source evidence
+changes. `fieldMappings` exposes the complete logical-to-physical trace used by
+the request in Unicode-scalar order, independent of host locale or ICU data.
+Protocol-native filters are accepted only with the matching
+`geoservices-sql92` or `odata-4.0` tag, must be bounded nonblank text without
+control characters, and set `usesNativeFilter: true`.
 
 DuckDB artifacts contain a fixed `honua-resource://resolve-at-execution`
 placeholder, the opaque #587 resource handle, parameterized SQL, and ordered
@@ -392,7 +492,7 @@ an artifact is created. Artifacts expose `usesNativeFilter` so policy and
 inspection code can distinguish native code from compiler-escaped semantic
 values.
 
-Neither compiler imports DuckDB, `@bufbuild/protobuf`, or Connect runtimes.
+None of the semantic compilers imports DuckDB, `@bufbuild/protobuf`, or Connect runtimes.
 Execution and integration into the complete explain plan belong to the
 planner/facade tranche (#530); these functions only produce deterministic,
 credential-free artifacts.
