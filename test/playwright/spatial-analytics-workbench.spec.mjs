@@ -259,3 +259,34 @@ test("workbench remains keyboard-operable and responsive at a narrow viewport", 
     await server.close();
   }
 });
+
+test("serves the bounded columnar prerequisite fixture from the application origin", async ({ page }) => {
+  const server = await startSpatialAnalyticsWorkbenchFixtureServer();
+  try {
+    await page.goto(server.url);
+    const fixture = await page.evaluate(async () => {
+      const url = new URL("/fixtures/cloud-native-analysis-columnar.v1.json", window.location.origin);
+      const response = await fetch(url, { cache: "no-store", credentials: "same-origin" });
+      return {
+        ok: response.ok,
+        sameOrigin: new URL(response.url).origin === window.location.origin,
+        body: await response.json(),
+      };
+    });
+
+    expect(fixture).toMatchObject({
+      ok: true,
+      sameOrigin: true,
+      body: {
+        schemaVersion: "honua.sample.cloud-native-analysis-columnar-fixture.v1",
+        fixtureId: "honolulu-risk-columnar",
+        sourceVersion: "2026-07-17.1",
+        crs: "OGC:CRS84",
+      },
+    });
+    expect(fixture.body.columns.id).toHaveLength(8);
+    expect(fixture.body.rowGroups).toHaveLength(3);
+  } finally {
+    await server.close();
+  }
+});

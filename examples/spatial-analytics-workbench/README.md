@@ -25,6 +25,21 @@ The advanced indexed-response panel remains a clearly labeled fixture for the
 existing `SpatialAggregationResult` widgets. It does **not** claim that #389
 already compiles OGC/CQL2, DuckDB, H3, or Quadbin execution.
 
+## Cloud-native S1 prerequisite
+
+`public/fixtures/cloud-native-analysis-columnar.v1.json` is a small,
+digest-pinned columnar analysis fixture served from the application origin.
+`src/cloud-native-prerequisite.ts` prepares it through the published
+`@honua/sdk-js/query-planner` columnar contract with fixture, result, backing
+buffer, and object-fallback ceilings. If a consumer cannot accept a columnar
+batch, conversion is allowed only for four rows and otherwise fails closed.
+
+This prerequisite is deliberately truth-limited: committed partition envelopes
+model row-group selection, but HTTP range access, Parquet row-group counters,
+worker execution/cleanup, and browser peak memory remain explicitly unobserved.
+It is fixture preparation, not live or golden qualification. Those execution
+and evidence gates remain in later #547 slices.
+
 ## Run the deterministic lane
 
 ```sh

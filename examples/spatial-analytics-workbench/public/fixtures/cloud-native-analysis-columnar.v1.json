@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "honua.sample.cloud-native-analysis-columnar-fixture.v1",
+  "fixtureId": "honolulu-risk-columnar",
+  "sourceVersion": "2026-07-17.1",
+  "generatedAt": "2026-07-17T00:00:00.000Z",
+  "crs": "OGC:CRS84",
+  "attribution": "Synthetic Honua spatial-analysis fixture; demonstration and deterministic testing only.",
+  "dictionary": {
+    "risk": ["critical", "high", "moderate", "low"]
+  },
+  "rowGroups": [
+    {
+      "id": "honolulu-urban-core",
+      "rowOffset": 0,
+      "rowCount": 4,
+      "bbox": [-157.87, 21.292, -157.828, 21.321]
+    },
+    {
+      "id": "honolulu-harbor",
+      "rowOffset": 4,
+      "rowCount": 2,
+      "bbox": [-157.9, 21.3, -157.878, 21.33]
+    },
+    {
+      "id": "airport-corridor",
+      "rowOffset": 6,
+      "rowCount": 2,
+      "bbox": [-157.93, 21.31, -157.884, 21.342]
+    }
+  ],
+  "columns": {
+    "id": [
+      "asset-001",
+      "parcel-002",
+      "facility-003",
+      "incident-004",
+      "harbor-005",
+      "depot-006",
+      "airport-007",
+      "corridor-008"
+    ],
+    "x": [-157.858, -157.845, -157.832, -157.867, -157.89, -157.878, -157.922, -157.884],
+    "y": [21.307, 21.292, 21.315, 21.321, 21.31, 21.328, 21.318, 21.342],
+    "riskCode": [0, 1, 2, 1, 0, 3, 1, 2],
+    "score": [94, 82, 67, 78, 91, 42, 85, 63],
+    "incidentCount": [5, 2, 1, 4, 6, 0, 3, 1]
+  }
+}
