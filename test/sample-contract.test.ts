@@ -260,6 +260,150 @@ describe("sample publication contract", () => {
     await expect(validateCiSelection(flattenedCi)).rejects.toThrow("JSON Schema validation failed");
   });
 
+  it("binds qualified matrix cells to source and packed evidence and fails closed on dishonest links", async () => {
+    const catalog = await readJson("samples/catalog.v2.json");
+    const packageJson = await readJson("package.json");
+    const supportManifest = await readJson("config/support-manifest.v1.json");
+    const kitManifest = await readJson("examples/_kit/manifest.v1.json");
+    const firstMapJourney = catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "first-map");
+    const firstMapSample = catalog.samples.find(
+      (sample: { id: string }) => sample.id === firstMapJourney.candidateSampleId,
+    );
+    firstMapJourney.status = "qualified";
+    firstMapSample.track = "golden";
+
+    const runRoot = "samples/evidence/maplibre-quickstart/runs/00000000-0000-4000-8000-000000000001";
+    const observedAt = "2026-07-17T02:00:00.000Z";
+    const expiresAt = "2026-07-20T02:00:00.000Z";
+    const semanticGates = [
+      "packed-build",
+      "browser",
+      "accessibility",
+      "console",
+      "responsive",
+      "screenshot",
+      "performance",
+      "fixture",
+      "live",
+    ];
+    const visualEvidence = {
+      format: "honua.site.sdk-sample-visual-evidence.v1",
+      schemaVersion: 1,
+      qualifiedGoldenJourneys: [
+        {
+          journeyId: "first-map",
+          sampleId: "maplibre-quickstart",
+          sourceRevision: "a".repeat(40),
+          sourceDigest: "b".repeat(64),
+          observedAt,
+          expiresAt,
+          semanticEvidence: semanticGates.map((gate) => ({
+            gate,
+            receiptPath: `samples/evidence/maplibre-quickstart/receipts/${gate}.v1.json`,
+            reportPath: `${runRoot}/artifacts/${gate}.json`,
+            observedAt,
+            expiresAt,
+            sha256: "c".repeat(64),
+          })),
+          screenshots: [{ variant: "desktop" }, { variant: "mobile" }],
+        },
+      ],
+    };
+    const matrix = generateCapabilitySampleMatrix(catalog, packageJson, supportManifest, kitManifest, visualEvidence);
+    const binding = matrix.evidenceBindings[0] as {
+      id: string;
+      source: { path: string; revision: string; evidenceNeutralSha256: string };
+      packed: { receiptPath: string; reportPath: string; expiresAt: string };
+    };
+    const queryCell = matrix.protocolOperations.find(
+      (cell: Record<string, unknown>) => cell.id === "ogc-features:query:protocol-adapter:native",
+    ) as { evidenceBindingIds: string[]; coverage: { state: string } };
+
+    expect(binding).toMatchObject({
+      id: "maplibre-quickstart:qualification",
+      source: {
+        path: "examples/maplibre-quickstart",
+        revision: "a".repeat(40),
+        evidenceNeutralSha256: "b".repeat(64),
+      },
+      packed: {
+        receiptPath: "samples/evidence/maplibre-quickstart/receipts/packed-build.v1.json",
+        reportPath: `${runRoot}/artifacts/packed-build.json`,
+        expiresAt,
+      },
+    });
+    expect(queryCell).toMatchObject({
+      evidenceBindingIds: [binding.id],
+      coverage: { state: "qualified" },
+    });
+    await expect(
+      validateCapabilitySampleMatrix(matrix, {
+        catalog,
+        packageJson,
+        supportManifest,
+        kitManifest,
+        visualEvidence,
+        now: validationTime.now,
+        verifyEvidenceFiles: false,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      validateCapabilitySampleMatrix(matrix, {
+        now: validationTime.now,
+      }),
+    ).rejects.toThrow("packed capability receipt is missing");
+
+    const orphaned = structuredClone(matrix);
+    const orphanedCell = orphaned.protocolOperations.find(
+      (cell: Record<string, unknown>) => cell.id === "ogc-features:query:protocol-adapter:native",
+    ) as { evidenceBindingIds: string[] };
+    orphanedCell.evidenceBindingIds = ["missing-sample:qualification"];
+    await expect(
+      validateCapabilitySampleMatrix(orphaned, {
+        now: validationTime.now,
+        verifyEvidenceFiles: false,
+      }),
+    ).rejects.toThrow("evidence links are orphaned or stale");
+
+    const stale = structuredClone(matrix);
+    const staleBinding = stale.evidenceBindings[0] as { packed: { expiresAt: string } };
+    staleBinding.packed.expiresAt = "2026-07-17T02:30:00.000Z";
+    await expect(
+      validateCapabilitySampleMatrix(stale, {
+        now: validationTime.now,
+        verifyEvidenceFiles: false,
+      }),
+    ).rejects.toThrow("packed capability evidence is stale");
+
+    const noQualification = { ...visualEvidence, qualifiedGoldenJourneys: [] };
+    firstMapJourney.status = "planned";
+    firstMapSample.track = "recipe";
+    const partialMatrix = generateCapabilitySampleMatrix(
+      catalog,
+      packageJson,
+      supportManifest,
+      kitManifest,
+      noQualification,
+    );
+    const overstated = structuredClone(partialMatrix);
+    const overstatedCell = overstated.protocolOperations.find(
+      (cell: Record<string, unknown>) => cell.id === "ogc-features:query:protocol-adapter:native",
+    ) as { coverage: { state: string } };
+    overstatedCell.coverage.state = "qualified";
+    await expect(validateCapabilitySampleMatrix(overstated)).rejects.toThrow(
+      "capability matrix coverage is overstated or stale",
+    );
+
+    const orphanedSource = structuredClone(partialMatrix);
+    const missingSourceSample = orphanedSource.samples.find(
+      (sample: Record<string, unknown>) => sample.id === "maplibre-quickstart",
+    ) as Record<string, unknown>;
+    missingSourceSample.sourcePath = "examples/missing-maplibre-quickstart";
+    await expect(validateCapabilitySampleMatrix(orphanedSource)).rejects.toThrow(
+      "capability matrix source path is orphaned",
+    );
+  });
+
   it("derives release versions without catalog edits and still detects semantic drift", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");

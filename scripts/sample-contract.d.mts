@@ -79,6 +79,7 @@ export interface CapabilitySampleMatrix {
   schemaVersion: 1;
   sdk: { package: string; version: string };
   samples: Array<Record<string, unknown>>;
+  evidenceBindings: Array<Record<string, unknown>>;
   goldenJourneys: Array<Record<string, unknown>>;
   protocolOperations: Array<Record<string, unknown>>;
   supportClaims: Array<Record<string, unknown>>;
@@ -142,6 +143,9 @@ export function validateCapabilitySampleMatrix(
     supportManifest?: Record<string, unknown>;
     kitManifest?: Record<string, unknown>;
     visualEvidence?: Record<string, unknown>;
+    now?: string;
+    projectRoot?: string;
+    verifyEvidenceFiles?: boolean;
   },
 ): Promise<void>;
 export function validateSiteConsumerFixture(

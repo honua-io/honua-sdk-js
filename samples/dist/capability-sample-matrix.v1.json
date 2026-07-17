@@ -1302,6 +1302,7 @@
       }
     }
   ],
+  "evidenceBindings": [],
   "protocolOperations": [
     {
       "id": "geoparquet:query:client-only:native",
@@ -1316,6 +1317,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -1334,6 +1336,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -1352,6 +1355,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -1370,6 +1374,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1390,6 +1395,7 @@
         "edit-workflow-demo"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -1408,6 +1414,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1431,6 +1438,7 @@
         "standalone-quickstart"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -1449,6 +1457,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1467,6 +1476,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1485,6 +1495,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1503,6 +1514,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1521,6 +1533,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1540,6 +1553,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1558,6 +1572,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1576,6 +1591,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1596,6 +1612,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1614,6 +1631,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1636,6 +1654,7 @@
         "standalone-quickstart"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -1654,6 +1673,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1672,6 +1692,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1690,6 +1711,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1708,6 +1730,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1731,6 +1754,7 @@
         "standalone-quickstart"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -1750,6 +1774,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1769,6 +1794,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1788,6 +1814,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1807,6 +1834,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1825,6 +1853,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1843,6 +1872,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1862,6 +1892,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1881,6 +1912,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1900,6 +1932,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1924,6 +1957,7 @@
         "react-quickstart"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -1943,6 +1977,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1962,6 +1997,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -1981,6 +2017,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2000,6 +2037,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2019,6 +2057,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2037,6 +2076,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2056,6 +2096,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2074,6 +2115,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2092,6 +2134,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2110,6 +2153,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2128,6 +2172,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2146,6 +2191,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2164,6 +2210,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2184,6 +2231,7 @@
         "maplibre-quickstart"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -2202,6 +2250,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2220,6 +2269,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2238,6 +2288,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2256,6 +2307,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2274,6 +2326,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2292,6 +2345,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2310,6 +2364,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2328,6 +2383,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2346,6 +2402,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2364,6 +2421,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2382,6 +2440,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2400,6 +2459,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2418,6 +2478,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2436,6 +2497,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2454,6 +2516,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2472,6 +2535,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2490,6 +2554,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2508,6 +2573,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2526,6 +2592,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2544,6 +2611,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2562,6 +2630,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2580,6 +2649,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2598,6 +2668,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2616,6 +2687,7 @@
       ],
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2645,6 +2717,7 @@
         }
       ],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -2663,6 +2736,7 @@
       "truthEvidence": [],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -2683,6 +2757,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2704,6 +2779,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2724,6 +2800,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2745,6 +2822,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -2781,6 +2859,7 @@
         }
       ],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -2806,6 +2885,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2834,6 +2914,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2854,6 +2935,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2874,6 +2956,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2900,6 +2983,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -2934,6 +3018,7 @@
         }
       ],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -2956,6 +3041,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -2977,6 +3063,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -2998,6 +3085,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3022,6 +3110,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3045,6 +3134,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3078,6 +3168,7 @@
         }
       ],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -3103,6 +3194,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3130,6 +3222,7 @@
       ],
       "candidateEvidence": [],
       "fullyQualifiedSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3147,6 +3240,7 @@
         "standalone-quickstart"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -3158,6 +3252,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3172,6 +3267,7 @@
         "standalone-quickstart"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -3183,6 +3279,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3194,6 +3291,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3208,6 +3306,7 @@
         "standalone-quickstart"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -3219,6 +3318,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3230,6 +3330,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3241,6 +3342,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3252,6 +3354,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3263,6 +3366,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3276,6 +3380,7 @@
         "service-explorer"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -3289,6 +3394,7 @@
         "service-explorer"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -3300,6 +3406,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3313,6 +3420,7 @@
         "service-explorer"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -3327,6 +3435,7 @@
         "standalone-quickstart"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "partial",
         "reason": "Executable source exists, but no candidate has complete current qualification receipts for this cell."
@@ -3338,6 +3447,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3349,6 +3459,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3360,6 +3471,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3371,6 +3483,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3382,6 +3495,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3393,6 +3507,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "planned",
         "reason": "Support truth has no cataloged executable sample that demonstrates this exact cell."
@@ -3404,6 +3519,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3415,6 +3531,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3426,6 +3543,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3437,6 +3555,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3448,6 +3567,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3459,6 +3579,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3470,6 +3591,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3481,6 +3603,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3492,6 +3615,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3503,6 +3627,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3514,6 +3639,7 @@
       "exportPresent": true,
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "experimental",
         "reason": "Support truth is experimental or beta; sample evidence cannot promote the support claim."
@@ -3526,6 +3652,7 @@
       "replacement": "@honua/app-platform/app",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3538,6 +3665,7 @@
       "replacement": "@honua/app-platform/app-controller",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3552,6 +3680,7 @@
         "service-explorer"
       ],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3564,6 +3693,7 @@
       "replacement": "@honua/app-platform/scene-workspace",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3576,6 +3706,7 @@
       "replacement": "@honua/app-platform/collaboration",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3588,6 +3719,7 @@
       "replacement": "@honua/app-platform/control-plane",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3600,6 +3732,7 @@
       "replacement": "@honua/app-platform/replica-sync",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3612,6 +3745,7 @@
       "replacement": "@honua/app-platform/share",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3624,6 +3758,7 @@
       "replacement": "@honua/app-platform/operate",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3636,6 +3771,7 @@
       "replacement": "@honua/app-platform/generated-app",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3648,6 +3784,7 @@
       "replacement": "@honua/app-platform/studio",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3660,6 +3797,7 @@
       "replacement": "@honua/app-platform/operator",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3672,6 +3810,7 @@
       "replacement": "@honua/app-platform/operator/controllers",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3684,6 +3823,7 @@
       "replacement": "@honua/app-platform/operator/workspace",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3696,6 +3836,7 @@
       "replacement": "@honua/app-platform/operator/theming",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3708,6 +3849,7 @@
       "replacement": "@honua/app-platform/operator/i18n",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3720,6 +3862,7 @@
       "replacement": "@honua/app-platform/controls",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."
@@ -3732,6 +3875,7 @@
       "replacement": "@honua/app-platform/web-components",
       "candidateSampleIds": [],
       "qualifyingSampleIds": [],
+      "evidenceBindingIds": [],
       "coverage": {
         "state": "unsupported",
         "reason": "The public surface is deprecated and remains visible only for replacement planning."

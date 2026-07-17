@@ -12,6 +12,7 @@
     "dimensions",
     "goldenJourneys",
     "samples",
+    "evidenceBindings",
     "protocolOperations",
     "supportClaims",
     "entrypoints",
@@ -75,15 +76,27 @@
           "title": { "$ref": "#/$defs/nonEmptyString" },
           "candidateSampleId": { "$ref": "#/$defs/id" },
           "catalogStatus": { "enum": ["planned", "qualified"] },
-          "coverageState": { "enum": ["planned", "qualified"] }
+          "coverageState": { "enum": ["planned", "qualified"] },
+          "evidenceBindingId": { "$ref": "#/$defs/id" }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": { "properties": { "coverageState": { "const": "qualified" } }, "required": ["coverageState"] },
+            "then": { "required": ["evidenceBindingId"] },
+            "else": { "not": { "required": ["evidenceBindingId"] } }
+          }
+        ]
       }
     },
     "samples": {
       "type": "array",
       "minItems": 1,
       "items": { "$ref": "#/$defs/sample" }
+    },
+    "evidenceBindings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidenceBinding" }
     },
     "protocolOperations": {
       "type": "array",
@@ -163,6 +176,54 @@
       },
       "additionalProperties": false
     },
+    "evidenceBinding": {
+      "type": "object",
+      "required": ["id", "sampleId", "source", "packed"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "sampleId": { "$ref": "#/$defs/id" },
+        "source": {
+          "type": "object",
+          "required": ["repository", "path", "revision", "evidenceNeutralSha256"],
+          "properties": {
+            "repository": { "const": "honua-io/honua-sdk-js" },
+            "path": { "$ref": "#/$defs/nonEmptyString" },
+            "revision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+            "evidenceNeutralSha256": { "$ref": "#/$defs/sha256" }
+          },
+          "additionalProperties": false
+        },
+        "packed": {
+          "type": "object",
+          "required": [
+            "gate",
+            "sdkMode",
+            "receiptPath",
+            "reportPath",
+            "observedAt",
+            "expiresAt",
+            "receiptSha256"
+          ],
+          "properties": {
+            "gate": { "const": "packed-build" },
+            "sdkMode": { "const": "packed" },
+            "receiptPath": {
+              "type": "string",
+              "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/receipts/packed-build\\.v1\\.json$"
+            },
+            "reportPath": {
+              "type": "string",
+              "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/artifacts/packed-build\\.json$"
+            },
+            "observedAt": { "type": "string", "format": "date-time" },
+            "expiresAt": { "type": "string", "format": "date-time" },
+            "receiptSha256": { "$ref": "#/$defs/sha256" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "sample": {
       "type": "object",
       "required": [
@@ -188,9 +249,24 @@
           "required": ["state"],
           "properties": {
             "state": { "enum": ["qualified", "partial", "planned"] },
+            "evidenceBindingId": { "$ref": "#/$defs/id" },
             "evidence": { "$ref": "#/$defs/qualificationEvidence" }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": { "properties": { "state": { "const": "qualified" } }, "required": ["state"] },
+              "then": { "required": ["evidenceBindingId", "evidence"] },
+              "else": {
+                "not": {
+                  "anyOf": [
+                    { "required": ["evidenceBindingId"] },
+                    { "required": ["evidence"] }
+                  ]
+                }
+              }
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -199,7 +275,7 @@
       "type": "object",
       "required": [
         "id", "protocolId", "protocolLabel", "operation", "supportStatus", "environment", "executionMode",
-        "truthEvidence", "candidateSampleIds", "qualifyingSampleIds", "coverage"
+        "truthEvidence", "candidateSampleIds", "qualifyingSampleIds", "evidenceBindingIds", "coverage"
       ],
       "properties": {
         "id": { "$ref": "#/$defs/nonEmptyString" },
@@ -212,6 +288,7 @@
         "truthEvidence": { "$ref": "#/$defs/nonEmptyStringArray" },
         "candidateSampleIds": { "$ref": "#/$defs/stringArray" },
         "qualifyingSampleIds": { "$ref": "#/$defs/stringArray" },
+        "evidenceBindingIds": { "$ref": "#/$defs/stringArray" },
         "coverage": { "$ref": "#/$defs/coverage" }
       },
       "additionalProperties": false
@@ -229,7 +306,7 @@
       "type": "object",
       "required": [
         "id", "label", "operations", "supportStatus", "environment", "executionMode", "api", "truthEvidence",
-        "candidateEvidence", "fullyQualifiedSampleIds", "coverage"
+        "candidateEvidence", "fullyQualifiedSampleIds", "evidenceBindingIds", "coverage"
       ],
       "properties": {
         "id": { "$ref": "#/$defs/id" },
@@ -246,13 +323,17 @@
           "items": { "$ref": "#/$defs/candidateEvidence" }
         },
         "fullyQualifiedSampleIds": { "$ref": "#/$defs/stringArray" },
+        "evidenceBindingIds": { "$ref": "#/$defs/stringArray" },
         "coverage": { "$ref": "#/$defs/coverage" }
       },
       "additionalProperties": false
     },
     "entrypoint": {
       "type": "object",
-      "required": ["subpath", "supportStatus", "exportPresent", "candidateSampleIds", "qualifyingSampleIds", "coverage"],
+      "required": [
+        "subpath", "supportStatus", "exportPresent", "candidateSampleIds", "qualifyingSampleIds",
+        "evidenceBindingIds", "coverage"
+      ],
       "properties": {
         "subpath": { "$ref": "#/$defs/nonEmptyString" },
         "supportStatus": { "$ref": "#/$defs/supportStatus" },
@@ -260,6 +341,7 @@
         "replacement": { "$ref": "#/$defs/nonEmptyString" },
         "candidateSampleIds": { "$ref": "#/$defs/stringArray" },
         "qualifyingSampleIds": { "$ref": "#/$defs/stringArray" },
+        "evidenceBindingIds": { "$ref": "#/$defs/stringArray" },
         "coverage": { "$ref": "#/$defs/coverage" }
       },
       "additionalProperties": false

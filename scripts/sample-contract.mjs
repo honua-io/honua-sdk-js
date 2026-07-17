@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { expectedGateCommand, SAMPLE_SCREENSHOT_VARIANTS } from "./lib/sample-gates.mjs";
 import {
   readCanonicalBoundedFile,
+  validateGateReceiptStructure,
   validateQualificationReceiptSet,
 } from "./sample-gate-receipt.mjs";
 
@@ -3130,6 +3131,42 @@ function qualificationEvidence(visualEntry) {
   };
 }
 
+function matrixEvidenceBindingId(sampleId) {
+  return `${sampleId}:qualification`;
+}
+
+function matrixEvidenceBinding(sample, visualEntry) {
+  const packed = visualEntry.semanticEvidence.find((entry) => entry.gate === "packed-build");
+  invariant(packed, `${sample.id}: qualified matrix evidence is missing the packed-build receipt`);
+  return {
+    id: matrixEvidenceBindingId(sample.id),
+    sampleId: sample.id,
+    source: {
+      repository: "honua-io/honua-sdk-js",
+      path: sample.sourcePath,
+      revision: visualEntry.sourceRevision,
+      evidenceNeutralSha256: visualEntry.sourceDigest,
+    },
+    packed: {
+      gate: "packed-build",
+      sdkMode: "packed",
+      receiptPath: packed.receiptPath,
+      reportPath: packed.reportPath,
+      observedAt: packed.observedAt,
+      expiresAt: packed.expiresAt,
+      receiptSha256: packed.sha256,
+    },
+  };
+}
+
+function matrixEvidenceBindingIds(sampleIds, bindingBySample) {
+  return sampleIds.map((sampleId) => {
+    const binding = bindingBySample.get(sampleId);
+    invariant(binding, `${sampleId}: qualifying matrix sample has no source and packed evidence binding`);
+    return binding.id;
+  });
+}
+
 function packageEntrypoint(importName, packageName) {
   if (importName === packageName) return ".";
   const prefix = `${packageName}/`;
@@ -3141,6 +3178,8 @@ function packageEntrypoint(importName, packageName) {
  * come only from the support manifest's catalog join and exact catalog task
  * names. A cell becomes qualified only when its candidate is represented in
  * the current visual-evidence handoff, which itself requires all nine gates.
+ * Qualified cells resolve through one normalized SDK source + packed receipt
+ * binding so consumers never infer evidence from presentation metadata.
  */
 export function generateCapabilitySampleMatrix(
   catalog,
@@ -3149,13 +3188,30 @@ export function generateCapabilitySampleMatrix(
   kitManifest,
   visualEvidence,
 ) {
+  const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
   const visualBySample = new Map(
     visualEvidence.qualifiedGoldenJourneys.map((entry) => [entry.sampleId, entry]),
   );
+  invariant(
+    visualBySample.size === visualEvidence.qualifiedGoldenJourneys.length,
+    "capability matrix qualification evidence contains duplicate sample IDs",
+  );
+  for (const entry of visualEvidence.qualifiedGoldenJourneys) {
+    const journey = catalog.goldenJourneys.find((candidate) => candidate.id === entry.journeyId);
+    invariant(
+      sampleById.has(entry.sampleId) &&
+        journey?.status === "qualified" &&
+        journey.candidateSampleId === entry.sampleId,
+      `${entry.sampleId}: capability matrix qualification evidence is orphaned or not admitted by the catalog`,
+    );
+  }
   const bindings = new Map(
     catalog.samples.map((sample) => [sample.id, sampleSupportBinding(sample, supportManifest)]),
   );
-  const kitBySample = new Map(kitManifest.samples.map((sample) => [sample.id, sample]));
+  const evidenceBindings = visualEvidence.qualifiedGoldenJourneys
+    .map((entry) => matrixEvidenceBinding(sampleById.get(entry.sampleId), entry))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const evidenceBindingBySample = new Map(evidenceBindings.map((binding) => [binding.sampleId, binding]));
   const samples = catalog.samples.map((sample) => {
     const binding = bindings.get(sample.id);
     const visualEntry = visualBySample.get(sample.id);
@@ -3175,11 +3231,11 @@ export function generateCapabilitySampleMatrix(
       lifecycleState: sample.lifecycle.state,
       qualification: {
         state: visualEntry ? "qualified" : sample.journeyId ? "planned" : "partial",
+        ...(visualEntry ? { evidenceBindingId: evidenceBindingBySample.get(sample.id).id } : {}),
         ...(qualificationEvidence(visualEntry) ? { evidence: qualificationEvidence(visualEntry) } : {}),
       },
     };
   });
-  const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
   const qualifiedSampleIds = new Set(visualBySample.keys());
 
   const protocolOperations = supportManifest.protocols
@@ -3207,6 +3263,7 @@ export function generateCapabilitySampleMatrix(
             truthEvidence: [...claim.evidence],
             candidateSampleIds,
             qualifyingSampleIds,
+            evidenceBindingIds: matrixEvidenceBindingIds(qualifyingSampleIds, evidenceBindingBySample),
             coverage,
           };
         }),
@@ -3244,6 +3301,7 @@ export function generateCapabilitySampleMatrix(
         truthEvidence: [...claim.evidence],
         candidateEvidence,
         fullyQualifiedSampleIds,
+        evidenceBindingIds: matrixEvidenceBindingIds(fullyQualifiedSampleIds, evidenceBindingBySample),
         coverage,
       };
     })
@@ -3270,6 +3328,7 @@ export function generateCapabilitySampleMatrix(
       ...(entrypoint.replacement ? { replacement: entrypoint.replacement } : {}),
       candidateSampleIds,
       qualifyingSampleIds,
+      evidenceBindingIds: matrixEvidenceBindingIds(qualifyingSampleIds, evidenceBindingBySample),
       coverage: matrixCoverage(entrypoint.status, candidateSampleIds, qualifyingSampleIds),
     };
   });
@@ -3280,6 +3339,9 @@ export function generateCapabilitySampleMatrix(
     candidateSampleId: journey.candidateSampleId,
     catalogStatus: journey.status,
     coverageState: visualBySample.has(journey.candidateSampleId) ? "qualified" : "planned",
+    ...(visualBySample.has(journey.candidateSampleId)
+      ? { evidenceBindingId: evidenceBindingBySample.get(journey.candidateSampleId).id }
+      : {}),
   }));
   const gaps = [
     ...goldenJourneys
@@ -3373,6 +3435,7 @@ export function generateCapabilitySampleMatrix(
     },
     goldenJourneys,
     samples,
+    evidenceBindings,
     protocolOperations,
     supportClaims,
     entrypoints,
@@ -3380,29 +3443,262 @@ export function generateCapabilitySampleMatrix(
   };
 }
 
+async function validateMatrixSourcePath(sample, projectRoot) {
+  assertRelativePath(sample.sourcePath, `${sample.id}.sourcePath`);
+  invariant(
+    !sample.sourcePath.includes("\\") && path.posix.normalize(sample.sourcePath) === sample.sourcePath,
+    `${sample.id}: capability matrix source path is not canonical`,
+  );
+  let metadata;
+  try {
+    metadata = await lstat(path.join(projectRoot, sample.sourcePath));
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw new Error(`${sample.id}: capability matrix source path is orphaned: ${sample.sourcePath}`);
+    }
+    throw error;
+  }
+  invariant(
+    (metadata.isDirectory() || metadata.isFile()) && !metadata.isSymbolicLink(),
+    `${sample.id}: capability matrix source path is not non-symlink runnable repository content`,
+  );
+}
+
+function validateMatrixCoverage(actual, supportStatus, candidates, qualified, label) {
+  const expected = matrixCoverage(supportStatus, candidates, qualified);
+  invariant(
+    JSON.stringify(actual) === JSON.stringify(expected),
+    `${label}: capability matrix coverage is overstated or stale`,
+  );
+}
+
+function validateMatrixEvidenceReferences(actualIds, sampleIds, evidenceBySample, label) {
+  const expectedIds = sampleIds.map((sampleId) => {
+    const binding = evidenceBySample.get(sampleId);
+    invariant(binding, `${label}: qualifying sample ${sampleId} has no source and packed evidence binding`);
+    return binding.id;
+  });
+  invariant(
+    JSON.stringify(actualIds) === JSON.stringify(expectedIds),
+    `${label}: capability matrix evidence links are orphaned or stale`,
+  );
+}
+
+async function validateMatrixPackedEvidence(binding, options) {
+  const now = parseDateTime(options.now ?? new Date().toISOString(), "capability matrix validation time");
+  const observedAt = parseDateTime(binding.packed.observedAt, `${binding.id}.packed.observedAt`);
+  const expiresAt = parseDateTime(binding.packed.expiresAt, `${binding.id}.packed.expiresAt`);
+  invariant(
+    observedAt <= now + 5 * 60 * 1000 &&
+      expiresAt > now &&
+      expiresAt > observedAt &&
+      expiresAt - observedAt <= 7 * 24 * 60 * 60 * 1000,
+    `${binding.id}: packed capability evidence is stale or has an invalid observation window`,
+  );
+  invariant(
+    binding.packed.receiptPath ===
+      `samples/evidence/${binding.sampleId}/receipts/packed-build.v1.json` &&
+      binding.packed.reportPath.startsWith(`samples/evidence/${binding.sampleId}/runs/`) &&
+      binding.packed.reportPath.endsWith("/artifacts/packed-build.json"),
+    `${binding.id}: packed capability evidence path binding drift`,
+  );
+  if (options.verifyEvidenceFiles === false) return;
+
+  let receiptBytes;
+  try {
+    receiptBytes = await readCanonicalBoundedFile(options.projectRoot, binding.packed.receiptPath, {
+      label: `${binding.sampleId} capability matrix packed receipt`,
+      maxBytes: 16 * 1024 * 1024,
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") throw new Error(`${binding.id}: packed capability receipt is missing`);
+    throw error;
+  }
+  invariant(
+    sha256(receiptBytes) === binding.packed.receiptSha256,
+    `${binding.id}: packed capability receipt digest drift`,
+  );
+  const receipt = parseJsonDocument(receiptBytes.toString("utf8"), binding.packed.receiptPath);
+  validateGateReceiptStructure(receipt, {
+    sampleId: binding.sampleId,
+    gate: "packed-build",
+    sourceRevision: binding.source.revision,
+    sourceDigest: binding.source.evidenceNeutralSha256,
+  });
+  invariant(
+    receipt.sdkMode === "packed" &&
+      receipt.observedAt === binding.packed.observedAt &&
+      receipt.expiresAt === binding.packed.expiresAt &&
+      receipt.artifacts[0].path === binding.packed.reportPath,
+    `${binding.id}: packed capability receipt metadata drift`,
+  );
+  let reportBytes;
+  try {
+    reportBytes = await readCanonicalBoundedFile(options.projectRoot, binding.packed.reportPath, {
+      label: `${binding.sampleId} capability matrix packed report`,
+      maxBytes: 128 * 1024 * 1024,
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") throw new Error(`${binding.id}: packed capability report is missing`);
+    throw error;
+  }
+  invariant(
+    reportBytes.byteLength === receipt.artifacts[0].bytes &&
+      sha256(reportBytes) === receipt.artifacts[0].sha256,
+    `${binding.id}: packed capability report integrity drift`,
+  );
+  const report = parseJsonDocument(reportBytes.toString("utf8"), binding.packed.reportPath);
+  invariant(
+    report.format === "honua.sdk.sample-packed-build-gate.v1" &&
+      report.sampleId === binding.sampleId &&
+      report.sourceRevision === binding.source.revision &&
+      report.sdkMode === "packed",
+    `${binding.id}: packed capability report binding drift`,
+  );
+}
+
 export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
   validateSensitiveMetadata(matrix, "capability sample matrix");
   await validateJsonSchema(matrix, CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH);
+  const projectRoot = inputs.projectRoot ?? PROJECT_ROOT;
   invariant(
     matrix.samples.length > 0 && new Set(matrix.samples.map((sample) => sample.id)).size === matrix.samples.length,
     "capability sample matrix sample IDs must be non-empty and unique",
   );
+  const sampleById = new Map(matrix.samples.map((sample) => [sample.id, sample]));
+  await Promise.all(matrix.samples.map((sample) => validateMatrixSourcePath(sample, projectRoot)));
+
   invariant(
-    matrix.protocolOperations.every(
-      (cell) =>
-        (cell.coverage.state !== "qualified" || cell.qualifyingSampleIds.length > 0) &&
-        cell.qualifyingSampleIds.every((sampleId) => cell.candidateSampleIds.includes(sampleId)),
-    ),
-    "capability sample matrix protocol qualification is overstated",
+    new Set(matrix.evidenceBindings.map((binding) => binding.id)).size === matrix.evidenceBindings.length &&
+      new Set(matrix.evidenceBindings.map((binding) => binding.sampleId)).size === matrix.evidenceBindings.length,
+    "capability matrix evidence binding IDs and sample IDs must be unique",
   );
+  const evidenceById = new Map(matrix.evidenceBindings.map((binding) => [binding.id, binding]));
+  const evidenceBySample = new Map(matrix.evidenceBindings.map((binding) => [binding.sampleId, binding]));
+  for (const binding of matrix.evidenceBindings) {
+    const sample = sampleById.get(binding.sampleId);
+    invariant(sample, `${binding.id}: capability matrix evidence binding references an unknown sample`);
+    invariant(
+      binding.id === matrixEvidenceBindingId(binding.sampleId) &&
+        binding.source.path === sample.sourcePath &&
+        sample.qualification.state === "qualified" &&
+        sample.qualification.evidenceBindingId === binding.id &&
+        sample.qualification.evidence?.sourceRevision === binding.source.revision,
+      `${binding.id}: capability matrix source evidence binding drift`,
+    );
+    await validateMatrixPackedEvidence(binding, {
+      now: inputs.now,
+      projectRoot,
+      verifyEvidenceFiles: inputs.verifyEvidenceFiles,
+    });
+  }
+  for (const sample of matrix.samples) {
+    const binding = evidenceBySample.get(sample.id);
+    const expectedState = binding ? "qualified" : sample.journeyId ? "planned" : "partial";
+    invariant(
+      sample.qualification.state === expectedState &&
+        (binding
+          ? sample.qualification.evidenceBindingId === binding.id && Boolean(sample.qualification.evidence)
+          : !sample.qualification.evidenceBindingId && !sample.qualification.evidence),
+      `${sample.id}: capability matrix qualification is overstated or orphaned`,
+    );
+  }
+
+  for (const journey of matrix.goldenJourneys) {
+    const sample = sampleById.get(journey.candidateSampleId);
+    invariant(
+      sample?.journeyId === journey.id,
+      `${journey.id}: capability matrix golden journey source is orphaned`,
+    );
+    const binding = evidenceBySample.get(journey.candidateSampleId);
+    const expectedState = binding ? "qualified" : "planned";
+    invariant(
+      journey.coverageState === expectedState &&
+        journey.catalogStatus === expectedState &&
+        (binding ? journey.evidenceBindingId === binding.id : !journey.evidenceBindingId),
+      `${journey.id}: capability matrix golden journey coverage is overstated or stale`,
+    );
+  }
+
+  for (const cell of matrix.protocolOperations) {
+    const candidateSampleIds = matrix.samples
+      .filter((sample) => sample.protocolIds.includes(cell.protocolId) && sample.tasks.includes(cell.operation))
+      .map((sample) => sample.id)
+      .sort();
+    invariant(
+      JSON.stringify(cell.candidateSampleIds) === JSON.stringify(candidateSampleIds),
+      `${cell.id}: capability matrix protocol candidates are orphaned or stale`,
+    );
+    const qualifyingSampleIds = candidateSampleIds.filter((sampleId) => evidenceBySample.has(sampleId));
+    invariant(
+      JSON.stringify(cell.qualifyingSampleIds) === JSON.stringify(qualifyingSampleIds),
+      `${cell.id}: capability matrix protocol qualification links are orphaned or stale`,
+    );
+    validateMatrixEvidenceReferences(cell.evidenceBindingIds, qualifyingSampleIds, evidenceBySample, cell.id);
+    validateMatrixCoverage(cell.coverage, cell.supportStatus, candidateSampleIds, qualifyingSampleIds, cell.id);
+  }
+
+  for (const claim of matrix.supportClaims) {
+    const candidateIds = new Set();
+    for (const candidate of claim.candidateEvidence) {
+      const sample = sampleById.get(candidate.sampleId);
+      invariant(sample && !candidateIds.has(candidate.sampleId), `${claim.id}: support claim candidate is orphaned or duplicated`);
+      candidateIds.add(candidate.sampleId);
+      const expectedOperations = claim.operations.filter((operation) => sample.tasks.includes(operation));
+      invariant(
+        JSON.stringify(candidate.matchedOperations) === JSON.stringify(expectedOperations),
+        `${claim.id}: support claim operation evidence is overstated or stale for ${candidate.sampleId}`,
+      );
+    }
+    const fullyQualifiedSampleIds = claim.candidateEvidence
+      .filter(
+        (candidate) =>
+          evidenceBySample.has(candidate.sampleId) && candidate.matchedOperations.length === claim.operations.length,
+      )
+      .map((candidate) => candidate.sampleId);
+    invariant(
+      JSON.stringify(claim.fullyQualifiedSampleIds) === JSON.stringify(fullyQualifiedSampleIds),
+      `${claim.id}: support claim qualification links are orphaned or stale`,
+    );
+    validateMatrixEvidenceReferences(claim.evidenceBindingIds, fullyQualifiedSampleIds, evidenceBySample, claim.id);
+    validateMatrixCoverage(
+      claim.coverage,
+      claim.supportStatus,
+      claim.candidateEvidence,
+      fullyQualifiedSampleIds,
+      claim.id,
+    );
+  }
+
+  for (const entrypoint of matrix.entrypoints) {
+    invariant(
+      entrypoint.candidateSampleIds.every((sampleId) => sampleById.has(sampleId)),
+      `${entrypoint.subpath}: package entrypoint candidate is orphaned`,
+    );
+    const qualifyingSampleIds = entrypoint.candidateSampleIds.filter((sampleId) => evidenceBySample.has(sampleId));
+    invariant(
+      JSON.stringify(entrypoint.qualifyingSampleIds) === JSON.stringify(qualifyingSampleIds),
+      `${entrypoint.subpath}: package entrypoint qualification links are orphaned or stale`,
+    );
+    validateMatrixEvidenceReferences(
+      entrypoint.evidenceBindingIds,
+      qualifyingSampleIds,
+      evidenceBySample,
+      entrypoint.subpath,
+    );
+    validateMatrixCoverage(
+      entrypoint.coverage,
+      entrypoint.supportStatus,
+      entrypoint.candidateSampleIds,
+      qualifyingSampleIds,
+      entrypoint.subpath,
+    );
+  }
   invariant(
-    matrix.entrypoints.every(
-      (entrypoint) =>
-        entrypoint.exportPresent &&
-        (entrypoint.coverage.state !== "qualified" || entrypoint.qualifyingSampleIds.length > 0) &&
-        entrypoint.qualifyingSampleIds.every((sampleId) => entrypoint.candidateSampleIds.includes(sampleId)),
+    [...evidenceById].every(([id, binding]) =>
+      matrix.samples.some((sample) => sample.id === binding.sampleId && sample.qualification.evidenceBindingId === id),
     ),
-    "capability sample matrix package qualification or export parity drift",
+    "capability matrix contains orphaned evidence bindings",
   );
   const expectedGapIds = [
     ...matrix.goldenJourneys.filter((item) => item.coverageState !== "qualified").map((item) => `golden-journey:${item.id}`),
@@ -4038,6 +4334,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     supportManifest,
     kitManifest,
     visualEvidence,
+    now: options.now,
   });
   await validateSiteConsumerFixture(consumerFixtureV3, projection, visualEvidence, capabilityMatrix);
   return new Map([

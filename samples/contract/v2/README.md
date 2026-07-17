@@ -30,7 +30,14 @@ execution evidence so none of those meanings has to be inferred from another.
   support manifest, package exports, catalog v2, sample-kit import contracts,
   and current qualification handoff. Exact cells use `qualified`, `partial`,
   `planned`, `experimental`, or `unsupported`; missing and overstated coverage
-  cannot disappear into a generic “supported” badge.
+  cannot disappear into a generic “supported” badge. Qualified cells reference
+  normalized `evidenceBindings`: each binding names the SDK-owned runnable
+  source path and evidence-neutral revision/digest plus the current
+  `packed-build` receipt and report. Generation and `samples:verify` reject
+  unknown sample or binding IDs, missing source paths, expired receipts,
+  content-digest drift, and a `qualified` state that cannot be derived from
+  those bindings. Partial and experimental cells remain visible without being
+  promoted by otherwise successful sample evidence.
 - `honua-site-consumer.v3.json` is the versioned site handoff. It binds the v2
   metadata projection, v1 visual-evidence projection, and v1 capability matrix
   by schema and SHA-256, asserts exact qualified-journey and visible-gap
