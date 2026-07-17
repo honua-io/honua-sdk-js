@@ -24,6 +24,14 @@ export default defineConfig({
         replacement: path.resolve(repoRoot, "src/exploration/index.ts"),
       },
       {
+        find: "@honua/sdk-js/geocoding",
+        replacement: path.resolve(repoRoot, "src/geocoding/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/geometry",
+        replacement: path.resolve(repoRoot, "src/geometry/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/honua",
         replacement: path.resolve(repoRoot, "src/honua.ts"),
       },
