@@ -882,6 +882,21 @@ describe("semantic GeoServices and OData compilers", () => {
     expect(JSON.stringify(unfiltered)).not.toMatch(/(?:1\s+eq\s+1|true)/i);
   });
 
+  it("maps inclusive semantic comparisons to the OData le and ge operators", () => {
+    const q = createSemanticQueryBuilder<Incident, "odata", "primary-geometry">();
+    const artifact = compiled(
+      compileOdata(
+        q.features({
+          select: ["id"] as const,
+          geometry: "omit",
+          filter: q.and(q.comparison("lte", q.property("score"), 10), q.comparison("gte", q.property("score"), 2)),
+        }),
+      ),
+    );
+
+    expect(artifact.filter).toBe("(Metrics/Score le 10) and (Metrics/Score ge 2)");
+  });
+
   it("fails closed for temporal-topology operators without native protocol equivalents", () => {
     const interval = temporalLiteral("interval", ["2026-07-14T00:00:00Z", "2026-07-15T00:00:00Z"]);
     const geo = createSemanticQueryBuilder<Incident, "geoservices-feature-service", "primary-geometry">();

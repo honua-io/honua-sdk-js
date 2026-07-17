@@ -258,6 +258,15 @@ type RuntimeOdataQuery = RuntimeSemanticQuery<"odata">;
 type RuntimeOdataFilter = QueryFilter<Record<string, unknown>, "odata", SourceSpatiality>;
 type RuntimeOdataSpatialFilter = Extract<RuntimeOdataFilter, { readonly kind: "spatial" }>;
 
+const ODATA_COMPARISON_OPERATOR = {
+  eq: "eq",
+  ne: "ne",
+  lt: "lt",
+  lte: "le",
+  gt: "gt",
+  gte: "ge",
+} as const;
+
 interface VerifiedOdataSource extends SemanticOdataSourceIdentity {
   readonly supportedSpatialFunctions: readonly SemanticOdataSpatialFunction[];
 }
@@ -470,7 +479,7 @@ function compileOdataSemanticFilter(filter: RuntimeOdataFilter, state: OdataSema
   switch (filter.kind) {
     case "comparison": {
       const field = semanticSchemaField(state.schema, filter.left.name, `${path}.left.name`);
-      return `${odataRequestField(field, state, `${path}.left.name`)} ${filter.operator} ${odataLiteral(
+      return `${odataRequestField(field, state, `${path}.left.name`)} ${ODATA_COMPARISON_OPERATOR[filter.operator]} ${odataLiteral(
         filter.right.value,
         field,
         `${path}.right.value`,
