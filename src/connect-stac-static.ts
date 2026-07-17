@@ -3,6 +3,7 @@
 import type { ConnectDiscoveryExtent, ConnectDiscoverySourceSnapshot } from "./connect.js";
 import type { DiscoveryCapabilityEvidence, DiscoveryProvenance } from "./contract/discovery.js";
 import type { Protocol, SourceLocator } from "./contract/types.js";
+import { boundedJsonStructureViolation } from "./core/bounded-json.js";
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import { honuaMetadataRequestHeaders } from "./core/cache-state.js";
 import type { HonuaClient } from "./core/client.js";
@@ -21,6 +22,8 @@ const HARD_MAX_LINKS_PER_DOCUMENT = 128;
 const HARD_MAX_ASSETS = 1024;
 const HARD_MAX_ASSET_PROBES = 16;
 const HARD_MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
+const MAX_STATIC_JSON_DEPTH = 64;
+const MAX_STATIC_JSON_NODES = 100_000;
 
 const STAC_SOURCE_CAPABILITIES = Object.freeze(["query", "queryObjectIds", "stream"] as const);
 const STATIC_DOCUMENT_MEDIA_TYPES = new Set(["application/json", "application/geo+json"]);
@@ -961,6 +964,7 @@ async function fetchStaticDocument(
   } catch {
     throw new HonuaDiscoveryError("invalid-endpoint", "Linked STAC metadata contained invalid JSON.");
   }
+  assertBoundedStaticJson(value);
   const validator = response.headers.get("etag") ?? response.headers.get("last-modified") ?? undefined;
   return { value, ...(validator ? { validator: boundedText(validator, 512, "validator") } : {}), url: finalUrl };
 }
@@ -1547,26 +1551,18 @@ async function treeDigest(
   candidates: readonly StacAssetCandidate[],
 ): Promise<`sha256:${string}`> {
   const documentBindings = [...documents]
-    .sort((left, right) => left.url.localeCompare(right.url))
-    .map((document) => ({
-      url: document.url,
-      stacVersion: document.stacVersion,
-      validator: document.validator ?? null,
-      contentDigest: document.contentDigest,
-    }));
+    .sort((left, right) => compareCanonicalText(left.url, right.url))
+    .map((document) => document);
   const candidateBindings = [...candidates]
     .sort((left, right) =>
-      `${left.documentUrl}\u0000${left.assetKey}`.localeCompare(`${right.documentUrl}\u0000${right.assetKey}`),
+      compareCanonicalText(`${left.documentUrl}\u0000${left.assetKey}`, `${right.documentUrl}\u0000${right.assetKey}`),
     )
-    .map((candidate) => ({
-      documentUrl: candidate.documentUrl,
-      assetKey: candidate.assetKey,
-      state: candidate.state,
-      kind: candidate.kind ?? null,
-      href: candidate.href ?? null,
-      source: candidate.source ? { protocol: candidate.source.protocol, locator: candidate.source.locator } : null,
-    }));
+    .map((candidate) => candidate);
   return sha256(canonicalJson({ documents: documentBindings, assetCandidates: candidateBindings }));
+}
+
+function compareCanonicalText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function diagnostic(
@@ -1706,6 +1702,25 @@ function canonicalJson(value: unknown): string {
       .join(",")}}`;
   }
   throw new HonuaDiscoveryError("invalid-endpoint", "STAC metadata must contain JSON-compatible data only.");
+}
+
+function assertBoundedStaticJson(value: unknown): void {
+  const violation = boundedJsonStructureViolation(value, MAX_STATIC_JSON_DEPTH, MAX_STATIC_JSON_NODES);
+  if (violation === "max-nodes") {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      `STAC metadata exceeds the ${MAX_STATIC_JSON_NODES}-node structural limit.`,
+    );
+  }
+  if (violation === "max-depth") {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      `STAC metadata exceeds the ${MAX_STATIC_JSON_DEPTH}-level nesting limit.`,
+    );
+  }
+  if (violation === "non-json") {
+    throw new HonuaDiscoveryError("invalid-endpoint", "STAC metadata must contain finite JSON-compatible data only.");
+  }
 }
 
 async function sha256(value: string): Promise<`sha256:${string}`> {

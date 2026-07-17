@@ -17,6 +17,7 @@
  */
 
 import type { SourceLocator } from "../contract/types.js";
+import { boundedJsonStructureViolation } from "./bounded-json.js";
 import type { HonuaClient } from "./client.js";
 import { HonuaAbortError, HonuaCapabilityNotSupportedError } from "./errors.js";
 import type { HonuaStacItemCollectionResponse, HonuaStacItemResponse } from "./types.js";
@@ -39,6 +40,8 @@ const HARD_MAX_DOCUMENTS = 64;
 const HARD_MAX_DEPTH = 8;
 const HARD_MAX_LINKS_PER_DOCUMENT = 128;
 const HARD_MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
+const MAX_STATIC_JSON_DEPTH = 64;
+const MAX_STATIC_JSON_NODES = 100_000;
 const JSON_MEDIA_TYPES = new Set(["application/json", "application/geo+json"]);
 
 interface RuntimeTraversalPolicy {
@@ -311,11 +314,21 @@ async function readBoundedJson(response: Response, maximum: number): Promise<unk
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
+  let value: unknown;
   try {
-    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    value = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
   } catch {
     throw new Error("static STAC response contained invalid JSON");
   }
+  const violation = boundedJsonStructureViolation(value, MAX_STATIC_JSON_DEPTH, MAX_STATIC_JSON_NODES);
+  if (violation === "max-depth") {
+    throw new Error(`static STAC response exceeds the ${MAX_STATIC_JSON_DEPTH}-level nesting limit`);
+  }
+  if (violation === "max-nodes") {
+    throw new Error(`static STAC response exceeds the ${MAX_STATIC_JSON_NODES}-node structural limit`);
+  }
+  if (violation === "non-json") throw new Error("static STAC response contains non-finite JSON data");
+  return value;
 }
 
 function mediaEssence(value: string): string {

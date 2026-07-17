@@ -313,6 +313,47 @@ describe("connect static STAC discovery", () => {
     );
   });
 
+  it("rejects structurally hostile JSON within the byte limit", async () => {
+    let nested: unknown = "leaf";
+    for (let depth = 0; depth < 65; depth += 1) nested = [nested];
+    const root = {
+      stac_version: "1.1.0",
+      type: "Catalog",
+      id: "hostile-root",
+      description: "bounded bytes do not imply bounded structure",
+      links: [],
+      nested,
+    };
+    await expect(
+      connect({
+        endpoint: "https://static.example/deep.json",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn: vi.fn(async () => json(root)) },
+      }),
+    ).rejects.toThrow(/64-level nesting limit/);
+
+    await expect(
+      connect({
+        endpoint: "https://static.example/wide.json",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: {
+          fetchFn: vi.fn(async () =>
+            json({
+              stac_version: "1.1.0",
+              type: "Catalog",
+              id: "wide-root",
+              description: "bounded node count",
+              links: [],
+              nodes: Array.from({ length: 100_001 }, () => null),
+            }),
+          ),
+        },
+      }),
+    ).rejects.toThrow(/100000-node structural limit/);
+  });
+
   it("round-trips a linked-document diagnostic through caller cache", async () => {
     const root = {
       stac_version: "1.1.0",
@@ -501,6 +542,18 @@ describe("connect static STAC discovery", () => {
     };
     forgedCandidate.stacStatic.assetCandidates[0]!.id = "forged-id";
     values.set(key, forgedCandidate);
+    await expect(
+      connect({
+        ...base,
+        clientOptions: { fetchFn: vi.fn(async () => new Response("must not fetch", { status: 500 })) },
+      }),
+    ).rejects.toMatchObject({ code: "invalid-discovery-cache" });
+
+    const forgedSemantics = structuredClone(snapshot) as ConnectDiscoverySnapshot & {
+      stacStatic: { assetCandidates: Array<{ confidence: string }> };
+    };
+    forgedSemantics.stacStatic.assetCandidates[0]!.confidence = "none";
+    values.set(key, forgedSemantics);
     await expect(
       connect({
         ...base,

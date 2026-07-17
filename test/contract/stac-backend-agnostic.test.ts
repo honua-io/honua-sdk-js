@@ -228,6 +228,38 @@ describe("stac backend-agnostic / static catalog.json tree", () => {
     await expect(source.query({})).rejects.toThrow(/512-byte limit/);
   });
 
+  it("rejects a structurally hostile runtime document within the byte limit", async () => {
+    let nested: unknown = "leaf";
+    for (let depth = 0; depth < 65; depth += 1) nested = [nested];
+    const client = new HonuaClient({
+      baseUrl: "https://static.example.test/catalog.json",
+      fetchFn: async () =>
+        jsonResponse({
+          stac_version: "1.0.0",
+          type: "Catalog",
+          id: "deep-runtime-root",
+          description: "bounded bytes do not imply bounded structure",
+          links: [],
+          nested,
+        }),
+    });
+    const source = createDataset({
+      id: "deep-static",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "deep-runtime-root",
+          protocol: "stac",
+          locator: { url: "https://static.example.test/catalog.json", layout: "stac-static" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+        } satisfies SourceDescriptor,
+      ],
+    }).source("deep-runtime-root")!;
+
+    await expect(source.query({})).rejects.toThrow(/64-level nesting limit/);
+  });
+
   it("ignores rel=items and skips malformed linked Features under the same runtime policy", async () => {
     const paths: string[] = [];
     const redirectModes: Array<RequestRedirect | undefined> = [];
