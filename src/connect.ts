@@ -730,7 +730,6 @@ async function discoverStac(
     ...options.metadata,
     ...(options.signal ? { signal: options.signal } : {}),
     refresh: options.refresh === true,
-    maxResponseBytes: stacPolicy.maxDocumentBytes,
   };
   const rootResponse = await fetchStacRootDocument(client, identity.endpoint, {
     ...(options.signal ? { signal: options.signal } : {}),
@@ -761,7 +760,7 @@ async function discoverStac(
       stacStatic: discovered.inspection,
     });
   }
-  if (rootResponse.url !== identity.endpoint) {
+  if (validateConnectEndpoint(rootResponse.url) !== identity.endpoint) {
     throw new HonuaDiscoveryError(
       "invalid-endpoint",
       "A STAC API landing redirect must resolve to the explicitly connected service root.",
