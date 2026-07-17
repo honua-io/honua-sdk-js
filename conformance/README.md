@@ -14,6 +14,12 @@ still parsed those payloads.
 
 ## What lives here
 
+- [`semantic-query/`](./semantic-query/) — the vendored, versioned semantic
+  query equivalence corpus used by every query compiler. It carries one logical
+  expected result per case plus explicit exact, approximate, or unsupported
+  projections for GeoServices, CQL2, FES, OData, DuckDB, and gRPC. This lane is
+  deterministic and always runs without a live server.
+
 - `fetch-fixtures.sh` — the **committed helper** (delivered in
   geospatial-grpc#19) that SDK CI uses to pull a pinned fixture version. It
   downloads the release asset `conformance-fixtures-<version>.tar.gz` (+
