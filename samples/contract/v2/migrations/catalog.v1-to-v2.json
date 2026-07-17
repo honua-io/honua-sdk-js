@@ -336,6 +336,11 @@
         "attribution": "Honua synthetic Maui planning data; not a current regulatory determination.",
         "freshness": "Fixture version and generated-at values are committed with the repository; no live freshness claim is made."
       },
+      "live": {
+        "mode": "public-live",
+        "status": "planned",
+        "commands": ["npm run evidence:planning:live"]
+      },
       "expectedDegradation": "Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.",
       "validation": [
         "npm run demo:planning-workbench:typecheck",

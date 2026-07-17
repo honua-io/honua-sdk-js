@@ -916,11 +916,13 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": []
+          "commands": [
+            "npm run evidence:planning:live"
+          ]
         }
       },
       "liveEvidence": {
-        "mode": "demo-live",
+        "mode": "public-live",
         "status": "planned"
       }
     },

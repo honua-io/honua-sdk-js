@@ -168,7 +168,13 @@ describe("sample publication contract", () => {
       journeyId: "planning-permitting",
       lifecycle: { state: "active" },
       renderers: ["none"],
-      evidence: { live: { status: "planned" } },
+      evidence: {
+        live: {
+          mode: "public-live",
+          status: "planned",
+          commands: ["npm run evidence:planning:live"],
+        },
+      },
     });
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "edit-workflow-demo")).toMatchObject({
       track: "recipe",
@@ -355,7 +361,7 @@ describe("sample publication contract", () => {
           execution: "orchestrated",
           commands: ["npm run demo:planning-workbench:mock"],
         },
-        liveEvidence: { execution: "scheduled-only", commands: [] },
+        liveEvidence: { execution: "scheduled-only", commands: ["npm run evidence:planning:live"] },
       },
     });
     expect(

@@ -7,8 +7,9 @@ result.
 
 This sample is the maintained candidate for the catalog's `planning-permitting`
 journey. The journey remains **planned**, not golden or receipt-qualified. Its
-live lane also remains planned; the commands below use same-origin fixtures and
-make no external requests.
+live lane also remains planned. The normal demo commands below use same-origin
+fixtures; the separately opt-in evidence command performs three bounded,
+anonymous reads against the public Nominatim and Hawaii Statewide GIS services.
 
 ## What it proves
 
@@ -49,10 +50,21 @@ npm run test:playwright:planning-workbench
 
 npm run samples:run -- verify --sample planning-permitting-workbench --sdk-mode source
 npm run samples:run -- verify --sample planning-permitting-workbench --sdk-mode packed
+
+HONUA_PLANNING_LIVE_ENABLED=true npm run evidence:planning:live
+npm run samples:run -- evidence --sample planning-permitting-workbench --gate live --sdk-mode source --allow-live
+npm run samples:run -- evidence --sample planning-permitting-workbench --gate live --sdk-mode packed --allow-live
 ```
 
 The shared runner verifies that packed mode resolves the extracted package's
 published declarations and runtime entrypoints rather than repository source.
+The reviewed live producer resolves Honolulu Hale once, inspects the official
+Hawaii zoning layer, and issues one point-intersection query capped at three
+attribute-only records. It follows no redirects, sends no credentials, allows
+three requests total, caps each decoded response at 512 KiB and the aggregate at
+1 MiB, and stops within 25 seconds. This public source is query-only, so the
+producer records edit, attachment, conflict, and rollback proof as fixture-only
+rather than implying that public data was mutated.
 
 ## Layout
 
