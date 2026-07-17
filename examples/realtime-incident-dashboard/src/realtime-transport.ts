@@ -1,11 +1,11 @@
-import { isFixtureRunId } from "../../../samples/scenarios/identifiers.mjs";
 import {
   type RealtimeFeatureEvent,
   type RealtimeFeatureTransport,
   type RealtimeSubscriptionRequest,
   createHonuaServerRealtimeSubscription,
   decodeHonuaServerRealtimeEvent,
-} from "../../../src/realtime/index.js";
+} from "@honua/sdk-js/realtime";
+import { isFixtureRunId } from "../../../samples/scenarios/identifiers.mjs";
 
 import { INCIDENT_LAYER_ID, INCIDENT_SOURCE_ID } from "./fixtures.js";
 import { type FixtureIncidentTransport, createFixtureIncidentTransport } from "./realtime-fixture.js";
@@ -33,6 +33,7 @@ export interface IncidentTransportControls {
   resume(): Promise<void>;
   refresh(): Promise<void>;
   duplicateLast(): Promise<void>;
+  reorderLast(): Promise<void>;
   staleCursor(): Promise<void>;
   edit(request: IncidentEditRequest): Promise<IncidentEditReceipt>;
   reset(request: IncidentResetRequest): Promise<IncidentEditReceipt>;
@@ -353,6 +354,7 @@ function createFixtureIncidentTransportControls(
     resume: async () => fixture.resume(),
     refresh: async () => fixture.refresh(),
     duplicateLast: async () => fixture.duplicateLast(),
+    reorderLast: async () => fixture.reorderLast(),
     staleCursor: async () => fixture.staleCursor(),
     edit: async (request) => fixture.edit(request),
     reset: async (request) => fixture.reset(request),
@@ -665,6 +667,9 @@ function createRemoteFixtureIncidentTransportControls(
     async duplicateLast() {
       decodeActionAcknowledgement(await action("duplicate-event"), "duplicate-event", "duplicated", true);
     },
+    async reorderLast() {
+      decodeActionAcknowledgement(await action("reorder-event"), "reorder-event", "reordered");
+    },
     async staleCursor() {
       decodeActionAcknowledgement(await action("stale-cursor"), "stale-cursor", "staleCursorInjected");
     },
@@ -699,6 +704,7 @@ function createReadOnlyControls(config: ResolvedIncidentTransportConfig): Incide
     resume: async () => undefined,
     refresh: async () => undefined,
     duplicateLast: async () => undefined,
+    reorderLast: async () => undefined,
     staleCursor: async () => undefined,
     edit: async (request) => blocked("edit", request.idempotencyKey),
     reset: async (request) => blocked("reset", request.idempotencyKey),
