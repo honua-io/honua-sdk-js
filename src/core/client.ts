@@ -606,7 +606,7 @@ export class HonuaClient {
   private async fetchWithSafeRedirects(
     url: string,
     init: RequestInit,
-    redirectPolicy: "safe-follow" | "error" = "safe-follow",
+    redirectPolicy: "safe-follow" | "error" | "manual" = "safe-follow",
   ): Promise<Response> {
     let currentUrl = url;
     let currentInit: RequestInit = init;
@@ -641,6 +641,11 @@ export class HonuaClient {
       }
 
       if (!REDIRECT_STATUSES.has(response.status)) return response;
+
+      // Some bounded metadata callers need the untouched 3xx response so
+      // their protocol facade can preserve its typed redirect diagnostic.
+      // Credentials are still never replayed because fetch remains manual.
+      if (redirectPolicy === "manual") return response;
 
       if (redirects >= MAX_SAFE_REDIRECTS) {
         throw new HonuaNetworkError(`Exceeded the maximum of ${MAX_SAFE_REDIRECTS} redirects.`, undefined);
@@ -1159,7 +1164,11 @@ export class HonuaClient {
     path: string,
     init?: RequestInit,
     callerSignal?: AbortSignal,
-    options: { okStatuses?: readonly number[]; redirect?: "safe-follow" | "error" } = {},
+    options: {
+      okStatuses?: readonly number[];
+      redirect?: "safe-follow" | "error" | "manual";
+      discardErrorBody?: boolean;
+    } = {},
   ): Promise<Response> {
     const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
@@ -1177,6 +1186,14 @@ export class HonuaClient {
       callerSignal,
       ...(options.okStatuses ? { okStatuses: options.okStatuses } : {}),
       ...(options.redirect ? { redirect: options.redirect } : {}),
+      ...(options.discardErrorBody
+        ? {
+            errorBody: (response: Response) => {
+              void response.body?.cancel().catch(() => undefined);
+              return Promise.resolve({});
+            },
+          }
+        : {}),
       finalize: async (response, _durationMs, _request, runAfter) => {
         await runAfter();
         return response;
@@ -1976,7 +1993,7 @@ export class HonuaClient {
     options: {
       callerSignal?: AbortSignal;
       okStatuses?: readonly number[];
-      redirect?: "safe-follow" | "error";
+      redirect?: "safe-follow" | "error" | "manual";
       errorBody?: (response: Response) => Promise<unknown>;
       shortCircuit?: (
         response: Response,

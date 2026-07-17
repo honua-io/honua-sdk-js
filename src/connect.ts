@@ -41,7 +41,12 @@ export type {
   StacStaticTraversalOptions,
   StacStaticTraversalPolicy,
 } from "./connect-stac-static.js";
-import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
+import {
+  type ConnectTarget,
+  discoverGeoServicesImageSources,
+  discoverGeoServicesSources,
+  resolveConnectTarget,
+} from "./connect-geoservices.js";
 export type { GeoParquetSourceProfiler } from "./connect-geoparquet.js";
 import { discoverOdataSources } from "./connect-odata.js";
 import {
@@ -300,6 +305,7 @@ export const CONNECT_SOURCE_PROTOCOLS = [
   "ogc-maps",
   "geoservices-feature-service",
   "geoservices-map-service",
+  "geoservices-image-service",
 ] as const satisfies readonly Protocol[];
 
 export type ConnectResolvedProtocol = (typeof CONNECT_SOURCE_PROTOCOLS)[number];
@@ -428,7 +434,9 @@ export async function connectWithSourceSchemaProjection(
                     ? await discoverOgcTiles(client, identity, target, options)
                     : target.protocol === "ogc-maps"
                       ? await discoverOgcMaps(client, identity, target, options)
-                      : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
+                      : target.protocol === "geoservices-image-service"
+                        ? await discoverGeoServicesImage(client, identity, target, options)
+                        : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
     if (
       options.cache &&
       (!sourceSchemaProjection ||
@@ -802,6 +810,31 @@ async function discoverGeoServices(
     protocol: target.protocol,
     retrievedAt: discovered.retrievedAt,
     evidence: Object.freeze([]),
+    sources: discovered.sources,
+  });
+}
+
+async function discoverGeoServicesImage(
+  client: HonuaClient,
+  identity: DiscoveryCacheIdentity,
+  target: ConnectTarget,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const discovered = await discoverGeoServicesImageSources(client, target, options);
+  if (discovered.sources.length === 0) {
+    throw new HonuaDiscoveryError(
+      "unsupported-protocol",
+      "ImageServer metadata did not prove an executable raster-catalog Source; use discoverGeoServices() for imagery service and operation discovery.",
+      { endpoint: identity.endpoint, protocol: target.protocol },
+    );
+  }
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "geoservices-image-service",
+    retrievedAt: discovered.retrievedAt,
+    evidence: discovered.evidence,
     sources: discovered.sources,
   });
 }
@@ -1661,6 +1694,20 @@ function validateSnapshotLocator(
       throw new HonuaDiscoveryError(
         "invalid-discovery-cache",
         `Cached ${family} source locator does not match the service endpoint.`,
+      );
+    }
+    return;
+  }
+  if (target.protocol === "geoservices-image-service") {
+    if (
+      locator.url !== target.clientBaseUrl ||
+      locator.serviceId !== target.serviceId ||
+      locator.layerId !== undefined ||
+      sourceId !== target.serviceId
+    ) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Cached ImageServer source locator does not match the service endpoint.",
       );
     }
     return;
