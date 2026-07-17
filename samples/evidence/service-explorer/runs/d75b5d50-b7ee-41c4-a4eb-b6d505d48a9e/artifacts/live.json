@@ -1,13 +1,13 @@
 {
   "format": "honua.sdk.sample-live-gate.v1",
   "sampleId": "service-explorer",
-  "sourceRevision": "4d49cf7e719334bccbd55820e1dcd26092116c52",
+  "sourceRevision": "2f3073a7b33d441c5ebc7f8042cb1671da3e4b74",
   "command": [
     "npm",
     "run",
     "demo:service-explorer:live-evidence"
   ],
-  "evidencePath": "samples/evidence/service-explorer/runs/f78d1b7d-9504-4dcb-9eef-19a3ed57c45e/artifacts/live-evidence.json",
+  "evidencePath": "samples/evidence/service-explorer/runs/d75b5d50-b7ee-41c4-a4eb-b6d505d48a9e/artifacts/live-evidence.json",
   "evidence": {
     "$schema": "../../samples/contract/v1/schemas/sample-evidence.schema.json",
     "format": "honua.sdk.sample-evidence.v1",
@@ -16,12 +16,12 @@
     "lane": "live",
     "status": "executed",
     "reason": null,
-    "observedAt": "2026-07-17T17:10:26.005Z",
+    "observedAt": "2026-07-17T18:34:49.541Z",
     "authMode": "anonymous",
     "sdk": {
       "package": "@honua/sdk-js",
       "version": "0.1.0-beta.0",
-      "gitCommit": "4d49cf7e719334bccbd55820e1dcd26092116c52"
+      "gitCommit": "2f3073a7b33d441c5ebc7f8042cb1671da3e4b74"
     },
     "source": {
       "provider": "esri-sampleserver6-and-pygeoapi-demo",
@@ -32,7 +32,7 @@
     },
     "provenance": {
       "sourceId": "canonical-anonymous-geoservices+canonical-anonymous-ogc-features",
-      "observedAt": "2026-07-17T17:10:26.005Z",
+      "observedAt": "2026-07-17T18:34:49.541Z",
       "validAt": null,
       "state": "live",
       "attribution": "Esri sample services and the pygeoapi development team."
@@ -52,8 +52,8 @@
       ]
     },
     "timing": {
-      "totalMs": 3450.070686,
-      "firstSuccessfulInteractionMs": 811.595542
+      "totalMs": 3711.591207,
+      "firstSuccessfulInteractionMs": 868.6706469999999
     },
     "degradation": {
       "state": "none",
