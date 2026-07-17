@@ -351,7 +351,9 @@ test("fails closed on missing quality profiles and forged golden qualification r
   );
 
   const forgedQualification = structuredClone(projection);
-  forgedQualification.goldenJourneys[0].status = "qualified";
+  const plannedJourney = forgedQualification.goldenJourneys.find((journey) => journey.status === "planned");
+  assert.ok(plannedJourney, "the adversary requires a planned journey");
+  plannedJourney.status = "qualified";
   await assert.rejects(
     () => verifiedGallery(forgedQualification),
     /qualified candidate is not a golden card/,
@@ -393,7 +395,7 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const byId = new Map(cards.map((card) => [card.sample.id, card]));
 
   assert.equal(gallery.cardCount, 30);
-  assert.deepEqual(counts, { recipe: 13, lab: 17 });
+  assert.deepEqual(counts, { golden: 1, recipe: 12, lab: 17 });
   assert.ok(!byId.has("arcgis-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
   assert.deepEqual(byId.get("runtime-parity-showcase").replacement, {
@@ -428,9 +430,15 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   ]);
   assert.equal(imageryCard.sample.evidence.live.mode, "public-live");
   assert.equal(imageryCard.sample.evidence.live.status, "planned");
-  assert.ok(cards.every((card) => card.qualification.label.includes("not receipt-qualified")));
-  assert.ok(cards.every((card) => card.qualification.state !== "receipt-qualified-golden"));
-  assert.deepEqual(byId.get("maplibre-quickstart").qualification.requiredGates, [
+  const firstMapCard = byId.get("maplibre-quickstart");
+  assert.equal(firstMapCard.qualification.state, "receipt-qualified-golden");
+  assert.equal(firstMapCard.qualification.label, "Receipt-qualified golden journey");
+  assert.ok(
+    cards
+      .filter((card) => card.sample.id !== "maplibre-quickstart")
+      .every((card) => card.qualification.label.includes("not receipt-qualified")),
+  );
+  assert.deepEqual(firstMapCard.qualification.requiredGates, [
     "packedBuild",
     "browser",
     "accessibility",
