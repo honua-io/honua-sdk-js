@@ -368,6 +368,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: NL map-control security certification (gate)
+        run: npm run test:certification:nl-map-control
+
       - name: MCP certification (gate)
         # Offline mode: certifies an in-process streamable-HTTP mock of the honua
         # /mcp operator catalog — no live server needed, gates every PR. The live

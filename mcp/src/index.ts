@@ -6,6 +6,7 @@ import type { HonuaTransport } from "@honua/sdk-js";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
+import { type NlMapControlMcpHost, registerNlMapControlMcpTools } from "./nl-map-control.js";
 import * as layerSchemaResource from "./resources/layer-schema.js";
 import * as servicesResource from "./resources/services.js";
 import * as stylesResource from "./resources/styles.js";
@@ -19,12 +20,30 @@ import * as listServices from "./tools/list-services.js";
 import * as queryFeatures from "./tools/query-features.js";
 import * as statistics from "./tools/statistics.js";
 
+export {
+  createNlMapControlMcpHost,
+  registerNlMapControlMcpTools,
+} from "./nl-map-control.js";
+export type {
+  CreateNlMapControlMcpHostOptions,
+  McpNlMapExecutionResponse,
+  McpNlMapPlanResponse,
+  McpNlMapReceipt,
+  NlMapControlMcpHost,
+  NlMapControlMcpRequestContext,
+} from "./nl-map-control.js";
+
 export interface RuntimeOptions {
   baseUrl: string;
   apiKey: string | undefined;
   transport: HonuaTransport;
   timeoutMs: number;
   retryMaxRetries: number;
+}
+
+export interface CreateServerOptions {
+  /** Optional BYO-LLM/map-runtime host for the experimental NL map-plan tools. */
+  readonly nlMapControl?: NlMapControlMcpHost;
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -172,7 +191,7 @@ export function createClientFromEnv(env: NodeJS.ProcessEnv = process.env): Honua
  * mirrored to stdio by `honua-mcp-proxy` ({@link runProxy}); it requires a Honua
  * deployment. Standalone is the front door; the proxy is the upgrade path.
  */
-export function createServer(client: HonuaClient) {
+export function createServer(client: HonuaClient, options: CreateServerOptions = {}) {
   const server = new McpServer({
     name: "honua",
     version: SERVER_VERSION,
@@ -186,6 +205,10 @@ export function createServer(client: HonuaClient) {
     listServices.schema.shape,
     async (args) => listServices.execute(client, listServices.schema.parse(args)),
   );
+
+  if (options.nlMapControl) {
+    registerNlMapControlMcpTools(server, options.nlMapControl);
+  }
 
   server.tool(
     "honua_describe_layer",

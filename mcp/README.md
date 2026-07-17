@@ -83,6 +83,40 @@ mutation on the standalone server. The descriptor requires a bounded exact name
 and a deterministic `countRows(result)` callback; missing or invalid row counts
 fail instead of being reported as zero.
 
+### Optional natural-language map-plan tools
+
+Embedded hosts with a map runtime, BYO-LLM callback, approval verifier, and
+atomic approval-use store can opt into two additional tools:
+
+- `proposeMapPlan` — compiles an instruction into an inspectable, content-addressed plan and never executes it.
+- `executeMapPlan` — accepts that plan plus a signed approval envelope and executes only after scope, signature,
+  expiry, single-use, cancellation, and plan-identity checks. The envelope is required for effects and for every
+  read step that names a `sourceId`; only non-source inspection may use read-only auto-execution.
+
+```ts
+import { createNlMapControlMcpHost, createServer } from "@honua/mcp-server";
+
+const nlMapControl = createNlMapControlMcpHost({
+  control: {
+    tools: { runtime },
+    llm: callYourModel,
+    approvalVerifier,
+    receiptSigner,
+  },
+  approvalUseConsumer, // host-owned atomic consume + verify callbacks
+  resolveAuthorizationScopes: (transportScopes) => transportScopes,
+});
+
+const server = createServer(honuaClient, { nlMapControl });
+```
+
+The callbacks are deliberately not inferred from environment variables: model
+transport, map authority, signing keys, and replay storage remain host-owned.
+The MCP response omits raw tool results and the original instruction from its
+execution receipt. Plans containing credential, cursor, or endpoint material
+are refused instead of returning a redacted plan that could no longer match its
+approval fingerprint.
+
 ## MCP Resources
 
 - `honua://services`
@@ -120,8 +154,15 @@ npm run certify
 
 # CI entry points (also runnable locally):
 npm run test:certification            # gate: runs harness tests + certifier, exits non-zero on failure
+npm run test:certification:nl-map-control # gate: approval/scope/replay/cancellation/receipt security matrix
 npm run test:certification:artifact   # evidence: writes artifacts, always exits 0
 ```
+
+The certification test lane also hosts the optional NL tools over an in-memory
+MCP transport with a deterministic fixture completion and mock map runtime. It proves
+propose→approve→execute plus missing, expired, replayed, wrong-scope, tampered,
+cancelled, deterministic-receipt, and redaction cases without a model, API key,
+network service, or wall-clock dependency.
 
 ### Platform-free certification lane
 

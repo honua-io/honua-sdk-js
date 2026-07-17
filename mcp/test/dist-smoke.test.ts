@@ -11,10 +11,25 @@ describe("distribution smoke", () => {
     const entrypointUrl = new URL("../dist/src/index.js", import.meta.url).href;
     const script = [
       `const mod = await import(${JSON.stringify(entrypointUrl)});`,
-      "process.stdout.write(`${typeof mod.createServer} ${typeof mod.resolveRuntimeOptions}`);",
+      "process.stdout.write(`${typeof mod.createServer} ${typeof mod.resolveRuntimeOptions} ${typeof mod.createNlMapControlMcpHost}`);",
     ].join("\n");
 
     const { stdout } = await execFileAsync(process.execPath, ["--input-type=module", "--eval", script], {
+      timeout: 10_000,
+    });
+
+    expect(stdout).toBe("function function function");
+  });
+
+  it("loads the published package and NL map-control subpath exports", async () => {
+    const script = [
+      'const root = await import("@honua/mcp-server");',
+      'const nl = await import("@honua/mcp-server/nl-map-control");',
+      "process.stdout.write(`${typeof root.createServer} ${typeof nl.createNlMapControlMcpHost}`);",
+    ].join("\n");
+
+    const { stdout } = await execFileAsync(process.execPath, ["--input-type=module", "--eval", script], {
+      cwd: new URL("..", import.meta.url),
       timeout: 10_000,
     });
 

@@ -15,7 +15,12 @@
     "./agent-execution": {
       "types": "./dist/src/agent-execution.d.ts",
       "default": "./dist/src/agent-execution.js"
-    }
+    },
+    "./nl-map-control": {
+      "types": "./dist/src/nl-map-control.d.ts",
+      "default": "./dist/src/nl-map-control.js"
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "clean": "rm -rf dist coverage",
@@ -27,6 +32,7 @@
     "test:coverage": "vitest run --coverage",
     "certify": "npm run build --silent && node dist/src/certification/cli.js",
     "certify:standalone": "npm run build --silent && node dist/src/certification/cli.js --target standalone",
+    "test:certification:nl-map-control": "vitest run test/certification/nl-map-control.test.ts",
     "test:certification": "npm run build --silent && vitest run test/certification && node dist/src/certification/cli.js",
     "test:certification:artifact": "npm run build --silent && node dist/src/certification/cli.js --artifact-only",
     "test:certification:standalone": "npm run build --silent && node dist/src/certification/cli.js --target standalone",
