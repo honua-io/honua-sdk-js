@@ -3,6 +3,19 @@
   "schemaVersion": 1,
   "samples": [
     {
+      "id": "imagery-cog-quickstart",
+      "viteConfig": "examples/imagery-cog-quickstart/vite.config.ts",
+      "tsconfig": "examples/imagery-cog-quickstart/tsconfig.json",
+      "playwrightScript": "test:playwright:imagery-cog",
+      "playwrightFile": "test/playwright/imagery-cog-quickstart.spec.mjs",
+      "playwrightTestTitle": "imagery and terrain journey completes supported and degraded MapLibre workflows",
+      "playwrightProjects": [{ "name": "chromium", "browserName": "chromium" }],
+      "evidenceProject": "chromium",
+      "sdkEntrypoints": ["@honua/sdk-js/contract", "@honua/sdk-js/honua", "@honua/sdk-js/runtime"],
+      "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
+      "workflowSelectors": ["#stac-search-form", "#map", "#asset-inspection", "#elevation-profile"]
+    },
+    {
       "id": "migration-workbench",
       "viteConfig": "examples/migration-workbench/vite.config.ts",
       "tsconfig": "examples/migration-workbench/tsconfig.json",

@@ -90,6 +90,24 @@ export function buildImageServerTileUrlTemplate(
     .replace(`/${levelSentinel}/${rowSentinel}/${colSentinel}`, "/{z}/{y}/{x}");
 }
 
+/**
+ * Bridge the SDK helper's legacy WMS placeholders to the tokens MapLibre
+ * actually expands. Keep this visible until the runtime helper itself emits
+ * `{bbox-epsg-3857}` and concrete image dimensions (#620).
+ */
+export function normalizeSdkWmsTemplateForMapLibre(source: RasterSourceSpec): RasterSourceSpec {
+  const tileSize = String(source.tileSize);
+  return {
+    ...source,
+    tiles: source.tiles.map((template) =>
+      template
+        .replaceAll("{bbox-epsg3857}", "{bbox-epsg-3857}")
+        .replaceAll("{width}", tileSize)
+        .replaceAll("{height}", tileSize),
+    ),
+  };
+}
+
 export function summarizeImageryCache(dataset: ImageryCogDataset): string {
   const ready = dataset.layers.filter((layer) => layer.cache.status === "ready").length;
   const stale = dataset.layers.filter((layer) => layer.cache.status === "stale").length;
@@ -163,7 +181,9 @@ function sourceSpecForLayer(
 ): RasterSourceSpec {
   if (layer.accessPath === "wms-getmap") {
     if (!descriptor) throw new Error(`Missing WMS descriptor for layer ${layer.id}`);
-    return buildWmsRasterSourceSpec(descriptor, { tileSize: 256, transparent: true });
+    return normalizeSdkWmsTemplateForMapLibre(
+      buildWmsRasterSourceSpec(descriptor, { tileSize: 256, transparent: true }),
+    );
   }
 
   const imageService = new HonuaImageService({ client, serviceId: layer.serviceId });
@@ -182,7 +202,7 @@ function toAuditRow(state: ImageryLayerState): ImageryAuditRow {
     sampleLayer: state.layer.title,
     sdkSurface:
       state.layer.accessPath === "wms-getmap"
-        ? "client.wms().capabilities + buildWmsRasterSourceSpec"
+        ? "client.wms().capabilities + buildWmsRasterSourceSpec + MapLibre token normalization"
         : state.layer.accessPath === "image-server-export"
           ? "HonuaImageService.exportImage"
           : "HonuaImageService.tileUrl",

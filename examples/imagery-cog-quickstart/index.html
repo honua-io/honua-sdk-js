@@ -3,69 +3,137 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Honua Imagery and COG Quickstart</title>
+    <meta name="theme-color" content="#102a2e" />
+    <title>Honua Imagery and Terrain Journey</title>
   </head>
   <body>
-    <main class="app-shell">
-      <section class="control-panel" aria-label="Imagery controls">
-        <header class="panel-header">
-          <p class="eyebrow">Cloud Honua imagery proof</p>
-          <h1>Imagery and COG Rendering</h1>
-          <p>
-            Validate COG-backed ImageServer tiles, WMS GetMap, export previews, legends, and metadata cache state from
-            one Honua client configuration.
+    <a class="skip-link" href="#journey-map">Skip to the map</a>
+    <main id="journey-app" class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Golden journey candidate · fixture safe</p>
+          <h1>Imagery and Terrain</h1>
+          <p class="hero-copy">
+            Search a STAC catalog, inspect bounded COG transport, compare published imagery, and follow terrain from
+            one point to a route profile.
           </p>
-        </header>
-
-        <section class="status-grid" aria-label="Demo status">
-          <div>
-            <span>Mode</span>
-            <strong id="mode-state">Loading</strong>
-          </div>
-          <div>
-            <span>Capability</span>
-            <strong id="capability-state">Loading</strong>
-          </div>
-          <div>
-            <span>Cache</span>
-            <strong id="cache-state">Loading</strong>
-          </div>
-          <div>
-            <span>Layers</span>
-            <strong id="active-layer-count">0 active</strong>
-          </div>
-        </section>
-
-        <section class="layer-panel" aria-label="Imagery layer list">
-          <div class="section-heading">
-            <h2>Render Paths</h2>
-            <button id="zoom-extent" type="button">Zoom Extent</button>
-          </div>
-          <div id="layer-list" class="layer-list"></div>
-        </section>
-
-        <section class="inspector-panel" aria-label="Selected layer details">
-          <div class="section-heading">
-            <h2>Layer Inspector</h2>
-            <span id="selected-kind">-</span>
-          </div>
-          <dl id="selected-metadata" class="metadata-list"></dl>
-          <div class="legend-strip" id="legend-strip"></div>
-          <p id="export-state" class="export-state">No export preview loaded.</p>
-        </section>
-
-        <section class="audit-panel" aria-label="Capability audit mapping">
-          <h2>Audit Mapping</h2>
-          <div id="audit-table" class="audit-table"></div>
-        </section>
-      </section>
-
-      <section class="map-stage" aria-label="Imagery map">
-        <div id="map"></div>
-        <div class="map-overlay">
-          <span id="endpoint-state">Waiting for Honua endpoints</span>
         </div>
-      </section>
+        <dl class="status-strip" aria-label="Journey status">
+          <div><dt>Mode</dt><dd id="mode-state">Loading</dd></div>
+          <div><dt>Workflow</dt><dd id="capability-state">Starting</dd></div>
+          <div><dt>Cache</dt><dd id="cache-state">Waiting</dd></div>
+          <div><dt>Layers</dt><dd id="active-layer-count">0 active</dd></div>
+        </dl>
+      </header>
+
+      <div class="journey-grid">
+        <aside class="workflow-panel" aria-label="STAC search and selection">
+          <section class="step-card" aria-labelledby="search-heading">
+            <div class="step-heading">
+              <span aria-hidden="true">1</span>
+              <div><p>Discover</p><h2 id="search-heading">Search scenes</h2></div>
+            </div>
+            <form id="stac-search-form" class="search-form">
+              <label>
+                Collection
+                <select id="collection-input" name="collection">
+                  <option value="sentinel-2-l2a">Sentinel-2 L2A</option>
+                </select>
+              </label>
+              <div class="field-pair">
+                <label>Start date <input id="start-date-input" name="startDate" type="date" value="2026-04-01" /></label>
+                <label>End date <input id="end-date-input" name="endDate" type="date" value="2026-05-05" /></label>
+              </div>
+              <label>
+                Maximum cloud cover
+                <span class="input-with-unit"><input id="cloud-input" name="cloud" type="number" min="0" max="100" value="20" /><span>%</span></span>
+              </label>
+              <p id="aoi-description" class="aoi-note"><strong>Area:</strong> Oʻahu operational extent · −158.18, 21.22 to −157.70, 21.58</p>
+              <button class="primary-button" type="submit">Search STAC</button>
+            </form>
+            <p id="search-status" class="inline-status" role="status">Preparing the deterministic catalog.</p>
+            <div id="scene-results" class="scene-results" aria-label="STAC search results"></div>
+          </section>
+
+          <section class="step-card" aria-labelledby="asset-heading">
+            <div class="step-heading">
+              <span aria-hidden="true">2</span>
+              <div><p>Select</p><h2 id="asset-heading">Choose an asset</h2></div>
+            </div>
+            <label class="asset-picker-label" for="asset-picker">Asset and compatibility case</label>
+            <select id="asset-picker" disabled><option>Search for a scene first</option></select>
+            <p id="asset-switch-state" class="inline-status" role="status">No asset selected.</p>
+          </section>
+        </aside>
+
+        <section id="journey-map" class="map-stage" aria-labelledby="map-heading">
+          <header class="map-toolbar">
+            <div><p class="toolbar-kicker">Published pixels</p><h2 id="map-heading">WMS ↔ ImageServer comparison</h2></div>
+            <div class="map-actions">
+              <label class="terrain-toggle"><input id="terrain-toggle" type="checkbox" /><span>Terrain / 2.5D</span></label>
+              <button id="zoom-extent" type="button">Fit Oʻahu</button>
+            </div>
+          </header>
+          <div id="map" role="region" aria-label="MapLibre imagery and terrain comparison map"></div>
+          <div class="comparison-control">
+            <div>
+              <label for="comparison-slider">Imagery comparison</label>
+              <output id="comparison-value" for="comparison-slider">68% ImageServer over WMS</output>
+            </div>
+            <input id="comparison-slider" type="range" min="0" max="100" value="68" />
+            <div class="comparison-axis" aria-hidden="true"><span>WMS</span><span>ImageServer</span></div>
+          </div>
+          <p id="endpoint-state" class="map-overlay">Waiting for same-origin fixture endpoints.</p>
+        </section>
+
+        <aside class="details-panel" aria-label="Inspection and elevation results">
+          <section id="asset-inspection" class="step-card inspection-card" aria-labelledby="inspection-heading">
+            <div class="step-heading">
+              <span aria-hidden="true">3</span>
+              <div><p>Inspect</p><h2 id="inspection-heading">Range and provenance</h2></div>
+            </div>
+            <div id="inspection-content" class="inspection-content">
+              <p class="empty-copy">Select a STAC asset to inspect its bounded range receipt.</p>
+            </div>
+          </section>
+
+          <section class="step-card" aria-labelledby="elevation-heading">
+            <div class="step-heading">
+              <span aria-hidden="true">4</span>
+              <div><p>Measure</p><h2 id="elevation-heading">Point elevation</h2></div>
+            </div>
+            <form id="elevation-form" class="elevation-form">
+              <label>Longitude <input id="longitude-input" type="number" step="0.0001" value="-157.9000" /></label>
+              <label>Latitude <input id="latitude-input" type="number" step="0.0001" value="21.3500" /></label>
+              <button type="submit">Look up elevation</button>
+            </form>
+            <div id="elevation-result" class="result-well" aria-live="polite"><p class="empty-copy">Choose a point or click the map.</p></div>
+          </section>
+
+          <section id="elevation-profile" class="step-card" aria-labelledby="profile-heading">
+            <div class="step-heading">
+              <span aria-hidden="true">5</span>
+              <div><p>Profile</p><h2 id="profile-heading">Route elevation</h2></div>
+            </div>
+            <button id="run-profile" class="secondary-button" type="button">Run fixture route</button>
+            <div id="profile-result" class="profile-result" aria-live="polite"><p class="empty-copy">No route sampled yet.</p></div>
+          </section>
+
+          <section class="step-card fidelity-card" aria-labelledby="fidelity-heading">
+            <div class="step-heading compact">
+              <span aria-hidden="true">✓</span>
+              <div><p>Truth</p><h2 id="fidelity-heading">Fidelity report</h2></div>
+            </div>
+            <ul id="fidelity-list" class="fidelity-list"></ul>
+          </section>
+        </aside>
+      </div>
+
+      <footer class="attribution-bar">
+        <p id="attribution-state">Fixture metadata only · provider attribution loads with the selected STAC item.</p>
+        <p>MapLibre supported · direct COG decoding remains #537 · Cesium remains a lab.</p>
+      </footer>
+      <span id="journey-announcer" class="sr-only" aria-live="polite"></span>
     </main>
 
     <script type="module" src="/src/main.ts"></script>
