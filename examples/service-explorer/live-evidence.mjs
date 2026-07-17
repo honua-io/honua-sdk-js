@@ -113,7 +113,7 @@ async function collectLiveEvidence() {
     source: {
       provider: "esri-sampleserver6-and-pygeoapi-demo",
       identity: sourceIdentity,
-      endpoint: null,
+      endpoint: targets.find((target) => target.id === "ogc")?.url ?? null,
       deploymentVersion: null,
       dataVersion: null,
     },
