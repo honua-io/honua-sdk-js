@@ -10,12 +10,18 @@ import {
 } from "@honua/sdk-js/honua";
 
 const DEFAULT_RANGE_PROBE_BYTES = 64;
+const MIN_RANGE_PROBE_BYTES = 4;
+const MAX_RANGE_PROBE_BYTES = 64 * 1024;
+const DEFAULT_SEARCH_LIMIT = 20;
+const MAX_SEARCH_LIMIT = 100;
+const MAX_REPORTED_MATCHES = 1_000_000;
+const MAX_ASSETS_PER_SCENE = 64;
 const DEFAULT_ELEVATION_PATH = "/api/v1/terrain/OahuTerrain/elevation/value";
 const DEFAULT_WMS_COMPARISON_PATH = "/rest/services/OahuImagery/MapServer/WMS";
 const SUPPORTED_INSPECTION_CRS = new Set([4326, 3857]);
 const SUPPORTED_TIFF_MEDIA_TYPES = new Set(["image/tiff", "image/geotiff", "application/geotiff"]);
 
-export type RasterUnsupportedCode = "cors" | "range" | "crs" | "format" | "nodata";
+export type RasterUnsupportedCode = "credentials" | "cors" | "range" | "crs" | "format" | "nodata";
 
 export interface ImageryTerrainSearchRequest {
   readonly collectionId: string;
@@ -77,7 +83,7 @@ export interface RasterProvenance {
 
 export interface RasterCacheEvidence {
   readonly key: string;
-  readonly status: "revalidated" | "declared";
+  readonly status: "observed" | "declared" | "unversioned";
   readonly etag?: string;
   readonly checksum?: string;
   readonly cacheControl?: string;
@@ -90,6 +96,7 @@ export interface RasterRangeEvidence {
   readonly contentRange: string;
   readonly bytesReceived: number;
   readonly totalBytes?: number;
+  readonly acceptRangesAdvertised: boolean;
   readonly tiffByteOrder: "little-endian" | "big-endian";
 }
 
@@ -139,7 +146,7 @@ export interface ElevationProvenance {
 }
 
 export interface ElevationCacheEvidence {
-  readonly status: "uncached" | "revalidated";
+  readonly status: "uncached" | "observed" | "revalidated";
   readonly etag?: string;
   readonly cacheControl?: string;
 }
@@ -225,6 +232,9 @@ interface RawElevationResponse {
 
 interface ParsedAssetMetadata {
   readonly identity: RasterSelectionIdentity;
+  readonly requestHref: string;
+  readonly credentialBearing: boolean;
+  readonly hrefValid: boolean;
   readonly mediaType: string;
   readonly crs?: number;
   readonly crsLabel?: string;
@@ -239,6 +249,8 @@ class ElevationNoDataError extends Error {
   }
 }
 
+class BoundedBodyError extends Error {}
+
 /**
  * Headless S1 orchestration for the Imagery and Terrain golden journey.
  *
@@ -252,6 +264,7 @@ export class ImageryTerrainJourney {
   readonly #elevationPath: string;
   readonly #wmsComparisonPath: string;
   readonly #items = new Map<string, HonuaStacItemResponse>();
+  readonly #ownedControllers = new Set<AbortController>();
   #selectionController: AbortController | undefined;
   #selectionGeneration = 0;
   #activeSelectionId: string | undefined;
@@ -261,36 +274,49 @@ export class ImageryTerrainJourney {
 
   public constructor(options: ImageryTerrainJourneyOptions) {
     this.#client = options.client;
-    this.#rangeProbeBytes = Math.max(4, Math.trunc(options.rangeProbeBytes ?? DEFAULT_RANGE_PROBE_BYTES));
+    this.#rangeProbeBytes = validateRangeProbeBytes(options.rangeProbeBytes ?? DEFAULT_RANGE_PROBE_BYTES);
     this.#elevationPath = options.elevationPath ?? DEFAULT_ELEVATION_PATH;
     this.#wmsComparisonPath = options.wmsComparisonPath ?? DEFAULT_WMS_COMPARISON_PATH;
   }
 
   public async search(request: ImageryTerrainSearchRequest): Promise<ImageryTerrainSearchReceipt> {
     this.#assertActive();
+    const validated = validateSearchRequest(request);
+    const owned = this.#ownRequest(request.signal);
     const wireRequest = {
-      collections: [request.collectionId],
-      bbox: request.bbox,
-      datetime: request.datetime,
-      filter: `"eo:cloud_cover" <= ${request.maxCloudCover}`,
+      collections: [validated.collectionId],
+      bbox: validated.bbox,
+      datetime: validated.datetime,
+      filter: `"eo:cloud_cover" <= ${validated.maxCloudCover}`,
       filterLang: "cql2-text",
-      limit: request.limit ?? 20,
-      signal: request.signal,
+      limit: validated.limit,
+      signal: owned.controller.signal,
     } satisfies StacSearchRequest;
 
     this.#activeRequests += 1;
     try {
       const response = await this.#client.stac().search(wireRequest);
+      if (owned.controller.signal.aborted) throw abortError(owned.controller.signal.reason);
+      if (!Array.isArray(response.features))
+        throw new TypeError("STAC search returned an invalid features collection.");
+      const boundedItems = response.features.slice(0, validated.limit);
+      const scenes = boundedItems.map((item) => toSceneSummary(item, this.#client.serverBaseUrl));
+      const nextItems = new Map<string, HonuaStacItemResponse>();
+      for (const item of boundedItems) nextItems.set(itemId(item), item);
       this.#items.clear();
-      for (const item of response.features) this.#items.set(itemId(item), item);
+      for (const [id, item] of nextItems) this.#items.set(id, item);
       return {
         sdkSurface: "HonuaClient.stac().search",
         request: wireRequest,
-        numberMatched: response.numberMatched ?? response.features.length,
-        scenes: response.features.map(toSceneSummary),
+        numberMatched: boundedMatchCount(response.numberMatched, scenes.length),
+        scenes,
       };
+    } catch (error) {
+      if (owned.controller.signal.aborted) throw abortError(owned.controller.signal.reason);
+      throw error;
     } finally {
       this.#activeRequests -= 1;
+      owned.release();
     }
   }
 
@@ -305,12 +331,12 @@ export class ImageryTerrainJourney {
     const asset = item.assets?.[assetKey];
     if (!asset) throw new RangeError(`STAC asset ${itemIdValue}/${assetKey} does not exist.`);
 
-    const metadata = parseAssetMetadata(item, assetKey, asset);
+    const metadata = parseAssetMetadata(item, assetKey, asset, this.#client.serverBaseUrl);
     this.#releaseRetainedResource();
     this.#selectionController?.abort("Asset selection was superseded.");
     const generation = ++this.#selectionGeneration;
-    const controller = new AbortController();
-    const unlinkCaller = linkAbortSignal(callerSignal, controller);
+    const owned = this.#ownRequest(callerSignal);
+    const controller = owned.controller;
     this.#selectionController = controller;
     this.#activeSelectionId = metadata.identity.selectionId;
     this.#activeRequests += 1;
@@ -322,7 +348,7 @@ export class ImageryTerrainJourney {
       const rangeHeader = `bytes=0-${this.#rangeProbeBytes - 1}`;
       const response = await this.#client.pipelineFetch(
         "GET",
-        metadata.identity.assetHref,
+        metadata.requestHref,
         { headers: { Accept: metadata.mediaType, Range: rangeHeader } },
         controller.signal,
       );
@@ -340,19 +366,19 @@ export class ImageryTerrainJourney {
         !contentRange ||
         !parsedContentRange ||
         parsedContentRange.start !== 0 ||
-        parsedContentRange.end >= this.#rangeProbeBytes ||
-        acceptRanges?.trim().toLowerCase() !== "bytes"
+        parsedContentRange.end >= this.#rangeProbeBytes
       ) {
         await cancelResponseBody(response);
         return unsupported(
           metadata.identity,
           "range",
-          "The asset did not honor the bounded byte-range request with 206, Content-Range, and Accept-Ranges: bytes.",
+          "The asset did not honor the bounded byte-range request with a valid 206 Content-Range response.",
         );
       }
 
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.byteLength !== parsedContentRange.end - parsedContentRange.start + 1) {
+      const expectedBytes = parsedContentRange.end - parsedContentRange.start + 1;
+      const bytes = await readBoundedResponseBody(response, expectedBytes);
+      if (bytes.byteLength !== expectedBytes) {
         return unsupported(
           metadata.identity,
           "range",
@@ -371,6 +397,10 @@ export class ImageryTerrainJourney {
       const checksum = metadata.provenance.checksum;
       const etag = response.headers.get("etag") ?? undefined;
       const cacheControl = response.headers.get("cache-control") ?? undefined;
+      const key = await buildRasterCacheKey(this.#client.serverBaseUrl, metadata.identity, etag, checksum);
+      if (controller.signal.aborted || generation !== this.#selectionGeneration) {
+        return cancelled(metadata.identity, this.#cancelReason(generation, callerSignal));
+      }
       return {
         status: "ready",
         identity: metadata.identity,
@@ -380,8 +410,8 @@ export class ImageryTerrainJourney {
         footprint: metadata.footprint,
         provenance: metadata.provenance,
         cache: {
-          key: cacheKey(metadata.identity, etag, checksum),
-          status: etag ? "revalidated" : "declared",
+          key,
+          status: etag || cacheControl ? "observed" : checksum ? "declared" : "unversioned",
           ...(etag ? { etag } : {}),
           ...(checksum ? { checksum } : {}),
           ...(cacheControl ? { cacheControl } : {}),
@@ -393,6 +423,7 @@ export class ImageryTerrainJourney {
           contentRange,
           bytesReceived: bytes.byteLength,
           totalBytes: parsedContentRange.total,
+          acceptRangesAdvertised: acceptRanges?.trim().toLowerCase() === "bytes",
           tiffByteOrder: byteOrder,
         },
         comparison: {
@@ -412,7 +443,7 @@ export class ImageryTerrainJourney {
         `The bounded range probe failed: ${error instanceof Error ? error.message : "unknown transport error"}`,
       );
     } finally {
-      unlinkCaller();
+      owned.release();
       this.#activeRequests -= 1;
       if (this.#selectionController === controller) this.#selectionController = undefined;
     }
@@ -434,9 +465,11 @@ export class ImageryTerrainJourney {
 
   public async lookupElevation(coordinate: ElevationCoordinate, signal?: AbortSignal): Promise<ElevationLookupOutcome> {
     this.#assertActive();
+    validateCoordinate(coordinate, "Elevation coordinate");
+    const owned = this.#ownRequest(signal);
     this.#activeRequests += 1;
     try {
-      const raw = await this.#requestElevation(coordinate, signal);
+      const raw = await this.#requestElevation(coordinate, owned.controller.signal);
       if (raw.noData === true || raw.elevationMeters == null || !Number.isFinite(raw.elevationMeters)) {
         return elevationNoData(coordinate);
       }
@@ -449,10 +482,11 @@ export class ImageryTerrainJourney {
         cache: elevationCache(raw),
       };
     } catch (error) {
-      if (signal?.aborted) return { status: "cancelled", coordinate };
+      if (owned.controller.signal.aborted) return { status: "cancelled", coordinate };
       throw error;
     } finally {
       this.#activeRequests -= 1;
+      owned.release();
     }
   }
 
@@ -461,6 +495,8 @@ export class ImageryTerrainJourney {
     options: { readonly sampleCount?: number; readonly signal?: AbortSignal } = {},
   ): Promise<ElevationProfileOutcome> {
     this.#assertActive();
+    validateProfileRequest(line, options.sampleCount);
+    const owned = this.#ownRequest(options.signal);
     let firstResponse: RawElevationResponse | undefined;
     this.#activeRequests += 1;
     try {
@@ -468,7 +504,7 @@ export class ImageryTerrainJourney {
         line,
         sampleCount: options.sampleCount,
         sampler: async (coordinate) => {
-          const raw = await this.#requestElevation(coordinate, options.signal);
+          const raw = await this.#requestElevation(coordinate, owned.controller.signal);
           firstResponse ??= raw;
           if (raw.noData === true || raw.elevationMeters == null || !Number.isFinite(raw.elevationMeters)) {
             throw new ElevationNoDataError(coordinate);
@@ -484,7 +520,7 @@ export class ImageryTerrainJourney {
         cache: elevationCache(firstResponse ?? {}),
       };
     } catch (error) {
-      if (options.signal?.aborted) return { status: "cancelled" };
+      if (owned.controller.signal.aborted) return { status: "cancelled" };
       if (error instanceof ElevationNoDataError) {
         return {
           status: "unsupported",
@@ -496,6 +532,7 @@ export class ImageryTerrainJourney {
       throw error;
     } finally {
       this.#activeRequests -= 1;
+      owned.release();
     }
   }
 
@@ -512,7 +549,10 @@ export class ImageryTerrainJourney {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#selectionGeneration += 1;
-    this.#selectionController?.abort("Imagery and Terrain journey disposed.");
+    for (const controller of this.#ownedControllers) {
+      controller.abort("Imagery and Terrain journey disposed.");
+    }
+    this.#ownedControllers.clear();
     this.#selectionController = undefined;
     this.#releaseRetainedResource();
     this.#activeSelectionId = undefined;
@@ -532,6 +572,19 @@ export class ImageryTerrainJourney {
       undefined,
       signal,
     );
+  }
+
+  #ownRequest(callerSignal?: AbortSignal): { controller: AbortController; release: () => void } {
+    const controller = new AbortController();
+    const unlinkCaller = linkAbortSignal(callerSignal, controller);
+    this.#ownedControllers.add(controller);
+    return {
+      controller,
+      release: once(() => {
+        unlinkCaller();
+        this.#ownedControllers.delete(controller);
+      }),
+    };
   }
 
   #releaseRetainedResource(): void {
@@ -555,9 +608,19 @@ function validateAssetMetadata(
   baseUrl: string,
   metadata: ParsedAssetMetadata,
 ): RasterAssetInspectionUnsupported | undefined {
+  if (!metadata.hrefValid) {
+    return unsupported(metadata.identity, "format", "The STAC asset href is not a valid bounded HTTP URL or path.");
+  }
+  if (metadata.credentialBearing) {
+    return unsupported(
+      metadata.identity,
+      "credentials",
+      "Credential-bearing STAC asset URLs are not fetched or exposed by this browser journey; use a same-origin proxy with a credential-free asset path.",
+    );
+  }
   let resolved: URL;
   try {
-    resolved = new URL(metadata.identity.assetHref, baseUrl);
+    resolved = new URL(metadata.requestHref, baseUrl);
   } catch {
     return unsupported(metadata.identity, "format", "The STAC asset href is not a valid HTTP URL or relative path.");
   }
@@ -593,7 +656,12 @@ function validateAssetMetadata(
   return undefined;
 }
 
-function parseAssetMetadata(item: HonuaStacItemResponse, assetKey: string, asset: HonuaStacAsset): ParsedAssetMetadata {
+function parseAssetMetadata(
+  item: HonuaStacItemResponse,
+  assetKey: string,
+  asset: HonuaStacAsset,
+  baseUrl: string,
+): ParsedAssetMetadata {
   const properties = item.properties ?? {};
   const id = itemId(item);
   const collectionId = item.collection ?? readString(properties, "collection") ?? "unknown";
@@ -614,16 +682,20 @@ function parseAssetMetadata(item: HonuaStacItemResponse, assetKey: string, asset
       )
     : [];
   const checksum = asset["file:checksum"] ?? asset["checksum:multihash"];
+  const href = assetHrefSafety(asset.href, baseUrl);
   return {
     identity: {
       selectionId: `${collectionId}/${id}/${assetKey}`,
       collectionId,
       itemId: id,
       assetKey,
-      assetHref: asset.href,
+      assetHref: href.redacted,
       ...(acquiredAt ? { acquiredAt } : {}),
       ...(version ? { version } : {}),
     },
+    requestHref: asset.href,
+    credentialBearing: href.credentialBearing,
+    hrefValid: href.valid,
     mediaType: asset.type ?? "",
     ...(crs !== undefined ? { crs } : {}),
     ...(crsLabel ? { crsLabel } : {}),
@@ -638,7 +710,7 @@ function parseAssetMetadata(item: HonuaStacItemResponse, assetKey: string, asset
   };
 }
 
-function toSceneSummary(item: HonuaStacItemResponse): ImageryTerrainSceneSummary {
+function toSceneSummary(item: HonuaStacItemResponse, baseUrl: string): ImageryTerrainSceneSummary {
   const properties = item.properties ?? {};
   const acquiredAt = readString(properties, "datetime");
   const cloudCover = readNumber(properties, "eo:cloud_cover");
@@ -649,13 +721,15 @@ function toSceneSummary(item: HonuaStacItemResponse): ImageryTerrainSceneSummary
     ...(acquiredAt ? { acquiredAt } : {}),
     ...(cloudCover !== undefined ? { cloudCover } : {}),
     footprint: footprint(item),
-    assets: Object.entries(item.assets ?? {}).map(([key, asset]) => ({
-      key,
-      title: asset.title ?? key,
-      href: asset.href,
-      ...(asset.type ? { mediaType: asset.type } : {}),
-      roles: asset.roles ?? [],
-    })),
+    assets: Object.entries(item.assets ?? {})
+      .slice(0, MAX_ASSETS_PER_SCENE)
+      .map(([key, asset]) => ({
+        key,
+        title: asset.title ?? key,
+        href: assetHrefSafety(asset.href, baseUrl).redacted,
+        ...(asset.type ? { mediaType: asset.type } : {}),
+        roles: asset.roles ?? [],
+      })),
   };
 }
 
@@ -727,11 +801,222 @@ function elevationProvenance(raw: RawElevationResponse): ElevationProvenance {
 }
 
 function elevationCache(raw: RawElevationResponse): ElevationCacheEvidence {
+  const declaredStatus = raw.cache?.status?.trim().toLowerCase();
   return {
-    status: raw.cache?.etag ? "revalidated" : "uncached",
+    status: declaredStatus === "revalidated" ? "revalidated" : raw.cache?.etag ? "observed" : "uncached",
     ...(raw.cache?.etag ? { etag: raw.cache.etag } : {}),
     ...(raw.cache?.cacheControl ? { cacheControl: raw.cache.cacheControl } : {}),
   };
+}
+
+function validateRangeProbeBytes(value: number): number {
+  if (!Number.isSafeInteger(value) || value < MIN_RANGE_PROBE_BYTES || value > MAX_RANGE_PROBE_BYTES) {
+    throw new RangeError(
+      `rangeProbeBytes must be a safe integer from ${MIN_RANGE_PROBE_BYTES} through ${MAX_RANGE_PROBE_BYTES}.`,
+    );
+  }
+  return value;
+}
+
+function validateSearchRequest(request: ImageryTerrainSearchRequest): {
+  collectionId: string;
+  bbox: readonly [number, number, number, number];
+  datetime: string;
+  maxCloudCover: number;
+  limit: number;
+} {
+  if (!request || typeof request !== "object") throw new TypeError("STAC search request must be an object.");
+  if (typeof request.collectionId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(request.collectionId)) {
+    throw new RangeError("STAC collectionId must be a bounded identifier without whitespace or query syntax.");
+  }
+  if (!Array.isArray(request.bbox) || request.bbox.length !== 4 || !request.bbox.every(Number.isFinite)) {
+    throw new RangeError("STAC bbox must contain exactly four finite coordinates.");
+  }
+  const [xmin, ymin, xmax, ymax] = request.bbox;
+  if (xmin < -180 || xmax > 180 || ymin < -90 || ymax > 90 || xmin >= xmax || ymin >= ymax) {
+    throw new RangeError("STAC bbox must be an ordered WGS84 extent.");
+  }
+  const datetime = validateDatetimeInterval(request.datetime);
+  if (typeof request.maxCloudCover !== "number" || !Number.isFinite(request.maxCloudCover)) {
+    throw new RangeError("STAC maxCloudCover must be a finite number.");
+  }
+  if (request.maxCloudCover < 0 || request.maxCloudCover > 100) {
+    throw new RangeError("STAC maxCloudCover must be between 0 and 100.");
+  }
+  const limit = request.limit ?? DEFAULT_SEARCH_LIMIT;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_SEARCH_LIMIT) {
+    throw new RangeError(`STAC limit must be a safe integer from 1 through ${MAX_SEARCH_LIMIT}.`);
+  }
+  return {
+    collectionId: request.collectionId,
+    bbox: [xmin, ymin, xmax, ymax],
+    datetime,
+    maxCloudCover: request.maxCloudCover,
+    limit,
+  };
+}
+
+function validateDatetimeInterval(value: string): string {
+  if (typeof value !== "string" || value.length > 80) {
+    throw new RangeError("STAC datetime must be a bounded RFC 3339 interval.");
+  }
+  const parts = value.split("/");
+  if (parts.length !== 2 || !parts.every(isValidRfc3339Timestamp)) {
+    throw new RangeError("STAC datetime must contain two RFC 3339 timestamps separated by '/'.");
+  }
+  const [start, end] = parts.map(Date.parse);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) {
+    throw new RangeError("STAC datetime interval must contain valid timestamps in ascending order.");
+  }
+  return value;
+}
+
+function isValidRfc3339Timestamp(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(
+    value,
+  );
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const offsetHour = Number(match[8] ?? 0);
+  const offsetMinute = Number(match[9] ?? 0);
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > new Date(Date.UTC(year, month, 0)).getUTCDate() ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  ) {
+    return false;
+  }
+  return Number.isFinite(Date.parse(value));
+}
+
+function boundedMatchCount(value: number | undefined, returned: number): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < returned) return returned;
+  return Math.min(value, MAX_REPORTED_MATCHES);
+}
+
+function validateCoordinate(coordinate: ElevationCoordinate, label: string): void {
+  if (
+    !Array.isArray(coordinate) ||
+    coordinate.length !== 2 ||
+    !coordinate.every(Number.isFinite) ||
+    coordinate[0] < -180 ||
+    coordinate[0] > 180 ||
+    coordinate[1] < -90 ||
+    coordinate[1] > 90
+  ) {
+    throw new RangeError(`${label} must be a finite WGS84 longitude/latitude pair.`);
+  }
+}
+
+function validateProfileRequest(line: readonly ElevationCoordinate[], sampleCount: number | undefined): void {
+  if (!Array.isArray(line) || line.length < 2 || line.length > 10_000) {
+    throw new RangeError("Elevation profile line must contain between 2 and 10,000 coordinates.");
+  }
+  for (const coordinate of line) validateCoordinate(coordinate, "Elevation profile coordinate");
+  if (sampleCount !== undefined && (!Number.isSafeInteger(sampleCount) || sampleCount < 2 || sampleCount > 512)) {
+    throw new RangeError("Elevation profile sampleCount must be a safe integer from 2 through 512.");
+  }
+}
+
+function assetHrefSafety(
+  href: string,
+  baseUrl: string,
+): { redacted: string; credentialBearing: boolean; valid: boolean } {
+  if (typeof href !== "string" || href.length === 0 || href.length > 8_192) {
+    return { redacted: "invalid-asset-url", credentialBearing: false, valid: false };
+  }
+  try {
+    const resolved = new URL(href, baseUrl);
+    const sensitiveKeys = [...resolved.searchParams.keys()].filter(isCredentialQueryKey);
+    const credentialBearing = Boolean(
+      resolved.username || resolved.password || resolved.hash || sensitiveKeys.length > 0,
+    );
+    resolved.username = "";
+    resolved.password = "";
+    resolved.hash = "";
+    for (const key of sensitiveKeys) resolved.searchParams.set(key, "[redacted]");
+    const absolute = /^[A-Za-z][A-Za-z\d+.-]*:/u.test(href);
+    return {
+      redacted: absolute ? resolved.toString() : `${resolved.pathname}${resolved.search}`,
+      credentialBearing,
+      valid: ["http:", "https:"].includes(resolved.protocol),
+    };
+  } catch {
+    return { redacted: "invalid-asset-url", credentialBearing: false, valid: false };
+  }
+}
+
+function isCredentialQueryKey(key: string): boolean {
+  const normalized = key.trim().toLowerCase().replaceAll("-", "_");
+  return (
+    normalized === "key" ||
+    normalized === "sig" ||
+    normalized === "sas" ||
+    normalized.startsWith("x_amz_") ||
+    normalized.startsWith("x_goog_") ||
+    /(?:^|_)(?:access|api|auth|bearer|credential|password|private|secret|signature|token)(?:_|$)/u.test(normalized)
+  );
+}
+
+async function readBoundedResponseBody(response: Response, maximumBytes: number): Promise<Uint8Array> {
+  const contentLengthHeader = response.headers.get("content-length");
+  if (contentLengthHeader !== null) {
+    const contentLength = Number(contentLengthHeader);
+    if (!/^\d+$/u.test(contentLengthHeader.trim()) || !Number.isSafeInteger(contentLength) || contentLength < 0) {
+      await cancelResponseBody(response);
+      throw new BoundedBodyError("The ranged response has an invalid Content-Length header.");
+    }
+    if (contentLength > maximumBytes) {
+      await cancelResponseBody(response);
+      throw new BoundedBodyError(`The ranged response exceeds the hard ${maximumBytes}-byte body ceiling.`);
+    }
+  }
+  if (!response.body) throw new BoundedBodyError("The ranged response has no readable body.");
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maximumBytes) {
+        try {
+          await reader.cancel("Bounded COG range response exceeded its byte ceiling.");
+        } catch {
+          // A transport abort may close the stream before cancellation settles.
+        }
+        throw new BoundedBodyError(`The ranged response exceeds the hard ${maximumBytes}-byte body ceiling.`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+function abortError(reason: unknown): DOMException {
+  return new DOMException(typeof reason === "string" ? reason : "The owned request was aborted.", "AbortError");
 }
 
 function readString(properties: Record<string, unknown>, key: string): string | undefined {
@@ -785,8 +1070,29 @@ function maxAgeSeconds(cacheControl: string | undefined): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
-function cacheKey(identity: RasterSelectionIdentity, etag?: string, checksum?: string): string {
-  return [identity.collectionId, identity.itemId, identity.assetKey, etag ?? checksum ?? "unversioned"].join(":");
+export async function buildRasterCacheKey(
+  serviceBaseUrl: string,
+  identity: RasterSelectionIdentity,
+  etag?: string,
+  checksum?: string,
+): Promise<string> {
+  const service = new URL(serviceBaseUrl);
+  const safeServiceOrigin = service.origin;
+  const safeAssetLocator = assetHrefSafety(identity.assetHref, `${safeServiceOrigin}/`).redacted;
+  const canonicalIdentity = JSON.stringify([
+    "honua-raster-cache-v1",
+    safeServiceOrigin,
+    safeAssetLocator,
+    identity.collectionId,
+    identity.itemId,
+    identity.assetKey,
+    identity.version ?? null,
+    etag ?? null,
+    checksum ?? null,
+  ]);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonicalIdentity));
+  const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `raster-v1:sha256:${hex}`;
 }
 
 function linkAbortSignal(source: AbortSignal | undefined, target: AbortController): () => void {
