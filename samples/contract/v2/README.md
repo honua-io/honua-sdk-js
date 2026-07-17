@@ -36,10 +36,11 @@ Each declares a `planned` or `qualified` status and one candidate sample. A
 planned candidate remains a recipe or lab. Promotion to the golden track
 requires supported and active lifecycle state, executed fixture evidence, and
 current executed live evidence whenever its quality profile requires it.
-All seven candidates are currently planned; the catalog makes no golden claim
-until #541 supplies verifiable gate, screenshot, performance, fixture, and live
-evidence. Validation fails closed on every attempted golden promotion until
-those versioned per-gate receipts exist; profile booleans alone are never proof.
+First Map is the first qualified journey; the other six candidates remain
+planned. Its promotion is backed by versioned gate, screenshot, performance,
+fixture, and live receipts delivered by #543. Validation fails closed on every
+golden promotion without that complete receipt set; profile booleans alone are
+never proof.
 
 CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence

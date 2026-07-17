@@ -351,7 +351,7 @@ test("fails closed on missing quality profiles and forged golden qualification r
   );
 
   const forgedQualification = structuredClone(projection);
-  forgedQualification.goldenJourneys[0].status = "qualified";
+  forgedQualification.goldenJourneys.find((journey) => journey.status === "planned").status = "qualified";
   await assert.rejects(
     () => verifiedGallery(forgedQualification),
     /qualified candidate is not a golden card/,
@@ -393,7 +393,7 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const byId = new Map(cards.map((card) => [card.sample.id, card]));
 
   assert.equal(gallery.cardCount, 30);
-  assert.deepEqual(counts, { recipe: 13, lab: 17 });
+  assert.deepEqual(counts, { golden: 1, recipe: 12, lab: 17 });
   assert.ok(!byId.has("arcgis-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
   assert.deepEqual(byId.get("runtime-parity-showcase").replacement, {
@@ -412,8 +412,13 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   });
   assert.equal(byId.get("web-components-basic").sample.lifecycle.state, "retire");
   assert.equal(byId.get("realtime-incident-dashboard").journey.title, "Realtime Incident Operations");
-  assert.ok(cards.every((card) => card.qualification.label.includes("not receipt-qualified")));
-  assert.ok(cards.every((card) => card.qualification.state !== "receipt-qualified-golden"));
+  assert.equal(byId.get("maplibre-quickstart").qualification.label, "Receipt-qualified golden journey");
+  assert.equal(byId.get("maplibre-quickstart").qualification.state, "receipt-qualified-golden");
+  assert.ok(
+    cards
+      .filter((card) => card.sample.id !== "maplibre-quickstart")
+      .every((card) => card.qualification.state !== "receipt-qualified-golden"),
+  );
   assert.deepEqual(byId.get("maplibre-quickstart").qualification.requiredGates, [
     "packedBuild",
     "browser",
