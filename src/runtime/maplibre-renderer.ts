@@ -42,6 +42,7 @@ export interface MapLibreRendererFactoryOptions {
 
 /** Adapter-specific construction and automatic-strategy controls. */
 export interface MapLibreRendererOptions extends Omit<ExplainAutomaticMapLibreOptions, "queryPlan"> {
+  /** Map-constructor options for an owned selector/element target; invalid for an existing map host. */
   readonly mapOptions?: Readonly<Record<string, unknown>>;
   /** Defaults to `render`, the first frame that can contain the mounted layer. */
   readonly firstFrameEvent?: "render" | "idle";
@@ -55,7 +56,9 @@ const EMPTY_STYLE = Object.freeze({
 
 /**
  * Create an executable MapLibre adapter without importing `maplibre-gl`.
- * The supplied module is retained only on this adapter instance.
+ * The supplied module is retained only on this adapter instance. `style` and
+ * `rendererOptions.mapOptions` configure owned map construction; an existing
+ * map must already carry its caller-owned construction state.
  */
 export function maplibreRenderer(
   peer: MapLibreRendererPeer,
@@ -89,6 +92,16 @@ export function maplibreRenderer(
           throw new HonuaAutomaticMapLibreStrategyError(
             "stale-plan",
             "The accepted query plan no longer matches the mounted source.",
+          );
+        }
+        if (
+          request.queryIntent === "explicit" &&
+          plan.selected !== undefined &&
+          plan.selected.strategy !== "geojson-query"
+        ) {
+          throw new HonuaAutomaticMapLibreStrategyError(
+            "no-eligible-strategy",
+            `The selected ${plan.selected.strategy} strategy cannot apply the explicit query. Select the geojson-query override or omit the query.`,
           );
         }
         if (plan.selected === undefined && queryCandidate?.reason === "missing-query-plan") {
@@ -178,6 +191,16 @@ function resolveMapHost<T>(
   options: MapLibreRendererOptions,
 ): { readonly map: MapLibreRendererMap; readonly owned: boolean } {
   if (isMapHost(target)) {
+    if (request.style !== undefined) {
+      throw new TypeError(
+        "MapLibre style is an owned-host construction option and cannot be applied to an existing map.",
+      );
+    }
+    if (options.mapOptions !== undefined) {
+      throw new TypeError(
+        "MapLibre mapOptions are owned-host construction options and cannot be applied to an existing map.",
+      );
+    }
     assertReadinessHost(target);
     if (request.ownership === "owned") assertOwnedHost(target);
     return { map: target, owned: request.ownership === "owned" };

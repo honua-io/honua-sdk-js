@@ -390,9 +390,9 @@ describe("mountSourceToMapLibre", () => {
   it("lets the query planner reject stale context before map mutation", async () => {
     const source = fakeSource([mixedResult]);
     const map = fakeMap();
-    await expect(mountSourceToMapLibre(map, source, plan, { ...context, sourceVersion: "stale" })).rejects.toThrow(
-      /changed after planning/,
-    );
+    await expect(
+      mountSourceToMapLibre(map, source, plan, { ...context, sourceVersion: "stale" }),
+    ).rejects.toMatchObject({ code: "stale-plan", reason: "source-version-changed" });
     expect(source.query).not.toHaveBeenCalled();
     expect(map.operations).toEqual([]);
   });

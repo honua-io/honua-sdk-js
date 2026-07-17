@@ -557,7 +557,11 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
         : undefined;
     const query =
       suppliedPlan === undefined ? boundedMountQuery(mountOptions.query as Readonly<Query<T>> | undefined) : undefined;
-    const context = this.#queryContext(mountOptions.sourceId, state, suppliedPlan !== undefined);
+    const context = this.#queryContext(
+      mountOptions.sourceId ?? suppliedPlan?.ir.source.id,
+      state,
+      suppliedPlan !== undefined,
+    );
     if (suppliedPlan !== undefined) assertConnectionPlanBinding(suppliedPlan, context.sourceVersion);
     let planned: Promise<QueryExecutionPlanV1> | undefined;
     const planQuery = (): Promise<QueryExecutionPlanV1> => {
@@ -595,6 +599,7 @@ class ManagedHonuaConnection<T> implements HonuaKernelConnection<T> {
       ...(mountOptions.style === undefined ? {} : { style: mountOptions.style }),
       ownership,
       signal,
+      queryIntent: mountOptions.query === undefined ? "default" : "explicit",
       ...(suppliedPlan === undefined ? {} : { queryPlan: suppliedPlan }),
       execution: Object.freeze({
         signal,
@@ -1853,6 +1858,10 @@ function containsCredentialMaterial(
   try {
     for (const key of Reflect.ownKeys(value)) {
       const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+      // V8 exposes Error.stack as a lazy own accessor. It is never serialized
+      // by this facade; the data-bearing message/cause/context fields below
+      // remain subject to the credential scan.
+      if (value instanceof Error && key === "stack" && descriptor && !("value" in descriptor)) continue;
       if (!descriptor || !("value" in descriptor)) return true;
       if (containsCredentialMaterial(descriptor.value, secrets, seen, depth + 1)) {
         return true;

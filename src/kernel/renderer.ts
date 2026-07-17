@@ -39,6 +39,8 @@ export interface RendererMountRequest<T = Record<string, unknown>, TOptions = un
   readonly style?: "auto" | Readonly<Record<string, unknown>>;
   readonly ownership: RendererOwnership;
   readonly signal: AbortSignal;
+  /** Distinguishes the kernel's safe default query from caller-authored filtering intent. */
+  readonly queryIntent: "default" | "explicit";
   readonly queryPlan?: QueryExecutionPlanV1;
   readonly execution: ExecuteQueryPlanOptions;
   planQuery(): Promise<QueryExecutionPlanV1>;
