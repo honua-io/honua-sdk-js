@@ -53,6 +53,15 @@ lifecycle and propagated through remote paging and bounded local fallback.
 Columnar and realtime plans are deliberately rejected here until their explicit
 engines own a corresponding result and cancellation contract.
 
+Discovery metadata caching and query-result caching are separate truths. The
+managed connection has no implicit query-result cache, so its default plan
+cache decision is `bypass` even when discovery metadata was a cache hit or was
+revalidated. Callers may supply an explicit query-cache observation through
+the planning options. Discovery `cacheStatus` and `retrievedAt` stay in the
+execution receipt as observation evidence; clock-only refreshes do not change
+semantic plan identity, while descriptor, source, validator, capability
+evidence, or capability-policy changes do.
+
 ## Typed semantic query AST
 
 The experimental planner subpath also exposes the first typed semantic-query
