@@ -1,9 +1,10 @@
-# Direct COG inspection and bounded reads
+# Direct COG inspection, bounded reads, and MapLibre rendering
 
 `@honua/sdk-js/cog` is an experimental, browser-safe boundary from static STAC
-asset discovery to direct Cloud Optimized GeoTIFF inspection and pixel-window
-reads. It is intentionally a separate subpath: the stable root, `/honua`, and
-browser barrels do not import a GeoTIFF implementation.
+asset discovery to direct Cloud Optimized GeoTIFF inspection, pixel-window
+reads, and an opt-in MapLibre image-source renderer. It is intentionally a
+separate subpath: the stable root, `/honua`, and browser barrels do not import a
+GeoTIFF or MapLibre implementation.
 
 ## Trust boundary
 
@@ -79,6 +80,66 @@ window read aborts the preceding one and the preceding promise rejects with
 `obsolete-read`. Caller aborts reject with `aborted`; disposal rejects pending
 work with `disposed` and closes even a decoder factory that settles late.
 
-This S1 boundary does not render MapLibre layers, choose assets in UI, cache
-decoded pixels, or perform raster analysis. Those consumers should build on
-the inspection/read contract without weakening its range and provenance rules.
+An optional `sampling` descriptor asks the decoder for a bounded output size,
+`nearest` or `bilinear` resampling, and one exact overview decimation advertised
+by inspection. The session validates output dimensions, decoded pixels, and
+decoded bytes. Existing requests without `sampling` remain native-resolution
+reads.
+
+## Viewport-driven MapLibre image source
+
+`mountStacCogAssetToMapLibre()` accepts only the S1 session and a structurally
+typed caller-owned MapLibre map. It imports neither `maplibre-gl` nor a raster
+decoder. The mount inspects the asset, intersects the current `getBounds()`
+viewport, chooses an advertised overview from the canvas/zoom target, reads a
+bounded window, alpha-masks numeric nodata, encodes a bounded PNG with browser
+Canvas 2D, and adds or updates one native MapLibre `image` source.
+
+```ts
+import {
+  mountStacCogAssetToMapLibre,
+  openStacCogAsset,
+  type CogDecoderFactory,
+  type StacCogAssetToMapLibreMap,
+} from "@honua/sdk-js/cog";
+
+declare const candidate: Parameters<typeof openStacCogAsset>[0];
+declare const decoderFactory: CogDecoderFactory;
+declare const map: StacCogAssetToMapLibreMap; // a maplibregl.Map satisfies this shape
+
+const session = openStacCogAsset(candidate, { decoderFactory });
+const mounted = mountStacCogAssetToMapLibre(map, session, {
+  sourceId: "observed-imagery",
+  beforeId: "labels",
+  paint: { "raster-opacity": 0.85 },
+});
+
+try {
+  const readiness = await mounted.ready;
+  console.log(readiness.state, readiness.lastRender?.window, readiness.diagnostics);
+} finally {
+  await mounted.dispose(); // removes listeners/layer/source and disposes the session
+}
+```
+
+`moveend` (including zoom) and `resize` start a new refresh. The newest
+generation wins; stale reads and even a completed stale encode are checked
+again immediately before renderer mutation. `ready` and `refresh()` settle on
+supersession or disposal instead of leaving pending promises. Readiness means
+the image-source mutation was accepted; consumers that need a visually painted
+frame should separately wait for the caller-owned map's render/idle event.
+
+The direct renderer deliberately supports only north-up, single-polygon grids
+whose dimensions, resolution, and extent agree; EPSG:4326, OGC:CRS84, or
+EPSG:3857; and uint8 identity-scaled grayscale or exact/explicit RGB(A) bands.
+Rotated/multipart grids, other CRSs, string or partial nodata, non-uint8 data,
+wrapped viewports, canvas/PNG failures, and source identity drift fail visibly
+without projection, stretching, or analytic fallback. A viewport outside the
+asset and an overview/output/encoded-size overflow return deterministic
+`outside-extent` or `refused` readiness without a window read or map mutation.
+
+`DEFAULT_COG_MAPLIBRE_RENDER_LIMITS` publishes the default output-pixel,
+overview-source-pixel, encoded-byte, canvas-dimension, and diagnostic-history
+ceilings. Callers may tighten them or raise them only within hard SDK limits.
+This S2 bridge does not select assets in UI, cache decoded pixels, perform
+raster analytics, or supply a GeoTIFF implementation.

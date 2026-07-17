@@ -104,6 +104,22 @@ export interface CogWindowRequest {
   readonly height: number;
   /** One-based band indices. Omission means every inspected band. */
   readonly bands?: readonly number[];
+  /**
+   * Optional bounded decoder output. The native pixel window remains
+   * `x`/`y`/`width`/`height`; this contract lets an injected decoder select an
+   * advertised overview and return only the requested render-sized pixels.
+   */
+  readonly sampling?: CogWindowSampling;
+}
+
+export type CogResampling = "nearest" | "bilinear";
+
+export interface CogWindowSampling {
+  readonly width: number;
+  readonly height: number;
+  readonly resampling: CogResampling;
+  /** `1` means the full-resolution image; larger values must be advertised overviews. */
+  readonly overviewDecimation: number;
 }
 
 export interface CogDecodedBandWindow {

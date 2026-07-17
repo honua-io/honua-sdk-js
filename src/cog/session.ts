@@ -140,8 +140,8 @@ export class StacCogAssetSession {
       const bands = normalizeDecodedWindow(decoded, normalizedRequest, this.limits);
       return Object.freeze({
         window: normalizedRequest,
-        width: normalizedRequest.width,
-        height: normalizedRequest.height,
+        width: normalizedRequest.sampling?.width ?? normalizedRequest.width,
+        height: normalizedRequest.sampling?.height ?? normalizedRequest.height,
         bands,
         provenance: this.provenance(),
         transfer: this.transport.snapshot(),
