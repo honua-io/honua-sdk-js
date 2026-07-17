@@ -203,6 +203,7 @@ describe("GeoServices service discovery", () => {
         clientOptions: {
           fetchFn: vi.fn(async () =>
             json({
+              capabilities: "Query",
               operations: [{ name: "Query", href: "query", methods: ["POST"] }],
               advancedQueryCapabilities: { supportsPagination: true },
               fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }],

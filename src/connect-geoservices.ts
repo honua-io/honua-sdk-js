@@ -367,7 +367,7 @@ function imageSourceExecutable(metadata: Readonly<Record<string, unknown>>, serv
       "ImageServer advancedQueryCapabilities metadata must be an object.",
     );
   }
-  const queryAdvertised = advertised.has("catalog") || advertised.has("query") || operations.queryExecutable;
+  const queryAdvertised = executableImageQueryAdvertised(advertised, operations);
   return queryAdvertised && readImageOwn(advanced ?? Object.freeze({}), "supportsPagination") === true;
 }
 
@@ -410,7 +410,7 @@ function imageCapabilityEvidence(
     throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer tileInfo metadata must be an object.");
   }
   const capabilities: Capability[] = [];
-  const queryAdvertised = advertised.has("catalog") || advertised.has("query") || operations.queryExecutable;
+  const queryAdvertised = executableImageQueryAdvertised(advertised, operations);
   if (queryAdvertised) {
     const supportsReturningQueryExtent = advancedValue
       ? readImageOwn(advancedValue, "supportsReturningQueryExtent")
@@ -498,6 +498,14 @@ function imageOperationNames(
     }
   }
   return { names, present, queryExecutable };
+}
+
+function executableImageQueryAdvertised(
+  advertised: ReadonlySet<string>,
+  operations: ReturnType<typeof imageOperationNames>,
+): boolean {
+  if (operations.names.has("query")) return operations.queryExecutable;
+  return advertised.has("catalog") || advertised.has("query");
 }
 
 function canonicalImageQueryHref(
