@@ -412,6 +412,22 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   });
   assert.equal(byId.get("web-components-basic").sample.lifecycle.state, "retire");
   assert.equal(byId.get("realtime-incident-dashboard").journey.title, "Realtime Incident Operations");
+  const imageryCard = byId.get("imagery-cog-quickstart");
+  assert.equal(imageryCard.sample.lifecycle.state, "active");
+  assert.equal(imageryCard.qualification.state, "planned-golden-candidate");
+  assert.match(imageryCard.qualification.label, /not receipt-qualified/u);
+  assert.deepEqual(imageryCard.qualification.requiredGates, [
+    "packedBuild",
+    "browser",
+    "accessibility",
+    "console",
+    "responsive",
+    "screenshot",
+    "performance",
+    "liveEvidence",
+  ]);
+  assert.equal(imageryCard.sample.evidence.live.mode, "public-live");
+  assert.equal(imageryCard.sample.evidence.live.status, "planned");
   assert.ok(cards.every((card) => card.qualification.label.includes("not receipt-qualified")));
   assert.ok(cards.every((card) => card.qualification.state !== "receipt-qualified-golden"));
   assert.deepEqual(byId.get("endpoint-to-map").qualification.requiredGates, [

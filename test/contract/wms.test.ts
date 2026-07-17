@@ -659,7 +659,7 @@ describe("wms / MapLibre binding", () => {
   it("uses a validated non-default tileSize and preserves safe endpoint query parameters", () => {
     const spec = buildWmsRasterSourceSpec(
       mapLibreWmsDescriptor(
-        "https://mock.honua.test/rest/services/imagery/MapServer/WMS?tenant=oahu&SERVICE=stale&SRS=EPSG%3A4326&width=999",
+        "https://mock.honua.test/rest/services/imagery/MapServer/WMS?tenant=oahu&datasetVersion=2026-07&SERVICE=stale&SRS=EPSG%3A4326&width=999",
       ),
       { tileSize: 512, format: "image/webp", transparent: false },
     );
@@ -668,8 +668,10 @@ describe("wms / MapLibre binding", () => {
 
     expect(spec.tileSize).toBe(512);
     expect(params.get("tenant")).toBe("oahu");
+    expect(params.get("datasetVersion")).toBe("2026-07");
     expect(params.get("SERVICE")).toBe("WMS");
     expect(params.has("SRS")).toBe(false);
+    expect(params.get("CRS")).toBe("EPSG:3857");
     expect(params.get("FORMAT")).toBe("image/webp");
     expect(params.get("TRANSPARENT")).toBe("FALSE");
     expect(params.get("BBOX")).toBe("{bbox-epsg-3857}");
@@ -695,9 +697,12 @@ describe("wms / MapLibre binding", () => {
       "https://mock.honua.test/wms?AWSAccessKeyId=legacy-s3-key",
       "https://mock.honua.test/wms?GoogleAccessId=legacy-gcs-key",
       "https://mock.honua.test/wms?Expires=1999999999",
+      "https://mock.honua.test/wms?X-Amz-Expires=300",
+      "https://mock.honua.test/wms?X-Goog-Expires=300",
       "https://mock.honua.test/wms?sv=2026-01-01",
       "https://mock.honua.test/wms?se=2026-01-01T00%3A00%3A00Z",
       "https://mock.honua.test/wms?sp=r",
+      "https://mock.honua.test/wms?sig=azure-signature",
       "https://mock.honua.test/wms#fragment",
       "/relative/wms",
     ]) {

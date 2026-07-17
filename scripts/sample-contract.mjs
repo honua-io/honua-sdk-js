@@ -170,6 +170,14 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     },
   ],
   [
+    "evidence:imagery-terrain:live",
+    {
+      definition:
+        "node scripts/imagery-terrain-live-evidence.mjs --output test-results/imagery-terrain-live-evidence.json",
+      generatorPath: "scripts/imagery-terrain-live-evidence.mjs",
+    },
+  ],
+  [
     "evidence:overture:live",
     {
       definition: "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",
@@ -2455,8 +2463,8 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
     const configurationStatus = override.configuration?.status ?? (config.length > 0 ? "approved" : "not-required");
     return {
       id: sample.id,
-      title: sample.title,
-      summary: sample.summary,
+      title: override.title ?? sample.title,
+      summary: override.summary ?? sample.summary,
       sourceKind: "root-example",
       track: override.track,
       ...(override.journeyId ? { journeyId: override.journeyId } : {}),
@@ -2464,11 +2472,12 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
       lifecycle,
       sourcePath: sample.sourcePath,
       docsPath: sample.docsPath,
-      capabilities: [...sample.capabilities],
-      protocols: [...sample.protocols],
-      renderers: [...sample.renderers],
+      capabilities: [...(override.capabilities ?? sample.capabilities)],
+      protocols: [...(override.protocols ?? sample.protocols)],
+      renderers: [...(override.renderers ?? sample.renderers)],
       data: {
         ...structuredClone(sample.data),
+        ...structuredClone(override.data ?? {}),
         configurationStatus,
         ...(override.configuration?.gap ? { configurationGap: override.configuration.gap } : {}),
         config,
@@ -2485,7 +2494,7 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
         },
         live,
       },
-      expectedDegradation: sample.expectedDegradation,
+      expectedDegradation: override.expectedDegradation ?? sample.expectedDegradation,
       validationProfile: override.validationProfile,
       validation: [...(override.validation ?? sample.validation)],
     };
@@ -2499,8 +2508,13 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
     },
   }));
 
+  const siteMappingIds = new Set(catalog.siteMappings.map((mapping) => mapping.id));
+  for (const mappingId of Object.keys(migration.siteMappingOverrides)) {
+    invariant(siteMappingIds.has(mappingId), `migration override references unknown site mapping ${mappingId}`);
+  }
   const siteMappings = catalog.siteMappings.map((mapping) => {
-    if (mapping.ownership === "sdk-projection") return structuredClone(mapping);
+    const override = migration.siteMappingOverrides[mapping.id] ?? {};
+    if (mapping.ownership === "sdk-projection") return { ...structuredClone(mapping), ...structuredClone(override) };
     const track =
       mapping.tier === "flagship"
         ? "golden"
@@ -2508,7 +2522,7 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
           ? "recipe"
           : "lab";
     const { tier: _tier, supportStatus: _supportStatus, ...rest } = mapping;
-    return { ...rest, track, supportTier: mapping.supportStatus };
+    return { ...rest, track, supportTier: mapping.supportStatus, ...structuredClone(override) };
   });
 
   const migratedCatalog = {

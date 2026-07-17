@@ -1,8 +1,8 @@
 # Honua Imagery and Terrain Journey
 
-This MapLibre-first sample is the fixture-backed S2 implementation of the
-Imagery and Terrain golden-journey candidate. It uses public SDK surfaces for
-one continuous workflow:
+This MapLibre-first sample is the fixture-backed default and configured-live
+implementation of the Imagery and Terrain golden-journey candidate. It uses
+public SDK surfaces for one continuous workflow:
 
 1. Search a STAC collection by Oʻahu extent, acquisition dates, and cloud
    threshold through `HonuaClient.stac().search()`.
@@ -69,8 +69,13 @@ npm run demo:imagery-cog
 Set `VITE_HONUA_IMAGERY_BASE_URL` to a path on the browser origin (for example,
 `/honua`). Authentication belongs in that reverse proxy or an HttpOnly session;
 the sample does not read API keys, bearer tokens, signed asset URLs, or other
-credentials into its browser bundle. Pinned live STAC/COG qualification remains
-S3 work.
+credentials into its browser bundle. A separate scheduled, anonymous live lane
+checks one immutable STAC item and a 64-byte COG range receipt without changing
+the browser-safe default:
+
+```bash
+HONUA_SAMPLE_LIVE_ENABLED=true npm run evidence:imagery-terrain:live -- --strict
+```
 
 ## Public SDK and service surfaces
 
@@ -78,7 +83,7 @@ S3 work.
 | --- | --- | --- |
 | STAC discovery | `HonuaClient.stac().search()` | `/stac/search` |
 | Bounded COG receipt | `HonuaClient.pipelineFetch()` | Selected same-origin STAC asset with `Range: bytes=0-63` |
-| Published WMS pixels | `buildWmsRasterSourceSpec()` plus an explicit legacy-token normalization to MapLibre's `{bbox-epsg-3857}` | `/rest/services/OahuImagery/MapServer/WMS` |
+| Published WMS pixels | `buildWmsRasterSourceSpec()` with MapLibre's exact `{bbox-epsg-3857}` and literal tile dimensions | `/rest/services/OahuImagery/MapServer/WMS` |
 | Published ImageServer pixels | `HonuaImageService.tileUrl()` | `/rest/services/OahuCog/ImageServer/tile/{z}/{y}/{x}` |
 | Terrain-RGB | `HonuaImageService.tileUrl()` | `/rest/services/OahuTerrain/ImageServer/tile/{z}/{y}/{x}` |
 | Point/profile elevation | `HonuaClient.pipelineRequestJson()` + `sampleElevationProfile()` | `/api/v1/terrain/OahuTerrain/elevation/value` |
@@ -88,11 +93,10 @@ The browser receipt calls a normally observed ETag `observed`, not
 explicitly reports that cache outcome. All search, range, elevation, and profile
 requests are owned by the journey and aborted during disposal.
 
-The WMS adapter is deliberately visible: the current SDK helper emits a legacy
-`{bbox-epsg3857}` placeholder and dynamic width/height placeholders that
-MapLibre does not expand. This sample normalizes the bbox token and fixes the
-dimensions to `tileSize`; the runtime helper should absorb that correction in a
-follow-up SDK-wide change tracked by [#620](https://github.com/honua-io/honua-sdk-js/issues/620).
+The WMS path exercises the public runtime helper directly. The helper rejects
+credential-bearing endpoints and invalid tile sizes, preserves safe endpoint
+parameters, and emits the exact MapLibre bbox placeholder with concrete
+`WIDTH`/`HEIGHT` values.
 
 ## Validation
 
@@ -102,6 +106,7 @@ npm test -- test/imagery-cog-quickstart.test.ts test/imagery-terrain-journey.tes
 npm run samples:run -- build --sample imagery-cog-quickstart --sdk-mode source
 npm run samples:run -- build --sample imagery-cog-quickstart --sdk-mode packed
 npm run test:playwright:imagery-cog
+npm run evidence:imagery-terrain:live
 npm run samples:verify
 ```
 
@@ -110,6 +115,8 @@ switch cancellation, comparison and terrain controls, elevation/profile output,
 desktop/mobile layout, keyboard navigation, Axe, console cleanliness, teardown,
 source/packed SDK resolution, and bounded bundle/memory observations.
 
-S3 still owns pinned authenticated live evidence and convergence redirects from
-the older focused STAC, Terrain-RGB, and 2.5D recipes. This sample must remain a
-recipe until those gates are satisfied.
+The scheduled live lane is anonymous and pinned. Its artifact is supporting
+evidence, not a committed golden receipt: gallery qualification remains planned
+until reviewed receipts satisfy every required gate. Older Terrain-RGB and 2.5D
+publication routes converge here; the small STAC browser remains a focused
+credential-free recipe.

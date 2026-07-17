@@ -51,13 +51,13 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 
 - [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md): committed MapLibre quickstart app with a deterministic fixture-backed mock lane, one compatibility check, one read-only feature query, popup inspection, browser telemetry, and a matching staging integration suite that reuses the same compatibility-plus-query data-loading path.
 - [`examples/react-quickstart/`](./examples/react-quickstart/README.md): `@honua/react` quickstart — `HonuaProvider` + `useDataset`/`useQuery`/`useCapabilities` hooks and a `HonuaMap`/`HonuaLayer`/`HonuaPopup` composition over the same deterministic fixture lane, booted under React StrictMode with Playwright smoke coverage.
-- [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, same-origin fixture mocking, OGC collection overlays, polygon extrusions, and route replay.
+- [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): legacy `2.5D` storytelling lab retained for its focused extrusion and route-replay interactions; public 2.5D publication routes converge on the Imagery and Terrain journey.
 - [`examples/kepler-analytics/`](./examples/kepler-analytics/README.md): fixture-first kepler.gl analytics demo for an `operations replay` workflow with committed GeoJSON plus metadata, KPI cards, walkthrough copy, and focused browser smoke coverage.
-- [`examples/imagery-cog-quickstart/`](./examples/imagery-cog-quickstart/README.md): accessible MapLibre Imagery and Terrain journey for bounded STAC/COG inspection, WMS/ImageServer comparison, Terrain-RGB 2.5D context, point elevation, and route profiles, with explicit fidelity and degradation receipts.
+- [`examples/imagery-cog-quickstart/`](./examples/imagery-cog-quickstart/README.md): canonical accessible MapLibre Imagery and Terrain candidate for bounded STAC/COG inspection, WMS/ImageServer comparison, Terrain-RGB 2.5D context, point elevation, and route profiles, with explicit fidelity and degradation receipts plus a scheduled pinned public evidence lane.
 - [`examples/spatial-analytics-workbench/`](./examples/spatial-analytics-workbench/README.md): Honua Cloud analytics workbench for AOI jobs, materialized outputs, linked map/table/chart state, and fixture-backed indexed aggregation cells plus category/histogram/range widgets.
 - [`examples/edit-workflow-demo/`](./examples/edit-workflow-demo/README.md): Honua Cloud editing workflow for metadata-backed forms, optimistic create/update/delete, rollback diagnostics, conflicts, relationships, and attachment lifecycle checks over shared map/table/form context.
 - [`examples/geocoding-quickstart/`](./examples/geocoding-quickstart/README.md): MapLibre geocoding sample for forward geocoding, reverse lookup from a clicked point, typeahead suggestions, and GeocodeServer audit mapping through `HonuaGeocodingClient`.
-- [`examples/terrain-rgb-elevation/`](./examples/terrain-rgb-elevation/README.md): MapLibre Terrain-RGB elevation proof with fixture-safe DEM tiles, clicked point elevation lookup, drawn line profile queries, and explicit SDK gap notes for untyped terrain value/profile endpoints.
+- [`examples/terrain-rgb-elevation/`](./examples/terrain-rgb-elevation/README.md): legacy focused Terrain-RGB proof retained while its public point/profile and 2.5D route converges on the credential-safe Imagery and Terrain journey.
 - [`examples/unified-ops-workspace/`](./examples/unified-ops-workspace/README.md): fixture-backed operational workspace shell that composes incident command and analysis review modules over one shared app workspace, linked-view context, realtime state, review drafts, and saved snapshot diagnostics.
 - [`docs/examples/cesium-route-playback/README.md`](./docs/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
@@ -438,14 +438,14 @@ Imagery and Terrain demo loop:
 npm run demo:imagery-cog:mock
 # or, with examples/imagery-cog-quickstart/.env configured:
 npm run demo:imagery-cog
+# opt-in pinned public STAC/COG evidence (no browser credentials):
+HONUA_SAMPLE_LIVE_ENABLED=true npm run evidence:imagery-terrain:live -- --strict
 ```
 
-The default mock lane is offline and deterministic. A separate weekly/manual producer validates a pinned public Earth
-Search item through discovery, inspection, and a bounded decoded window; it never runs in ordinary PR CI:
-
-```bash
-HONUA_COG_LIVE_ENABLED=true npm run evidence:cog:live
-```
+The `imagery-terrain`, `maui-3d`, and `wms-overlay` site projections now share
+this implementation. Gallery status remains a planned golden candidate until
+the complete packed, browser, accessibility, console, responsive, screenshot,
+performance, and live receipt set is reviewed.
 
 Node backend quickstart loop:
 

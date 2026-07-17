@@ -115,7 +115,6 @@
         "endpoint-to-map",
         "geocoding-quickstart",
         "geoprocessing-job-runner",
-        "imagery-cog-quickstart",
         "maplibre-quickstart",
         "oauth-signin",
         "pmtiles-static",
@@ -139,7 +138,9 @@
         "performance": true,
         "liveEvidence": true
       },
-      "sampleIds": []
+      "sampleIds": [
+        "imagery-cog-quickstart"
+      ]
     },
     {
       "id": "headless-recipe",
@@ -548,16 +549,16 @@
       "track": "recipe",
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
-      "validationProfile": "browser-recipe",
+      "validationProfile": "golden-browser",
       "gates": {
         "packedBuild": true,
         "browser": true,
         "accessibility": true,
         "console": true,
         "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
+        "screenshot": true,
+        "performance": true,
+        "liveEvidence": true
       },
       "commandPlan": {
         "validation": {
@@ -566,6 +567,7 @@
             "npm run demo:imagery-cog:typecheck",
             "npm run demo:imagery-cog:build",
             "npx vitest run test/imagery-cog-quickstart.test.ts",
+            "npx vitest run test/imagery-terrain-live-evidence.test.ts",
             "npx vitest run test/imagery-terrain-journey.test.ts",
             "npm run test:playwright:imagery-cog"
           ]
@@ -579,7 +581,7 @@
         "liveEvidence": {
           "execution": "scheduled-only",
           "commands": [
-            "npm run evidence:cog:live"
+            "npm run evidence:imagery-terrain:live"
           ]
         }
       },
