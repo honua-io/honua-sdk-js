@@ -438,14 +438,16 @@ Imagery and Terrain demo loop:
 npm run demo:imagery-cog:mock
 # or, with examples/imagery-cog-quickstart/.env configured:
 npm run demo:imagery-cog
-# opt-in pinned public STAC/COG evidence (no browser credentials):
-HONUA_SAMPLE_LIVE_ENABLED=true npm run evidence:imagery-terrain:live -- --strict
+# opt-in pinned public STAC/COG semantic evidence (no browser credentials):
+HONUA_COG_LIVE_ENABLED=true npm run evidence:cog:live
 ```
 
 The `imagery-terrain`, `maui-3d`, and `wms-overlay` site projections now share
-this implementation. Gallery status remains a planned golden candidate until
-the complete packed, browser, accessibility, console, responsive, screenshot,
-performance, and live receipt set is reviewed.
+this implementation. Its fixture lane mounts a bounded direct COG window beside
+published imagery and Terrain-RGB; the scheduled lane validates a real pinned
+COG through semantic inspection and bounded decoding. Gallery status remains a
+planned golden candidate until the complete packed, browser, accessibility,
+console, responsive, screenshot, performance, and live receipt set is reviewed.
 
 Node backend quickstart loop:
 

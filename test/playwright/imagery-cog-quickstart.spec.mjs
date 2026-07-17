@@ -9,7 +9,13 @@ const VIEWPORTS = [
   { width: 1280, height: 720 },
   { width: 390, height: 844 },
 ];
-const WORKFLOW_SELECTORS = ["#stac-search-form", "#map", "#asset-inspection", "#elevation-profile"];
+const WORKFLOW_SELECTORS = [
+  "#stac-search-form",
+  "#map",
+  "#asset-inspection",
+  "#direct-cog-render",
+  "#elevation-profile",
+];
 const BUNDLE_BYTES_BUDGET = 2.5 * 1024 * 1024;
 const HEAP_BYTES_BUDGET = 192 * 1024 * 1024;
 
@@ -73,6 +79,7 @@ test(
           activeLayerCount: runtime?.activeLayerCount,
           tileTemplates: runtime?.tileTemplates,
           resources: runtime?.resources,
+          directCog: runtime?.directCog,
         };
       });
       expect(runtimeIdentity).toMatchObject({
@@ -80,9 +87,26 @@ test(
         disposed: false,
         selectedAssetKey: "cog",
         inspectionStatus: "ready",
-        activeLayerCount: 2,
+        activeLayerCount: 3,
         resources: { activeRequests: 0, disposed: false },
+        directCog: {
+          phase: "ready",
+          selectedAssetKey: "cog",
+          candidateCount: 7,
+          decoderModuleLoads: 1,
+          decoderLoads: 1,
+          decoderDisposals: 0,
+          mapSourceMounted: true,
+          mapLayerMounted: true,
+          render: { state: "ready", mounted: true, lastRender: { transfer: { requests: 4 } } },
+          transfer: { requests: 4, bytesFetched: 288 },
+        },
       });
+      expect(
+        runtimeIdentity.directCog.transfer.ranges.every(
+          (range) => range.outcome === "success" && range.length < 1024,
+        ),
+      ).toBe(true);
       expect(runtimeIdentity.tileTemplates.some((template) => template.includes("REQUEST=GetMap"))).toBe(true);
       expect(
         runtimeIdentity.tileTemplates.some((template) => template.includes("/OahuCog/ImageServer/tile/{z}/{y}/{x}")),
@@ -110,22 +134,27 @@ test(
       await expect(page.locator("#inspection-content")).toContainText('"oahu-range-fixture-v1"');
       await expect(page.locator("#inspection-content")).toContainText("CC-BY-4.0 fixture terms");
       await expect(page.locator("#attribution-state")).toContainText("Copernicus Sentinel");
-      await expect(page.locator("#fidelity-list")).toContainText("direct decoding/rendering remains #537");
+      await expect(page.locator("#direct-cog-status")).toContainText("ready");
+      await expect(page.locator("#direct-cog-inspection")).toContainText("256×192");
+      await expect(page.locator("#direct-cog-provenance")).toContainText("S2A_20260412T211901_OAHU_RANGE_01/cog");
+      await expect(page.locator("#direct-cog-transfer-summary")).toContainText("288 bytes across 4 exact range request");
+      await expect(page.locator("#direct-cog-ranges li")).toHaveCount(4);
+      await expect(page.locator("#fidelity-list")).toContainText("classified STAC COG is decoded through bounded reads");
       await expect(page.locator("#fidelity-list")).toContainText("exact MapLibre bbox token");
       await expect(page.locator("#fidelity-list")).toContainText("Cesium production is intentionally excluded");
       await expect(page.locator(".maplibregl-canvas")).toHaveCount(1);
 
       const unsupportedCases = [
-        ["credential-cog", "credentials"],
-        ["cors-cog", "cors"],
-        ["no-range-cog", "range"],
-        ["oversized-cog", "range"],
-        ["chunked-oversized-cog", "range"],
-        ["unsupported-crs", "crs"],
-        ["unsupported-format", "format"],
-        ["missing-nodata", "nodata"],
+        ["credential-cog", "credentials", "credentials"],
+        ["cors-cog", "cors", "cors-unavailable"],
+        ["no-range-cog", "range", "range-unsupported"],
+        ["oversized-cog", "range", "range"],
+        ["chunked-oversized-cog", "range", "range"],
+        ["unsupported-crs", "crs", "unsupported-crs"],
+        ["unsupported-format", "format", "unsupported-format"],
+        ["missing-nodata", "nodata", "nodata"],
       ];
-      for (const [assetKey, code] of unsupportedCases) {
+      for (const [assetKey, code, directCode] of unsupportedCases) {
         const outcome = await page.evaluate((key) => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.selectAsset(key), assetKey);
         expect(outcome).toMatchObject({
           status: "unsupported",
@@ -137,6 +166,15 @@ test(
         await expect(page.locator("#inspection-content")).toContainText("S2A_20260412T211901_OAHU_RANGE_01");
         await expect(page.locator("#asset-switch-state")).toContainText("WMS remains available");
         expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.activeLayerCount)).toBe(1);
+        await expect(page.locator("#direct-cog-status")).toContainText(directCode);
+        await expect(page.locator("#direct-cog-error")).toContainText(directCode);
+        expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.directCog)).toMatchObject({
+          phase: "failed",
+          selectedAssetKey: assetKey,
+          errorCode: directCode,
+          mapSourceMounted: false,
+          mapLayerMounted: false,
+        });
       }
       await expect(page.locator("body")).not.toContainText("fixture-super-secret");
       await expect(page.locator("body")).not.toContainText("fixture-password");
@@ -144,7 +182,10 @@ test(
       const switchOutcomes = await page.evaluate(async () => {
         const runtime = window.__HONUA_IMAGERY_TERRAIN_RUNTIME__;
         if (!runtime) throw new Error("Imagery and Terrain runtime is unavailable");
-        return Promise.all([runtime.selectAsset("slow-cog"), runtime.selectAsset("cog")]);
+        const obsolete = runtime.selectAsset("slow-cog");
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        const latest = runtime.selectAsset("cog");
+        return Promise.all([obsolete, latest]);
       });
       expect(switchOutcomes[0]).toMatchObject({ status: "cancelled", reason: "superseded" });
       expect(switchOutcomes[1]).toMatchObject({ status: "ready", identity: { assetKey: "cog" } });
@@ -154,20 +195,43 @@ test(
           releases: window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.releasedRasterResources,
           activeLayerCount: window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.activeLayerCount,
           retained: window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.resources.retainedRasterResource,
+          directCog: window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.directCog,
         })),
-      ).toMatchObject({ cancellations: 1, activeLayerCount: 2 });
+      ).toMatchObject({
+        cancellations: 1,
+        activeLayerCount: 3,
+        directCog: { phase: "ready", selectedAssetKey: "cog", mapSourceMounted: true, mapLayerMounted: true },
+      });
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.releasedRasterResources)).toBeGreaterThan(0);
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.resources.retainedRasterResource)).toContain(
         "/cog",
       );
+      const switchedDirect = await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.directCog);
+      expect(switchedDirect.abortedOperations).toBeGreaterThanOrEqual(1);
+      expect(switchedDirect.decoderDisposals).toBeGreaterThanOrEqual(1);
+      expect(switchedDirect.staleCompletions).toBeGreaterThanOrEqual(1);
+
+      const directDisposalsBefore = switchedDirect.decoderDisposals;
+      await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.disposeCog());
+      await expect(page.locator("#direct-cog-status")).toContainText("disposed");
+      expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.directCog)).toMatchObject({
+        phase: "disposed",
+        mapSourceMounted: false,
+        mapLayerMounted: false,
+      });
+      expect(
+        await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.directCog.decoderDisposals),
+      ).toBeGreaterThan(directDisposalsBefore);
+      await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.selectCogAsset("cog"));
+      await expect(page.locator("#direct-cog-status")).toContainText("ready");
 
       const comparison = page.locator("#comparison-slider");
       await comparison.focus();
       await page.keyboard.press("Home");
       await page.keyboard.press("ArrowRight");
-      await expect(page.locator("#comparison-value")).toHaveText("1% ImageServer over WMS");
+      await expect(page.locator("#comparison-value")).toHaveText("1% direct COG over published imagery");
       await comparison.fill("35");
-      await expect(page.locator("#comparison-value")).toHaveText("35% ImageServer over WMS");
+      await expect(page.locator("#comparison-value")).toHaveText("35% direct COG over published imagery");
 
       const terrainToggle = page.locator("#terrain-toggle");
       await terrainToggle.focus();
@@ -229,7 +293,13 @@ test(
       expect(["source", "packed"]).toContain(resolutionEvidence.mode);
       await expect(page.getByTestId("honua-sample-mode")).toHaveText(`${resolutionEvidence.mode} SDK`);
       expect(resolutionEvidence.entrypoints.map(({ specifier }) => specifier).sort()).toEqual(
-        ["@honua/sdk-js/contract", "@honua/sdk-js/honua", "@honua/sdk-js/runtime"].sort(),
+        [
+          "@honua/sdk-js",
+          "@honua/sdk-js/cog",
+          "@honua/sdk-js/contract",
+          "@honua/sdk-js/honua",
+          "@honua/sdk-js/runtime",
+        ].sort(),
       );
       const bundleBytes = resolutionEvidence.bundle.reduce((total, entry) => total + entry.bytes, 0);
       expect(bundleBytes).toBeGreaterThan(0);
@@ -301,14 +371,25 @@ test(
       expect(
         await page.evaluate(() => ({
           ready: window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.ready,
-          resources: window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.resources,
+          resources: {
+            ...window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.resources,
+            activeSelectionId: window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.resources.activeSelectionId ?? null,
+            retainedRasterResource:
+              window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.resources.retainedRasterResource ?? null,
+          },
           releases: window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.releasedRasterResources,
+          directCog: window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.directCog,
           presentationCount: document.querySelectorAll(".honua-sample-kit").length,
         })),
-      ).toEqual({
+      ).toMatchObject({
         ready: false,
-        resources: { activeRequests: 0, activeSelectionId: undefined, retainedRasterResource: undefined, disposed: true },
-        releases: releaseCountBeforeDispose + 1,
+        resources: { activeRequests: 0, activeSelectionId: null, retainedRasterResource: null, disposed: true },
+        releases: releaseCountBeforeDispose + 2,
+        directCog: {
+          phase: "disposed",
+          mapSourceMounted: false,
+          mapLayerMounted: false,
+        },
         presentationCount: 0,
       });
 

@@ -26,6 +26,8 @@ export function readExactEvidenceBody(
   signal: AbortSignal,
 ): Promise<Uint8Array>;
 
+export function isCogLiveEvidenceEnabled(env?: Readonly<Record<string, string | undefined>>): boolean;
+
 export function runCogLiveEvidence(options?: {
   readonly contract?: CogPublicContract;
   readonly observedAt?: string;
