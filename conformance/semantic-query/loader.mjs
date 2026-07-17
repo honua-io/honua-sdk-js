@@ -444,6 +444,12 @@ function assertTemporalFilter(filter, fieldByName, caseId) {
   if (field.type === "timestamp" && temporal.valueType === "date") {
     throw new SemanticQueryCorpusError(`Semantic query case ${caseId} timestamp field cannot use a date`);
   }
+  if (
+    (temporal.valueType === "interval" && (!Array.isArray(temporal.value) || temporal.value.length !== 2)) ||
+    (temporal.valueType !== "interval" && Array.isArray(temporal.value))
+  ) {
+    throw new SemanticQueryCorpusError(`Semantic query case ${caseId} temporal literal shape is invalid`);
+  }
   const values = Array.isArray(temporal.value) ? temporal.value : [temporal.value];
   const validator = field.type === "date" ? isDateValue : isTimestampValue;
   if (!values.every(validator) || (values.length === 2 && values[0] > values[1])) {

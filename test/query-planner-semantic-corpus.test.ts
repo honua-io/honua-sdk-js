@@ -201,6 +201,23 @@ describe("versioned semantic query equivalence corpus", () => {
       },
       (value) => {
         const cases = value.cases as Array<{ query: { filter: Record<string, unknown> } }>;
+        cases[2]!.query.filter.value = {
+          kind: "temporal-literal",
+          valueType: "interval",
+          value: "2026-07-15T00:00:00Z",
+        };
+      },
+      (value) => {
+        const cases = value.cases as Array<{ query: { filter: Record<string, unknown> } }>;
+        cases[2]!.query.filter.operator = "before";
+        cases[2]!.query.filter.value = {
+          kind: "temporal-literal",
+          valueType: "instant",
+          value: ["2026-07-14T00:00:00Z", "2026-07-15T00:00:00Z"],
+        };
+      },
+      (value) => {
+        const cases = value.cases as Array<{ query: { filter: Record<string, unknown> } }>;
         cases[3]!.query.filter.bbox = { arbitrary: "object" };
       },
       (value) => {
