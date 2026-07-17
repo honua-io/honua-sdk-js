@@ -59,7 +59,7 @@ interface ImageryTerrainBrowserRuntime {
   readonly terrainEnabled: boolean;
   readonly interactionCount: number;
   readonly resources: ReturnType<ImageryTerrainJourney["resources"]>;
-  search(): Promise<void>;
+  search(): Promise<boolean>;
   selectAsset(assetKey: string): Promise<RasterAssetInspectionOutcome | undefined>;
   lookupAt(longitude: number, latitude: number): Promise<ElevationLookupOutcome | undefined>;
   runFixtureProfile(): Promise<ElevationProfileOutcome | undefined>;
@@ -74,7 +74,7 @@ declare global {
   interface Window {
     __HONUA_IMAGERY_TERRAIN_RUNTIME__?: ImageryTerrainBrowserRuntime;
     __HONUA_IMAGERY_TERRAIN_DISPOSE__?: () => Promise<void>;
-    /** Backward-compatible smoke hook retained while S3 converges old routes. */
+    /** Backward-compatible smoke hook retained for converged legacy routes. */
     __HONUA_IMAGERY_COG_DEMO__?: ImageryTerrainBrowserRuntime;
   }
 }
@@ -492,8 +492,8 @@ function renderStatus(): void {
   setText(
     "#endpoint-state",
     terrainEnabled
-      ? "Same-origin fixture · WMS / ImageServer / STAC / Terrain-RGB"
-      : "Same-origin fixture · WMS / ImageServer / STAC",
+      ? `${config.mode === "live" ? "Configured same-origin Honua" : "Same-origin fixture"} · WMS / ImageServer / STAC / Terrain-RGB`
+      : `${config.mode === "live" ? "Configured same-origin Honua" : "Same-origin fixture"} · WMS / ImageServer / STAC`,
   );
 }
 
@@ -709,7 +709,7 @@ function renderFidelity(): void {
   const rows = [
     {
       level: "supported",
-      text: "Published WMS and ImageServer pixels use MapLibre raster sources; this sample explicitly normalizes the SDK helper's legacy WMS bbox token while #620 corrects it package-wide.",
+      text: "Published WMS and ImageServer pixels use MapLibre raster sources; buildWmsRasterSourceSpec emits the exact MapLibre bbox token and literal tile dimensions.",
     },
     {
       level: "degraded",
@@ -770,7 +770,7 @@ function addTerrainAndAnalysisLayers(): void {
       encoding: "mapbox",
       minzoom: 6,
       maxzoom: 14,
-      attribution: "Honua deterministic Terrain-RGB fixture",
+      attribution: "Honua Terrain-RGB service",
     });
   }
   if (!map.getLayer(TERRAIN_HILLSHADE_LAYER_ID)) {
@@ -858,8 +858,8 @@ function setTerrainEnabled(enabled: boolean): void {
   announce(enabled ? "Terrain and 2.5D context enabled." : "Terrain and 2.5D context disabled.");
 }
 
-async function runSearch(): Promise<void> {
-  if (disposed) return;
+async function runSearch(): Promise<boolean> {
+  if (disposed) return false;
   interactionCount += 1;
   searchController?.abort("Search superseded.");
   const controller = new AbortController();
@@ -877,7 +877,7 @@ async function runSearch(): Promise<void> {
       maxCloudCover,
       signal: controller.signal,
     });
-    if (controller.signal.aborted || disposed) return;
+    if (controller.signal.aborted || disposed) return false;
     searchReceipt = receipt;
     selectedItemId = receipt.scenes.some((scene) => scene.id === selectedItemId)
       ? selectedItemId
@@ -894,10 +894,23 @@ async function runSearch(): Promise<void> {
     );
     render();
     if (selectedItemId && selectedAssetKey) await inspectAsset(selectedAssetKey);
+    if (!disposed) {
+      ready = true;
+      renderStatus();
+    }
+    return true;
   } catch (error) {
-    if (controller.signal.aborted) return;
+    if (controller.signal.aborted) return false;
     setText("#search-status", `STAC search failed: ${error instanceof Error ? error.message : "unknown error"}`);
     presentation.showError(error);
+    ready = false;
+    renderStatus();
+    announce(
+      config.mode === "live"
+        ? "Configured Honua STAC search failed. Verify the same-origin proxy and service capabilities."
+        : "Fixture STAC search failed.",
+    );
+    return false;
   }
 }
 
@@ -1196,11 +1209,17 @@ async function bootstrap(): Promise<void> {
   fitDatasetExtent();
   setComparison(comparisonValue);
   renderPlan = await hydrateImageryRenderPlan(renderPlan, client);
-  await runSearch();
+  const searchSucceeded = await runSearch();
   if (disposed) return;
-  ready = true;
+  ready = searchSucceeded;
   render();
-  announce("Imagery and Terrain fixture journey ready.");
+  if (searchSucceeded) {
+    announce(
+      config.mode === "live"
+        ? "Imagery and Terrain configured Honua journey ready."
+        : "Imagery and Terrain fixture journey ready.",
+    );
+  }
 }
 
 void bootstrap().catch((error) => {

@@ -841,9 +841,8 @@
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "The deterministic S1 workflow and accessible MapLibre S2 journey are consolidated; pinned live evidence and old-route convergence remain before journey qualification.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "The fixture-first browser workflow, public-helper rendering, pinned live producer, and legacy publication routes now converge on one runnable journey; golden receipt qualification remains intentionally planned."
       },
       "sourcePath": "examples/imagery-cog-quickstart",
       "docsPath": "examples/imagery-cog-quickstart/README.md",
@@ -872,9 +871,9 @@
         "config": [
           "VITE_HONUA_IMAGERY_BASE_URL"
         ],
-        "provenance": "Committed STAC, bounded TIFF-header range, imagery, and terrain fixtures or a configured Honua imagery service.",
-        "attribution": "STAC and elevation provider attribution, license, version, checksum, and ETag remain visible in workflow receipts; published imagery attribution remains rendered on the map.",
-        "freshness": "Fixture acquisition/version metadata or live response observation time.",
+        "provenance": "Committed STAC, bounded TIFF-header range, imagery, and terrain fixtures; a configured same-origin Honua service; or the scheduled pinned Element 84 Earth Search Sentinel-2 item.",
+        "attribution": "STAC and elevation provider attribution, license, version, checksum, and ETag remain visible in workflow receipts; the pinned lane reports Copernicus Sentinel data 2023 cataloged by Element 84 Earth Search.",
+        "freshness": "Fixture acquisition/version metadata, configured-service response observation time, or the scheduled pinned-item observation time.",
         "configurationStatus": "approved",
         "configClassifications": [
           {
@@ -896,16 +895,17 @@
           "mode": "public-live",
           "status": "planned",
           "commands": [
-            "npm run evidence:cog:live"
+            "npm run evidence:imagery-terrain:live"
           ]
         }
       },
-      "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes; direct COG rendering remains a #537 gap while WMS/ImageServer previews stay usable.",
-      "validationProfile": "browser-recipe",
+      "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes. The pinned public COG permits ranged CORS but does not expose range identity headers to browser JavaScript, so configured browsers require a same-origin Honua proxy for receipts; direct COG rendering remains a #537 gap while WMS/ImageServer previews stay usable.",
+      "validationProfile": "golden-browser",
       "validation": [
         "npm run demo:imagery-cog:typecheck",
         "npm run demo:imagery-cog:build",
         "npx vitest run test/imagery-cog-quickstart.test.ts",
+        "npx vitest run test/imagery-terrain-live-evidence.test.ts",
         "npx vitest run test/imagery-terrain-journey.test.ts",
         "npm run test:playwright:imagery-cog"
       ]
@@ -2512,13 +2512,8 @@
       "track": "recipe",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "merge",
-        "reason": "Fold into the imagery journey while keeping a focused STAC recipe.",
-        "targetRelease": "0.2.0-beta.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "imagery-terrain"
-        }
+        "state": "active",
+        "reason": "Retain as the small credential-free STAC discovery recipe; the imagery journey owns full range, comparison, elevation, and terrain qualification."
       },
       "sourcePath": "examples/stac-imagery-browser",
       "docsPath": "examples/stac-imagery-browser/README.md",
@@ -3131,7 +3126,7 @@
       "id": "maui-3d",
       "route": "demo-maui-3d.html",
       "ownership": "sdk-projection",
-      "sampleId": "storytelling-25d-map"
+      "sampleId": "imagery-cog-quickstart"
     },
     {
       "id": "maui-explorer",

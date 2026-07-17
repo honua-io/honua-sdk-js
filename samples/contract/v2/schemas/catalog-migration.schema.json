@@ -14,6 +14,7 @@
     "qualityProfiles",
     "externalReplacements",
     "sampleOverrides",
+    "siteMappingOverrides",
     "addedSamples"
   ],
   "properties": {
@@ -49,7 +50,24 @@
         "required": ["track", "validationProfile"],
         "properties": {
           "track": { "enum": ["golden", "recipe", "lab", "fixture"] },
+          "title": { "type": "string", "minLength": 1 },
+          "summary": { "type": "string", "minLength": 1 },
           "journeyId": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "protocols": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "renderers": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "data": {
+            "type": "object",
+            "properties": {
+              "mode": { "enum": ["fixture", "public-live", "demo-live", "authenticated-live", "hybrid", "none"] },
+              "authMode": { "enum": ["none", "anonymous", "api-key", "bearer", "oauth", "host-mediated"] },
+              "provenance": { "type": "string" },
+              "attribution": { "type": "string" },
+              "freshness": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "expectedDegradation": { "type": "string" },
           "validationProfile": { "type": "string" },
           "validation": {
             "type": "array",
@@ -59,9 +77,9 @@
           "replacement": { "type": "object" },
           "configuration": {
             "type": "object",
-            "required": ["status", "gap"],
+            "required": ["status"],
             "properties": {
-              "status": { "const": "legacy-unsafe" },
+              "status": { "enum": ["approved", "not-required", "legacy-unsafe"] },
               "gap": { "type": "string", "minLength": 1 }
             },
             "additionalProperties": false
@@ -90,13 +108,25 @@
             "properties": {
               "mode": { "enum": ["public-live", "demo-live", "authenticated", "degraded", "unavailable"] },
               "targetMode": { "enum": ["public-live", "demo-live", "authenticated"] },
-              "status": { "enum": ["executed", "not-applicable", "planned", "skipped", "credential-unavailable", "failed"] },
+              "status": {
+                "enum": ["executed", "not-applicable", "planned", "skipped", "credential-unavailable", "failed"]
+              },
               "commands": { "type": "array", "items": { "type": "string" } },
               "evidencePath": { "type": "string" },
               "expiresAt": { "type": "string", "format": "date-time" }
             },
             "additionalProperties": false
           }
+        },
+        "additionalProperties": false
+      }
+    },
+    "siteMappingOverrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "sampleId": { "type": "string", "minLength": 1 }
         },
         "additionalProperties": false
       }
