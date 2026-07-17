@@ -50,6 +50,7 @@
     "/source-capability-discovery has its first dedicated guard for #525 slice 3. It intentionally owns the heavy SourceSchemaV2 validator plus GeoServices/OData connect graph while /source-capabilities remains evaluator-only and tree-shakeable. The initial 682,644 minified / 142,099 gzip measurement is budgeted at measured actual plus 10% headroom.",
     "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom.",
     "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation.",
+    "/cog gained its first dedicated guard for #537 S1: the evidence-bound STAC candidate gate, caller-injected decoder contract, exact partial-range transport, deterministic transfer ledger, typed metadata/window validation, and lifecycle cancellation measure 26,653 minified / 7,927 gzip bytes. The ceiling is measured actual plus 10% headroom; the raster decoder remains injected and the subpath is explicitly forbidden from the root createHonua graph.",
     "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged.",
     "'tree-shake:root-createHonua' guards the managed application-kernel facade established by #532 and extended by #533: importing only createHonua retains reviewed discovery, lifecycle/inspection, and canonical accepted-plan execution, while renderer, plugin, application-platform, Arrow, and DuckDB runtime systems remain shakeable. Measured createHonua is 445,050 minified / 116,741 gzip bytes; /honua is 626,543 / 166,605 after retaining the same facade; /query-planner is 528,880 / 103,412 after cooperative local-fallback cancellation. Each affected ceiling is measured actual plus 10% headroom. The standalone root-connect fixture remains independently guarded.",
     "/query-planner was reset for deterministic CQL2 JSON/text and WFS 2.0 FES compilation (#527): explicit conformance/capability evidence, typed escaping, executable CRS axis ordering, and shared adversarial equivalence fixtures measure 479,395 minified / 91,471 gzip bytes. Both ceilings are measured actual plus 10% headroom; the compiler remains opt-in under /query-planner, so root and browser entrypoints remain unchanged.",
@@ -155,6 +156,10 @@
     "/geoparquet": {
       "min": 54908,
       "gzip": 17174
+    },
+    "/cog": {
+      "min": 29319,
+      "gzip": 8720
     },
     "/deckgl": {
       "min": 16916,
