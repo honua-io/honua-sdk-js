@@ -5,12 +5,12 @@
   "lane": "live",
   "status": "skipped",
   "reason": "Live benchmark enablement is not true; live probes are opt-in",
-  "observedAt": "2026-07-17T02:03:15.451Z",
+  "observedAt": "2026-07-17T02:32:03.559Z",
   "authMode": "anonymous",
   "sdk": {
     "package": "@honua/sdk-js",
     "version": "0.1.0-beta.0",
-    "gitCommit": "bd567853a0543a21a2f1cb1a83d7d343b87d4aec"
+    "gitCommit": "5987d16547be596746dd6b23ca39db6393ebee7b"
   },
   "source": {
     "provider": "honua-demo",
@@ -47,7 +47,7 @@
     {
       "kind": "producer-generator",
       "path": "scripts/live-benchmark-evidence.mjs",
-      "sha256": "275ee8f20e4284ef9e3963968b8cf563755539ef5dbb84cad9c453ba5b36cbe7"
+      "sha256": "1decc39a00d570913affb5524ba128d7fb6140ce0432c9ee9fa127c8f6a4415e"
     }
   ]
 }
