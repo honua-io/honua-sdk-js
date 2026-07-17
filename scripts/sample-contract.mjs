@@ -3520,10 +3520,10 @@ export function validateEvidenceEnvelope(evidence, options = {}) {
   return evidence;
 }
 
-async function runContract(command) {
+async function runContract(command, options = {}) {
   const catalog = await readJson(CATALOG_PATH);
   const packageJson = await readJson("package.json");
-  await validateCatalog(catalog, packageJson);
+  await validateCatalog(catalog, packageJson, options);
   for (const fixturePath of [
     "samples/contract/v1/fixtures/sample-evidence.fixture.json",
     "samples/contract/v1/fixtures/sample-evidence.live.json",
@@ -3555,8 +3555,13 @@ async function runContract(command) {
 async function main(argv) {
   const [command = "check", ...args] = argv;
   if (["check", "write"].includes(command)) {
-    invariant(args.length === 0, `${command} does not accept arguments`);
-    await runContract(command);
+    let qualificationBootstrapSampleId;
+    if (command === "write" && args.length === 2 && args[0] === "--qualification-bootstrap") {
+      qualificationBootstrapSampleId = args[1];
+    } else {
+      invariant(args.length === 0, `${command} does not accept arguments`);
+    }
+    await runContract(command, { qualificationBootstrapSampleId });
     return;
   }
   if (command === "migrate-v1") {

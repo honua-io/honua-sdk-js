@@ -74,6 +74,7 @@ export async function validateLearningManifest({
     ? readJson(projectRoot, "samples/catalog.v2.json")
     : undefined,
   checkRuntimeImports = true,
+  qualificationBootstrapSampleId,
 }) {
   const failures = [];
   const fail = (message) => failures.push(message);
@@ -89,7 +90,7 @@ export async function validateLearningManifest({
 
   if (sampleCatalog) {
     try {
-      await validateCatalog(sampleCatalog, packageJson);
+      await validateCatalog(sampleCatalog, packageJson, { qualificationBootstrapSampleId });
     } catch (error) {
       fail(`sample catalog contract is invalid: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -344,8 +345,19 @@ export function validateMarkdownLinks(markdown, sourcePath, projectRoot = ROOT) 
 async function main() {
   const command = process.argv[2] ?? "check";
   if (!["check", "write"].includes(command)) throw new Error(`unknown command: ${command}`);
+  const args = process.argv.slice(3);
+  let qualificationBootstrapSampleId;
+  if (command === "write" && args.length === 2 && args[0] === "--qualification-bootstrap") {
+    qualificationBootstrapSampleId = args[1];
+  } else if (args.length > 0) {
+    throw new Error(`${command} does not accept arguments`);
+  }
   const manifest = readJson(ROOT, MANIFEST_PATH);
-  const validation = await validateLearningManifest({ manifest, checkRuntimeImports: command === "check" });
+  const validation = await validateLearningManifest({
+    manifest,
+    checkRuntimeImports: command === "check",
+    qualificationBootstrapSampleId,
+  });
   const sampleCatalog = readJson(ROOT, "samples/catalog.v2.json");
   const generated = `${generateLearningMarkdown(manifest, sampleCatalog).replace(/\s+$/, "")}\n`;
   const outputFile = path.join(ROOT, OUTPUT_PATH);

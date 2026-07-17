@@ -28,7 +28,7 @@ Labels: `fixture` · `public-live`
 - Executable entry: [examples/maplibre-quickstart/src/workflow.ts](../../examples/maplibre-quickstart/src/workflow.ts)
 - Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
 - Compile check: `npm run demo:quickstart:typecheck`
-- Sample contract: `recipe` · `supported` · `active`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
 - Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
@@ -89,7 +89,7 @@ Labels: `fixture` · `public-live`
 - Executable entry: [examples/maplibre-quickstart/src/workflow.ts](../../examples/maplibre-quickstart/src/workflow.ts)
 - Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
 - Compile check: `npm run demo:quickstart:typecheck`
-- Sample contract: `recipe` · `supported` · `active`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
 - Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.

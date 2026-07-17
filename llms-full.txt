@@ -391,7 +391,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 32 executable examples: 0 qualified golden samples, 13 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 7 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 32 executable examples: 1 qualified golden sample, 12 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 6 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at
@@ -961,7 +961,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 
 | Journey | Status | Candidate sample |
 | --- | --- | --- |
-| `first-map` | planned | [`maplibre-quickstart`](#maplibre-quickstart) |
+| `first-map` | qualified | [`maplibre-quickstart`](#maplibre-quickstart) |
 | `service-explorer` | planned | [`service-explorer`](#service-explorer) |
 | `planning-permitting` | planned | [`planning-permitting-workbench`](#planning-permitting-workbench) |
 | `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
@@ -983,7 +983,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="geoprocessing-job-runner"></a>[`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
 | <a id="imagery-cog-quickstart"></a>[`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | recipe | imagery-terrain | supported | active | golden-browser | hybrid | approved | Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles. |
 | <a id="kepler-analytics"></a>[`kepler-analytics`](../../examples/kepler-analytics/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Replays operations data through kepler.gl with linked filters and KPI evidence. |
-| <a id="maplibre-quickstart"></a>[`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | recipe | first-map | supported | active | golden-browser | hybrid | approved | Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result. |
+| <a id="maplibre-quickstart"></a>[`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | golden | first-map | supported | active | golden-browser | hybrid | approved | Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result. |
 | <a id="mcp-gis-assistant"></a>[`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | lab | - | experimental | rework | browser-lab | fixture | not-required | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
 | <a id="migration-workbench"></a>[`migration-workbench`](../../docs/migration-honua-maplibre.md) | lab | arcgis-migration | supported | active | browser-lab | fixture | not-required | Scans and transforms ArcGIS application source with auditable compatibility results. |
 | <a id="nl-map-control"></a>[`nl-map-control`](../../examples/nl-map-control/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
@@ -1165,7 +1165,7 @@ Labels: `fixture` · `public-live`
 - Executable entry: [examples/maplibre-quickstart/src/workflow.ts](../../examples/maplibre-quickstart/src/workflow.ts)
 - Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
 - Compile check: `npm run demo:quickstart:typecheck`
-- Sample contract: `recipe` · `supported` · `active`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
 - Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
@@ -1226,7 +1226,7 @@ Labels: `fixture` · `public-live`
 - Executable entry: [examples/maplibre-quickstart/src/workflow.ts](../../examples/maplibre-quickstart/src/workflow.ts)
 - Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
 - Compile check: `npm run demo:quickstart:typecheck`
-- Sample contract: `recipe` · `supported` · `active`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
 - Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.

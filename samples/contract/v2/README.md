@@ -144,6 +144,19 @@ ancestor of `HEAD`. This permits an evidence-only descendant commit while
 rejecting unrelated or source-changing revisions. Existing
 `samples/evidence` state is content-bound before execution.
 
+The first promotion of a candidate uses an explicit, fail-closed bootstrap. Run
+the complete evidence command once while the candidate is still planned, then
+promote the catalog and point its live lane at that executed envelope. Generate
+the projections with
+`npm run samples:generate -- --qualification-bootstrap <sample-id>`, commit the
+evidence-neutral source tree, and run the complete evidence command again. If
+the candidate appears in the generated learning paths, regenerate those with
+`npm run docs:learning:generate -- --qualification-bootstrap <sample-id>` before
+the source commit. The bootstrap skips only the named golden sample's existing
+receipt set; catalog, live-envelope, profile, and journey validation still run,
+and the normal `samples:verify` gate requires receipts bound to the final
+committed source.
+
 Each command group receives a fresh canonical
 `samples/evidence/<sample>/runs/<lowercase-uuid-v4>` root. Its receipts require
 that exact `runRoot`, and every generated artifact is checked

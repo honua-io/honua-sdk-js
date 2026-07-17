@@ -9,7 +9,7 @@
     {
       "id": "first-map",
       "title": "First Map",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "maplibre-quickstart"
     },
     {
@@ -593,7 +593,7 @@
     {
       "id": "maplibre-quickstart",
       "sourcePath": "examples/maplibre-quickstart",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "first-map",
       "supportTier": "supported",
       "validationProfile": "golden-browser",
@@ -631,7 +631,9 @@
       },
       "liveEvidence": {
         "mode": "public-live",
-        "status": "planned"
+        "status": "executed",
+        "evidencePath": "samples/evidence/maplibre-quickstart/runs/507b3b6f-341d-4037-a725-0dfb4dc4d695/artifacts/live-evidence.json",
+        "expiresAt": "2026-07-24T15:44:54.411Z"
       }
     },
     {
