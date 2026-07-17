@@ -234,6 +234,69 @@ describe("structured query-plan decisions", () => {
     expect(plan.warnings[0]).toMatchObject({ code: "bounded-local-fallback", path: "$.steps[1]" });
   });
 
+  it("rejects re-signed top-level and per-step pushdown claims", () => {
+    const plan = explainQuery({
+      descriptor: descriptor({ capabilities: capabilities(["query"]) }),
+      query: { aggregation: { metrics: [{ fn: "count", field: "OBJECTID" }] } },
+      capabilityPolicy: "degraded",
+      fallback: { mode: "bounded-local", maxRows: 100 },
+    });
+    expect(plan).toMatchObject({
+      pushdown: "partial",
+      steps: [
+        { engine: "remote", pushdown: "partial" },
+        { engine: "client", pushdown: "none" },
+      ],
+    });
+
+    const attacks = [
+      (hostile: Record<string, unknown>) => {
+        hostile.pushdown = "full";
+      },
+      (hostile: Record<string, unknown>) => {
+        const remote = (hostile.steps as Array<Record<string, unknown>>)[0];
+        if (!remote) throw new Error("expected a remote step");
+        remote.pushdown = "full";
+      },
+      (hostile: Record<string, unknown>) => {
+        const local = (hostile.steps as Array<Record<string, unknown>>)[1];
+        if (!local) throw new Error("expected a local step");
+        local.pushdown = "full";
+      },
+    ];
+    for (const attack of attacks) {
+      const hostile = structuredClone(plan) as unknown as Record<string, unknown>;
+      attack(hostile);
+      resignPlan(hostile);
+      expect(captureError(() => serializeQueryPlan(hostile as never))).toMatchObject({ code: "invalid-plan" });
+      expect(captureError(() => parseQueryPlan(JSON.stringify(hostile)))).toMatchObject({ code: "invalid-plan" });
+    }
+  });
+
+  it("binds every re-signed v1 step and field to the canonical IR", () => {
+    const original = explainQuery({ descriptor: descriptor(), query: { pagination: { limit: 25 } } });
+    const replacement = explainQuery({ descriptor: descriptor(), query: { pagination: { limit: 1 } } });
+    const transplanted = structuredClone(original) as unknown as Record<string, unknown>;
+    transplanted.steps = structuredClone(replacement.steps);
+    transplanted.bounds = structuredClone(replacement.bounds);
+    resignPlan(transplanted);
+
+    const dishonestReason = structuredClone(original) as unknown as Record<string, unknown>;
+    const firstStep = (dishonestReason.steps as Array<Record<string, unknown>>)[0];
+    if (!firstStep) throw new Error("expected a remote step");
+    firstStep.reason = "The whole query was pushed down even though the persisted artifact says otherwise.";
+    resignPlan(dishonestReason);
+
+    const extraField = structuredClone(original) as unknown as Record<string, unknown>;
+    extraField.unverifiedEvidence = { claim: "full-pushdown" };
+    resignPlan(extraField);
+
+    for (const hostile of [transplanted, dishonestReason, extraField]) {
+      expect(captureError(() => serializeQueryPlan(hostile as never))).toMatchObject({ code: "invalid-plan" });
+      expect(captureError(() => parseQueryPlan(JSON.stringify(hostile)))).toMatchObject({ code: "invalid-plan" });
+    }
+  });
+
   it("validates request counts and keeps exact and queryAll request evidence consistent", () => {
     for (const requests of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
       expect(() => explainQuery({ descriptor: descriptor(), estimates: { requests } })).toThrow(

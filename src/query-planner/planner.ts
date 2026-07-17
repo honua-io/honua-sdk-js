@@ -390,6 +390,10 @@ function assertPlanPersistenceSafe(plan: QueryExecutionPlan): void {
         throw invalidPersistedPlan();
       }
     }
+    const expected = rebuildQueryPlanV1(plan);
+    if (canonicalStringify(toJsonValue(plan)) !== canonicalStringify(toJsonValue(expected))) {
+      throw invalidPersistedPlan();
+    }
     return;
   }
   if (
@@ -415,12 +419,16 @@ function assertStructuredDiagnostics(plan: QueryExecutionPlan): void {
   const expectedProvenance = rebuildPersistedProvenance(plan);
   if (!sameCanonicalValue(plan.provenance, expectedProvenance)) throw invalidPersistedPlan();
 
-  const expectedSteps = plan.steps.map((step) => createStepDiagnostics(step, estimates, expectedProvenance));
+  const expectedSteps = plan.steps.map((step) => ({
+    pushdown: persistedStepPushdown(step),
+    ...createStepDiagnostics(step, estimates, expectedProvenance),
+  }));
   for (let index = 0; index < plan.steps.length; index += 1) {
     const step = plan.steps[index];
     const expected = expectedSteps[index];
     if (!step || !expected) throw invalidPersistedPlan();
     const actual = {
+      pushdown: step.pushdown,
       fidelity: step.fidelity,
       losses: step.losses,
       bounds: step.bounds,
@@ -436,6 +444,7 @@ function assertStructuredDiagnostics(plan: QueryExecutionPlan): void {
   const expectedFidelity = summarizeFidelity(expectedSteps);
   const expected = {
     diagnosticsVersion: QUERY_PLAN_DIAGNOSTICS_VERSION,
+    pushdown: summarizePersistedPushdown(expectedSteps),
     fidelity: expectedFidelity.fidelity,
     losses: expectedFidelity.losses,
     bounds: summarizePlanBounds(expectedSteps),
@@ -446,6 +455,7 @@ function assertStructuredDiagnostics(plan: QueryExecutionPlan): void {
   };
   const actual = {
     diagnosticsVersion: plan.diagnosticsVersion,
+    pushdown: plan.pushdown,
     fidelity: plan.fidelity,
     losses: plan.losses,
     bounds: plan.bounds,
@@ -455,6 +465,23 @@ function assertStructuredDiagnostics(plan: QueryExecutionPlan): void {
     warnings: plan.warnings,
   };
   if (!sameCanonicalValue(actual, expected)) throw invalidPersistedPlan();
+}
+
+function persistedStepPushdown(step: QueryExecutionPlan["steps"][number]): "full" | "partial" | "none" {
+  if (step.engine === "client") {
+    if (step.operation !== "aggregate") throw invalidPersistedPlan();
+    return "none";
+  }
+  if (step.engine !== "remote") throw invalidPersistedPlan();
+  if (step.operation === "queryAll") return "partial";
+  if (step.operation === "query" || step.operation === "queryAggregate") return "full";
+  throw invalidPersistedPlan();
+}
+
+function summarizePersistedPushdown(
+  steps: readonly { readonly pushdown: "full" | "partial" | "none" }[],
+): QueryExecutionPlan["pushdown"] {
+  return steps.every((step) => step.pushdown === "full") ? "full" : "partial";
 }
 
 function rebuildPersistedProvenance(plan: QueryExecutionPlan): QueryExecutionPlan["provenance"] {
@@ -473,6 +500,113 @@ function rebuildPersistedProvenance(plan: QueryExecutionPlan): QueryExecutionPla
     ...(source.schemaVersion ? { schemaVersion: source.schemaVersion } : {}),
     discovery: persistedDiscoveryContext(plan.provenance.discovery),
   });
+}
+
+/** Rebuild legacy plans through the same pure planner to bind every persisted step to the IR. */
+function rebuildQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
+  const source = plan.ir.source;
+  const capabilitiesValue = parsePlanCapabilities(source.capabilities);
+  const geometryProperty = parseOptionalPlanMetadata(source.geometryProperty);
+  const primaryKey = persistedV1FallbackPrimaryKey(plan);
+  const schema =
+    geometryProperty || primaryKey
+      ? {
+          ...(geometryProperty ? { fields: [{ name: geometryProperty, type: "esriFieldTypeGeometry" as const }] } : {}),
+          ...(primaryKey ? { primaryKey } : {}),
+        }
+      : undefined;
+  const geoparquet = source.geoparquet;
+  const url = source.protocol === "geoparquet" ? geoparquet?.sources[0] : source.endpoint;
+  if (typeof url !== "string" || url.length === 0) throw invalidPersistedPlan();
+  const geometryEncoding = geoparquet?.geometryEncoding;
+  if (
+    geometryEncoding !== undefined &&
+    geometryEncoding !== "wkb" &&
+    geometryEncoding !== "native" &&
+    geometryEncoding !== "geojson"
+  ) {
+    throw invalidPersistedPlan();
+  }
+  const locator: SourceDescriptor["locator"] = {
+    url,
+    ...(source.serviceId !== undefined ? { serviceId: parseOptionalPlanMetadata(source.serviceId) } : {}),
+    ...(source.layerId !== undefined ? { layerId: parseOptionalLocatorNumber(source.layerId) } : {}),
+    ...(source.collectionId !== undefined ? { collectionId: parseOptionalLocatorId(source.collectionId) } : {}),
+    ...(source.typeName !== undefined ? { typeName: parseOptionalPlanMetadata(source.typeName) } : {}),
+    ...(source.entitySet !== undefined ? { entitySet: parseOptionalPlanMetadata(source.entitySet) } : {}),
+    ...(source.srsName !== undefined ? { srsName: parseOptionalPlanMetadata(source.srsName) } : {}),
+    ...(geoparquet
+      ? {
+          geoparquet: {
+            ...(geoparquet.sources.length > 1 ? { urls: geoparquet.sources.slice(1) } : {}),
+            ...(geoparquet.geometryColumn
+              ? { geometryColumn: parseOptionalPlanMetadata(geoparquet.geometryColumn) }
+              : {}),
+            ...(geometryEncoding ? { geometryEncoding } : {}),
+            ...(geoparquet.bboxColumn ? { bboxColumn: parseOptionalPlanMetadata(geoparquet.bboxColumn) } : {}),
+          },
+        }
+      : {}),
+  };
+  const descriptor: SourceDescriptor = {
+    id: requirePlanMetadata(source.id),
+    protocol: source.protocol,
+    locator,
+    capabilities: capabilities(capabilitiesValue),
+    ...(schema ? { schema } : {}),
+    ...(plan.provenance.schema.state === "known" && plan.provenance.schema.basis === "schema-v2"
+      ? {
+          schemaV2: {
+            kind: "honua.source-schema",
+            version: "2.0",
+            fingerprint: plan.provenance.schema.fingerprint,
+          },
+        }
+      : {}),
+  };
+  return explainQuery({
+    descriptor,
+    query: queryFromCanonical(plan.ir.query),
+    capabilityPolicy: plan.capabilityPolicy,
+    fallback: plan.fallback,
+    ...(source.schemaVersion !== undefined ? { schemaVersion: source.schemaVersion } : {}),
+    ...(source.sourceVersion !== undefined ? { sourceVersion: source.sourceVersion } : {}),
+    authorizationScope: source.authorizationScope,
+    estimates: plan.estimates,
+    cache: persistedCacheOptions(plan.cache),
+    discovery: persistedDiscoveryContext(plan.provenance.discovery),
+    executionMode: plan.validity.executionMode,
+  });
+}
+
+function persistedV1FallbackPrimaryKey(plan: QueryExecutionPlanV1): string | undefined {
+  const aggregation = plan.ir.query.aggregation;
+  if (!aggregation) return undefined;
+  const requiresProjectedField =
+    (aggregation.groupBy?.length ?? 0) > 0 || aggregation.metrics.some((metric) => metric.field !== "*");
+  if (requiresProjectedField) return undefined;
+  const remote = plan.steps[0];
+  if (remote?.engine !== "remote" || remote.operation !== "queryAll") return undefined;
+  const outFields = remote.query.outFields;
+  if (outFields === undefined) return undefined;
+  if (outFields.length !== 1) throw invalidPersistedPlan();
+  return parseOptionalPlanMetadata(outFields[0]);
+}
+
+function parseOptionalLocatorNumber(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) throw invalidPersistedPlan();
+  return value as number;
+}
+
+function parseOptionalLocatorId(value: unknown): string | number {
+  if (typeof value === "number") return parseOptionalLocatorNumber(value);
+  return requirePlanMetadata(value);
+}
+
+function requirePlanMetadata(value: unknown): string {
+  const parsed = parseOptionalPlanMetadata(value);
+  if (parsed === undefined) throw invalidPersistedPlan();
+  return parsed;
 }
 
 function sameCanonicalValue(left: unknown, right: unknown): boolean {

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Query, Result, Source, SourceDescriptor } from "../src/contract/types.js";
 import { capabilities } from "../src/contract/types.js";
-import { explainQuery, hashQueryPlan } from "../src/query-planner/index.js";
+import { canonicalStringify, explainQuery, sha256, toJsonValue } from "../src/query-planner/index.js";
 import type { QueryExecutionPlanV1 } from "../src/query-planner/types.js";
 import {
   type CesiumEntityCollectionTarget,
@@ -596,13 +596,19 @@ function fakeCollection(): CesiumEntityCollectionTarget & {
   return collection;
 }
 
-function planWithStepQuery(query: QueryExecutionPlanV1["ir"]["query"]): QueryExecutionPlanV1 {
+function planWithStepQuery(query: Readonly<Query<Record<string, unknown>>>): QueryExecutionPlanV1 {
+  const replacement = explainQuery({ descriptor, query, ...context });
   const changed = {
     ...plan,
-    steps: [{ ...plan.steps[0], query }],
+    steps: replacement.steps,
   } as QueryExecutionPlanV1;
-  const fingerprint = hashQueryPlan(changed);
-  return { ...changed, fingerprint };
+  const { id: _id, fingerprint: _fingerprint, ...unsigned } = changed;
+  const fingerprint = sha256(canonicalStringify(toJsonValue(unsigned)));
+  return {
+    ...changed,
+    id: `plan_${fingerprint.slice("sha256:".length, "sha256:".length + 16)}`,
+    fingerprint,
+  };
 }
 
 function prototypeFilledArray<T>(length: number, inheritedIndex: number, inheritedValue: T): T[] {
