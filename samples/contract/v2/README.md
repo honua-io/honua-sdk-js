@@ -147,7 +147,9 @@ rejecting unrelated or source-changing revisions. Existing
 The first promotion of a candidate uses an explicit, fail-closed bootstrap. Run
 the complete evidence command once while the candidate is still planned, then
 promote the catalog and point its live lane at that executed envelope. Generate
-the projections with
+the migrated catalog with
+`npm run samples:migrate:v1 -- --qualification-bootstrap <sample-id>` and the
+projections with
 `npm run samples:generate -- --qualification-bootstrap <sample-id>`, commit the
 evidence-neutral source tree, and run the complete evidence command again. If
 the candidate appears in the generated learning paths, regenerate those with
@@ -167,7 +169,10 @@ into place. Publication failures restore the prior tree, and qualification
 requires each expected command group to share one `runRoot`; separately
 executed commands retain separate roots. Replacing a command group's receipts
 preserves all runs still referenced by any receipt; cleanup prunes only
-unreferenced UUID runs left by obsolete or failed attempts. Because the source
+unreferenced UUID runs left by obsolete or failed attempts. A successful live
+gate also atomically publishes the validated envelope to
+`samples/evidence/<sample>/live.v1.json`; catalogs reference that stable path,
+never a prunable UUID run directory. Because the source
 digest excludes only the canonical evidence tree, committed receipts can be
 validated after promotion without recursively hashing themselves.
 

@@ -3565,12 +3565,20 @@ async function main(argv) {
     return;
   }
   if (command === "migrate-v1") {
-    invariant(args.length === 0, "migrate-v1 does not accept arguments");
+    let qualificationBootstrapSampleId;
+    if (args.length === 2 && args[0] === "--qualification-bootstrap") {
+      qualificationBootstrapSampleId = args[1];
+    } else {
+      invariant(args.length === 0, "migrate-v1 does not accept arguments");
+    }
     const catalog = await migrateCatalogV1ToV2(
       await readJson(V1_CATALOG_PATH),
       await readJson(V1_MIGRATION_PATH),
     );
-    await validateCatalog(catalog, await readJson("package.json"), { verifyCheckout: false });
+    await validateCatalog(catalog, await readJson("package.json"), {
+      qualificationBootstrapSampleId,
+      verifyCheckout: false,
+    });
     await writeFile(path.join(PROJECT_ROOT, CATALOG_PATH), stableJson(catalog), "utf8");
     process.stdout.write(`Migrated ${catalog.samples.length} executable examples to ${CATALOG_PATH}\n`);
     return;
