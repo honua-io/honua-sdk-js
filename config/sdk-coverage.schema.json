@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/sdk-coverage.v1.schema.json",
+  "title": "Honua JavaScript SDK per-capability coverage snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schemaVersion", "sdk", "generatedFrom", "keyListSource", "statusVocabulary", "capabilities"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.sdk-coverage.v1" },
+    "schemaVersion": { "const": 1 },
+    "sdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "version"],
+      "properties": {
+        "package": { "const": "@honua/sdk-js" },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "generatedFrom": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "keyListSource": { "type": "string", "minLength": 1 },
+    "statusVocabulary": {
+      "type": "array",
+      "prefixItems": [{ "const": "covered" }, { "const": "partial" }],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/capabilityCoverage" }
+    }
+  },
+  "$defs": {
+    "capabilityCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "status", "sinceVersion", "entrypoints", "evidence", "source"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z][a-z0-9-]*\\.[a-z0-9][a-z0-9-]*$" },
+        "status": { "enum": ["covered", "partial"] },
+        "sinceVersion": { "type": "string", "minLength": 1 },
+        "entrypoints": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "note": { "type": "string", "minLength": 1 },
+        "source": { "enum": ["support-manifest", "sdk-coverage-crosswalk"] }
+      },
+      "if": { "properties": { "status": { "const": "partial" } } },
+      "then": { "required": ["key", "status", "sinceVersion", "entrypoints", "evidence", "source", "note"] }
+    }
+  }
+}

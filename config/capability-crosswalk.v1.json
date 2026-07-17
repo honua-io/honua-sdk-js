@@ -1,0 +1,388 @@
+{
+  "$schema": "./capability-crosswalk.schema.json",
+  "format": "honua.sdk.capability-crosswalk.v1",
+  "schemaVersion": 1,
+  "source": "Consumes honua-io/honua-server capability-keys.v1.json (KEY_LIST_URL override; config/capability-keys.fixture.json pinned fallback). See scripts/lib/capability-key-list.mjs and honua-io/honua-server#2893.",
+  "vocabulary": "samples/catalog.v2.json entry `capabilities` slugs (SDK-feature vocabulary, distinct from the canonical capabilityKeys vocabulary)",
+  "trackingIssue": "https://github.com/honua-io/honua-sdk-js/issues/635",
+  "crosswalk": {
+    "agent-approval": {
+      "capabilityKeys": [
+        "ai.approval-workflows"
+      ]
+    },
+    "agent-planning": {
+      "capabilityKeys": [
+        "ai.agent-operations"
+      ]
+    },
+    "agent-tools": {
+      "capabilityKeys": [
+        "ai.mcp-discovery"
+      ]
+    },
+    "aggregation": {
+      "capabilityKeys": [
+        "analytics.buffer-aggregate"
+      ]
+    },
+    "analysis": {
+      "internalOnly": true,
+      "reason": "Generic use-case label describing a workbench that composes several analysis operations; the specific canonical capabilities it exercises (e.g. aggregation) already carry their own crosswalk entries."
+    },
+    "analytics": {
+      "internalOnly": true,
+      "reason": "kepler.gl client-side visualization/replay integration; no server-side platform capability is exercised."
+    },
+    "app-bootstrap": {
+      "internalOnly": true,
+      "reason": "Legacy @honua/app-platform compatibility bootstrap shim; SDK-internal, no platform capability."
+    },
+    "arcgis": {
+      "internalOnly": true,
+      "reason": "Marks a sample as an ArcGIS JS API source fixture for the migration harness; not itself a platform capability."
+    },
+    "async-jobs": {
+      "capabilityKeys": [
+        "process.geoprocessing"
+      ]
+    },
+    "atomic-authorization": {
+      "capabilityKeys": [
+        "ai.approval-workflows"
+      ]
+    },
+    "attachments": {
+      "capabilityKeys": [
+        "editing.featureserver-edits"
+      ]
+    },
+    "authentication": {
+      "capabilityKeys": [
+        "identity.oidc"
+      ]
+    },
+    "bounded-local": {
+      "internalOnly": true,
+      "reason": "Describes an execution-boundary/performance property (bounded local compute), not a platform capability."
+    },
+    "camera": {
+      "internalOnly": true,
+      "reason": "Client-side map camera/viewport state; rendering-pipeline concern, not a platform capability."
+    },
+    "cancel": {
+      "capabilityKeys": [
+        "process.geoprocessing"
+      ]
+    },
+    "cancellation": {
+      "internalOnly": true,
+      "reason": "Client-side fetch/query cancellation mechanics; no corresponding platform capability key."
+    },
+    "capability-discovery": {
+      "capabilityKeys": [
+        "discovery.capability-manifest"
+      ]
+    },
+    "catalog": {
+      "internalOnly": true,
+      "reason": "Generic 'browses a service catalog' label spanning many protocols; the specific protocol being browsed carries its own crosswalk entry."
+    },
+    "codemod": {
+      "internalOnly": true,
+      "reason": "ArcGIS JS API static-analysis/rewrite tooling; dev-time only, not a platform capability."
+    },
+    "cog": {
+      "capabilityKeys": [
+        "raster.cloud-cog-serving"
+      ]
+    },
+    "columnar": {
+      "internalOnly": true,
+      "reason": "Describes GeoParquet's columnar storage format; GeoParquet has no canonical capability key."
+    },
+    "compatibility": {
+      "internalOnly": true,
+      "reason": "Generic ArcGIS-compatibility audit label; the specific compatible capabilities are proven by their own tags elsewhere."
+    },
+    "controls": {
+      "internalOnly": true,
+      "reason": "Client-side UI control widgets; not a platform capability."
+    },
+    "custom-elements": {
+      "internalOnly": true,
+      "reason": "Web Components custom-element framework binding; not a platform capability."
+    },
+    "direct-connect": {
+      "internalOnly": true,
+      "reason": "SDK's zero-Honua-server-round-trip connect() architecture; SDK-internal, not itself a platform capability."
+    },
+    "discovery": {
+      "capabilityKeys": [
+        "discovery.capability-manifest"
+      ]
+    },
+    "editing": {
+      "capabilityKeys": [
+        "editing.featureserver-edits"
+      ]
+    },
+    "elevation": {
+      "capabilityKeys": [
+        "serve.elevation"
+      ]
+    },
+    "explain-plan": {
+      "internalOnly": true,
+      "reason": "SDK query-planner transparency feature (explains a query plan before running it); SDK-internal, not a platform capability."
+    },
+    "fidelity": {
+      "internalOnly": true,
+      "reason": "Compares the SDK's own MapLibre/Cesium rendering fidelity; client rendering-pipeline concern, not a platform capability."
+    },
+    "filtering": {
+      "internalOnly": true,
+      "reason": "Generic cross-view filter synchronization; client-side UI plumbing, not a platform capability (temporal filtering specifically is covered by the temporal tag)."
+    },
+    "forward-geocode": {
+      "capabilityKeys": [
+        "geocoding.forward"
+      ]
+    },
+    "geoparquet": {
+      "internalOnly": true,
+      "reason": "Client-only cloud-native columnar format profiling; GeoParquet has no canonical capability key in the published vocabulary."
+    },
+    "geoprocessing": {
+      "capabilityKeys": [
+        "process.geoprocessing"
+      ]
+    },
+    "idempotency": {
+      "internalOnly": true,
+      "reason": "Client-side idempotent edit-retry mechanics; an implementation quality of editing, not a distinct platform capability."
+    },
+    "imagery": {
+      "capabilityKeys": [
+        "raster.cloud-cog-serving"
+      ]
+    },
+    "interaction-state": {
+      "internalOnly": true,
+      "reason": "SDK's automatic MapLibre source-strategy interaction/refresh/disposal lifecycle; SDK-internal, not a platform capability."
+    },
+    "large-data": {
+      "internalOnly": true,
+      "reason": "Describes a performance property (large dataset handling), not a platform capability."
+    },
+    "linked-filters": {
+      "internalOnly": true,
+      "reason": "Client-side cross-widget filter linking (kepler.gl); UI plumbing, not a platform capability."
+    },
+    "linked-views": {
+      "internalOnly": true,
+      "reason": "Client-side cross-view linking (map/table/chart); UI plumbing, not a platform capability."
+    },
+    "map": {
+      "internalOnly": true,
+      "reason": "Generic base-map rendering; too broad to correspond to one platform capability (specific protocols/serving capabilities carry their own tags)."
+    },
+    "mcp": {
+      "capabilityKeys": [
+        "ai.mcp-discovery"
+      ]
+    },
+    "migration": {
+      "internalOnly": true,
+      "reason": "ArcGIS-to-Honua migration codemod and scan tooling; dev-time only, not a platform capability."
+    },
+    "node": {
+      "internalOnly": true,
+      "reason": "Marks a sample as running in Node rather than a browser; a runtime-environment property, not a platform capability."
+    },
+    "oauth": {
+      "capabilityKeys": [
+        "identity.oidc"
+      ]
+    },
+    "offline": {
+      "internalOnly": true,
+      "reason": "Describes serverless/static (no-Honua-server) operation in this sample; distinct from fieldops.offline-sync's field-data synchronization meaning, which the SDK does not exercise via this tag."
+    },
+    "optimistic-concurrency": {
+      "internalOnly": true,
+      "reason": "Client-side optimistic-concurrency/ETag handling; an editing implementation detail, not a distinct platform capability."
+    },
+    "optimistic-updates": {
+      "internalOnly": true,
+      "reason": "Client-side optimistic UI update mechanics; an editing implementation detail, not a distinct platform capability."
+    },
+    "planning": {
+      "internalOnly": true,
+      "reason": "Generic use-case/domain label (\"planning and permitting\"), not a technical platform capability."
+    },
+    "pmtiles": {
+      "capabilityKeys": [
+        "serve.vector-tiles"
+      ]
+    },
+    "profile": {
+      "capabilityKeys": [
+        "serve.elevation"
+      ]
+    },
+    "progressive-rendering": {
+      "internalOnly": true,
+      "reason": "Client-side progressive/streamed rendering of query results; SDK-internal rendering concern, not a platform capability."
+    },
+    "protocols": {
+      "internalOnly": true,
+      "reason": "Generic \"demonstrates multiple protocols\" label; the specific protocols carry their own crosswalk entries elsewhere."
+    },
+    "provenance": {
+      "internalOnly": true,
+      "reason": "SDK-side data-provenance annotation/UI concept; not itself a platform capability."
+    },
+    "query": {
+      "internalOnly": true,
+      "reason": "Generic protocol-neutral query label spanning every backend; the specific protocol being queried carries its own crosswalk entry."
+    },
+    "query-planning": {
+      "capabilityKeys": [
+        "ai.agent-operations"
+      ]
+    },
+    "range-reads": {
+      "internalOnly": true,
+      "reason": "Client-side HTTP range-read query mechanics for GeoParquet; GeoParquet has no canonical capability key."
+    },
+    "range-requests": {
+      "capabilityKeys": [
+        "raster.cloud-cog-serving"
+      ]
+    },
+    "raster": {
+      "capabilityKeys": [
+        "raster.cloud-cog-serving"
+      ]
+    },
+    "react": {
+      "internalOnly": true,
+      "reason": "React framework binding; not a platform capability."
+    },
+    "realtime": {
+      "capabilityKeys": [
+        "streaming.feature-subscriptions"
+      ]
+    },
+    "receipts": {
+      "capabilityKeys": [
+        "ai.approval-workflows"
+      ]
+    },
+    "reconciliation": {
+      "internalOnly": true,
+      "reason": "Client-side realtime state-reconciliation loop; an implementation detail of realtime sync, not a distinct platform capability."
+    },
+    "renderer-adapters": {
+      "internalOnly": true,
+      "reason": "SDK's pluggable MapLibre/Cesium renderer-adapter architecture; SDK-internal, not a platform capability."
+    },
+    "replay": {
+      "internalOnly": true,
+      "reason": "Client-side operation replay for kepler.gl visualization; UI feature, not a platform capability."
+    },
+    "reverse-geocode": {
+      "capabilityKeys": [
+        "geocoding.reverse"
+      ]
+    },
+    "route-playback": {
+      "capabilityKeys": [
+        "routing.solve"
+      ]
+    },
+    "runtime": {
+      "internalOnly": true,
+      "reason": "SDK's MapLibre-first runtime layer generally; too broad to correspond to one platform capability."
+    },
+    "safe-editing": {
+      "capabilityKeys": [
+        "editing.featureserver-edits"
+      ]
+    },
+    "selection": {
+      "internalOnly": true,
+      "reason": "Client-side feature-selection state; UI plumbing, not a platform capability."
+    },
+    "server": {
+      "internalOnly": true,
+      "reason": "Marks a sample as a backend/server-side usage context; a runtime-environment property, not a platform capability."
+    },
+    "session": {
+      "capabilityKeys": [
+        "identity.oidc"
+      ]
+    },
+    "sketch": {
+      "capabilityKeys": [
+        "editing.featureserver-edits"
+      ]
+    },
+    "snapping": {
+      "internalOnly": true,
+      "reason": "Client-side geometry snapping during sketch/edit interactions; a UI editing aid, not a distinct platform capability."
+    },
+    "sse": {
+      "capabilityKeys": [
+        "streaming.feature-subscriptions"
+      ]
+    },
+    "stac": {
+      "capabilityKeys": [
+        "serve.stac"
+      ]
+    },
+    "storytelling": {
+      "internalOnly": true,
+      "reason": "Client-side narrative/camera-flythrough composition; not a platform capability."
+    },
+    "strategy-selection": {
+      "internalOnly": true,
+      "reason": "SDK's automatic MapLibre rendering-strategy selection; SDK-internal, not itself a platform capability."
+    },
+    "suggest": {
+      "internalOnly": true,
+      "reason": "Geocoding autosuggest UX; the published vocabulary only distinguishes forward/reverse/batch/failover geocoding, none of which name autosuggest specifically."
+    },
+    "temporal": {
+      "capabilityKeys": [
+        "temporal.filtering"
+      ]
+    },
+    "terrain": {
+      "capabilityKeys": [
+        "raster.terrain-rgb"
+      ]
+    },
+    "three-dimensional": {
+      "capabilityKeys": [
+        "serve.3d-tiles-scene"
+      ]
+    },
+    "typed-agent-tools": {
+      "capabilityKeys": [
+        "ai.mcp-discovery"
+      ]
+    },
+    "vector-tiles": {
+      "capabilityKeys": [
+        "serve.vector-tiles"
+      ]
+    },
+    "workspace": {
+      "internalOnly": true,
+      "reason": "Generic composed-workspace UI shell; not a platform capability."
+    }
+  }
+}

@@ -9,6 +9,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { expectedGateCommand } from "./lib/sample-gates.mjs";
+import { loadCapabilityKeyList } from "./lib/capability-key-list.mjs";
 import { validateQualificationReceiptSet } from "./sample-gate-receipt.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -17,6 +18,7 @@ const Ajv2020 = require("ajv/dist/2020").default;
 const addFormats = require("ajv-formats").default;
 const ts = require("typescript");
 const CATALOG_PATH = "samples/catalog.v2.json";
+const CAPABILITY_CROSSWALK_PATH = "config/capability-crosswalk.v1.json";
 const V1_CATALOG_PATH = "samples/catalog.v1.json";
 const V1_MIGRATION_PATH = "samples/contract/v2/migrations/catalog.v1-to-v2.json";
 const CATALOG_SCHEMA_PATH = "samples/contract/v2/schemas/sample-catalog.schema.json";
@@ -266,6 +268,30 @@ function sortedUnique(values, label) {
 function assertRelativePath(value, label) {
   invariant(typeof value === "string" && value.length > 0, `${label} must be a non-empty path`);
   invariant(!path.isAbsolute(value) && !value.includes(".."), `${label} must stay inside the repository`);
+}
+
+/**
+ * Derives the sorted, unique set of canonical capabilityKeys a sample's
+ * SDK-feature `capabilities` slugs map to via config/capability-crosswalk.v1.json
+ * (#635). Every slug must have a crosswalk entry (unmapped slugs fail loudly);
+ * `internalOnly` slugs contribute no keys. The result may be an empty array --
+ * that is only valid when every one of the sample's slugs is internalOnly,
+ * which callers check separately.
+ */
+function deriveCapabilityKeys(capabilitySlugs, crosswalk) {
+  const keys = new Set();
+  for (const slug of capabilitySlugs) {
+    const entry = crosswalk.crosswalk[slug];
+    invariant(entry !== undefined, `capability slug "${slug}" has no config/capability-crosswalk.v1.json entry`);
+    if (entry.internalOnly) continue;
+    for (const key of entry.capabilityKeys) keys.add(key);
+  }
+  return [...keys].sort();
+}
+
+/** True when every one of a sample's capability slugs is crosswalked as internalOnly. */
+function isEntirelyInternalOnly(capabilitySlugs, crosswalk) {
+  return capabilitySlugs.every((slug) => crosswalk.crosswalk[slug]?.internalOnly === true);
 }
 
 export function parseJsonDocument(source, label = "JSON document") {
@@ -2410,6 +2436,7 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
   validateSensitiveMetadata(catalog, "migration source catalog");
   validateSensitiveMetadata(migration, "catalog migration");
   await validateJsonSchema(migration, MIGRATION_SCHEMA_PATH);
+  const crosswalk = await readJson(CAPABILITY_CROSSWALK_PATH);
   invariant(catalog.format === "honua.sdk.sample-catalog.v1", "migration source catalog format must be v1");
   invariant(catalog.schemaVersion === 1, "migration source catalog schemaVersion must be 1");
   const sourceIds = catalog.samples.map((sample) => sample.id).sort();
@@ -2463,6 +2490,7 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
       sourcePath: sample.sourcePath,
       docsPath: sample.docsPath,
       capabilities: [...(override.capabilities ?? sample.capabilities)],
+      capabilityKeys: deriveCapabilityKeys(override.capabilities ?? sample.capabilities, crosswalk),
       protocols: [...(override.protocols ?? sample.protocols)],
       renderers: [...(override.renderers ?? sample.renderers)],
       data: {
@@ -2492,6 +2520,7 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
 
   const addedSamples = migration.addedSamples.map((sample) => ({
     ...structuredClone(sample),
+    capabilityKeys: deriveCapabilityKeys(sample.capabilities, crosswalk),
     data: {
       ...structuredClone(sample.data),
       configClassifications: sample.data.config.map(classifyConfigurationName),
@@ -2612,6 +2641,12 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   const orderedSampleIds = catalog.samples.map((sample) => sample.id);
   invariant(JSON.stringify(orderedSampleIds) === JSON.stringify([...orderedSampleIds].sort()), "catalog samples must be sorted by id");
   const currentTime = options.now === undefined ? Date.now() : parseDateTime(options.now, "validation time");
+  const capabilityCrosswalk = await readJson(CAPABILITY_CROSSWALK_PATH);
+  invariant(
+    capabilityCrosswalk.format === "honua.sdk.capability-crosswalk.v1" && capabilityCrosswalk.schemaVersion === 1,
+    `${CAPABILITY_CROSSWALK_PATH} must use honua.sdk.capability-crosswalk.v1 schema version 1`,
+  );
+  const { keys: canonicalCapabilityKeys, source: capabilityKeyListSource } = await loadCapabilityKeyList();
   for (const sample of catalog.samples) {
     invariant(/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(sample.id), `invalid sample id: ${sample.id}`);
     invariant(!sampleIds.has(sample.id), `duplicate sample id: ${sample.id}`);
@@ -2643,6 +2678,28 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     );
     sourcePaths.add(sample.sourcePath);
     sortedUnique(sample.capabilities, `${sample.id}.capabilities`);
+    const expectedCapabilityKeys = deriveCapabilityKeys(sample.capabilities, capabilityCrosswalk);
+    invariant(
+      JSON.stringify(sample.capabilityKeys) === JSON.stringify(expectedCapabilityKeys),
+      `${sample.id}: capabilityKeys drift; ${CAPABILITY_CROSSWALK_PATH} derives [${expectedCapabilityKeys.join(", ")}], catalog declares [${(sample.capabilityKeys ?? []).join(", ")}] (run npm run samples:generate or update the crosswalk)`,
+    );
+    if (sample.capabilityKeys.length === 0) {
+      invariant(
+        isEntirelyInternalOnly(sample.capabilities, capabilityCrosswalk),
+        `${sample.id}: capabilityKeys is empty but not every capability slug is crosswalked as internalOnly`,
+      );
+    } else {
+      invariant(
+        JSON.stringify(sample.capabilityKeys) === JSON.stringify([...sample.capabilityKeys].sort()),
+        `${sample.id}.capabilityKeys must be sorted`,
+      );
+    }
+    for (const key of sample.capabilityKeys) {
+      invariant(
+        canonicalCapabilityKeys.has(key),
+        `${sample.id}: unknown canonical capability key "${key}" (not in ${capabilityKeyListSource})`,
+      );
+    }
     sortedUnique(sample.protocols, `${sample.id}.protocols`);
     sortedUnique(sample.renderers, `${sample.id}.renderers`);
     invariant(
@@ -3018,6 +3075,7 @@ function publicSample(sample, sdk) {
     },
     sdk: { package: sdk.package, version: sdk.version },
     capabilities: sample.capabilities,
+    capabilityKeys: sample.capabilityKeys,
     protocols: sample.protocols,
     renderers: sample.renderers,
     data: {

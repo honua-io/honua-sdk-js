@@ -55,6 +55,7 @@ Run from the repo root unless noted. These are copied from `package.json` / CI; 
 - **Split-package build/verify:** `npm run build:split-packages` / `npm run verify:split-packages`
 - **API docs:** `npm run docs:api` (TypeDoc → `dist/docs-api`)
 - **Migration CLI:** `npm run scan:arcgis`, `npm run migrate:arcgis` (wrap `dist/src/migration/cli.js`)
+- **Canonical capability keys / coverage snapshot:** `npm run samples:verify` validates `samples/catalog.v2.json`'s `capabilityKeys` against `config/capability-crosswalk.v1.json`; `npm run sdk-coverage:generate` / `npm run sdk-coverage:check` produce and drift-gate `config/sdk-coverage.v1.json` from `config/support-manifest.v1.json` + `config/sdk-coverage-crosswalk.v1.json`. See `docs/capability-keys.md`.
 - **Run a demo (dev server):** `npm run demo:<name>` (e.g. `demo:quickstart`, `demo:incident`); each demo also has `:build`, `:preview`, `:typecheck`, and often `:mock`.
 - **Proto codegen:** `npm run proto:generate` (requires the sibling `../../proto` tree and `buf`).
 

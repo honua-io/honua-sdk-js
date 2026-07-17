@@ -22,6 +22,11 @@ execution evidence so none of those meanings has to be inferred from another.
 - `migrations/catalog.v1-to-v2.json` is the reviewed one-time migration overlay.
   `npm run samples:migrate:v1` reproduces `samples/catalog.v2.json` from the
   frozen v1 catalog and this overlay.
+- Every entry also carries `capabilityKeys`: the canonical honua-server
+  `capability-keys.v1.json` keys its `capabilities` slugs crosswalk to, via
+  `config/capability-crosswalk.v1.json`. See
+  [`docs/capability-keys.md`](../../../docs/capability-keys.md) for the
+  crosswalk, validation, and the companion `sdk-coverage.v1.json` snapshot.
 
 Live status is evidence-bound. A catalog entry cannot declare live `executed`,
 `skipped`, `credential-unavailable`, or `failed` without a matching versioned

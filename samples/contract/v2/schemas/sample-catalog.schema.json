@@ -222,6 +222,7 @@
         "sourcePath",
         "docsPath",
         "capabilities",
+        "capabilityKeys",
         "protocols",
         "renderers",
         "data",
@@ -242,6 +243,12 @@
         "sourcePath": { "type": "string", "minLength": 1 },
         "docsPath": { "type": "string", "minLength": 1 },
         "capabilities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+        "capabilityKeys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*\\.[a-z0-9][a-z0-9-]*$" },
+          "description": "Canonical honua-server capability-keys.v1.json keys this entry's `capabilities` slugs crosswalk to (config/capability-crosswalk.v1.json, #635). May be empty only when every capabilities slug is crosswalked as internalOnly."
+        },
         "protocols": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
         "renderers": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
         "data": {
