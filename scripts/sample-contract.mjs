@@ -2,13 +2,19 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { lstat, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, opendir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { expectedGateCommand, isSampleEvidenceRunId } from "./lib/sample-gates.mjs";
+import {
+  expectedGateCommand,
+  isSampleEvidenceRunId,
+  SAMPLE_SCREENSHOT_REPORT_FORMAT,
+  SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+  SAMPLE_SCREENSHOT_VARIANTS,
+} from "./lib/sample-gates.mjs";
 import {
   readCanonicalBoundedFile,
   requiredReceiptGates,
@@ -33,6 +39,9 @@ const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection
 const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
 const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH =
   "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
+const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence.v1.json";
+const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
+  "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json";
 const SUPPORT_TRUTH_PATH = "config/support-manifest.v1.json";
 const QUALIFICATION_EVIDENCE_ROOT = "samples/evidence";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
@@ -97,6 +106,19 @@ const RESERVED_GOLDEN_JOURNEY_IDS = [
   "cloud-native-analysis",
   "arcgis-migration",
 ];
+const GOLDEN_VISUAL_GATE_ORDER = Object.freeze([
+  "packed-build",
+  "browser",
+  "accessibility",
+  "console",
+  "responsive",
+  "screenshot",
+  "performance",
+  "fixture",
+  "live",
+]);
+const GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS = 300;
+const GOLDEN_VISUAL_MAX_WINDOW_SECONDS = 7 * 24 * 60 * 60;
 const SAMPLE_SOURCE_EXTENSIONS = new Set([".js", ".mjs", ".ts", ".tsx"]);
 const CONFIGURATION_NAME_PATTERN = /^(?:HONUA|STANDALONE|VITE)_[A-Z0-9_]+$/;
 const STANDARD_CONFIGURATION_EXEMPTIONS = new Map([
@@ -3246,7 +3268,12 @@ function qualificationEvidenceBinding(sample, entry) {
   };
 }
 
-async function evidenceDirectoryEntries(directory, label, { optional = false } = {}) {
+async function evidenceDirectoryEntries(
+  directory,
+  label,
+  { optional = false, maxEntries, containmentRoot = directory } = {},
+) {
+  invariant(Number.isSafeInteger(maxEntries) && maxEntries >= 0, `${label} entry bound is invalid`);
   let metadata;
   try {
     metadata = await lstat(directory);
@@ -3256,7 +3283,32 @@ async function evidenceDirectoryEntries(directory, label, { optional = false } =
     throw error;
   }
   invariant(metadata.isDirectory() && !metadata.isSymbolicLink(), `${label} must be a non-symlink directory`);
-  return readdir(directory, { withFileTypes: true });
+  const [canonicalDirectory, canonicalRoot] = await Promise.all([
+    realpath(directory),
+    realpath(containmentRoot),
+  ]);
+  invariant(
+    canonicalDirectory === canonicalRoot || canonicalDirectory.startsWith(`${canonicalRoot}${path.sep}`),
+    `${label} escapes its canonical evidence root`,
+  );
+  const handle = await opendir(canonicalDirectory);
+  const entries = [];
+  try {
+    for await (const entry of handle) {
+      invariant(
+        entries.length < maxEntries,
+        `${label} has orphan or missing entries; found more than ${maxEntries} entries for its exact expected set`,
+      );
+      entries.push(entry);
+    }
+  } finally {
+    try {
+      await handle.close();
+    } catch (error) {
+      if (error?.code !== "ERR_DIR_CLOSED") throw error;
+    }
+  }
+  return entries;
 }
 
 function exactEvidenceDirectoryNames(entries, expectedNames, label) {
@@ -3274,6 +3326,8 @@ function exactEvidenceDirectoryNames(entries, expectedNames, label) {
 async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds) {
   const rootEntries = await evidenceDirectoryEntries(receiptRoot, "qualification evidence root", {
     optional: qualifiedSampleIds.length === 0,
+    maxEntries: qualifiedSampleIds.length,
+    containmentRoot: receiptRoot,
   });
   if (!rootEntries) return;
   exactEvidenceDirectoryNames(rootEntries, qualifiedSampleIds, "qualification evidence root");
@@ -3281,10 +3335,9 @@ async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds
     const sampleEntries = await evidenceDirectoryEntries(
       path.join(receiptRoot, sampleId),
       `${sampleId}: qualification evidence directory`,
+      { maxEntries: 2, containmentRoot: receiptRoot },
     );
     exactEvidenceDirectoryNames(sampleEntries, ["receipts", "runs"], `${sampleId}: qualification evidence directory`);
-    await evidenceDirectoryEntries(path.join(receiptRoot, sampleId, "receipts"), `${sampleId}: receipt directory`);
-    await evidenceDirectoryEntries(path.join(receiptRoot, sampleId, "runs"), `${sampleId}: run directory`);
   }
 }
 
@@ -3301,6 +3354,7 @@ async function validateQualificationRunInventory(receiptRoot, sampleId, receipts
   const runEntries = await evidenceDirectoryEntries(
     path.join(receiptRoot, sampleId, "runs"),
     `${sampleId}: run directory`,
+    { maxEntries: runIds.length, containmentRoot: receiptRoot },
   );
   exactEvidenceDirectoryNames(runEntries, runIds, `${sampleId}: run directory`);
 }
@@ -3463,6 +3517,367 @@ export async function collectQualificationEvidence(catalog, options = {}) {
   };
   validateQualificationEvidenceInput(evidence, catalog);
   return evidence;
+}
+
+function selectedQualificationSample(sample) {
+  return {
+    id: sample.id,
+    commandPlan: {
+      validation: { execution: "automatic", commands: [...sample.validation] },
+      fixtureEvidence: { execution: "orchestrated", commands: [...sample.evidence.fixture.commands] },
+      liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
+    },
+  };
+}
+
+async function readGoldenVisualReceipt(sampleId, inventoryReceipt) {
+  const expectedReceiptPath = `${QUALIFICATION_EVIDENCE_ROOT}/${sampleId}/receipts/${inventoryReceipt.gate}.v1.json`;
+  invariant(
+    inventoryReceipt.path === expectedReceiptPath,
+    `${sampleId} ${inventoryReceipt.gate}: visual evidence receipt path drift`,
+  );
+  const receiptBytes = await readCanonicalBoundedFile(PROJECT_ROOT, inventoryReceipt.path, {
+    label: `${sampleId} ${inventoryReceipt.gate} visual evidence receipt`,
+    maxBytes: 1024 * 1024,
+  });
+  invariant(
+    sha256(receiptBytes) === inventoryReceipt.sha256,
+    `${sampleId} ${inventoryReceipt.gate}: visual evidence receipt integrity drift`,
+  );
+  const receipt = parseJsonDocument(receiptBytes.toString("utf8"), inventoryReceipt.path);
+  await validateGateReceipt(receipt, {
+    sampleId,
+    gate: inventoryReceipt.gate,
+    sourceRevision: inventoryReceipt.sourceRevision,
+    sourceDigest: inventoryReceipt.sourceDigest,
+    projectRoot: PROJECT_ROOT,
+  });
+  invariant(
+    receipt.sdkMode === inventoryReceipt.sdkMode &&
+      receipt.runRoot === inventoryReceipt.runRoot &&
+      receipt.observedAt === inventoryReceipt.observedAt &&
+      receipt.expiresAt === inventoryReceipt.expiresAt &&
+      JSON.stringify(receipt.artifacts[0]) === JSON.stringify(inventoryReceipt.artifact),
+    `${sampleId} ${inventoryReceipt.gate}: visual evidence receipt metadata drift`,
+  );
+  const reportBytes = await readCanonicalBoundedFile(PROJECT_ROOT, inventoryReceipt.artifact.path, {
+    label: `${sampleId} ${inventoryReceipt.gate} visual evidence report`,
+    maxBytes: 128 * 1024 * 1024,
+  });
+  invariant(
+    reportBytes.byteLength === inventoryReceipt.artifact.bytes &&
+      sha256(reportBytes) === inventoryReceipt.artifact.sha256,
+    `${sampleId} ${inventoryReceipt.gate}: visual evidence report integrity drift`,
+  );
+  return {
+    inventory: inventoryReceipt,
+    receipt,
+    report: parseJsonDocument(reportBytes.toString("utf8"), inventoryReceipt.artifact.path),
+  };
+}
+
+function projectedGoldenLiveEvidence(sample, liveReport, liveReceipt) {
+  invariant(
+    liveReport?.format === "honua.sdk.sample-live-gate.v1" &&
+      liveReport.sampleId === sample.id &&
+      liveReport.sourceRevision === liveReceipt.sourceRevision,
+    `${sample.id}: visual live gate report binding drift`,
+  );
+  const evidence = liveReport.evidence;
+  invariant(
+    evidence?.sampleId === sample.id && evidence.lane === "live" && evidence.status === "executed",
+    `${sample.id}: visual live evidence is not executed`,
+  );
+  const realtime = evidence.realtime
+    ? {
+        observationWindowMs: evidence.realtime.observationWindowMs,
+        snapshotAt: evidence.realtime.snapshotAt,
+        cursor: evidence.realtime.cursor,
+        lagMs: evidence.realtime.lagMs,
+      }
+    : undefined;
+  if (sample.journeyId === "incident-operations") {
+    invariant(
+      realtime?.observationWindowMs > 0,
+      `${sample.id}: incident operations visual evidence must remain realtime`,
+    );
+  }
+  return {
+    mode: sample.evidence.live.mode,
+    status: "executed",
+    observedAt: evidence.observedAt,
+    expiresAt: liveReceipt.expiresAt,
+    evidencePath: liveReport.evidencePath,
+    provenance: {
+      state: evidence.provenance.state,
+      observedAt: evidence.provenance.observedAt,
+      attribution: evidence.provenance.attribution,
+    },
+    semantics: {
+      operation: evidence.semantics.operation,
+      outcome: evidence.semantics.outcome,
+      itemCount: evidence.semantics.itemCount,
+      assertions: [...evidence.semantics.assertions],
+    },
+    timing: { totalMs: evidence.timing.totalMs },
+    degradation: {
+      state: evidence.degradation.state,
+      reasons: [...evidence.degradation.reasons],
+    },
+    ...(realtime ? { realtime } : {}),
+  };
+}
+
+function goldenVisualPolicy() {
+  return {
+    sourceRepository: "honua-io/honua-sdk-js",
+    requiredScreenshotVariants: SAMPLE_SCREENSHOT_VARIANTS.map((variant) => ({
+      id: variant.id,
+      viewport: { ...variant.viewport },
+    })),
+    screenshotReproducibility: {
+      reportFormat: SAMPLE_SCREENSHOT_REPORT_FORMAT,
+      ...SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+    },
+    requiredSemanticGates: [...GOLDEN_VISUAL_GATE_ORDER],
+    freshness: {
+      maxFutureSkewSeconds: GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS,
+      maxWindowSeconds: GOLDEN_VISUAL_MAX_WINDOW_SECONDS,
+    },
+  };
+}
+
+export async function generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence) {
+  validateQualificationEvidenceInput(qualificationEvidence, catalog);
+  const profileById = new Map(catalog.qualityProfiles.map((profile) => [profile.id, profile]));
+  const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+  const evidenceBySample = new Map(
+    qualificationEvidence.samples.map((entry) => [entry.sampleId, entry]),
+  );
+  const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
+  const entries = [];
+  for (const journey of qualifiedJourneys) {
+    const sample = sampleById.get(journey.candidateSampleId);
+    const profile = profileById.get(sample?.validationProfile);
+    const evidence = evidenceBySample.get(journey.candidateSampleId);
+    invariant(sample && profile && evidence, `${journey.id}: qualified visual evidence source is missing`);
+    invariant(
+      sample.track === "golden" && Object.values(profile.gates).every(Boolean),
+      `${sample.id}: visual evidence requires a qualified golden sample and the complete quality profile`,
+    );
+    invariant(
+      JSON.stringify(requiredReceiptGates(profile)) ===
+        JSON.stringify([...GOLDEN_VISUAL_GATE_ORDER].sort()),
+      `${sample.id}: visual evidence semantic gate policy drift`,
+    );
+
+    await validateQualificationReceiptSet({
+      sample: selectedQualificationSample(sample),
+      profile,
+      expectedCommand: expectedGateCommand,
+      receiptRoot: path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT),
+      projectRoot: PROJECT_ROOT,
+    });
+
+    const inventoryByGate = new Map(evidence.receipts.map((receipt) => [receipt.gate, receipt]));
+    invariant(
+      inventoryByGate.size === GOLDEN_VISUAL_GATE_ORDER.length &&
+        GOLDEN_VISUAL_GATE_ORDER.every((gate) => inventoryByGate.has(gate)),
+      `${sample.id}: visual evidence semantic receipts are incomplete`,
+    );
+    const receiptRecords = new Map();
+    for (const gate of GOLDEN_VISUAL_GATE_ORDER) {
+      receiptRecords.set(gate, await readGoldenVisualReceipt(sample.id, inventoryByGate.get(gate)));
+    }
+
+    const sourceRevisions = new Set(
+      [...receiptRecords.values()].map(({ receipt }) => receipt.sourceRevision),
+    );
+    const sourceDigests = new Set(
+      [...receiptRecords.values()].map(({ receipt }) => receipt.sourceDigest),
+    );
+    invariant(
+      sourceRevisions.size === 1 && sourceDigests.size === 1,
+      `${sample.id}: visual evidence receipts do not share one source identity`,
+    );
+    const [sourceRevision] = sourceRevisions;
+    const [sourceDigest] = sourceDigests;
+
+    const screenshotRecord = receiptRecords.get("screenshot");
+    const screenshotReport = screenshotRecord.report;
+    invariant(
+      screenshotReport.format === SAMPLE_SCREENSHOT_REPORT_FORMAT &&
+        JSON.stringify(screenshotReport.reproducibilityPolicy) ===
+          JSON.stringify(SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY) &&
+        Array.isArray(screenshotReport.screenshots) &&
+        screenshotReport.screenshots.length === SAMPLE_SCREENSHOT_VARIANTS.length,
+      `${sample.id}: visual evidence requires the reproducible desktop/mobile screenshot report`,
+    );
+    const screenshots = SAMPLE_SCREENSHOT_VARIANTS.map((variant, index) => {
+      const screenshot = screenshotReport.screenshots[index];
+      invariant(
+        screenshot.variant === variant.id &&
+          screenshot.viewport?.width === variant.viewport.width &&
+          screenshot.viewport?.height === variant.viewport.height,
+        `${sample.id}: ${variant.id} visual evidence screenshot binding drift`,
+      );
+      return {
+        variant: variant.id,
+        projectName: screenshot.projectName,
+        browserName: screenshot.browserName,
+        sourcePath: screenshot.path,
+        mediaType: "image/png",
+        viewport: { ...variant.viewport },
+        bytes: screenshot.bytes,
+        sha256: screenshot.sha256,
+        reproducibility: {
+          captureCount: screenshot.reproducibility.captureCount,
+          comparison: screenshot.reproducibility.comparison,
+          repeatSourcePath: screenshot.reproducibility.repeatPath,
+          repeatBytes: screenshot.reproducibility.repeatBytes,
+          repeatSha256: screenshot.reproducibility.repeatSha256,
+        },
+      };
+    });
+
+    const observedAt = new Date(
+      Math.max(...[...receiptRecords.values()].map(({ receipt }) => Date.parse(receipt.observedAt))),
+    ).toISOString();
+    const expiresAt = new Date(
+      Math.min(...[...receiptRecords.values()].map(({ receipt }) => Date.parse(receipt.expiresAt))),
+    ).toISOString();
+    invariant(
+      Date.parse(expiresAt) > Date.parse(observedAt),
+      `${sample.id}: visual evidence aggregate freshness window is invalid`,
+    );
+    const liveRecord = receiptRecords.get("live");
+    entries.push({
+      journeyId: journey.id,
+      sampleId: sample.id,
+      source: {
+        repository: "honua-io/honua-sdk-js",
+        path: sample.sourcePath,
+        revision: sourceRevision,
+        evidenceNeutralSha256: sourceDigest,
+      },
+      runtime: structuredClone(screenshotReport.runtime),
+      observedAt,
+      expiresAt,
+      screenshots,
+      semanticEvidence: GOLDEN_VISUAL_GATE_ORDER.map((gate) => {
+        const record = receiptRecords.get(gate);
+        const receipt = record.inventory;
+        return {
+          gate,
+          sdkMode: receipt.sdkMode,
+          receiptPath: receipt.path,
+          receiptSha256: receipt.sha256,
+          runRoot: receipt.runRoot,
+          observedAt: receipt.observedAt,
+          expiresAt: receipt.expiresAt,
+          reportKind: receipt.artifact.kind,
+          reportPath: receipt.artifact.path,
+          reportBytes: receipt.artifact.bytes,
+          reportSha256: receipt.artifact.sha256,
+        };
+      }),
+      liveEvidence: projectedGoldenLiveEvidence(sample, liveRecord.report, liveRecord.receipt),
+    });
+  }
+
+  const visualEvidence = {
+    format: "honua.sdk.golden-journey-visual-evidence.v1",
+    schemaVersion: 1,
+    inputs: {
+      catalog: {
+        path: CATALOG_PATH,
+        format: catalog.format,
+        schemaVersion: catalog.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(catalog))),
+      },
+      qualificationEvidence: {
+        format: qualificationEvidence.format,
+        schemaVersion: qualificationEvidence.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(qualificationEvidence))),
+      },
+    },
+    policy: goldenVisualPolicy(),
+    qualifiedGoldenJourneys: entries,
+  };
+  validateSensitiveMetadata(visualEvidence, "golden journey visual evidence");
+  return visualEvidence;
+}
+
+export async function validateGoldenJourneyVisualEvidence(
+  visualEvidence,
+  catalog,
+  qualificationEvidence,
+) {
+  validateSensitiveMetadata(visualEvidence, "golden journey visual evidence");
+  await validateJsonSchema(visualEvidence, GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH);
+  invariant(
+    JSON.stringify(visualEvidence.policy) === JSON.stringify(goldenVisualPolicy()),
+    "golden journey visual evidence policy drift",
+  );
+  const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
+  invariant(
+    JSON.stringify(
+      visualEvidence.qualifiedGoldenJourneys.map((entry) => [entry.journeyId, entry.sampleId]),
+    ) ===
+      JSON.stringify(
+        qualifiedJourneys.map((journey) => [journey.id, journey.candidateSampleId]),
+      ),
+    "golden journey visual evidence is orphaned, missing, or overstated",
+  );
+  const now = Date.now();
+  const maximumFutureSkewMs = GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS * 1000;
+  const maximumWindowMs = GOLDEN_VISUAL_MAX_WINDOW_SECONDS * 1000;
+  for (const entry of visualEvidence.qualifiedGoldenJourneys) {
+    invariant(
+      JSON.stringify(entry.semanticEvidence.map((item) => item.gate)) ===
+        JSON.stringify(GOLDEN_VISUAL_GATE_ORDER),
+      `${entry.sampleId}: visual semantic evidence is incomplete or out of order`,
+    );
+    const allFreshness = [
+      { observedAt: entry.observedAt, expiresAt: entry.expiresAt },
+      ...entry.semanticEvidence,
+    ];
+    for (const item of allFreshness) {
+      const observedAt = Date.parse(item.observedAt);
+      const expiresAt = Date.parse(item.expiresAt);
+      invariant(
+        Number.isFinite(observedAt) &&
+          Number.isFinite(expiresAt) &&
+          observedAt <= now + maximumFutureSkewMs &&
+          expiresAt > now &&
+          expiresAt > observedAt &&
+          expiresAt - observedAt <= maximumWindowMs,
+        `${entry.sampleId}: visual evidence is stale or has an invalid freshness window`,
+      );
+    }
+    invariant(
+      entry.screenshots.every(
+        (screenshot) =>
+          screenshot.projectName === entry.runtime.projectName &&
+          screenshot.browserName === entry.runtime.browserName &&
+          screenshot.sourcePath !== screenshot.reproducibility.repeatSourcePath &&
+          screenshot.bytes === screenshot.reproducibility.repeatBytes &&
+          screenshot.sha256 === screenshot.reproducibility.repeatSha256,
+      ),
+      `${entry.sampleId}: visual screenshot runtime, integrity, or reproducibility drift`,
+    );
+    if (entry.journeyId === "incident-operations") {
+      invariant(
+        entry.liveEvidence.realtime?.observationWindowMs > 0,
+        `${entry.sampleId}: incident operations visual evidence must remain realtime`,
+      );
+    }
+  }
+  const expected = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
+  invariant(
+    JSON.stringify(visualEvidence) === JSON.stringify(expected),
+    "golden journey visual evidence does not match validated catalog and receipt truth",
+  );
 }
 
 function sampleQualification(sample, catalog, evidenceBySample, evidenceBindingBySample) {
@@ -4448,6 +4863,9 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
   const projection = generateSiteProjection(catalog, packageJson);
   const ciSelection = generateCiSelection(catalog);
   const supportTruth = options.supportTruth ?? (await readJson(SUPPORT_TRUTH_PATH));
+  // Publication is intentionally anchored to the canonical evidence root. Tests inject
+  // adversaries through the lower-level collectors/generators so generated artifacts can
+  // never trust a caller-supplied receipt inventory or alternate receipt directory.
   const qualificationEvidence = await collectQualificationEvidence(catalog);
   const capabilityMatrix = generateCapabilitySampleMatrix(
     catalog,
@@ -4455,16 +4873,19 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     supportTruth,
     qualificationEvidence,
   );
+  const visualEvidence = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
   await validateCapabilitySampleMatrix(capabilityMatrix, {
     catalog,
     packageJson,
     supportTruth,
     qualificationEvidence,
   });
+  await validateGoldenJourneyVisualEvidence(visualEvidence, catalog, qualificationEvidence);
   return new Map([
     [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
     [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
+    [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
     [SITE_CONSUMER_FIXTURE_PATH, stableJson(generateSiteConsumerFixture(projection))],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],

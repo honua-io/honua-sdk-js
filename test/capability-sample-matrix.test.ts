@@ -291,6 +291,21 @@ describe("capability-to-sample matrix contract", () => {
     }
   });
 
+  it("bounds adversarial excess evidence roots at the first unexpected entry", async () => {
+    const inputs = await canonicalInputs();
+    const receiptRoot = await mkdtemp(path.join(os.tmpdir(), "honua-matrix-excess-root-"));
+    try {
+      for (let index = 0; index < 128; index += 1) {
+        await mkdir(path.join(receiptRoot, `unexpected-${index.toString().padStart(3, "0")}`));
+      }
+      await expect(collectQualificationEvidence(inputs.catalog, { receiptRoot })).rejects.toThrow(
+        "qualification evidence root has orphan or missing entries; found more than 0 entries",
+      );
+    } finally {
+      await rm(receiptRoot, { recursive: true, force: true });
+    }
+  });
+
   it("rejects export, join, target, and support-claim reference drift", async () => {
     const inputs = await canonicalInputs();
 

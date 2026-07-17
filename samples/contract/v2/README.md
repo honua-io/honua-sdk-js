@@ -25,6 +25,12 @@ execution evidence so none of those meanings has to be inferred from another.
   qualification receipts without creating another support inventory.
   Its compact fixture has a companion adversarial fixture that pins orphan,
   stale, and overstated-join rejection cases.
+- `golden-journey-visual-evidence.schema.json` defines the SDK-owned visual
+  evidence handoff. `samples/dist/golden-journey-visual-evidence.v1.json`
+  contains only catalog-qualified journeys and binds desktop/mobile captures,
+  the exact Playwright project and browser runtime, every semantic gate
+  receipt, artifact integrity, and the shared freshness window. Site consumer
+  routes and presentation remain a separate consumer concern.
 - `migrations/catalog.v1-to-v2.json` is the reviewed one-time migration overlay.
   `npm run samples:migrate:v1` reproduces `samples/catalog.v2.json` from the
   frozen v1 catalog and this overlay.
@@ -189,10 +195,16 @@ Browser receipts are bound to the exact pilot test, every declared project and
 browser engine, first-attempt results, and finalized assertion attachment sets.
 Console assertions are finalized after quality checks, fixture teardown, and
 explicit closure of the pilot-owned page and browser context.
-Screenshot and performance receipts come from that exact browser workflow and
-bind the canonical evidence project, engine, viewport, a structurally decoded
-PNG, positive monotonic navigation/resource/interaction measurements,
-sample-ready measurement, and budget. Fixture receipts prove loopback
+Screenshot receipts capture an ordered 1280x720 desktop and 390x844 mobile pair
+twice in one page session after fonts, scroll origin, and two animation frames
+stabilize. Byte equality is claimed only inside that pinned session and records
+the exact Playwright version, project, browser name/version, platform, and
+architecture; it is not a cross-platform equivalence claim. Verification
+rejects aliased primary/repeat paths and rechecks both PNG structures,
+dimensions, byte counts, and SHA-256 digests. Performance receipts come from
+that same browser workflow and bind positive monotonic
+navigation/resource/interaction measurements, sample-ready measurement, and
+budget. Fixture receipts prove loopback
 readiness, a real probe, and zero listeners or connections after shutdown.
 Packed receipts bind the package tarball and re-read a self-contained copy of
 the final sample `dist` tree and resolution evidence from the same run. Live
