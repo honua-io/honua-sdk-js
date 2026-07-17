@@ -1,3 +1,5 @@
+import type { CloudNativeAnalysisPlanReceipt } from "./cloud-native-analysis.js";
+
 export type OvertureLane = "fixture" | "live";
 
 export type Bbox = readonly [number, number, number, number];
@@ -93,6 +95,7 @@ export interface OvertureTimingEvidence {
 
 export interface OvertureExecutionEvidence {
   readonly plan: OvertureQueryPlan;
+  readonly queryPlan: CloudNativeAnalysisPlanReceipt | null;
   readonly range: OvertureRangeEvidence;
   readonly rowsReturned: number;
   readonly rowsScanned: number | null;

@@ -44,6 +44,32 @@ Playwright evidence observes every AWS request and rejects any un-ranged GET.
 DuckDB does not expose rows scanned or a row-group-pruned counter, so the sample
 does not claim those engine metrics were verified.
 
+## Headless S1 Workflow
+
+`src/cloud-native-analysis.ts` is the renderer-free golden-journey slice. It
+uses the public `@honua/sdk-js/query-planner` v2 opaque-resource planner and
+executor with a public GeoParquet `Source`; it does not own SQL compilation or
+query evaluation. The same `OvertureQueryPlan`, AOI query, pinned manifest, and
+materialization policy drive the fixture and live lanes.
+
+`runCloudNativeAnalysis()` returns one SDK `Result` plus
+`honua.sdk.cloud-native-analysis-evidence.v1`. That typed receipt records the
+opaque accepted-plan fingerprint and cache identity, exact range bytes and
+requests from the supplied bounded source stage, selected-file metadata,
+returned rows, materialized result bytes, configured ceilings, separated stage
+timings, and completed worker cleanup. It deliberately classifies rows scanned,
+row groups pruned, and observed peak memory as `unsupported`. Candidate object
+rows and row groups are labeled as pinned metadata rather than engine
+observations. Adapter degradation is surfaced as `approximate`, never silently
+promoted to exact.
+
+The runner rejects unsupported range transport, manifest/object identity drift,
+row overflow, or result-byte overflow and still disposes its caller-owned
+runtime. It has no renderer adapter: direct GeoArrow/deck.gl presentation stays
+explicitly unsupported in S1 pending the renderer and bounded-transfer
+contracts. The returned `Result` is the future single source for linked map,
+table, and chart consumers.
+
 ## What the Live Lane Proves
 
 The pinned source is Overture release `2026-06-17.0`, schema `v1.17.0`, places
@@ -133,9 +159,11 @@ tarballs.
 ```bash
 npm run demo:overture:typecheck
 npm run demo:overture:build
-npx vitest run test/overture-extension-cache.test.ts test/overture-large-data.test.ts test/geoparquet-source.test.ts test/geoparquet-sql.test.ts
+npx vitest run test/cloud-native-spatial-analysis.test.ts test/overture-extension-cache.test.ts test/overture-large-data.test.ts test/geoparquet-source.test.ts test/geoparquet-sql.test.ts
 npm run test:playwright:overture
 npm run samples:verify
+npm run samples:run -- build --sample overture-geoparquet --sdk-mode source
+npm run samples:run -- build --sample overture-geoparquet --sdk-mode packed
 ```
 
 Scheduled/manual evidence only:

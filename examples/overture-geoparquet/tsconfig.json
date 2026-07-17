@@ -6,6 +6,7 @@
     "baseUrl": ".",
     "paths": {
       "@honua/sdk-js/geoparquet": ["../../src/geoparquet/index.ts"],
+      "@honua/sdk-js/query-planner": ["../../src/query-planner/index.ts"],
       "@honua/sdk-js/contract": ["../../src/contract/index.ts"],
       "@honua/sdk-js/honua": ["../../src/honua.ts"],
       "@honua/sdk-js": ["../../src/index.ts"]

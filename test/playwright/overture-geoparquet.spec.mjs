@@ -41,7 +41,7 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     await expect(page.locator("#metric-files")).toHaveText("1 / 1 via fixture manifest bbox");
     await expect(page.locator("#metric-memory-policy")).toHaveText("256 MiB");
     await expect(page.locator("#evidence-ranges")).toContainText("1,939 bytes / 1 range");
-    await expect(page.locator("#evidence-rows")).toHaveText("8 / 8");
+    await expect(page.locator("#evidence-rows")).toHaveText("not exposed / 8");
     await expect(page.locator("#result-body tr")).toHaveCount(8);
     await expect(page.locator("#result-summary")).toContainText("GERS ids preserved");
     await expect(page.locator("#result-points circle")).toHaveCount(8);
@@ -63,6 +63,16 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
 
     const fixtureExecution = await page.evaluate(() => window.__HONUA_OVERTURE__?.lastEvidence);
     expect(fixtureExecution).toBeDefined();
+    expect(fixtureExecution.queryPlan).toMatchObject({
+      version: "2.0",
+      pushdown: "full",
+      fidelity: "exact",
+    });
+    expect(fixtureExecution.queryPlan.fingerprint).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(fixtureExecution.queryPlan.cacheIdentity).toBe(
+      `honua-query-plan:2.0:${fixtureExecution.queryPlan.fingerprint}`,
+    );
+    expect(JSON.stringify(fixtureExecution.queryPlan)).not.toContain("overture-places.parquet");
     expect(fixtureExecution.timing.totalMs).toBeLessThan(15_000);
     expect(fixtureExecution.estimatedResultBytes).toBeLessThan(32_768);
     expect(() =>

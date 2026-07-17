@@ -16,6 +16,23 @@
       "workflowSelectors": ["#compat-metrics", "#assertion-matrix", "#maplibre-residuals", "#artifact-files"]
     },
     {
+      "id": "overture-geoparquet",
+      "viteConfig": "examples/overture-geoparquet/vite.config.ts",
+      "tsconfig": "examples/overture-geoparquet/tsconfig.json",
+      "playwrightScript": "test:playwright:overture",
+      "playwrightFile": "test/playwright/overture-geoparquet.spec.mjs",
+      "playwrightTestTitle": "Overture columnar lab stays bounded, offline, accessible, and responsive",
+      "playwrightProjects": [{ "name": "chromium", "browserName": "chromium" }],
+      "evidenceProject": "chromium",
+      "sdkEntrypoints": [
+        "@honua/sdk-js/contract",
+        "@honua/sdk-js/geoparquet",
+        "@honua/sdk-js/query-planner"
+      ],
+      "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
+      "workflowSelectors": ["#query-form", "#plan-json", "#result-body"]
+    },
+    {
       "id": "service-explorer",
       "viteConfig": "examples/service-explorer/vite.config.ts",
       "tsconfig": "examples/service-explorer/tsconfig.json",

@@ -1,7 +1,11 @@
 import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset } from "@honua/sdk-js/contract";
-import type { Query } from "@honua/sdk-js/contract";
 import { GeoparquetRuntime, createBrowserDuckDbDriver, geoparquetResolver } from "@honua/sdk-js/geoparquet";
 
+import {
+  type CloudNativeAnalysisPlanReceipt,
+  cloudNativeAnalysisQuery,
+  explainCloudNativeAnalysis,
+} from "./cloud-native-analysis.js";
 import { OverturePlanRejectedError, parseAoi, planOvertureQuery } from "./planner.js";
 import { fixtureRangeEvidence, probeAwsRanges } from "./range-evidence.js";
 import { FIXTURE_MANIFEST, OVERTURE_POLICY, SOURCE_MANIFESTS } from "./source-manifests.js";
@@ -58,6 +62,7 @@ interface CachedResult {
   readonly rows: readonly OverturePlaceRow[];
   readonly range: OvertureRangeEvidence;
   readonly estimatedResultBytes: number;
+  readonly queryPlan: CloudNativeAnalysisPlanReceipt;
 }
 
 const resultCache = new Map<string, CachedResult>();
@@ -88,14 +93,6 @@ function abbreviatedKey(value: string): string {
   let hash = 2166136261;
   for (const character of value) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
   return (hash >>> 0).toString(16).padStart(8, "0");
-}
-
-function envelope([xmin, ymin, xmax, ymax]: Bbox) {
-  return {
-    geometry: { xmin, ymin, xmax, ymax },
-    geometryType: "esriGeometryEnvelope" as const,
-    spatialRel: "esriSpatialRelIntersects" as const,
-  };
 }
 
 async function fixtureBytes(signal?: AbortSignal): Promise<Uint8Array> {
@@ -244,22 +241,6 @@ function midpoint(min: unknown, max: unknown): number {
   return typeof min === "number" && typeof max === "number" ? (min + max) / 2 : 0;
 }
 
-function createQuery(plan: OvertureQueryPlan, signal: AbortSignal): Query<Record<string, unknown>> {
-  const query: Query<Record<string, unknown>> = {
-    spatialFilter: envelope(plan.aoi),
-    outFields: [...plan.projection],
-    orderBy: [{ field: "confidence", direction: "desc" }],
-    pagination: { limit: plan.limit },
-    returnGeometry: false,
-    signal,
-  };
-  if (plan.category !== "all") {
-    const category = plan.category.replaceAll("'", "''");
-    query.where = plan.lane === "live" ? `categories.primary = '${category}'` : `category = '${category}'`;
-  }
-  return query;
-}
-
 function requiredRowCount(rows: readonly Record<string, unknown>[], tableFunction: string): number {
   const value = rows[0]?.row_count;
   const count = typeof value === "bigint" || typeof value === "number" ? Number(value) : Number.NaN;
@@ -301,6 +282,7 @@ async function executePlan(
   engineMs: number;
   estimatedResultBytes: number;
   parquetRuntime?: ParquetRuntimeProof;
+  queryPlan: CloudNativeAnalysisPlanReceipt;
 }> {
   const runtime = new GeoparquetRuntime({
     driverFactory: ({ signal: initializationSignal } = { signal }) =>
@@ -336,17 +318,25 @@ async function executePlan(
         {
           id: "places",
           protocol: "geoparquet",
-          locator: { url: plan.lane === "fixture" ? FIXTURE_NAME : (plan.selectedObjects[0]?.url ?? "") },
+          locator: {
+            url: plan.lane === "fixture" ? FIXTURE_NAME : (plan.selectedObjects[0]?.url ?? ""),
+            geoparquet: {
+              geometryColumn: "geometry",
+              geometryEncoding: plan.lane === "fixture" ? "native" : "wkb",
+              bboxColumn: "bbox",
+            },
+          },
           capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
         },
       ],
     });
     const source = dataset.source<Record<string, unknown>>("places");
     if (!source) throw new Error("GeoParquet source resolution failed.");
+    const queryPlan = explainCloudNativeAnalysis(plan, SOURCE_MANIFESTS[plan.lane], source.descriptor);
     const rows: OverturePlaceRow[] = [];
     const encoder = new TextEncoder();
     let estimatedResultBytes = 2;
-    for await (const page of source.stream(createQuery(plan, signal))) {
+    for await (const page of source.stream(cloudNativeAnalysisQuery(plan, signal))) {
       for (const feature of page.features) {
         if (rows.length >= plan.limit) throw new Error("Engine exceeded the declared row limit.");
         const row = normalizeFeature(feature.attributes);
@@ -358,7 +348,7 @@ async function executePlan(
         estimatedResultBytes += rowBytes;
       }
     }
-    return { rows, engineMs: performance.now() - engineStarted, estimatedResultBytes, parquetRuntime };
+    return { rows, engineMs: performance.now() - engineStarted, estimatedResultBytes, parquetRuntime, queryPlan };
   } finally {
     await runtime.dispose();
     if (activeRuntime === runtime) activeRuntime = undefined;
@@ -427,11 +417,13 @@ async function bootstrap(): Promise<void> {
         let range: OvertureRangeEvidence;
         let engineExecutionMs = 0;
         let estimatedResultBytes = 0;
+        let queryPlan: CloudNativeAnalysisPlanReceipt;
         const cacheStatus = cached ? "hit" : "miss";
         if (cached) {
           rows = cached.rows;
           range = { ...cached.range, durationMs: 0, cacheStatus: "result cache hit" };
           estimatedResultBytes = cached.estimatedResultBytes;
+          queryPlan = cached.queryPlan;
         } else {
           api.status = "probing-source";
           text("#engine-state", lane === "live" ? "Verifying AWS range support" : "Loading bounded fixture");
@@ -470,8 +462,9 @@ async function bootstrap(): Promise<void> {
           rows = executed.rows;
           engineExecutionMs = executed.engineMs;
           estimatedResultBytes = executed.estimatedResultBytes;
+          queryPlan = executed.queryPlan;
           if (executed.parquetRuntime) api.parquetRuntime = executed.parquetRuntime;
-          resultCache.set(plan.cacheKey, { rows, range, estimatedResultBytes });
+          resultCache.set(plan.cacheKey, { rows, range, estimatedResultBytes, queryPlan });
           while (resultCache.size > 3) resultCache.delete(resultCache.keys().next().value!);
         }
         api.status = "rendering";
@@ -486,10 +479,11 @@ async function bootstrap(): Promise<void> {
         };
         const evidence: OvertureExecutionEvidence = {
           plan,
+          queryPlan,
           range,
           rowsReturned: rows.length,
-          rowsScanned: lane === "fixture" ? plan.selectedObjectRows : null,
-          rowGroupsPruned: lane === "fixture" ? 0 : null,
+          rowsScanned: null,
+          rowGroupsPruned: null,
           estimatedResultBytes,
           cacheStatus,
           timing,
@@ -532,6 +526,7 @@ async function bootstrap(): Promise<void> {
           };
           const evidence: OvertureExecutionEvidence = {
             plan: planned,
+            queryPlan: null,
             range: observedRange,
             rowsReturned: 0,
             rowsScanned: null,

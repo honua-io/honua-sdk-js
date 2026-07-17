@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { type Plugin, defineConfig } from "vite";
 
+import { createSampleViteConfig } from "../_kit/vite.config.js";
 import {
   PARQUET_EXTENSION_PROVENANCE,
   readPinnedParquetExtension,
@@ -22,6 +23,9 @@ const duckdbDist = path.resolve(repoRoot, "node_modules/@duckdb/duckdb-wasm/dist
 const DUCKDB_ASSETS = ["duckdb-eh.wasm", "duckdb-browser-eh.worker.js"];
 const PARQUET_EXTENSION_PATH = `${PARQUET_EXTENSION_PROVENANCE.engineVersion}/${PARQUET_EXTENSION_PROVENANCE.platform}/${PARQUET_EXTENSION_PROVENANCE.fileName}`;
 const parquetExtensionCachePath = resolveParquetExtensionCachePath({ repoRoot });
+const sampleConfig = createSampleViteConfig(import.meta.url, {
+  sdkEntrypoints: ["@honua/sdk-js/contract", "@honua/sdk-js/geoparquet", "@honua/sdk-js/query-planner"],
+});
 
 function selfHostDuckDb(): Plugin {
   return {
@@ -68,30 +72,11 @@ export default defineConfig(async () => {
     });
   }
   return {
-    root: exampleRoot,
-    plugins: [selfHostDuckDb()],
-    resolve: {
-      alias: [
-        { find: "@honua/sdk-js/geoparquet", replacement: path.resolve(repoRoot, "src/geoparquet/index.ts") },
-        { find: "@honua/sdk-js/contract", replacement: path.resolve(repoRoot, "src/contract/index.ts") },
-        { find: "@honua/sdk-js/honua", replacement: path.resolve(repoRoot, "src/honua.ts") },
-        { find: "@honua/sdk-js", replacement: path.resolve(repoRoot, "src/index.ts") },
-      ],
-    },
+    ...sampleConfig,
+    plugins: [...(sampleConfig.plugins ?? []), selfHostDuckDb()],
     optimizeDeps: {
       // duckdb-wasm ships its own worker; let Vite pre-bundle the main module.
       include: ["@duckdb/duckdb-wasm"],
-    },
-    server: {
-      host: "127.0.0.1",
-      fs: { allow: [repoRoot] },
-    },
-    preview: {
-      host: "127.0.0.1",
-    },
-    build: {
-      outDir: "dist",
-      emptyOutDir: true,
     },
   };
 });
