@@ -5,117 +5,94 @@ import { attestBrowserQuality, attestClosedFixture, finalizeSampleConsole } from
 
 test.setTimeout(90_000);
 
-test("service explorer source picker handles queryable and render-only standards sources", async ({ browser, browserName }, testInfo) => {
+test("service explorer follows inspected truth through a bounded accepted query", async ({ browser, browserName }, testInfo) => {
   const context = await browser.newContext();
   const page = await context.newPage();
   const pageErrors = [];
   const consoleErrors = [];
-  page.on("pageerror", (error) => {
-    pageErrors.push(error.message);
-  });
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
-
   const fixtureServer = await startServiceExplorerFixtureServer();
 
   try {
     await page.goto(fixtureServer.url);
-
     await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready)).toBe(true);
-    await expect(page.locator("#source-picker")).toContainText("FeatureServer");
-    await expect(page.locator("#source-picker")).toContainText("WFS");
-    await expect(page.locator("#source-picker")).toContainText("WMTS");
-    // Expanded protocol coverage: lanes for every SDK protocol family appear.
-    await expect(page.locator("#source-picker")).toContainText("Honua gRPC");
-    await expect(page.locator("#source-picker")).toContainText("ImageServer");
-    await expect(page.locator("#source-picker")).toContainText("STAC");
-    await expect(page.locator("#source-picker")).toContainText("MapLibre");
-    // The picker is grouped into protocol-family optgroups.
-    const familyLabels = await page.locator("#source-picker optgroup").evaluateAll((groups) =>
-      groups.map((group) => group.label),
-    );
-    expect(familyLabels).toContain("Esri GeoServices");
-    expect(familyLabels).toContain("OGC API & catalogs");
-    await expect(page.locator("#source-kind")).toHaveText("FeatureServer / queryable");
-    await expect(page.locator("#visible-count")).toHaveText("8");
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.state)).toMatch(/ready|partial/);
+
+    await expect(page.locator("#endpoint-input")).toHaveValue(`${fixtureServer.url}/fixtures/ogc`);
+    await expect(page.locator("#requested-protocol")).toHaveText("ogc-features");
+    await expect(page.locator("#resolved-protocol")).toHaveText("ogc-features");
+    await expect(page.locator("#detection-confidence")).toHaveText("not-reported");
+    await expect(page.locator("#metadata-cache")).toContainText("feature data not-loaded");
+    await expect(page.locator('.source-card[data-selected="true"]')).toContainText("places");
+    await expect(page.locator("#capability-list")).toContainText("claimed");
+    await expect(page.locator("#schema-summary")).toContainText("conformance");
+
+    await expect(page.locator("#run-query-button")).toBeEnabled();
+    await expect(page.locator("#query-code")).toHaveText("planner.accepted");
+    await expect(page.locator("#prepare-render-button")).toBeDisabled();
+    await expect(page.locator("#render-code")).not.toHaveText("planner.accepted");
+    await expect(page.locator("#plan-pushdown")).toHaveText("full");
+    await expect(page.locator("#plan-fidelity")).toHaveText("exact");
+    await expect(page.locator("#plan-residual")).toHaveText("none");
+    await expect(page.locator("#typescript-code")).toContainText("executeQueryPlan(queryPlan, source)");
+
     await expect(page.getByTestId("honua-sample-mode")).toHaveText(/source|packed/);
     await expect(page.getByTestId("honua-sample-evidence")).toContainText("Evidence");
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-
-    await page.locator("#attribute-filter").selectOption({ label: "status: open" });
-    await expect(page.locator("#visible-count")).toHaveText("3");
-    await expect(page.locator("#query-json")).toContainText("status");
-
-    await page.goto(`${fixtureServer.url}/?source=wfs-service-requests`);
-    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready)).toBe(true);
-    await expect(page.locator("#source-kind")).toHaveText("WFS / queryable");
-    await expect(page.locator("#visible-count")).toHaveText("8");
-    await expect(page.locator("#source-cache-policy")).toContainText("GetCapabilities");
-
-    await page.goto(`${fixtureServer.url}/?source=wmts-basemap`);
-    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready)).toBe(true);
-    await expect(page.locator("#source-kind")).toHaveText("WMTS / render-only");
-    await expect(page.locator("#attribute-filter")).toBeDisabled();
-    await expect(page.locator("#result-table-body")).toContainText("disabled for this render-only standards source");
-    await expect(page.locator("#capability-list")).toContainText("render");
-    await expect(page.locator("#diagnostic-list")).toContainText("Table/query controls disabled");
-    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.queryable)).toBe(false);
-
-    // STAC catalog-search lane is queryable and feeds the linked table.
-    await page.goto(`${fixtureServer.url}/?source=stac-imagery`);
-    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready)).toBe(true);
-    await expect(page.locator("#source-kind")).toHaveText("STAC / queryable");
-    await expect(page.locator("#visible-count")).toHaveText("8");
-
-    // Utility-only Geometry Service lane keeps metadata live but disables table/query.
-    await page.goto(`${fixtureServer.url}/?source=geometry-utility`);
-    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready)).toBe(true);
-    await expect(page.locator("#source-kind")).toHaveText("Geometry Service / degraded");
-    await expect(page.locator("#attribute-filter")).toBeDisabled();
-    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.queryable)).toBe(false);
-
-    // Return to a queryable lane for the shared quality workflow and teardown
-    // lifecycle check.
-    await page.goto(`${fixtureServer.url}/?source=stac-imagery`);
-    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready)).toBe(true);
-
-    const runtimeReady = await page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready === true);
-    const sampleReadyDurationMs = await page.evaluate(() => performance.now());
     await attestBrowserQuality({
       page,
       testInfo,
       sampleId: "service-explorer",
       browserName,
-      sampleReadyDurationMs,
-      runtimeReady,
+      sampleReadyDurationMs: await page.evaluate(() => performance.now()),
+      runtimeReady: await page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready === true),
       responsiveViewports: [
         { width: 1280, height: 720 },
         { width: 390, height: 844 },
       ],
-      workflowSelectors: ["#source-picker", "#map", "#result-table-body"],
+      workflowSelectors: ["#endpoint-input", "#run-query-button", "#map", "#typescript-code"],
     });
 
-    // Prove the table/chart delegated handlers work before teardown and become
-    // inert after their cleanup runs.
-    await page.locator("#result-table-body button[data-feature-id]").first().click();
-    await page.locator("#chart-buckets button.chart-bucket").first().click();
-    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.interactionCount)).toBe(2);
-    const interactionCountBeforeDispose = await page.evaluate(
+    await page.locator("#run-query-button").click();
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.resultCount)).toBe(3);
+    await expect(page.locator("#result-body")).toContainText("Honolulu");
+    await expect(page.locator("#result-body")).toContainText("Hanauma Bay");
+    await expect(page.locator("#map-status")).toHaveText("exact result projected");
+    await expect(page.locator("#result-count")).toHaveText("3");
+
+    // Identity-bearing URL input is rejected before I/O and removed from the
+    // renderer immediately; credential-like material must not survive in DOM.
+    await page.locator("#endpoint-input").fill(`${fixtureServer.url}/fixtures/ogc?token=TOP-SECRET`);
+    await page.locator("#inspect-button").click();
+    await expect(page.locator("#input-message")).toContainText("input.identity-bearing-endpoint");
+    await expect(page.locator("#endpoint-input")).toHaveValue("[invalid endpoint]");
+    expect(await page.locator("body").textContent()).not.toContain("TOP-SECRET");
+
+    // A slow discovery request remains explicitly cancellable.
+    await page.locator("#endpoint-input").fill(`${fixtureServer.url}/fixtures/slow-ogc`);
+    await page.locator("#source-input").fill("");
+    await page.locator("#inspect-button").click();
+    await expect(page.locator("#cancel-button")).toBeEnabled();
+    await page.locator("#cancel-button").click();
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.state)).toBe("cancelled");
+
+    // Restore the golden path for shared responsive/a11y evidence and teardown.
+    await page.locator("#endpoint-input").fill(`${fixtureServer.url}/fixtures/ogc`);
+    await page.locator("#source-input").fill("places");
+    await page.locator("#inspect-button").click();
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready)).toBe(true);
+
+    const interactionsBeforeDispose = await page.evaluate(
       () => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.interactionCount,
     );
-    const pageErrorCountBeforeDispose = pageErrors.length;
-    const consoleErrorCountBeforeDispose = consoleErrors.length;
     await page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_DISPOSE__?.());
     await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.disposed)).toBe(true);
     await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
-    await page.locator("#result-table-body button[data-feature-id]").first().evaluate((button) => button.click());
-    await page.locator("#chart-buckets button.chart-bucket").first().evaluate((button) => button.click());
     expect(await page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.interactionCount)).toBe(
-      interactionCountBeforeDispose,
+      interactionsBeforeDispose,
     );
-    expect(pageErrors).toHaveLength(pageErrorCountBeforeDispose);
-    expect(consoleErrors).toHaveLength(consoleErrorCountBeforeDispose);
   } finally {
     try {
       await fixtureServer.close();

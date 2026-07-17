@@ -23,7 +23,7 @@ import type {
   HonuaKernelConnectOptions,
   HonuaKernelConnection,
 } from "../src/index.js";
-import { HonuaAuthError, HonuaDiscoveryError, createHonua } from "../src/index.js";
+import { HonuaAbortError, HonuaAuthError, HonuaDiscoveryError, createHonua } from "../src/index.js";
 import type { CapabilityProfile } from "../src/source-capability-types.js";
 
 const ENDPOINT = "https://fixtures.example.test/services/root";
@@ -726,6 +726,23 @@ describe("Service Explorer capability-truth model", () => {
     expect(model.state.kind).toBe("cancelled");
     expect(model.connection()).toBeUndefined();
     expect(states).toEqual(["idle", "loading", "cancelled"]);
+    await model.dispose();
+  });
+
+  it("maps a caller deadline signal to explicit cancelled truth", async () => {
+    const fake = fakeKernel(
+      async (_locator, options) =>
+        new Promise<HonuaKernelConnection>((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () => reject(new HonuaAbortError()), { once: true });
+        }),
+    );
+    const model = createServiceExplorerTruthModel({ honua: fake.kernel });
+
+    await expect(
+      model.inspect({ url: ENDPOINT, protocol: "ogc-features" }, { signal: AbortSignal.timeout(10) }),
+    ).resolves.toMatchObject({ kind: "cancelled", failure: { code: "core.cancelled" } });
+    expect(model.state.kind).toBe("cancelled");
+
     await model.dispose();
   });
 });
