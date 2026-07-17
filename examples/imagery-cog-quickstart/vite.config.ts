@@ -11,6 +11,7 @@ export default defineConfig({
   envDir: exampleRoot,
   resolve: {
     alias: [
+      { find: "@honua/sdk-js/cog", replacement: path.resolve(repoRoot, "src/cog/index.ts") },
       { find: "@honua/sdk-js/contract", replacement: path.resolve(repoRoot, "src/contract/index.ts") },
       { find: "@honua/sdk-js/honua", replacement: path.resolve(repoRoot, "src/honua.ts") },
       { find: "@honua/sdk-js/runtime", replacement: path.resolve(repoRoot, "src/runtime/index.ts") },

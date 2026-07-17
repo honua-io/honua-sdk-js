@@ -1,0 +1,38 @@
+name: Direct COG Live Evidence
+
+# This is an independent semantic probe of one immutable public STAC item and
+# COG asset. It never runs on push or pull_request; ordinary CI is fixture-only.
+on:
+  schedule:
+    - cron: "20 7 * * 2" # Tuesdays 07:20 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+  HONUA_COG_LIVE_ENABLED: "true"
+
+jobs:
+  public-stac-cog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Run pinned STAC to bounded COG evidence
+        run: npm run evidence:cog:live
+      - name: Publish semantic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: direct-cog-live-evidence
+          path: test-results/cog-live-evidence.json
+          if-no-files-found: warn
+          retention-days: 30

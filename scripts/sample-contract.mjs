@@ -176,6 +176,18 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
       generatorPath: "scripts/overture-live-evidence.mjs",
     },
   ],
+  [
+    "evidence:cog:live",
+    {
+      definition: "npm run build --silent && node scripts/cog-live-evidence.mjs --output test-results/cog-live-evidence.json --strict",
+      generatorPath: "scripts/cog-live-evidence.mjs",
+      dependencies: {
+        build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
+        clean: "rm -rf dist",
+        compile: "npm run clean --silent && tsc -p tsconfig.json",
+      },
+    },
+  ],
 ]);
 const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "25d",

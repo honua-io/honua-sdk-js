@@ -71,8 +71,20 @@ const SHARED_ESBUILD_OPTIONS = {
  *   - kind "fixture": bundled from a committed tree-shake fixture.
  */
 const TARGETS = [
-  { key: ".", kind: "bundle", entry: "dist/src/index.js", label: "`.` (root)" },
-  { key: "/honua", kind: "bundle", entry: "dist/src/honua.js", label: "`/honua`" },
+  {
+    key: ".",
+    kind: "bundle",
+    entry: "dist/src/index.js",
+    label: "`.` (root)",
+    forbiddenInputs: ["dist/src/cog/", "node_modules/geotiff/"],
+  },
+  {
+    key: "/honua",
+    kind: "bundle",
+    entry: "dist/src/honua.js",
+    label: "`/honua`",
+    forbiddenInputs: ["dist/src/cog/", "node_modules/geotiff/"],
+  },
   { key: "/contract", kind: "bundle", entry: "dist/src/contract/index.js", label: "`/contract`" },
   {
     key: "/source-schema",
@@ -126,6 +138,13 @@ const TARGETS = [
     label: "`/geoparquet` (duckdb-wasm external — lazy peer)",
   },
   {
+    key: "/cog",
+    kind: "bundle",
+    entry: "dist/src/cog/index.js",
+    label: "`/cog` (caller-injected decoder; no raster peer in the static graph)",
+    forbiddenInputs: ["node_modules/geotiff/", "node_modules/maplibre-gl/", "node_modules/cesium/"],
+  },
+  {
     key: "/deckgl",
     kind: "bundle",
     entry: "dist/src/deckgl/index.js",
@@ -162,6 +181,7 @@ const TARGETS = [
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-root-connect.mjs",
     label: "tree-shake guard (`{ connect }` from root, source-schema runtime excluded)",
+    forbiddenInputs: ["dist/src/cog/", "node_modules/geotiff/"],
   },
   {
     key: "tree-shake:source-capabilities-evaluate",
@@ -179,6 +199,7 @@ const TARGETS = [
       "dist/src/app/",
       "dist/src/app-controller/",
       "dist/src/app-workspace/",
+      "dist/src/cog/",
       "dist/src/deckgl/",
       "dist/src/generated-app/",
       "dist/src/map/",

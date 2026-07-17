@@ -218,7 +218,8 @@
       "configuration": {
         "status": "legacy-unsafe",
         "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
-      }
+      },
+      "live": { "mode": "public-live" }
     },
     "kepler-analytics": {
       "track": "lab",

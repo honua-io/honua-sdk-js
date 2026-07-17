@@ -243,6 +243,10 @@
     "./geoparquet": {
       "types": "./dist/src/geoparquet/index.d.ts",
       "default": "./dist/src/geoparquet/index.js"
+    },
+    "./cog": {
+      "types": "./dist/src/cog/index.d.ts",
+      "default": "./dist/src/cog/index.js"
     }
   },
   "bin": {
@@ -394,6 +398,7 @@
     "demo:imagery-cog:preview": "vite preview --config examples/imagery-cog-quickstart/vite.config.ts --host 127.0.0.1",
     "demo:imagery-cog:mock": "node examples/imagery-cog-quickstart/mock-server.mjs",
     "demo:imagery-cog:typecheck": "tsc -p examples/imagery-cog-quickstart/tsconfig.json --noEmit",
+    "evidence:cog:live": "npm run build --silent && node scripts/cog-live-evidence.mjs --output test-results/cog-live-evidence.json --strict",
     "demo:geocoding": "vite --config examples/geocoding-quickstart/vite.config.ts",
     "demo:geocoding:build": "vite build --config examples/geocoding-quickstart/vite.config.ts",
     "demo:geocoding:preview": "vite preview --config examples/geocoding-quickstart/vite.config.ts --host 127.0.0.1",
@@ -607,6 +612,7 @@
     "apache-arrow": "^17.0.0",
     "cesium": "^1.139.1",
     "esbuild": "^0.28.1",
+    "geotiff": "3.0.5",
     "jsdom": "^25.0.1",
     "maplibre-gl": "^5.21.1",
     "marked": "^15.0.12",

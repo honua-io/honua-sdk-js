@@ -53,7 +53,7 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 - [`examples/react-quickstart/`](./examples/react-quickstart/README.md): `@honua/react` quickstart — `HonuaProvider` + `useDataset`/`useQuery`/`useCapabilities` hooks and a `HonuaMap`/`HonuaLayer`/`HonuaPopup` composition over the same deterministic fixture lane, booted under React StrictMode with Playwright smoke coverage.
 - [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, same-origin fixture mocking, OGC collection overlays, polygon extrusions, and route replay.
 - [`examples/kepler-analytics/`](./examples/kepler-analytics/README.md): fixture-first kepler.gl analytics demo for an `operations replay` workflow with committed GeoJSON plus metadata, KPI cards, walkthrough copy, and focused browser smoke coverage.
-- [`examples/imagery-cog-quickstart/`](./examples/imagery-cog-quickstart/README.md): MapLibre imagery proof for WMS `GetMap`, COG-backed ImageServer tiles, `exportImage` previews, legends, and metadata cache state through one Honua client configuration.
+- [`examples/imagery-cog-quickstart/`](./examples/imagery-cog-quickstart/README.md): direct STAC-to-COG-to-MapLibre proof with visible byte ranges, typed range/CORS/CRS/format refusals, latest-wins asset switching, cleanup evidence, and WMS/ImageServer comparisons.
 - [`examples/spatial-analytics-workbench/`](./examples/spatial-analytics-workbench/README.md): Honua Cloud analytics workbench for AOI jobs, materialized outputs, linked map/table/chart state, and fixture-backed indexed aggregation cells plus category/histogram/range widgets.
 - [`examples/edit-workflow-demo/`](./examples/edit-workflow-demo/README.md): Honua Cloud editing workflow for metadata-backed forms, optimistic create/update/delete, rollback diagnostics, conflicts, relationships, and attachment lifecycle checks over shared map/table/form context.
 - [`examples/geocoding-quickstart/`](./examples/geocoding-quickstart/README.md): MapLibre geocoding sample for forward geocoding, reverse lookup from a clicked point, typeahead suggestions, and GeocodeServer audit mapping through `HonuaGeocodingClient`.
@@ -440,6 +440,13 @@ npm run demo:imagery-cog:mock
 npm run demo:imagery-cog
 ```
 
+The default mock lane is offline and deterministic. A separate weekly/manual producer validates a pinned public Earth
+Search item through discovery, inspection, and a bounded decoded window; it never runs in ordinary PR CI:
+
+```bash
+HONUA_COG_LIVE_ENABLED=true npm run evidence:cog:live
+```
+
 Node backend quickstart loop:
 
 ```bash
@@ -659,6 +666,14 @@ for await (const item of stac.searchStream({ collections: ["sentinel-2"] })) {
   // …
 }
 ```
+
+Static STAC discovery also exposes evidence-classified COG asset candidates.
+The experimental [`@honua/sdk-js/cog`](./cog.md) subpath accepts those
+candidates for bounded metadata and pixel-window range reads through a
+caller-injected decoder. Its opt-in MapLibre bridge selects bounded
+viewport/overview windows and emits a native image source without importing a
+raster or renderer peer; it never guesses COG support from a filename suffix or
+falls back to a whole-file download.
 
 See [`docs/ogc-api.md`](./docs/ogc-api.md) for the full developer
 reference, [`docs/shared-client-contract.md`](./docs/shared-client-contract.md)

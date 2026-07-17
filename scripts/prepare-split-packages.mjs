@@ -96,6 +96,7 @@ function createSdkPackage() {
   // entrypoint moved out to `@honua/app-platform` in the 1.0 scope split
   // (docs/decisions/scope-split-and-1.0.md).
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "cog"), path.join(packageRoot, "cog"));
   copyDirectory(path.join(DIST_SRC_ROOT, "columnar"), path.join(packageRoot, "columnar"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "kernel"), path.join(packageRoot, "kernel"));
@@ -200,6 +201,10 @@ function createSdkPackage() {
       "./contract": {
         types: "./contract/index.d.ts",
         default: "./contract/index.js",
+      },
+      "./cog": {
+        types: "./cog/index.d.ts",
+        default: "./cog/index.js",
       },
       "./source-schema": {
         types: "./source-schema.d.ts",
