@@ -1,6 +1,6 @@
 # Five-minute quickstart: endpoint to linked MapLibre map
 
-The canonical server-connected browser workflow is the tested app in
+The canonical public-endpoint browser workflow is the tested app in
 [`examples/maplibre-quickstart`](../examples/maplibre-quickstart/README.md). It makes the SDK's five-stage journey
 visible instead of hiding network and fallback decisions:
 
@@ -8,9 +8,9 @@ visible instead of hiding network and fallback decisions:
 connect → discover → explain → query → mount
 ```
 
-If you do not need a Honua server, start with the
-[`standalone quickstart`](./standalone-quickstart.md). It connects directly to a public GeoServices endpoint. This page
-covers the protocol-neutral Honua lane with compatibility, discovery, planning, evidence, and linked views.
+The overlapping standalone and endpoint-to-map implementations have converged here. Their documentation and npm
+aliases remain stable, but this is the only executable and catalog source. It accepts both public GeoServices layers
+and OGC API Features landing pages.
 
 ## Run the deterministic lane
 
@@ -21,15 +21,16 @@ npm run demo:quickstart:mock
 
 Open the printed `quickstartMockUrl`. No account, credential, or network-hosted basemap is required. The app:
 
-1. checks SDK/server compatibility;
-2. discovers layer metadata and constructs the protocol capability contract;
-3. explains a deterministic query plan before fetching rows;
-4. executes that accepted plan through `Dataset → Source → Query → Result`;
-5. mounts the result in MapLibre and links map, table, filter, detail, and popup state.
+1. connects and negotiates the configured protocol;
+2. inspects advertised sources and capabilities;
+3. explains a deterministic bounded query plan before fetching rows;
+4. executes that accepted plan through the kernel connection;
+5. passes the same plan to the SDK's MapLibre renderer.
 
-The page also exposes provenance, capture/observation time, auth mode, SDK/server/data versions, metadata cache state,
-plan fingerprint, pushdown, fidelity, and degradation. Fixture replay is labeled explicitly and never presented as live
-data.
+The thin shell adds only endpoint input, table/filter state over the bounded result, popup selection, plan disclosure,
+copyable code, and managed cleanup. It exposes source identity and attribution, observation time, auth mode, SDK/plan
+versions, metadata cache state, plan fingerprint, pushdown, fidelity, and degradation. Fixture replay is labeled
+explicitly and never presented as live data.
 
 ### What the five-minute claim measures
 
@@ -52,22 +53,23 @@ architecture acceptance criterion is complete.
 
 ## Use an anonymous live endpoint
 
-Copy [`.env.example`](../examples/maplibre-quickstart/.env.example), point it at a public CORS-enabled Honua layer, then
-run the same app:
+Paste a public CORS-enabled GeoServices FeatureServer layer or OGC API Features landing-page URL into the visible form.
+The same endpoint can be preconfigured by copying [`.env.example`](../examples/maplibre-quickstart/.env.example):
 
 ```bash
 cp examples/maplibre-quickstart/.env.example examples/maplibre-quickstart/.env
 npm run demo:quickstart
 ```
 
-The required live values are:
+Use the direct endpoint variables:
 
-- `VITE_HONUA_QUICKSTART_BASE_URL`
-- `VITE_HONUA_QUICKSTART_SERVICE_ID`
-- `VITE_HONUA_QUICKSTART_LAYER_ID`
-- `VITE_HONUA_QUICKSTART_DATA_VERSION`
+- `VITE_HONUA_QUICKSTART_ENDPOINT`
+- `VITE_HONUA_QUICKSTART_PROTOCOL` (`auto`, `geoservices-feature-service`, or `ogc-features`)
 
-The filter, bounded record count, basemap style, and optional snapshot timestamp are documented in the
+The former GeoServices base/service/layer composition variables are retired. Provide the complete public endpoint so
+the copied configuration has one unambiguous source identity.
+
+The optional source-native filter, bounded record count, and basemap style are documented in the
 [sample README](../examples/maplibre-quickstart/README.md#secret-free-live-run).
 
 The browser quickstart rejects API keys and bearer tokens because Vite embeds environment values in public JavaScript.
@@ -75,51 +77,42 @@ Use an anonymous endpoint or a server-side proxy/session. Protected server-only 
 
 ## The SDK shape
 
-The sample uses stable subpath imports and the explicitly experimental planner:
+The copyable core is [`src/workflow.ts`](../examples/maplibre-quickstart/src/workflow.ts). It imports only the reviewed
+`@honua/sdk-js` root and `@honua/sdk-js/runtime`, then calls `createHonua()`, `connect`, `inspect`, `explain`, `query`,
+and `mount`. It is the source of truth for both fixture protocols, the source bundle, and the packed SDK build. The page
+shows a copy button for the configured call site; presentation code never creates a second dataset or private plan.
 
-```ts doc-test=compile
-import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset } from "@honua/sdk-js/contract";
-import { HonuaClient } from "@honua/sdk-js/honua";
-import { executeQueryPlan, explainQuery } from "@honua/sdk-js/query-planner";
-
-const client = new HonuaClient({ baseUrl: "https://your-public-honua.example" });
-const metadata = await client.getLayerMetadata("public-service", 0);
-const descriptor = {
-  id: "public-features",
-  protocol: "geoservices-feature-service" as const,
-  locator: { url: "https://your-public-honua.example", serviceId: "public-service", layerId: 0 },
-  capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
-  schema: { fields: metadata.fields },
-};
-const dataset = createDataset({ id: "public-map", client, sources: [descriptor] });
-const source = dataset.source("public-features");
-if (!source) throw new Error("Source resolution failed");
-
-const query = { where: "1=1", outFields: ["*"], returnGeometry: true, pagination: { limit: 25 } };
-const plan = explainQuery({ descriptor, query, sourceVersion: "public-service-2026-07" });
-const execution = await executeQueryPlan(plan, source, { sourceVersion: "public-service-2026-07" });
-console.log(execution.result.features);
-```
-
-Planning is synchronous and side-effect free. Execution validates plan integrity and source context before invoking the
-accepted step. Capability gaps and unsafe fallback bounds throw structured errors; they do not become silent empty maps.
+Planning remains side-effect free. Execution validates plan integrity and source context before invoking the accepted
+step. Capability gaps, ambiguous sources, authentication, overflow, and unsafe fallback bounds remain explicit states;
+they do not become silent empty maps.
 
 ## Requests and validation
 
-A healthy startup performs three Honua requests before the basemap's own assets:
-
-1. `GET /api/v1/admin/capabilities`
-2. `GET /rest/services/{serviceId}/FeatureServer/{layerId}?f=json`
-3. `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query?...`
+Request shape follows the negotiated protocol. Both lanes inspect metadata before executing a bounded plan; the mount
+executes that accepted plan again for the SDK-owned renderer projection. The deterministic browser smoke blocks any
+origin outside its fixture server.
 
 The required CI lane is fixture-only:
 
 ```bash
 npm run demo:quickstart:typecheck
-npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts test/quickstart-linked-exploration.test.ts
+npm run demo:quickstart:test
+npm run demo:quickstart:parity
+npm run demo:quickstart:copyability
 npm run demo:quickstart:build
 npm run test:playwright:quickstart
 ```
+
+The focused browser command runs Chromium in required CI; the release smoke repeats it in Chromium, Firefox, and
+WebKit. Fixture requests are actively blocked if they target an origin outside the loopback harness. Anonymous
+public-network evidence is a separate scheduled lane:
+
+```bash
+HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live
+```
+
+It records source identity, attribution availability, observation/freshness, cache status, degradation, timing, and a
+screenshot. It never runs on pull requests.
 
 See [`quickstart-troubleshooting.md`](./quickstart-troubleshooting.md) for compatibility, discovery, configuration,
 geometry, plan, CORS, and staging diagnostics.

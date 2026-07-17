@@ -11,15 +11,15 @@ PR that added this file. Record the filed PR links on #499.
 
 Every entry below links an example that CI keeps green (issue #499, REQ-004):
 
-- **Example:** `standalone-quickstart` — any public GeoServices endpoint →
-  typed queries → styled MapLibre map. No Honua server, key, or account.
+- **Example:** `maplibre-quickstart` (First Map) — any public GeoServices or OGC Features endpoint →
+  accepted plan → typed bounded query → styled MapLibre map. No account or browser secret.
 - **Hosted walkthrough:**
-  <https://honua-io.github.io/honua-sdk-js/guides/standalone-quickstart.html>
+  <https://honua-io.github.io/honua-sdk-js/guides/quickstart.html>
 - **Committed source:**
-  <https://github.com/honua-io/honua-sdk-js/tree/trunk/examples/standalone-quickstart>
-- **CI gate:** Playwright browser smoke (`npm run test:playwright:standalone`)
-  runs in the PR pipeline; the fixture lane (`npm run demo:standalone:mock`)
-  is deterministic.
+  <https://github.com/honua-io/honua-sdk-js/tree/trunk/examples/maplibre-quickstart>
+- **CI gate:** Playwright browser smoke (`npm run test:playwright:quickstart`)
+  covers Chromium, Firefox, and WebKit; the fixture lane (`npm run demo:quickstart:mock`)
+  is deterministic and externally network-blocked.
 - **Gallery (all examples):**
   <https://honua-io.github.io/honua-sdk-js/gallery.html>
 
@@ -41,7 +41,7 @@ both the awesome-list entry and the official plugin-directory page.**
 Exact line to add:
 
 ```markdown
-- [@honua/sdk-js](https://github.com/honua-io/honua-sdk-js) - Typed multi-protocol data client for MapLibre: query ArcGIS/Esri GeoServices, OGC API, WFS, WMS/WMTS, STAC, OData, and GeoParquet services and mount the results as MapLibre sources, plus an ArcGIS-to-MapLibre migration codemod. [demo](https://honua-io.github.io/honua-sdk-js/guides/standalone-quickstart.html)
+- [@honua/sdk-js](https://github.com/honua-io/honua-sdk-js) - Typed multi-protocol data client for MapLibre: query ArcGIS/Esri GeoServices, OGC API, WFS, WMS/WMTS, STAC, OData, and GeoParquet services and mount the results as MapLibre sources, plus an ArcGIS-to-MapLibre migration codemod. [demo](https://honua-io.github.io/honua-sdk-js/guides/quickstart.html)
 ```
 
 Suggested PR title: `Add @honua/sdk-js to Utility Libraries`

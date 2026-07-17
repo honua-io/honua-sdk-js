@@ -68,6 +68,7 @@ export function validateCatalog(
     sourceRevision?: string;
     receiptRoot?: string;
     verifyCheckout?: boolean;
+    qualificationBootstrapSampleId?: string;
   },
 ): Promise<void>;
 export function effectiveCatalog(

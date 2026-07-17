@@ -287,7 +287,13 @@ export async function validateKit(kit, selection, scripts, options = {}) {
       fail(`${sample.id}: sample kit Playwright script is invalid`);
     }
     safeRelativePath(sample.playwrightFile, `${sample.id}.playwrightFile`);
-    if (scripts[sample.playwrightScript] !== `playwright test ${sample.playwrightFile}`) {
+    const playwrightConfig = sample.playwrightConfig === undefined
+      ? undefined
+      : safeRelativePath(sample.playwrightConfig, `${sample.id}.playwrightConfig`);
+    const expectedPlaywrightCommand = playwrightConfig
+      ? `playwright test --config ${playwrightConfig} ${sample.playwrightFile}`
+      : `playwright test ${sample.playwrightFile}`;
+    if (scripts[sample.playwrightScript] !== expectedPlaywrightCommand) {
       fail(`${sample.id}: sample kit Playwright script does not bind its declared file`);
     }
     if (
@@ -323,6 +329,9 @@ export async function validateKit(kit, selection, scripts, options = {}) {
       await containedRegularFile(root, sourcePath, sample.viteConfig, `${sample.id}.viteConfig`);
       await containedRegularFile(root, sourcePath, sample.tsconfig, `${sample.id}.tsconfig`);
       await containedRegularFile(root, "test/playwright", sample.playwrightFile, `${sample.id}.playwrightFile`);
+      if (playwrightConfig) {
+        await containedRegularFile(root, ".", playwrightConfig, `${sample.id}.playwrightConfig`);
+      }
     }
     if (
       !Array.isArray(sample.sdkEntrypoints) ||
@@ -538,7 +547,7 @@ export class ChildSupervisor {
   }
 }
 
-async function readInputs() {
+async function readInputs(options) {
   const [selection, catalog, kit, packageJson, contract] = await Promise.all([
     readFile(SELECTION_PATH, "utf8").then(JSON.parse),
     readFile(CATALOG_PATH, "utf8").then(JSON.parse),
@@ -546,7 +555,13 @@ async function readInputs() {
     readFile(PACKAGE_PATH, "utf8").then(JSON.parse),
     import("./sample-contract.mjs"),
   ]);
-  await contract.validateCatalog(catalog, packageJson);
+  const qualificationBootstrapSampleId =
+    options.action === "evidence" &&
+    options.gate === undefined &&
+    catalog.samples.some((sample) => sample.id === options.sampleId && sample.track === "golden")
+      ? options.sampleId
+      : undefined;
+  await contract.validateCatalog(catalog, packageJson, { qualificationBootstrapSampleId });
   const expectedSelection = contract.generateCiSelection(catalog);
   await validateSelection(selection, {
     packageScripts: packageJson.scripts,
@@ -3014,7 +3029,7 @@ function printList(samples, json) {
 
 export async function main(argv = process.argv.slice(2)) {
   const options = parseRunnerArgs(argv);
-  const inputs = await readInputs();
+  const inputs = await readInputs(options);
   const samples = selectSamples(inputs.selection, options, new Set(inputs.kit.keys()));
   if (options.sdkMode === "packed") {
     const unsupported = samples.filter((sample) => !inputs.kit.has(sample.id)).map((sample) => sample.id);

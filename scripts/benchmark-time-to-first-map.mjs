@@ -12,7 +12,7 @@
  *   Phase 2 — first map: build the deterministic `maplibre-quickstart`
  *   fixture-lane example against the temp-installed published package (the
  *   bundle resolves `@honua/sdk-js` from the phase-1 install via
- *   `HONUA_QUICKSTART_SDK_DIR`, not repo source), serve it with the mock
+ *   the shared sample kit's packed-SDK mode, not repo source), serve it with the mock
  *   GeoServices server (NO live endpoints), and drive headless Chromium until
  *   the example reports rendered-map-ready (all five journey stages complete
  *   AND a MapLibre canvas is mounted). This is the same signal the CI
@@ -200,7 +200,8 @@ async function measureBrowserFirstMap(projectDir) {
     env: {
       ...process.env,
       ...FIXTURE_BUILD_ENV,
-      HONUA_QUICKSTART_SDK_DIR: path.join(projectDir, "node_modules", "@honua", "sdk-js"),
+      HONUA_SAMPLE_SDK_MODE: "packed",
+      HONUA_SAMPLE_SDK_DIR: path.join(projectDir, "node_modules", "@honua", "sdk-js"),
     },
   });
 

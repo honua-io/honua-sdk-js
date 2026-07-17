@@ -1,5 +1,3 @@
-import type { QuickstartRenderableGeometryType } from "./esri-geojson.js";
-
 export interface QuickstartTelemetryEvent {
   type:
     | "init"
@@ -17,18 +15,26 @@ export interface QuickstartTelemetryEvent {
 }
 
 export interface QuickstartRuntimeState {
-  mode?: "fixture" | "live";
+  mode?: "fixture" | "live" | "public-live";
   baseUrl?: string;
   serviceId?: string;
   layerId?: number;
   featureCount?: number;
   renderableFeatureCount?: number;
-  geometryTypes?: QuickstartRenderableGeometryType[];
+  geometryTypes?: string[];
   serverVersion?: string;
   releaseChannel?: string;
   queryDurationMs?: number;
   sdkVersion?: string;
   dataVersion?: string;
+  sourceProtocol?: string;
+  sourceId?: string;
+  sourceAttribution?: string | null;
+  sourceObservedAt?: string | null;
+  sourceFreshness?: "observed" | "unavailable";
+  cacheStatus?: "bypass" | "hit" | "miss" | "refreshed";
+  degradation?: string[];
+  authorizationMode?: "anonymous";
   planId?: string;
   planFingerprint?: string;
   planPushdown?: "full" | "partial";
@@ -42,13 +48,20 @@ export interface QuickstartRuntimeState {
   linkedExtent?: string | null;
   journeyComplete?: boolean;
   disposed?: boolean;
+  firstMapDurationMs?: number;
+  firstMapBudgetMs?: number;
+  firstMapBudgetMet?: boolean;
+  interactionDurationMs?: number;
+  interactionBudgetMet?: boolean;
+  cleanupDurationMs?: number;
+  cleanupBudgetMet?: boolean;
 }
 
 declare global {
   interface Window {
     __HONUA_QUICKSTART_EVENTS__?: QuickstartTelemetryEvent[];
     __HONUA_QUICKSTART_RUNTIME__?: QuickstartRuntimeState;
-    __HONUA_QUICKSTART_DISPOSE__?: () => void;
+    __HONUA_QUICKSTART_DISPOSE__?: () => Promise<void>;
   }
 }
 

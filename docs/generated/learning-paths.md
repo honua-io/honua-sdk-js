@@ -23,18 +23,18 @@ Open a public GeoServices endpoint and render useful data without an account.
 
 Labels: `fixture` · `public-live`
 
-- Guide: [docs/standalone-quickstart.md](../standalone-quickstart.md)
-- Runnable example: [standalone-quickstart](../../examples/standalone-quickstart)
-- Executable entry: [examples/standalone-quickstart/src/main.ts](../../examples/standalone-quickstart/src/main.ts)
-- Example notes: [examples/standalone-quickstart/README.md](../../examples/standalone-quickstart/README.md)
-- Compile check: `npm run demo:standalone:typecheck`
-- Sample contract: `recipe` · `supported` · `merge`
+- Guide: [docs/quickstart.md](../quickstart.md)
+- Runnable example: [maplibre-quickstart](../../examples/maplibre-quickstart)
+- Executable entry: [examples/maplibre-quickstart/src/workflow.ts](../../examples/maplibre-quickstart/src/workflow.ts)
+- Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
+- Compile check: `npm run demo:quickstart:typecheck`
+- Sample contract: `recipe` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Committed public-response fixture or public Esri endpoint.
-- Freshness: Fixture retrieval metadata or live response time.
-- Catalog degradation: Protocol capability gaps are surfaced without requiring a Honua facade.
-- Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html)
-- Supported API imports: `@honua/sdk-js/esri-compat` (`FeatureLayerCompat`); `@honua/sdk-js/honua` (`HonuaClient`); `@honua/sdk-js/map` (`loadHonuaFeatureServiceGeoJson`)
+- Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
+- Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
+- Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
+- Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html) · [demo.html](https://honua.io/demo.html)
+- Supported API imports: `@honua/sdk-js` (`createHonua`); `@honua/sdk-js/runtime` (`maplibreRenderer`)
 - honua.io journey: `connect-existing-gis`
 
 ### 2. Connect and inspect sources
@@ -82,20 +82,20 @@ Labels: `fixture` · `demo-live` · `authenticated` · `degraded`
 
 Connect, discover, explain, query, and mount one source with linked MapLibre views and visible runtime evidence.
 
-Labels: `fixture` · `demo-live` · `experimental`
+Labels: `fixture` · `public-live`
 
 - Guide: [docs/quickstart.md](../quickstart.md)
 - Runnable example: [maplibre-quickstart](../../examples/maplibre-quickstart)
-- Executable entry: [examples/maplibre-quickstart/src/main.ts](../../examples/maplibre-quickstart/src/main.ts)
+- Executable entry: [examples/maplibre-quickstart/src/workflow.ts](../../examples/maplibre-quickstart/src/workflow.ts)
 - Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
 - Compile check: `npm run demo:quickstart:typecheck`
-- Sample contract: `recipe` · `supported` · `rework`
+- Sample contract: `recipe` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.
-- Freshness: Fixture capture time and data version, or live response observation time.
+- Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
+- Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
 - Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
-- Live sample: [demo.html](https://honua.io/demo.html)
-- Supported API imports: `@honua/sdk-js/contract` (`createDataset`); `@honua/sdk-js/exploration` (`createExplorationContext`); `@honua/sdk-js/honua` (`HonuaClient`); `@honua/sdk-js/query-planner` (`executeQueryPlan`, `explainQuery`)
+- Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html) · [demo.html](https://honua.io/demo.html)
+- Supported API imports: `@honua/sdk-js` (`createHonua`); `@honua/sdk-js/runtime` (`maplibreRenderer`)
 - honua.io journey: `query-map-style`
 
 ### 5. Analyze linked spatial views
