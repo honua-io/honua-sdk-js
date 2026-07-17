@@ -68,6 +68,7 @@ const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
 const MAX_GATE_ARTIFACT_BYTES = 16 * 1024 * 1024;
 const MAX_PACKED_FILES = 6_000;
 const MAX_PACKED_BYTES = 128 * 1024 * 1024;
+const PLAYWRIGHT_EVIDENCE_ROOT = "test/playwright";
 const EVIDENCE_LOCK_OWNER_FORMAT = "honua.sdk.sample-evidence-lock-owner.v1";
 const UUID_V4 = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const evidenceLockStates = new WeakMap();
@@ -883,6 +884,52 @@ async function readGateArtifactJson(absolute, label, minimumMtimeMs) {
   return { ...artifact, value: JSON.parse(artifact.bytes.toString("utf8")) };
 }
 
+function canonicalPlaywrightProjectPath(value, projectRoot, label) {
+  if (typeof value !== "string" || !path.isAbsolute(value) || path.normalize(value) !== value) {
+    fail(`${label} must be an absolute normalized path`);
+  }
+  const relative = path.relative(projectRoot, value).replaceAll(path.sep, "/");
+  return safeRelativePath(relative, label);
+}
+
+export function canonicalizePlaywrightEvidenceReport(report, projectRoot = PROJECT_ROOT) {
+  if (!isPlainRecord(report) || !isPlainRecord(report.config) || !Array.isArray(report.suites)) {
+    fail("Playwright evidence is not a JSON report");
+  }
+  const root = path.resolve(projectRoot);
+  const expectedTestRoot = path.join(root, ...PLAYWRIGHT_EVIDENCE_ROOT.split("/"));
+  if (
+    typeof report.config.rootDir !== "string" ||
+    !path.isAbsolute(report.config.rootDir) ||
+    path.normalize(report.config.rootDir) !== report.config.rootDir ||
+    report.config.rootDir !== expectedTestRoot
+  ) {
+    fail("Playwright evidence root directory binding mismatch");
+  }
+
+  const portable = structuredClone(report);
+  portable.config.rootDir = PLAYWRIGHT_EVIDENCE_ROOT;
+  for (const key of ["configFile", "globalSetup", "globalTeardown"]) {
+    if (typeof portable.config[key] === "string") {
+      portable.config[key] = canonicalPlaywrightProjectPath(portable.config[key], root, `Playwright ${key}`);
+    }
+  }
+  if (Array.isArray(portable.config.projects)) {
+    portable.config.projects = portable.config.projects.map((project, index) => {
+      if (!isPlainRecord(project) || project.testDir !== expectedTestRoot) {
+        fail(`Playwright project ${index} test directory binding mismatch`);
+      }
+      const normalized = { ...project, testDir: PLAYWRIGHT_EVIDENCE_ROOT };
+      if (normalized.outputDir !== undefined) {
+        canonicalPlaywrightProjectPath(normalized.outputDir, root, `Playwright project ${index} outputDir`);
+        delete normalized.outputDir;
+      }
+      return normalized;
+    });
+  }
+  return portable;
+}
+
 async function writeGateReport({
   sample,
   gate,
@@ -909,7 +956,7 @@ async function writeGateReport({
       sourceRevision: revision,
       gate,
       command,
-      playwright: playwright.value,
+      playwright: canonicalizePlaywrightEvidenceReport(playwright.value),
     };
     const reportPath = path.join(artifactRoot, `${gate}.json`);
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, { flag: "wx" });
@@ -2936,6 +2983,7 @@ async function executeEvidence(sample, options, context) {
           sourceSnapshot,
         }));
       }
+      if (playwrightReport) await rm(playwrightReport, { force: true });
       const receipts = [];
       for (const gate of group.gates) {
         const receiptPath = path.join(receiptRoot, `${gate}.v1.json`);

@@ -13,6 +13,7 @@ import {
   acquireSampleEvidenceLock,
   assertCredentialFreeContent,
   beginGateReceiptTransaction,
+  canonicalizePlaywrightEvidenceReport,
   ChildSupervisor,
   commandForSpawn,
   commitGateReceiptTransaction,
@@ -90,6 +91,61 @@ const artifactKinds = {
   fixture: "fixture-probe-report",
   live: "live-evidence-report",
 };
+
+test("Playwright evidence canonicalizes checkout-owned paths before publication", async () => {
+  const projectRoot = await mkdtemp(path.join(os.tmpdir(), "honua-playwright-evidence-"));
+  try {
+    const report = {
+      config: {
+        configFile: path.join(projectRoot, "playwright.sample.config.mjs"),
+        rootDir: path.join(projectRoot, "test/playwright"),
+        globalSetup: null,
+        globalTeardown: null,
+        projects: [
+          {
+            name: "chromium",
+            testDir: path.join(projectRoot, "test/playwright"),
+            outputDir: path.join(projectRoot, ".tmp/playwright-output"),
+          },
+        ],
+      },
+      suites: [],
+    };
+
+    const portable = canonicalizePlaywrightEvidenceReport(report, projectRoot);
+    assert.equal(portable.config.rootDir, "test/playwright");
+    assert.equal(portable.config.configFile, "playwright.sample.config.mjs");
+    assert.equal(portable.config.projects[0].testDir, "test/playwright");
+    assert.equal(Object.hasOwn(portable.config.projects[0], "outputDir"), false);
+    assert.equal(JSON.stringify(portable).includes(projectRoot), false);
+    assert.equal(report.config.rootDir, path.join(projectRoot, "test/playwright"));
+
+    assert.throws(
+      () =>
+        canonicalizePlaywrightEvidenceReport(
+          { ...report, config: { ...report.config, rootDir: path.join(projectRoot, "test/browser") } },
+          projectRoot,
+        ),
+      /root directory binding mismatch/,
+    );
+    assert.throws(
+      () =>
+        canonicalizePlaywrightEvidenceReport(
+          {
+            ...report,
+            config: {
+              ...report.config,
+              projects: [{ ...report.config.projects[0], outputDir: path.join(os.tmpdir(), "outside") }],
+            },
+          },
+          projectRoot,
+        ),
+      /unsafe/,
+    );
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
+});
 
 function structuralReceipt(sampleId, gate, runId, overrides = {}) {
   const runRoot = `samples/evidence/${sampleId}/runs/${runId}`;
