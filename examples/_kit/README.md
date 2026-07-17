@@ -6,8 +6,8 @@ to the exact Vite and TypeScript configs, Playwright test, responsive
 viewports, required workflow selectors, and SDK entrypoints that qualification
 evidence must exercise.
 
-The kit-managed pilots are `migration-workbench`, `service-explorer`, and
-`standalone-quickstart`.
+The kit-managed pilots are `migration-workbench`, `realtime-incident-dashboard`,
+`service-explorer`, and `standalone-quickstart`.
 
 ## Run the pilots
 

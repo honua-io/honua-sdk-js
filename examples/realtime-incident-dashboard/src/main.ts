@@ -32,6 +32,7 @@ import {
   type IncidentRealtimeDiagnostics,
   initialIncidentRealtimeDiagnostics,
   reconcileIncidentDiagnostics,
+  reconcileIncidentReceiptDiagnostics,
 } from "./diagnostics.js";
 import { HONOLULU_CENTER, INCIDENT_LAYER_ID, INCIDENT_SOURCE_ID, INITIAL_INCIDENTS } from "./fixtures.js";
 import { type IncidentMapLoadTarget, createIncidentLifecycle, initializeIncidentMap } from "./lifecycle.js";
@@ -53,6 +54,7 @@ import {
   incidentRecords,
   statusLabel,
 } from "./projection.js";
+import { createIncidentRealtimeResumeContext, createIncidentRealtimeSession } from "./realtime-session.js";
 import {
   createIncidentDashboardTransport,
   readIncidentTransportConfig,
@@ -92,6 +94,7 @@ interface IncidentRuntime {
   simulateConflict(): Promise<void>;
   resetEdit(): Promise<string | null>;
   duplicateLast(): Promise<void>;
+  reorderLast(): Promise<void>;
   staleCursor(): Promise<void>;
   dispose(): void;
 }
@@ -279,7 +282,7 @@ function renderConnection(
   authorityBadge.textContent = formatIncidentAuthorityLabel(authority);
   setText("#stream-cursor", state.cursor ?? "-");
   setText("#stream-sequence", state.lastSequence === undefined ? "-" : String(state.lastSequence));
-  setText("#stream-ignored", String(state.ignoredEventCount));
+  setText("#stream-ignored", String(diagnostics.ignoredEventCount));
   setText("#stream-records", String(Object.keys(state.records).length));
   setText("#stream-tombstones", String(Object.keys(state.tombstones).length));
   setText(
@@ -603,6 +606,7 @@ function neutralizeRuntimeActions(runtime: IncidentRuntime): void {
   runtime.simulateConflict = async () => undefined;
   runtime.resetEdit = async () => null;
   runtime.duplicateLast = async () => undefined;
+  runtime.reorderLast = async () => undefined;
   runtime.staleCursor = async () => undefined;
 }
 
@@ -617,6 +621,7 @@ async function bootstrap(): Promise<void> {
   const staleButton = getElement<HTMLButtonElement>("#mark-stale");
   const refreshButton = getElement<HTMLButtonElement>("#manual-refresh");
   const duplicateButton = getElement<HTMLButtonElement>("#duplicate-event");
+  const reorderButton = getElement<HTMLButtonElement>("#reorder-event");
   const staleCursorButton = getElement<HTMLButtonElement>("#stale-cursor");
   const stageEditButton = getElement<HTMLButtonElement>("#stage-edit");
   const submitEditButton = getElement<HTMLButtonElement>("#submit-edit");
@@ -654,6 +659,7 @@ async function bootstrap(): Promise<void> {
     simulateConflict: async () => undefined,
     resetEdit: async () => null,
     duplicateLast: async () => undefined,
+    reorderLast: async () => undefined,
     staleCursor: async () => undefined,
     dispose: () => undefined,
   };
@@ -1021,6 +1027,11 @@ async function bootstrap(): Promise<void> {
       () => startControl(runScenarioAction(() => incidentTransport.controls.duplicateLast())),
       controlListenerOptions,
     );
+    reorderButton.addEventListener(
+      "click",
+      () => startControl(runScenarioAction(() => incidentTransport.controls.reorderLast())),
+      controlListenerOptions,
+    );
     staleCursorButton.addEventListener(
       "click",
       () => startControl(runScenarioAction(() => incidentTransport.controls.staleCursor())),
@@ -1046,6 +1057,7 @@ async function bootstrap(): Promise<void> {
       staleButton,
       refreshButton,
       duplicateButton,
+      reorderButton,
       staleCursorButton,
     ]) {
       button.disabled = !scenarioControlsEnabled;
@@ -1061,6 +1073,7 @@ async function bootstrap(): Promise<void> {
     };
     runtime.refresh = () => runScenarioAction(() => incidentTransport.controls.refresh());
     runtime.duplicateLast = () => runScenarioAction(() => incidentTransport.controls.duplicateLast());
+    runtime.reorderLast = () => runScenarioAction(() => incidentTransport.controls.reorderLast());
     runtime.staleCursor = () => runScenarioAction(() => incidentTransport.controls.staleCursor());
     runtime.stageEdit = stageEdit;
     runtime.submitEdit = () => submitEdit();
@@ -1077,7 +1090,27 @@ async function bootstrap(): Promise<void> {
       });
     }
 
-    store.connect(incidentTransport.transport, incidentTransport.request);
+    const realtimeSession = await createIncidentRealtimeSession({
+      store,
+      transport: incidentTransport.transport,
+      request: incidentTransport.request,
+      context: createIncidentRealtimeResumeContext(incidentTransport.request, {
+        sourceVersion:
+          lane === "fixture-edit" ? "incident-operations-fixture/v1" : `${resolvedTransportConfig.sourceIdentity}/v1`,
+        schemaVersion: "honua.incident-feature/v1",
+        authorizationScopeFingerprint: lane === "fixture-edit" ? "isolated-fixture-edit" : "anonymous-read",
+      }),
+      onReceipt(receipt) {
+        if (lifecycle.disposed || receipt.outcome === "applied") return;
+        diagnostics = reconcileIncidentReceiptDiagnostics(diagnostics, store.state, receipt);
+        latestAuthority = authorityForLane(store.state, lane);
+        renderConnection(store.state, latestAuthority, diagnostics, lane, incidentTransport.controls.fallbackReason);
+        runtime.ignoredEventCount = diagnostics.ignoredEventCount;
+        runtime.reconciliationOutcome = diagnostics.reconciliationOutcome;
+      },
+    });
+    lifecycle.own(() => realtimeSession.close());
+    realtimeSession.connect();
 
     tableSelection.select([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, SAFE_DEMO_INCIDENT_ID)], {
       replace: true,

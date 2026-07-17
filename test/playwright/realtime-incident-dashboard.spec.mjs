@@ -50,9 +50,22 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await page.getByRole("button", { name: "Replay Duplicate" }).click();
     await expect(page.locator("#stream-ignored")).toHaveText("1");
     await expect(page.locator("#stream-reconciliation")).toContainText("Duplicate");
-    await page.getByRole("button", { name: "Inject Stale Cursor" }).click();
+    await page.getByRole("button", { name: "Deliver Out of Order" }).click();
     await expect(page.locator("#stream-ignored")).toHaveText("2");
-    await expect(page.locator("#stream-reconciliation")).toContainText(/stale/i);
+    await expect(page.locator("#stream-reconciliation")).toContainText("Reordered");
+    await page.getByRole("button", { name: "Inject Stale Cursor" }).click();
+    await expect(page.locator("#connection-status")).toHaveText("Stale");
+    await expect(page.locator("#live-authority")).toHaveText("Read-only");
+    await expect(page.locator("#stream-reconciliation")).toContainText(/replacement snapshot required/i);
+    await expect(page.getByRole("button", { name: "Stage Edit" })).toBeDisabled();
+    await page.getByRole("button", { name: "Resume" }).click();
+    await expect(page.locator("#connection-status")).toHaveText("Stale");
+    await expect(page.locator("#live-authority")).toHaveText("Read-only");
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect(page.locator("#connection-status")).toHaveText("Live");
+    await expect(page.locator("#live-authority")).toHaveText("Authoritative");
+    await expect(page.locator("#stream-reconciliation")).toContainText(/replacement snapshot applied/i);
+    await expect(page.getByRole("button", { name: "Stage Edit" })).toBeEnabled();
 
     await page.locator("#edit-status").selectOption("monitoring");
     await page.locator("#edit-assigned").fill("Exercise Lead");
@@ -133,6 +146,7 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
       expect.arrayContaining([
         "incident-stream",
         "fixture-action-duplicate-event",
+        "fixture-action-reorder-event",
         "fixture-action-stale-cursor",
         "fixture-action-concurrent-edit",
         "fixture-action-edit",
