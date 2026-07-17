@@ -331,6 +331,18 @@ describe("honua-site consumer handoff", () => {
     );
     await expect(validateSiteConsumerHandoff(digestDrift)).rejects.toThrow("artifact byte or digest binding drift");
 
+    const manuallyForkedCard = structuredClone(inputs.handoff);
+    manuallyForkedCard.cards[0].summary = "A manually maintained site-only sample description.";
+    await expect(validateSiteConsumerHandoff(manuallyForkedCard)).rejects.toThrow(
+      "does not match its content-bound projection inputs",
+    );
+
+    const manuallyForkedRoute = structuredClone(inputs.handoff);
+    manuallyForkedRoute.legacyRoutes[0].reason = "A manually maintained site-only route disposition.";
+    await expect(validateSiteConsumerHandoff(manuallyForkedRoute)).rejects.toThrow(
+      "does not match its content-bound projection inputs",
+    );
+
     const missingQualifiedVisual = structuredClone(inputs.matrix);
     const firstMap = missingQualifiedVisual.samples.find((sample) => sample.id === "maplibre-quickstart");
     if (!firstMap) throw new Error("canonical first-map fixture is missing");

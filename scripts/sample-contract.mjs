@@ -3972,27 +3972,7 @@ export async function generateGoldenJourneyVisualEvidence(catalog, qualification
   return visualEvidence;
 }
 
-export async function validateGoldenJourneyVisualEvidence(
-  visualEvidence,
-  catalog,
-  qualificationEvidence,
-) {
-  validateSensitiveMetadata(visualEvidence, "golden journey visual evidence");
-  await validateJsonSchema(visualEvidence, GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH);
-  invariant(
-    JSON.stringify(visualEvidence.policy) === JSON.stringify(goldenVisualPolicy()),
-    "golden journey visual evidence policy drift",
-  );
-  const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
-  invariant(
-    JSON.stringify(
-      visualEvidence.qualifiedGoldenJourneys.map((entry) => [entry.journeyId, entry.sampleId]),
-    ) ===
-      JSON.stringify(
-        qualifiedJourneys.map((journey) => [journey.id, journey.candidateSampleId]),
-      ),
-    "golden journey visual evidence is orphaned, missing, or overstated",
-  );
+function validateGoldenVisualEvidenceEntries(visualEvidence) {
   const now = Date.now();
   const maximumFutureSkewMs = GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS * 1000;
   const maximumWindowMs = GOLDEN_VISUAL_MAX_WINDOW_SECONDS * 1000;
@@ -4005,6 +3985,10 @@ export async function validateGoldenJourneyVisualEvidence(
     const allFreshness = [
       { observedAt: entry.observedAt, expiresAt: entry.expiresAt },
       ...entry.semanticEvidence,
+      {
+        observedAt: entry.liveEvidence.observedAt,
+        expiresAt: entry.liveEvidence.expiresAt,
+      },
     ];
     for (const item of allFreshness) {
       const observedAt = Date.parse(item.observedAt);
@@ -4037,6 +4021,30 @@ export async function validateGoldenJourneyVisualEvidence(
       );
     }
   }
+}
+
+export async function validateGoldenJourneyVisualEvidence(
+  visualEvidence,
+  catalog,
+  qualificationEvidence,
+) {
+  validateSensitiveMetadata(visualEvidence, "golden journey visual evidence");
+  await validateJsonSchema(visualEvidence, GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH);
+  invariant(
+    JSON.stringify(visualEvidence.policy) === JSON.stringify(goldenVisualPolicy()),
+    "golden journey visual evidence policy drift",
+  );
+  const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
+  invariant(
+    JSON.stringify(
+      visualEvidence.qualifiedGoldenJourneys.map((entry) => [entry.journeyId, entry.sampleId]),
+    ) ===
+      JSON.stringify(
+        qualifiedJourneys.map((journey) => [journey.id, journey.candidateSampleId]),
+      ),
+    "golden journey visual evidence is orphaned, missing, or overstated",
+  );
+  validateGoldenVisualEvidenceEntries(visualEvidence);
   const expected = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
   invariant(
     JSON.stringify(visualEvidence) === JSON.stringify(expected),
@@ -5532,6 +5540,7 @@ async function validateSiteConsumerArtifactInput(reference, label) {
     `${label} artifact format or schema version drift`,
   );
   await validateJsonSchema(artifact, reference.schemaPath);
+  return artifact;
 }
 
 export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
@@ -5542,6 +5551,7 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   });
   await validateJsonSchema(handoff, SITE_CONSUMER_HANDOFF_SCHEMA_PATH);
   const { projection, matrix, visualEvidence, catalog, packageJson, supportTruth, qualificationEvidence } = inputs;
+  let contentBoundExpected;
   const authorityInputSupplied = [
     projection,
     matrix,
@@ -5576,9 +5586,16 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
       "site consumer handoff does not match its validated authority inputs",
     );
   } else if (inputs.verifyCheckout !== false) {
+    const artifacts = {};
     for (const [name, reference] of Object.entries(handoff.inputs)) {
-      await validateSiteConsumerArtifactInput(reference, `site consumer ${name}`);
+      artifacts[name] = await validateSiteConsumerArtifactInput(reference, `site consumer ${name}`);
     }
+    validateGoldenVisualEvidenceEntries(artifacts.visualEvidence);
+    contentBoundExpected = generateSiteConsumerHandoff(
+      artifacts.siteProjection,
+      artifacts.capabilityMatrix,
+      artifacts.visualEvidence,
+    );
   }
 
   const cardById = new Map(handoff.cards.map((card) => [card.id, card]));
@@ -5665,6 +5682,12 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
     if (notice.replacement?.kind === "external") {
       validateSiteConsumerExternalUrl(notice.replacement.url, `${notice.sampleId} replacement link`);
     }
+  }
+  if (contentBoundExpected) {
+    invariant(
+      JSON.stringify(handoff) === JSON.stringify(contentBoundExpected),
+      "site consumer handoff does not match its content-bound projection inputs",
+    );
   }
 }
 

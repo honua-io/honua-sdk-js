@@ -351,6 +351,16 @@ describe("sample publication contract", () => {
       "stale or has an invalid freshness window",
     );
 
+    const staleLive = structuredClone(canonical);
+    staleLive.qualifiedGoldenJourneys.push(
+      visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt),
+    );
+    staleLive.qualifiedGoldenJourneys[0].liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
+    staleLive.qualifiedGoldenJourneys[0].liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
+    await expect(validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence)).rejects.toThrow(
+      "stale or has an invalid freshness window",
+    );
+
     const incidentCatalog = structuredClone(catalog);
     const incidentJourney = incidentCatalog.goldenJourneys.find(
       (journey: { id: string }) => journey.id === "incident-operations",
