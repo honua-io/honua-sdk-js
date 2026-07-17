@@ -64,7 +64,16 @@ const SHARED_OPTIONS = {
   target: ["es2020"],
   external: EXTERNAL,
   legalComments: "none",
+  metafile: true,
 };
+
+function assertNoDirectCogRetention(result, label) {
+  const retained = Object.keys(result.metafile.inputs).find((input) => {
+    const normalized = input.replaceAll("\\", "/");
+    return normalized.includes("src/cog/") || normalized.includes("node_modules/geotiff/");
+  });
+  if (retained) throw new Error(`${label} unexpectedly retained the opt-in direct COG graph: ${retained}`);
+}
 
 function formatSize(bytes) {
   return `${(bytes / 1024).toFixed(1)} KiB`;
@@ -76,18 +85,20 @@ async function main() {
   const iifeOut = path.join(OUT_DIR, "honua-sdk.min.js");
   const esmOut = path.join(OUT_DIR, "honua-sdk.esm.js");
 
-  await esbuild.build({
+  const iifeResult = await esbuild.build({
     ...SHARED_OPTIONS,
     format: "iife",
     globalName: GLOBAL_NAME,
     outfile: iifeOut,
   });
 
-  await esbuild.build({
+  const esmResult = await esbuild.build({
     ...SHARED_OPTIONS,
     format: "esm",
     outfile: esmOut,
   });
+  assertNoDirectCogRetention(iifeResult, "Browser IIFE");
+  assertNoDirectCogRetention(esmResult, "Browser ESM");
 
   // Smoke check: the IIFE bundle must declare the global the docs promise.
   const iifeSource = fs.readFileSync(iifeOut, "utf8");

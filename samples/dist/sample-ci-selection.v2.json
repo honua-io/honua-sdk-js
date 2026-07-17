@@ -575,11 +575,13 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": []
+          "commands": [
+            "npm run evidence:cog:live"
+          ]
         }
       },
       "liveEvidence": {
-        "mode": "authenticated",
+        "mode": "public-live",
         "status": "planned"
       }
     },

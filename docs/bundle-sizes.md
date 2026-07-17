@@ -36,6 +36,7 @@ _Generated 2026-07-17 at commit `1f2aa85f`._
 | `/style` | 59.1 KiB | 69.0 KiB | 14.6 KiB | 17.2 KiB |
 | `/map` | 173.3 KiB | 182.2 KiB | 48.8 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 46.9 KiB | 53.6 KiB | 14.8 KiB | 16.8 KiB |
+| `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.0 KiB | 56.1 KiB | 14.6 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 438.5 KiB | 446.7 KiB | 116.0 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
