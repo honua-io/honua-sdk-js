@@ -57,12 +57,18 @@ const MIGRATED_PUBLIC_CLASSES = [
 const codes = Object.keys(HONUA_ERROR_CODE_REGISTRY);
 const runtimeCodes = Object.keys(HONUA_ERROR_RUNTIME_CLASSIFICATIONS);
 const failures = [];
+const errorBaseRuntime = fs.readFileSync(path.join(ROOT, "dist/src/core/error-base.js"), "utf8");
 const errorEnvelopeRuntime = fs.readFileSync(path.join(ROOT, "dist/src/core/error-envelope.js"), "utf8");
 
 if (new Set(codes).size !== codes.length) failures.push("registry contains duplicate codes");
 if (codes.length === 0) failures.push("registry is empty");
 if (errorEnvelopeRuntime.includes("error-code-registry.js")) {
   failures.push("error-envelope runtime depends on the descriptive registry");
+}
+for (const forbiddenModule of ["error-classifications.js", "error-code-registry.js", "error-envelope.js"]) {
+  if (errorBaseRuntime.includes(forbiddenModule)) {
+    failures.push(`error-base runtime depends on ${forbiddenModule}`);
+  }
 }
 if (!Object.isFrozen(HONUA_ERROR_CODE_REGISTRY)) failures.push("registry object is mutable");
 if (!Object.isFrozen(HONUA_ERROR_RUNTIME_CLASSIFICATIONS)) failures.push("runtime classification table is mutable");

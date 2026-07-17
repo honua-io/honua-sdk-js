@@ -299,7 +299,7 @@ function sanitizeCompactValue(
 }
 
 const LEAF_SENSITIVE_KEY =
-  /auth|cookie|credent|passw|secret|token|(api|access).?key|access.?id|signat|cursor|filter|where|query|sql|cql|body|payload|form|parameters?|path|directory|file.*ur[il]|^key$|^sig$/i;
+  /auth|cookie|credent|passw|secret|token|api.?key|access.?(key|id)|signat|cursor|filter|where|query|[sc]ql|body|payload|form|parameters?|path|directory|file.*ur[il]|^key$|^sig$/i;
 
 function leafErrorName(value: unknown, registeredName?: HonuaRegisteredLeafErrorName): string {
   if (registeredName && registeredName !== "HonuaGeometryError" && value === registeredName) return registeredName;
@@ -331,8 +331,7 @@ export function mergeHonuaErrorContext(
         unsafeKeyCount += 1;
         continue;
       }
-      const descriptor = Object.getOwnPropertyDescriptor(context, key);
-      merged[key] = descriptor && "value" in descriptor ? descriptor.value : "[ACCESSOR]";
+      merged[key] = ownDataProperty(context, key, "[ACCESSOR]");
     }
   }
   if (unsafeKeyCount > 0) merged.__redacted_keys__ = unsafeKeyCount;
@@ -392,7 +391,7 @@ const SENSITIVE_KEY =
   /(?:authorization|proxy-authorization|cookie|set-cookie|credential|password|passwd|secret|token|api[-_]?key|access[-_]?key|access[-_]?id|signature|cursor|resume[-_]?token|where|filter|query|sql|cql|body|payload|form|parameters?)/i;
 const STORAGE_LOCATOR_KEY =
   /^(?:local[-_]?storage|storage|cache(?:[-_]?file)?|file|filesystem)[-_]?(?:path|directory|url|uri|location)$/i;
-const URL_KEY = /(?:url|uri|href|endpoint|location)$/i;
+const URL_KEY = /(url|uri|href|endpoint|location)$/i;
 
 function sanitizeRecord(
   value: Readonly<Record<string, unknown>>,
@@ -557,9 +556,9 @@ export function errorNameWithoutGetters(error: Error): string {
   }
 }
 
-const UNSAFE_PROPERTY_KEY = /^(?:__proto__|prototype|constructor)$/;
+const UNSAFE_PROPERTY_KEY = /^(__proto__|prototype|constructor)$/;
 const NATIVE_ERROR_NAME =
-  /^(?:(?:Abort|Aggregate|Connect|Eval|Network|Range|Reference|Syntax|Timeout|Type|URI)?Error|DOMException)$/;
+  /^((Abort|Aggregate|Connect|Eval|Network|Range|Reference|Syntax|Timeout|Type|URI)?Error|DOMException)$/;
 const SAFE_ERROR_NAMES = new Set([
   "AbortError",
   "AggregateError",

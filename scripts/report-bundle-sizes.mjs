@@ -29,11 +29,30 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
 import * as esbuild from "esbuild";
+import {
+  ERROR_LEAF_FORBIDDEN_MODULES,
+  ERROR_TREE_SHAKE_FIXTURES,
+  errorModulePolicyFailures,
+  retainedMetafileContributions,
+  retainedMetafileInputs,
+} from "./lib/error-tree-shake.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const BUDGETS_FILE = path.join(PROJECT_ROOT, "bundle-budgets.json");
 const DOCS_FILE = path.join(PROJECT_ROOT, "docs", "bundle-sizes.md");
+const ERROR_EVIDENCE_FILE = path.join(PROJECT_ROOT, "docs", "error-tree-shaking.md");
+
+export const ERROR_NFR_GZIP_BASELINES = Object.freeze({
+  "/routing": 7_109,
+  "/geocoding": 8_488,
+  "/auth": 8_139,
+  "/realtime": 12_598,
+  "/offline": 12_301,
+  "tree-shake:map-source-workflow": 11_161,
+});
+
+const ERROR_LEAF_TARGET_KEYS = new Set(Object.keys(ERROR_NFR_GZIP_BASELINES));
 
 /**
  * Runtime peers consumers provide themselves. Kept external so measurements
@@ -236,6 +255,17 @@ const TARGETS = [
     entry: "scripts/bundle-size-fixtures/tree-shake-runtime-terra-draw-sketch.mjs",
     label: "tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external)",
   },
+  ...ERROR_TREE_SHAKE_FIXTURES.map((fixture) => ({
+    key: fixture.key,
+    kind: "fixture",
+    entry: fixture.entry,
+    label:
+      fixture.key === "tree-shake:error-leaf"
+        ? "tree-shake guard (representative leaf error + safe JSON projection)"
+        : fixture.key === "tree-shake:error-registry"
+          ? "tree-shake guard (explicit descriptive error registry)"
+          : "tree-shake guard (explicit error serializer, descriptors excluded)",
+  })),
 ];
 
 function loadBudgets() {
@@ -257,28 +287,29 @@ async function measureBundle(entryAbs, extraExternal = [], forbiddenInputs = [])
     external: [...EXTERNAL, ...extraExternal],
     format: "esm",
     entryPoints: [entryAbs],
-    metafile: forbiddenInputs.length > 0,
+    metafile: true,
   });
+  const retainedInputs = retainedMetafileInputs(result.metafile);
   if (forbiddenInputs.length > 0) {
-    const retainedInputs = Object.values(result.metafile.outputs).flatMap((output) =>
-      Object.entries(output.inputs)
-        .filter(([, metadata]) => metadata.bytesInOutput > 0)
-        .map(([input]) => input.replaceAll("\\", "/")),
-    );
     for (const forbiddenInput of forbiddenInputs) {
-      const retained = retainedInputs.find((input) => input.includes(forbiddenInput));
+      const retained = retainedInputs.find((input) => input.replaceAll("\\", "/").includes(forbiddenInput));
       if (retained !== undefined) {
         throw new Error(`Tree-shake fixture ${entryAbs} unexpectedly retained ${retained}`);
       }
     }
   }
   const buffer = Buffer.from(result.outputFiles[0].contents);
-  return { min: buffer.byteLength, gzip: gzipBytes(buffer) };
+  return {
+    min: buffer.byteLength,
+    gzip: gzipBytes(buffer),
+    inputs: retainedInputs,
+    inputContributions: retainedMetafileContributions(result.metafile),
+  };
 }
 
 function measurePrebuilt(entryAbs) {
   const buffer = fs.readFileSync(entryAbs);
-  return { min: buffer.byteLength, gzip: gzipBytes(buffer) };
+  return { min: buffer.byteLength, gzip: gzipBytes(buffer), inputs: [], inputContributions: [] };
 }
 
 async function measureAll() {
@@ -290,10 +321,23 @@ async function measureAll() {
         `Cannot measure "${target.key}": missing ${target.entry}. Run "npm run build" and "npm run build:browser" first.`,
       );
     }
-    measurements[target.key] =
+    const measured =
       target.kind === "prebuilt"
         ? measurePrebuilt(entryAbs)
         : await measureBundle(entryAbs, target.external ?? [], target.forbiddenInputs ?? []);
+    const fixture = ERROR_TREE_SHAKE_FIXTURES.find(({ key }) => key === target.key);
+    const requiredModules =
+      fixture?.requiredModules ?? (ERROR_LEAF_TARGET_KEYS.has(target.key) ? ["dist/src/core/error-base.js"] : []);
+    const forbiddenModules =
+      fixture?.forbiddenModules ?? (ERROR_LEAF_TARGET_KEYS.has(target.key) ? ERROR_LEAF_FORBIDDEN_MODULES : []);
+    const policy = errorModulePolicyFailures(target.key, measured.inputs, requiredModules, forbiddenModules);
+    if (policy.failures.length > 0) throw new Error(policy.failures.join("\n"));
+    measurements[target.key] = {
+      min: measured.min,
+      gzip: measured.gzip,
+      errorModules: policy.retained.filter((module) => module.includes("/core/error-")),
+      inputContributions: measured.inputContributions,
+    };
   }
   return measurements;
 }
@@ -324,6 +368,25 @@ export function evaluateBudgets(measurements, budgets) {
     }
   }
   return { rows, failures, missingBudget };
+}
+
+/** Pure #583 comparison: every named target must be at least 25% below its admitted #524 baseline. */
+export function evaluateErrorNfrReductions(measurements, baselines = ERROR_NFR_GZIP_BASELINES) {
+  const rows = [];
+  const failures = [];
+  for (const [key, baseline] of Object.entries(baselines)) {
+    const measured = measurements[key];
+    if (!measured) {
+      failures.push({ key, reason: "missing measurement" });
+      continue;
+    }
+    const ceiling = Math.floor(baseline * 0.75);
+    const reduction = (baseline - measured.gzip) / baseline;
+    const row = { key, baseline, measured: measured.gzip, ceiling, reduction };
+    rows.push(row);
+    if (measured.gzip > ceiling) failures.push(row);
+  }
+  return { rows, failures };
 }
 
 function formatKiB(bytes) {
@@ -379,6 +442,58 @@ function renderDoc(rows) {
   return `${lines.join("\n")}`;
 }
 
+function renderErrorEvidence(measurements, nfrRows) {
+  const lines = [
+    "<!-- GENERATED FILE — do not edit by hand. -->",
+    "<!-- Regenerate with: npm run report:bundle-sizes -->",
+    "",
+    "# Error tree-shaking evidence",
+    "",
+    "Deterministic #583 evidence from the same esbuild configuration used by the bundle-budget gate.",
+    "The contractual ceiling is the integer floor of 75% of each admitted #524 gzip baseline.",
+    "",
+    "| Target | #524 baseline | Current gzip | Reduction | 25% ceiling | Status | Retained error modules |",
+    "| --- | ---: | ---: | ---: | ---: | --- | --- |",
+  ];
+  for (const row of nfrRows) {
+    const modules = measurements[row.key].errorModules.map((module) => `\`${module}\``).join("<br>") || "None";
+    lines.push(
+      `| \`${row.key}\` | ${row.baseline} B | ${row.measured} B | ${(row.reduction * 100).toFixed(2)}% | ${row.ceiling} B | ${row.measured <= row.ceiling ? "Pass" : `Variance (+${row.measured - row.ceiling} B)`} | ${modules} |`,
+    );
+  }
+  lines.push("", "## Explicit import fixtures", "");
+  lines.push("| Fixture | Min | Gzip | Retained error modules |");
+  lines.push("| --- | ---: | ---: | --- |");
+  for (const { key } of ERROR_TREE_SHAKE_FIXTURES) {
+    const measured = measurements[key];
+    const modules = measured.errorModules.map((module) => `\`${module}\``).join("<br>") || "None";
+    lines.push(`| \`${key}\` | ${measured.min} B | ${measured.gzip} B | ${modules} |`);
+  }
+  lines.push(
+    "",
+    "The leaf fixture imports only `@honua/sdk-js/realtime`; it must retain `error-base.js` and exclude the",
+    "complete runtime-classification table, descriptive registry, and explicit serializer module. The registry",
+    "fixture intentionally retains descriptors. The serializer fixture retains compact classifications but excludes",
+    "human-readable descriptors. Fixture sources use public package specifiers and are also bundled from the packed",
+    "tarball by `npm run verify:packed-sdk`.",
+    "",
+  );
+  lines.push("## Map workflow retained-input attribution", "");
+  lines.push(
+    "Exact esbuild metafile attribution for the map source workflow, sorted by each retained input's bytes in the",
+    "minified output. This makes any NFR variance reviewable without removing plan-integrity or credential-admission",
+    "logic.",
+    "",
+    "| Retained input | Bytes in minified output |",
+    "| --- | ---: |",
+  );
+  for (const contribution of measurements["tree-shake:map-source-workflow"].inputContributions) {
+    lines.push(`| \`${contribution.module}\` | ${contribution.bytes} B |`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
 function printFailureTable(failures) {
   process.stderr.write("\nBundle-size budget EXCEEDED:\n\n");
   process.stderr.write("| Entrypoint | Metric | Measured | Budget | Delta |\n");
@@ -406,6 +521,8 @@ async function main() {
   const budgets = loadBudgets();
   const measurements = await measureAll();
   const { rows, failures, missingBudget } = evaluateBudgets(measurements, budgets);
+  const errorNfr = evaluateErrorNfrReductions(measurements);
+  const errorEvidence = renderErrorEvidence(measurements, errorNfr.rows);
 
   if (missingBudget.length > 0) {
     process.stderr.write(`No budget declared for: ${missingBudget.join(", ")} (add them to bundle-budgets.json).\n`);
@@ -425,15 +542,33 @@ async function main() {
   if (!checkOnly) {
     fs.mkdirSync(path.dirname(DOCS_FILE), { recursive: true });
     fs.writeFileSync(DOCS_FILE, renderDoc(rows));
-    process.stdout.write(`\nWrote ${path.relative(PROJECT_ROOT, DOCS_FILE)}\n`);
+    fs.writeFileSync(ERROR_EVIDENCE_FILE, errorEvidence);
+    process.stdout.write(
+      `\nWrote ${path.relative(PROJECT_ROOT, DOCS_FILE)} and ${path.relative(PROJECT_ROOT, ERROR_EVIDENCE_FILE)}\n`,
+    );
+  } else if (!fs.existsSync(ERROR_EVIDENCE_FILE) || fs.readFileSync(ERROR_EVIDENCE_FILE, "utf8") !== errorEvidence) {
+    process.stderr.write(
+      `${path.relative(PROJECT_ROOT, ERROR_EVIDENCE_FILE)} is stale; run "npm run report:bundle-sizes".\n`,
+    );
+    process.exitCode = 1;
+  }
+
+  if (errorNfr.failures.length > 0) {
+    process.stderr.write("\nError tree-shaking NFR FAILED:\n");
+    for (const failure of errorNfr.failures) {
+      process.stderr.write(
+        `  ${failure.key}: ${failure.reason ?? `${failure.measured} B gzip exceeds ${failure.ceiling} B`}\n`,
+      );
+    }
+    process.exitCode = 1;
   }
 
   if (failures.length > 0) {
     printFailureTable(failures);
-    process.exit(1);
+    process.exitCode = 1;
   }
 
-  process.stdout.write("\nAll entrypoints within budget.\n");
+  if (process.exitCode !== 1) process.stdout.write("\nAll entrypoints within budget.\n");
 }
 
 const invokedDirectly = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;

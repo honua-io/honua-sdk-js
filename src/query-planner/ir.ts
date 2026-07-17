@@ -1,4 +1,5 @@
 import type { AggregationSpec, Query, SourceDescriptor } from "../contract/types.js";
+import { removeUndefined } from "../core/remove-undefined.js";
 import { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
 import { parseGeoParquetResourceHandle } from "./resource.js";
 import {
@@ -101,11 +102,11 @@ export function queryFromCanonical<T>(query: CanonicalQuery, signal?: AbortSigna
     ...(query.where ? { where: query.where.expression } : {}),
     ...(query.spatialFilter
       ? {
-          spatialFilter: {
+          spatialFilter: removeUndefined({
             geometry: query.spatialFilter.geometry as Record<string, unknown>,
             geometryType: query.spatialFilter.geometryType,
-            ...(query.spatialFilter.spatialRel ? { spatialRel: query.spatialFilter.spatialRel } : {}),
-          },
+            spatialRel: query.spatialFilter.spatialRel,
+          }),
         }
       : {}),
     ...(query.outFields ? { outFields: query.outFields } : {}),
@@ -118,9 +119,39 @@ export function queryFromCanonical<T>(query: CanonicalQuery, signal?: AbortSigna
   };
 }
 
+/** @internal Rebuild the feature-only query shape accepted by focused renderer workflows. */
+export function featureQueryFromCanonical<T>(query: CanonicalQuery, signal: AbortSignal): Query<T> {
+  return removeUndefined({
+    where: query.where?.expression,
+    ...(query.spatialFilter
+      ? {
+          spatialFilter: {
+            geometry: query.spatialFilter.geometry as Record<string, unknown>,
+            geometryType: query.spatialFilter.geometryType,
+            ...(query.spatialFilter.spatialRel ? { spatialRel: query.spatialFilter.spatialRel } : {}),
+          },
+        }
+      : {}),
+    outFields: query.outFields,
+    orderBy: query.orderBy,
+    pagination: query.pagination,
+    returnGeometry: query.returnGeometry,
+    outSr: query.outSr,
+    signal,
+  }) as Query<T>;
+}
+
 export function queryIrSourceIdentity(
   descriptor: SourceDescriptor,
   context: Pick<ExplainQueryOptions, "authorizationScope" | "schemaVersion" | "sourceVersion"> = {},
+): QueryIrSourceIdentity {
+  return deepFreeze(queryIrSourceIdentitySnapshot(descriptor, context));
+}
+
+/** @internal Build a transient identity for comparison without retaining the recursive freezer. */
+export function queryIrSourceIdentitySnapshot(
+  descriptor: SourceDescriptor,
+  context: Pick<ExplainQueryOptions, "authorizationScope" | "schemaVersion" | "sourceVersion">,
 ): QueryIrSourceIdentity {
   const authorizationScope = [...new Set(context.authorizationScope ?? [])].sort();
   if (authorizationScope.some((scope) => !isStableAuthorizationScope(scope))) {
@@ -131,23 +162,23 @@ export function queryIrSourceIdentity(
     descriptor.protocol === "geoparquet" ? geoparquetIdentity(descriptor, geometryProperty) : undefined;
   const schemaVersion = optionalPlanMetadata(context.schemaVersion, "schema version");
   const sourceVersion = optionalPlanMetadata(context.sourceVersion, "source version");
-  return deepFreeze({
+  return removeUndefined({
     id: descriptor.id,
     protocol: descriptor.protocol,
     endpoint: credentialFreeEndpoint(descriptor.locator.url),
-    ...(descriptor.locator.serviceId !== undefined ? { serviceId: descriptor.locator.serviceId } : {}),
-    ...(descriptor.locator.layerId !== undefined ? { layerId: descriptor.locator.layerId } : {}),
-    ...(descriptor.locator.collectionId !== undefined ? { collectionId: descriptor.locator.collectionId } : {}),
-    ...(descriptor.locator.typeName !== undefined ? { typeName: descriptor.locator.typeName } : {}),
-    ...(descriptor.locator.entitySet !== undefined ? { entitySet: descriptor.locator.entitySet } : {}),
-    ...(geometryProperty ? { geometryProperty } : {}),
-    ...(descriptor.locator.srsName !== undefined ? { srsName: String(descriptor.locator.srsName) } : {}),
-    ...(schemaVersion ? { schemaVersion } : {}),
-    ...(sourceVersion ? { sourceVersion } : {}),
-    ...(geoparquet ? { geoparquet } : {}),
+    serviceId: descriptor.locator.serviceId,
+    layerId: descriptor.locator.layerId,
+    collectionId: descriptor.locator.collectionId,
+    typeName: descriptor.locator.typeName,
+    entitySet: descriptor.locator.entitySet,
+    geometryProperty,
+    srsName: descriptor.locator.srsName === undefined ? undefined : String(descriptor.locator.srsName),
+    schemaVersion,
+    sourceVersion,
+    geoparquet,
     authorizationScope,
     capabilities: [...descriptor.capabilities].sort(),
-  });
+  }) as QueryIrSourceIdentity;
 }
 
 /** Rebuild the exact credential-free source identity used by a GeoParquet v2 plan. */
@@ -217,16 +248,15 @@ function optionalPlanMetadata(value: unknown, label: string): string | undefined
 const CREDENTIAL_MATERIAL =
   /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\bBasic\s+[A-Za-z0-9+/=]{8,}|\bAKIA[0-9A-Z]{16}\b|[?&;](?:access[-_]?token|id[-_]?token|refresh[-_]?token|x-amz-signature|x-goog-credential|signature|sig|token|api[-_]?key|password|secret)=[^\s&#;]*|\b(?:authorization|password|secret|token|api[-_]?key|account[-_]?key|shared[-_]?access[-_]?signature)\s*(?:=|:)\s*[^\s,;]+|[a-z][a-z0-9+.-]*:\/\/[^/\s"'<>]*@|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
 
-function containsCredentialMaterial(value: string): boolean {
+/** @internal Shared credential-material admission guard for focused plan boundaries. */
+export function containsCredentialMaterial(value: string): boolean {
   return CREDENTIAL_MATERIAL.test(value);
 }
 
-function containsControlCharacter(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code <= 0x1f || code === 0x7f) return true;
-  }
-  return false;
+/** @internal Shared control-character admission guard for focused plan boundaries. */
+export function containsControlCharacter(value: string): boolean {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: This trust boundary intentionally rejects ASCII controls.
+  return /[\u0000-\u001f\u007f]/.test(value);
 }
 
 function isStableAuthorizationScope(value: unknown): value is string {
@@ -267,12 +297,12 @@ function geoparquetIdentity(
   if (typeof url === "string" && url.length > 0) sources.push(url);
   if (geoparquet?.urls) sources.push(...geoparquet.urls);
   const geometryColumn = geoparquet?.geometryColumn ?? geometryProperty;
-  return {
+  return removeUndefined({
     sources,
-    ...(geometryColumn ? { geometryColumn } : {}),
-    ...(geoparquet?.geometryEncoding ? { geometryEncoding: geoparquet.geometryEncoding } : {}),
-    ...(geoparquet?.bboxColumn ? { bboxColumn: geoparquet.bboxColumn } : {}),
-  };
+    geometryColumn,
+    geometryEncoding: geoparquet?.geometryEncoding,
+    bboxColumn: geoparquet?.bboxColumn,
+  }) as QueryIrSourceIdentity["geoparquet"];
 }
 
 function canonicalizeAggregation(aggregation: AggregationSpec): AggregationSpec {
@@ -311,89 +341,23 @@ function asJsonObject(value: unknown, path: string): { readonly [key: string]: J
 }
 
 function credentialFreeEndpoint(rawUrl: string): string {
-  const invalidEndpoint = "[invalid-endpoint]";
   try {
     const parsed = new URL(rawUrl);
-    if (!parsed.username && !parsed.password && hasOpaqueSchemeUserInfo(rawUrl)) return invalidEndpoint;
-    parsed.username = "";
-    parsed.password = "";
-    parsed.search = "";
-    parsed.hash = "";
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: This trust boundary intentionally rejects ASCII controls.
+    if (!parsed.username && !parsed.password && /^[A-Za-z][A-Za-z0-9+.-]*:[^/\u0000-\u0020?#@]*@/.test(rawUrl)) {
+      return "[invalid-endpoint]";
+    }
+    parsed.username = parsed.password = parsed.search = parsed.hash = "";
     return parsed.toString().replace(/\/$/, "");
   } catch {
     const path = rawUrl.split(/[?#]/, 1)[0] ?? rawUrl;
-    const malformedAuthority = hasSchemeAuthorityPrefix(rawUrl) || startsWithDoubleSlash(rawUrl);
-    const bareUserInfo = hasBareUserInfo(rawUrl);
-    let unsafeCharacters = false;
-    for (const character of rawUrl) {
-      const codePoint = character.codePointAt(0)!;
-      if (codePoint <= 0x20 || codePoint === 0x7f || character.trim() === "") {
-        unsafeCharacters = true;
-        break;
-      }
-    }
-    return malformedAuthority || bareUserInfo || unsafeCharacters ? invalidEndpoint : path;
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: This trust boundary intentionally rejects ASCII controls.
+    return /(?:^(?:(?:[A-Za-z][A-Za-z0-9+.-]*:)?[\\/]{2}|[^\\/\u0000-\u0020?#:]+:[^\\/\u0000-\u0020?#@]*@)|[\s\u0000-\u001f\u007f])/u.test(
+      rawUrl,
+    )
+      ? "[invalid-endpoint]"
+      : path;
   }
-}
-
-function hasSchemeAuthorityPrefix(value: string): boolean {
-  const colon = value.indexOf(":");
-  if (colon < 1 || !asciiAlpha(value.charCodeAt(0))) return false;
-  for (let index = 1; index < colon; index += 1) {
-    const code = value.charCodeAt(index);
-    if (!(asciiAlpha(code) || (code >= 48 && code <= 57) || code === 43 || code === 45 || code === 46)) {
-      return false;
-    }
-  }
-  return isSlash(value.charCodeAt(colon + 1)) && isSlash(value.charCodeAt(colon + 2));
-}
-
-function startsWithDoubleSlash(value: string): boolean {
-  return isSlash(value.charCodeAt(0)) && isSlash(value.charCodeAt(1));
-}
-
-function hasOpaqueSchemeUserInfo(value: string): boolean {
-  const colon = value.indexOf(":");
-  if (colon < 1 || !asciiAlpha(value.charCodeAt(0))) return false;
-  for (let index = 1; index < colon; index += 1) {
-    const code = value.charCodeAt(index);
-    if (!(asciiAlpha(code) || (code >= 48 && code <= 57) || code === 43 || code === 45 || code === 46)) {
-      return false;
-    }
-  }
-  for (let index = colon + 1; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code === 64) return true;
-    if (endpointDelimiter(code, false)) return false;
-  }
-  return false;
-}
-
-function hasBareUserInfo(value: string): boolean {
-  let colon = -1;
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (endpointDelimiter(code, true)) return false;
-    if (code === 58 && colon === -1) {
-      if (index === 0) return false;
-      colon = index;
-    } else if (code === 64) {
-      return colon !== -1;
-    }
-  }
-  return false;
-}
-
-function endpointDelimiter(code: number, backslash: boolean): boolean {
-  return code <= 32 || code === 47 || code === 63 || code === 35 || (backslash && code === 92);
-}
-
-function asciiAlpha(code: number): boolean {
-  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
-}
-
-function isSlash(code: number): boolean {
-  return code === 47 || code === 92;
 }
 
 export function deepFreeze<T>(value: T): T {

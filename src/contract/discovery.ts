@@ -7,6 +7,7 @@
  */
 
 import { HonuaDiscoveryError } from "../core/errors.js";
+import { tryNormalizeDiscoveryEndpoint } from "./discovery-endpoint.js";
 import { sourceSchemaV2EnvelopeFingerprint } from "./schema-envelope.js";
 
 /** Default adapter implementation version included in every discovery cache identity. */
@@ -377,55 +378,16 @@ export interface DiscoveryCacheIdentity {
   readonly key: string;
 }
 
-const CREDENTIAL_ENDPOINT_PARAMETERS = new Set([
-  "access_token",
-  "api_key",
-  "apikey",
-  "authorization",
-  "bearer",
-  "client_secret",
-  "code",
-  "id_token",
-  "jwt",
-  "password",
-  "passwd",
-  "refresh_token",
-  "secret",
-  "session",
-  "session_id",
-  "sessionid",
-  "sig",
-  "signature",
-  "token",
-]);
-
-const AMBIGUOUS_CREDENTIAL_ENDPOINT_PARAMETERS = new Set([
-  "api-key",
-  "api_key",
-  "apikey",
-  "auth",
-  "code",
-  "credential",
-  "key",
-  "ocp-apim-subscription-key",
-  "secret",
-  "session",
-  "session_id",
-  "sessionid",
-  "subscription-key",
-  "subscription_key",
-]);
-
 /** Normalize an endpoint for discovery identity without retaining credentials. */
 export function normalizeDiscoveryEndpoint(
   endpoint: string | URL,
   options: { readonly transientQueryParameters?: readonly string[] } = {},
 ): string {
-  const callerTransient = new Set((options.transientQueryParameters ?? []).map((value) => value.toLowerCase()));
-  return normalizeEndpoint(endpoint, (key) => {
-    const normalized = key.toLowerCase();
-    return isCredentialEndpointParameter(normalized) || callerTransient.has(normalized);
-  });
+  const normalized = tryNormalizeDiscoveryEndpoint(endpoint, options.transientQueryParameters);
+  if (normalized === undefined) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "Discovery endpoints must be absolute URLs.");
+  }
+  return normalized;
 }
 
 /**
@@ -454,14 +416,10 @@ export async function createDiscoveryCacheIdentity(
     });
   }
   const endpoint = normalizeDiscoveryEndpoint(options.endpoint, options);
-  const callerTransient = new Set((options.transientQueryParameters ?? []).map((value) => value.toLowerCase()));
-  const identityEndpoint = normalizeEndpoint(options.endpoint, (key) => {
-    const normalized = key.toLowerCase();
-    return (
-      (isCredentialEndpointParameter(normalized) && !AMBIGUOUS_CREDENTIAL_ENDPOINT_PARAMETERS.has(normalized)) ||
-      callerTransient.has(normalized)
-    );
-  });
+  const identityEndpoint = tryNormalizeDiscoveryEndpoint(options.endpoint, options.transientQueryParameters, true);
+  if (identityEndpoint === undefined) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "Discovery endpoints must be absolute URLs.");
+  }
   const [endpointDigest, authorizationScopeDigest] = await Promise.all([
     sha256(identityEndpoint),
     sha256(`honua-discovery-scope:v1:${authorizationScopeFingerprint}`),
@@ -780,62 +738,6 @@ function requiredIdentity(value: string, name: string): string {
     });
   }
   return normalized;
-}
-
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function isCredentialEndpointParameter(normalized: string): boolean {
-  return (
-    CREDENTIAL_ENDPOINT_PARAMETERS.has(normalized) ||
-    AMBIGUOUS_CREDENTIAL_ENDPOINT_PARAMETERS.has(normalized) ||
-    normalized.startsWith("x-amz-") ||
-    normalized.startsWith("x-goog-")
-  );
-}
-
-const AZURE_SAS_PARAMETER =
-  /^(?:rscc|rscd|rsce|rscl|rsct|saoid|scid|sdd|se|ses|sig|sip|si|ske|skoid|sks|skt|sktid|skv|sp|spr|sr|srt|ss|st|suoid|sv)$/;
-const CLOUDFRONT_SIGNED_URL_PARAMETER = /^(?:expires|key-pair-id|policy|signature)$/;
-const AWS_V2_SIGNED_URL_PARAMETER = /^(?:awsaccesskeyid|expires|securitytoken|signature)$/;
-const GCS_V2_SIGNED_URL_PARAMETER = /^(?:expires|googleaccessid|signature)$/;
-
-function signedUrlTransientParameter(parameters: URLSearchParams): (name: string) => boolean {
-  const names = new Set([...parameters.keys()].map((name) => name.toLowerCase()));
-  const azure = names.has("sig") && [...names].some((name) => name !== "sig" && AZURE_SAS_PARAMETER.test(name));
-  const signedV2 = names.has("signature");
-  const cloudFront = signedV2 && names.has("key-pair-id");
-  const aws = signedV2 && names.has("awsaccesskeyid");
-  const gcs = signedV2 && names.has("googleaccessid");
-  return (name) =>
-    (azure && AZURE_SAS_PARAMETER.test(name)) ||
-    (cloudFront && CLOUDFRONT_SIGNED_URL_PARAMETER.test(name)) ||
-    (aws && AWS_V2_SIGNED_URL_PARAMETER.test(name)) ||
-    (gcs && GCS_V2_SIGNED_URL_PARAMETER.test(name));
-}
-
-function normalizeEndpoint(endpoint: string | URL, omit: (key: string) => boolean): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(endpoint.toString());
-  } catch {
-    throw new HonuaDiscoveryError("invalid-endpoint", "Discovery endpoints must be absolute URLs.");
-  }
-  parsed.username = "";
-  parsed.password = "";
-  parsed.hash = "";
-  const isSignedUrlTransient = signedUrlTransientParameter(parsed.searchParams);
-  const retained = [...parsed.searchParams.entries()]
-    .filter(([key]) => !omit(key) && !isSignedUrlTransient(key.toLowerCase()))
-    .sort(([leftKey, leftValue], [rightKey, rightValue]) =>
-      leftKey === rightKey ? compareText(leftValue, rightValue) : compareText(leftKey, rightKey),
-    );
-  parsed.search = "";
-  for (const [key, value] of retained) parsed.searchParams.append(key, value);
-  while (parsed.pathname.length > 1 && parsed.pathname.endsWith("/")) parsed.pathname = parsed.pathname.slice(0, -1);
-  const normalized = parsed.toString();
-  return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
 }
 
 async function sha256(value: string): Promise<`sha256:${string}`> {

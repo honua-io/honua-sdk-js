@@ -7,7 +7,6 @@
  */
 
 import type { HonuaTypedFeature } from "../core/types.js";
-import { esriGeometryToGeoJson } from "./feature-service-adapter.js";
 import type {
   AdapterGeoJsonFeature,
   AdapterGeoJsonFeatureCollection,
@@ -45,13 +44,36 @@ export function toGeoJsonGeometry(geometry: unknown): AdapterGeoJsonGeometry | n
   if (isGeoJsonGeometryType(record.type) && "coordinates" in record) {
     return { type: record.type, coordinates: record.coordinates };
   }
-  if (Array.isArray(record.points)) return esriGeometryToGeoJson(record, "esriGeometryMultipoint");
-  if (Array.isArray(record.paths)) return esriGeometryToGeoJson(record, "esriGeometryPolyline");
-  if (Array.isArray(record.rings)) return esriGeometryToGeoJson(record, "esriGeometryPolygon");
-  if ("xmin" in record && "ymin" in record && "xmax" in record && "ymax" in record) {
-    return esriGeometryToGeoJson(record, "esriGeometryEnvelope");
+  if (Array.isArray(record.points)) return { type: "MultiPoint", coordinates: coordinateArray(record.points) };
+  if (Array.isArray(record.paths)) {
+    const paths = record.paths.map(coordinateArray).filter(nonEmpty);
+    return {
+      type: paths.length === 1 ? "LineString" : "MultiLineString",
+      coordinates: paths.length === 1 ? paths[0] : paths,
+    };
   }
-  return esriGeometryToGeoJson(record, "esriGeometryPoint");
+  if (Array.isArray(record.rings)) {
+    return { type: "Polygon", coordinates: record.rings.map(coordinateArray).filter(nonEmpty) };
+  }
+  if ("xmin" in record && "ymin" in record && "xmax" in record && "ymax" in record) {
+    const bounds = [record.xmin, record.ymin, record.xmax, record.ymax];
+    if (bounds.some((value) => typeof value !== "number" || !Number.isFinite(value))) return null;
+    const [xmin, ymin, xmax, ymax] = bounds as number[];
+    return {
+      type: "Polygon",
+      coordinates: [
+        [
+          [xmin, ymin],
+          [xmax, ymin],
+          [xmax, ymax],
+          [xmin, ymax],
+          [xmin, ymin],
+        ],
+      ],
+    };
+  }
+  const point = coordinatePair([record.x, record.y]);
+  return point ? { type: "Point", coordinates: point } : null;
 }
 
 /** Distinct geometry kinds present in a feature array, in point→line→polygon order. */
@@ -59,30 +81,33 @@ export function geometryKinds(features: readonly AdapterGeoJsonFeature[]): MapLi
   const kinds = new Set<MapLibreGeometryKind>();
   for (const feature of features) {
     const kind = geometryKind(feature.geometry);
-    if (kind) kinds.add(kind);
+    kind && kinds.add(kind);
   }
-  const order: readonly MapLibreGeometryKind[] = ["point", "line", "polygon"];
-  return order.filter((kind) => kinds.has(kind));
+  return (["point", "line", "polygon"] as const).filter((kind) => kinds.has(kind));
 }
 
 /** Classify one GeoJSON geometry into a coarse layer kind. */
 export function geometryKind(geometry: AdapterGeoJsonGeometry | null): MapLibreGeometryKind | undefined {
-  const type = geometry?.type;
-  if (type === "Point" || type === "MultiPoint") return "point";
-  if (type === "LineString" || type === "MultiLineString") return "line";
-  if (type === "Polygon" || type === "MultiPolygon") return "polygon";
-  return undefined;
+  return geometryTypeKind(geometry?.type);
 }
 
 export function isGeoJsonGeometryType(value: unknown): value is AdapterGeoJsonGeometry["type"] {
-  return (
-    value === "Point" ||
-    value === "MultiPoint" ||
-    value === "LineString" ||
-    value === "MultiLineString" ||
-    value === "Polygon" ||
-    value === "MultiPolygon"
-  );
+  return geometryTypeKind(value) !== undefined;
+}
+
+const GEOJSON_GEOMETRY_KINDS = {
+  Point: "point",
+  MultiPoint: "point",
+  LineString: "line",
+  MultiLineString: "line",
+  Polygon: "polygon",
+  MultiPolygon: "polygon",
+} as const;
+
+function geometryTypeKind(value: unknown): MapLibreGeometryKind | undefined {
+  if (typeof value !== "string") return undefined;
+  const kind = GEOJSON_GEOMETRY_KINDS[value as keyof typeof GEOJSON_GEOMETRY_KINDS];
+  return typeof kind === "string" ? kind : undefined;
 }
 
 /** Geometry-appropriate default paint shared by the source adapters. */
@@ -113,19 +138,28 @@ export function mapLibreGeometryType(kind: MapLibreGeometryKind): "Point" | "Lin
 
 /** Normalize an arbitrary descriptor id into a safe MapLibre source id fragment. */
 export function safeId(value: string): string {
-  const normalized = value.toLowerCase().replaceAll(/[^a-z0-9_-]+/g, "-");
-  let start = 0;
-  let end = normalized.length;
-  while (start < end && normalized[start] === "-") start += 1;
-  while (end > start && normalized[end - 1] === "-") end -= 1;
-  const id = normalized.slice(start, end);
+  const id = value
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   return id || "source";
-}
-
-export function removeUndefined(value: Record<string, unknown>): void {
-  for (const key of Object.keys(value)) if (value[key] === undefined) delete value[key];
 }
 
 function asAttributes(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? { ...(value as Record<string, unknown>) } : {};
+}
+
+function coordinatePair(value: unknown): [number, number] | undefined {
+  if (!Array.isArray(value) || !Number.isFinite(value[0]) || !Number.isFinite(value[1])) return undefined;
+  return [value[0] as number, value[1] as number];
+}
+
+function coordinateArray(value: unknown): [number, number][] {
+  return (Array.isArray(value) ? value : [])
+    .map(coordinatePair)
+    .filter((pair): pair is [number, number] => pair !== undefined);
+}
+
+function nonEmpty(value: readonly unknown[]): boolean {
+  return value.length > 0;
 }

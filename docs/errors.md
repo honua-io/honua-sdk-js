@@ -103,6 +103,28 @@ human-readable registry summaries remain in the explicit public registry.
 `npm run check:error-codes` verifies exact classification parity, registry shape,
 and this class/family documentation.
 
+### Tree-shaking contract
+
+Focused subpaths such as `@honua/sdk-js/routing`, `geocoding`, `auth`,
+`realtime`, and `offline` retain the common leaf error base and only the
+classifications owned by imported error classes. They do not retain the complete
+runtime-classification table, descriptive registry, or explicit cross-realm
+serializer. Leaf errors keep the same stable codes, `instanceof` behavior,
+retryability, bounded context redaction, cause projection, and JSON envelope.
+
+Importing `serializeHonuaError` or the root `isHonuaError` guard explicitly
+retains the compact runtime-classification table required for cross-realm
+validation. Importing `HONUA_ERROR_CODE_REGISTRY` intentionally adds the
+human-readable descriptors. The registry and runtime table are checked against
+the same complete ordered code set by `npm run check:error-codes`.
+
+The generated [tree-shaking evidence](./error-tree-shaking.md) records all six
+contractual gzip reductions, retained error modules, explicit leaf/registry/
+serializer fixtures, and map-workflow attribution. Regenerate it with
+`npm run report:bundle-sizes`; `npm run verify:bundle-budgets` rejects stale
+evidence, and `npm run verify:packed-sdk` repeats the public-import fixtures
+against the packed tarball.
+
 | Public class | Registered `sdkCode` family |
 |--------------|-----------------------------|
 | `HonuaHttpError` | `core.http.transient`, `core.http.rejected` |

@@ -1,0 +1,332 @@
+import path from "node:path";
+import * as esbuild from "esbuild";
+import { describe, expect, it } from "vitest";
+
+import {
+  ERROR_LEAF_FORBIDDEN_MODULES,
+  errorModulePolicyFailures,
+  retainedMetafileContributions,
+} from "../scripts/lib/error-tree-shake.mjs";
+import { sanitizeHonuaErrorContext } from "../src/core/error-base.js";
+import { serializeHonuaError } from "../src/core/error-envelope.js";
+import { HonuaGeometryError } from "../src/core/errors.js";
+import { HonuaMapLibreSourceAdapterError } from "../src/map/source-to-maplibre.js";
+import { HonuaRealtimeResumeError } from "../src/realtime/resumable.js";
+
+describe("error tree-shake fixtures", () => {
+  it("reports exact normalized metafile contributions in deterministic size order", () => {
+    expect(
+      retainedMetafileContributions({
+        outputs: {
+          "first.js": {
+            inputs: {
+              "/consumer/node_modules/@honua/sdk-js/dist/src/core/error-base.js": { bytesInOutput: 30 },
+              "/consumer/node_modules/@honua/sdk-js/dist/src/map/source-to-maplibre.js": { bytesInOutput: 80 },
+            },
+          },
+          "second.js": {
+            inputs: {
+              "/consumer/node_modules/@honua/sdk-js/dist/src/core/error-base.js": { bytesInOutput: 20 },
+              "unused.js": { bytesInOutput: 0 },
+            },
+          },
+        },
+      }),
+    ).toEqual([
+      { module: "dist/src/map/source-to-maplibre.js", bytes: 80 },
+      { module: "dist/src/core/error-base.js", bytes: 50 },
+    ]);
+  });
+
+  it("fails retained-module checks for the complete registry or serializer", () => {
+    const policy = errorModulePolicyFailures(
+      "tree-shake:error-leaf",
+      [
+        "/tmp/consumer/node_modules/@honua/sdk-js/dist/src/core/error-base.js",
+        "/tmp/consumer/node_modules/@honua/sdk-js/dist/src/core/error-envelope.js",
+      ],
+      ["dist/src/core/error-base.js"],
+      ERROR_LEAF_FORBIDDEN_MODULES,
+    );
+    expect(policy.failures).toEqual([
+      "tree-shake:error-leaf: retained forbidden module: dist/src/core/error-envelope.js",
+    ]);
+    expect(policy.retained).not.toContain("/tmp/consumer");
+  });
+
+  it("bundles a leaf error with a credential- and path-safe JSON projection", async () => {
+    const result = await esbuild.build({
+      bundle: true,
+      entryPoints: [path.resolve("scripts/bundle-size-fixtures/tree-shake-error-leaf.mjs")],
+      format: "esm",
+      legalComments: "none",
+      minify: true,
+      platform: "browser",
+      target: ["es2020"],
+      write: false,
+    });
+    const encoded = Buffer.from(result.outputFiles[0].contents).toString("base64");
+    const fixture = (await import(`data:text/javascript;base64,${encoded}`)) as {
+      leafErrorEvidence(): string;
+    };
+    const json = fixture.leafErrorEvidence();
+    expect(JSON.parse(json)).toMatchObject({
+      code: "realtime.protocol.terminal",
+      context: { reasonCode: "delivery-failed" },
+      domain: "realtime",
+      name: "HonuaRealtimeResumeError",
+    });
+    for (const secret of ["leaf-token-secret", "/home/customer/private", "checkpoint.json", "message secret"]) {
+      expect(json).not.toContain(secret);
+    }
+  });
+
+  it("keeps rich geometry and map context behavior-compatible with the full serializer", () => {
+    const geometry = new HonuaGeometryError("malformed-geometry", "geometry message secret", {
+      keys: ["rings", "spatialReference"],
+      bbox: [-158, 21, -157, 22],
+      shape: {
+        type: "polygon",
+        rings: [
+          [
+            [-158, 21],
+            [-157, 21],
+            [-157, 22],
+            [-158, 21],
+          ],
+        ],
+      },
+      key: "opaque-value-that-must-not-cross-the-envelope",
+      authorization: "Bearer geometry-token-secret",
+    });
+    const map = new HonuaMapLibreSourceAdapterError("map-mutation-failed", "map message secret", {
+      geometryKinds: ["point", "polygon"],
+      operations: ["query", "setData", "remove-layer"],
+      rollback: {
+        attemptedLayerIds: ["incidents-point", "incidents-polygon"],
+        failures: [{ stage: "remove-layer", count: 1 }],
+      },
+      endpoint: "https://maps.example.test/source?api_key=map-token-secret",
+      callback: "https://maps.example.test/return?key=opaque-callback-value",
+    });
+
+    expect(geometry.toJSON().context).toEqual({
+      keys: ["rings", "spatialReference"],
+      bbox: [-158, 21, -157, 22],
+      shape: {
+        type: "polygon",
+        rings: [
+          [
+            [-158, 21],
+            [-157, 21],
+            [-157, 22],
+            [-158, 21],
+          ],
+        ],
+      },
+      key: "[REDACTED]",
+      authorization: "[REDACTED]",
+    });
+    expect(map.toJSON().context).toEqual({
+      geometryKinds: ["point", "polygon"],
+      operations: ["query", "setData", "remove-layer"],
+      rollback: {
+        attemptedLayerIds: ["incidents-point", "incidents-polygon"],
+        failures: [{ stage: "remove-layer", count: 1 }],
+      },
+      endpoint: "https://maps.example.test/source?api_key=%5BREDACTED%5D",
+      callback: "https://maps.example.test/return?key=%5BREDACTED%5D",
+    });
+    expect(geometry.toJSON()).toEqual(serializeHonuaError(geometry));
+    expect(map.toJSON()).toEqual(serializeHonuaError(map));
+    expect(JSON.stringify([geometry, map])).not.toMatch(/geometry-token-secret|map-token-secret|message secret/);
+  });
+
+  it("keeps leaf context sanitization in exact parity with the canonical boundary", () => {
+    const capturedAt = new Date("2026-07-13T00:00:00.000Z");
+    Object.defineProperties(capturedAt, {
+      toISOString: { value: () => "date-override-secret" },
+      valueOf: { value: () => "date-value-secret" },
+    });
+    const errorValue = new Error("error-message-secret");
+    Object.defineProperty(errorValue, "name", { value: "HonuaUnregisteredWidgetError" });
+    const context = {
+      bigintValue: 9_007_199_254_740_993n,
+      missingValue: undefined,
+      capturedAt,
+      invalidDate: new Date(Number.NaN),
+      errorValue,
+      registeredErrorValue: new HonuaMapLibreSourceAdapterError("invalid-option", "registered-message-secret"),
+      binaryValue: new Uint8Array([1, 2, 3]),
+      urlObject: new URL("https://url-user:url-pass@example.test/items?cursor=url-object-secret"),
+      serviceUrl:
+        "https://url-user:url-pass@example.test/items?access_token=url-token-secret&cursor=url-cursor-secret&limit=10#fragment",
+      invalidEndpoint: "/items?cursor=relative-cursor-secret",
+      cursor: "direct-cursor-secret",
+      form: "owner=form-owner-secret",
+      cacheDirectory: "/home/cache-directory-secret",
+      note: "cursor=embedded-cursor-secret safe=true",
+      callback: () => "callback-secret",
+      marker: Symbol("symbol-secret"),
+    };
+    const leaf = new HonuaGeometryError("malformed-geometry", "message-secret", context);
+
+    expect(leaf.toJSON().context).toEqual(sanitizeHonuaErrorContext(context));
+    expect(leaf.toJSON().context).toMatchObject({
+      bigintValue: "9007199254740993",
+      missingValue: "[UNDEFINED]",
+      capturedAt: "2026-07-13T00:00:00.000Z",
+      invalidDate: "[INVALID_DATE]",
+      errorValue: { name: "Error" },
+      registeredErrorValue: { name: "HonuaMapLibreSourceAdapterError" },
+      binaryValue: "[BINARY]",
+      invalidEndpoint: "[REDACTED]",
+      urlObject: {},
+      cursor: "[REDACTED]",
+      form: "[REDACTED]",
+      cacheDirectory: "[REDACTED]",
+      note: "cursor=[REDACTED] safe=true",
+      callback: "[UNSERIALIZABLE]",
+      marker: "[UNSERIALIZABLE]",
+    });
+    expect(leaf.toJSON().context.serviceUrl).toContain("limit=10");
+    const json = JSON.stringify(leaf);
+    for (const secret of [
+      "date-override-secret",
+      "date-value-secret",
+      "error-message-secret",
+      "registered-message-secret",
+      "HonuaUnregisteredWidgetError",
+      "url-user",
+      "url-pass",
+      "url-object-secret",
+      "url-token-secret",
+      "url-cursor-secret",
+      "relative-cursor-secret",
+      "direct-cursor-secret",
+      "form-owner-secret",
+      "cache-directory-secret",
+      "embedded-cursor-secret",
+      "callback-secret",
+      "symbol-secret",
+      "message-secret",
+      "#fragment",
+    ]) {
+      expect(json).not.toContain(secret);
+    }
+  });
+
+  it("bounds cyclic context without invoking accessors", () => {
+    let accessorInvoked = false;
+    const nested = Object.create(null) as Record<string, unknown>;
+    const inputValues = Array.from({ length: 101 }, (_, index) => index);
+    Object.defineProperty(inputValues, "0", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        accessorInvoked = true;
+        return "Bearer array-index-secret";
+      },
+    });
+    nested.values = inputValues;
+    nested.proxiedValues = new Proxy([1, 2], {
+      get() {
+        accessorInvoked = true;
+        throw new Error("array proxy get trap must not run");
+      },
+    });
+    nested.self = nested;
+    const detail = { nested } as Record<string, unknown>;
+    Object.defineProperty(detail, "authorization", {
+      enumerable: true,
+      get() {
+        accessorInvoked = true;
+        return "Bearer accessor-token-secret";
+      },
+    });
+
+    const error = new HonuaGeometryError("malformed-geometry", "bad", detail);
+    expect(accessorInvoked).toBe(false);
+    expect(error.toJSON().context).toMatchObject({
+      nested: {
+        proxiedValues: [1, 2],
+        self: "[CIRCULAR]",
+      },
+      authorization: "[REDACTED]",
+    });
+    const projectedValues = (error.toJSON().context.nested as { readonly values: readonly unknown[] }).values;
+    expect(projectedValues).toHaveLength(101);
+    expect(projectedValues[0]).toBe("[ACCESSOR]");
+    expect(projectedValues.at(-1)).toBe("[TRUNCATED]");
+  });
+
+  it("fails closed for separately bundled causes while the explicit top-level serializer validates them", async () => {
+    const result = await esbuild.build({
+      bundle: true,
+      stdin: {
+        contents: `
+          import { HonuaRealtimeResumeError } from "./dist/src/realtime/resumable.js";
+          export const makeCause = () => new HonuaRealtimeResumeError("invalid-event", "foreign message secret");
+        `,
+        loader: "js",
+        resolveDir: process.cwd(),
+        sourcefile: "foreign-honua-error.mjs",
+      },
+      format: "esm",
+      legalComments: "none",
+      minify: true,
+      platform: "browser",
+      target: ["es2020"],
+      write: false,
+    });
+    const encoded = Buffer.from(result.outputFiles[0].contents).toString("base64");
+    const foreign = (await import(`data:text/javascript;base64,${encoded}`)) as {
+      makeCause(): HonuaRealtimeResumeError;
+    };
+    const cause = foreign.makeCause();
+    expect(cause).not.toBeInstanceOf(HonuaRealtimeResumeError);
+
+    const outer = new HonuaMapLibreSourceAdapterError(
+      "map-mutation-failed",
+      "outer message secret",
+      { operations: ["query", "setData"] },
+      { cause },
+    );
+    const expectedTopLevel = {
+      domain: "realtime",
+      code: "realtime.protocol.terminal",
+      category: "protocol",
+      retryable: false,
+    } as const;
+    expect(serializeHonuaError(cause)).toMatchObject(expectedTopLevel);
+    expect(outer.toJSON().cause).toEqual({ name: "Error" });
+    expect(outer.toJSON()).toEqual(serializeHonuaError(outer));
+
+    const descriptors = Object.getOwnPropertyDescriptors(cause);
+    const altered = Object.create(Object.getPrototypeOf(cause)) as Record<PropertyKey, unknown>;
+    Object.defineProperties(altered, {
+      ...descriptors,
+      category: { ...descriptors.category, value: "internal" },
+    });
+    const alteredOuter = new HonuaGeometryError("malformed-geometry", "bad", {}, { cause: altered });
+    expect(alteredOuter.toJSON().cause).toEqual({ name: "Error" });
+  });
+
+  it("rejects a foreign cause that forges every former public-symbol proof field", () => {
+    const forged = {
+      kind: "honua.sdk.error.v1",
+      name: "HonuaRealtimeResumeError",
+      sdkCode: "unknown.code",
+      domain: "realtime",
+      category: "protocol",
+      retryable: false,
+      context: Object.create(null),
+      [Symbol.for("honua.ec")]: "unknown.code,realtime,protocol,false",
+    };
+    const outer = new HonuaMapLibreSourceAdapterError("map-mutation-failed", "outer", undefined, { cause: forged });
+
+    expect(outer.toJSON().cause).toEqual({ name: "object" });
+    expect(outer.toJSON()).toEqual(serializeHonuaError(outer));
+    expect(JSON.stringify(outer)).not.toContain("unknown.code");
+  });
+});

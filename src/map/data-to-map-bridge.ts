@@ -22,6 +22,7 @@ import {
   withHonuaErrorClassification,
 } from "../core/error-base.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
+import { removeUndefined } from "../core/remove-undefined.js";
 import type { FeatureStateMap, HoverHandle, MapEventTarget } from "../interactions/feature-state.js";
 import { createHoverHandler } from "../interactions/feature-state.js";
 import type { PopupBindingHandle, PopupFactory, PopupFeature } from "../runtime/popups.js";
@@ -37,7 +38,6 @@ import {
   geometryKinds,
   layerType,
   mapLibreGeometryType,
-  removeUndefined,
   safeId,
 } from "./geojson-projection.js";
 import type { SourceToMapLibreMap } from "./source-to-maplibre.js";
