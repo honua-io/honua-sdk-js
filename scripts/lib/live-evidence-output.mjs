@@ -13,5 +13,6 @@ export function liveEvidenceOutputContract(expectedSampleId, defaultOutput) {
   return {
     output: path.resolve(process.env.HONUA_SAMPLE_LIVE_OUTPUT ?? defaultOutput),
     sourceRevision,
+    enabled: process.env.HONUA_SAMPLE_LIVE_ENABLED === "true",
   };
 }

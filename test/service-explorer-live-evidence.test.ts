@@ -8,6 +8,7 @@ import {
   collectServiceExplorerLiveEvidence,
   createBoundedServiceExplorerFetch,
   createServiceExplorerLiveTargets,
+  serviceExplorerLiveEnabled,
   validateServiceExplorerLiveEndpoint,
 } from "../examples/service-explorer/live-evidence.mjs";
 import {
@@ -138,12 +139,20 @@ describe("Service Explorer public-live evidence producer", () => {
     );
   });
 
+  it("honors both the runner-generic and scheduled sample-specific live enable flags", () => {
+    expect(serviceExplorerLiveEnabled(false, {})).toBe(false);
+    expect(serviceExplorerLiveEnabled(true, {})).toBe(true);
+    expect(serviceExplorerLiveEnabled(false, { HONUA_SERVICE_EXPLORER_LIVE_ENABLED: "true" })).toBe(true);
+    expect(serviceExplorerLiveEnabled(false, { HONUA_SERVICE_EXPLORER_LIVE_ENABLED: "TRUE" })).toBe(false);
+  });
+
   it("fails closed on credential headers, oversized responses, and deadlines without external traffic", async () => {
     const fixture = await fixtureServer();
     const guardedFetch = createBoundedServiceExplorerFetch({
       targetUrl: `${fixture.url}/fixtures/ogc`,
       allowLoopback: true,
       budgets: {
+        producerTimeoutMs: 500,
         requestTimeoutMs: 50,
         maxRequestsPerTarget: 2,
         maxResponseBytes: 64 * 1024,
@@ -169,6 +178,7 @@ describe("Service Explorer public-live evidence producer", () => {
         observedAt: OBSERVED_AT,
         sourceRevision: SOURCE_REVISION,
         budgets: {
+          producerTimeoutMs: 2_000,
           requestTimeoutMs: 500,
           maxRequestsPerTarget: 12,
           maxResponseBytes: 64,
@@ -181,6 +191,7 @@ describe("Service Explorer public-live evidence producer", () => {
       targetUrl: `${fixture.url}/fixtures/slow-ogc`,
       allowLoopback: true,
       budgets: {
+        producerTimeoutMs: 500,
         requestTimeoutMs: 25,
         maxRequestsPerTarget: 1,
         maxResponseBytes: 64 * 1024,
@@ -190,5 +201,58 @@ describe("Service Explorer public-live evidence producer", () => {
     await expect(deadlineFetch(`${fixture.url}/fixtures/slow-ogc`)).rejects.toMatchObject({
       name: expect.stringMatching(/^(AbortError|TimeoutError)$/u),
     });
+  });
+
+  it("enforces exact paths, queries, headers, redirects, and a producer-wide deadline", async () => {
+    const fixture = await fixtureServer();
+    const guardedFetch = createBoundedServiceExplorerFetch({
+      targetUrl: `${fixture.url}/fixtures/ogc`,
+      allowLoopback: true,
+      budgets: {
+        producerTimeoutMs: 500,
+        requestTimeoutMs: 100,
+        maxRequestsPerTarget: 4,
+        maxResponseBytes: 64 * 1024,
+        maxTotalResponseBytes: 64 * 1024,
+      },
+    });
+    await expect(guardedFetch(`${fixture.url}/fixtures/ogc/unreviewed`)).rejects.toThrow("reviewed operation matrix");
+    await expect(guardedFetch(`${fixture.url}/fixtures/ogc?limit=1`)).rejects.toThrow("reviewed operation matrix");
+    await expect(
+      guardedFetch(`${fixture.url}/fixtures/ogc`, { headers: { "X-Debug-Trace": "not-reviewed" } }),
+    ).rejects.toThrow("request headers");
+
+    const rewrittenFetch = createBoundedServiceExplorerFetch({
+      targetUrl: `${fixture.url}/fixtures/ogc`,
+      allowLoopback: true,
+      fetchFn: async () => {
+        const response = await fetch(`${fixture.url}/fixtures/ogc`);
+        Object.defineProperty(response, "url", { value: `${fixture.url}/fixtures/ogc/rewritten` });
+        return response;
+      },
+    });
+    await expect(rewrittenFetch(`${fixture.url}/fixtures/ogc`)).rejects.toThrow("rewritten responses");
+
+    const slowTargets = createServiceExplorerLiveTargets({
+      geoservicesUrl: `${fixture.url}/fixtures/geoservices/rest/services/CitizenRequests/FeatureServer/0`,
+      ogcUrl: `${fixture.url}/fixtures/slow-query-ogc`,
+      ogcSourceId: "places",
+      allowLoopback: true,
+    });
+    await expect(
+      collectServiceExplorerLiveEvidence({
+        targets: slowTargets,
+        allowLoopback: true,
+        observedAt: OBSERVED_AT,
+        sourceRevision: SOURCE_REVISION,
+        budgets: {
+          producerTimeoutMs: 250,
+          requestTimeoutMs: 2_000,
+          maxRequestsPerTarget: 12,
+          maxResponseBytes: 64 * 1024,
+          maxTotalResponseBytes: 256 * 1024,
+        },
+      }),
+    ).rejects.toThrow(/abort|timed out/iu);
   });
 });
