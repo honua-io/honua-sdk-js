@@ -23,6 +23,7 @@ locator fields until the server schema exposes them explicitly.
 | `locator.stacStatic` | SDK-only additive field | Normalized document/depth/link/asset/probe/body limits admitted by static STAC discovery and reapplied by the runtime reader. It prevents a persisted descriptor from widening its catalog crawl after discovery. |
 | `locator.tileMatrixSetId` | `locator.tileMatrixSetId` | OGC API Tiles tile-matrix-set identifier. When set, `Source.adapter("ogc-tiles")` returns a bound `HonuaOgcTileset`; when omitted, it returns the root `HonuaOgcTiles` handle for tile-matrix-set discovery. Preserved as an additive locator field when present. |
 | `locator.styleId` | `locator.styleId` | OGC API Maps styled-output identifier. Consumed by `Source.adapter("ogc-maps")` to build the `/styles/{styleId}/map` route. Not consumed by the OGC Tiles adapter today: honua-server does not expose a `/styles/{styleId}/tiles/...` route, so the SDK keeps the tile path canonical. Preserved as an additive locator field when present. |
+| `locator.raster` | additive locator metadata | Capability-reviewed WMS GetMap or WMTS KVP/ResourceURL binding selected by raw `connect()` discovery. The MapLibre raster projector executes this exact safe URL/template instead of guessing from `locator.url`; server-side executors may ignore it until their locator model adopts the same contract. |
 | `locator.typeName` | `locator.typeName` | WFS / WMS / WMTS layer name (the WMS `LAYERS=` value, the WMTS `Layer` identifier). |
 | `locator.featureNamespace` | `locator.featureNamespace` | WFS feature namespace URI bound to the `typeName` prefix; required for `applyEdits` when the type name is namespace-qualified (`parcels:lot`). Carried as an additive locator field until the server schema exposes it explicitly. |
 | `locator.entitySet` | `locator.entitySet` | OData entity-set token (or navigation path such as `"Layers(1)/Features"`). The server `SourceLocator` does not carry this field today, so server-shipped OData bindings arrive with `entitySet` unset; the `odataSource` adapter derives `Layers(<layerId>)/Features` from `locator.layerId` in that case so the binding still hits Honua Server's layer-scoped OData routes. SDK-direct callers can pass `entitySet` explicitly to override. |
@@ -86,6 +87,9 @@ Adding a new protocol on the SDK side requires:
   source itself. Exporting state to a `SourceBinding` discards them.
 - Auth headers — never serialized into a `SourceBinding`. The
   server-side runtime resolves credentials from its own credential store.
+- `locator.raster` carries only a same-origin, credential-free operation URL
+  or template plus the selected format and matrix pattern. It never carries
+  request headers or tokens.
 - The current honua-server `SourceLocator` model guarantees `url`,
   `serviceId`, and `layerId`; OGC-specific locator hints such as
   `collectionId`, `tileMatrixSetId`, and `styleId` are SDK-side route

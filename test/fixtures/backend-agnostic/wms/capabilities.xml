@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<WMS_Capabilities version="1.3.0" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <Service>
+    <Name>WMS</Name>
+    <Title>Backend-Agnostic WMS</Title>
+    <Abstract>Deterministic discovery fixture.</Abstract>
+  </Service>
+  <Capability>
+    <Request>
+      <GetCapabilities>
+        <Format>text/xml</Format>
+        <DCPType><HTTP><Get><OnlineResource xlink:href="./wms"/></Get></HTTP></DCPType>
+      </GetCapabilities>
+      <GetMap>
+        <Format>image/png</Format>
+        <Format>image/jpeg</Format>
+        <Format>image/svg+xml</Format>
+        <DCPType>
+          <HTTP>
+            <Get><OnlineResource xlink:href="./render?tenant=public"/></Get>
+            <Post><OnlineResource xlink:href="./render-post?tenant=public"/></Post>
+          </HTTP>
+        </DCPType>
+      </GetMap>
+      <GetFeatureInfo>
+        <Format>application/geo+json</Format>
+        <Format>text/plain</Format>
+        <DCPType><HTTP><Get><OnlineResource xlink:href="./feature-info?tenant=public"/></Get></HTTP></DCPType>
+      </GetFeatureInfo>
+      <GetLegendGraphic>
+        <Format>image/png</Format>
+        <DCPType><HTTP><Get><OnlineResource xlink:href="./legend?tenant=public"/></Get></HTTP></DCPType>
+      </GetLegendGraphic>
+    </Request>
+    <Layer>
+      <Title>Root</Title>
+      <CRS>EPSG:4326</CRS>
+      <CRS>EPSG:3857</CRS>
+      <CRS>CRS:84</CRS>
+      <EX_GeographicBoundingBox>
+        <westBoundLongitude>-158.5</westBoundLongitude>
+        <southBoundLatitude>20.5</southBoundLatitude>
+        <eastBoundLongitude>-157.5</eastBoundLongitude>
+        <northBoundLatitude>22.5</northBoundLatitude>
+      </EX_GeographicBoundingBox>
+      <Layer queryable="true">
+        <Name>parcels</Name>
+        <Title>Parcels</Title>
+        <Abstract>Queryable parcel boundaries.</Abstract>
+        <Style>
+          <Name>outline</Name>
+          <Title>Outline</Title>
+          <LegendURL>
+            <Format>image/png</Format>
+            <OnlineResource xlink:href="./legends/outline.png"/>
+          </LegendURL>
+        </Style>
+        <Style><Name>night</Name><Title>Night</Title></Style>
+        <Dimension name="time" units="ISO8601" default="2026-07-16T00:00:00Z">
+          2026-07-15T00:00:00Z,2026-07-16T00:00:00Z
+        </Dimension>
+      </Layer>
+      <Layer queryable="false">
+        <Name>imagery</Name>
+        <Title>Imagery</Title>
+      </Layer>
+    </Layer>
+  </Capability>
+</WMS_Capabilities>

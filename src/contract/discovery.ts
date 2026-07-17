@@ -121,23 +121,91 @@ export interface DiscoveryCapabilityResolution {
 export interface SourceDiscoveryInspection {
   readonly descriptor: SourceDescriptor;
   /** Normalized discovery metadata that is not required for source execution. */
-  readonly metadata?: {
-    readonly crs?: readonly string[];
-    readonly extent?: {
-      readonly spatial?: {
-        readonly bbox: readonly (readonly number[])[];
-        readonly crs?: string;
-      };
-      readonly temporal?: {
-        readonly interval: readonly (readonly (string | null)[])[];
-        readonly trs?: string;
-      };
-    };
-  };
+  readonly metadata?: DiscoverySourceMetadata;
   readonly discovery: DiscoveryState;
   readonly provenance: readonly DiscoveryProvenance[];
   readonly capabilityDecisions: readonly DiscoveryCapabilityDecision[];
   readonly diagnostics: readonly DiscoveryDiagnostic[];
+}
+
+/** Protocol metadata retained for inspection without widening Source execution. */
+export interface DiscoverySourceMetadata {
+  readonly crs?: readonly string[];
+  readonly extent?: {
+    readonly spatial?: {
+      readonly bbox: readonly (readonly number[])[];
+      readonly crs?: string;
+    };
+    readonly temporal?: {
+      readonly interval: readonly (readonly (string | null)[])[];
+      readonly trs?: string;
+    };
+  };
+  readonly protocolVersion?: string;
+  readonly formats?: {
+    readonly render?: readonly string[];
+    readonly featureInfo?: readonly string[];
+    readonly legend?: readonly string[];
+  };
+  readonly styles?: readonly DiscoveryStyleMetadata[];
+  readonly dimensions?: readonly DiscoveryDimensionMetadata[];
+  readonly operations?: {
+    readonly render?: DiscoveryOperationMetadata;
+    readonly tiles?: DiscoveryOperationMetadata;
+    readonly featureInfo?: DiscoveryOperationMetadata;
+    readonly legend?: DiscoveryOperationMetadata;
+  };
+  readonly axisOrders?: readonly DiscoveryAxisOrderMetadata[];
+  readonly tileMatrixSets?: readonly DiscoveryTileMatrixSetMetadata[];
+  /** Structured optional-metadata failures retained even when discovery can continue. */
+  readonly partialReasons?: readonly string[];
+}
+
+export interface DiscoveryStyleMetadata {
+  readonly id: string;
+  readonly title?: string;
+  readonly isDefault: boolean;
+  readonly legendUrl?: string;
+  readonly legendFormat?: string;
+}
+
+export interface DiscoveryDimensionMetadata {
+  readonly id: string;
+  readonly units?: string;
+  readonly default?: string;
+  readonly current?: boolean;
+  readonly values: readonly string[];
+}
+
+export interface DiscoveryOperationMetadata {
+  readonly available: boolean;
+  readonly methods: readonly ("GET" | "POST" | "TEMPLATE")[];
+  readonly urls: readonly string[];
+  readonly formats: readonly string[];
+  readonly reason?: string;
+}
+
+export interface DiscoveryAxisOrderMetadata {
+  readonly crs: string;
+  /** Canonical x/y or authority-defined y/x order used on the WMS 1.3 wire. */
+  readonly order: "xy" | "yx" | "unknown";
+}
+
+export interface DiscoveryTileMatrixSetMetadata {
+  readonly id: string;
+  readonly crs?: string;
+  readonly wellKnownScaleSet?: string;
+  readonly matrices: readonly DiscoveryTileMatrixMetadata[];
+}
+
+export interface DiscoveryTileMatrixMetadata {
+  readonly id: string;
+  readonly scaleDenominator: number;
+  readonly matrixWidth: number;
+  readonly matrixHeight: number;
+  readonly tileWidth: number;
+  readonly tileHeight: number;
+  readonly topLeftCorner: readonly [number, number];
 }
 
 /**

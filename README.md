@@ -144,7 +144,7 @@ with a runnable repro (`npm run bench:ttfm`) — live in
 
 <!-- support-manifest:standalone:start -->
 **Honua Server is optional for standards clients.** Supported GeoServices, OGC API
-Features, WFS 2.0, STAC, and OData claims work against raw standards-speaking endpoints.
+Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (`beta`), Maps (`beta`), and Records
 (`beta`) also discover and use raw advertised paths. OGC API Processes
 keeps two honest lanes: raw discovery is `experimental`, while typed execution

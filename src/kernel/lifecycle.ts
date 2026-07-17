@@ -113,8 +113,8 @@ export class KernelLifecycle implements AsyncDisposable {
    */
   public async connect(locator: string | URL, options: KernelConnectOptions = {}): Promise<HonuaConnection> {
     this.#assertActive("connect");
-    const endpoint = normalizeKernelEndpoint(locator);
     const snapshot = snapshotKernelConnectOptions(options);
+    const endpoint = normalizeKernelEndpoint(locator, snapshot.protocol);
     // Reflection on caller-controlled objects can reenter disposal through a
     // Proxy trap. Never delegate work after that transition.
     this.#assertActive("connect");
@@ -456,10 +456,10 @@ function combineAbortSignals(owner: AbortSignal, caller: AbortSignal | undefined
   return caller && caller !== owner ? AbortSignal.any([owner, caller]) : owner;
 }
 
-function normalizeKernelEndpoint(locator: string | URL): string {
-  if (typeof locator === "string") return validateConnectEndpoint(locator);
+function normalizeKernelEndpoint(locator: string | URL, protocol: ConnectProtocolHint | undefined): string {
+  if (typeof locator === "string") return validateConnectEndpoint(locator, protocol ?? "auto");
   try {
-    return validateConnectEndpoint(URL.prototype.toString.call(locator));
+    return validateConnectEndpoint(URL.prototype.toString.call(locator), protocol ?? "auto");
   } catch (error) {
     if (error instanceof HonuaDiscoveryError) throw error;
     throw new HonuaDiscoveryError("invalid-endpoint", "kernel.connect() requires an absolute HTTP(S) URL locator.");
@@ -471,11 +471,15 @@ export function snapshotKernelConnectOptions(options: KernelConnectOptions = {})
   const snapshot = snapshotOwnDataObject(options, "kernel.connect() options");
   const clientOptions = snapshotClientOptions(snapshot.clientOptions);
   const metadata = snapshot.metadata === undefined ? undefined : snapshotOwnDataObject(snapshot.metadata, "metadata");
+  const capabilitiesLimits = snapshotCapabilitiesLimits(snapshot.capabilitiesLimits);
   const geoparquet = snapshotGeoParquetOptions(snapshot.geoparquet);
   return Object.freeze({
     ...(snapshot.protocol !== undefined ? { protocol: snapshot.protocol as ConnectProtocolHint } : {}),
     ...(snapshot.collectionId !== undefined ? { collectionId: snapshot.collectionId as string } : {}),
     ...(snapshot.typeName !== undefined ? { typeName: snapshot.typeName as string } : {}),
+    ...(snapshot.styleId !== undefined ? { styleId: snapshot.styleId as string } : {}),
+    ...(snapshot.tileMatrixSetId !== undefined ? { tileMatrixSetId: snapshot.tileMatrixSetId as string } : {}),
+    ...(capabilitiesLimits ? { capabilitiesLimits } : {}),
     ...(snapshot.id !== undefined ? { id: snapshot.id as string } : {}),
     ...(snapshot.authorizationScopeFingerprint !== undefined
       ? { authorizationScopeFingerprint: snapshot.authorizationScopeFingerprint as string }
@@ -489,6 +493,15 @@ export function snapshotKernelConnectOptions(options: KernelConnectOptions = {})
       ? { resolveSource: snapshot.resolveSource as ConnectOptions["resolveSource"] }
       : {}),
     ...(geoparquet ? { geoparquet } : {}),
+  });
+}
+
+function snapshotCapabilitiesLimits(value: unknown): ConnectOptions["capabilitiesLimits"] {
+  if (value === undefined) return undefined;
+  const snapshot = snapshotOwnDataObject(value, "capabilitiesLimits");
+  return Object.freeze({
+    ...(snapshot.maxBytes !== undefined ? { maxBytes: snapshot.maxBytes as number } : {}),
+    ...(snapshot.timeoutMs !== undefined ? { timeoutMs: snapshot.timeoutMs as number } : {}),
   });
 }
 

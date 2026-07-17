@@ -126,6 +126,22 @@ describe("metadata-driven MapLibre raster strategy", () => {
     expect(projection.source.tiles[0]).not.toMatch(/\{(?:bbox-epsg3857|width|height)\}/u);
   });
 
+  it("refuses a runtime format override that was not selected by WMS discovery", () => {
+    const discovered = descriptor("wms", {
+      url: "https://maps.test/wms",
+      typeName: "parcels",
+      raster: {
+        kind: "wms-kvp",
+        url: "https://maps.test/render",
+        format: "image/png",
+      },
+    });
+
+    expect(() => projectRasterSourceToMapLibre(discovered, { format: "image/webp" })).toThrow(
+      'was discovered with WMS format "image/png", not "image/webp"',
+    );
+  });
+
   it("selects WMTS and preserves exact REST tile metadata", () => {
     const projection = projectRasterSourceToMapLibre(
       descriptor("wmts", {
@@ -142,6 +158,33 @@ describe("metadata-driven MapLibre raster strategy", () => {
       "https://maps.test/wmts/imagery%20layer/satellite/WebMercatorQuad/{z}/{y}/{x}.webp",
     ]);
     expect(projection.source.scheme).toBe("xyz");
+  });
+
+  it("replaces case-insensitive WMTS KVP request state without retaining ambiguous duplicates", () => {
+    const projection = projectRasterSourceToMapLibre(
+      descriptor("wmts", {
+        url: "https://maps.test/wmts",
+        typeName: "imagery",
+        styleId: "day",
+        tileMatrixSetId: "WebMercatorQuad",
+        raster: {
+          kind: "wmts-kvp",
+          url: "https://maps.test/kvp?tenant=public&service=other&tilematrix=old&TILEROW=old&TILECOL=old",
+          format: "image/png",
+          tileMatrixTemplate: "{z}",
+        },
+      }),
+    );
+    const params = new URL(projection.source.tiles[0]!).searchParams;
+    const names = [...params.keys()].map((name) => name.toUpperCase());
+
+    expect(params.get("tenant")).toBe("public");
+    expect(names.filter((name) => name === "SERVICE")).toHaveLength(1);
+    expect(names.filter((name) => name === "TILEMATRIX")).toHaveLength(1);
+    expect(names.filter((name) => name === "TILEROW")).toHaveLength(1);
+    expect(names.filter((name) => name === "TILECOL")).toHaveLength(1);
+    expect(params.get("SERVICE")).toBe("WMTS");
+    expect(params.get("TILEMATRIX")).toBe("{z}");
   });
 
   it.each(["maplibre-vector", "pmtiles", "geoservices-feature-service"] as const)(
