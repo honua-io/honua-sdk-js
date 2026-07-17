@@ -29,4 +29,17 @@ describe("split package manifests", () => {
     expect(prepareScript).toContain('DIST_SRC_ROOT, "connect-wfs.d.ts"');
     expect(prepareScript).toContain('packageRoot, "connect-wfs.d.ts"');
   });
+
+  it("ships the query planner imported by the React map runtime closure", () => {
+    const prepareScript = fs.readFileSync(path.join(process.cwd(), "scripts/prepare-split-packages.mjs"), "utf8");
+    const reactPackageFactory = prepareScript.slice(
+      prepareScript.indexOf("function createReactPackage()"),
+      prepareScript.indexOf("function createAppPlatformPackage()"),
+    );
+
+    expect(reactPackageFactory).toContain('"map",');
+    expect(reactPackageFactory).toContain('"query-planner",');
+    expect(reactPackageFactory).toContain('"filter-registry",');
+    expect(reactPackageFactory).toContain('"runtime",');
+  });
 });
