@@ -20,6 +20,28 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml",
 };
 
+const OGC_FEATURES = Object.freeze([
+  Object.freeze({
+    type: "Feature",
+    id: "place-1",
+    geometry: Object.freeze({ type: "Point", coordinates: Object.freeze([-157.8583, 21.3069]) }),
+    properties: Object.freeze({ name: "Honolulu", category: "civic", population: 350964 }),
+  }),
+  Object.freeze({
+    type: "Feature",
+    id: "place-2",
+    geometry: Object.freeze({ type: "Point", coordinates: Object.freeze([-157.8036, 21.2945]) }),
+    properties: Object.freeze({ name: "Diamond Head", category: "landmark", population: null }),
+  }),
+  Object.freeze({
+    type: "Feature",
+    id: "place-3",
+    geometry: Object.freeze({ type: "Point", coordinates: Object.freeze([-157.7394, 21.2832]) }),
+    properties: Object.freeze({ name: "Hanauma Bay", category: "reserve", population: null }),
+  }),
+]);
+const SLOW_QUERY_DELAY_MS = 30_000;
+
 function buildDemoIfNeeded() {
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   const result = spawnSync(npmCommand, ["run", "demo:service-explorer:build", "--silent"], {
@@ -42,6 +64,87 @@ function serveBuffer(res, buffer, filePath) {
   res.end(buffer);
 }
 
+function serveJson(res, body, status = 200) {
+  const buffer = Buffer.from(JSON.stringify(body));
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "content-length": buffer.byteLength,
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+  });
+  res.end(buffer);
+}
+
+function serveOgcFixture(requestUrl, res) {
+  const root = ["/fixtures/ogc", "/fixtures/slow-query-ogc"].find(
+    (candidate) => requestUrl.pathname === candidate || requestUrl.pathname.startsWith(`${candidate}/`),
+  );
+  if (!root) return false;
+  const fixturePath = requestUrl.pathname.slice(root.length);
+
+  if (fixturePath === "") {
+    serveJson(res, {
+      title: "Honua Service Explorer fixture",
+      description: "A bounded OGC API Features service used by the maintained sample gate.",
+      links: [
+        { rel: "self", type: "application/json", href: "." },
+        { rel: "data", type: "application/json", href: "./collections" },
+        { rel: "conformance", type: "application/json", href: "./conformance" },
+      ],
+    });
+    return true;
+  }
+  if (fixturePath === "/conformance") {
+    serveJson(res, {
+      conformsTo: [
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson",
+      ],
+    });
+    return true;
+  }
+  if (fixturePath === "/collections") {
+    serveJson(res, {
+      collections: [
+        {
+          id: "places",
+          title: "Oʻahu places",
+          description: "Small, deterministic point fixture.",
+          crs: ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"],
+          extent: { spatial: { bbox: [[-157.9, 21.25, -157.7, 21.35]] } },
+          links: [{ rel: "items", type: "application/geo+json", href: "./collections/places/items" }],
+        },
+      ],
+    });
+    return true;
+  }
+  if (fixturePath === "/collections/places/items") {
+    const requestedLimit = Number(requestUrl.searchParams.get("limit") ?? OGC_FEATURES.length);
+    const limit = Number.isSafeInteger(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 0), 100)
+      : OGC_FEATURES.length;
+    const features = OGC_FEATURES.slice(0, limit);
+    const respond = () =>
+      serveJson(res, {
+        type: "FeatureCollection",
+        numberMatched: OGC_FEATURES.length,
+        numberReturned: features.length,
+        features,
+        links: [{ rel: "self", type: "application/geo+json", href: "./items" }],
+      });
+    if (root === "/fixtures/slow-query-ogc") {
+      const timer = setTimeout(() => {
+        if (!res.destroyed) respond();
+      }, SLOW_QUERY_DELAY_MS);
+      res.once("close", () => clearTimeout(timer));
+    } else {
+      respond();
+    }
+    return true;
+  }
+  return false;
+}
+
 function resolveStaticPath(pathname) {
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
   const absolutePath = path.join(distRoot, requestedPath);
@@ -54,6 +157,22 @@ export async function startServiceExplorerFixtureServer({ build = true } = {}) {
 
   const server = http.createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
+
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      res.writeHead(405, { allow: "GET, HEAD", "content-type": "text/plain; charset=utf-8" });
+      res.end("Method not allowed");
+      return;
+    }
+
+    if (serveOgcFixture(requestUrl, res)) return;
+
+    if (requestUrl.pathname === "/fixtures/slow-ogc") {
+      const timer = setTimeout(() => {
+        if (!res.destroyed) serveJson(res, { title: "Delayed fixture", links: [] });
+      }, 30_000);
+      res.once("close", () => clearTimeout(timer));
+      return;
+    }
 
     if (requestUrl.pathname === "/favicon.ico") {
       res.writeHead(204);

@@ -1,53 +1,25 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import {
-  bindHonuaAppWorkspaceSelector,
-  selectHonuaAppWorkspaceDetailModel,
-  selectHonuaAppWorkspaceJobModel,
-  selectHonuaAppWorkspaceMetadataCacheModel,
-} from "@honua/sdk-js/app-workspace";
-import { isSourceQualifiedSelectionTarget, sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
-import {
-  bindDetailToSelection,
-  bindMapExtentToExploration,
-  bindMapSelectionToExploration,
-  bindQueryProjectionToExploration,
-  syncFeatureStateSelection,
-  syncMapLayerFilterToExploration,
-} from "@honua/sdk-js/interactions";
-import type { FeatureStateMap, InteractiveMap, LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
-import { uniqueValueRenderer } from "@honua/sdk-js/style";
+import { type ConnectProtocolHint, type Result, executeQueryPlan, isHonuaError } from "@honua/sdk-js";
+import { type AutomaticMapLibrePlan, projectSourceToMapLibre } from "@honua/sdk-js/map";
 import maplibregl from "maplibre-gl";
-import type { GeoJSONSource } from "maplibre-gl";
 
 import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
 import { mountSamplePresentation } from "../../_kit/presentation.js";
-import { resolveServiceExplorerConfig } from "./config.js";
 import {
-  beginServiceExplorerMetadataRevalidation,
-  completeServiceExplorerMetadataRevalidation,
-  createServiceExplorerWorkspace,
-  recordServiceExplorerQueryProjection,
-} from "./explorer-workspace.js";
-import { createDebouncedMapExtentSource } from "./map-adapter.js";
+  SERVICE_EXPLORER_DEFAULT_LIMIT,
+  SERVICE_EXPLORER_OPERATION_TIMEOUT_MS,
+  type ServiceExplorerOperationId,
+  type ServiceExplorerOperationProjection,
+  generateServiceExplorerCode,
+  projectServiceExplorerOperations,
+} from "./operation-model.js";
 import {
-  applyServiceExplorerProjection,
-  createServiceExplorerChartModel,
-  createServiceExplorerFilterOptions,
-  createServiceExplorerMapFilter,
-  createServiceExplorerQueryDiagnostics,
-  formatAttribute,
-  formatExtent,
-  formatTimestamp,
-  serviceExplorerFeatureCollection,
-} from "./projection.js";
-import type {
-  ServiceExplorerDataset,
-  ServiceExplorerFeatureSummary,
-  ServiceExplorerProjectionResult,
-  ServiceExplorerProtocol,
-} from "./types.js";
-import { runServiceExplorerWorkflow } from "./workflow.js";
+  type ServiceExplorerReadyState,
+  type ServiceExplorerSourceView,
+  type ServiceExplorerTruthState,
+  createServiceExplorerTruthModel,
+} from "./truth-model.js";
 
 import "../../_kit/presentation.css";
 import "./styles.css";
@@ -55,759 +27,739 @@ import "./styles.css";
 declare global {
   interface Window {
     __HONUA_SERVICE_EXPLORER_RUNTIME__?: {
-      readonly ready: boolean;
-      readonly sourceId: string;
-      readonly protocol: string;
-      readonly mode: string;
-      readonly queryable: boolean;
-      readonly visibleCount: number;
-      readonly filterCount: number;
-      readonly interactionCount: number;
-      readonly disposed?: boolean;
+      ready: boolean;
+      state: ServiceExplorerTruthState["kind"];
+      protocol: string;
+      sourceId: string;
+      queryEnabled: boolean;
+      renderEnabled: boolean;
+      resultCount: number;
+      interactionCount: number;
+      disposed?: boolean;
     };
     __HONUA_SERVICE_EXPLORER_DISPOSE__?: () => Promise<void>;
   }
 }
 
-const MAP_LAYER_ID = "service-explorer-points";
-const MAP_LABEL_LAYER_ID = "service-explorer-labels";
-
-/** Incident priority styling as a first-class renderer object (issue #497). */
-const priorityRenderer = uniqueValueRenderer({
-  field: "priority",
-  values: [
-    { value: "high", color: "#b91c1c", label: "High priority" },
-    { value: "medium", color: "#2563eb", label: "Medium priority" },
-    { value: "low", color: "#0f766e", label: "Low priority" },
-  ],
-  defaultColor: "#334155",
-  defaultLabel: "Unclassified",
-});
-
+const MAP_SOURCE_ID = "service-explorer-source";
+const INSPECTION_TIMEOUT_MS = 10_000;
 const DEFAULT_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {},
-  layers: [
-    {
-      id: "background",
-      type: "background",
-      paint: {
-        "background-color": "#edf2f0",
-      },
-    },
-  ],
+  layers: [{ id: "background", type: "background", paint: { "background-color": "#e8efeb" } }],
 };
 
-function getElement<T extends Element>(selector: string): T {
-  const element = document.querySelector<T>(selector);
-  if (!element) throw new Error(`Missing required element: ${selector}`);
-  return element;
+const cleanup = new SampleCleanupRegistry();
+const truth = createServiceExplorerTruthModel();
+const runtime: NonNullable<Window["__HONUA_SERVICE_EXPLORER_RUNTIME__"]> = {
+  ready: false,
+  state: "idle" as ServiceExplorerTruthState["kind"],
+  protocol: "unresolved",
+  sourceId: "unselected",
+  queryEnabled: false,
+  renderEnabled: false,
+  resultCount: 0,
+  interactionCount: 0,
+};
+window.__HONUA_SERVICE_EXPLORER_RUNTIME__ = runtime;
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: DEFAULT_STYLE,
+  center: [-157.8583, 21.3069],
+  zoom: 10,
+  attributionControl: { compact: true },
+});
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+cleanup.resource(map);
+cleanup.add(() => truth.dispose());
+
+const presentation = mountSamplePresentation({
+  sampleId: "service-explorer",
+  evidence: {
+    workflow: "public-kernel inspect → strict planner → execution",
+    endpoint: "same-origin OGC fixture",
+    credentials: "not retained",
+  },
+  onDispose: () => disposeDemo(),
+});
+cleanup.add(() => presentation.root.remove());
+
+const form = element<HTMLFormElement>("#inspect-form");
+const endpointInput = element<HTMLInputElement>("#endpoint-input");
+const protocolInput = element<HTMLSelectElement>("#protocol-input");
+const sourceInput = element<HTMLInputElement>("#source-input");
+const inspectButton = element<HTMLButtonElement>("#inspect-button");
+const cancelButton = element<HTMLButtonElement>("#cancel-button");
+const sourceList = element<HTMLElement>("#source-list");
+const capabilityList = element<HTMLElement>("#capability-list");
+const diagnosticList = element<HTMLUListElement>("#diagnostic-list");
+const queryLimit = element<HTMLInputElement>("#query-limit");
+const queryButton = element<HTMLButtonElement>("#run-query-button");
+const renderButton = element<HTMLButtonElement>("#prepare-render-button");
+const copyButton = element<HTMLButtonElement>("#copy-code-button");
+const codeOutput = element<HTMLElement>("#typescript-code");
+const resultHead = element<HTMLTableSectionElement>("#result-head");
+const resultBody = element<HTMLTableSectionElement>("#result-body");
+
+let currentState: ServiceExplorerReadyState | undefined;
+let currentProjection: ServiceExplorerOperationProjection | undefined;
+let generatedOperation: ServiceExplorerOperationId = "query";
+let operationController: AbortController | undefined;
+let operationDeadline: number | undefined;
+let mapLayerIds: string[] = [];
+let mapSourceId: string | undefined;
+let disposePromise: Promise<void> | undefined;
+
+const unsubscribe = truth.subscribe((state) => renderTruth(state));
+cleanup.add(unsubscribe);
+
+cleanup.listen(form, "submit", (event) => {
+  event.preventDefault();
+  void inspectEndpoint();
+});
+cleanup.listen(cancelButton, "click", () => {
+  if (operationController) {
+    operationController.abort(new DOMException("Service Explorer operation was cancelled", "AbortError"));
+    return;
+  }
+  truth.cancel();
+});
+cleanup.listen(queryLimit, "input", () => refreshOperationProjection());
+cleanup.listen(queryButton, "click", () => void runAcceptedQuery());
+cleanup.listen(renderButton, "click", () => void renderAcceptedSource());
+cleanup.listen(copyButton, "click", () => void copyGeneratedCode());
+cleanup.listen(sourceList, "click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const button = target.closest<HTMLButtonElement>("button[data-source-id]");
+  if (!button || !sourceList.contains(button) || !button.dataset.sourceId) return;
+  sourceInput.value = button.dataset.sourceId;
+  runtime.interactionCount += 1;
+  void inspectEndpoint();
+});
+
+const defaultEndpoint = `${window.location.origin}/fixtures/ogc`;
+endpointInput.value = defaultEndpoint;
+protocolInput.value = "ogc-features";
+sourceInput.value = "places";
+queryLimit.value = String(SERVICE_EXPLORER_DEFAULT_LIMIT);
+window.__HONUA_SERVICE_EXPLORER_DISPOSE__ = () => disposeDemo();
+void inspectEndpoint();
+
+async function inspectEndpoint(): Promise<void> {
+  abortActiveOperation(new DOMException("Service Explorer operation was superseded", "AbortError"));
+  const endpoint = endpointInput.value;
+  const protocol = protocolInput.value as ConnectProtocolHint;
+  const sourceId = sourceInput.value.trim();
+  await truth.inspect(
+    {
+      url: endpoint,
+      protocol,
+      ...(sourceId ? { sourceId } : {}),
+    },
+    { signal: AbortSignal.timeout(INSPECTION_TIMEOUT_MS) },
+  );
+}
+
+function renderTruth(state: ServiceExplorerTruthState): void {
+  runtime.state = state.kind;
+  runtime.ready = state.kind === "ready" || state.kind === "partial";
+  inspectButton.disabled = state.kind === "loading";
+  cancelButton.disabled = state.kind !== "loading";
+  currentState = undefined;
+  currentProjection = undefined;
+  resetExplorerPresentation(state);
+  setStateBadge(state.kind);
+
+  if ("request" in state) {
+    setText("#request-scope", `${state.request.authorization.mode}: ${state.request.authorization.scopeIdentity}`);
+    endpointInput.value = state.request.endpoint;
+  }
+
+  if (state.kind === "idle") {
+    setText("#state-detail", "Enter a service URL.");
+    return;
+  }
+  if (state.kind === "loading") {
+    setText("#state-detail", "Discovering service metadata with a 10 second deadline.");
+    setText("#input-message", "Inspecting a credential-free endpoint identity…");
+    return;
+  }
+  if (state.kind !== "ready" && state.kind !== "partial") {
+    renderFailure(state);
+    return;
+  }
+
+  currentState = state;
+  const inspection = state.inspection;
+  runtime.protocol = inspection.service.protocol;
+  runtime.sourceId = inspection.dataset.selectedSourceId ?? "unselected";
+  setText("#state-detail", `${inspection.dataset.sourceCount} source(s); ${inspection.service.cache.status} metadata.`);
+  setText(
+    "#input-message",
+    state.kind === "partial" ? "Inspection completed with bounded partial evidence." : "Inspection completed.",
+  );
+  setText("#requested-protocol", inspection.service.detection.requestedProtocolHint);
+  setText("#resolved-protocol", inspection.service.detection.resolvedProtocol);
+  setText("#detection-confidence", inspection.service.detection.confidence);
+  setText(
+    "#metadata-cache",
+    `${inspection.service.cache.status}; feature data ${inspection.service.cache.featureData}`,
+  );
+  setText("#cache-status", inspection.service.cache.status);
+  renderSources(inspection.sources, inspection.dataset.selectedSourceId);
+  const selected = selectedSource(state);
+  renderSchema(selected);
+  renderCapabilities(selected);
+  renderDiagnostics(inspection.diagnostics);
+  presentation.updateEvidence({
+    protocol: inspection.service.protocol,
+    source: inspection.dataset.selectedSourceId ?? "selection required",
+    cache: inspection.service.cache.status,
+    authorization: inspection.service.authorization.scopeIdentity,
+  });
+  presentation.showDegradation(
+    state.kind === "partial" ? ["Inspection evidence is partial; actions remain planner-gated."] : [],
+  );
+  refreshOperationProjection();
+}
+
+function renderFailure(state: ServiceExplorerTruthState): void {
+  const failure = "failure" in state ? state.failure : undefined;
+  const title = failure?.title ?? "Inspection did not complete";
+  setText("#state-detail", title);
+  setText("#input-message", failure ? `${failure.code}: ${failure.detail}` : title);
+  setText("#query-code", failure?.code ?? "inspection.unavailable");
+  setText("#render-code", failure?.code ?? "inspection.unavailable");
+  setText("#query-reason", "No inspected source is available for planning.");
+  setText("#render-reason", "No inspected source is available for planning.");
+  presentation.showDegradation([failure?.code ?? "inspection-unavailable"]);
+}
+
+function resetExplorerPresentation(state: ServiceExplorerTruthState): void {
+  runtime.protocol = "unresolved";
+  runtime.sourceId = "unselected";
+  runtime.queryEnabled = false;
+  runtime.renderEnabled = false;
+  runtime.resultCount = 0;
+  queryButton.disabled = true;
+  renderButton.disabled = true;
+  copyButton.disabled = true;
+  clearMapPreview();
+
+  setText("#input-message", "");
+  setText("#request-scope", "anonymous: public");
+  setText("#requested-protocol", "—");
+  setText("#resolved-protocol", "—");
+  setText("#detection-confidence", "—");
+  setText("#metadata-cache", "—");
+  setText("#cache-status", "not loaded");
+  setText("#query-code", "source.selection-required");
+  setText("#render-code", "source.selection-required");
+  setText("#query-reason", "Inspect a source first.");
+  setText("#render-reason", "Inspect a source first.");
+  setText("#plan-id", "not accepted");
+  setText("#plan-pushdown", "—");
+  setText("#plan-fidelity", "—");
+  setText("#plan-cache", "—");
+  setText("#plan-residual", "—");
+  setText("#result-count", "—");
+  setText("#map-status", "waiting for an accepted operation");
+  setText("#copy-status", "");
+  codeOutput.textContent = "// Inspect an endpoint to generate evidence-equivalent TypeScript.";
+
+  sourceList.replaceChildren(message("No inspected sources.", "empty-state"));
+  capabilityList.replaceChildren(message("No selected source capability evidence.", "empty-state"));
+  element<HTMLElement>("#schema-summary").replaceChildren(
+    message("Inspect an endpoint to see source metadata.", "empty-state"),
+  );
+  diagnosticList.replaceChildren(listMessage("No inspection diagnostics.", "empty-state"));
+  setText("#diagnostic-count", "0");
+  element<HTMLOListElement>("#plan-steps").replaceChildren(listMessage("No accepted query plan.", "empty-state"));
+  resultHead.replaceChildren();
+  resultBody.replaceChildren(tableMessage("No query has run for this inspection."));
+
+  const authorization = "request" in state ? state.request.authorization.scopeIdentity : "public";
+  presentation.updateEvidence({
+    protocol: "unresolved",
+    source: "none",
+    cache: "not loaded",
+    authorization,
+  });
+  presentation.showDegradation([]);
+}
+
+function renderSources(sources: readonly ServiceExplorerSourceView[], selectedId: string | undefined): void {
+  sourceList.replaceChildren();
+  if (sources.length === 0) {
+    sourceList.append(message("No bounded source descriptors were returned.", "empty-state"));
+    return;
+  }
+  for (const source of sources) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "source-card";
+    button.dataset.sourceId = source.id;
+    button.dataset.selected = String(source.id === selectedId);
+    const title = document.createElement("strong");
+    title.textContent = source.id;
+    const detail = document.createElement("span");
+    detail.textContent = `${source.protocol} · ${source.discovery} · ${source.effectiveCapabilityCount} effective`;
+    button.append(title, detail);
+    sourceList.append(button);
+  }
+}
+
+function renderSchema(source: ServiceExplorerSourceView | undefined): void {
+  const host = element<HTMLElement>("#schema-summary");
+  host.replaceChildren();
+  if (!source) {
+    host.append(message("Choose a visible inspected source to see schema and CRS truth.", "empty-state"));
+    return;
+  }
+  const summary = document.createElement("dl");
+  summary.className = "fact-grid compact";
+  appendFact(summary, "Schema", `${source.schema.state}; ${source.schema.fieldCount} field(s)`);
+  appendFact(summary, "Primary key", source.schema.primaryKey ?? "not reported");
+  appendFact(summary, "Schema identity", source.schema.schemaV2?.fingerprint ?? "not reported");
+  appendFact(summary, "CRS", source.crs.length > 0 ? source.crs.join(", ") : "not reported");
+  appendFact(
+    summary,
+    "Evidence provenance",
+    source.provenance.length > 0 ? source.provenance.map((entry) => entry.source).join(", ") : "not reported",
+  );
+  host.append(summary);
+  if (source.schema.fields.length > 0) {
+    const fields = document.createElement("p");
+    fields.className = "field-summary";
+    fields.textContent = source.schema.fields.map((field) => `${field.name}: ${field.type}`).join(" · ");
+    host.append(fields);
+  }
+}
+
+function renderCapabilities(source: ServiceExplorerSourceView | undefined): void {
+  capabilityList.replaceChildren();
+  if (!source) {
+    capabilityList.append(message("No selected source capability evidence.", "empty-state"));
+    return;
+  }
+  const profile = new Map(source.capabilityProfile?.entries.map((entry) => [entry.id, entry]));
+  for (const decision of source.capabilityDecisions) {
+    const card = document.createElement("article");
+    card.className = "capability-card";
+    card.dataset.effective = String(decision.effective);
+    const heading = document.createElement("div");
+    heading.className = "capability-heading";
+    const name = document.createElement("strong");
+    name.textContent = decision.capability;
+    const status = document.createElement("code");
+    status.textContent = decision.code;
+    heading.append(name, status);
+    const reason = document.createElement("p");
+    reason.textContent = decision.reason;
+    card.append(heading, reason);
+    const evidence = decision.evidence.map(
+      (item) => `${item.kind}: ${item.supported ? "supports" : "does not support"}`,
+    );
+    const entry = profile.get(decision.capability);
+    evidence.unshift(
+      `claimed ${entry?.claimed ?? "not reported"} · observed ${entry?.observed ?? "not reported"} · effective ${entry?.effective ?? (decision.effective ? "supported" : "unsupported")}`,
+    );
+    if (entry) {
+      if (entry.pagination) {
+        evidence.push(
+          `pagination ${entry.pagination.modes.join(", ") || "not reported"}${entry.pagination.maxPageSize ? ` · max ${entry.pagination.maxPageSize}` : ""}`,
+        );
+      }
+      if (entry.authorizationScopes.length > 0)
+        evidence.push(`authorization scopes: ${entry.authorizationScopes.join(", ")}`);
+    }
+    if (evidence.length > 0) {
+      const evidenceText = document.createElement("small");
+      evidenceText.textContent = evidence.join(" · ");
+      card.append(evidenceText);
+    }
+    capabilityList.append(card);
+  }
+  if (source.capabilityDecisions.length === 0) {
+    capabilityList.append(message("The kernel reported no capability decisions for this source.", "empty-state"));
+  }
+}
+
+function renderDiagnostics(diagnostics: ServiceExplorerReadyState["inspection"]["diagnostics"]): void {
+  diagnosticList.replaceChildren();
+  setText("#diagnostic-count", String(diagnostics.length));
+  for (const diagnostic of diagnostics) {
+    const item = document.createElement("li");
+    item.dataset.severity = diagnostic.severity;
+    const code = document.createElement("code");
+    code.textContent = diagnostic.code;
+    const text = document.createElement("span");
+    text.textContent = diagnostic.message;
+    item.append(code, text);
+    diagnosticList.append(item);
+  }
+  if (diagnostics.length === 0) {
+    const item = document.createElement("li");
+    item.className = "empty-state";
+    item.textContent = "No inspection diagnostics.";
+    diagnosticList.append(item);
+  }
+}
+
+function refreshOperationProjection(): void {
+  const state = currentState;
+  const connection = state ? truth.connection() : undefined;
+  if (!state || !connection) return;
+  currentProjection = projectServiceExplorerOperations(state, connection, Number(queryLimit.value));
+  const { query, render } = currentProjection.actions;
+  runtime.queryEnabled = query.enabled;
+  runtime.renderEnabled = render.enabled;
+  queryButton.disabled = !query.enabled;
+  renderButton.disabled = !render.enabled;
+  setText("#query-code", query.code);
+  setText("#query-reason", query.reason);
+  setText("#render-code", render.code);
+  setText("#render-reason", render.reason);
+  renderQueryPlan(currentProjection);
+  updateGeneratedCode(generatedOperation);
+}
+
+function renderQueryPlan(projection: ServiceExplorerOperationProjection): void {
+  const plan = projection.queryPlan;
+  setText("#plan-id", plan?.id ?? projection.renderPlan?.id ?? "not accepted");
+  setText("#plan-pushdown", plan?.pushdown ?? "not applicable");
+  setText("#plan-fidelity", plan?.fidelity ?? projection.renderPlan?.selected?.fidelity ?? "not accepted");
+  setText("#plan-cache", plan?.cache ?? projection.renderPlan?.cache ?? "not accepted");
+  setText(
+    "#plan-residual",
+    plan?.steps.some((step) => step.engine === "client") ? "bounded client step" : plan ? "none" : "not accepted",
+  );
+  const steps = element<HTMLOListElement>("#plan-steps");
+  steps.replaceChildren();
+  for (const step of plan?.steps ?? []) {
+    const item = document.createElement("li");
+    item.textContent = `${step.engine} · ${step.operation} · ${step.pushdown} pushdown · ${step.reason}`;
+    steps.append(item);
+  }
+  if (!plan) steps.append(listMessage("No accepted query plan.", "empty-state"));
+}
+
+async function runAcceptedQuery(): Promise<void> {
+  const projection = currentProjection;
+  if (!projection?.actions.query.enabled || !projection.queryPlan || !projection.source) return;
+  generatedOperation = "query";
+  updateGeneratedCode("query");
+  const controller = replaceOperationController();
+  setText("#map-status", "executing accepted plan");
+  try {
+    const execution = await executeQueryPlan(projection.queryPlan, projection.source, { signal: controller.signal });
+    controller.signal.throwIfAborted();
+    await applyQueryResult(projection, execution.result, controller.signal);
+    controller.signal.throwIfAborted();
+    renderResult(execution.result);
+    runtime.resultCount = execution.result.features.length;
+    runtime.interactionCount += 1;
+    setText("#result-count", `${execution.result.features.length}${execution.result.exceededTransferLimit ? "+" : ""}`);
+    setText("#map-status", execution.result.features.length === 0 ? "empty exact result" : "exact result projected");
+    presentation.showDegradation(execution.result.degraded?.map((entry) => entry.reason) ?? []);
+  } catch (error) {
+    if (operationController === controller) {
+      if (controller.signal.aborted) showOperationAbort(controller.signal.reason);
+      else showOperationFailure(error, "query execution failed");
+    }
+  } finally {
+    finishOperation(controller);
+  }
+}
+
+async function renderAcceptedSource(): Promise<void> {
+  const projection = currentProjection;
+  const plan = projection?.renderPlan;
+  if (!projection?.actions.render.enabled || !plan?.selected || !projection.source) return;
+  generatedOperation = "render";
+  updateGeneratedCode("render");
+  const controller = replaceOperationController();
+  try {
+    if (plan.selected.strategy === "geojson-query") {
+      if (!projection.queryPlan) throw new Error("accepted render plan is missing its accepted query plan");
+      const execution = await executeQueryPlan(projection.queryPlan, projection.source, { signal: controller.signal });
+      controller.signal.throwIfAborted();
+      await applyQueryResult(projection, execution.result, controller.signal);
+      controller.signal.throwIfAborted();
+      renderResult(execution.result);
+      runtime.resultCount = execution.result.features.length;
+      setText("#result-count", String(execution.result.features.length));
+    } else {
+      await applyNativePlan(plan, controller.signal);
+    }
+    runtime.interactionCount += 1;
+    setText("#map-status", `${plan.selected.strategy} mounted`);
+    showRenderPlan(plan);
+  } catch (error) {
+    if (operationController === controller) {
+      if (controller.signal.aborted) showOperationAbort(controller.signal.reason);
+      else showOperationFailure(error, "render preparation failed");
+    }
+  } finally {
+    finishOperation(controller);
+  }
+}
+
+async function applyQueryResult(
+  projection: ServiceExplorerOperationProjection,
+  result: Result<Record<string, unknown>>,
+  signal: AbortSignal,
+): Promise<void> {
+  if (!projection.source || !projection.queryPlan) return;
+  signal.throwIfAborted();
+  const mapProjection = projectSourceToMapLibre(projection.source, projection.queryPlan, result, {
+    sourceId: MAP_SOURCE_ID,
+    layerId: "service-explorer-features",
+  });
+  await waitForMapStyle(signal);
+  signal.throwIfAborted();
+  clearMapPreview();
+  map.addSource(mapProjection.sourceId, mapProjection.source as maplibregl.SourceSpecification);
+  mapSourceId = mapProjection.sourceId;
+  for (const layer of mapProjection.layers) {
+    map.addLayer(layer as unknown as maplibregl.LayerSpecification);
+    mapLayerIds.push(String(layer.id));
+  }
+}
+
+async function applyNativePlan(plan: AutomaticMapLibrePlan, signal: AbortSignal): Promise<void> {
+  if (!plan.source) throw new Error("accepted native render plan is missing a source projection");
+  await waitForMapStyle(signal);
+  signal.throwIfAborted();
+  clearMapPreview();
+  map.addSource(plan.sourceId, plan.source as maplibregl.SourceSpecification);
+  mapSourceId = plan.sourceId;
+  for (const layer of plan.layers) {
+    map.addLayer(layer as unknown as maplibregl.LayerSpecification);
+    mapLayerIds.push(String(layer.id));
+  }
+}
+
+function clearMapPreview(): void {
+  for (const layerId of mapLayerIds.reverse()) if (map.getLayer(layerId)) map.removeLayer(layerId);
+  mapLayerIds = [];
+  if (mapSourceId && map.getSource(mapSourceId)) map.removeSource(mapSourceId);
+  mapSourceId = undefined;
+}
+
+function renderResult(result: Result<Record<string, unknown>>): void {
+  resultHead.replaceChildren();
+  resultBody.replaceChildren();
+  const fields = [...new Set(result.features.flatMap((feature) => Object.keys(feature.attributes)))].slice(0, 8);
+  if (fields.length === 0) {
+    resultBody.append(
+      tableMessage(result.features.length === 0 ? "The accepted query returned no rows." : "Rows have no attributes."),
+    );
+    return;
+  }
+  const headerRow = document.createElement("tr");
+  for (const field of fields) {
+    const cell = document.createElement("th");
+    cell.scope = "col";
+    cell.textContent = field;
+    headerRow.append(cell);
+  }
+  resultHead.append(headerRow);
+  for (const feature of result.features) {
+    const row = document.createElement("tr");
+    for (const field of fields) {
+      const cell = document.createElement("td");
+      cell.textContent = boundedValue(feature.attributes[field]);
+      row.append(cell);
+    }
+    resultBody.append(row);
+  }
+}
+
+function showRenderPlan(plan: AutomaticMapLibrePlan): void {
+  setText("#plan-id", plan.id);
+  setText("#plan-pushdown", plan.selected?.dataPath === "materialized" ? "query plan" : "native");
+  setText("#plan-fidelity", plan.selected?.fidelity ?? "not accepted");
+  setText("#plan-cache", plan.cache);
+  setText("#plan-residual", "none");
+  const steps = element<HTMLOListElement>("#plan-steps");
+  steps.replaceChildren();
+  for (const candidate of plan.candidates) {
+    const item = document.createElement("li");
+    item.textContent = `${candidate.strategy} · ${candidate.eligible ? "eligible" : candidate.reason} · ${candidate.message}`;
+    steps.append(item);
+  }
+}
+
+function updateGeneratedCode(operation: ServiceExplorerOperationId): void {
+  const state = currentState;
+  const projection = currentProjection;
+  if (!state || !projection || !projection.actions[operation].enabled) {
+    codeOutput.textContent = `// ${projection?.actions[operation].code ?? "source.selection-required"}: ${projection?.actions[operation].reason ?? "Inspect an endpoint first."}`;
+    copyButton.disabled = true;
+    return;
+  }
+  codeOutput.textContent = generateServiceExplorerCode(state, projection, operation);
+  copyButton.disabled = false;
+}
+
+async function copyGeneratedCode(): Promise<void> {
+  if (copyButton.disabled) return;
+  try {
+    await navigator.clipboard.writeText(codeOutput.textContent ?? "");
+    setText("#copy-status", "Copied the evidence-equivalent TypeScript.");
+  } catch {
+    setText("#copy-status", "Clipboard access was unavailable; select the code manually.");
+  }
+}
+
+function selectedSource(state: ServiceExplorerReadyState): ServiceExplorerSourceView | undefined {
+  const id = state.inspection.dataset.selectedSourceId;
+  return id ? state.inspection.sources.find((source) => source.id === id) : state.inspection.sources[0];
+}
+
+function setStateBadge(kind: ServiceExplorerTruthState["kind"]): void {
+  const label = kind === "partial" ? "Partial evidence" : kind.charAt(0).toUpperCase() + kind.slice(1);
+  setText("#state-label", label);
+  element<HTMLElement>("#state-dot").dataset.state = kind;
+}
+
+function replaceOperationController(): AbortController {
+  abortActiveOperation(new DOMException("Service Explorer operation was superseded", "AbortError"));
+  const controller = new AbortController();
+  operationController = controller;
+  operationDeadline = window.setTimeout(() => {
+    controller.abort(
+      new DOMException(
+        `Service Explorer operation exceeded ${SERVICE_EXPLORER_OPERATION_TIMEOUT_MS}ms`,
+        "TimeoutError",
+      ),
+    );
+  }, SERVICE_EXPLORER_OPERATION_TIMEOUT_MS);
+  queryButton.disabled = true;
+  renderButton.disabled = true;
+  cancelButton.disabled = false;
+  return controller;
+}
+
+function finishOperation(controller: AbortController): void {
+  if (operationController !== controller) return;
+  if (operationDeadline !== undefined) window.clearTimeout(operationDeadline);
+  operationDeadline = undefined;
+  operationController = undefined;
+  cancelButton.disabled = truth.state.kind !== "loading";
+  refreshOperationProjection();
+}
+
+function abortActiveOperation(reason: unknown): void {
+  const controller = operationController;
+  operationController = undefined;
+  if (operationDeadline !== undefined) window.clearTimeout(operationDeadline);
+  operationDeadline = undefined;
+  if (controller && !controller.signal.aborted) controller.abort(reason);
+}
+
+function waitForMapStyle(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  if (map.isStyleLoaded()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const cleanupListeners = () => {
+      map.off("load", loaded);
+      map.off("error", failed);
+      signal.removeEventListener("abort", aborted);
+    };
+    const loaded = () => {
+      cleanupListeners();
+      resolve();
+    };
+    const failed = (event: maplibregl.ErrorEvent) => {
+      cleanupListeners();
+      reject(event.error);
+    };
+    const aborted = () => {
+      cleanupListeners();
+      reject(signal.reason);
+    };
+    map.once("load", loaded);
+    map.once("error", failed);
+    signal.addEventListener("abort", aborted, { once: true });
+  });
+}
+
+function showOperationFailure(error: unknown, fallback: string): void {
+  const code = isHonuaError(error) ? error.sdkCode : "service-explorer.operation-failed";
+  setText("#map-status", `${code}: ${fallback}`);
+  presentation.showDegradation([code]);
+}
+
+function showOperationAbort(reason: unknown): void {
+  const timedOut = reason instanceof DOMException && reason.name === "TimeoutError";
+  const code = timedOut ? "operation.timeout" : "operation.cancelled";
+  setText("#map-status", timedOut ? `${code}: operation exceeded its bounded deadline` : `${code}: operation stopped`);
+  presentation.showDegradation([code]);
+}
+
+function boundedValue(value: unknown): string {
+  if (value === null) return "null";
+  if (value === undefined) return "—";
+  if (typeof value === "string") return value.slice(0, 256);
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return String(value);
+  try {
+    return JSON.stringify(value).slice(0, 256);
+  } catch {
+    return "[unprintable]";
+  }
+}
+
+function appendFact(host: HTMLElement, label: string, value: string): void {
+  const wrapper = document.createElement("div");
+  const term = document.createElement("dt");
+  term.textContent = label;
+  const detail = document.createElement("dd");
+  detail.textContent = value;
+  wrapper.append(term, detail);
+  host.append(wrapper);
+}
+
+function message(text: string, className?: string): HTMLElement {
+  const node = document.createElement("p");
+  node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+function listMessage(text: string, className?: string): HTMLLIElement {
+  const node = document.createElement("li");
+  node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+function tableMessage(text: string): HTMLTableRowElement {
+  const row = document.createElement("tr");
+  const cell = document.createElement("td");
+  cell.textContent = text;
+  row.append(cell);
+  return row;
+}
+
+function element<T extends Element>(selector: string): T {
+  const value = document.querySelector<T>(selector);
+  if (!value) throw new Error(`Missing Service Explorer element: ${selector}`);
+  return value;
 }
 
 function setText(selector: string, value: string): void {
-  getElement<HTMLElement>(selector).textContent = value;
+  element<HTMLElement>(selector).textContent = value;
 }
 
-function escapeHtml(value: unknown): string {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function disposeDemo(): Promise<void> {
+  if (disposePromise) return disposePromise;
+  abortActiveOperation(new DOMException("Service Explorer demo was disposed", "AbortError"));
+  runtime.disposed = true;
+  runtime.ready = false;
+  disposePromise = cleanup.dispose();
+  return disposePromise;
 }
-
-function setOverlay(state: "loading" | "ready" | "error", title: string, detail: string): void {
-  const overlay = getElement<HTMLElement>("#map-overlay");
-  overlay.dataset.state = state;
-  setText("#overlay-title", title);
-  setText("#overlay-detail", detail);
-}
-
-// Group label for each protocol so the picker reads as a protocol catalog
-// rather than a flat list once every SDK protocol has a lane.
-const PROTOCOL_FAMILY_ORDER = [
-  "Honua native",
-  "Esri GeoServices",
-  "OGC API & catalogs",
-  "OGC web services",
-  "OData",
-  "MapLibre native",
-] as const;
-
-function protocolFamily(protocol: ServiceExplorerProtocol): (typeof PROTOCOL_FAMILY_ORDER)[number] {
-  switch (protocol) {
-    case "Honua gRPC":
-      return "Honua native";
-    case "FeatureServer":
-    case "MapServer":
-    case "ImageServer":
-    case "Geometry Service":
-    case "GP Service":
-      return "Esri GeoServices";
-    case "OGC Features":
-    case "OGC Tiles":
-    case "OGC Maps":
-    case "OGC Records":
-    case "STAC":
-      return "OGC API & catalogs";
-    case "WFS":
-    case "WMS":
-    case "WMTS":
-      return "OGC web services";
-    case "OData":
-      return "OData";
-    case "MapLibre Vector":
-    case "MapLibre Raster":
-    case "MapLibre GeoJSON":
-      return "MapLibre native";
-  }
-}
-
-function renderDiscovery(dataset: ServiceExplorerDataset): void {
-  const sourcePicker = getElement<HTMLSelectElement>("#source-picker");
-  sourcePicker.innerHTML = "";
-  const byFamily = new Map<string, HTMLOptGroupElement>();
-  for (const family of PROTOCOL_FAMILY_ORDER) {
-    if (!dataset.catalog.sources.some((source) => protocolFamily(source.protocol) === family)) continue;
-    const group = document.createElement("optgroup");
-    group.label = family;
-    byFamily.set(family, group);
-    sourcePicker.append(group);
-  }
-  for (const source of dataset.catalog.sources) {
-    const option = document.createElement("option");
-    option.value = source.id;
-    option.textContent = `${source.protocol} / ${source.name}`;
-    option.dataset.mode = source.mode;
-    option.selected = source.id === dataset.sourceOption.id;
-    (byFamily.get(protocolFamily(source.protocol)) ?? sourcePicker).append(option);
-  }
-
-  const services = getElement<HTMLElement>("#service-list");
-  services.innerHTML = dataset.catalog.services
-    .map(
-      (service) => `
-        <li data-status="${escapeHtml(service.status ?? "available")}">
-          <strong>${escapeHtml(service.name)}</strong>
-          <span>${escapeHtml(service.type)}${service.layerCount === undefined ? "" : ` / ${service.layerCount} layer(s)`}</span>
-        </li>
-      `,
-    )
-    .join("");
-
-  const layers = dataset.catalog.layersByServiceId[dataset.metadata.service.id] ?? [];
-  getElement<HTMLElement>("#layer-list").innerHTML = layers
-    .map(
-      (layer) => `
-        <li data-active="${layer.sourceId === dataset.sourceId ? "true" : "false"}">
-          <strong>${escapeHtml(layer.name)}</strong>
-          <span>${escapeHtml(layer.serviceType)} / ${escapeHtml(layer.geometryType ?? "metadata pending")}</span>
-        </li>
-      `,
-    )
-    .join("");
-
-  setText("#active-service", dataset.metadata.service.name);
-  setText("#active-layer", `${dataset.metadata.layer.name} (${dataset.metadata.layer.id})`);
-  setText("#source-kind", `${dataset.sourceOption.protocol} / ${dataset.sourceOption.mode}`);
-  setText("#source-description", dataset.sourceOption.description);
-  setText("#source-cache-policy", dataset.sourceOption.cachePolicy);
-  setText("#data-source", dataset.source === "cloud" ? "Cloud Honua" : "Fixture fallback");
-  setText("#query-duration", `${dataset.queryDurationMs} ms`);
-}
-
-function renderMetadata(dataset: ServiceExplorerDataset): void {
-  const schema = dataset.metadata.schema;
-  setText("#schema-title", `${schema.fields?.length ?? 0} fields`);
-  setText("#layer-extent", formatExtent(schema.extent));
-  getElement<HTMLElement>("#schema-list").innerHTML = (schema.fields ?? [])
-    .map(
-      (field) => `
-        <li>
-          <strong>${escapeHtml(field.alias ?? field.name)}</strong>
-          <span>${escapeHtml(field.name)} / ${escapeHtml(field.type)}</span>
-        </li>
-      `,
-    )
-    .join("");
-
-  getElement<HTMLElement>("#capability-list").innerHTML = Object.entries(dataset.metadata.capabilities)
-    .map(
-      ([name, status]) => `
-        <li data-status="${escapeHtml(status)}">
-          <strong>${escapeHtml(name)}</strong>
-          <span>${escapeHtml(status)}</span>
-        </li>
-      `,
-    )
-    .join("");
-}
-
-function renderFilterOptions(dataset: ServiceExplorerDataset): void {
-  const select = getElement<HTMLSelectElement>("#attribute-filter");
-  const queryable = isQueryableSource(dataset);
-  select.disabled = !queryable;
-  select.innerHTML = queryable
-    ? '<option value="">All linked features</option>'
-    : '<option value="">Table/query unavailable for this source</option>';
-  if (!queryable) return;
-
-  for (const option of createServiceExplorerFilterOptions(dataset.featureSummaries)) {
-    const group = document.createElement("optgroup");
-    group.label = option.field;
-    for (const value of option.values) {
-      const item = document.createElement("option");
-      item.value = `${option.field}\u001f${value}`;
-      item.textContent = `${option.field}: ${value}`;
-      group.append(item);
-    }
-    select.append(group);
-  }
-}
-
-function renderCacheAndDiagnostics(
-  dataset: ServiceExplorerDataset,
-  workspace: ReturnType<typeof createServiceExplorerWorkspace>,
-): void {
-  const cache = selectHonuaAppWorkspaceMetadataCacheModel(workspace.workspace.state);
-  const entry = cache.entries[dataset.sourceId];
-  const metadata = entry?.metadata ?? dataset.metadata;
-
-  const displayStatus = entry?.status === "loading" ? "loading" : metadata.cache.state.status;
-  setText("#cache-status", displayStatus);
-  setText("#cache-updated", formatTimestamp(entry?.updatedAt ?? metadata.cache.updatedAt));
-  setText("#cache-source", metadata.cache.source === "cloud" ? "Cloud Honua" : "Fixture");
-  setText(
-    "#cache-revalidate",
-    `${Math.round((metadata.cache.state.ttlMs ?? metadata.cache.revalidateAfterMs) / 1000)} seconds`,
-  );
-
-  const jobs = selectHonuaAppWorkspaceJobModel(workspace.workspace.state);
-  setText("#job-status", jobs.entries["linked-query-projection"]?.snapshot.status ?? "waiting");
-
-  getElement<HTMLElement>("#diagnostic-list").innerHTML = metadata.diagnostics
-    .map(
-      (diagnostic) => `
-        <li data-level="${escapeHtml(diagnostic.level)}">
-          <strong>${escapeHtml(diagnostic.title)}</strong>
-          <span>${escapeHtml(diagnostic.detail)}</span>
-        </li>
-      `,
-    )
-    .join("");
-}
-
-function renderTable(
-  dataset: ServiceExplorerDataset,
-  result: ServiceExplorerProjectionResult,
-  selectedFeatureId: string | undefined,
-): void {
-  const body = getElement<HTMLElement>("#result-table-body");
-  body.innerHTML = "";
-
-  if (!isQueryableSource(dataset)) {
-    body.innerHTML =
-      '<tr><td colspan="5">Table/query controls are disabled for this render-only standards source.</td></tr>';
-    return;
-  }
-
-  if (result.rows.length === 0) {
-    body.innerHTML = '<tr><td colspan="5">No features match the linked map and filter state.</td></tr>';
-    return;
-  }
-
-  for (const summary of result.rows) {
-    const row = document.createElement("tr");
-    row.dataset.selected = selectedFeatureId === summary.id ? "true" : "false";
-    row.innerHTML = `
-      <td>${escapeHtml(summary.id)}</td>
-      <td>${escapeHtml(summary.title)}</td>
-      <td>${escapeHtml(summary.attributes.status ?? "-")}</td>
-      <td>${escapeHtml(summary.attributes.category ?? "-")}</td>
-    `;
-    const action = document.createElement("td");
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "icon-text-button";
-    button.textContent = "Select";
-    button.dataset.featureId = summary.id;
-    action.append(button);
-    row.append(action);
-    body.append(row);
-  }
-}
-
-function renderChart(
-  dataset: ServiceExplorerDataset,
-  result: ServiceExplorerProjectionResult,
-  projection: LinkedViewQueryProjection,
-): void {
-  if (!isQueryableSource(dataset)) {
-    setText("#chart-field", "render-only");
-    getElement<HTMLElement>("#chart-buckets").innerHTML =
-      '<p class="disabled-copy">Chart buckets require a queryable feature source.</p>';
-    return;
-  }
-
-  const chart = createServiceExplorerChartModel(result, projection);
-  setText("#chart-field", chart.field);
-  const max = Math.max(1, ...chart.buckets.map((bucket) => bucket.count));
-  getElement<HTMLElement>("#chart-buckets").innerHTML = chart.buckets
-    .map(
-      (bucket) => `
-        <button type="button" class="chart-bucket" data-field="${escapeHtml(bucket.field)}" data-value="${escapeHtml(
-          bucket.value,
-        )}" data-selected="${bucket.selected ? "true" : "false"}">
-          <span>${escapeHtml(bucket.value)}</span>
-          <strong>${bucket.count}</strong>
-          <i style="inline-size: ${(bucket.count / max) * 100}%"></i>
-        </button>
-      `,
-    )
-    .join("");
-}
-
-function renderDetail(workspace: ReturnType<typeof createServiceExplorerWorkspace>): void {
-  const detail = selectHonuaAppWorkspaceDetailModel(workspace.workspace.state);
-  const selected = detail.selectedRecords[0]?.feature;
-  setText("#selection-count", String(detail.selection.length));
-
-  if (!selected) {
-    setText("#detail-title", "No selected feature");
-    setText(
-      "#detail-subtitle",
-      detail.missingSelection.length > 0
-        ? "Selection is not present in the active layer."
-        : "Select a map point or table row.",
-    );
-    getElement<HTMLElement>("#detail-attributes").innerHTML = "";
-    return;
-  }
-
-  setText("#detail-title", selected.title);
-  setText("#detail-subtitle", selected.subtitle);
-  getElement<HTMLElement>("#detail-attributes").innerHTML = Object.entries(selected.attributes)
-    .slice(0, 10)
-    .map(
-      ([key, value]) => `
-        <div class="attribute-row">
-          <dt>${escapeHtml(key)}</dt>
-          <dd>${escapeHtml(formatAttribute(value))}</dd>
-        </div>
-      `,
-    )
-    .join("");
-}
-
-function renderQuery(result: ServiceExplorerProjectionResult): void {
-  const diagnostics = createServiceExplorerQueryDiagnostics(result.projection);
-  setText("#visible-count", String(result.visibleCount));
-  setText("#matched-count", String(result.totalMatched));
-  setText("#filter-count", String(Object.keys(result.projection.filters).length));
-  setText("#map-extent", formatExtent(result.projection.extent));
-  getElement<HTMLElement>("#query-json").textContent = JSON.stringify(diagnostics, null, 2);
-}
-
-function isQueryableSource(dataset: ServiceExplorerDataset): boolean {
-  return dataset.metadata.capabilities.query !== "unsupported" && dataset.metadata.capabilities.table !== "unsupported";
-}
-
-function selectedSourceIdFromLocation(configSourceId: string | undefined): string | undefined {
-  const selected = new URLSearchParams(window.location.search).get("source")?.trim();
-  return selected && selected.length > 0 ? selected : configSourceId;
-}
-
-function updateSourceLocation(sourceId: string): void {
-  const url = new URL(window.location.href);
-  url.searchParams.set("source", sourceId);
-  window.location.href = url.toString();
-}
-
-function selectedFeatureIdFromProjection(projection: LinkedViewQueryProjection, sourceId: string): string | undefined {
-  const [target] = projection.selection;
-  if (target === undefined) return undefined;
-  if (isSourceQualifiedSelectionTarget(target)) {
-    return target.sourceId === sourceId ? String(target.id) : undefined;
-  }
-  return String(target);
-}
-
-function parseFilterValue(value: string): { field: string; value: string } | undefined {
-  if (!value) return undefined;
-  const [field, filterValue] = value.split("\u001f", 2);
-  if (!field || filterValue === undefined) return undefined;
-  return { field, value: filterValue };
-}
-
-function featureBounds(summaries: readonly ServiceExplorerFeatureSummary[]): maplibregl.LngLatBoundsLike {
-  const bounds = new maplibregl.LngLatBounds();
-  for (const summary of summaries) {
-    if (summary.coordinate) bounds.extend([...summary.coordinate] as [number, number]);
-  }
-  return bounds.isEmpty()
-    ? [
-        [-157.86, 21.3],
-        [-157.86, 21.3],
-      ]
-    : bounds;
-}
-
-async function createMap(
-  dataset: ServiceExplorerDataset,
-  cleanupRegistry: SampleCleanupRegistry,
-  signal: AbortSignal,
-): Promise<maplibregl.Map> {
-  const firstCoordinate = dataset.featureSummaries.find((summary) => summary.coordinate)?.coordinate ?? [
-    -157.8583, 21.3069,
-  ];
-  const map = new maplibregl.Map({
-    container: "map",
-    style: DEFAULT_STYLE,
-    center: [...firstCoordinate] as [number, number],
-    zoom: 11,
-  });
-  try {
-    cleanupRegistry.resource(map);
-  } catch (error) {
-    map.remove();
-    throw error;
-  }
-
-  return await new Promise((resolve, reject) => {
-    let settled = false;
-    const succeed = () => {
-      if (settled) return;
-      settled = true;
-      removeInitialListeners();
-      resolve(map);
-    };
-    const fail = (error: unknown) => {
-      if (settled) return;
-      settled = true;
-      removeInitialListeners();
-      reject(error);
-    };
-    const onLoad = () => {
-      try {
-        map.addSource(dataset.sourceId, {
-          type: "geojson",
-          data: serviceExplorerFeatureCollection(dataset.featureSummaries) as never,
-        });
-        // First-class renderer object (issue #497): the priority categories
-        // compile to the same MapLibre match expression the demo used to
-        // hand-write, and the legend derives from renderer.legendItems().
-        const [priorityFragment] = priorityRenderer.toMapLibre("point");
-        map.addLayer({
-          id: MAP_LAYER_ID,
-          source: dataset.sourceId,
-          type: "circle",
-          filter: ["==", "$type", "Point"],
-          paint: {
-            ...priorityFragment.paint,
-            "circle-radius": ["case", ["boolean", ["feature-state", "selected"], false], 12, 7],
-            "circle-stroke-color": ["case", ["boolean", ["feature-state", "selected"], false], "#111827", "#ffffff"],
-            "circle-stroke-width": ["case", ["boolean", ["feature-state", "selected"], false], 4, 2],
-            "circle-opacity": ["case", ["==", ["get", "status"], "resolved"], 0.45, 0.9],
-          },
-        });
-        map.addLayer({
-          id: MAP_LABEL_LAYER_ID,
-          source: dataset.sourceId,
-          type: "symbol",
-          filter: ["==", "$type", "Point"],
-          layout: {
-            "text-field": ["get", "OBJECTID"],
-            "text-size": 11,
-            "text-offset": [0, 1.35],
-            "text-anchor": "top",
-          },
-          paint: {
-            "text-color": "#1f2937",
-            "text-halo-color": "#ffffff",
-            "text-halo-width": 1.1,
-          },
-        });
-        map.fitBounds(featureBounds(dataset.featureSummaries), { padding: 72, duration: 0, maxZoom: 12 });
-        succeed();
-      } catch (error) {
-        fail(error);
-      }
-    };
-    const onError = (event: { error?: { message?: string } }) => {
-      fail(new Error(event.error?.message ?? "Map failed to load"));
-    };
-    const onAbort = () => fail(signal.reason);
-    const removeInitialListeners = () => {
-      map.off("load", onLoad);
-      map.off("error", onError);
-      signal.removeEventListener("abort", onAbort);
-    };
-    map.on("load", onLoad);
-    map.on("error", onError);
-    signal.addEventListener("abort", onAbort, { once: true });
-    cleanupRegistry.add(removeInitialListeners);
-    if (signal.aborted) onAbort();
-  });
-}
-
-async function bootstrap(): Promise<void> {
-  const cleanup = new SampleCleanupRegistry();
-  const bootstrapController = new AbortController();
-  cleanup.add(() => bootstrapController.abort());
-  let presentation: ReturnType<typeof mountSamplePresentation>;
-  const teardown = async () => {
-    bootstrapController.abort();
-    await cleanup.dispose();
-    window.__HONUA_SERVICE_EXPLORER_RUNTIME__ = {
-      ...window.__HONUA_SERVICE_EXPLORER_RUNTIME__,
-      ready: false,
-      disposed: true,
-    } as NonNullable<Window["__HONUA_SERVICE_EXPLORER_RUNTIME__"]>;
-  };
-  const dispose = async () => {
-    await teardown();
-    presentation.root.remove();
-  };
-  presentation = mountSamplePresentation({
-    sampleId: "service-explorer",
-    evidence: {
-      mode: "resolved at startup",
-      target: "configured service or deterministic fixture",
-      authentication: "catalog policy",
-    },
-    onDispose: dispose,
-  });
-  window.__HONUA_SERVICE_EXPLORER_DISPOSE__ = dispose;
-  cleanup.add(() => {
-    delete window.__HONUA_SERVICE_EXPLORER_DISPOSE__;
-  });
-  cleanup.listen(window, "beforeunload", () => void dispose(), { once: true });
-  setOverlay("loading", "Loading service explorer", "Resolving cloud Honua configuration and local fixture fallback.");
-
-  try {
-    const resolvedConfig = resolveServiceExplorerConfig(import.meta.env as Record<string, string | undefined>);
-    const config = {
-      ...resolvedConfig,
-      selectedSourceId: selectedSourceIdFromLocation(resolvedConfig.selectedSourceId),
-    };
-    const dataset = await runServiceExplorerWorkflow(config, { signal: bootstrapController.signal });
-    bootstrapController.signal.throwIfAborted();
-    let endpointHost = "relative fixture origin";
-    try {
-      endpointHost = new URL(config.honuaBaseUrl).host;
-    } catch {
-      // Keep the safe relative-origin label; never surface raw configured URLs.
-    }
-    presentation.updateEvidence({
-      mode: dataset.source === "cloud" ? "cloud service" : "fixture fallback",
-      endpoint: endpointHost,
-      attribution: "Source catalog attribution retained",
-      cache: dataset.metadata.cache.state.status,
-    });
-    presentation.showDegradation(dataset.diagnostics.filter((item) => item.level !== "info").map((item) => item.title));
-    const workspace = createServiceExplorerWorkspace(dataset);
-    cleanup.resource(workspace);
-    renderDiscovery(dataset);
-    renderMetadata(dataset);
-    renderFilterOptions(dataset);
-    renderCacheAndDiagnostics(dataset, workspace);
-
-    setOverlay("loading", "Loading map", "Binding map, table, chart, filter, detail, cache, and diagnostics views.");
-    const map = await createMap(dataset, cleanup, bootstrapController.signal);
-    bootstrapController.signal.throwIfAborted();
-    const sourcePicker = getElement<HTMLSelectElement>("#source-picker");
-    const filterSelect = getElement<HTMLSelectElement>("#attribute-filter");
-    const clearFilterButton = getElement<HTMLButtonElement>("#clear-filter-button");
-    const revalidateButton = getElement<HTMLButtonElement>("#revalidate-cache-button");
-    const markStaleButton = getElement<HTMLButtonElement>("#mark-stale-button");
-    const resultTableBody = getElement<HTMLElement>("#result-table-body");
-    const chartBuckets = getElement<HTMLElement>("#chart-buckets");
-    let selectedFeatureId: string | undefined;
-    let latestResult: ServiceExplorerProjectionResult | undefined;
-    let interactionCount = 0;
-    const featureSummariesById = new Map(dataset.featureSummaries.map((summary) => [summary.id, summary]));
-
-    const removableHandles = [
-      syncFeatureStateSelection(map as unknown as FeatureStateMap, workspace.views.map, {
-        source: dataset.sourceId,
-      }),
-      bindMapSelectionToExploration(map as unknown as InteractiveMap, workspace.views.map, {
-        source: dataset.sourceId,
-        layer: MAP_LAYER_ID,
-      }),
-      syncMapLayerFilterToExploration(
-        {
-          setFilter(layerId, filter) {
-            map.setFilter(layerId, filter as never);
-          },
-        },
-        workspace.views.map,
-        {
-          layerId: MAP_LAYER_ID,
-          sourceId: dataset.sourceId,
-          translate(projection) {
-            return createServiceExplorerMapFilter(projection, { sourceId: dataset.sourceId });
-          },
-        },
-      ),
-      bindMapExtentToExploration(
-        workspace.views.map,
-        createDebouncedMapExtentSource(map, { debounceMs: config.mapMoveDebounceMs }),
-        {
-          publishSpatialFilter: true,
-        },
-      ),
-    ];
-    clearFilterButton.disabled = !isQueryableSource(dataset);
-    const unsubscribeHandles = [
-      bindDetailToSelection(workspace.views.detail, () => renderDetail(workspace)),
-      bindQueryProjectionToExploration(
-        workspace.views.table,
-        (projection) => {
-          selectedFeatureId = selectedFeatureIdFromProjection(projection, dataset.sourceId);
-          const result = applyServiceExplorerProjection(dataset.featureSummaries, projection, {
-            sourceId: dataset.sourceId,
-          });
-          latestResult = result;
-          recordServiceExplorerQueryProjection(workspace.workspace, result);
-          renderTable(dataset, result, selectedFeatureId);
-          renderQuery(result);
-          renderCacheAndDiagnostics(dataset, workspace);
-        },
-        { sourceId: dataset.sourceId },
-      ),
-      workspace.controllers.chart.subscribeQuery(
-        (projection) => {
-          const result =
-            latestResult?.projection === projection
-              ? latestResult
-              : applyServiceExplorerProjection(dataset.featureSummaries, projection, { sourceId: dataset.sourceId });
-          renderChart(dataset, result, projection);
-        },
-        { sourceId: dataset.sourceId },
-      ),
-      bindHonuaAppWorkspaceSelector(
-        workspace.workspace,
-        (state) => selectHonuaAppWorkspaceMetadataCacheModel(state),
-        () => renderCacheAndDiagnostics(dataset, workspace),
-      ),
-    ];
-    for (const unsubscribe of unsubscribeHandles) cleanup.add(unsubscribe);
-    for (const handle of removableHandles) cleanup.resource(handle);
-
-    const onMapMouseEnter = () => {
-      map.getCanvas().style.cursor = "pointer";
-    };
-    const onMapMouseLeave = () => {
-      map.getCanvas().style.cursor = "";
-    };
-    map.on("mouseenter", MAP_LAYER_ID, onMapMouseEnter);
-    map.on("mouseleave", MAP_LAYER_ID, onMapMouseLeave);
-    cleanup.add(() => {
-      map.off("mouseenter", MAP_LAYER_ID, onMapMouseEnter);
-      map.off("mouseleave", MAP_LAYER_ID, onMapMouseLeave);
-    });
-    cleanup.listen(resultTableBody, "click", (event) => {
-      if (!(event.target instanceof Element)) return;
-      const button = event.target.closest<HTMLButtonElement>("button[data-feature-id]");
-      if (!button || !resultTableBody.contains(button)) return;
-      const summary = button.dataset.featureId ? featureSummariesById.get(button.dataset.featureId) : undefined;
-      if (!summary) return;
-      interactionCount += 1;
-      workspace.controllers.table.select([sourceFeatureSelectionTarget(dataset.sourceId, summary.id)], {
-        replace: true,
-      });
-    });
-    cleanup.listen(chartBuckets, "click", (event) => {
-      if (!(event.target instanceof Element)) return;
-      const button = event.target.closest<HTMLButtonElement>("button.chart-bucket");
-      if (!button || !chartBuckets.contains(button)) return;
-      const field = button.dataset.field;
-      const value = button.dataset.value;
-      if (!field || !value) return;
-      interactionCount += 1;
-      workspace.controllers.chart.selectBucket({
-        filters: {
-          [`chart-${field}`]: { field, operator: "=", value, appliesTo: [dataset.sourceId] },
-        },
-      });
-    });
-    cleanup.listen(filterSelect, "change", () => {
-      const selected = parseFilterValue(filterSelect.value);
-      if (!selected) {
-        workspace.controllers.filters.clearFilter("attribute");
-        return;
-      }
-      workspace.controllers.filters.setFilter("attribute", {
-        field: selected.field,
-        operator: "=",
-        value: selected.value,
-        appliesTo: [dataset.sourceId],
-      });
-    });
-    cleanup.listen(sourcePicker, "change", () => {
-      updateSourceLocation(sourcePicker.value);
-    });
-    cleanup.listen(clearFilterButton, "click", () => {
-      filterSelect.value = "";
-      workspace.controllers.filters.clearFilter("attribute");
-    });
-    cleanup.listen(revalidateButton, "click", () => {
-      beginServiceExplorerMetadataRevalidation(workspace.workspace, dataset);
-      cleanup.timeout(() => {
-        completeServiceExplorerMetadataRevalidation(workspace.workspace, dataset, { status: "ready" });
-      }, 350);
-    });
-    cleanup.listen(markStaleButton, "click", () => {
-      completeServiceExplorerMetadataRevalidation(workspace.workspace, dataset, { status: "stale" });
-    });
-
-    const source = map.getSource(dataset.sourceId) as GeoJSONSource | undefined;
-    source?.setData(serviceExplorerFeatureCollection(dataset.featureSummaries) as never);
-
-    setOverlay(
-      "ready",
-      "Explorer ready",
-      isQueryableSource(dataset)
-        ? "Linked service discovery, metadata, map, table, chart, detail, and diagnostics are synchronized."
-        : "Render-only source selected; metadata, cache, map, and diagnostics stay visible while table/query controls are disabled.",
-    );
-
-    window.__HONUA_SERVICE_EXPLORER_RUNTIME__ = {
-      ready: true,
-      sourceId: dataset.sourceOption.id,
-      protocol: dataset.sourceOption.protocol,
-      mode: dataset.sourceOption.mode,
-      queryable: isQueryableSource(dataset),
-      get visibleCount() {
-        return latestResult?.visibleCount ?? 0;
-      },
-      get filterCount() {
-        return latestResult ? Object.keys(latestResult.projection.filters).length : 0;
-      },
-      get interactionCount() {
-        return interactionCount;
-      },
-    };
-    const onRuntimeError = (event: { error?: { message?: string } }) => {
-      const error = new Error(event.error?.message ?? "Map runtime error");
-      setOverlay("error", "Service explorer map error", error.message);
-      presentation.showError(error);
-      void teardown().catch((cleanupError) => presentation.showError(cleanupError));
-    };
-    map.on("error", onRuntimeError);
-    cleanup.add(() => {
-      map.off("error", onRuntimeError);
-    });
-  } catch (error) {
-    if (bootstrapController.signal.aborted) return;
-    const message = error instanceof Error ? error.message : String(error);
-    setOverlay("error", "Unable to start the service explorer", message);
-    setText("#diagnostic-list", message);
-    presentation.showError(error);
-    await teardown().catch((cleanupError) => presentation.showError(cleanupError));
-  }
-}
-
-void bootstrap();
