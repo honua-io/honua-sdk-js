@@ -115,7 +115,11 @@ function playwrightGateReport({
   gate: reportGate = "browser",
   retry = 0,
   extraAttachments = [],
-  projects = [{ name: "chromium", browserName: "chromium" }],
+  projects = [
+    { name: "chromium", browserName: "chromium" },
+    { name: "firefox", browserName: "firefox" },
+    { name: "webkit", browserName: "webkit" },
+  ],
 } = {}) {
   const targetSampleId = "maplibre-quickstart";
   const payload = (gate, project) => ({
@@ -125,7 +129,17 @@ function playwrightGateReport({
     status: "passed",
     observations:
       gate === "browser"
-        ? { runtimeReady: true, projectName: project.name, browserName: project.browserName }
+        ? {
+            runtimeReady: true,
+            projectName: project.name,
+            browserName: project.browserName,
+            network: {
+              scope: "loopback-only",
+              allowedOrigin: "http://127.0.0.1:43123",
+              credentialedRequests: [],
+              externalRequests: [],
+            },
+          }
         : gate === "console"
           ? {
               pageErrors: [],
@@ -240,45 +254,7 @@ test("metadata-only fixture booleans cannot qualify readiness and isolation", as
 
 test("metadata-only accessibility JSON cannot qualify", async () => {
   const targetSampleId = "maplibre-quickstart";
-  const payload = (gate, observations = {}) => ({
-    format: "honua.sdk.sample-gate-assertion.v1",
-    sampleId: targetSampleId,
-    gate,
-    status: "passed",
-    observations,
-  });
-  const attachments = ["accessibility", "browser", "console", "fixture", "responsive"].map((gate) => ({
-    name: `honua-gate:${gate}`,
-    contentType: "application/json",
-    body: Buffer.from(JSON.stringify(payload(gate))).toString("base64"),
-  }));
-  const report = {
-    format: "honua.sdk.sample-playwright-gate.v1",
-    sampleId: targetSampleId,
-    sourceRevision: revision,
-    gate: "accessibility",
-    command: ["npm", "run", "test:playwright:receipt"],
-    playwright: {
-      config: { rootDir: path.resolve("test/playwright") },
-      suites: [
-        {
-          file: "quickstart-map.spec.mjs",
-          specs: [
-            {
-              title: "First Map proves the canonical fixture journey in source or packed mode",
-              tests: [
-                {
-                  projectName: "chromium",
-                  expectedStatus: "passed",
-                  results: [{ status: "passed", retry: 0, attachments }],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  };
+  const report = playwrightGateReport({ gate: "accessibility" });
   const file = await artifact("accessibility.json", report, targetSampleId);
   await assert.rejects(
     createGateReceipt(receiptOptions("accessibility", "playwright-gate-report", file, targetSampleId)),
@@ -344,6 +320,25 @@ test("Playwright evidence binds every declared browser engine without assuming o
     () => validatePlaywrightGate(report, "maplibre-quickstart", "browser", contract),
     /one declared test execution per Playwright project/,
   );
+});
+
+test("browser evidence rejects credentialed or non-loopback network observations", () => {
+  for (const [field, value] of [
+    ["credentialedRequests", ["http://127.0.0.1:43123/private"]],
+    ["externalRequests", ["https://unexpected.example.test/data"]],
+  ]) {
+    const report = playwrightGateReport().playwright;
+    for (const execution of report.suites[0].specs[0].tests) {
+      const attachment = execution.results[0].attachments.find(({ name }) => name === "honua-gate:browser");
+      const payload = JSON.parse(Buffer.from(attachment.body, "base64").toString("utf8"));
+      payload.observations.network[field] = value;
+      attachment.body = Buffer.from(JSON.stringify(payload)).toString("base64");
+    }
+    assert.throws(
+      () => validatePlaywrightGate(report, "maplibre-quickstart", "browser"),
+      /browser runtime or engine binding is invalid/,
+    );
+  }
 });
 
 test("renaming text to PNG cannot qualify a screenshot", async () => {

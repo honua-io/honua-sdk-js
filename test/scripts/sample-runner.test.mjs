@@ -411,15 +411,20 @@ test("packed declaration resolution rejects traversal and symlink exports", asyn
 
 test("child environment strips host secrets and undefined overrides", () => {
   const previous = process.env.AWS_SECRET_ACCESS_KEY;
+  const previousPlaywrightSkip = process.env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS;
   process.env.AWS_SECRET_ACCESS_KEY = "must-not-leak";
+  process.env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "1";
   try {
     const environment = safeChildEnvironment({ HONUA_SAMPLE_SDK_DIR: undefined, FIXED: "yes" });
     assert.equal(environment.AWS_SECRET_ACCESS_KEY, undefined);
     assert.equal(environment.HONUA_SAMPLE_SDK_DIR, undefined);
     assert.equal(environment.FIXED, "yes");
+    assert.equal(environment.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS, "1");
   } finally {
     if (previous === undefined) delete process.env.AWS_SECRET_ACCESS_KEY;
     else process.env.AWS_SECRET_ACCESS_KEY = previous;
+    if (previousPlaywrightSkip === undefined) delete process.env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS;
+    else process.env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = previousPlaywrightSkip;
   }
 });
 

@@ -3,10 +3,18 @@ name: First Map Release Smoke
 on:
   release:
     types: [published]
+  schedule:
+    # Qualification receipts expire after seven days. Refresh twice weekly so
+    # one transient failure still leaves a complete retry window.
+    - cron: "17 18 * * 1,4"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: first-map-qualification
+  cancel-in-progress: false
 
 env:
   NODE_VERSION: "20.19.0"
@@ -28,8 +36,24 @@ jobs:
       - run: npm run test:playwright:quickstart
       - run: npm run demo:quickstart:parity
       - run: npm run demo:quickstart:copyability
+      - name: Produce immutable First Map qualification receipts
+        run: npm run samples:run -- evidence --sample maplibre-quickstart --sdk-mode source --allow-live
       - run: npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode source
       - run: npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode packed
+
+      - name: Commit scheduled canonical receipt refresh
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          if git diff --quiet -- samples/evidence/maplibre-quickstart; then
+            echo "Qualification receipts are already current."
+            exit 0
+          fi
+          git config user.name "Mike McDougall"
+          git config user.email "mike@honua.io"
+          git add -- samples/evidence/maplibre-quickstart
+          git commit -m "chore(samples): refresh First Map qualification receipts"
+          git push origin HEAD:trunk
 
       - name: Upload deterministic browser and bundle observations
         if: always()
@@ -42,3 +66,12 @@ jobs:
             examples/maplibre-quickstart/dist/honua-sample-sdk-resolution.json
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Upload qualification receipts and bound artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: honua-sdk-first-map-qualification-evidence
+          path: samples/evidence/maplibre-quickstart
+          if-no-files-found: error
+          retention-days: 14

@@ -173,3 +173,6 @@ receipts require the reviewed producer to honor the runner's explicit enable
 flag, write a fresh envelope to the runner-provided per-run path, and reject
 exact forwarded credential values in the envelope or any declared artifact. See
 [`examples/_kit/README.md`](../../../examples/_kit/README.md) for runner usage.
+Qualification receipts expire after seven days. The First Map release workflow
+regenerates, verifies, and commits its complete canonical receipt set twice a
+week; a failed refresh remains visible while the prior set is still current.

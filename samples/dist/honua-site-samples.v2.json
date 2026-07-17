@@ -17,7 +17,7 @@
     {
       "id": "first-map",
       "title": "First Map",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "maplibre-quickstart"
     },
     {
@@ -708,12 +708,12 @@
       "title": "First Map: endpoint to inspected MapLibre map",
       "summary": "Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result.",
       "sourceKind": "root-example",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "first-map",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Accepted First Map implementation; formal golden promotion awaits immutable complete gate receipts."
+        "reason": "Qualified First Map implementation with source-bound packed, browser, visual, performance, fixture, and live gate receipts."
       },
       "validationProfile": "golden-browser",
       "source": {

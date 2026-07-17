@@ -34,12 +34,14 @@ describe("First Map portfolio convergence", () => {
     expect(samples.some(({ id }) => id === "endpoint-to-map")).toBe(false);
 
     const migration = await json("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+    const journeys = migration.goldenJourneys as Array<{ id: string; status: string }>;
+    expect(journeys.find(({ id }) => id === "first-map")).toMatchObject({ status: "qualified" });
     const overrides = migration.sampleOverrides as Record<
       string,
       { track?: string; journeyId?: string; validationProfile?: string }
     >;
     expect(overrides["maplibre-quickstart"]).toMatchObject({
-      track: "recipe",
+      track: "golden",
       journeyId: "first-map",
       validationProfile: "golden-browser",
     });

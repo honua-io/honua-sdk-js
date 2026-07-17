@@ -43,7 +43,11 @@
       "playwrightConfig": "playwright.first-map.config.mjs",
       "playwrightFile": "test/playwright/quickstart-map.spec.mjs",
       "playwrightTestTitle": "First Map proves the canonical fixture journey in source or packed mode",
-      "playwrightProjects": [{ "name": "chromium", "browserName": "chromium" }],
+      "playwrightProjects": [
+        { "name": "chromium", "browserName": "chromium" },
+        { "name": "firefox", "browserName": "firefox" },
+        { "name": "webkit", "browserName": "webkit" }
+      ],
       "evidenceProject": "chromium",
       "sdkEntrypoints": ["@honua/sdk-js", "@honua/sdk-js/runtime"],
       "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],

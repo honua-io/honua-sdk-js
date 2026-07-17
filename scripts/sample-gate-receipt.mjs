@@ -840,10 +840,29 @@ export function validatePlaywrightGate(report, sampleId, gate, contractOverride,
   for (const { project, result } of results) {
     const observations = assertionPayload(result, sampleId, gate);
     if (gate === "browser") {
+      let allowedOrigin;
+      try {
+        allowedOrigin = new URL(observations?.network?.allowedOrigin);
+      } catch {
+        allowedOrigin = undefined;
+      }
       invariant(
         observations?.runtimeReady === true &&
           observations.projectName === project.name &&
-          observations.browserName === project.browserName,
+          observations.browserName === project.browserName &&
+          observations.network?.scope === "loopback-only" &&
+          allowedOrigin?.protocol === "http:" &&
+          allowedOrigin.hostname === "127.0.0.1" &&
+          allowedOrigin.username === "" &&
+          allowedOrigin.password === "" &&
+          Number.isInteger(Number(allowedOrigin.port)) &&
+          Number(allowedOrigin.port) > 0 &&
+          Number(allowedOrigin.port) <= 65_535 &&
+          allowedOrigin.origin === observations.network.allowedOrigin &&
+          Array.isArray(observations.network.credentialedRequests) &&
+          observations.network.credentialedRequests.length === 0 &&
+          Array.isArray(observations.network.externalRequests) &&
+          observations.network.externalRequests.length === 0,
         `${sampleId} browser runtime or engine binding is invalid for ${project.name}`,
       );
     }

@@ -222,16 +222,27 @@ export async function attestBrowserQuality({
   testInfo,
   sampleId,
   browserName,
+  allowedOrigin,
+  credentialedRequests,
+  externalRequests,
   sampleReadyDurationMs,
   runtimeReady,
   responsiveViewports,
   workflowSelectors,
 }) {
   expect(runtimeReady).toBe(true);
+  expect(credentialedRequests).toEqual([]);
+  expect(externalRequests).toEqual([]);
   await attachSampleGate(testInfo, sampleId, "browser", {
     runtimeReady: true,
     projectName: testInfo.project.name,
     browserName,
+    network: {
+      scope: "loopback-only",
+      allowedOrigin,
+      credentialedRequests: [...credentialedRequests],
+      externalRequests: [...externalRequests],
+    },
   });
 
   const accessibility = await new AxeBuilder({ page }).analyze();

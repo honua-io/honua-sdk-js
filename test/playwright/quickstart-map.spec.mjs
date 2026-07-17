@@ -12,6 +12,7 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
   const page = await context.newPage();
   const pageErrors = [];
   const consoleErrors = [];
+  const credentialedRequests = [];
   const externalRequests = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
@@ -22,9 +23,14 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
   const fixtureOrigin = new URL(fixtureServer.url).origin;
   let fixtureClosed = false;
   await context.route("**/*", async (route) => {
-    const requestUrl = new URL(route.request().url());
+    const request = route.request();
+    const requestUrl = new URL(request.url());
+    const headers = request.headers();
+    if (headers.authorization || headers["proxy-authorization"] || headers.cookie) {
+      credentialedRequests.push(request.url());
+    }
     if (/^https?:$/.test(requestUrl.protocol) && requestUrl.origin !== fixtureOrigin) {
-      externalRequests.push(route.request().url());
+      externalRequests.push(request.url());
       await route.abort("blockedbyclient");
       return;
     }
@@ -123,6 +129,9 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
       testInfo,
       sampleId: SAMPLE_ID,
       browserName,
+      allowedOrigin: fixtureOrigin,
+      credentialedRequests,
+      externalRequests,
       sampleReadyDurationMs,
       runtimeReady,
       responsiveViewports: [
@@ -151,6 +160,7 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await attestClosedFixture(testInfo, SAMPLE_ID, "examples/maplibre-quickstart/mock-server.mjs");
     await finalizeSampleConsole({ testInfo, sampleId: SAMPLE_ID, page, context, pageErrors, consoleErrors });
     expect(fixtureClosed).toBe(true);
+    expect(credentialedRequests).toEqual([]);
     expect(externalRequests).toEqual([]);
   }
 });

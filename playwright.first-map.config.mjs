@@ -1,6 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
-const releaseMatrix = process.env.HONUA_FIRST_MAP_RELEASE_MATRIX === "true";
+const qualificationMatrix =
+  process.env.HONUA_FIRST_MAP_RELEASE_MATRIX === "true" ||
+  typeof process.env.PLAYWRIGHT_JSON_OUTPUT_NAME === "string";
 
 export default defineConfig({
   testDir: "./test/playwright",
@@ -10,7 +12,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: process.env.CI ? "dot" : "list",
-  projects: releaseMatrix
+  projects: qualificationMatrix
     ? [
         { name: "chromium", use: { browserName: "chromium" } },
         { name: "firefox", use: { browserName: "firefox" } },

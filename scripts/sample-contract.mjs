@@ -2519,6 +2519,11 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
 }
 
 export async function validateCatalog(catalog, packageJson, options = {}) {
+  invariant(
+    options.qualificationBootstrapSampleId === undefined ||
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(options.qualificationBootstrapSampleId),
+    "qualification bootstrap sample id is invalid",
+  );
   validateSensitiveMetadata(catalog, "catalog");
   await validateJsonSchema(catalog, CATALOG_SCHEMA_PATH);
   await validateFixtureBuildHarnesses();
@@ -2830,6 +2835,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
 
   const goldenSamples = catalog.samples.filter((sample) => sample.track === "golden");
   const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
+  let qualificationBootstrapConsumed = false;
   invariant(
     goldenSamples.length === qualifiedJourneys.length,
     "golden sample count must match the qualified journey count",
@@ -2854,6 +2860,10 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
       },
     };
+    if (options.qualificationBootstrapSampleId === sample.id) {
+      qualificationBootstrapConsumed = true;
+      continue;
+    }
     await validateQualificationReceiptSet({
       sample: selectedSample,
       profile,
@@ -2864,6 +2874,10 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       verifyCheckout: options.verifyCheckout,
     });
   }
+  invariant(
+    options.qualificationBootstrapSampleId === undefined || qualificationBootstrapConsumed,
+    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
+  );
 
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
