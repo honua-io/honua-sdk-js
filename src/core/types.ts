@@ -1,6 +1,6 @@
 import type { HonuaCacheState, HonuaMetadataRequestOptions } from "./cache-state.js";
 
-export type QueryMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+export type QueryMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface HonuaRequestContext {
   url: string;

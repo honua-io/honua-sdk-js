@@ -303,6 +303,44 @@ describe("connect", () => {
     expect(requests.some((request) => new URL(request.url).pathname.startsWith("/stac/stac"))).toBe(false);
   });
 
+  it("normalizes the serialized slash when a STAC API is mounted at the origin root", async () => {
+    const requests: Request[] = [];
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      const url = new URL(request.url);
+      if (url.pathname === "/") return json(stacLanding);
+      if (url.pathname === "/collections") return json(stacCollections);
+      return new Response("not found", { status: 404 });
+    });
+
+    const connection = await connect({
+      endpoint: "https://earth.example",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    expect(requests.map((request) => new URL(request.url).pathname)).toEqual(["/", "/collections"]);
+    expect(connection.dataset.sourceIds()).toEqual(["sentinel-2-l2a", "landsat-c2-l2"]);
+  });
+
+  it("does not apply the static traversal byte ceiling to STAC API collections", async () => {
+    const largeCollections = {
+      collections: [{ id: "large-api-collection", description: "x".repeat(2_048) }],
+    };
+    const connection = await connect({
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      stac: { maxDocumentBytes: 512 },
+      clientOptions: { fetchFn: stacDiscoveryFetch({ collections: largeCollections }) },
+    });
+
+    expect(connection.dataset.sourceIds()).toEqual(["large-api-collection"]);
+    expect(connection.inspection.stacStatic).toBeUndefined();
+  });
+
   it("selects one STAC collection and partitions caller discovery cache identity", async () => {
     const values = new Map<string, ConnectDiscoverySnapshot>();
     const cache: ConnectDiscoveryCache = {

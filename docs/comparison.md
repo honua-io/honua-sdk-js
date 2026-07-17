@@ -24,17 +24,17 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-17 at commit `146f7289`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-17 at commit `6ab50feb`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 478.0 KiB | 126.1 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 210.5 KiB | 53.2 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 516.8 KiB | 136.6 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 211.8 KiB | 53.6 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 40.7 KiB | 12.8 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 259.0 KiB | 68.3 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 978.1 KiB | 243.2 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 264.6 KiB | 70.0 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 979.3 KiB | 243.6 KiB |
 | Geocoding client | 25.1 KiB | 7.3 KiB |
 | Routing client | 18.7 KiB | 6.0 KiB |
 
@@ -53,10 +53,10 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 478.0 KiB ≈
-1.47 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 516.8 KiB ≈
+1.51 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
-0.38 MB over the wire with gzip. Esri's totals also grow with widgets;
+0.40 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.
 
 **`@esri/arcgis-rest-js`** (<https://developers.arcgis.com/arcgis-rest-js/>, retrieved 2026-07-13).

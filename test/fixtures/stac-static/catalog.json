@@ -1,0 +1,13 @@
+{
+  "stac_version": "1.1.0",
+  "type": "Catalog",
+  "id": "oahu-root",
+  "title": "Oahu static catalog",
+  "description": "Bounded static STAC fixture.",
+  "links": [
+    { "rel": "child", "href": "./collection.json", "type": "application/json" },
+    { "rel": "child", "href": "https://attacker.example/catalog.json", "type": "application/json" },
+    { "rel": "child", "href": "https://user:secret@static.example/private.json", "type": "application/json" },
+    { "rel": "child", "href": "./catalog.html", "type": "text/html" }
+  ]
+}

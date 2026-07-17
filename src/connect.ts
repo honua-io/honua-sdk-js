@@ -14,6 +14,33 @@ import {
   type GeoParquetSourceProfiler,
   discoverGeoParquetSources,
 } from "./connect-geoparquet.js";
+import {
+  type StacStaticDiscoveryInspection,
+  type StacStaticTraversalOptions,
+  type StacStaticTraversalPolicy,
+  discoverStaticStac,
+  fetchStacRootDocument,
+  isStaticStacDocument,
+  normalizeStacStaticTraversalPolicy,
+  stacStaticTraversalPolicyIdentity,
+  validateCachedStacStaticInspection,
+} from "./connect-stac-static.js";
+export type {
+  StacAssetCandidate,
+  StacAssetCandidateMetadata,
+  StacAssetCandidateState,
+  StacAssetClassificationEvidence,
+  StacAssetConfidence,
+  StacAssetKind,
+  StacAssetSourceCandidate,
+  StacStaticDiagnostic,
+  StacStaticDiagnosticCode,
+  StacStaticDiscoveryInspection,
+  StacStaticObjectSummary,
+  StacStaticObjectType,
+  StacStaticTraversalOptions,
+  StacStaticTraversalPolicy,
+} from "./connect-stac-static.js";
 import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
 export type { GeoParquetSourceProfiler } from "./connect-geoparquet.js";
 import { discoverOdataSources } from "./connect-odata.js";
@@ -127,11 +154,11 @@ export interface ConnectSourceCapabilityProjection {
 }
 
 /** Schema version for values stored through {@link ConnectDiscoveryCache}. */
-export const HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION = 4 as const;
+export const HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION = 5 as const;
 /** Adapter version used to invalidate logical discovery identities. */
-export const HONUA_CONNECT_ADAPTER_VERSION = "honua-connect@4";
+export const HONUA_CONNECT_ADAPTER_VERSION = "honua-connect@5";
 /** Normalized facade projection version used to invalidate cached snapshots. */
-export const HONUA_CONNECT_PROJECTION_VERSION = "honua-connect-source-descriptor@2";
+export const HONUA_CONNECT_PROJECTION_VERSION = "honua-connect-source-descriptor@3";
 
 export type ConnectProtocolHint = Protocol | "auto";
 export type ConnectCacheStatus = "bypass" | "hit" | "miss" | "refreshed";
@@ -170,7 +197,7 @@ export interface ConnectDiscoverySourceSnapshot {
 }
 
 /** Normalized collection extent retained without querying collection items. */
-interface ConnectDiscoveryExtent {
+export interface ConnectDiscoveryExtent {
   readonly spatial?: {
     readonly bbox: readonly (readonly number[])[];
     readonly crs?: string;
@@ -190,6 +217,8 @@ export interface ConnectDiscoverySnapshot {
   readonly retrievedAt: string;
   readonly evidence: readonly DiscoveryCapabilityEvidence[];
   readonly sources: readonly ConnectDiscoverySourceSnapshot[];
+  /** Present only for a bounded static Catalog/Collection/Item connection. */
+  readonly stacStatic?: StacStaticDiscoveryInspection;
 }
 
 export interface ConnectOptions {
@@ -235,6 +264,8 @@ export interface ConnectOptions {
     /** Explicit geometry column name (overrides GeoParquet metadata detection). */
     readonly geometryColumn?: string;
   };
+  /** Hard-bounded static-STAC traversal/probe policy. Ignored by STAC API discovery. */
+  readonly stac?: StacStaticTraversalOptions;
 }
 
 export interface HonuaConnectionInspection {
@@ -246,6 +277,8 @@ export interface HonuaConnectionInspection {
   readonly diagnostics: readonly DiscoveryDiagnostic[];
   readonly cacheIdentity: DiscoveryCacheIdentity;
   readonly cacheStatus: ConnectCacheStatus;
+  /** Static object tree and classified asset candidates, when the endpoint is static STAC. */
+  readonly stacStatic?: StacStaticDiscoveryInspection;
 }
 
 export interface HonuaConnection {
@@ -294,6 +327,10 @@ export async function connectWithSourceSchemaProjection(
   throwIfAborted(options.signal);
   const endpoint = validateConnectEndpoint(options.endpoint);
   const target = resolveConnectTarget(endpoint, options.protocol);
+  if (target.protocol !== "stac" && options.stac !== undefined) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "stac traversal options are only valid for STAC connections.");
+  }
+  const stacPolicy = target.protocol === "stac" ? normalizeStacStaticTraversalPolicy(options.stac) : undefined;
   if (
     options.collectionId !== undefined &&
     (typeof options.collectionId !== "string" ||
@@ -348,6 +385,7 @@ export async function connectWithSourceSchemaProjection(
     ...(target.serviceId ? { serviceId: target.serviceId } : {}),
     ...(target.layerId !== undefined ? { layerId: target.layerId } : {}),
     ...(assetVariant ? { assetVariant } : {}),
+    ...(stacPolicy ? { profile: stacStaticTraversalPolicyIdentity(stacPolicy) } : {}),
   });
   if (options.client) assertClientEndpoint(options.client, target.clientBaseUrl);
   const cacheContext = Object.freeze({ ...(options.signal ? { signal: options.signal } : {}) });
@@ -358,13 +396,14 @@ export async function connectWithSourceSchemaProjection(
     snapshot = await awaitAbortable(options.cache.get(identity, cacheContext), options.signal);
     throwIfAborted(options.signal);
     if (snapshot) {
-      snapshot = validateSnapshot(
+      snapshot = await validateSnapshot(
         snapshot,
         identity,
         target,
         options.collectionId,
         options.typeName,
         sourceSchemaProjection,
+        stacPolicy,
       );
       cacheStatus = "hit";
     }
@@ -376,7 +415,7 @@ export async function connectWithSourceSchemaProjection(
       target.protocol === "ogc-features"
         ? await discoverOgcFeatures(client, identity, options)
         : target.protocol === "stac"
-          ? await discoverStac(client, identity, options)
+          ? await discoverStac(client, identity, options, stacPolicy!)
           : target.protocol === "wfs"
             ? await discoverWfs(client, identity, options)
             : target.protocol === "odata"
@@ -457,6 +496,7 @@ export async function connectWithSourceSchemaProjection(
     diagnostics: uniqueDiagnostics(inspections.flatMap((entry) => [...entry.diagnostics])),
     cacheIdentity: identity,
     cacheStatus,
+    ...(snapshot.stacStatic ? { stacStatic: snapshot.stacStatic } : {}),
   });
 
   return Object.freeze({
@@ -676,21 +716,55 @@ async function discoverStac(
   client: HonuaClient,
   identity: DiscoveryCacheIdentity,
   options: ConnectOptions,
+  stacPolicy: StacStaticTraversalPolicy,
 ): Promise<ConnectDiscoverySnapshot> {
   const request: HonuaMetadataRequestOptions = {
     ...options.metadata,
     ...(options.signal ? { signal: options.signal } : {}),
     refresh: options.refresh === true,
   };
-  const landing = await client.getStacLanding({ ...request, stacBasePath: "" });
+  const rootResponse = await fetchStacRootDocument(client, identity.endpoint, {
+    ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.refresh !== undefined ? { refresh: options.refresh } : {}),
+    ...(options.metadata ? { metadata: options.metadata } : {}),
+    authorizationScopeDigest: identity.authorizationScopeDigest,
+    policy: stacPolicy,
+  });
+  const landing = rootResponse.value as HonuaStacLandingResponse;
   throwIfAborted(options.signal);
+  if (isStaticStacDocument(landing)) {
+    const discovered = await discoverStaticStac(client, identity.endpoint, rootResponse, {
+      ...(options.signal ? { signal: options.signal } : {}),
+      ...(options.refresh !== undefined ? { refresh: options.refresh } : {}),
+      ...(options.metadata ? { metadata: options.metadata } : {}),
+      authorizationScopeDigest: identity.authorizationScopeDigest,
+      policy: stacPolicy,
+      ...(options.collectionId ? { collectionId: options.collectionId } : {}),
+    });
+    return Object.freeze({
+      version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+      identityKey: identity.key,
+      endpoint: identity.endpoint,
+      protocol: "stac",
+      retrievedAt: discovered.inspection.root.provenance[0]?.retrievedAt ?? new Date().toISOString(),
+      evidence: Object.freeze([]),
+      sources: Object.freeze([discovered.source]),
+      stacStatic: discovered.inspection,
+    });
+  }
+  if (validateConnectEndpoint(rootResponse.url) !== identity.endpoint) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "A STAC API landing redirect must resolve to the explicitly connected service root.",
+    );
+  }
   const advertised = validateStacLanding(identity.endpoint, landing);
   const collections = await client.listStacCollections({ ...request, stacBasePath: "" });
   throwIfAborted(options.signal);
 
   const selected = selectCollections(collections, options.collectionId, "STAC API");
   const retrievedAt = new Date().toISOString();
-  const provenance = stacMetadataProvenance(identity.endpoint, retrievedAt, landing, collections);
+  const provenance = stacMetadataProvenance(rootResponse.url, rootResponse.validator, retrievedAt, collections);
   const capabilities = advertised.itemSearch
     ? Object.freeze(["query", "queryObjectIds", "stream"] as const)
     : Object.freeze([]);
@@ -948,7 +1022,11 @@ function selectCollections(
 }
 
 function validateStacLanding(endpoint: string, landing: HonuaStacLandingResponse): { readonly itemSearch: boolean } {
-  if (!Array.isArray(landing.conformsTo) || landing.conformsTo.some((entry) => typeof entry !== "string")) {
+  if (
+    !isPlainObject(landing) ||
+    !Array.isArray(landing.conformsTo) ||
+    landing.conformsTo.some((entry) => typeof entry !== "string")
+  ) {
     throw new HonuaDiscoveryError("invalid-endpoint", "STAC API landing metadata must contain a conformsTo array.");
   }
   if (landing.links !== undefined && !Array.isArray(landing.links)) {
@@ -1118,20 +1196,20 @@ function immutableString(value: string, label: string): string {
 }
 
 function stacMetadataProvenance(
-  endpoint: string,
+  landingSource: string,
+  landingValidator: string | undefined,
   retrievedAt: string,
-  landing: HonuaStacLandingResponse,
   collections: HonuaOgcCollectionsResponse,
 ): readonly DiscoveryProvenance[] {
-  return Object.freeze(
-    [
-      { source: endpoint, value: landing },
-      { source: `${endpoint}/collections`, value: collections },
-    ].map(({ source, value }) => {
-      const validator = value.cache?.validator?.etag ?? value.cache?.validator?.lastModified;
-      return Object.freeze({ source, retrievedAt, ...(validator ? { validator } : {}) });
+  const collectionsValidator = collections.cache?.validator?.etag ?? collections.cache?.validator?.lastModified;
+  return Object.freeze([
+    Object.freeze({ source: landingSource, retrievedAt, ...(landingValidator ? { validator: landingValidator } : {}) }),
+    Object.freeze({
+      source: `${landingSource}/collections`,
+      retrievedAt,
+      ...(collectionsValidator ? { validator: collectionsValidator } : {}),
     }),
-  );
+  ]);
 }
 
 function discoveredOgcSourceSnapshot(
@@ -1167,14 +1245,15 @@ function metadataProvenance(
   );
 }
 
-function validateSnapshot(
+async function validateSnapshot(
   value: ConnectDiscoverySnapshot,
   identity: DiscoveryCacheIdentity,
   target: ConnectTarget,
   collectionId: string | undefined,
   typeName: string | undefined,
   sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
-): ConnectDiscoverySnapshot {
+  stacPolicy: StacStaticTraversalPolicy | undefined,
+): Promise<ConnectDiscoverySnapshot> {
   const projectionApplies = Boolean(sourceSchemaProjection && sourceSchemaProjectionApplies(target.protocol));
   const owned = snapshotCacheData(value);
   if (
@@ -1206,7 +1285,7 @@ function validateSnapshot(
       );
     }
     sourceIds.add(source.id);
-    validateSnapshotLocator(source.id, source.locator, target);
+    validateSnapshotLocator(source.id, source.locator, target, owned.stacStatic !== undefined, stacPolicy);
     if (source.schema?.fields !== undefined && !Array.isArray(source.schema.fields)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source schema fields must be an array.");
     }
@@ -1245,7 +1324,10 @@ function validateSnapshot(
       : undefined;
     return Object.freeze({
       id: source.id,
-      locator: Object.freeze({ ...source.locator }),
+      locator: Object.freeze({
+        ...source.locator,
+        ...(source.locator.layout === "stac-static" && stacPolicy ? { stacStatic: stacPolicy } : {}),
+      }),
       ...(source.title ? { title: source.title } : {}),
       ...(source.description ? { description: source.description } : {}),
       ...(source.crs ? { crs: immutableStrings(source.crs, "Cached source crs") } : {}),
@@ -1274,7 +1356,42 @@ function validateSnapshot(
       typeName,
     });
   }
-  return Object.freeze({ ...owned, evidence: sharedEvidence, sources: Object.freeze(sources) });
+  let stacStatic: StacStaticDiscoveryInspection | undefined;
+  if (owned.stacStatic !== undefined) {
+    if (target.protocol !== "stac" || !stacPolicy) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Static STAC cache details require a STAC target.");
+    }
+    stacStatic = await validateCachedStacStaticInspection(owned.stacStatic, identity.endpoint, stacPolicy);
+    if (sources.length !== 1 || sources[0]?.locator.layout !== "stac-static") {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Static STAC cache details require exactly one static STAC source.",
+      );
+    }
+    const expectedObject = collectionId
+      ? stacStatic.documents.find((document) => document.type === "collection" && document.id === collectionId)
+      : stacStatic.root;
+    const expectedCollectionId =
+      expectedObject?.type === "collection" ? expectedObject.id : expectedObject?.collectionId;
+    if (
+      !expectedObject ||
+      sources[0]?.id !== expectedObject.id ||
+      sources[0]?.locator.collectionId !== expectedCollectionId
+    ) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Cached static STAC source identity is not bound to its traversed root or selected collection.",
+      );
+    }
+  } else if (sources.some((source) => source.locator.layout === "stac-static")) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached static STAC source is missing its tree binding.");
+  }
+  return Object.freeze({
+    ...owned,
+    evidence: sharedEvidence,
+    sources: Object.freeze(sources),
+    ...(stacStatic ? { stacStatic } : {}),
+  });
 }
 
 function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boolean {
@@ -1451,12 +1568,34 @@ function validateCachedEvidence(
   }
 }
 
-function validateSnapshotLocator(sourceId: string, locator: SourceLocator, target: ConnectTarget): void {
+function validateSnapshotLocator(
+  sourceId: string,
+  locator: SourceLocator,
+  target: ConnectTarget,
+  staticStac: boolean,
+  stacPolicy: StacStaticTraversalPolicy | undefined,
+): void {
   if (target.protocol === "ogc-features" || target.protocol === "stac") {
-    const expectedLayout = target.protocol === "stac" ? "stac-api" : "ogc-api";
+    const expectedLayout = target.protocol === "stac" ? (staticStac ? "stac-static" : "stac-api") : "ogc-api";
+    if (target.protocol === "stac" && staticStac) {
+      if (
+        locator.url !== target.endpoint ||
+        locator.layout !== expectedLayout ||
+        !sourceId ||
+        !stacPolicy ||
+        !sameStacLocatorPolicy(locator.stacStatic, stacPolicy)
+      ) {
+        throw new HonuaDiscoveryError(
+          "invalid-discovery-cache",
+          "Cached static STAC source locator does not match the endpoint.",
+        );
+      }
+      return;
+    }
     if (
       locator.url !== target.endpoint ||
       locator.layout !== expectedLayout ||
+      locator.stacStatic !== undefined ||
       typeof locator.collectionId !== "string" ||
       !locator.collectionId ||
       sourceId !== locator.collectionId
@@ -1538,6 +1677,18 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
       "Cached GeoServices source locator does not match the service endpoint.",
     );
   }
+}
+
+function sameStacLocatorPolicy(value: SourceLocator["stacStatic"], expected: StacStaticTraversalPolicy): boolean {
+  return (
+    value !== undefined &&
+    value.maxDocuments === expected.maxDocuments &&
+    value.maxDepth === expected.maxDepth &&
+    value.maxLinksPerDocument === expected.maxLinksPerDocument &&
+    value.maxAssets === expected.maxAssets &&
+    value.maxAssetProbes === expected.maxAssetProbes &&
+    value.maxDocumentBytes === expected.maxDocumentBytes
+  );
 }
 
 function validateCachedDiscoveryExtent(extent: ConnectDiscoveryExtent): ConnectDiscoveryExtent {

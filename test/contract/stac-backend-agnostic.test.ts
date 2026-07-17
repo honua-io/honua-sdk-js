@@ -120,4 +120,220 @@ describe("stac backend-agnostic / static catalog.json tree", () => {
     const ids = await staticSource().queryObjectIds({});
     expect([...ids].sort()).toEqual(["scene-a", "scene-b"]);
   });
+
+  it("binds runtime traversal to the locator's document budget", async () => {
+    const paths: string[] = [];
+    const client = routeClient("https://static.example.test/catalog.json", staticRoutes(), (url) =>
+      paths.push(url.pathname),
+    );
+    const source = createDataset({
+      id: "bounded-static",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "imagery",
+          protocol: "stac",
+          locator: {
+            url: "https://static.example.test/catalog.json",
+            layout: "stac-static",
+            stacStatic: {
+              maxDocuments: 2,
+              maxDepth: 4,
+              maxLinksPerDocument: 64,
+              maxAssets: 256,
+              maxAssetProbes: 8,
+              maxDocumentBytes: 1024 * 1024,
+            },
+          },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+        } satisfies SourceDescriptor,
+      ],
+    }).source("imagery")!;
+
+    const result = await source.query({});
+    expect(result.features).toEqual([]);
+    expect(paths).toEqual(["/catalog.json", "/imagery/collection.json"]);
+  });
+
+  it("does not fetch cross-origin traversal links and rejects an oversized root", async () => {
+    const requestedOrigins: string[] = [];
+    const crossOriginRoot = {
+      stac_version: "1.0.0",
+      type: "Catalog",
+      id: "safe-root",
+      description: "cross-origin link is metadata only",
+      links: [{ rel: "child", href: "https://attacker.example/collection.json", type: "application/json" }],
+    };
+    const safeClient = new HonuaClient({
+      baseUrl: "https://static.example.test/catalog.json",
+      fetchFn: async (input) => {
+        const url = new URL(String(input));
+        requestedOrigins.push(url.origin);
+        return jsonResponse(crossOriginRoot);
+      },
+    });
+    const safeSource = createDataset({
+      id: "cross-origin-static",
+      client: safeClient,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "imagery",
+          protocol: "stac",
+          locator: { url: "https://static.example.test/catalog.json", layout: "stac-static" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+        } satisfies SourceDescriptor,
+      ],
+    }).source("imagery")!;
+    expect((await safeSource.query({})).features).toEqual([]);
+    expect(requestedOrigins).toEqual(["https://static.example.test"]);
+
+    const oversizedRoot = {
+      ...(fixture("stac-static/catalog.json") as Record<string, unknown>),
+      description: "x".repeat(2048),
+      links: [{ rel: "child", href: "https://attacker.example/collection.json", type: "application/json" }],
+    };
+    const client = new HonuaClient({
+      baseUrl: "https://static.example.test/catalog.json",
+      fetchFn: async () => {
+        return jsonResponse(oversizedRoot);
+      },
+    });
+    const source = createDataset({
+      id: "safe-static",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "imagery",
+          protocol: "stac",
+          locator: {
+            url: "https://static.example.test/catalog.json",
+            layout: "stac-static",
+            stacStatic: {
+              maxDocuments: 4,
+              maxDepth: 2,
+              maxLinksPerDocument: 4,
+              maxAssets: 16,
+              maxAssetProbes: 0,
+              maxDocumentBytes: 512,
+            },
+          },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+        } satisfies SourceDescriptor,
+      ],
+    }).source("imagery")!;
+
+    await expect(source.query({})).rejects.toThrow(/512-byte limit/);
+  });
+
+  it("rejects a structurally hostile runtime document within the byte limit", async () => {
+    let nested: unknown = "leaf";
+    for (let depth = 0; depth < 65; depth += 1) nested = [nested];
+    const client = new HonuaClient({
+      baseUrl: "https://static.example.test/catalog.json",
+      fetchFn: async () =>
+        jsonResponse({
+          stac_version: "1.0.0",
+          type: "Catalog",
+          id: "deep-runtime-root",
+          description: "bounded bytes do not imply bounded structure",
+          links: [],
+          nested,
+        }),
+    });
+    const source = createDataset({
+      id: "deep-static",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "deep-runtime-root",
+          protocol: "stac",
+          locator: { url: "https://static.example.test/catalog.json", layout: "stac-static" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+        } satisfies SourceDescriptor,
+      ],
+    }).source("deep-runtime-root")!;
+
+    await expect(source.query({})).rejects.toThrow(/64-level nesting limit/);
+  });
+
+  it("ignores rel=items and skips malformed linked Features under the same runtime policy", async () => {
+    const paths: string[] = [];
+    const redirectModes: Array<RequestRedirect | undefined> = [];
+    const root = {
+      stac_version: "1.0.0",
+      type: "Catalog",
+      id: "runtime-root",
+      description: "runtime alignment",
+      links: [
+        { rel: "items", href: "./bulk.json", type: "application/geo+json" },
+        { rel: "item", href: "./malformed.json", type: "application/geo+json" },
+        { rel: "item", href: "./valid.json", type: "application/geo+json" },
+      ],
+    };
+    const client = new HonuaClient({
+      baseUrl: "https://static.example.test/catalog.json",
+      fetchFn: async (input, init) => {
+        const path = new URL(String(input)).pathname;
+        paths.push(path);
+        redirectModes.push(init?.redirect);
+        if (path === "/catalog.json") return jsonResponse(root);
+        if (path === "/malformed.json") {
+          return jsonResponse({
+            type: "Feature",
+            id: "not-stac",
+            geometry: null,
+            properties: {},
+            links: [],
+            assets: {},
+          });
+        }
+        if (path === "/valid.json") return jsonResponse(fixture("stac-static/imagery/item-a.json"));
+        throw new Error(`unexpected runtime traversal ${path}`);
+      },
+    });
+    const source = createDataset({
+      id: "aligned-static",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "imagery",
+          protocol: "stac",
+          locator: { url: "https://static.example.test/catalog.json", layout: "stac-static" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+        } satisfies SourceDescriptor,
+      ],
+    }).source("imagery")!;
+
+    expect((await source.query({})).features).toHaveLength(1);
+    expect(paths).toEqual(["/catalog.json", "/malformed.json", "/valid.json"]);
+    expect(redirectModes).toEqual(["error", "error", "error"]);
+  });
+
+  it("fails a malformed root Feature instead of returning an empty successful result", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://static.example.test/item.json",
+      fetchFn: async () =>
+        jsonResponse({ type: "Feature", id: "not-stac", geometry: null, properties: {}, links: [], assets: {} }),
+    });
+    const source = createDataset({
+      id: "invalid-static-item",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "not-stac",
+          protocol: "stac",
+          locator: { url: "https://static.example.test/item.json", layout: "stac-static" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+        } satisfies SourceDescriptor,
+      ],
+    }).source("not-stac")!;
+
+    await expect(source.query({})).rejects.toThrow(/not a minimally valid STAC Item/);
+  });
 });
