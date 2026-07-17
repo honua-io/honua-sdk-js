@@ -564,6 +564,32 @@ describe("createHonua application kernel facade", () => {
     await honua.dispose();
   });
 
+  it("does not forward an Error with an uninspected stack accessor", async () => {
+    const secret = "STACK-ACCESSOR-SECRET";
+    let stackGetterCalls = 0;
+    const delegatedError = new Error("Delegated discovery failed safely.");
+    Object.defineProperty(delegatedError, "stack", {
+      configurable: true,
+      get() {
+        stackGetterCalls += 1;
+        return `Error: safe message\n    at https://geo.example.test/data?access_token=${secret}`;
+      },
+    });
+    const honua = createHonuaKernel({
+      connectDelegate: async () => {
+        throw delegatedError;
+      },
+    });
+
+    const failure = await rejected(honua.connect("https://geo.example.test/ogc", { protocol: "ogc-features" }));
+
+    expect(Object.is(failure, delegatedError)).toBe(false);
+    expect(failure.message).toBe("Delegated discovery failed safely.");
+    expect(failure.stack).not.toContain(secret);
+    expect(stackGetterCalls).toBe(0);
+    await honua.dispose();
+  });
+
   it("does not forward accessor-bearing non-Error rejection payloads", async () => {
     let getterCalls = 0;
     const rejection: Record<string, unknown> = {};

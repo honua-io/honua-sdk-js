@@ -1901,10 +1901,6 @@ function containsCredentialMaterial(
   try {
     for (const key of Reflect.ownKeys(value)) {
       const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-      // V8 exposes Error.stack as a lazy own accessor. It is never serialized
-      // by this facade; the data-bearing message/cause/context fields below
-      // remain subject to the credential scan.
-      if (value instanceof Error && key === "stack" && descriptor && !("value" in descriptor)) continue;
       if (!descriptor || !("value" in descriptor)) return true;
       if (containsCredentialMaterial(descriptor.value, secrets, seen, depth + 1)) {
         return true;
