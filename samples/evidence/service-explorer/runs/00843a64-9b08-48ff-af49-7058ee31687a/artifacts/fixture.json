@@ -1,0 +1,70 @@
+{
+  "format": "honua.sdk.sample-fixture-gate.v1",
+  "sampleId": "service-explorer",
+  "sourceRevision": "fe67856d6858053e79f37095204e6e714798c710",
+  "command": [
+    "npm",
+    "run",
+    "demo:service-explorer:mock",
+    "--",
+    "--evidence-once"
+  ],
+  "transport": "loopback-http",
+  "networkScope": "loopback-only",
+  "host": "127.0.0.1",
+  "port": 32835,
+  "ready": true,
+  "started": true,
+  "probe": {
+    "method": "GET",
+    "path": "/",
+    "status": 200,
+    "bodyBytes": 7816,
+    "bodySha256": "fe56e40a48c6abe98d67b41f47259a22856a57c267245952deffddef5d46a36a",
+    "contentType": "text/html; charset=utf-8"
+  },
+  "fixtureMatrix": {
+    "protocol": {
+      "landing": {
+        "path": "/fixtures/ogc",
+        "status": 200,
+        "bodyBytes": 326,
+        "bodySha256": "55e7b431d15bd74c3b0b0f0d88c1b63c8a8a5243e4359df43c12b9ee7dc9849c",
+        "contentType": "application/json; charset=utf-8"
+      },
+      "conformance": {
+        "path": "/fixtures/ogc/conformance",
+        "status": 200,
+        "bodyBytes": 143,
+        "bodySha256": "9102d9a6b7251a84ddee09656990380f6bfb7e75f2918ee9fd67fd093fae0673",
+        "contentType": "application/json; charset=utf-8"
+      },
+      "collections": {
+        "path": "/fixtures/ogc/collections",
+        "status": 200,
+        "bodyBytes": 316,
+        "bodySha256": "c16c5dc598a4ce352748e2f4ac24bf1b219d35cd0875e4935f48f7f812bcf630",
+        "contentType": "application/json; charset=utf-8"
+      },
+      "items": {
+        "path": "/fixtures/ogc/collections/places/items?limit=2",
+        "status": 200,
+        "bodyBytes": 491,
+        "bodySha256": "436ece52c8e1aa633ae2172a2accefb37bac8ae396ee0d837bcabfad498b64f2",
+        "contentType": "application/json; charset=utf-8"
+      },
+      "sourceId": "places",
+      "returnedFeatures": 2
+    },
+    "hostile": {
+      "path": "/fixtures/slow-ogc",
+      "deadlineMs": 50,
+      "cancelled": true,
+      "errorName": "TimeoutError",
+      "elapsedMs": 56.27167400000144
+    }
+  },
+  "closed": true,
+  "listeningAfterClose": false,
+  "activeConnectionsAfterClose": 0
+}

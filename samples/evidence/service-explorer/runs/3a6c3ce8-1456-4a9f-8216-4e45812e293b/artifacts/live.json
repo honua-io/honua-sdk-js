@@ -1,0 +1,68 @@
+{
+  "format": "honua.sdk.sample-live-gate.v1",
+  "sampleId": "service-explorer",
+  "sourceRevision": "fe67856d6858053e79f37095204e6e714798c710",
+  "command": [
+    "npm",
+    "run",
+    "demo:service-explorer:live-evidence"
+  ],
+  "evidencePath": "samples/evidence/service-explorer/runs/3a6c3ce8-1456-4a9f-8216-4e45812e293b/artifacts/live-evidence.json",
+  "evidence": {
+    "$schema": "../../samples/contract/v1/schemas/sample-evidence.schema.json",
+    "format": "honua.sdk.sample-evidence.v1",
+    "schemaVersion": 1,
+    "sampleId": "service-explorer",
+    "lane": "live",
+    "status": "executed",
+    "reason": null,
+    "observedAt": "2026-07-17T01:47:04.997Z",
+    "authMode": "anonymous",
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.0-beta.0",
+      "gitCommit": "fe67856d6858053e79f37095204e6e714798c710"
+    },
+    "source": {
+      "provider": "esri-sampleserver6-and-pygeoapi-demo",
+      "identity": "configured-geoservices+configured-ogc-features",
+      "endpoint": "https://demo.pygeoapi.io/master",
+      "deploymentVersion": null,
+      "dataVersion": null
+    },
+    "provenance": {
+      "sourceId": "configured-geoservices+configured-ogc-features",
+      "observedAt": "2026-07-17T01:47:04.997Z",
+      "validAt": null,
+      "state": "live",
+      "attribution": "Esri sample services and the pygeoapi development team."
+    },
+    "semantics": {
+      "operation": "dual-protocol-inspect-plan-query",
+      "outcome": "geoservices-and-ogc-plans-executed",
+      "itemCount": 2,
+      "assertions": [
+        "credential-free-https-endpoints",
+        "geoservices-feature-service-inspected",
+        "ogc-features-conformance-inspected",
+        "strict-query-plans-accepted",
+        "bounded-live-results-returned"
+      ]
+    },
+    "timing": {
+      "totalMs": 3207.320243,
+      "firstSuccessfulInteractionMs": 853.2912739999999
+    },
+    "degradation": {
+      "state": "none",
+      "reasons": []
+    },
+    "artifacts": [
+      {
+        "kind": "producer-generator",
+        "path": "examples/service-explorer/live-evidence.mjs",
+        "sha256": "e80eb68c86921940faf6d66d593315decf0971bb2228ef5262b96870c9e64bfe"
+      }
+    ]
+  }
+}

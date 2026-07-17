@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "service-explorer",
+  "gate": "fixture",
+  "status": "passed",
+  "sdkMode": "source",
+  "sourceRevision": "fe67856d6858053e79f37095204e6e714798c710",
+  "sourceDigest": "7771601991eedf1965b3b6b06638394cf949c85e920e6e83f41f29357721ec5d",
+  "runRoot": "samples/evidence/service-explorer/runs/00843a64-9b08-48ff-af49-7058ee31687a",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "demo:service-explorer:mock",
+      "--",
+      "--evidence-once"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "b2f7a9e35d1d87f7037c3fb378944e4138108a6c957f7d9d233dee4cb8749fd7"
+  },
+  "observedAt": "2026-07-17T01:45:52.480Z",
+  "expiresAt": "2026-07-24T01:45:52.480Z",
+  "durationMs": 9842.628754,
+  "artifacts": [
+    {
+      "kind": "fixture-probe-report",
+      "path": "samples/evidence/service-explorer/runs/00843a64-9b08-48ff-af49-7058ee31687a/artifacts/fixture.json",
+      "bytes": 2094,
+      "sha256": "4cbc7c2f0cffcfaa0770ed1b5cd84c7b880864244111109b323af25def7ad72d"
+    }
+  ]
+}
