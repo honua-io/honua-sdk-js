@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ConnectDiscoverySnapshot } from "../src/connect.js";
+import { type ConnectDiscoverySnapshot, HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION } from "../src/connect.js";
 import type { DiscoveryCacheIdentity } from "../src/contract/discovery.js";
 import type { Capability } from "../src/contract/types.js";
 import { HonuaAbortError } from "../src/core/errors.js";
@@ -17,7 +17,7 @@ function identity(key: string): DiscoveryCacheIdentity {
 
 function snapshot(cacheIdentity: DiscoveryCacheIdentity): ConnectDiscoverySnapshot {
   return Object.freeze({
-    version: 4,
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: cacheIdentity.key,
     endpoint: cacheIdentity.endpoint,
     protocol: "ogc-features",

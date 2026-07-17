@@ -73,7 +73,7 @@ export interface HonuaProtocolTransport {
     path: string,
     init?: RequestInit,
     callerSignal?: AbortSignal,
-    options?: { okStatuses?: readonly number[] },
+    options?: { okStatuses?: readonly number[]; redirect?: "safe-follow" | "error" },
   ): Promise<Response>;
 
   /**

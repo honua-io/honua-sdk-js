@@ -603,11 +603,31 @@ export class HonuaClient {
    * base origin (re-running the {@link resolveRequestUrl} origin guard).
    * Cross-origin redirects throw before the credentialed request is replayed.
    */
-  private async fetchWithSafeRedirects(url: string, init: RequestInit): Promise<Response> {
+  private async fetchWithSafeRedirects(
+    url: string,
+    init: RequestInit,
+    redirectPolicy: "safe-follow" | "error" = "safe-follow",
+  ): Promise<Response> {
     let currentUrl = url;
     let currentInit: RequestInit = init;
     for (let redirects = 0; ; redirects += 1) {
-      const response = await this.fetchFn(currentUrl, { ...currentInit, redirect: "manual" });
+      const response = await this.fetchFn(currentUrl, {
+        ...currentInit,
+        redirect: redirectPolicy === "error" ? "error" : "manual",
+      });
+
+      if (redirectPolicy === "error") {
+        if (
+          response.type === "opaqueredirect" ||
+          response.redirected ||
+          REDIRECT_STATUSES.has(response.status) ||
+          (response.url !== "" && response.url !== currentUrl)
+        ) {
+          await response.body?.cancel().catch(() => undefined);
+          throw new HonuaNetworkError("Redirects are not allowed for this bounded request.", undefined);
+        }
+        return response;
+      }
 
       // `redirect: "manual"` surfaces redirects as status 3xx with a usable
       // `Location` header (and, in fetch, an "opaqueredirect" type with status 0
@@ -620,9 +640,7 @@ export class HonuaClient {
         );
       }
 
-      if (!REDIRECT_STATUSES.has(response.status)) {
-        return response;
-      }
+      if (!REDIRECT_STATUSES.has(response.status)) return response;
 
       if (redirects >= MAX_SAFE_REDIRECTS) {
         throw new HonuaNetworkError(`Exceeded the maximum of ${MAX_SAFE_REDIRECTS} redirects.`, undefined);
@@ -1141,7 +1159,7 @@ export class HonuaClient {
     path: string,
     init?: RequestInit,
     callerSignal?: AbortSignal,
-    options: { okStatuses?: readonly number[] } = {},
+    options: { okStatuses?: readonly number[]; redirect?: "safe-follow" | "error" } = {},
   ): Promise<Response> {
     const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
@@ -1158,6 +1176,7 @@ export class HonuaClient {
     return this.executeRequest<Response>(request, {
       callerSignal,
       ...(options.okStatuses ? { okStatuses: options.okStatuses } : {}),
+      ...(options.redirect ? { redirect: options.redirect } : {}),
       finalize: async (response, _durationMs, _request, runAfter) => {
         await runAfter();
         return response;
@@ -1236,7 +1255,10 @@ export class HonuaClient {
         };
       },
       finalize: async (response, durationMs, currentRequest, runAfter) => {
-        const body = await parseResponseBody(this.hasAfterInterceptors() ? response.clone() : response);
+        const body = await parseResponseBody(
+          this.hasAfterInterceptors() ? response.clone() : response,
+          metadataOptions.maxResponseBytes,
+        );
 
         // GeoServices reports metadata failures (layer not found, invalid token
         // => code 499, …) as HTTP 200 with a top-level `{error}` envelope.
@@ -1948,6 +1970,7 @@ export class HonuaClient {
     options: {
       callerSignal?: AbortSignal;
       okStatuses?: readonly number[];
+      redirect?: "safe-follow" | "error";
       errorBody?: (response: Response) => Promise<unknown>;
       shortCircuit?: (
         response: Response,
@@ -1973,11 +1996,15 @@ export class HonuaClient {
       const timeout = createTimeoutSignal(options.callerSignal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
       try {
-        response = await this.fetchWithSafeRedirects(request.url, {
-          ...request.init,
-          method: request.method,
-          signal: timeout.signal,
-        });
+        response = await this.fetchWithSafeRedirects(
+          request.url,
+          {
+            ...request.init,
+            method: request.method,
+            signal: timeout.signal,
+          },
+          options.redirect,
+        );
       } catch (error) {
         const durationMs = performance.now() - startTime;
         const normalizedError = timeout.didTimeout
@@ -2148,8 +2175,11 @@ function geoServicesEnvelopeError(httpStatus: number, body: unknown): HonuaHttpE
   return new HonuaHttpError(statusCode, message, body);
 }
 
-async function parseResponseBody(response: Response): Promise<unknown> {
-  const text = await response.text();
+async function parseResponseBody(response: Response, maxResponseBytes?: number): Promise<unknown> {
+  const text =
+    maxResponseBytes === undefined
+      ? await response.text()
+      : new TextDecoder().decode(await readBoundedResponseBytes(response, maxResponseBytes));
   if (!text) {
     return {};
   }
@@ -2158,6 +2188,43 @@ async function parseResponseBody(response: Response): Promise<unknown> {
   } catch {
     return { raw: text };
   }
+}
+
+async function readBoundedResponseBytes(response: Response, maximum: number): Promise<Uint8Array> {
+  const advertised = response.headers.get("content-length");
+  if (advertised !== null) {
+    const length = Number(advertised);
+    if (Number.isFinite(length) && length > maximum) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new HonuaNetworkError(`Metadata response exceeds the configured ${maximum}-byte limit.`, undefined);
+    }
+  }
+
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maximum) {
+        await reader.cancel().catch(() => undefined);
+        throw new HonuaNetworkError(`Metadata response exceeds the configured ${maximum}-byte limit.`, undefined);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

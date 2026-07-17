@@ -42,6 +42,20 @@ export type {
   OgcProcessDiscoverySummary,
   OgcProcessesDiscoveryOptions,
   OgcProcessesDiscoveryResult,
+  StacAssetCandidate,
+  StacAssetCandidateMetadata,
+  StacAssetCandidateState,
+  StacAssetClassificationEvidence,
+  StacAssetConfidence,
+  StacAssetKind,
+  StacAssetSourceCandidate,
+  StacStaticDiagnostic,
+  StacStaticDiagnosticCode,
+  StacStaticDiscoveryInspection,
+  StacStaticObjectSummary,
+  StacStaticObjectType,
+  StacStaticTraversalOptions,
+  StacStaticTraversalPolicy,
 } from "./connect.js";
 export { createHonua } from "./kernel/index.js";
 export type {

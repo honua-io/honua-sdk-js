@@ -44,6 +44,14 @@ export interface HonuaMetadataRequestOptions {
   readonly ttlMs?: number;
   /** Optional stale fallback window surfaced to callers in `HonuaCacheState`. */
   readonly staleIfErrorMs?: number;
+  /**
+   * Maximum decoded response-body bytes accepted before metadata parsing.
+   * Adapters that consume bounded discovery documents set this explicitly so
+   * a missing or dishonest `Content-Length` cannot turn metadata discovery
+   * into an unbounded allocation. The limit is enforced while streaming the
+   * body, not only from response headers.
+   */
+  readonly maxResponseBytes?: number;
 }
 
 export interface NormalizedHonuaMetadataRequestOptions {
@@ -53,6 +61,7 @@ export interface NormalizedHonuaMetadataRequestOptions {
   readonly staleIfError: boolean;
   readonly ttlMs?: number;
   readonly staleIfErrorMs?: number;
+  readonly maxResponseBytes?: number;
 }
 
 export const HONUA_DEFAULT_METADATA_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -94,6 +103,7 @@ export function normalizeHonuaMetadataRequestOptions(
   const ttlMs = normalizeNonNegativeInteger(options.ttlMs) ?? HONUA_DEFAULT_METADATA_CACHE_TTL_MS;
   const staleIfErrorMs =
     normalizeNonNegativeInteger(options.staleIfErrorMs) ?? HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS;
+  const maxResponseBytes = normalizeMaximumResponseBytes(options.maxResponseBytes);
   return {
     ...(options.signal ? { signal: options.signal } : {}),
     refresh: options.refresh === true,
@@ -101,6 +111,7 @@ export function normalizeHonuaMetadataRequestOptions(
     staleIfError: options.staleIfError !== false,
     ttlMs,
     staleIfErrorMs,
+    ...(maxResponseBytes !== undefined ? { maxResponseBytes } : {}),
   };
 }
 
@@ -176,4 +187,12 @@ function normalizeNonNegativeInteger(value: number | undefined): number | undefi
     return undefined;
   }
   return Math.max(0, Math.trunc(value));
+}
+
+function normalizeMaximumResponseBytes(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new TypeError("maxResponseBytes must be a positive safe integer.");
+  }
+  return value;
 }

@@ -104,10 +104,10 @@ complete decision, diagnostic, provenance, cache-result, and inspection type
 vocabulary for adapter authors. This keeps the beginner surface bounded while
 preserving a fully typed protocol integration seam.
 
-## Connect facade (OGC Features/Records/Tiles/Maps, STAC API, GeoServices, WFS, OData, and GeoParquet slices)
+## Connect facade (OGC Features/Records/Tiles/Maps, STAC API/static, GeoServices, WFS, OData, and GeoParquet slices)
 
 The experimental `connect()` facade composes this truth contract for raw OGC
-API Features and STAC API landing pages, raw OGC API Records catalog roots, raw
+API Features and STAC API landing pages or bounded static STAC objects, raw OGC API Records catalog roots, raw
 OGC API Tiles and Maps service roots (render-only sources),
 WFS 2.0 endpoints, OData v4 service
 roots, static-file GeoParquet assets, and canonical
@@ -264,9 +264,40 @@ root. Generic STAC catalog conformance does not prove a search API. Missing
 Item Search evidence leaves those operations disabled with structured
 `not-advertised` decisions. Cross-origin, credential-bearing, query-bearing,
 or path-divergent search/data links are rejected after the landing request and
-before any linked endpoint can be contacted. Static STAC catalogs remain a
-separate explicit discovery slice; `auto` never probes an ambiguous URL to
-guess STAC API versus static STAC.
+before any linked endpoint can be contacted. `conformsTo` is authoritative for
+API classification; `auto` never probes an ambiguous URL to guess STAC API
+versus static STAC.
+
+Static STAC discovery accepts an explicit `protocol: "stac"` endpoint whose
+bounded root is a Catalog, Collection, or Item with `stac_version` and no
+`conformsTo` member. It follows only same-origin, credential-free JSON
+`child`/`item` links (plus an Item's `collection` metadata link), resolving
+relative links against each admitted document URL. Metadata and asset-probe
+requests use Fetch `redirect: "error"`: HTTP redirects and browser-shaped
+opaque redirect responses fail closed rather than replaying root credentials.
+Traversal defaults
+to 32 attempted documents, depth 4, 64 links per document, 256 assets, eight
+same-origin HEAD probes, and one MiB per JSON document; caller overrides are
+hard-capped and participate in discovery-cache identity. Duplicate canonical
+links are deduplicated before requests. Cross-origin asset hrefs are preserved for inspection
+but are never probed with root credentials, and asset bodies are never
+downloaded during discovery.
+
+Assets are classified from declared/probed media types, STAC roles, extension
+URIs, and extension fields—never from filename suffixes. COG, GeoParquet,
+PMTiles, tile, and metadata candidates retain structured confidence/evidence,
+object and collection identity, CRS, space/time extent, license, attribution,
+and validator/content provenance. PMTiles, GeoParquet, and compatible tile
+templates project onto existing executable locators; COG remains typed but
+inspection-only until the direct COG adapter is available. Ambiguous or
+unsupported assets remain explicit candidates rather than disappearing.
+
+The normalized traversal policy is stored on `SourceLocator.stacStatic` and is
+reapplied by the runtime static-catalog reader. Consequently, a discovered
+source cannot later widen its document/depth/link/body bounds or cross the
+admitted origin during `Source.query()`. `collectionId` selects one traversed
+Collection and scopes runtime item filtering; without a selection, the root
+object remains the source identity.
 
 Raw OGC API Records discovery performs three metadata requests against the
 discovered service root — the landing page, `/conformance`, and `/collections`.
@@ -355,8 +386,16 @@ alter object prototypes. A bound violation fails without a network fallback.
 Cache hooks must not persist access tokens, API keys, or raw authorization
 material.
 
-This slice is intentionally not universal-connect completion: static STAC and
-the GeoServices Image/Geometry/GP services still fail as unsupported rather than
+Static STAC snapshots additionally bind the requested root URL, canonical
+same-origin document URLs, object validators/content digests, and classified
+asset keys/hrefs/kinds/executable locators into a tree fingerprint. Cache reads
+recompute candidate/object identities, canonicalize the redundant root view
+from the first validated document, and require diagnostics to reference an
+admitted parent document. A forged asset binding, duplicate document URL, policy
+drift, or cross-origin tree entry fails as `invalid-discovery-cache`.
+
+This slice is intentionally not universal-connect completion: the GeoServices
+Image/Geometry/GP services still fail as unsupported rather than
 falling through to heuristic detection.
 
 ## Remaining #391 work

@@ -303,6 +303,20 @@ export interface SourceLocator {
    */
   layout?: "honua-facade" | "ogc-api" | "auto" | "stac-api" | "stac-static";
   /**
+   * Execution guardrails for a `stac-static` source. `connect()` records the
+   * exact normalized discovery policy here so later `Source.query()` calls
+   * cannot traverse a broader tree than the one that was admitted. Manually
+   * constructed static-STAC sources use the same conservative defaults.
+   */
+  stacStatic?: {
+    readonly maxDocuments: number;
+    readonly maxDepth: number;
+    readonly maxLinksPerDocument: number;
+    readonly maxAssets: number;
+    readonly maxAssetProbes: number;
+    readonly maxDocumentBytes: number;
+  };
+  /**
    * Raw endpoint path prefix for the OGC API Tiles / Maps / Records / Processes
    * families when the service is a third-party root discovered by `connect()`
    * rather than the Honua facade. Defaults (when omitted) to the family's

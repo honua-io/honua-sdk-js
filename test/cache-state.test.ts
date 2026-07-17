@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createHonuaCacheState, isHonuaCacheStatus } from "@honua/sdk-js/honua";
+import { createHonuaCacheState, isHonuaCacheStatus, normalizeHonuaMetadataRequestOptions } from "@honua/sdk-js/honua";
 import { HonuaClient } from "../src/index.js";
 
 const layerFixture = {
@@ -98,6 +98,15 @@ describe("Honua cache state", () => {
     expect(refreshed.name).toBe("TTL refreshed layer");
     expect(requestCount).toBe(2);
   });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "fails closed for invalid maxResponseBytes %s",
+    (maxResponseBytes) => {
+      expect(() => normalizeHonuaMetadataRequestOptions({ maxResponseBytes })).toThrow(
+        /maxResponseBytes must be a positive safe integer/,
+      );
+    },
+  );
 });
 
 function json(body: unknown, status: number, headers: HeadersInit = {}): Response {
