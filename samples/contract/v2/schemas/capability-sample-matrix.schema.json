@@ -12,6 +12,7 @@
     "dimensions",
     "goldenJourneys",
     "samples",
+    "evidenceBindings",
     "protocolOperations",
     "supportClaims",
     "packageEntrypoints",
@@ -109,6 +110,10 @@
       "minItems": 1,
       "items": { "$ref": "#/$defs/sample" }
     },
+    "evidenceBindings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidenceBinding" }
+    },
     "protocolOperations": {
       "type": "array",
       "minItems": 1,
@@ -163,12 +168,13 @@
     },
     "coverage": {
       "type": "object",
-      "required": ["state", "reason", "candidateSampleIds", "qualifyingSampleIds"],
+      "required": ["state", "reason", "candidateSampleIds", "qualifyingSampleIds", "evidenceBindingIds"],
       "properties": {
         "state": { "$ref": "#/$defs/coverageState" },
         "reason": { "$ref": "#/$defs/nonEmptyString" },
         "candidateSampleIds": { "$ref": "#/$defs/stringArray" },
         "qualifyingSampleIds": { "$ref": "#/$defs/stringArray" },
+        "evidenceBindingIds": { "$ref": "#/$defs/stringArray" },
         "selectedSampleId": { "$ref": "#/$defs/nonEmptyString" }
       },
       "additionalProperties": false
@@ -201,15 +207,108 @@
       "properties": {
         "state": { "$ref": "#/$defs/coverageState" },
         "catalogStatus": { "enum": ["planned", "qualified", "not-a-golden-journey"] },
+        "evidenceBindingId": {
+          "type": "string",
+          "pattern": "^qualification:[a-f0-9]{64}$"
+        },
         "evidence": { "$ref": "#/$defs/qualificationEvidence" }
       },
       "allOf": [
         {
           "if": { "properties": { "state": { "const": "qualified" } }, "required": ["state"] },
-          "then": { "required": ["evidence"] },
-          "else": { "not": { "required": ["evidence"] } }
+          "then": { "required": ["evidenceBindingId", "evidence"] },
+          "else": {
+            "not": {
+              "anyOf": [{ "required": ["evidenceBindingId"] }, { "required": ["evidence"] }]
+            }
+          }
         }
       ],
+      "additionalProperties": false
+    },
+    "receiptEvidenceBinding": {
+      "type": "object",
+      "required": [
+        "gate",
+        "sdkMode",
+        "receiptPath",
+        "receiptSha256",
+        "runRoot",
+        "observedAt",
+        "expiresAt",
+        "reportKind",
+        "reportPath",
+        "reportBytes",
+        "reportSha256"
+      ],
+      "properties": {
+        "gate": { "$ref": "#/$defs/nonEmptyString" },
+        "sdkMode": { "enum": ["source", "packed"] },
+        "receiptPath": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/receipts/[a-z0-9]+(?:-[a-z0-9]+)*\\.v1\\.json$"
+        },
+        "receiptSha256": { "$ref": "#/$defs/sha256" },
+        "runRoot": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "reportKind": { "$ref": "#/$defs/nonEmptyString" },
+        "reportPath": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/.+$"
+        },
+        "reportBytes": { "type": "integer", "minimum": 0 },
+        "reportSha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "evidenceBinding": {
+      "type": "object",
+      "required": ["id", "sampleId", "source", "packed"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^qualification:[a-f0-9]{64}$"
+        },
+        "sampleId": { "$ref": "#/$defs/nonEmptyString" },
+        "source": {
+          "type": "object",
+          "required": ["repository", "path", "revision", "evidenceNeutralSha256", "receipts"],
+          "properties": {
+            "repository": { "const": "honua-io/honua-sdk-js" },
+            "path": { "$ref": "#/$defs/nonEmptyString" },
+            "revision": { "$ref": "#/$defs/sourceRevision" },
+            "evidenceNeutralSha256": { "$ref": "#/$defs/sha256" },
+            "receipts": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/receiptEvidenceBinding" },
+                  { "properties": { "sdkMode": { "const": "source" } }, "required": ["sdkMode"] }
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "packed": {
+          "allOf": [
+            { "$ref": "#/$defs/receiptEvidenceBinding" },
+            {
+              "properties": {
+                "gate": { "const": "packed-build" },
+                "sdkMode": { "const": "packed" }
+              },
+              "required": ["gate", "sdkMode"]
+            }
+          ]
+        }
+      },
       "additionalProperties": false
     },
     "sample": {

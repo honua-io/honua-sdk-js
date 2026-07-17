@@ -55,9 +55,10 @@
       "supportStatus": "supported",
       "coverage": {
         "state": "planned",
-        "reason": "The golden journey has no qualification receipts.",
+        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
         "candidateSampleIds": ["map-recipe"],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "map-recipe"
       }
     }
@@ -90,8 +91,36 @@
         "state": "planned",
         "catalogStatus": "planned"
       }
+    },
+    {
+      "id": "query-recipe",
+      "title": "Query recipe",
+      "sourcePath": "examples/query-recipe",
+      "track": "recipe",
+      "tasks": ["query"],
+      "catalogProtocols": ["ogc-features"],
+      "protocolIds": ["ogc-features"],
+      "supportClaimIds": ["ogc-features-standalone"],
+      "protocolBindings": [
+        {
+          "catalogProtocol": "ogc-features",
+          "protocolIds": ["ogc-features"],
+          "supportClaimIds": ["ogc-features-standalone"],
+          "external": false
+        }
+      ],
+      "renderers": ["maplibre"],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "supported",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "partial",
+        "catalogStatus": "not-a-golden-journey"
+      }
     }
   ],
+  "evidenceBindings": [],
   "protocolOperations": [
     {
       "id": "ogc-features:query:default",
@@ -103,10 +132,11 @@
       "truthEvidence": [],
       "coverage": {
         "state": "unsupported",
-        "reason": "The default operation status is unsupported.",
-        "candidateSampleIds": ["map-recipe"],
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": ["query-recipe", "map-recipe"],
         "qualifyingSampleIds": [],
-        "selectedSampleId": "map-recipe"
+        "evidenceBindingIds": [],
+        "selectedSampleId": "query-recipe"
       }
     }
   ],
@@ -117,7 +147,7 @@
       "protocolId": "ogc-features",
       "operations": ["query"],
       "api": "connect(), Source",
-      "apiEntrypoints": [],
+      "apiEntrypoints": ["./map"],
       "supportStatus": "experimental",
       "environment": "standalone",
       "executionMode": "discovery",
@@ -127,14 +157,20 @@
           "sampleId": "map-recipe",
           "matchedOperations": ["query"],
           "binding": "exact"
+        },
+        {
+          "sampleId": "query-recipe",
+          "matchedOperations": ["query"],
+          "binding": "exact"
         }
       ],
       "coverage": {
         "state": "experimental",
-        "reason": "Experimental support remains experimental without qualification.",
-        "candidateSampleIds": ["map-recipe"],
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": ["query-recipe", "map-recipe"],
         "qualifyingSampleIds": [],
-        "selectedSampleId": "map-recipe"
+        "evidenceBindingIds": [],
+        "selectedSampleId": "query-recipe"
       }
     }
   ],
@@ -148,10 +184,11 @@
       },
       "coverage": {
         "state": "partial",
-        "reason": "Runnable source exists without complete qualification receipts.",
-        "candidateSampleIds": ["map-recipe"],
+        "reason": "Executable sample coverage exists without complete current qualification receipts.",
+        "candidateSampleIds": ["query-recipe", "map-recipe"],
         "qualifyingSampleIds": [],
-        "selectedSampleId": "map-recipe"
+        "evidenceBindingIds": [],
+        "selectedSampleId": "query-recipe"
       }
     }
   ],
@@ -162,31 +199,31 @@
       "supportStatus": "supported",
       "coverageState": "planned",
       "candidateSampleIds": ["map-recipe"],
-      "reason": "The golden journey has no qualification receipts."
+      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
     },
     {
       "targetType": "package-entrypoint",
       "targetId": "./map",
       "supportStatus": "supported",
       "coverageState": "partial",
-      "candidateSampleIds": ["map-recipe"],
-      "reason": "Runnable source exists without complete qualification receipts."
+      "candidateSampleIds": ["query-recipe", "map-recipe"],
+      "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
     {
       "targetType": "protocol-operation",
       "targetId": "ogc-features:query:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": ["map-recipe"],
-      "reason": "The default operation status is unsupported."
+      "candidateSampleIds": ["query-recipe", "map-recipe"],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
       "targetType": "support-claim",
       "targetId": "ogc-features-standalone",
       "supportStatus": "experimental",
       "coverageState": "experimental",
-      "candidateSampleIds": ["map-recipe"],
-      "reason": "Experimental support remains experimental without qualification."
+      "candidateSampleIds": ["query-recipe", "map-recipe"],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
     }
   ]
 }

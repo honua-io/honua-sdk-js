@@ -279,6 +279,7 @@
           "maplibre-quickstart"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "maplibre-quickstart"
       }
     },
@@ -295,6 +296,7 @@
           "service-explorer"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "service-explorer"
       }
     },
@@ -311,6 +313,7 @@
           "planning-permitting-workbench"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "planning-permitting-workbench"
       }
     },
@@ -327,6 +330,7 @@
           "realtime-incident-dashboard"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "realtime-incident-dashboard"
       }
     },
@@ -343,6 +347,7 @@
           "imagery-cog-quickstart"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "imagery-cog-quickstart"
       }
     },
@@ -359,6 +364,7 @@
           "spatial-analytics-workbench"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "spatial-analytics-workbench"
       }
     },
@@ -375,6 +381,7 @@
           "migration-workbench"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "migration-workbench"
       }
     }
@@ -2178,6 +2185,7 @@
       }
     }
   ],
+  "evidenceBindings": [],
   "protocolOperations": [
     {
       "id": "geoparquet:applyEdits:default",
@@ -2191,7 +2199,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2206,7 +2215,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2221,7 +2231,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2236,7 +2247,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2251,7 +2263,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2266,7 +2279,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2281,7 +2295,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2300,7 +2315,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2319,7 +2335,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2334,7 +2351,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2349,7 +2367,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2364,7 +2383,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2379,7 +2399,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2394,7 +2415,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2409,7 +2431,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2428,7 +2451,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2443,7 +2467,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2462,7 +2487,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2484,6 +2510,7 @@
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "edit-workflow-demo"
       }
     },
@@ -2499,7 +2526,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2514,7 +2542,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2529,7 +2558,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2548,7 +2578,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2563,7 +2594,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2588,6 +2620,7 @@
           "endpoint-to-map"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "standalone-quickstart"
       }
     },
@@ -2607,7 +2640,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2626,7 +2660,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2645,7 +2680,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2664,7 +2700,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2679,7 +2716,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2694,7 +2732,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2713,7 +2752,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2733,7 +2773,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2752,7 +2793,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2767,7 +2809,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2785,6 +2828,7 @@
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "edit-workflow-demo"
       }
     },
@@ -2804,7 +2848,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2819,7 +2864,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2834,7 +2880,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2849,7 +2896,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2864,7 +2912,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2885,6 +2934,7 @@
           "endpoint-to-map"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "standalone-quickstart"
       }
     },
@@ -2900,7 +2950,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2915,7 +2966,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2930,7 +2982,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2945,7 +2998,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2960,7 +3014,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2975,7 +3030,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -2990,7 +3046,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3005,7 +3062,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3020,7 +3078,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3035,7 +3094,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3053,6 +3113,7 @@
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "edit-workflow-demo"
       }
     },
@@ -3068,7 +3129,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3089,7 +3151,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3104,7 +3167,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3119,7 +3183,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3134,7 +3199,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3155,6 +3221,7 @@
           "endpoint-to-map"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "standalone-quickstart"
       }
     },
@@ -3170,7 +3237,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3185,7 +3253,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3200,7 +3269,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3215,7 +3285,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3230,7 +3301,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3245,7 +3317,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3260,7 +3333,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3275,7 +3349,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3290,7 +3365,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3305,7 +3381,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3323,6 +3400,7 @@
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "edit-workflow-demo"
       }
     },
@@ -3338,7 +3416,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3353,7 +3432,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3372,7 +3452,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3387,7 +3468,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3402,7 +3484,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3427,6 +3510,7 @@
           "endpoint-to-map"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "standalone-quickstart"
       }
     },
@@ -3442,7 +3526,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3461,7 +3546,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3480,7 +3566,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3495,7 +3582,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3514,7 +3602,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3529,7 +3618,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3544,7 +3634,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3559,7 +3650,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3578,7 +3670,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3593,7 +3686,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3611,6 +3705,7 @@
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "edit-workflow-demo"
       }
     },
@@ -3626,7 +3721,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3641,7 +3737,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3656,7 +3753,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3671,7 +3769,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3686,7 +3785,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3712,6 +3812,7 @@
           "endpoint-to-map"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "standalone-quickstart"
       }
     },
@@ -3732,7 +3833,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3752,7 +3854,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3772,7 +3875,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3792,7 +3896,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3811,7 +3916,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3826,7 +3932,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3845,7 +3952,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3865,7 +3973,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3885,7 +3994,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3905,7 +4015,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3923,6 +4034,7 @@
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "edit-workflow-demo"
       }
     },
@@ -3938,7 +4050,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3953,7 +4066,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3968,7 +4082,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3983,7 +4098,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3998,7 +4114,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4025,6 +4142,7 @@
           "mcp-gis-assistant"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "node-backend-quickstart"
       }
     },
@@ -4045,7 +4163,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4065,7 +4184,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4085,7 +4205,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4100,7 +4221,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4115,7 +4237,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4130,7 +4253,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4145,7 +4269,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4165,7 +4290,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4180,7 +4306,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4195,7 +4322,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4210,7 +4338,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4225,7 +4354,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4240,7 +4370,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4255,7 +4386,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4270,7 +4402,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4285,7 +4418,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4300,7 +4434,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4315,7 +4450,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4330,7 +4466,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4345,7 +4482,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4360,7 +4498,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4375,7 +4514,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4390,7 +4530,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4405,7 +4546,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4420,7 +4562,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4435,7 +4578,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4450,7 +4594,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4465,7 +4610,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4480,7 +4626,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4495,7 +4642,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4510,7 +4658,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4525,7 +4674,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4540,7 +4690,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4555,7 +4706,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4570,7 +4722,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4585,7 +4738,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4600,7 +4754,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4615,7 +4770,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4635,7 +4791,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4650,7 +4807,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4665,7 +4823,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4680,7 +4839,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4699,7 +4859,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4714,7 +4875,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4729,7 +4891,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4744,7 +4907,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4759,7 +4923,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4774,7 +4939,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4789,7 +4955,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4804,7 +4971,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4819,7 +4987,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4834,7 +5003,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4849,7 +5019,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4864,7 +5035,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4879,7 +5051,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4899,7 +5072,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4914,7 +5088,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4929,7 +5104,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4944,7 +5120,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4963,7 +5140,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4982,7 +5160,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4997,7 +5176,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5012,7 +5192,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5027,7 +5208,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5042,7 +5224,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5057,7 +5240,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5072,7 +5256,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5091,7 +5276,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5106,7 +5292,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5121,7 +5308,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5140,7 +5328,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5155,7 +5344,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5170,7 +5360,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5185,7 +5376,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5200,7 +5392,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5219,7 +5412,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5234,7 +5428,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5253,7 +5448,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5268,7 +5464,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5283,7 +5480,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5298,7 +5496,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5313,7 +5512,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5328,7 +5528,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5343,7 +5544,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5362,7 +5564,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5381,7 +5584,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5400,7 +5604,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5419,7 +5624,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5434,7 +5640,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5449,7 +5656,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5464,7 +5672,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5479,7 +5688,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5498,7 +5708,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5513,7 +5724,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5528,7 +5740,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5543,7 +5756,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5558,7 +5772,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5573,7 +5788,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5588,7 +5804,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5603,7 +5820,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5618,7 +5836,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5633,7 +5852,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5648,7 +5868,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5663,7 +5884,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5678,7 +5900,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5693,7 +5916,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5712,7 +5936,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5727,7 +5952,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5742,7 +5968,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5757,7 +5984,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5772,7 +6000,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5787,7 +6016,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5802,7 +6032,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5817,7 +6048,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5832,7 +6064,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5847,7 +6080,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5862,7 +6096,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5877,7 +6112,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5896,7 +6132,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5911,7 +6148,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5926,7 +6164,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5945,7 +6184,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5960,7 +6200,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5975,7 +6216,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -5990,7 +6232,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6005,7 +6248,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6024,7 +6268,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6039,7 +6284,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6054,7 +6300,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6069,7 +6316,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6084,7 +6332,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6099,7 +6348,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6114,7 +6364,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6129,7 +6380,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6144,7 +6396,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6159,7 +6412,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6174,7 +6428,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6189,7 +6444,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6204,7 +6460,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6219,7 +6476,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6238,7 +6496,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6253,7 +6512,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6268,7 +6528,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6283,7 +6544,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6302,7 +6564,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6317,7 +6580,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6332,7 +6596,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6347,7 +6612,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6362,7 +6628,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6377,7 +6644,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6392,7 +6660,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6407,7 +6676,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6422,7 +6692,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6437,7 +6708,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6452,7 +6724,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6467,7 +6740,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6482,7 +6756,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6497,7 +6772,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6512,7 +6788,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6527,7 +6804,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6542,7 +6820,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6561,7 +6840,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6576,7 +6856,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6591,7 +6872,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6606,7 +6888,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6621,7 +6904,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6636,7 +6920,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6651,7 +6936,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6666,7 +6952,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6685,7 +6972,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6700,7 +6988,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6715,7 +7004,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6734,7 +7024,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6749,7 +7040,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6764,7 +7056,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6779,7 +7072,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6794,7 +7088,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6813,7 +7108,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6828,7 +7124,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6847,7 +7144,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6862,7 +7160,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6877,7 +7176,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6892,7 +7192,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6907,7 +7208,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6922,7 +7224,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6937,7 +7240,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6956,7 +7260,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6971,7 +7276,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -6990,7 +7296,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7009,7 +7316,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7024,7 +7332,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7039,7 +7348,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7054,7 +7364,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7069,7 +7380,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7088,7 +7400,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7103,7 +7416,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7118,7 +7432,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7133,7 +7448,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7148,7 +7464,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7163,7 +7480,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7178,7 +7496,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7193,7 +7512,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7208,7 +7528,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7227,7 +7548,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7242,7 +7564,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7257,7 +7580,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7272,7 +7596,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7287,7 +7612,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7306,7 +7632,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7321,7 +7648,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7336,7 +7664,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7351,7 +7680,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7370,7 +7700,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7385,7 +7716,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7400,7 +7732,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7415,7 +7748,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7430,7 +7764,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7445,7 +7780,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7460,7 +7796,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7475,7 +7812,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7490,7 +7828,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7505,7 +7844,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7520,7 +7860,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7535,7 +7876,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7550,7 +7892,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7569,7 +7912,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7584,7 +7928,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7599,7 +7944,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7614,7 +7960,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7633,7 +7980,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     }
   ],
@@ -7678,6 +8026,7 @@
           "nl-map-control"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "mcp-gis-assistant"
       }
     },
@@ -7700,7 +8049,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7722,7 +8072,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7747,7 +8098,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7771,7 +8123,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7794,7 +8147,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7824,7 +8178,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7851,7 +8206,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7881,7 +8237,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7905,7 +8262,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -7948,6 +8306,7 @@
           "arcgis-source-app"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "migration-workbench"
       }
     },
@@ -7976,7 +8335,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8004,7 +8364,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8028,7 +8389,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8051,7 +8413,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8074,7 +8437,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8100,7 +8464,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8125,7 +8490,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8176,6 +8542,7 @@
           "unified-ops-workspace"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "realtime-incident-dashboard"
       }
     },
@@ -8203,7 +8570,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8232,7 +8600,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     }
   ],
@@ -8248,7 +8617,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8262,7 +8632,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8280,6 +8651,7 @@
           "nl-map-control"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "mcp-gis-assistant"
       }
     },
@@ -8295,7 +8667,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8310,7 +8683,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8325,7 +8699,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8339,7 +8714,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8353,7 +8729,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8367,7 +8744,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8382,7 +8760,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8396,7 +8775,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8411,7 +8791,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8429,6 +8810,7 @@
           "web-components-basic"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "web-components-basic"
       }
     },
@@ -8443,7 +8825,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8457,7 +8840,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8471,7 +8855,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8485,7 +8870,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8499,7 +8885,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8513,7 +8900,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8528,7 +8916,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8542,7 +8931,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8556,7 +8946,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8573,6 +8964,7 @@
           "overture-geoparquet"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "overture-geoparquet"
       }
     },
@@ -8604,6 +8996,7 @@
           "web-components-basic"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "edit-workflow-demo"
       }
     },
@@ -8618,7 +9011,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8643,6 +9037,7 @@
           "automatic-source-workflow"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "react-quickstart"
       }
     },
@@ -8661,6 +9056,7 @@
           "arcgis-source-app"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "migration-workbench"
       }
     },
@@ -8675,7 +9071,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8692,6 +9089,7 @@
           "pmtiles-static"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "pmtiles-static"
       }
     },
@@ -8707,7 +9105,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8722,7 +9121,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8737,7 +9137,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8752,7 +9153,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8767,7 +9169,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8782,7 +9185,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8796,7 +9200,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8810,7 +9215,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8827,6 +9233,7 @@
           "react-quickstart"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "react-quickstart"
       }
     },
@@ -8846,6 +9253,7 @@
           "unified-ops-workspace"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "realtime-incident-dashboard"
       }
     },
@@ -8861,7 +9269,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8875,7 +9284,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8892,6 +9302,7 @@
           "runtime-parity-showcase"
         ],
         "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
         "selectedSampleId": "runtime-parity-showcase"
       }
     },
@@ -8907,7 +9318,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8922,7 +9334,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8936,7 +9349,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8950,7 +9364,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8964,7 +9379,8 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8979,7 +9395,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -8993,7 +9410,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -9008,7 +9426,8 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -9022,7 +9441,8 @@
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
-        "qualifyingSampleIds": []
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     }
   ],
