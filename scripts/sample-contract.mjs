@@ -163,6 +163,18 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     },
   ],
   [
+    "demo:service-explorer:live-evidence",
+    {
+      definition: "npm run build --silent && node examples/service-explorer/live-evidence.mjs",
+      generatorPath: "examples/service-explorer/live-evidence.mjs",
+      dependencies: {
+        build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
+        clean: "rm -rf dist",
+        compile: "npm run clean --silent && tsc -p tsconfig.json",
+      },
+    },
+  ],
+  [
     "evidence:first-map:live",
     {
       definition: "node scripts/first-map-live-evidence.mjs --output examples/maplibre-quickstart/evidence/live.v1.json",

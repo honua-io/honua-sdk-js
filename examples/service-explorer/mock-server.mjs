@@ -40,6 +40,16 @@ const OGC_FEATURES = Object.freeze([
     properties: Object.freeze({ name: "Hanauma Bay", category: "reserve", population: null }),
   }),
 ]);
+const GEOSERVICES_FEATURES = Object.freeze([
+  Object.freeze({
+    attributes: Object.freeze({ OBJECTID: 1, request_type: "Pothole", status: "Open" }),
+    geometry: Object.freeze({ x: -157.8583, y: 21.3069 }),
+  }),
+  Object.freeze({
+    attributes: Object.freeze({ OBJECTID: 2, request_type: "Streetlight", status: "Closed" }),
+    geometry: Object.freeze({ x: -157.8036, y: 21.2945 }),
+  }),
+]);
 const SLOW_QUERY_DELAY_MS = 30_000;
 
 function buildDemoIfNeeded() {
@@ -145,6 +155,60 @@ function serveOgcFixture(requestUrl, res) {
   return false;
 }
 
+function serveGeoservicesFixture(requestUrl, res) {
+  const layerPath = "/fixtures/geoservices/rest/services/CitizenRequests/FeatureServer/0";
+  if (requestUrl.pathname === layerPath) {
+    serveJson(res, {
+      currentVersion: 11.2,
+      id: 0,
+      name: "Citizen Requests",
+      type: "Feature Layer",
+      geometryType: "esriGeometryPoint",
+      capabilities: "Query",
+      supportedQueryFormats: "JSON, geoJSON",
+      useStandardizedQueries: true,
+      supportsStatistics: true,
+      advancedQueryCapabilities: {
+        supportsPagination: true,
+        supportsReturningQueryExtent: true,
+      },
+      extent: {
+        xmin: -157.9,
+        ymin: 21.25,
+        xmax: -157.7,
+        ymax: 21.35,
+        spatialReference: { wkid: 4326 },
+      },
+      fields: [
+        { name: "OBJECTID", type: "esriFieldTypeOID", alias: "OBJECTID" },
+        { name: "request_type", type: "esriFieldTypeString", alias: "Request type", length: 64 },
+        { name: "status", type: "esriFieldTypeString", alias: "Status", length: 32 },
+      ],
+    });
+    return true;
+  }
+  if (requestUrl.pathname === `${layerPath}/query`) {
+    const requestedLimit = Number(requestUrl.searchParams.get("resultRecordCount") ?? GEOSERVICES_FEATURES.length);
+    const limit = Number.isSafeInteger(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 0), 100)
+      : GEOSERVICES_FEATURES.length;
+    serveJson(res, {
+      objectIdFieldName: "OBJECTID",
+      geometryType: "esriGeometryPoint",
+      spatialReference: { wkid: 4326 },
+      fields: [
+        { name: "OBJECTID", type: "esriFieldTypeOID", alias: "OBJECTID" },
+        { name: "request_type", type: "esriFieldTypeString", alias: "Request type" },
+        { name: "status", type: "esriFieldTypeString", alias: "Status" },
+      ],
+      features: GEOSERVICES_FEATURES.slice(0, limit),
+      exceededTransferLimit: limit < GEOSERVICES_FEATURES.length,
+    });
+    return true;
+  }
+  return false;
+}
+
 function resolveStaticPath(pathname) {
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
   const absolutePath = path.join(distRoot, requestedPath);
@@ -164,7 +228,7 @@ export async function startServiceExplorerFixtureServer({ build = true } = {}) {
       return;
     }
 
-    if (serveOgcFixture(requestUrl, res)) return;
+    if (serveOgcFixture(requestUrl, res) || serveGeoservicesFixture(requestUrl, res)) return;
 
     if (requestUrl.pathname === "/fixtures/slow-ogc") {
       const timer = setTimeout(() => {

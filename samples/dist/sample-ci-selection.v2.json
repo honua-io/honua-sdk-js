@@ -1117,6 +1117,7 @@
             "npm run demo:service-explorer:build",
             "npx vitest run test/service-explorer-truth-model.test.ts",
             "npx vitest run test/service-explorer-operation-model.test.ts",
+            "npx vitest run test/service-explorer-live-evidence.test.ts",
             "npm run test:playwright:service-explorer"
           ]
         },
@@ -1128,7 +1129,9 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": []
+          "commands": [
+            "npm run demo:service-explorer:live-evidence"
+          ]
         }
       },
       "liveEvidence": {

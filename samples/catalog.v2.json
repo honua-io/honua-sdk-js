@@ -1985,7 +1985,7 @@
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; live dual-protocol qualification remains pending."
+        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."
       },
       "sourcePath": "examples/service-explorer",
       "docsPath": "examples/service-explorer/README.md",
@@ -2017,12 +2017,20 @@
       "data": {
         "mode": "hybrid",
         "authMode": "anonymous",
-        "config": [],
-        "provenance": "Same-origin deterministic OGC fixture observations or a user-supplied anonymous HTTP(S) endpoint inspected at runtime.",
-        "attribution": "Inspected source attribution remains visible; the maintained browser gate uses Honua synthetic OGC fixtures.",
-        "freshness": "Fixture replay is deterministic; runtime endpoints expose discovery metadata cache state separately from feature freshness.",
-        "configurationStatus": "not-required",
-        "configClassifications": []
+        "config": [
+          "HONUA_SERVICE_EXPLORER_LIVE_ENABLED"
+        ],
+        "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.",
+        "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.",
+        "freshness": "Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics.",
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "HONUA_SERVICE_EXPLORER_LIVE_ENABLED",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -2035,7 +2043,9 @@
         "live": {
           "mode": "public-live",
           "status": "planned",
-          "commands": []
+          "commands": [
+            "npm run demo:service-explorer:live-evidence"
+          ]
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
@@ -2045,6 +2055,7 @@
         "npm run demo:service-explorer:build",
         "npx vitest run test/service-explorer-truth-model.test.ts",
         "npx vitest run test/service-explorer-operation-model.test.ts",
+        "npx vitest run test/service-explorer-live-evidence.test.ts",
         "npm run test:playwright:service-explorer"
       ]
     },

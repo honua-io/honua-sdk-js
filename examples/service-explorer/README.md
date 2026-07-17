@@ -82,6 +82,7 @@ API-key or bearer-token field.
 npm run demo:service-explorer:typecheck
 npm run demo:service-explorer:build
 npm test -- test/service-explorer-truth-model.test.ts test/service-explorer-operation-model.test.ts
+npx vitest run test/service-explorer-live-evidence.test.ts
 npm run test:playwright:service-explorer
 ```
 
@@ -108,9 +109,31 @@ npm run samples:run -- verify --sample service-explorer --sdk-mode packed
 
 The maintained-sample enrollment retires the superseded legacy helper surface
 and projects both the service-explorer and two-protocols site routes from this
-sample. Public GeoServices and OGC evidence producers, current quality receipts,
-and journey qualification remain separate follow-up gates; this sample does not
-claim those results.
+sample.
+
+## Scheduled public evidence
+
+The reviewed producer uses fixed anonymous HTTPS targets: Esri SampleServer 6
+Citizen Requests FeatureServer layer `0` and the pygeoapi demo `lakes`
+collection. Each path must inspect as its declared protocol, accept a strict
+query plan, and return exactly one item. Requests remain under the reviewed
+origin and path, omit credentials, reject redirects and credential-shaped query
+or header values, and enforce request, deadline, per-response, and total-byte
+budgets.
+
+The weekly/manual workflow is separate from required pull-request CI. Its
+producer remains disabled unless the scheduled job explicitly sets the enable
+flag:
+
+```sh
+HONUA_SERVICE_EXPLORER_LIVE_ENABLED=true npm run demo:service-explorer:live-evidence
+```
+
+Deterministic tests exercise the same producer with loopback GeoServices and OGC
+substitutes and validate the resulting envelope in memory; they do not contact
+the public targets or create evidence files. The catalog deliberately keeps the
+live lane and journey `planned` until a reviewed scheduled execution, current
+quality receipts, and qualification decision land.
 
 ## Caching and realtime
 

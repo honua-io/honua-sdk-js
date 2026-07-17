@@ -1,0 +1,45 @@
+name: Service Explorer Live Evidence
+
+# Public endpoint health is scheduled evidence, never a pull-request gate.
+# Required CI uses deterministic same-origin GeoServices and OGC substitutes.
+on:
+  schedule:
+    - cron: "45 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+  NODE_OPTIONS: "--dns-result-order=ipv4first --no-network-family-autoselection"
+
+jobs:
+  live-evidence:
+    name: Bounded anonymous GeoServices + OGC smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Inspect and query both reviewed public protocols
+        env:
+          HONUA_SAMPLE_SOURCE_REVISION: ${{ github.sha }}
+          HONUA_SERVICE_EXPLORER_LIVE_ENABLED: "true"
+        run: npm run demo:service-explorer:live-evidence
+
+      - name: Upload live evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: honua-sdk-service-explorer-live-evidence
+          path: test-results/service-explorer-live-evidence.json
+          if-no-files-found: error
+          retention-days: 30

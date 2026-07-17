@@ -339,15 +339,18 @@
       "track": "lab",
       "journeyId": "service-explorer",
       "validationProfile": "browser-lab",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."
+      },
       "validation": [
         "npm run demo:service-explorer:typecheck",
         "npm run demo:service-explorer:build",
+        "npx vitest run test/service-explorer-truth-model.test.ts",
+        "npx vitest run test/service-explorer-operation-model.test.ts",
+        "npx vitest run test/service-explorer-live-evidence.test.ts",
         "npm run test:playwright:service-explorer"
-      ],
-      "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
-      }
+      ]
     },
     "sketch-editing": {
       "track": "recipe",

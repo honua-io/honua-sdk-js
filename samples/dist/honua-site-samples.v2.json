@@ -1437,7 +1437,7 @@
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; live dual-protocol qualification remains pending."
+        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."
       },
       "validationProfile": "browser-lab",
       "source": {
@@ -1477,10 +1477,10 @@
       "data": {
         "mode": "hybrid",
         "authMode": "anonymous",
-        "provenance": "Same-origin deterministic OGC fixture observations or a user-supplied anonymous HTTP(S) endpoint inspected at runtime.",
-        "attribution": "Inspected source attribution remains visible; the maintained browser gate uses Honua synthetic OGC fixtures.",
-        "freshness": "Fixture replay is deterministic; runtime endpoints expose discovery metadata cache state separately from feature freshness.",
-        "configurationStatus": "not-required"
+        "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.",
+        "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.",
+        "freshness": "Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics.",
+        "configurationStatus": "approved"
       },
       "evidence": {
         "fixture": {
