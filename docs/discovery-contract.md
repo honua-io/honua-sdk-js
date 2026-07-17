@@ -289,7 +289,9 @@ PMTiles, tile, and metadata candidates retain structured confidence/evidence,
 object and collection identity, CRS, space/time extent, license, attribution,
 and validator/content provenance. PMTiles, GeoParquet, and compatible tile
 templates project onto existing executable locators; COG remains typed but
-inspection-only until the direct COG adapter is available. Ambiguous or
+non-executable as a protocol-neutral `Source`. Evidence-classified COG
+candidates can instead enter the bounded, caller-decoder-injected
+[`@honua/sdk-js/cog`](./cog.md) inspection/read boundary. Ambiguous or
 unsupported assets remain explicit candidates rather than disappearing.
 
 The normalized traversal policy is stored on `SourceLocator.stacStatic` and is

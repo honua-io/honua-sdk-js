@@ -660,6 +660,12 @@ for await (const item of stac.searchStream({ collections: ["sentinel-2"] })) {
 }
 ```
 
+Static STAC discovery also exposes evidence-classified COG asset candidates.
+The experimental [`@honua/sdk-js/cog`](./cog.md) subpath accepts those
+candidates for bounded metadata and pixel-window range reads through a
+caller-injected decoder; it never guesses COG support from a filename suffix or
+falls back to a whole-file download.
+
 See [`docs/ogc-api.md`](./docs/ogc-api.md) for the full developer
 reference, [`docs/shared-client-contract.md`](./docs/shared-client-contract.md)
 for the canonical `Source` / `IJobRun` model, and

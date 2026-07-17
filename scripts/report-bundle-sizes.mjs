@@ -126,6 +126,12 @@ const TARGETS = [
     label: "`/geoparquet` (duckdb-wasm external — lazy peer)",
   },
   {
+    key: "/cog",
+    kind: "bundle",
+    entry: "dist/src/cog/index.js",
+    label: "`/cog` (caller-injected decoder; no raster peer in the static graph)",
+  },
+  {
     key: "/deckgl",
     kind: "bundle",
     entry: "dist/src/deckgl/index.js",
@@ -179,6 +185,7 @@ const TARGETS = [
       "dist/src/app/",
       "dist/src/app-controller/",
       "dist/src/app-workspace/",
+      "dist/src/cog/",
       "dist/src/deckgl/",
       "dist/src/generated-app/",
       "dist/src/geoparquet/",

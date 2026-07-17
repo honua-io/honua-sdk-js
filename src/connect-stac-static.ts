@@ -1472,9 +1472,9 @@ function sourceCandidate(
   if (kind === "tile" && tileProtocol && hasTileTemplate(href)) {
     return Object.freeze({ protocol: tileProtocol, locator: Object.freeze({ url: href }) });
   }
-  // A COG is deliberately typed but non-executable until #537 supplies a
-  // direct COG rendering adapter. Metadata and non-template tile assets also
-  // remain inspection-only.
+  // A COG remains typed but non-executable as a protocol-neutral Source. The
+  // experimental /cog subpath consumes this evidence-bound candidate directly;
+  // metadata and non-template tile assets remain inspection-only.
   return undefined;
 }
 
