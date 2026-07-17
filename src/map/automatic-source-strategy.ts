@@ -534,8 +534,21 @@ function mountNative(
     );
   }
   return staticLifecycle(plan, plan.sourceId, layerIds, () => {
-    for (const layerId of [...layerIds].reverse()) if (map.getLayer(layerId) !== undefined) map.removeLayer(layerId);
-    if (map.getSource(plan.sourceId) !== undefined) map.removeSource(plan.sourceId);
+    const failures: unknown[] = [];
+    for (const layerId of [...layerIds].reverse()) {
+      try {
+        if (map.getLayer(layerId) !== undefined) map.removeLayer(layerId);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    try {
+      if (map.getSource(plan.sourceId) !== undefined) map.removeSource(plan.sourceId);
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) throw new AggregateError(failures, "Automatic MapLibre native cleanup failed");
   });
 }
 
