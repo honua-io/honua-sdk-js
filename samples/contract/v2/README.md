@@ -19,6 +19,10 @@ execution evidence so none of those meanings has to be inferred from another.
 - `site-projection.schema.json` contains presentation-safe metadata for every
   catalog entry and the existing route migration map. Commands, configuration
   names, credential material, and executable source are not copied to the site.
+- `capability-sample-matrix.schema.json` defines the generated support-to-sample
+  coverage contract. `samples/dist/capability-sample-matrix.v1.json` joins the
+  support manifest, exact package exports, catalog v2, and validated golden
+  qualification receipts without creating another support inventory.
 - `migrations/catalog.v1-to-v2.json` is the reviewed one-time migration overlay.
   `npm run samples:migrate:v1` reproduces `samples/catalog.v2.json` from the
   frozen v1 catalog and this overlay.
@@ -45,6 +49,15 @@ All seven candidates are currently planned; the catalog makes no golden claim
 until #541 supplies verifiable gate, screenshot, performance, fixture, and live
 evidence. Validation fails closed on every attempted golden promotion until
 those versioned per-gate receipts exist; profile booleans alone are never proof.
+
+Matrix support and sample coverage are deliberately separate. A supported SDK
+cell remains supported when it lacks a qualified sample; its coverage is shown
+as `planned` or `partial`, not silently promoted or downgraded. Beta and
+experimental SDK cells remain `experimental`, default protocol gaps remain
+`unsupported`, and only a catalog-qualified golden sample with its complete
+validated receipt set can produce `qualified`. The projection contains no
+wall-clock generation value and hashes all four authority inputs, so identical
+inputs produce identical bytes.
 
 CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence
@@ -127,8 +140,8 @@ The v1 catalog and projection remain committed as frozen compatibility inputs
 for consumers that have not yet moved to v2. In-repository generators, learning
 paths, flagship evidence validation, and new site/CI projections consume v2.
 Generated projections are byte-bound to the effective package version; a
-package-version change requires regeneration of both the tracked site
-projection and its consumer digest.
+package-version change requires regeneration of the tracked site projection,
+capability matrix, and consumer digest.
 
 Run:
 

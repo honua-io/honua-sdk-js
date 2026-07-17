@@ -218,6 +218,7 @@ describe("sample publication contract", () => {
     expect(bumpedProjection.samples[0].sdk.version).toBe("0.1.1-beta.0");
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
+      "samples/dist/capability-sample-matrix.v1.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
     ]);
 
@@ -236,6 +237,7 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
+      "samples/dist/capability-sample-matrix.v1.json",
       fixturePath,
     ]);
   });
