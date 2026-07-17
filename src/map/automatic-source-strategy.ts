@@ -12,7 +12,9 @@ import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryIrSourceIdentity } from "../query-planner/ir.js";
 import { hashQueryPlanV1 } from "../query-planner/planner.js";
 import type { ExecuteQueryPlanOptions, QueryExecutionPlanV1 } from "../query-planner/types.js";
+import { isSafeMapLibreRasterEndpoint } from "./raster-source-spec.js";
 import {
+  HonuaMapLibreRasterStrategyError,
   type MapLibreRasterStrategy,
   mountRasterSourceToMapLibre,
   projectRasterSourceToMapLibre,
@@ -46,6 +48,7 @@ export type AutomaticMapLibreReasonCode =
   | "plan-context-mismatch"
   | "unbounded-materialization"
   | "missing-metadata"
+  | "invalid-option"
   | "unsafe-url"
   | "unsupported-crs"
   | "stale-evidence"
@@ -431,7 +434,10 @@ function evaluateCandidate<T>(
     if (!safeHttpUrl(source.descriptor.locator.url)) return reject("unsafe-url", "The raster endpoint URL is unsafe.");
     try {
       projectRasterSourceToMapLibre(source.descriptor, options);
-    } catch {
+    } catch (error) {
+      if (error instanceof HonuaMapLibreRasterStrategyError && error.code === "invalid-option") {
+        return reject("invalid-option", error.message);
+      }
       return reject("missing-metadata", `Metadata required by ${strategy} is missing or invalid.`);
     }
   }
@@ -658,15 +664,7 @@ function safePmtilesUrl(value: string): boolean {
 }
 
 function safeHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) return false;
-    for (const key of url.searchParams.keys())
-      if (/^(token|access_token|api_key|apikey|key|signature|sig)$/i.test(key)) return false;
-    return true;
-  } catch {
-    return false;
-  }
+  return isSafeMapLibreRasterEndpoint(value);
 }
 
 function credentialFreeEndpoint(value: string): string {

@@ -110,7 +110,7 @@ describe("metadata-driven MapLibre raster strategy", () => {
         typeName: "parcels",
         styleId: "boundaries",
       }),
-      { format: "image/webp", transparent: false },
+      { tileSize: 512, format: "image/webp", transparent: false },
     );
 
     expect(projection.strategy).toBe("wms-raster");
@@ -119,7 +119,11 @@ describe("metadata-driven MapLibre raster strategy", () => {
     expect(projection.source.tiles[0]).toContain("STYLES=boundaries");
     expect(projection.source.tiles[0]).toContain("FORMAT=image%2Fwebp");
     expect(projection.source.tiles[0]).toContain("TRANSPARENT=FALSE");
-    expect(projection.source.tiles[0]).toContain("BBOX={bbox-epsg3857}");
+    expect(projection.source.tileSize).toBe(512);
+    expect(projection.source.tiles[0]).toContain("BBOX={bbox-epsg-3857}");
+    expect(projection.source.tiles[0]).toContain("WIDTH=512");
+    expect(projection.source.tiles[0]).toContain("HEIGHT=512");
+    expect(projection.source.tiles[0]).not.toMatch(/\{(?:bbox-epsg3857|width|height)\}/u);
   });
 
   it("selects WMTS and preserves exact REST tile metadata", () => {
@@ -178,9 +182,12 @@ describe("metadata-driven MapLibre raster strategy", () => {
 
   it("rejects invalid zoom and tile-size options", () => {
     const input = descriptor("maplibre-raster", { url: "https://tiles.test/{z}/{x}/{y}.png" });
-    expect(() => projectRasterSourceToMapLibre(input, { tileSize: 0 })).toThrowError(
-      expect.objectContaining({ code: "invalid-option" }),
-    );
+    for (const tileSize of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 4_097]) {
+      expect(() => projectRasterSourceToMapLibre(input, { tileSize })).toThrowError(
+        expect.objectContaining({ code: "invalid-option", detail: { option: "tileSize", value: tileSize } }),
+      );
+    }
+    expect(() => projectRasterSourceToMapLibre(input, { tileSize: 4_096 })).not.toThrow();
     expect(() => projectRasterSourceToMapLibre(input, { minzoom: 10, maxzoom: 2 })).toThrowError(
       expect.objectContaining({ code: "invalid-option" }),
     );

@@ -25,7 +25,10 @@ describe("Imagery and COG Quickstart sample", () => {
     expect(wms?.sourceSpec.tiles[0]).toContain("/rest/services/OahuImagery/MapServer/WMS?SERVICE=WMS");
     expect(wms?.sourceSpec.tiles[0]).toContain("REQUEST=GetMap");
     expect(wms?.sourceSpec.tiles[0]).toContain("LAYERS=natural_color");
-    expect(wms?.sourceSpec.tiles[0]).toContain("BBOX={bbox-epsg3857}");
+    expect(wms?.sourceSpec.tiles[0]).toContain("BBOX={bbox-epsg-3857}");
+    expect(wms?.sourceSpec.tiles[0]).toContain("WIDTH=256");
+    expect(wms?.sourceSpec.tiles[0]).toContain("HEIGHT=256");
+    expect(wms?.sourceSpec.tiles[0]).not.toMatch(/\{(?:bbox-epsg3857|width|height)\}/u);
 
     expect(imageServer?.sourceSpec.type).toBe("raster");
     expect(imageServer?.sourceSpec.tiles[0]).toBe(

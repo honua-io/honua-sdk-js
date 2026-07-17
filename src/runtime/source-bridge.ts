@@ -186,10 +186,10 @@ export function toHonuaSourceSpec(
 
 /**
  * Build a MapLibre `raster` source spec for a WMS descriptor. The
- * `tiles` template uses MapLibre's runtime substitution placeholders
- * (`{bbox-epsg3857}`, `{width}`, `{height}`) so each tile request is a
- * pre-baked KVP URL — consumers do not have to hand-assemble GetMap
- * URLs themselves.
+ * `tiles` template uses MapLibre's exact `{bbox-epsg-3857}` runtime
+ * placeholder plus validated (1–4096) literal WIDTH / HEIGHT values
+ * equal to `tileSize`, so each tile request is a pre-baked KVP URL —
+ * consumers do not have to hand-assemble GetMap URLs themselves.
  */
 export function buildWmsRasterSourceSpec(
   descriptor: SourceDescriptor,
