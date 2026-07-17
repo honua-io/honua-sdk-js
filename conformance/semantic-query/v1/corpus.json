@@ -1,0 +1,555 @@
+{
+  "$schema": "./schema.json",
+  "kind": "honua.semantic-query-conformance-corpus",
+  "version": "1.0",
+  "frozenClock": "2026-07-15T00:00:00Z",
+  "schema": {
+    "fields": [
+      { "name": "id", "type": "integer", "nullable": false },
+      { "name": "status", "type": "string", "nullable": false },
+      { "name": "name", "type": "string", "nullable": false },
+      { "name": "score", "type": "integer", "nullable": false },
+      { "name": "optionalNote", "type": "string", "nullable": true },
+      { "name": "observedAt", "type": "timestamp", "nullable": false },
+      { "name": "shape", "type": "geometry", "nullable": false }
+    ],
+    "key": ["id"],
+    "geometry": {
+      "field": "shape",
+      "type": "Point",
+      "crs": "EPSG:4326",
+      "definitionAxisOrder": ["latitude", "longitude"],
+      "coordinateOrder": ["longitude", "latitude"],
+      "layout": "xy"
+    },
+    "temporal": { "field": "observedAt", "kind": "instant" }
+  },
+  "protocols": ["geoservices", "ogc-cql2-json", "wfs-fes-2.0", "odata-v4", "duckdb", "honua-grpc"],
+  "rows": [
+    {
+      "id": 1,
+      "status": "open",
+      "name": "Alpha",
+      "score": 5,
+      "optionalNote": null,
+      "observedAt": "2026-07-15T00:00:00Z",
+      "shape": { "type": "Point", "coordinates": [-157.9, 21.3] }
+    },
+    {
+      "id": 2,
+      "status": "pending",
+      "name": "Alpine Two",
+      "score": 2,
+      "optionalNote": null,
+      "observedAt": "2026-07-14T23:59:59Z",
+      "shape": { "type": "Point", "coordinates": [-157.7, 21.2] }
+    },
+    {
+      "id": 3,
+      "status": "closed",
+      "name": "Beta",
+      "score": 7,
+      "optionalNote": "reviewed",
+      "observedAt": "2026-07-16T00:00:00Z",
+      "shape": { "type": "Point", "coordinates": [-156, 20] }
+    },
+    {
+      "id": 4,
+      "status": "open",
+      "name": "Alpine",
+      "score": 3,
+      "optionalNote": null,
+      "observedAt": "2026-07-15T12:00:00Z",
+      "shape": { "type": "Point", "coordinates": [-157.6, 21.4] }
+    },
+    {
+      "id": 5,
+      "status": "Mālama' OR 1=1 -- 東京",
+      "name": "Injection",
+      "score": 1,
+      "optionalNote": null,
+      "observedAt": "2026-07-15T00:00:01Z",
+      "shape": { "type": "Point", "coordinates": [-158, 21] }
+    },
+    {
+      "id": 6,
+      "status": "open",
+      "name": "alpha",
+      "score": 4,
+      "optionalNote": null,
+      "observedAt": "2026-07-17T00:00:00Z",
+      "shape": { "type": "Point", "coordinates": [-157.55, 21.45] }
+    },
+    {
+      "id": 7,
+      "status": "pending",
+      "name": "Albatross",
+      "score": 5,
+      "optionalNote": "envelope-only",
+      "observedAt": "2026-07-18T00:00:00Z",
+      "shape": { "type": "Point", "coordinates": [-157.1, 21.9] }
+    }
+  ],
+  "cases": [
+    {
+      "id": "comparison-unicode-injection",
+      "covers": ["comparison", "injection", "unicode"],
+      "query": {
+        "kind": "features",
+        "filter": {
+          "kind": "comparison",
+          "operator": "eq",
+          "left": { "kind": "property", "name": "status" },
+          "right": { "kind": "literal", "value": "Mālama' OR 1=1 -- 東京" }
+        }
+      },
+      "expected": {
+        "rows": [
+          {
+            "id": 5,
+            "status": "Mālama' OR 1=1 -- 東京",
+            "name": "Injection",
+            "score": 1,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T00:00:01Z",
+            "shape": { "type": "Point", "coordinates": [-158, 21] }
+          }
+        ]
+      },
+      "projections": {
+        "geoservices": { "outcome": "exact" },
+        "ogc-cql2-json": { "outcome": "exact" },
+        "wfs-fes-2.0": { "outcome": "exact" },
+        "odata-v4": { "outcome": "exact" },
+        "duckdb": { "outcome": "exact" },
+        "honua-grpc": { "outcome": "exact" }
+      }
+    },
+    {
+      "id": "null-list-range-pattern-boundaries",
+      "covers": ["null", "list", "range", "pattern", "boundary"],
+      "query": {
+        "kind": "features",
+        "filter": {
+          "kind": "boolean",
+          "operator": "and",
+          "args": [
+            {
+              "kind": "list",
+              "operator": "in",
+              "operand": { "kind": "property", "name": "status" },
+              "values": [{ "kind": "literal", "value": "open" }, { "kind": "literal", "value": "pending" }]
+            },
+            {
+              "kind": "range",
+              "operator": "between",
+              "operand": { "kind": "property", "name": "score" },
+              "lower": { "kind": "literal", "value": 2 },
+              "upper": { "kind": "literal", "value": 5 }
+            },
+            {
+              "kind": "null",
+              "operator": "is-null",
+              "operand": { "kind": "property", "name": "optionalNote" }
+            },
+            {
+              "kind": "pattern",
+              "operator": "like",
+              "operand": { "kind": "property", "name": "name" },
+              "pattern": "Al%",
+              "caseSensitive": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "rows": [
+          {
+            "id": 1,
+            "status": "open",
+            "name": "Alpha",
+            "score": 5,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T00:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.9, 21.3] }
+          },
+          {
+            "id": 2,
+            "status": "pending",
+            "name": "Alpine Two",
+            "score": 2,
+            "optionalNote": null,
+            "observedAt": "2026-07-14T23:59:59Z",
+            "shape": { "type": "Point", "coordinates": [-157.7, 21.2] }
+          },
+          {
+            "id": 4,
+            "status": "open",
+            "name": "Alpine",
+            "score": 3,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T12:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.6, 21.4] }
+          }
+        ]
+      },
+      "projections": {
+        "geoservices": { "outcome": "exact" },
+        "ogc-cql2-json": { "outcome": "exact" },
+        "wfs-fes-2.0": { "outcome": "exact" },
+        "odata-v4": { "outcome": "exact" },
+        "duckdb": { "outcome": "exact" },
+        "honua-grpc": {
+          "outcome": "unsupported",
+          "reason": "Honua gRPC where clauses do not support IN expressions",
+          "diagnostic": { "code": "unsupported-node", "path": "$.filter.args[0]" }
+        }
+      }
+    },
+    {
+      "id": "temporal-frozen-clock-boundary",
+      "covers": ["temporal", "boundary"],
+      "query": {
+        "kind": "features",
+        "filter": {
+          "kind": "temporal",
+          "operator": "after",
+          "operand": { "kind": "property", "name": "observedAt" },
+          "value": { "kind": "temporal-literal", "valueType": "instant", "value": "2026-07-15T00:00:00Z" }
+        }
+      },
+      "expected": {
+        "rows": [
+          {
+            "id": 3,
+            "status": "closed",
+            "name": "Beta",
+            "score": 7,
+            "optionalNote": "reviewed",
+            "observedAt": "2026-07-16T00:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-156, 20] }
+          },
+          {
+            "id": 4,
+            "status": "open",
+            "name": "Alpine",
+            "score": 3,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T12:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.6, 21.4] }
+          },
+          {
+            "id": 5,
+            "status": "Mālama' OR 1=1 -- 東京",
+            "name": "Injection",
+            "score": 1,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T00:00:01Z",
+            "shape": { "type": "Point", "coordinates": [-158, 21] }
+          },
+          {
+            "id": 6,
+            "status": "open",
+            "name": "alpha",
+            "score": 4,
+            "optionalNote": null,
+            "observedAt": "2026-07-17T00:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.55, 21.45] }
+          },
+          {
+            "id": 7,
+            "status": "pending",
+            "name": "Albatross",
+            "score": 5,
+            "optionalNote": "envelope-only",
+            "observedAt": "2026-07-18T00:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.1, 21.9] }
+          }
+        ]
+      },
+      "projections": {
+        "geoservices": { "outcome": "exact" },
+        "ogc-cql2-json": { "outcome": "exact" },
+        "wfs-fes-2.0": { "outcome": "exact" },
+        "odata-v4": { "outcome": "exact" },
+        "duckdb": { "outcome": "exact" },
+        "honua-grpc": { "outcome": "exact" }
+      }
+    },
+    {
+      "id": "spatial-axis-order-bbox-boundary",
+      "covers": ["spatial", "axis-order", "boundary"],
+      "query": {
+        "kind": "features",
+        "filter": {
+          "kind": "spatial",
+          "operator": "bbox-intersects",
+          "property": { "kind": "property", "name": "shape" },
+          "bbox": {
+            "box": { "layout": "xy", "bounds": [-158, 21, -157.5, 21.5] },
+            "crs": {
+              "definition": {
+                "kind": "authority",
+                "authority": "EPSG",
+                "code": "4326",
+                "definitionAxisOrder": {
+                  "state": "known",
+                  "source": "crs-definition",
+                  "axes": [
+                    { "name": "latitude", "direction": "north", "unit": "degree" },
+                    { "name": "longitude", "direction": "east", "unit": "degree" }
+                  ]
+                }
+              },
+              "coordinateOrder": {
+                "state": "known",
+                "source": "encoding",
+                "axes": [
+                  { "name": "longitude", "direction": "east", "unit": "degree" },
+                  { "name": "latitude", "direction": "north", "unit": "degree" }
+                ]
+              },
+              "provenance": { "method": "declared" }
+            }
+          }
+        }
+      },
+      "expected": {
+        "rows": [
+          {
+            "id": 1,
+            "status": "open",
+            "name": "Alpha",
+            "score": 5,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T00:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.9, 21.3] }
+          },
+          {
+            "id": 2,
+            "status": "pending",
+            "name": "Alpine Two",
+            "score": 2,
+            "optionalNote": null,
+            "observedAt": "2026-07-14T23:59:59Z",
+            "shape": { "type": "Point", "coordinates": [-157.7, 21.2] }
+          },
+          {
+            "id": 4,
+            "status": "open",
+            "name": "Alpine",
+            "score": 3,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T12:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.6, 21.4] }
+          },
+          {
+            "id": 5,
+            "status": "Mālama' OR 1=1 -- 東京",
+            "name": "Injection",
+            "score": 1,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T00:00:01Z",
+            "shape": { "type": "Point", "coordinates": [-158, 21] }
+          },
+          {
+            "id": 6,
+            "status": "open",
+            "name": "alpha",
+            "score": 4,
+            "optionalNote": null,
+            "observedAt": "2026-07-17T00:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.55, 21.45] }
+          }
+        ]
+      },
+      "projections": {
+        "geoservices": { "outcome": "exact" },
+        "ogc-cql2-json": { "outcome": "exact" },
+        "wfs-fes-2.0": { "outcome": "exact" },
+        "odata-v4": { "outcome": "exact" },
+        "duckdb": { "outcome": "exact" },
+        "honua-grpc": {
+          "outcome": "unsupported",
+          "reason": "QueryFeatures has no envelope geometry message; bbox is not fabricated as a polygon",
+          "diagnostic": { "code": "unsupported-geometry", "path": "$.filter" }
+        }
+      }
+    },
+    {
+      "id": "projection-sort-pagination",
+      "covers": ["projection", "sort", "pagination", "boundary"],
+      "query": {
+        "kind": "features",
+        "select": ["id", "status", "score"],
+        "geometry": "omit",
+        "sort": [
+          { "field": "score", "direction": "desc", "nulls": "native" },
+          { "field": "id", "direction": "asc", "nulls": "native" }
+        ],
+        "page": { "kind": "offset", "offset": 1, "limit": 2 }
+      },
+      "expected": {
+        "rows": [{ "id": 1, "status": "open", "score": 5 }, { "id": 7, "status": "pending", "score": 5 }]
+      },
+      "projections": {
+        "geoservices": { "outcome": "exact" },
+        "ogc-cql2-json": {
+          "outcome": "unsupported",
+          "reason": "OGC API Features has no portable geometry-suppression request parameter",
+          "diagnostic": { "code": "unsupported-projection", "path": "$.geometry" }
+        },
+        "wfs-fes-2.0": { "outcome": "exact" },
+        "odata-v4": { "outcome": "exact" },
+        "duckdb": { "outcome": "exact" },
+        "honua-grpc": { "outcome": "exact" }
+      }
+    },
+    {
+      "id": "grouped-count-and-average",
+      "covers": ["comparison", "grouping", "statistics", "sort", "pagination"],
+      "query": {
+        "kind": "aggregate",
+        "groupBy": ["status"],
+        "metrics": [
+          { "fn": "count", "field": "id", "as": "incident_count" },
+          { "fn": "avg", "field": "score", "as": "mean_score" }
+        ],
+        "filter": {
+          "kind": "comparison",
+          "operator": "eq",
+          "left": { "kind": "property", "name": "status" },
+          "right": { "kind": "literal", "value": "open" }
+        },
+        "sort": [{ "field": "status", "direction": "asc", "nulls": "native" }],
+        "page": { "kind": "first", "limit": 10 }
+      },
+      "expected": { "rows": [{ "status": "open", "incident_count": 3, "mean_score": 4 }] },
+      "projections": {
+        "geoservices": { "outcome": "exact" },
+        "ogc-cql2-json": {
+          "outcome": "unsupported",
+          "reason": "OGC API Features has no portable remote aggregation",
+          "diagnostic": { "code": "unsupported-node", "path": "$.kind" }
+        },
+        "wfs-fes-2.0": {
+          "outcome": "unsupported",
+          "reason": "WFS 2.0 has no portable remote aggregation",
+          "diagnostic": { "code": "unsupported-node", "path": "$.kind" }
+        },
+        "odata-v4": {
+          "outcome": "unsupported",
+          "reason": "Portable OData v4 aggregation requires a separate typed $apply semantic model",
+          "diagnostic": { "code": "unsupported-node", "path": "$.kind" }
+        },
+        "duckdb": { "outcome": "exact" },
+        "honua-grpc": { "outcome": "exact" }
+      }
+    },
+    {
+      "id": "polygon-envelope-approximation",
+      "covers": ["spatial", "axis-order", "approximate"],
+      "query": {
+        "kind": "features",
+        "filter": {
+          "kind": "spatial",
+          "operator": "intersects",
+          "property": { "kind": "property", "name": "shape" },
+          "geometry": {
+            "state": "present",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [[[-158, 21], [-157, 21], [-158, 22], [-158, 21]]]
+            },
+            "crs": {
+              "definition": {
+                "kind": "authority",
+                "authority": "EPSG",
+                "code": "4326",
+                "definitionAxisOrder": {
+                  "state": "known",
+                  "source": "crs-definition",
+                  "axes": [
+                    { "name": "latitude", "direction": "north", "unit": "degree" },
+                    { "name": "longitude", "direction": "east", "unit": "degree" }
+                  ]
+                }
+              },
+              "coordinateOrder": {
+                "state": "known",
+                "source": "encoding",
+                "axes": [
+                  { "name": "longitude", "direction": "east", "unit": "degree" },
+                  { "name": "latitude", "direction": "north", "unit": "degree" }
+                ]
+              },
+              "provenance": { "method": "declared" }
+            },
+            "layout": "xy"
+          }
+        }
+      },
+      "expected": {
+        "rows": [
+          {
+            "id": 1,
+            "status": "open",
+            "name": "Alpha",
+            "score": 5,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T00:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.9, 21.3] }
+          },
+          {
+            "id": 2,
+            "status": "pending",
+            "name": "Alpine Two",
+            "score": 2,
+            "optionalNote": null,
+            "observedAt": "2026-07-14T23:59:59Z",
+            "shape": { "type": "Point", "coordinates": [-157.7, 21.2] }
+          },
+          {
+            "id": 4,
+            "status": "open",
+            "name": "Alpine",
+            "score": 3,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T12:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.6, 21.4] }
+          },
+          {
+            "id": 5,
+            "status": "Mālama' OR 1=1 -- 東京",
+            "name": "Injection",
+            "score": 1,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T00:00:01Z",
+            "shape": { "type": "Point", "coordinates": [-158, 21] }
+          },
+          {
+            "id": 6,
+            "status": "open",
+            "name": "alpha",
+            "score": 4,
+            "optionalNote": null,
+            "observedAt": "2026-07-17T00:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.55, 21.45] }
+          }
+        ]
+      },
+      "projections": {
+        "geoservices": { "outcome": "exact" },
+        "ogc-cql2-json": { "outcome": "exact" },
+        "wfs-fes-2.0": { "outcome": "exact" },
+        "odata-v4": { "outcome": "exact" },
+        "duckdb": {
+          "outcome": "approximate",
+          "reason": "The intersects operand was explicitly reduced to its bounding envelope",
+          "loss": { "code": "spatial-envelope-reduction", "path": "$.filter" }
+        },
+        "honua-grpc": { "outcome": "exact" }
+      }
+    }
+  ]
+}
