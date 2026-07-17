@@ -1,5 +1,6 @@
 /** Internal GeoServices URL classification and metadata projection for connect(). */
 
+import { canonicalizeUrlQuery, deleteQueryNames } from "./connect-url-safety.js";
 import type {
   ConnectDiscoverySourceSnapshot,
   ConnectProtocolHint,
@@ -51,7 +52,11 @@ export interface GeoServicesImageSourceDiscoveryResult extends GeoServicesDiscov
 }
 
 export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint): ConnectTarget {
-  const classifiedGeoServices = parseGeoServicesEndpoint(endpoint);
+  const rasterService = parseWmsWmtsTarget(endpoint, hint);
+  // A path such as `/MapServer/WMS` overlaps the GeoServices grammar. Resolve
+  // the stricter raster service shape first so it cannot be interpreted as a
+  // MapServer layer locator.
+  const classifiedGeoServices = rasterService ? undefined : parseGeoServicesEndpoint(endpoint);
   const geoservices =
     classifiedGeoServices?.protocol === "geoservices-feature-service" ||
     classifiedGeoServices?.protocol === "geoservices-map-service" ||
@@ -65,6 +70,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
         }
       : undefined;
   if (hint === "auto") {
+    if (rasterService) return rasterService;
     if (geoservices) return geoservices;
     if (classifiedGeoServices) {
       throw new HonuaDiscoveryError(
@@ -95,12 +101,31 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
           "ogc-records",
           "ogc-tiles",
           "ogc-maps",
+          "wms",
+          "wmts",
           "geoservices-feature-service",
           "geoservices-map-service",
           "geoservices-image-service",
         ],
       },
     );
+  }
+  if (hint === "wms" || hint === "wmts") {
+    if (geoservices) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `The canonical GeoServices URL resolves to "${geoservices.protocol}", not "${hint}".`,
+        { endpoint, protocol: hint, resolvedProtocol: geoservices.protocol },
+      );
+    }
+    if (!rasterService) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `The endpoint cannot be normalized as a ${hint.toUpperCase()} service URL.`,
+        { protocol: hint },
+      );
+    }
+    return rasterService;
   }
   if (hint === "ogc-features" || hint === "stac") {
     if (classifiedGeoServices) {
@@ -225,12 +250,84 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
         "ogc-records",
         "ogc-tiles",
         "ogc-maps",
+        "wms",
+        "wmts",
         "geoservices-feature-service",
         "geoservices-map-service",
         "geoservices-image-service",
       ],
     },
   );
+}
+
+function parseWmsWmtsTarget(endpoint: string, hint: ConnectProtocolHint): ConnectTarget | undefined {
+  const parsed = new URL(endpoint);
+  const serviceValues = [...parsed.searchParams]
+    .filter(([name]) => name.toLowerCase() === "service")
+    .map(([, value]) => value.toLowerCase());
+  if (serviceValues.length > 1) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "WMS/WMTS endpoints must identify SERVICE at most once.", {
+      endpoint: redactedRasterEndpoint(parsed),
+    });
+  }
+  const queryService = serviceValues[0];
+  const pathSegment = parsed.pathname.split("/").filter(Boolean).at(-1)?.toLowerCase();
+  const pathService = pathSegment === "wms" || pathSegment === "wmts" ? pathSegment : undefined;
+  if (queryService && queryService !== "wms" && queryService !== "wmts") return undefined;
+  if (queryService && pathService && queryService !== pathService) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "Raster endpoint path and SERVICE query identify different protocols.",
+      {
+        endpoint: redactedRasterEndpoint(parsed),
+        pathProtocol: pathService,
+        queryProtocol: queryService,
+      },
+    );
+  }
+  const structural = queryService ?? pathService;
+  const requested = hint === "wms" || hint === "wmts" ? hint : undefined;
+  const protocol = requested ?? (hint === "auto" ? structural : undefined);
+  if (protocol !== "wms" && protocol !== "wmts") return undefined;
+  if (structural && structural !== protocol) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      `The endpoint identifies ${structural.toUpperCase()}, not ${protocol.toUpperCase()}.`,
+      { endpoint: redactedRasterEndpoint(parsed), protocol, advertisedService: structural },
+    );
+  }
+  deleteQueryNames(parsed, new Set(["service", "request", "version"]));
+  canonicalizeUrlQuery(parsed);
+  parsed.hash = "";
+  while (parsed.pathname.length > 1 && parsed.pathname.endsWith("/")) parsed.pathname = parsed.pathname.slice(0, -1);
+  const normalized = parsed.toString().replace(/\/$/, "");
+  const serviceId = parseRasterServiceId(parsed.pathname, protocol);
+  return {
+    endpoint: normalized,
+    clientBaseUrl: parsed.origin,
+    protocol,
+    ...(serviceId ? { serviceId } : {}),
+  };
+}
+
+function parseRasterServiceId(pathname: string, protocol: "wms" | "wmts"): string | undefined {
+  const match = /^\/(?:[^/]+\/)*rest\/services\/(.+)\/MapServer\/(WMS|WMTS)$/i.exec(pathname);
+  if (!match || match[2]?.toLowerCase() !== protocol) return undefined;
+  try {
+    const segments = match[1]!.split("/").map(decodeURIComponent);
+    return segments.every((segment) => segment && segment !== "." && segment !== "..") ? segments.join("/") : undefined;
+  } catch {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      `${protocol.toUpperCase()} service path contains invalid encoding.`,
+    );
+  }
+}
+
+function redactedRasterEndpoint(endpoint: URL): string {
+  const copy = new URL(endpoint);
+  copy.search = "";
+  return copy.toString();
 }
 
 export async function discoverGeoServicesSources(
