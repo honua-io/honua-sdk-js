@@ -372,19 +372,19 @@
     {
       "id": "service-explorer",
       "title": "Universal service explorer",
-      "summary": "Browses heterogeneous spatial services with capability and cache diagnostics.",
+      "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "tier": "flagship",
       "supportStatus": "supported",
-      "disposition": { "decision": "rework", "reason": "Become the universal discovery and explain-plan journey." },
+      "disposition": { "decision": "keep", "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution." },
       "sourcePath": "examples/service-explorer",
       "docsPath": "examples/service-explorer/README.md",
-      "capabilities": ["capability-discovery", "catalog", "protocols"],
+      "capabilities": ["cancellation", "capability-discovery", "explain-plan", "fidelity", "map", "protocols", "provenance", "query"],
       "protocols": ["geoservices", "odata", "ogc", "stac", "wfs", "wms", "wmts"],
       "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "api-key", "config": ["VITE_HONUA_SERVICE_EXPLORER_BASE_URL"], "provenance": "Committed multi-protocol catalog or configured Honua catalog.", "attribution": "Source attribution is retained per selected service.", "freshness": "Metadata cache and live observation timestamps." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:service-explorer:mock"] }, "live": { "status": "planned", "commands": [] } },
-      "expectedDegradation": "Unavailable admin metadata falls back to service discovery with a visible diagnostic.",
-      "validation": ["npm run demo:service-explorer:typecheck", "npm run demo:service-explorer:build"]
+      "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["HONUA_SERVICE_EXPLORER_LIVE_ENABLED"], "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.", "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.", "freshness": "Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:service-explorer:mock"] }, "live": { "status": "planned", "commands": ["npm run demo:service-explorer:live-evidence"] } },
+      "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
+      "validation": ["npm run demo:service-explorer:typecheck", "npm run demo:service-explorer:build", "npx vitest run test/service-explorer-truth-model.test.ts", "npx vitest run test/service-explorer-operation-model.test.ts", "npx vitest run test/service-explorer-live-evidence.test.ts", "npm run test:playwright:service-explorer"]
     },
     {
       "id": "sketch-editing",
@@ -560,7 +560,7 @@
     { "id": "quickstart-map", "route": "demo.html", "ownership": "sdk-projection", "sampleId": "maplibre-quickstart" },
     { "id": "service-explorer", "route": "sample-service-explorer.html", "ownership": "sdk-projection", "sampleId": "service-explorer" },
     { "id": "spatial-analytics", "route": "sample-spatial-analytics.html", "ownership": "sdk-projection", "sampleId": "spatial-analytics-workbench" },
-    { "id": "two-protocols", "route": "demo-two-protocols.html", "ownership": "site-exception", "exceptionReason": "The site currently owns the only three-protocol side-by-side implementation; replace it from the universal discovery flagship.", "title": "Same data, three protocols", "summary": "Compares GeoServices, OGC Features, and OData results.", "tier": "advanced", "supportStatus": "experimental", "capabilities": ["interoperability", "query"] },
+    { "id": "two-protocols", "route": "demo-two-protocols.html", "ownership": "sdk-projection", "sampleId": "service-explorer" },
     { "id": "wms-overlay", "route": "sample-raster-overlay.html", "ownership": "sdk-projection", "sampleId": "imagery-cog-quickstart" }
   ]
 }
