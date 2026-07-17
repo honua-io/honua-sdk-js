@@ -1836,6 +1836,10 @@ function credentialSafeError(error: unknown, secrets: readonly string[]): unknow
   const sanitized = new Error(sanitizedMessage);
   const name = stableStringProperty(error, "name");
   if (name.safe && name.value !== undefined) sanitized.name = name.value;
+  const code = stableStringProperty(error, "code");
+  if (code.safe && code.value !== undefined) {
+    (sanitized as Error & { code: string }).code = sanitizeInspectionString(code.value, secrets);
+  }
   return sanitized;
 }
 

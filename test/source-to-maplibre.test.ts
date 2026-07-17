@@ -414,6 +414,30 @@ describe("mountSourceToMapLibre", () => {
     expect(map.operations).toEqual([]);
   });
 
+  it("rejects SourceSchemaV2 identity drift with the canonical stale-schema reason", async () => {
+    const schemaV2 = {
+      kind: "honua.source-schema" as const,
+      version: "2.0" as const,
+      fingerprint: `sha256:${"1".repeat(64)}` as `sha256:${string}`,
+    };
+    const schemaDescriptor: SourceDescriptor = { ...descriptor, schemaV2 };
+    const schemaPlan = explainQuery({
+      descriptor: schemaDescriptor,
+      query: { pagination: { limit: 100 }, returnGeometry: true },
+      ...context,
+    });
+    const changedSchemaSource = fakeSource([mixedResult], {
+      ...schemaDescriptor,
+      schemaV2: { ...schemaV2, fingerprint: `sha256:${"2".repeat(64)}` },
+    });
+
+    await expect(mountSourceToMapLibre(fakeMap(), changedSchemaSource, schemaPlan, context)).rejects.toMatchObject({
+      code: "stale-plan",
+      reason: "schema-changed",
+    });
+    expect(changedSchemaSource.query).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       drift: "plan fingerprint",

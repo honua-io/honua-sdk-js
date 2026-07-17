@@ -6,6 +6,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as esbuild from "esbuild";
+import {
+  ERROR_TREE_SHAKE_FIXTURES,
+  errorModulePolicyFailures,
+  retainedMetafileInputs,
+} from "./lib/error-tree-shake.mjs";
 import {
   runtimeSmokeSource,
   supportedEntrypoints,
@@ -23,6 +29,35 @@ const entrypoints = supportedEntrypoints(surface);
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-packed-sdk-"));
 const consumerRoot = path.join(tempRoot, "consumer");
 const packRoot = path.join(tempRoot, "pack");
+const bundleExternals = [
+  "maplibre-gl",
+  "cesium",
+  "pmtiles",
+  "@bufbuild/protobuf",
+  "@connectrpc/connect",
+  "@connectrpc/connect-web",
+  "@duckdb/duckdb-wasm",
+  "@deck.gl/layers",
+  "apache-arrow",
+  "terra-draw",
+  "terra-draw-maplibre-gl-adapter",
+];
+
+function bundleErrorFixture(entry, cwd) {
+  return esbuild.buildSync({
+    absWorkingDir: cwd,
+    bundle: true,
+    entryPoints: [entry],
+    external: bundleExternals,
+    format: "esm",
+    legalComments: "none",
+    metafile: true,
+    minify: true,
+    platform: "browser",
+    target: ["es2020"],
+    write: false,
+  });
+}
 
 function run(label, command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -171,6 +206,47 @@ try {
   });
   if (manifestFailures.length > 0) throw new Error(manifestFailures.join("\n"));
   const peerFixtureCount = linkPeerFixtures(installedPackageJson);
+
+  for (const fixture of ERROR_TREE_SHAKE_FIXTURES) {
+    const sourcePath = path.join(projectRoot, fixture.entry);
+    const fixtureName = path.basename(fixture.entry);
+    const sourceText = fs.readFileSync(sourcePath, "utf8");
+    const importSpecifiers = [...sourceText.matchAll(/\bfrom\s+["']([^"']+)["']/g)].map((match) => match[1]);
+    if (
+      importSpecifiers.length === 0 ||
+      importSpecifiers.some((specifier) => specifier !== packageJson.name && !specifier.startsWith(`${packageJson.name}/`))
+    ) {
+      throw new Error(`${fixture.key} must use only public package specifiers`);
+    }
+    const packedFixturePath = path.join(consumerRoot, fixtureName);
+    fs.copyFileSync(sourcePath, packedFixturePath);
+    const sourceBundle = bundleErrorFixture(sourcePath, projectRoot);
+    const packedBundle = bundleErrorFixture(packedFixturePath, consumerRoot);
+    const sourcePolicy = errorModulePolicyFailures(
+      fixture.key,
+      retainedMetafileInputs(sourceBundle.metafile),
+      fixture.requiredModules,
+      fixture.forbiddenModules,
+    );
+    const packedPolicy = errorModulePolicyFailures(
+      fixture.key,
+      retainedMetafileInputs(packedBundle.metafile),
+      fixture.requiredModules,
+      fixture.forbiddenModules,
+    );
+    if (sourcePolicy.failures.length > 0) throw new Error(sourcePolicy.failures.join("\n"));
+    if (packedPolicy.failures.length > 0) throw new Error(packedPolicy.failures.join("\n"));
+    const sourceErrorModules = sourcePolicy.retained.filter((input) => input.startsWith("dist/src/core/error-"));
+    const packedErrorModules = packedPolicy.retained.filter((input) => input.startsWith("dist/src/core/error-"));
+    if (JSON.stringify(sourceErrorModules) !== JSON.stringify(packedErrorModules))
+      throw new Error(`${fixture.key} retained different error modules in the packed-package consumer`);
+    const sourceExports = Object.values(sourceBundle.metafile.outputs).flatMap((output) => output.exports);
+    const packedExports = Object.values(packedBundle.metafile.outputs).flatMap((output) => output.exports);
+    if (JSON.stringify(sourceExports) !== JSON.stringify(packedExports))
+      throw new Error(`${fixture.key} exposed different exports in the packed-package consumer`);
+    if (packedBundle.outputFiles[0].contents.byteLength > sourceBundle.outputFiles[0].contents.byteLength)
+      throw new Error(`${fixture.key} is larger in the packed-package consumer`);
+  }
 
   fs.writeFileSync(
     path.join(consumerRoot, "runtime-smoke.mjs"),
@@ -330,7 +406,7 @@ if (events.join(",") !== "initialize,dispose") throw new Error(\`installed plugi
   );
 
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} geocoding=runtime rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal offlineInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} geocoding=runtime rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} errorTreeShakeFixtures=${ERROR_TREE_SHAKE_FIXTURES.length} bin=honua doctor=emit+validate+replay-refusal offlineInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(

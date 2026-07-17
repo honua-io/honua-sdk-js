@@ -16,7 +16,7 @@ import {
 } from "../core/error-base.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryIrSourceIdentity } from "../query-planner/ir.js";
-import { hashQueryPlanV1 } from "../query-planner/planner.js";
+import { hashQueryPlanV1 } from "../query-planner/plan-integrity.js";
 import type { ExecuteQueryPlanOptions, QueryExecutionPlanV1 } from "../query-planner/types.js";
 import { isSafeMapLibreRasterEndpoint } from "./raster-source-spec.js";
 import {

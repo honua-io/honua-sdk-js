@@ -56,7 +56,8 @@
     "/query-planner's exceeded minified ceiling was reset for exact GeoServices SQL-92 and OData v4 semantic artifacts (#528): deterministic identifier/literal compilation, logical-to-physical path evidence, source-version request identity, and fail-closed spatial metadata admission measure 471,030 minified bytes. Only the exceeded minified metric is reset to measured size plus 10% headroom; gzip remains below its existing ceiling and root/browser entrypoints remain unchanged.",
     "/query-planner was reset for structured plan diagnostics and persisted-claim validation (#530): versioned bounds, fidelity losses, cache decisions, provenance, validity reasons, and credential-safe warning evidence measure 529,749 minified / 103,586 gzip bytes. Both exceeded ceilings are measured actual plus 10% headroom; root and browser measurements remain within their existing ceilings.",
     "/runtime and 'tree-shake:map-source-workflow' were reset for the connection-level MapLibre lifecycle (#534): the caller-injected renderer reuses automatic feature/vector/PMTiles/raster mounting, while the map workflow shares the lightweight accepted-plan context guard with the canonical executor. Measured sizes are 512,677 / 137,337 bytes for /runtime and 41,657 / 13,059 bytes for the isolated map workflow; each ceiling is measured actual plus 10% headroom.",
-    "Root, /source-schema, browser, root-connect, and root-createHonua ceilings were reset for bounded static STAC discovery (#552): same-origin traversal, byte/structure ceilings, validator-bound caching, and evidence-based COG/GeoParquet/PMTiles/tile classification are intentionally part of universal connect. The reviewed root measures 529,272 minified / 139,865 gzip bytes; each affected ceiling is measured actual plus 10% headroom."
+    "Root, /source-schema, browser, root-connect, and root-createHonua ceilings were reset for bounded static STAC discovery (#552): same-origin traversal, byte/structure ceilings, validator-bound caching, and evidence-based COG/GeoParquet/PMTiles/tile classification are intentionally part of universal connect. The reviewed root measures 529,272 minified / 139,865 gzip bytes; each affected ceiling is measured actual plus 10% headroom.",
+    "The six focused error-envelope targets and three explicit import fixtures were reset for proportional tree-shaking (#583). Their bundle ceilings are measured actual plus ~10% headroom; the independent NFR gate still enforces at least 25% gzip reduction from every admitted #524 baseline."
   ],
   "entrypoints": {
     ".": {
@@ -104,12 +105,12 @@
       "gzip": 151071
     },
     "/realtime": {
-      "min": 50483,
-      "gzip": 13858
+      "min": 34572,
+      "gzip": 9974
     },
     "/offline": {
-      "min": 45404,
-      "gzip": 13532
+      "min": 27684,
+      "gzip": 9245
     },
     "/query-planner": {
       "min": 581768,
@@ -132,16 +133,16 @@
       "gzip": 8476
     },
     "/geocoding": {
-      "min": 32362,
-      "gzip": 9337
+      "min": 18905,
+      "gzip": 6438
     },
     "/routing": {
-      "min": 25201,
-      "gzip": 7820
+      "min": 11555,
+      "gzip": 4776
     },
     "/auth": {
-      "min": 31305,
-      "gzip": 8953
+      "min": 17741,
+      "gzip": 6013
     },
     "/style": {
       "min": 70674,
@@ -200,12 +201,24 @@
       "gzip": 62870
     },
     "tree-shake:map-source-workflow": {
-      "min": 45823,
-      "gzip": 14365
+      "min": 26162,
+      "gzip": 9162
     },
     "tree-shake:runtime-terra-draw-sketch": {
       "min": 3386,
       "gzip": 1533
+    },
+    "tree-shake:error-leaf": {
+      "min": 4026,
+      "gzip": 1599
+    },
+    "tree-shake:error-registry": {
+      "min": 11944,
+      "gzip": 2627
+    },
+    "tree-shake:error-serializer": {
+      "min": 13792,
+      "gzip": 4070
     }
   }
 }
