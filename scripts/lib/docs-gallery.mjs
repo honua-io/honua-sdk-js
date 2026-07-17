@@ -14,8 +14,18 @@ const SITE_VISUAL_EVIDENCE_PATH = "samples/dist/honua-site-visual-evidence.v1.js
 const SITE_VISUAL_EVIDENCE_SCHEMA_PATH = "samples/contract/v2/schemas/site-visual-evidence.schema.json";
 const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
 const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH = "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
+const SAMPLE_KIT_PATH = "examples/_kit/manifest.v1.json";
+const SAMPLE_KIT_FORMAT = "honua.sdk.sample-kit.v1";
+const SITE_ROUTE_PUBLICATION_FORMAT = "honua.site.sdk-sample-route-publication.v1";
+const RESERVED_ROOT_SITE_PATHS = new Set(["index.html", "gallery.html", "404.html"]);
+const RESERVED_SAMPLE_SITE_PATHS = new Set([
+  "samples/index.html",
+  "samples/routes.html",
+  "samples/site-handoff.v1.json",
+]);
 const CANONICAL_SOURCE_REPOSITORY = "honua-io/honua-sdk-js";
 const CANONICAL_SOURCE_BASE = "https://github.com/honua-io/honua-sdk-js/blob/trunk";
+const CANONICAL_SOURCE_TREE_BASE = "https://github.com/honua-io/honua-sdk-js/tree/trunk";
 const CONSUMER_FIXTURE_FORMAT = "honua.site.sdk-sample-consumer-fixture.v3";
 const SITE_PROJECTION_FORMAT = "honua.site.sdk-sample-projection.v2";
 const SITE_VISUAL_EVIDENCE_FORMAT = "honua.site.sdk-sample-visual-evidence.v1";
@@ -46,6 +56,7 @@ const PNG_CRC_TABLE = (() => {
 })();
 const VERIFIED_INTEGRITIES = new WeakSet();
 const VERIFIED_GALLERY_MODELS = new WeakSet();
+const VERIFIED_SITE_HANDOFFS = new WeakSet();
 
 const PUBLIC_GALLERY_TRACKS = Object.freeze([
   { track: "golden", title: "Golden journeys" },
@@ -550,6 +561,83 @@ function gallerySearchText(card) {
   );
 }
 
+function canonicalSamplePath(sampleId) {
+  invariant(
+    typeof sampleId === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(sampleId),
+    `${sampleId} cannot be published as a canonical sample route`,
+  );
+  const samplePath = `samples/${sampleId}.html`;
+  invariant(!RESERVED_SAMPLE_SITE_PATHS.has(samplePath), `${sampleId} collides with reserved sample-site content`);
+  return samplePath;
+}
+
+function resolveSiteRoutes(siteProjection, indexes, publicSampleIds) {
+  const routes = [];
+  const resolutionsByPath = new Map();
+  for (const declared of siteProjection.routes) {
+    invariant(
+      typeof declared.route === "string" && /^[-a-z0-9]+\.html$/u.test(declared.route),
+      `${declared.id} has an unsafe compatibility route`,
+    );
+    invariant(
+      !RESERVED_ROOT_SITE_PATHS.has(declared.route),
+      `${declared.id} compatibility route collides with reserved site content ${declared.route}`,
+    );
+    let route;
+    if (declared.ownership === "sdk-projection") {
+      const sample = indexes.samples.get(declared.sampleId);
+      invariant(sample, `${declared.id} maps to missing sample ${declared.sampleId}`);
+      const isPublic = publicSampleIds.has(sample.id);
+      route = {
+        id: declared.id,
+        path: declared.route,
+        ownership: declared.ownership,
+        resolution: isPublic ? "canonical-sample" : "not-public",
+        sampleId: sample.id,
+        title: sample.title,
+        track: sample.track,
+        supportTier: sample.supportTier,
+        canonicalPath: isPublic ? canonicalSamplePath(sample.id) : null,
+        reason: isPublic
+          ? "Redirects to the canonical SDK-owned sample page."
+          : "The mapped SDK entry is an internal fixture and is not published as a public sample.",
+      };
+    } else {
+      invariant(declared.ownership === "site-exception", `${declared.id} has unsupported route ownership`);
+      route = {
+        id: declared.id,
+        path: declared.route,
+        ownership: declared.ownership,
+        resolution: "site-exception",
+        sampleId: null,
+        title: declared.title,
+        track: declared.track,
+        supportTier: declared.supportTier,
+        canonicalPath: null,
+        reason: declared.exceptionReason,
+      };
+    }
+    const previous = resolutionsByPath.get(route.path);
+    const effectiveFields = [
+      "ownership",
+      "resolution",
+      "sampleId",
+      "title",
+      "track",
+      "supportTier",
+      "canonicalPath",
+      "reason",
+    ];
+    invariant(
+      !previous || effectiveFields.every((field) => previous[field] === route[field]),
+      `${route.path} has conflicting compatibility-route resolutions`,
+    );
+    resolutionsByPath.set(route.path, route);
+    routes.push(route);
+  }
+  return routes;
+}
+
 /**
  * Build the deterministic public-gallery model from the presentation-safe
  * catalog-v2 site projection. Internal fixture entries remain available to
@@ -586,6 +674,7 @@ export function createGalleryModel(integrity) {
     integrity.visualEvidence.qualifiedGoldenJourneys.map((entry) => [entry.sampleId, entry]),
   );
   const publicSampleIds = new Set(publicSamples.map((sample) => sample.id));
+  const routes = resolveSiteRoutes(siteProjection, indexes, publicSampleIds);
   const provenance = {
     projection: {
       format: siteProjection.format,
@@ -641,6 +730,7 @@ export function createGalleryModel(integrity) {
       visualEvidenceSha256: integrity.visualEvidenceSha256,
       capabilityMatrixSha256: integrity.capabilityMatrixSha256,
       publicationQualificationGate: integrity.publicationQualificationGate,
+      sampleKitInput: structuredClone(integrity.capabilityMatrix.inputs.sampleKit),
       validation: structuredClone(integrity.validation),
     },
     filters: {
@@ -666,10 +756,126 @@ export function createGalleryModel(integrity) {
       ),
       gaps: structuredClone(integrity.capabilityMatrix.gaps),
     },
+    routes,
     groups,
   });
   VERIFIED_GALLERY_MODELS.add(gallery);
   return gallery;
+}
+
+function allGalleryCards(gallery) {
+  return gallery.groups.flatMap((group) => group.cards);
+}
+
+/**
+ * Bind the public route surface to the exact sample-kit bytes already hashed by
+ * the capability matrix. This is the final site-consumer boundary: navigation
+ * can describe source and packed execution, but cannot invent a kit member or
+ * silently consume a different manifest revision.
+ */
+export function createGallerySiteHandoff(gallery, sampleKitBytes) {
+  invariant(gallery && VERIFIED_GALLERY_MODELS.has(gallery), "site handoff requires a verified gallery model");
+  invariant(typeof sampleKitBytes === "string", "sample-kit bytes must be supplied as UTF-8 text");
+  let sampleKit;
+  try {
+    sampleKit = JSON.parse(sampleKitBytes);
+  } catch {
+    throw new Error("Gallery projection integrity: sample-kit bytes must be valid JSON");
+  }
+  assertPlainObject(sampleKit, "sample kit");
+  assertExactKeys(sampleKit, ["format", "schemaVersion", "samples"], "sample kit");
+  invariant(
+    sampleKit.format === SAMPLE_KIT_FORMAT && sampleKit.schemaVersion === 1 && Array.isArray(sampleKit.samples),
+    "sample kit format is not the supported v1 contract",
+  );
+  const canonicalSampleKitBytes = stableJsonBytes(sampleKit);
+  const sampleKitInput = gallery.integrity.sampleKitInput;
+  assertExactKeys(sampleKitInput, ["path", "format", "schemaVersion", "sha256"], "capability matrix sample-kit input");
+  invariant(
+    sampleKitInput.path === SAMPLE_KIT_PATH &&
+      sampleKitInput.format === sampleKit.format &&
+      sampleKitInput.schemaVersion === sampleKit.schemaVersion &&
+      sampleKitInput.sha256 === sha256(canonicalSampleKitBytes),
+    "sample kit does not match the capability-matrix input",
+  );
+
+  const cards = allGalleryCards(gallery);
+  const cardsById = new Map(cards.map((card) => [card.sample.id, card]));
+  const kitIds = sampleKit.samples.map((entry) => {
+    assertPlainObject(entry, "sample-kit entry");
+    invariant(
+      typeof entry.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(entry.id),
+      "sample-kit entry ID is unsafe",
+    );
+    invariant(cardsById.has(entry.id), `${entry.id} sample-kit entry is not a public catalog sample`);
+    return entry.id;
+  });
+  invariant(kitIds.length > 0, "sample kit contains no public samples");
+  invariant(new Set(kitIds).size === kitIds.length, "sample kit contains duplicate sample IDs");
+  const kitIdSet = new Set(kitIds);
+  const samplePages = cards.map((card) => {
+    const sampleId = card.sample.id;
+    const kit = kitIdSet.has(sampleId)
+      ? {
+          sourceCommand: `npm run samples:run -- verify --sample ${sampleId} --sdk-mode source`,
+          packedCommand: `npm run samples:run -- verify --sample ${sampleId} --sdk-mode packed`,
+        }
+      : null;
+    return {
+      sampleId,
+      path: canonicalSamplePath(sampleId),
+      title: card.sample.title,
+      track: card.sample.track,
+      supportTier: card.sample.supportTier,
+      lifecycleState: card.sample.lifecycle.state,
+      qualificationState: card.qualification.state,
+      kit,
+      card,
+    };
+  });
+  const publishedRoutes = [];
+  const publishedRouteByPath = new Map();
+  for (const route of gallery.routes) {
+    const existing = publishedRouteByPath.get(route.path);
+    if (existing) {
+      existing.routeIds.push(route.id);
+      continue;
+    }
+    const published = { ...structuredClone(route), routeIds: [route.id] };
+    delete published.id;
+    publishedRouteByPath.set(route.path, published);
+    publishedRoutes.push(published);
+  }
+  const manifest = {
+    format: SITE_ROUTE_PUBLICATION_FORMAT,
+    schemaVersion: 1,
+    inputs: {
+      consumerFixtureFormat: gallery.integrity.consumerFixtureFormat,
+      projectionSha256: gallery.integrity.projectionSha256,
+      visualEvidenceSha256: gallery.integrity.visualEvidenceSha256,
+      capabilityMatrixSha256: gallery.integrity.capabilityMatrixSha256,
+      sampleKit: structuredClone(sampleKitInput),
+    },
+    canonicalSamples: samplePages.map(({ card: _card, ...sample }) => ({
+      ...sample,
+      modes: sample.kit ? ["source", "packed"] : [],
+    })),
+    declaredRouteCount: gallery.routes.length,
+    legacyRoutes: publishedRoutes.map((route) => structuredClone(route)),
+  };
+  const handoff = deepFreezeJson({
+    manifest,
+    kitSampleIds: kitIds,
+    samplePages,
+    routes: publishedRoutes,
+  });
+  VERIFIED_SITE_HANDOFFS.add(handoff);
+  return handoff;
+}
+
+export function serializeGallerySiteHandoff(handoff) {
+  invariant(handoff && VERIFIED_SITE_HANDOFFS.has(handoff), "site handoff serialization requires a verified handoff");
+  return stableJsonBytes(handoff.manifest);
 }
 
 /**
@@ -1015,7 +1221,12 @@ function renderLifecycle(sample) {
   return parts.join(" · ");
 }
 
-function renderReplacement(replacement) {
+function renderedSampleHref(sampleId, routeContext) {
+  const canonical = canonicalSamplePath(sampleId);
+  return routeContext === "detail" ? canonical.slice("samples/".length) : canonical;
+}
+
+function renderReplacement(replacement, routeContext) {
   if (!replacement) return '<span class="demo-none">None</span>';
   const label = `${replacement.kind}: ${replacement.title} (${replacement.id})`;
   if (replacement.kind === "external") {
@@ -1025,7 +1236,7 @@ function renderReplacement(replacement) {
       : escapeHtml(label);
   }
   if (replacement.publicSampleId) {
-    return `<a href="#sample-${escapeHtml(encodeURIComponent(replacement.publicSampleId))}">${escapeHtml(label)}</a>`;
+    return `<a href="${escapeHtml(renderedSampleHref(replacement.publicSampleId, routeContext))}">${escapeHtml(label)}</a>`;
   }
   return escapeHtml(label);
 }
@@ -1048,20 +1259,21 @@ function validatedVisualPublicationPath(screenshot, sampleId) {
   return value;
 }
 
-function renderVisualEvidence(entry, title) {
+function renderVisualEvidence(entry, title, routeContext) {
   if (!entry) return "";
   const [desktop, mobile] = entry.screenshots;
   const desktopPath = validatedVisualPublicationPath(desktop, entry.sampleId);
   const mobilePath = validatedVisualPublicationPath(mobile, entry.sampleId);
+  const assetHref = (publicationPath) => routeContext === "detail" ? `../${publicationPath}` : publicationPath;
   return `<div class="demo-visual-evidence" aria-label="Verified desktop and mobile screenshots">
     <figure>
-      <img src="${escapeHtml(desktopPath)}" width="${escapeHtml(desktop.viewport.width)}" height="${escapeHtml(
+      <img src="${escapeHtml(assetHref(desktopPath))}" width="${escapeHtml(desktop.viewport.width)}" height="${escapeHtml(
         desktop.viewport.height,
       )}" alt="Verified ${escapeHtml(title)} at the desktop evidence viewport" loading="lazy" decoding="async" />
       <figcaption>Desktop · ${escapeHtml(desktop.viewport.width)}×${escapeHtml(desktop.viewport.height)}</figcaption>
     </figure>
     <figure>
-      <img src="${escapeHtml(mobilePath)}" width="${escapeHtml(mobile.viewport.width)}" height="${escapeHtml(
+      <img src="${escapeHtml(assetHref(mobilePath))}" width="${escapeHtml(mobile.viewport.width)}" height="${escapeHtml(
         mobile.viewport.height,
       )}" alt="Verified ${escapeHtml(title)} at the mobile evidence viewport" loading="lazy" decoding="async" />
       <figcaption>Mobile · ${escapeHtml(mobile.viewport.width)}×${escapeHtml(mobile.viewport.height)}</figcaption>
@@ -1159,7 +1371,7 @@ function renderCoverageGaps(coverage) {
 </aside>`;
 }
 
-function renderCard(card, resolveSourceLink) {
+function renderCard(card, resolveSourceLink, { routeContext = "gallery", headingLevel = 3 } = {}) {
   const { sample } = card;
   const docsPath = validatedSampleSource(sample);
   const source = validatedSourceLink(resolveSourceLink(sample), docsPath);
@@ -1173,8 +1385,13 @@ function renderCard(card, resolveSourceLink) {
   const configurationNote = sample.data.configurationGap
     ? `<dt>Configuration note</dt><dd>${escapeHtml(sample.data.configurationGap)}</dd>`
     : "";
-  const visualEvidence = renderVisualEvidence(card.visualEvidence, sample.title);
+  invariant(routeContext === "gallery" || routeContext === "detail", "sample-card route context is unsupported");
+  const visualEvidence = renderVisualEvidence(card.visualEvidence, sample.title, routeContext);
   const visualEvidenceDetails = renderVisualEvidenceDetails(card.visualEvidence, sample.title);
+  const detailLink = routeContext === "gallery"
+    ? `<a class="demo-link" href="${escapeHtml(canonicalSamplePath(sample.id))}">Open sample details →</a>`
+    : "";
+  invariant(headingLevel === 2 || headingLevel === 3, "sample-card heading level is unsupported");
 
   return `<article class="demo-card demo-card--${escapeHtml(sample.lifecycle.state)}" id="sample-${escapeHtml(
     encodeURIComponent(sample.id),
@@ -1190,7 +1407,7 @@ function renderCard(card, resolveSourceLink) {
     sample.lifecycle.state,
   )}">
   <header class="demo-card-header">
-    <h3 id="${escapeHtml(headingId)}">${escapeHtml(sample.title)}</h3>
+    <h${headingLevel} id="${escapeHtml(headingId)}">${escapeHtml(sample.title)}</h${headingLevel}>
     <div class="demo-badges" aria-label="Support and lifecycle">
       <span class="demo-badge">Support · ${escapeHtml(sample.supportTier)}</span>
       <span class="demo-badge demo-badge--lifecycle">Lifecycle · ${escapeHtml(sample.lifecycle.state)}</span>
@@ -1199,13 +1416,14 @@ function renderCard(card, resolveSourceLink) {
   <p class="demo-id"><code>${escapeHtml(sample.id)}</code></p>
   <p class="demo-summary">${escapeHtml(sample.summary)}</p>
   ${visualEvidence}
+  ${detailLink}
   <a class="demo-link" href="${escapeHtml(source.href)}">${sourceLabel} →</a>
   <dl class="demo-facts demo-facts--essential">
     <dt>SDK</dt><dd><code>${escapeHtml(sample.sdk.package)}</code> <code>${escapeHtml(sample.sdk.version)}</code></dd>
     <dt>Data</dt><dd>${dataSummary.join(" · ")}</dd>
     <dt>Evidence state</dt><dd>${renderEvidenceSummary(sample)}</dd>
     <dt>Qualification</dt><dd><strong>${escapeHtml(card.qualification.label)}</strong></dd>
-    <dt>Replacement</dt><dd>${renderReplacement(card.replacement)}</dd>
+    <dt>Replacement</dt><dd>${renderReplacement(card.replacement, routeContext)}</dd>
     <dt>Capabilities</dt><dd>${renderTags(sample.capabilities, `${sample.title} capabilities`)}</dd>
     <dt>Protocols</dt><dd>${renderTags(sample.protocols, `${sample.title} protocols`)}</dd>
   </dl>
@@ -1311,4 +1529,135 @@ set before any future <strong>qualified golden journey</strong> is published; pr
   )}</strong> of ${escapeHtml(gallery.cardCount)} public samples</p>
 <p class="gallery-empty" data-gallery-empty hidden>No public samples match these filters. Clear a filter or try a broader task.</p>
 ${groups}`;
+}
+
+function siteHandoffSample(handoff, sampleId) {
+  invariant(handoff && VERIFIED_SITE_HANDOFFS.has(handoff), "sample rendering requires a verified site handoff");
+  const page = handoff.samplePages.find((candidate) => candidate.sampleId === sampleId);
+  invariant(page, `${sampleId} has no canonical public sample page`);
+  return page;
+}
+
+function canonicalSourceTreeHref(sample) {
+  validatedSampleSource(sample);
+  const href = `${CANONICAL_SOURCE_TREE_BASE}/${sample.source.path}`;
+  invariant(safeHttpUrl(href) === href, `${sample.id} source-tree URL is unsafe`);
+  return href;
+}
+
+export function renderSampleDetailContent(handoff, sampleId, { resolveSourceLink } = {}) {
+  const samplePage = siteHandoffSample(handoff, sampleId);
+  if (typeof resolveSourceLink !== "function") {
+    throw new TypeError("renderSampleDetailContent requires an explicit source-link resolver");
+  }
+  const { card, kit } = samplePage;
+  const sample = card.sample;
+  const consumption = kit
+    ? `<section class="sample-consumption" data-sample-kit-modes="source packed">
+  <h2>Run in source and packed SDK modes</h2>
+  <p>This is one of the sample kit's maintained journeys. Source mode uses the repository SDK; packed mode builds and
+  installs the SDK package into an isolated tree before exercising the same sample. These commands validate execution;
+  they do not turn a planned journey into a receipt-qualified golden journey.</p>
+  <h3>Source mode</h3>
+  <pre><code>${escapeHtml(kit.sourceCommand)}</code></pre>
+  <h3>Packed-package mode</h3>
+  <pre><code>${escapeHtml(kit.packedCommand)}</code></pre>
+</section>`
+    : `<section class="sample-consumption" data-sample-kit-modes="">
+  <h2>Execution boundary</h2>
+  <p>This catalog sample is not enrolled in the current portable sample kit. Use the SDK-owned walkthrough and source;
+  this documentation route does not claim packed-package qualification for it.</p>
+</section>`;
+  return `<nav class="sample-breadcrumbs" aria-label="Sample navigation">
+  <a href="index.html">Runnable sample kit</a> · <a href="../gallery.html#sample-${escapeHtml(
+    encodeURIComponent(sample.id),
+  )}">Demo gallery card</a> · <a href="routes.html">Route migration map</a>
+</nav>
+<h1>Sample details</h1>
+<p class="sample-route-note">Canonical public route <code>${escapeHtml(samplePage.path)}</code>, generated from the
+versioned SDK projection and its fail-closed consumer fixture.</p>
+${renderCard(card, resolveSourceLink, { routeContext: "detail", headingLevel: 2 })}
+${consumption}
+<section class="sample-source-boundary">
+  <h2>Executable source ownership</h2>
+  <p>The implementation remains in <code>${escapeHtml(sample.source.repository)}</code>; the documentation site does not
+  copy or fork it. <a href="${escapeHtml(canonicalSourceTreeHref(sample))}">Browse the executable source tree →</a></p>
+</section>`;
+}
+
+export function renderSampleKitIndexContent(handoff) {
+  invariant(handoff && VERIFIED_SITE_HANDOFFS.has(handoff), "sample-kit rendering requires a verified site handoff");
+  const cards = handoff.kitSampleIds
+    .map((sampleId) => siteHandoffSample(handoff, sampleId))
+    .map(
+      (samplePage) => `<article class="sample-kit-card" data-kit-sample-id="${escapeHtml(samplePage.sampleId)}">
+  <h2><a href="${escapeHtml(samplePage.path.slice("samples/".length))}">${escapeHtml(samplePage.title)}</a></h2>
+  <p><code>${escapeHtml(samplePage.sampleId)}</code> · support <strong>${escapeHtml(
+    samplePage.supportTier,
+  )}</strong> · lifecycle <strong>${escapeHtml(samplePage.lifecycleState)}</strong></p>
+  <p>Qualification: <strong>${escapeHtml(samplePage.card.qualification.label)}</strong></p>
+  <p>Maintained execution modes: <code>source</code> and <code>packed</code>.</p>
+  <details><summary>Runner commands</summary>
+    <pre><code>${escapeHtml(samplePage.kit.sourceCommand)}\n${escapeHtml(samplePage.kit.packedCommand)}</code></pre>
+  </details>
+</article>`,
+    )
+    .join("\n");
+  return `<h1>Runnable sample kit</h1>
+<p>These ${escapeHtml(handoff.kitSampleIds.length)} SDK-owned journeys run through the same bounded browser and build
+workflow against repository source and an isolated packed package. Their current support, lifecycle, evidence, and
+qualification labels come from the verified gallery handoff; source/packed enrollment is not a golden claim.</p>
+<p><a href="../gallery.html">Browse all public recipes and labs →</a> ·
+<a href="routes.html">Review canonical and legacy routes →</a> ·
+<a href="site-handoff.v1.json">Consume the versioned route manifest →</a></p>
+<div class="sample-kit-grid">${cards}</div>`;
+}
+
+export function renderGalleryRouteIndexContent(handoff) {
+  invariant(handoff && VERIFIED_SITE_HANDOFFS.has(handoff), "route-map rendering requires a verified site handoff");
+  const routes = handoff.routes
+    .map((route) => {
+      const target = route.canonicalPath
+        ? ` → <a href="${escapeHtml(route.canonicalPath.slice("samples/".length))}"><code>${escapeHtml(
+            route.canonicalPath,
+          )}</code></a>`
+        : "";
+      return `<tr data-route-id="${escapeHtml(route.routeIds.join(" "))}" data-route-resolution="${escapeHtml(route.resolution)}">
+  <td><a href="../${escapeHtml(route.path)}"><code>${escapeHtml(route.path)}</code></a></td>
+  <td>${route.routeIds.map((id) => `<code>${escapeHtml(id)}</code>`).join(", ")}</td>
+  <td>${escapeHtml(route.ownership)}</td>
+  <td><strong>${escapeHtml(route.resolution)}</strong>${target}<br />${escapeHtml(route.reason)}</td>
+</tr>`;
+    })
+    .join("\n");
+  return `<h1>Sample route migration map</h1>
+<p>All ${escapeHtml(handoff.manifest.declaredRouteCount)} declared honua.io compatibility mappings resolve through
+${escapeHtml(handoff.routes.length)} unique published paths. SDK-projected public
+samples redirect to their canonical pages. Internal fixtures and site-owned exceptions remain explicit instead of
+silently redirecting to unrelated demos.</p>
+<table class="sample-route-table">
+  <thead><tr><th>Legacy route</th><th>Route ID</th><th>Owner</th><th>Resolution</th></tr></thead>
+  <tbody>${routes}</tbody>
+</table>`;
+}
+
+export function renderCompatibilityRouteContent(handoff, routePath) {
+  invariant(handoff && VERIFIED_SITE_HANDOFFS.has(handoff), "compatibility rendering requires a verified site handoff");
+  const route = handoff.routes.find((candidate) => candidate.path === routePath);
+  invariant(route, `${routePath} is not a declared compatibility route`);
+  const routeIds = route.routeIds;
+  const resolution = route.canonicalPath
+    ? `<p>This compatibility URL redirects to the canonical sample page. If navigation does not continue,
+  <a href="${escapeHtml(route.canonicalPath)}">open ${escapeHtml(route.title)}</a>.</p>`
+    : route.resolution === "site-exception"
+      ? `<p>This route is a presentation-site exception, not an SDK-owned executable copy. ${escapeHtml(route.reason)}</p>`
+      : `<p>This mapping targets <code>${escapeHtml(route.sampleId)}</code>, an internal SDK fixture. It is intentionally
+  not published as a public application. ${escapeHtml(route.reason)}</p>`;
+  return `<h1>${escapeHtml(route.title)}</h1>
+<p data-compatibility-route="${escapeHtml(route.path)}" data-route-resolution="${escapeHtml(route.resolution)}">
+Legacy route <code>${escapeHtml(route.path)}</code> · route ID${routeIds.length === 1 ? "" : "s"}
+${routeIds.map((id) => `<code>${escapeHtml(id)}</code>`).join(", ")} · owner <code>${escapeHtml(route.ownership)}</code> ·
+resolution <strong>${escapeHtml(route.resolution)}</strong>.</p>
+${resolution}
+<p><a href="samples/routes.html">Review the complete route migration map →</a></p>`;
 }

@@ -15,6 +15,30 @@ export const SAMPLE_SCREENSHOT_VIEWPORT = SAMPLE_SCREENSHOT_VARIANTS[0].viewport
 export const SAMPLE_PERFORMANCE_METRIC = "sample-ready-duration";
 export const SAMPLE_PERFORMANCE_BUDGET_MS = 5_000;
 
+export function matchesScreenshotReproducibilityPolicy(value, { reportFormat = false } = {}) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const expectedKeys = [
+    ...(reportFormat ? ["reportFormat"] : []),
+    "captureCount",
+    "comparison",
+    "animations",
+    "stabilization",
+  ];
+  const keys = Object.keys(value);
+  if (keys.length !== expectedKeys.length || expectedKeys.some((key) => !Object.hasOwn(value, key))) return false;
+  return (
+    (!reportFormat || value.reportFormat === SAMPLE_SCREENSHOT_REPORT_FORMAT) &&
+    value.captureCount === SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount &&
+    value.comparison === SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison &&
+    value.animations === SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.animations &&
+    Array.isArray(value.stabilization) &&
+    value.stabilization.length === SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.stabilization.length &&
+    value.stabilization.every(
+      (step, index) => step === SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.stabilization[index],
+    )
+  );
+}
+
 export function isSampleEvidenceRunId(value) {
   return (
     typeof value === "string" &&

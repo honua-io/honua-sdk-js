@@ -10,6 +10,7 @@ import { inflateSync } from "node:zlib";
 import { canonicalCommand, parseSampleCommand } from "./lib/sample-command.mjs";
 import {
   isSampleEvidenceRunId,
+  matchesScreenshotReproducibilityPolicy,
   SAMPLE_PERFORMANCE_BUDGET_MS,
   SAMPLE_PERFORMANCE_METRIC,
   SAMPLE_SCREENSHOT_REPORT_FORMAT,
@@ -919,8 +920,7 @@ async function validateScreenshotReport(report, receipt, root) {
   invariant(report?.format === SAMPLE_SCREENSHOT_REPORT_FORMAT, "screenshot report format is invalid");
   invariant(report.sampleId === receipt.sampleId && report.sourceRevision === receipt.sourceRevision, "screenshot report binding mismatch");
   invariant(
-    JSON.stringify(report.reproducibilityPolicy) ===
-      JSON.stringify(SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY),
+    matchesScreenshotReproducibilityPolicy(report.reproducibilityPolicy),
     "screenshot reproducibility policy is invalid",
   );
   const evidenceProject = declaredEvidenceProject(receipt.sampleId);

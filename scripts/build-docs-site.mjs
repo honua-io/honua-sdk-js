@@ -24,8 +24,14 @@ import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 import { currentDocsVersions, expandDocsVersionTokens, serializeDocsVersions } from "./docs-versions.mjs";
 import {
+  createGallerySiteHandoff,
   createGalleryModel,
+  renderCompatibilityRouteContent,
   renderGalleryContent,
+  renderGalleryRouteIndexContent,
+  renderSampleDetailContent,
+  renderSampleKitIndexContent,
+  serializeGallerySiteHandoff,
   verifyGalleryProjectionIntegrity,
   verifyGalleryVisualAssets,
 } from "./lib/docs-gallery.mjs";
@@ -38,12 +44,14 @@ const API_SRC = path.join(ROOT, "dist", "docs-api");
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_VISUAL_EVIDENCE_PATH = "samples/dist/honua-site-visual-evidence.v1.json";
 const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
+const SAMPLE_KIT_PATH = "examples/_kit/manifest.v1.json";
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
 const GALLERY_INPUT_BUDGETS = Object.freeze({
   projection: 2 * 1024 * 1024,
   visualEvidence: 4 * 1024 * 1024,
   capabilityMatrix: 4 * 1024 * 1024,
   consumerFixture: 256 * 1024,
+  sampleKit: 256 * 1024,
   client: 64 * 1024,
 });
 const GALLERY_CLIENT_PATH = "scripts/lib/docs-gallery-client.mjs";
@@ -297,6 +305,7 @@ function topNav(sitePath, sourcePath) {
     ${link("Home", "index.html")}
     ${link("Guides", "guides/index.html")}
     ${link("API reference", "api/index.html")}
+    ${link("Samples", "samples/index.html")}
     ${link("Demo gallery", "gallery.html")}
     ${versionNavigation(sitePath, sourcePath)}
     ${link("GitHub", `https://github.com/${REPO}`, true)}
@@ -334,7 +343,17 @@ function sidebar(sitePath, navGroups, titles, activeDoc) {
   return parts.join("\n");
 }
 
-function page({ sitePath, sourcePath = "README.md", title, bodyClass, main, sidebarHtml, moduleScripts = [] }) {
+function page({
+  sitePath,
+  sourcePath = "README.md",
+  title,
+  bodyClass,
+  main,
+  sidebarHtml,
+  moduleScripts = [],
+  canonicalPath = sitePath,
+  head = "",
+}) {
   const cssHref = relativeUrl(sitePath, "assets/style.css");
   const scripts = moduleScripts
     .map((script) => `<script type="module" src="${escapeHtml(relativeUrl(sitePath, script))}"></script>`)
@@ -346,8 +365,9 @@ function page({ sitePath, sourcePath = "README.md", title, bodyClass, main, side
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="Documentation for @honua/sdk-js — one TypeScript geospatial client for Esri GeoServices, OGC API, STAC, WMS/WMTS, WFS and OData." />
-<link rel="canonical" href="${SITE_URL}${sitePath === "index.html" ? "" : sitePath}" />
+<link rel="canonical" href="${SITE_URL}${canonicalPath === "index.html" ? "" : canonicalPath}" />
 <link rel="stylesheet" href="${cssHref}" />
+${head}
 </head>
 <body class="${bodyClass}">
 ${topNav(sitePath, sourcePath)}
@@ -371,7 +391,7 @@ ${scripts}
 // ---------------------------------------------------------------------------
 
 async function loadGalleryModel() {
-  const [projectionBuffer, visualEvidenceBuffer, capabilityMatrixBuffer, consumerBuffer] = await Promise.all([
+  const [projectionBuffer, visualEvidenceBuffer, capabilityMatrixBuffer, consumerBuffer, sampleKitBuffer] = await Promise.all([
     readCanonicalBoundedFile(ROOT, SITE_PROJECTION_PATH, {
       label: "gallery site projection",
       maxBytes: GALLERY_INPUT_BUDGETS.projection,
@@ -388,6 +408,10 @@ async function loadGalleryModel() {
       label: "gallery consumer fixture",
       maxBytes: GALLERY_INPUT_BUDGETS.consumerFixture,
     }),
+    readCanonicalBoundedFile(ROOT, SAMPLE_KIT_PATH, {
+      label: "gallery sample-kit manifest",
+      maxBytes: GALLERY_INPUT_BUDGETS.sampleKit,
+    }),
   ]);
   const projectionBytes = projectionBuffer.toString("utf8");
   const visualEvidenceBytes = visualEvidenceBuffer.toString("utf8");
@@ -400,7 +424,8 @@ async function loadGalleryModel() {
     capabilityMatrixBytes,
     consumerFixture,
   });
-  return createGalleryModel(integrity);
+  const gallery = createGalleryModel(integrity);
+  return { gallery, handoff: createGallerySiteHandoff(gallery, sampleKitBuffer.toString("utf8")) };
 }
 
 async function readCanonicalGalleryAsset(relativePath) {
@@ -424,6 +449,35 @@ function galleryPage(gallery) {
     bodyClass: "page-gallery",
     main: renderGalleryContent(gallery, { resolveSourceLink: (sample) => demoSourceUrl(sample.source.docsPath) }),
     moduleScripts: ["assets/gallery.js"],
+  });
+}
+
+function sampleSourceUrl(sample) {
+  return { href: `${BLOB_BASE}/${sample.source.docsPath}`, kind: "source" };
+}
+
+function sampleDetailPage(handoff, samplePage) {
+  return page({
+    sitePath: samplePage.path,
+    sourcePath: samplePage.card.sample.source.docsPath,
+    title: `${samplePage.title} · ${SITE_TITLE}`,
+    bodyClass: "page-sample",
+    main: renderSampleDetailContent(handoff, samplePage.sampleId, { resolveSourceLink: sampleSourceUrl }),
+  });
+}
+
+function compatibilityPage(handoff, route) {
+  const redirectHead = route.canonicalPath
+    ? `<meta http-equiv="refresh" content="0; url=${escapeHtml(route.canonicalPath)}" />`
+    : "";
+  return page({
+    sitePath: route.path,
+    sourcePath: SITE_PROJECTION_PATH,
+    title: `${route.title} · sample route · ${SITE_TITLE}`,
+    bodyClass: `page-sample-route page-sample-route--${route.resolution}`,
+    main: renderCompatibilityRouteContent(handoff, route.path),
+    canonicalPath: route.canonicalPath ?? route.path,
+    head: redirectHead,
   });
 }
 
@@ -518,6 +572,15 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .demo-link{margin:.1rem 0 .75rem;font-weight:600}
 .demo-card-details{border-top:1px solid var(--border);padding-top:.55rem}
 .demo-card-details .demo-facts{margin:.75rem 0 .2rem}
+.sample-breadcrumbs{margin:.5rem 0 1rem;color:var(--muted)}
+.sample-route-note{padding:.65rem .8rem;border-left:4px solid var(--accent);background:var(--accent-soft)}
+.page-sample .demo-card{max-width:62rem}.page-sample .demo-card h2{margin-top:.1rem;border:0;padding:0}
+.sample-consumption,.sample-source-boundary{margin-top:1.5rem;padding:1rem;border:1px solid var(--border);border-radius:10px}
+.sample-consumption h2,.sample-source-boundary h2{margin-top:0}
+.sample-kit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,28rem),1fr));gap:1rem}
+.sample-kit-card{padding:1rem;border:1px solid var(--border);border-radius:10px;background:var(--sidebar-bg)}
+.sample-kit-card h2{margin-top:0}.sample-kit-card pre{font-size:.8rem}
+.sample-route-table{width:100%}.page-sample-route .content{max-width:52rem}
 .site-footer{border-top:1px solid var(--border);margin-top:2rem;padding:1.5rem;text-align:center;color:var(--muted);font-size:.85rem}
 .site-footer a{text-decoration:underline;text-underline-offset:.15em}
 @media (max-width:820px){.layout{flex-direction:column;padding:0 1rem}.sidebar{position:static;flex-basis:auto;max-height:none;width:100%;border-bottom:1px solid var(--border)}}
@@ -532,10 +595,24 @@ function rmrf(dir) {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
+const writtenOutputPaths = new Set();
+
 function writeFile(rel, content) {
-  const abs = path.join(OUT, rel);
+  if (
+    typeof rel !== "string" ||
+    !rel ||
+    rel.startsWith("/") ||
+    rel.includes("\\") ||
+    rel.split("/").some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new Error(`Unsafe documentation output path: ${rel}`);
+  }
+  if (writtenOutputPaths.has(rel)) throw new Error(`Documentation output path collision: ${rel}`);
+  const abs = path.resolve(OUT, rel);
+  if (!abs.startsWith(`${OUT}${path.sep}`)) throw new Error(`Documentation output escaped its root: ${rel}`);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, content);
+  writtenOutputPaths.add(rel);
 }
 
 function copyDir(src, dest) {
@@ -550,7 +627,7 @@ function copyDir(src, dest) {
 
 async function main() {
   const started = Date.now();
-  const gallery = await loadGalleryModel();
+  const { gallery, handoff } = await loadGalleryModel();
   rmrf(OUT);
   fs.mkdirSync(OUT, { recursive: true });
   for (const asset of await verifyGalleryVisualAssets(gallery, readCanonicalGalleryAsset)) {
@@ -579,6 +656,7 @@ async function main() {
     <a class="cta" href="guides/standalone-quickstart.html">Building on MapLibre → quickstart</a>
     <a class="cta" href="guides/widget-survival-guide.html">Leaving ArcGIS → widget survival guide</a>
     <a class="cta secondary" href="api/index.html">API reference</a>
+    <a class="cta secondary" href="samples/index.html">Runnable sample kit</a>
     <a class="cta secondary" href="gallery.html">Demo gallery</a>
   </p>
   <p class="hero-note">Classic Esri widgets are deprecated at ArcGIS JS 5.0 and removed at 6.0 (planned Q1 2027). Scan your app: <code>npm run scan:arcgis:widgets -- ./src</code>.</p>
@@ -633,6 +711,42 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
   writeFile("gallery.html", galleryPage(gallery));
   pageCount++;
 
+  // Canonical public sample pages, the source/packed sample-kit index, and the
+  // complete compatibility-route resolution map. All content comes from the
+  // verified gallery + matrix-bound sample-kit handoff; no executable source
+  // is copied into the documentation site.
+  writeFile(
+    "samples/index.html",
+    page({
+      sitePath: "samples/index.html",
+      sourcePath: "examples/_kit/README.md",
+      title: `Runnable sample kit · ${SITE_TITLE}`,
+      bodyClass: "page-samples",
+      main: renderSampleKitIndexContent(handoff),
+    }),
+  );
+  pageCount++;
+  writeFile(
+    "samples/routes.html",
+    page({
+      sitePath: "samples/routes.html",
+      sourcePath: SITE_PROJECTION_PATH,
+      title: `Sample route migration map · ${SITE_TITLE}`,
+      bodyClass: "page-sample-routes",
+      main: renderGalleryRouteIndexContent(handoff),
+    }),
+  );
+  pageCount++;
+  writeFile("samples/site-handoff.v1.json", serializeGallerySiteHandoff(handoff));
+  for (const samplePage of handoff.samplePages) {
+    writeFile(samplePage.path, sampleDetailPage(handoff, samplePage));
+    pageCount++;
+  }
+  for (const route of handoff.routes) {
+    writeFile(route.path, compatibilityPage(handoff, route));
+    pageCount++;
+  }
+
   // Assets.
   writeFile("assets/style.css", STYLE_CSS);
   const galleryClient = await readCanonicalBoundedFile(ROOT, GALLERY_CLIENT_PATH, {
@@ -664,7 +778,7 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
 
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   process.stdout.write(
-    `built docs site -> ${path.relative(ROOT, OUT)} (${pageCount} content pages, ${gallery.cardCount} gallery cards, ${apiPages} API pages) in ${secs}s\n`,
+    `built docs site -> ${path.relative(ROOT, OUT)} (${pageCount} content pages, ${gallery.cardCount} gallery cards, ${handoff.routes.length} compatibility paths, ${apiPages} API pages) in ${secs}s\n`,
   );
 }
 

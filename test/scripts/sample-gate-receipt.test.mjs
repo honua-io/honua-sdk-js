@@ -423,6 +423,41 @@ test("renaming text to PNG cannot qualify a screenshot", async () => {
   );
 });
 
+test("screenshot policy accepts key reordering but rejects a mutated field", async () => {
+  const targetSampleId = "standalone-quickstart";
+  const desktopBytes = grayscaleViewportPng(1280, 720, 0x33);
+  const mobileBytes = grayscaleViewportPng(390, 844, 0x77);
+  const desktopPath = await artifact("policy-desktop.png", desktopBytes, targetSampleId);
+  const mobilePath = await artifact("policy-mobile.png", mobileBytes, targetSampleId);
+  const screenshots = [
+    screenshotVariant("desktop", desktopPath, desktopBytes, { width: 1280, height: 720 }),
+    screenshotVariant("mobile", mobilePath, mobileBytes, { width: 390, height: 844 }),
+  ];
+  for (const [screenshot, bytes] of [[screenshots[0], desktopBytes], [screenshots[1], mobileBytes]]) {
+    await writeFile(path.resolve(screenshot.reproducibility.repeatPath), bytes);
+  }
+  const reorderedPolicy = {
+    stabilization: [...SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.stabilization],
+    animations: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.animations,
+    comparison: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison,
+    captureCount: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount,
+  };
+  const accepted = screenshotReport(targetSampleId, screenshots);
+  accepted.reproducibilityPolicy = reorderedPolicy;
+  const acceptedPath = await artifact("reordered-policy.json", accepted, targetSampleId);
+  await assert.doesNotReject(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", acceptedPath, targetSampleId)),
+  );
+
+  const mutated = structuredClone(accepted);
+  mutated.reproducibilityPolicy.captureCount = 3;
+  const mutatedPath = await artifact("mutated-policy.json", mutated, targetSampleId);
+  await assert.rejects(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", mutatedPath, targetSampleId)),
+    /screenshot reproducibility policy is invalid/,
+  );
+});
+
 test("screenshot evidence requires an ordered desktop/mobile pair", async () => {
   const targetSampleId = "standalone-quickstart";
   const imageBytes = undecodableViewportPng();

@@ -621,6 +621,24 @@ describe("sample publication contract", () => {
     ).rejects.toThrow("does not exactly match its generated inputs");
   });
 
+  it("accepts site-evidence policy key reordering and rejects field mutation", async () => {
+    const projection = await readJson("samples/dist/honua-site-samples.v2.json");
+    const evidence = await readJson("samples/dist/honua-site-visual-evidence.v1.json");
+    const policy = evidence.policy.screenshotReproducibility;
+    evidence.policy.screenshotReproducibility = {
+      stabilization: [...policy.stabilization],
+      animations: policy.animations,
+      comparison: policy.comparison,
+      captureCount: policy.captureCount,
+      reportFormat: policy.reportFormat,
+    };
+    await expect(validateSiteVisualEvidence(evidence, projection)).resolves.toBeUndefined();
+
+    const mutated = structuredClone(evidence);
+    mutated.policy.screenshotReproducibility.captureCount = 3;
+    await expect(validateSiteVisualEvidence(mutated, projection)).rejects.toThrow();
+  });
+
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {
     const packageJson = await readJson("package.json");
 

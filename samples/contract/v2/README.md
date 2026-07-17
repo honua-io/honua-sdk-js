@@ -52,6 +52,14 @@ execution evidence so none of those meanings has to be inferred from another.
   coverage, and explicitly keeps executable source ownership in this
   repository. The v2 consumer fixture remains the compatibility handoff for
   consumers that have not adopted visual evidence.
+- The docs-site consumer materializes that handoff as one canonical page per
+  public sample, a four-journey source/packed kit index, a complete route
+  migration page, and `samples/site-handoff.v1.json`. The public manifest binds
+  the v3 consumer and projection/evidence/matrix/sample-kit digests. Identical
+  route aliases collapse into one path; conflicting aliases and collisions
+  with generated site pages fail before output is written. Internal fixtures
+  and site-owned exceptions remain explicit and never inherit a runnable or
+  qualified claim.
 - `migrations/catalog.v1-to-v2.json` is the reviewed one-time migration overlay.
   `npm run samples:migrate:v1` reproduces `samples/catalog.v2.json` from the
   frozen v1 catalog and this overlay.

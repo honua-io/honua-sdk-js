@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   expectedGateCommand,
+  matchesScreenshotReproducibilityPolicy,
   SAMPLE_SCREENSHOT_REPORT_FORMAT,
   SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
   SAMPLE_SCREENSHOT_VARIANTS,
@@ -3815,11 +3816,7 @@ export async function validateSiteVisualEvidence(evidence, projection, options =
     "site visual evidence semantic gate policy drift",
   );
   invariant(
-    JSON.stringify(evidence.policy.screenshotReproducibility) ===
-      JSON.stringify({
-        reportFormat: SAMPLE_SCREENSHOT_REPORT_FORMAT,
-        ...SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
-      }),
+    matchesScreenshotReproducibilityPolicy(evidence.policy.screenshotReproducibility, { reportFormat: true }),
     "site visual evidence screenshot reproducibility policy drift",
   );
   const entries = evidence.qualifiedGoldenJourneys;
@@ -4159,8 +4156,7 @@ export async function generateSiteVisualEvidence(catalog, projection, options = 
     );
     invariant(
       screenshotReport.format === SAMPLE_SCREENSHOT_REPORT_FORMAT &&
-        JSON.stringify(screenshotReport.reproducibilityPolicy) ===
-          JSON.stringify(SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY) &&
+        matchesScreenshotReproducibilityPolicy(screenshotReport.reproducibilityPolicy) &&
         Array.isArray(screenshotReport.screenshots) &&
         screenshotReport.screenshots.length === SAMPLE_SCREENSHOT_VARIANTS.length,
       `${sample.id}: visual handoff requires the desktop/mobile screenshot report`,

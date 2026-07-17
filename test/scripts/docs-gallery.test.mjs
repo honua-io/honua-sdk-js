@@ -11,8 +11,14 @@ import {
   normalizeGalleryFilters,
 } from "../../scripts/lib/docs-gallery-client.mjs";
 import {
+  createGallerySiteHandoff,
   createGalleryModel,
+  renderCompatibilityRouteContent,
   renderGalleryContent,
+  renderGalleryRouteIndexContent,
+  renderSampleDetailContent,
+  renderSampleKitIndexContent,
+  serializeGallerySiteHandoff,
   verifyGalleryProjectionIntegrity,
   verifyGalleryVisualAssets,
 } from "../../scripts/lib/docs-gallery.mjs";
@@ -31,6 +37,7 @@ const catalog = JSON.parse(fs.readFileSync("samples/catalog.v2.json", "utf8"));
 const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
 const supportManifest = JSON.parse(fs.readFileSync("config/support-manifest.v1.json", "utf8"));
 const kitManifest = JSON.parse(fs.readFileSync("examples/_kit/manifest.v1.json", "utf8"));
+const kitManifestBytes = fs.readFileSync("examples/_kit/manifest.v1.json", "utf8");
 const repositorySourceResolver = (sample) => {
   const { docsPath } = sample.source;
   if (docsPath.startsWith("docs/") && docsPath.endsWith(".md")) {
@@ -44,6 +51,10 @@ const repositorySourceResolver = (sample) => {
     kind: "source",
   };
 };
+const repositoryBlobResolver = (sample) => ({
+  href: "https://github.com/" + sample.source.repository + "/blob/trunk/" + sample.source.docsPath,
+  kind: "source",
+});
 
 function stableBytes(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
@@ -223,6 +234,10 @@ function canonicalGallery() {
   });
 }
 
+async function canonicalSiteHandoff() {
+  return createGallerySiteHandoff(await canonicalGallery(), kitManifestBytes);
+}
+
 function renderGallery(gallery, resolveSourceLink = repositorySourceResolver) {
   return renderGalleryContent(gallery, { resolveSourceLink });
 }
@@ -364,6 +379,7 @@ test("binds the canonical projection and visual evidence to its v3 consumer fixt
     visualEvidenceSha256: consumerFixture.inputs.visualEvidence.sha256,
     capabilityMatrixSha256: consumerFixture.inputs.capabilityMatrix.sha256,
     publicationQualificationGate: "npm run samples:verify",
+    sampleKitInput: capabilityMatrix.inputs.sampleKit,
     validation: {
       projectionSchemaPath: "samples/contract/v2/schemas/site-projection.schema.json",
       visualEvidenceSchemaPath: "samples/contract/v2/schemas/site-visual-evidence.schema.json",
@@ -674,6 +690,26 @@ test("rejects a schema-valid empty public portfolio with the explicit zero-card 
   });
 });
 
+test("rejects hostile compatibility routes before they can overwrite generated site pages", async () => {
+  for (const reservedPath of ["index.html", "gallery.html", "404.html"]) {
+    const hostile = structuredClone(projection);
+    hostile.routes[0].route = reservedPath;
+    await assert.rejects(
+      () => verifiedGallery(hostile),
+      new RegExp(`compatibility route collides with reserved site content ${reservedPath.replace(".", "\\.")}`),
+    );
+  }
+
+  const conflictingExceptions = structuredClone(projection);
+  const legend = conflictingExceptions.routes.find(({ id }) => id === "control-legend");
+  const search = conflictingExceptions.routes.find(({ id }) => id === "control-search");
+  search.route = legend.route;
+  await assert.rejects(
+    () => verifiedGallery(conflictingExceptions),
+    /sample-control-legend\.html has conflicting compatibility-route resolutions/,
+  );
+});
+
 test("projects one canonical catalog-v2 sample into an honest public gallery card", async () => {
   const gallery = await canonicalGallery();
   const card = galleryCards(gallery).find((candidate) => candidate.sample.id === "endpoint-to-map");
@@ -737,6 +773,56 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   ]);
 });
 
+test("publishes one canonical page per public sample and deduplicates identical legacy route paths", async () => {
+  const handoff = await canonicalSiteHandoff();
+  const publication = JSON.parse(serializeGallerySiteHandoff(handoff));
+  const expectedKitIds = kitManifest.samples.map(({ id }) => id);
+
+  assertDeepFrozen(handoff);
+  assert.equal(handoff.samplePages.length, 32);
+  assert.deepEqual(handoff.kitSampleIds, expectedKitIds);
+  assert.equal(publication.format, "honua.site.sdk-sample-route-publication.v1");
+  assert.equal(publication.declaredRouteCount, projection.routes.length);
+  assert.equal(publication.legacyRoutes.length, 20);
+  assert.equal(new Set(publication.legacyRoutes.map(({ path }) => path)).size, publication.legacyRoutes.length);
+  assert.deepEqual(
+    publication.canonicalSamples.filter(({ modes }) => modes.length > 0).map(({ sampleId }) => sampleId).sort(),
+    [...expectedKitIds].sort(),
+  );
+  const demoRoute = publication.legacyRoutes.find(({ path }) => path === "demo.html");
+  assert.deepEqual(demoRoute.routeIds, ["maui-explorer", "quickstart-map"]);
+  assert.equal(demoRoute.canonicalPath, "samples/maplibre-quickstart.html");
+
+  const kitIndex = renderSampleKitIndexContent(handoff);
+  for (const sampleId of expectedKitIds) {
+    assert.match(kitIndex, new RegExp(`data-kit-sample-id="${sampleId}"`));
+    assert.match(kitIndex, new RegExp(`--sample ${sampleId} --sdk-mode source`));
+    assert.match(kitIndex, new RegExp(`--sample ${sampleId} --sdk-mode packed`));
+  }
+  assert.match(
+    renderSampleDetailContent(handoff, "maplibre-quickstart", { resolveSourceLink: repositoryBlobResolver }),
+    /data-sample-kit-modes="source packed"[\s\S]*--sdk-mode source[\s\S]*--sdk-mode packed/,
+  );
+  assert.doesNotMatch(
+    renderSampleDetailContent(handoff, "endpoint-to-map", { resolveSourceLink: repositoryBlobResolver }),
+    /--sdk-mode (?:source|packed)/,
+  );
+  assert.match(renderGalleryRouteIndexContent(handoff), /21 declared[\s\S]*20 unique published paths/);
+  assert.match(renderCompatibilityRouteContent(handoff, "demo.html"), /maui-explorer[\s\S]*quickstart-map/);
+  assert.match(renderCompatibilityRouteContent(handoff, "demo-esri-leaflet.html"), /internal SDK fixture/);
+  assert.match(renderCompatibilityRouteContent(handoff, "sample-control-legend.html"), /presentation-site exception/);
+
+  assert.throws(() => serializeGallerySiteHandoff({}), /requires a verified handoff/);
+  const gallery = await canonicalGallery();
+  assert.doesNotThrow(() => createGallerySiteHandoff(gallery, JSON.stringify(kitManifest)));
+  const tamperedKit = structuredClone(kitManifest);
+  tamperedKit.samples[0].id = "endpoint-to-map";
+  assert.throws(
+    () => createGallerySiteHandoff(gallery, stableBytes(tamperedKit)),
+    /sample kit does not match the capability-matrix input/,
+  );
+});
+
 test("publishes content-addressed desktop/mobile and semantic evidence only for qualified golden cards", async () => {
   const fixture = qualifiedVisualFixture();
   const gallery = await verifiedGallery(fixture.projection, { evidence: fixture.evidence });
@@ -777,6 +863,12 @@ test("publishes content-addressed desktop/mobile and semantic evidence only for 
   const html = renderGallery(gallery);
   for (const screenshot of card.visualEvidence.screenshots) {
     assert.ok(html.includes(screenshot.publicationPath));
+  }
+  const detailHtml = renderSampleDetailContent(createGallerySiteHandoff(gallery, kitManifestBytes), card.sample.id, {
+    resolveSourceLink: repositoryBlobResolver,
+  });
+  for (const screenshot of card.visualEvidence.screenshots) {
+    assert.ok(detailHtml.includes(`../${screenshot.publicationPath}`));
   }
   assert.match(html, /Verified First Map: public endpoint to MapLibre at the desktop evidence viewport/);
   assert.match(html, /Verified First Map: public endpoint to MapLibre at the mobile evidence viewport/);

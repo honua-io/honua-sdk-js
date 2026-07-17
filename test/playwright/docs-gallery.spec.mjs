@@ -21,12 +21,25 @@ const galleryProjection = JSON.parse(
 const galleryVisualEvidence = JSON.parse(
   fs.readFileSync(path.join(repositoryRoot, "samples/dist/honua-site-visual-evidence.v1.json"), "utf8"),
 );
+const sampleKit = JSON.parse(fs.readFileSync(path.join(repositoryRoot, "examples/_kit/manifest.v1.json"), "utf8"));
 const publicTracks = new Set(["golden", "recipe", "lab"]);
 const publicSamples = galleryProjection.samples.filter((sample) => publicTracks.has(sample.track));
 const endpointSample = publicSamples.find((sample) => sample.id === "endpoint-to-map");
 if (!endpointSample) throw new Error("The stable endpoint-to-map gallery sample is missing from the site projection");
 const firstMapSample = publicSamples.find((sample) => sample.id === "maplibre-quickstart");
 if (!firstMapSample) throw new Error("The First Map gallery sample is missing from the site projection");
+const publicSamplePaths = publicSamples.map((sample) => `samples/${sample.id}.html`);
+const uniqueLegacyPaths = [...new Set(galleryProjection.routes.map((route) => route.route))].sort();
+const kitSampleIds = sampleKit.samples.map(({ id }) => id);
+const publicSampleById = new Map(publicSamples.map((sample) => [sample.id, sample]));
+const docsHandoffPaths = [
+  "gallery.html",
+  "samples/index.html",
+  "samples/routes.html",
+  "samples/site-handoff.v1.json",
+  ...publicSamplePaths,
+  ...uniqueLegacyPaths,
+].sort();
 const requiredSameOriginPaths = new Set([
   `${hostedBasePath}gallery.html`,
   `${hostedBasePath}assets/style.css`,
@@ -197,6 +210,74 @@ test("gallery is accessible, deterministic, relocatable, and interactive after g
   ).toEqual([]);
 });
 
+test("sample-kit pages and every declared compatibility path resolve without overstating qualification", async ({
+  page,
+  request,
+}) => {
+  const siteUrl = (relative) => `${fixture.origin}${hostedBasePath}${relative}`;
+  const handoffResponse = await request.get(siteUrl("samples/site-handoff.v1.json"));
+  expect(handoffResponse.status()).toBe(200);
+  const handoff = await handoffResponse.json();
+  expect(handoff).toMatchObject({
+    format: "honua.site.sdk-sample-route-publication.v1",
+    schemaVersion: 1,
+    declaredRouteCount: galleryProjection.routes.length,
+  });
+  expect(handoff.canonicalSamples).toHaveLength(publicSamples.length);
+  expect(handoff.legacyRoutes).toHaveLength(uniqueLegacyPaths.length);
+  expect(new Set(handoff.legacyRoutes.map(({ path }) => path)).size).toBe(handoff.legacyRoutes.length);
+  expect(handoff.legacyRoutes.find(({ path }) => path === "demo.html").routeIds).toEqual([
+    "maui-explorer",
+    "quickstart-map",
+  ]);
+
+  for (const relative of [...publicSamplePaths, ...uniqueLegacyPaths, "samples/index.html", "samples/routes.html"]) {
+    const response = await request.get(siteUrl(relative));
+    expect(response.status(), relative).toBe(200);
+  }
+
+  await page.goto(siteUrl("samples/index.html"));
+  await expect(page.getByRole("heading", { name: "Runnable sample kit", level: 1 })).toBeVisible();
+  await expect(page.locator("[data-kit-sample-id]")).toHaveCount(kitSampleIds.length);
+  expect(await accessibilityViolations(page)).toEqual([]);
+
+  for (const sampleId of kitSampleIds) {
+    const sample = publicSampleById.get(sampleId);
+    expect(sample, `${sampleId} must remain a public projected sample`).toBeTruthy();
+    await page.goto(siteUrl(`samples/${sampleId}.html`));
+    await expect(page.getByRole("heading", { name: sample.title, level: 2 })).toBeVisible();
+    await expect(page.locator("[data-sample-kit-modes]")).toHaveAttribute("data-sample-kit-modes", "source packed");
+    await expect(page.locator(".sample-consumption")).toContainText(
+      `npm run samples:run -- verify --sample ${sampleId} --sdk-mode source`,
+    );
+    await expect(page.locator(".sample-consumption")).toContainText(
+      `npm run samples:run -- verify --sample ${sampleId} --sdk-mode packed`,
+    );
+    await expect(page.locator(".demo-facts--essential")).toContainText("not receipt-qualified");
+    expect(await accessibilityViolations(page)).toEqual([]);
+  }
+
+  const redirects = new Map([
+    ["demo.html", "maplibre-quickstart"],
+    ["sample-codemod.html", "migration-workbench"],
+    ["sample-service-explorer.html", "service-explorer"],
+    ["sample-expr-builder.html", "standalone-quickstart"],
+  ]);
+  for (const [legacyPath, sampleId] of redirects) {
+    await page.goto(siteUrl(legacyPath));
+    await expect(page).toHaveURL(siteUrl(`samples/${sampleId}.html`));
+    await expect(page.getByRole("heading", { name: publicSampleById.get(sampleId).title, level: 2 })).toBeVisible();
+  }
+
+  await page.goto(siteUrl("demo-esri-leaflet.html"));
+  await expect(page.locator("[data-route-resolution=not-public]")).toContainText("not-public");
+  await expect(page.locator("main")).toContainText("internal SDK fixture");
+  await page.goto(siteUrl("sample-control-legend.html"));
+  await expect(page.locator("[data-route-resolution=site-exception]")).toContainText("site-exception");
+  await expect(page.locator("main")).toContainText("presentation-site exception");
+  expect(await accessibilityViolations(page)).toEqual([]);
+});
+
 function buildDocsSite() {
   execFileSync(process.execPath, ["scripts/build-docs-site.mjs"], {
     cwd: repositoryRoot,
@@ -207,7 +288,7 @@ function buildDocsSite() {
 
 function gallerySurfaceDigest() {
   const digest = createHash("sha256");
-  for (const relative of ["gallery.html", "assets/style.css", "assets/gallery.js"]) {
+  for (const relative of [...docsHandoffPaths, "assets/style.css", "assets/gallery.js"].sort()) {
     const name = Buffer.from(relative, "utf8");
     const bytes = fs.readFileSync(path.join(docsRoot, relative));
     const length = Buffer.alloc(8);
