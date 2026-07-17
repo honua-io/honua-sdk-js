@@ -139,7 +139,8 @@ function getElement<T extends Element>(selector: string): T {
 }
 
 function setText(selector: string, value: string): void {
-  getElement<HTMLElement>(selector).textContent = value;
+  const element = getElement<HTMLElement>(selector);
+  if (element.textContent !== value) element.textContent = value;
 }
 
 function escapeHtml(value: unknown): string {
@@ -803,9 +804,18 @@ async function bootstrap(): Promise<void> {
     function updateEditPanel(): void {
       const incident = currentIncidentById(selectedIncidentId);
       latestMutationGuard = currentMutationGuard();
-      setText("#edit-profile", incidentTransport.controls.safeDemoEditing ? "Isolated + resettable" : "Unavailable");
+      setText(
+        "#edit-profile",
+        !incidentTransport.controls.safeDemoEditing
+          ? "Unavailable"
+          : incidentTransport.controls.authorized
+            ? "Isolated + resettable"
+            : "Unauthorized",
+      );
       setText("#edit-guard-reason", latestMutationGuard.reason);
       setText("#edit-revision", incident?.revision === undefined ? "-" : String(incident.revision));
+      editStatus.disabled = !latestMutationGuard.enabled;
+      editAssigned.disabled = !latestMutationGuard.enabled;
       stageEditButton.disabled = !latestMutationGuard.enabled;
       submitEditButton.disabled = !latestMutationGuard.enabled || !stagedEdit;
       repeatEditButton.disabled = !latestMutationGuard.enabled || !lastSubmittedEdit;
@@ -1105,7 +1115,12 @@ async function bootstrap(): Promise<void> {
         sourceVersion:
           lane === "fixture-edit" ? "incident-operations-fixture/v1" : `${resolvedTransportConfig.sourceIdentity}/v1`,
         schemaVersion: "honua.incident-feature/v1",
-        authorizationScopeFingerprint: lane === "fixture-edit" ? "isolated-fixture-edit" : "anonymous-read",
+        authorizationScopeFingerprint:
+          lane === "fixture-edit"
+            ? incidentTransport.controls.authorized
+              ? "isolated-fixture-edit"
+              : "isolated-fixture-read-only"
+            : "anonymous-read",
       }),
       onReceipt(receipt) {
         if (lifecycle.disposed || receipt.outcome === "applied") return;

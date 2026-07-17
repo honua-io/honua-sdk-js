@@ -20,6 +20,7 @@ import type {
 
 export type IncidentRequestedTransportMode = "auto" | "live" | "replay" | "fixture-edit";
 export type IncidentTransportMode = "live" | "replay" | "fixture-edit";
+export type IncidentFixtureAuthorization = "authorized" | "unauthorized";
 
 export interface IncidentTransportControls {
   readonly mode: IncidentTransportMode;
@@ -50,6 +51,7 @@ export interface IncidentTransportConfig {
   readonly layerId: number;
   readonly fixtureRunId?: string;
   readonly fixtureControlUrl?: string;
+  readonly fixtureAuthorization?: IncidentFixtureAuthorization;
 }
 
 export interface ResolvedIncidentTransportConfig extends IncidentTransportConfig {
@@ -172,6 +174,7 @@ export function readIncidentTransportConfig(location: Location = window.location
   const layerId = Number.parseInt(params.get("layerId") ?? env?.VITE_HONUA_INCIDENT_LAYER_ID ?? "0", 10);
   let fixtureRunId: string | undefined;
   let fixtureControlUrl: string | undefined;
+  let fixtureAuthorization: IncidentFixtureAuthorization | undefined;
   if (requestedMode === "fixture-edit") {
     const fixtureRunValues = params.getAll("fixtureRun");
     fixtureRunId = fixtureRunValues[0];
@@ -194,6 +197,17 @@ export function readIncidentTransportConfig(location: Location = window.location
     if (new URL(fixtureControlUrl).origin !== expectedOrigin) {
       throw new Error("Fixture-edit action endpoint must use the sanitized fixture origin.");
     }
+    const fixtureAuthorizationValues = params.getAll("fixtureAuthorization");
+    const requestedFixtureAuthorization = fixtureAuthorizationValues[0];
+    if (
+      fixtureAuthorizationValues.length > 1 ||
+      (requestedFixtureAuthorization !== undefined &&
+        requestedFixtureAuthorization !== "authorized" &&
+        requestedFixtureAuthorization !== "unauthorized")
+    ) {
+      throw new Error("Fixture-edit mode requires one valid fixtureAuthorization value when provided.");
+    }
+    fixtureAuthorization = requestedFixtureAuthorization ?? "authorized";
   }
   return {
     requestedMode,
@@ -204,6 +218,7 @@ export function readIncidentTransportConfig(location: Location = window.location
     layerId: Number.isFinite(layerId) && layerId >= 0 ? layerId : DEFAULT_LAYER_ID,
     fixtureRunId,
     fixtureControlUrl,
+    fixtureAuthorization,
   };
 }
 
@@ -651,7 +666,7 @@ function createRemoteFixtureIncidentTransportControls(
     requestedMode: config.requestedMode,
     sourceIdentity: SAFE_DEMO_EDIT_SOURCE_ID,
     safeDemoEditing: true,
-    authorized: true,
+    authorized: config.fixtureAuthorization !== "unauthorized",
     async step() {
       return decodeStepResult(await action("step"));
     },

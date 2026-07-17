@@ -240,6 +240,7 @@ describe("realtime incident dashboard fixture", () => {
       streamUrl: "http://127.0.0.1:4173/api/v1/streaming/features",
       fixtureRunId: "incident-operations",
       fixtureControlUrl: "http://127.0.0.1:4173/__fixture__/runs/incident-operations",
+      fixtureAuthorization: "authorized",
     });
     expect(fixture.transport.capabilities?.kind).toBe("sse");
     expect(fixture.request).toMatchObject({
@@ -259,6 +260,30 @@ describe("realtime incident dashboard fixture", () => {
     await expect(pendingRefresh).rejects.toMatchObject({ name: "AbortError" });
     await expect(fixture.controls.step()).rejects.toMatchObject({ name: "AbortError" });
     expect(actionRequests.at(-1)).toBe("http://127.0.0.1:4173/__fixture__/runs/incident-operations/actions/refresh");
+  });
+
+  it("models an unauthorized fixture session without probing or changing realtime delivery", async () => {
+    const fixtureConfig = readIncidentTransportConfig({
+      origin: "http://127.0.0.1:4173",
+      search: "?transport=fixture-edit&fixtureRun=incident-operations&fixtureAuthorization=unauthorized",
+    } as Location);
+    const fixtureResolved = await resolveIncidentTransportConfig(fixtureConfig, {
+      fetchFn: async () => {
+        throw new Error("fixture configuration must not access the network");
+      },
+    });
+    const fixture = createIncidentDashboardTransport(fixtureResolved);
+
+    expect(fixtureConfig.fixtureAuthorization).toBe("unauthorized");
+    expect(fixture.controls).toMatchObject({
+      mode: "fixture-edit",
+      sourceIdentity: SAFE_DEMO_EDIT_SOURCE_ID,
+      safeDemoEditing: true,
+      authorized: false,
+    });
+    expect(fixture.transport.capabilities?.kind).toBe("sse");
+    expect(fixture.request.mode).toBe("snapshot-then-delta");
+    fixture.controls.dispose();
   });
 
   it("rejects missing runs and cross-origin fixture-edit endpoints before creating controls", () => {
@@ -283,6 +308,15 @@ describe("realtime incident dashboard fixture", () => {
         [parameter]: "http://127.0.0.1:9999/foreign",
       });
       expect(() => readIncidentTransportConfig({ origin, search: `?${search}` } as Location)).toThrow(/same origin/i);
+    }
+
+    for (const search of [
+      "?transport=fixture-edit&fixtureRun=incident-operations&fixtureAuthorization=admin",
+      "?transport=fixture-edit&fixtureRun=incident-operations&fixtureAuthorization=authorized&fixtureAuthorization=unauthorized",
+    ]) {
+      expect(() => readIncidentTransportConfig({ origin, search } as Location), search).toThrow(
+        /valid fixtureAuthorization/i,
+      );
     }
   });
 
