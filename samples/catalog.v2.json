@@ -2096,22 +2096,26 @@
     {
       "id": "service-explorer",
       "title": "Universal service explorer",
-      "summary": "Browses heterogeneous spatial services with capability and cache diagnostics.",
+      "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "sourceKind": "root-example",
       "track": "lab",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Become the universal discovery and explain-plan journey.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; live dual-protocol qualification remains pending."
       },
       "sourcePath": "examples/service-explorer",
       "docsPath": "examples/service-explorer/README.md",
       "capabilities": [
+        "cancellation",
         "capability-discovery",
-        "catalog",
-        "protocols"
+        "explain-plan",
+        "fidelity",
+        "map",
+        "protocols",
+        "provenance",
+        "query"
       ],
       "protocols": [
         "geoservices",
@@ -2127,84 +2131,13 @@
       ],
       "data": {
         "mode": "hybrid",
-        "authMode": "api-key",
-        "config": [
-          "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
-          "VITE_HONUA_SERVICE_EXPLORER_API_KEY",
-          "VITE_HONUA_SERVICE_EXPLORER_BASE_URL",
-          "VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN",
-          "VITE_HONUA_SERVICE_EXPLORER_LAYER_ID",
-          "VITE_HONUA_SERVICE_EXPLORER_MAP_MOVE_DEBOUNCE_MS",
-          "VITE_HONUA_SERVICE_EXPLORER_MODE",
-          "VITE_HONUA_SERVICE_EXPLORER_RESULT_RECORD_COUNT",
-          "VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID",
-          "VITE_HONUA_SERVICE_EXPLORER_SOURCE_ID",
-          "VITE_HONUA_SERVICE_EXPLORER_WHERE"
-        ],
-        "provenance": "Committed multi-protocol catalog or configured Honua catalog.",
-        "attribution": "Source attribution is retained per selected service.",
-        "freshness": "Metadata cache and live observation timestamps.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables.",
-        "configClassifications": [
-          {
-            "name": "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_API_KEY",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_BASE_URL",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_LAYER_ID",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_MAP_MOVE_DEBOUNCE_MS",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_MODE",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_RESULT_RECORD_COUNT",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_SOURCE_ID",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_SERVICE_EXPLORER_WHERE",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          }
-        ]
+        "authMode": "anonymous",
+        "config": [],
+        "provenance": "Same-origin deterministic OGC fixture observations or a user-supplied anonymous HTTP(S) endpoint inspected at runtime.",
+        "attribution": "Inspected source attribution remains visible; the maintained browser gate uses Honua synthetic OGC fixtures.",
+        "freshness": "Fixture replay is deterministic; runtime endpoints expose discovery metadata cache state separately from feature freshness.",
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -2215,16 +2148,18 @@
           ]
         },
         "live": {
-          "mode": "authenticated",
+          "mode": "public-live",
           "status": "planned",
           "commands": []
         }
       },
-      "expectedDegradation": "Unavailable admin metadata falls back to service discovery with a visible diagnostic.",
+      "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
       "validationProfile": "browser-lab",
       "validation": [
         "npm run demo:service-explorer:typecheck",
         "npm run demo:service-explorer:build",
+        "npx vitest run test/service-explorer-truth-model.test.ts",
+        "npx vitest run test/service-explorer-operation-model.test.ts",
         "npm run test:playwright:service-explorer"
       ]
     },
@@ -3181,16 +3116,8 @@
     {
       "id": "two-protocols",
       "route": "demo-two-protocols.html",
-      "ownership": "site-exception",
-      "exceptionReason": "The site currently owns the only three-protocol side-by-side implementation; replace it from the universal discovery flagship.",
-      "title": "Same data, three protocols",
-      "summary": "Compares GeoServices, OGC Features, and OData results.",
-      "capabilities": [
-        "interoperability",
-        "query"
-      ],
-      "track": "lab",
-      "supportTier": "experimental"
+      "ownership": "sdk-projection",
+      "sampleId": "service-explorer"
     },
     {
       "id": "wms-overlay",

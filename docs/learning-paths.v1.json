@@ -53,18 +53,25 @@
       "id": "connect",
       "title": "Connect and inspect sources",
       "outcome": "Discover services, layers, schemas, and capability gaps before choosing a workflow.",
-      "labels": ["fixture", "demo-live", "authenticated", "degraded"],
-      "degradationReason": "The current shell still uses the 0.1.x app-workspace compatibility shim; #399 owns its supported-import migration.",
+      "labels": ["fixture", "public-live", "degraded"],
+      "degradationReason": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
       "siteJourneyId": "connect-existing-gis",
       "guidePath": "docs/shared-client-contract.md",
       "sampleId": "service-explorer",
       "sourcePath": "examples/service-explorer",
-      "sourceEntry": "examples/service-explorer/src/data.ts",
+      "sourceEntry": "examples/service-explorer/src/main.ts",
       "docsPath": "examples/service-explorer/README.md",
       "typecheckScript": "demo:service-explorer:typecheck",
       "api": [
-        { "specifier": "@honua/sdk-js/contract", "symbols": ["createDataset"] },
-        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaClient"] }
+        {
+          "specifier": "@honua/sdk-js",
+          "symbols": ["createHonua", "executeQueryPlan", "explainQuery"]
+        },
+        { "specifier": "@honua/sdk-js/contract", "symbols": ["PROTOCOLS"] },
+        {
+          "specifier": "@honua/sdk-js/map",
+          "symbols": ["explainAutomaticSourceToMapLibre", "projectSourceToMapLibre"]
+        }
       ]
     },
     {
