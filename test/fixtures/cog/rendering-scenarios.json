@@ -1,0 +1,32 @@
+{
+  "wgs84": {
+    "format": "cog",
+    "width": 16,
+    "height": 16,
+    "crs": { "kind": "known", "authority": "EPSG", "code": "4326", "name": "WGS 84" },
+    "bands": [
+      { "index": 1, "dataType": "uint8", "colorInterpretation": "red", "nodata": 0 },
+      { "index": 2, "dataType": "uint8", "colorInterpretation": "green", "nodata": 0 },
+      { "index": 3, "dataType": "uint8", "colorInterpretation": "blue", "nodata": 0 }
+    ],
+    "resolution": { "x": 0.01, "y": 0.01, "unit": "degree" },
+    "footprint": {
+      "type": "Polygon",
+      "coordinates": [[[-158, 21.16], [-157.84, 21.16], [-157.84, 21], [-158, 21], [-158, 21.16]]]
+    },
+    "overviewDecimations": [2, 4, 8]
+  },
+  "webMercator": {
+    "format": "cog",
+    "width": 16,
+    "height": 16,
+    "crs": { "kind": "known", "authority": "EPSG", "code": "3857", "name": "WGS 84 / Pseudo-Mercator" },
+    "bands": [{ "index": 1, "dataType": "uint8", "colorInterpretation": "gray", "nodata": 0 }],
+    "resolution": { "x": 1000, "y": 1000, "unit": "metre" },
+    "footprint": {
+      "type": "Polygon",
+      "coordinates": [[[0, 16000], [16000, 16000], [16000, 0], [0, 0], [0, 16000]]]
+    },
+    "overviewDecimations": [2, 4, 8]
+  }
+}

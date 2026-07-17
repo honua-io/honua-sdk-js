@@ -27,6 +27,7 @@ const MAX_BANDS = 1024;
 const MAX_FOOTPRINT_POSITIONS = 10_000;
 const MAX_OVERVIEWS = 64;
 const MAX_DIMENSION = 2_147_483_647;
+const RESAMPLING_METHODS = new Set(["nearest", "bilinear"]);
 
 export interface ValidatedCogCandidate {
   readonly assetUrl: string;
@@ -133,7 +134,10 @@ export function normalizeWindowRequest(
   if (x + width > metadata.width || y + height > metadata.height) {
     throw new HonuaCogError("invalid-window", "The COG pixel window extends outside the inspected raster.");
   }
-  const pixels = width * height;
+  const sampling = normalizeWindowSampling(value.sampling, width, height, metadata.overviewDecimations);
+  const outputWidth = sampling?.width ?? width;
+  const outputHeight = sampling?.height ?? height;
+  const pixels = outputWidth * outputHeight;
   if (!Number.isSafeInteger(pixels) || pixels > limits.maxWindowPixels) {
     throw new HonuaCogError(
       "invalid-window",
@@ -149,7 +153,14 @@ export function normalizeWindowRequest(
   if (new Set(bands).size !== bands.length || bands.some((band) => !availableBands.has(band))) {
     throw new HonuaCogError("invalid-window", "COG window bands must be unique inspected band indices.");
   }
-  return Object.freeze({ x, y, width, height, bands: Object.freeze(bands) });
+  return Object.freeze({
+    x,
+    y,
+    width,
+    height,
+    bands: Object.freeze(bands),
+    ...(sampling ? { sampling } : {}),
+  });
 }
 
 export function normalizeDecodedWindow(
@@ -157,12 +168,9 @@ export function normalizeDecodedWindow(
   request: CogWindowRequest,
   limits: CogTransferLimits,
 ): readonly CogBandWindow[] {
-  if (
-    !isObject(value) ||
-    value.width !== request.width ||
-    value.height !== request.height ||
-    !Array.isArray(value.bands)
-  ) {
+  const outputWidth = request.sampling?.width ?? request.width;
+  const outputHeight = request.sampling?.height ?? request.height;
+  if (!isObject(value) || value.width !== outputWidth || value.height !== outputHeight || !Array.isArray(value.bands)) {
     throw new HonuaCogError("invalid-window", "The COG decoder returned a window with mismatched dimensions.");
   }
   const requestedBands = request.bands ?? [];
@@ -171,7 +179,7 @@ export function normalizeDecodedWindow(
   }
   const byBand = new Map<number, CogSampleArray>();
   let decodedBytes = 0;
-  const expectedSamples = request.width * request.height;
+  const expectedSamples = outputWidth * outputHeight;
   for (const entry of value.bands) {
     if (
       !isObject(entry) ||
@@ -200,6 +208,31 @@ export function normalizeDecodedWindow(
   return Object.freeze(
     requestedBands.map((band) => Object.freeze({ band, values: cloneSampleArray(byBand.get(band)!) })),
   );
+}
+
+function normalizeWindowSampling(
+  value: CogWindowRequest["sampling"],
+  nativeWidth: number,
+  nativeHeight: number,
+  advertisedOverviews: readonly number[] | undefined,
+): CogWindowRequest["sampling"] {
+  if (value === undefined) return undefined;
+  if (!isObject(value)) {
+    throw new HonuaCogError("invalid-window", "COG window sampling must be a bounded output descriptor.");
+  }
+  const width = positiveInteger(value.width, nativeWidth, "sampled window width", "invalid-window");
+  const height = positiveInteger(value.height, nativeHeight, "sampled window height", "invalid-window");
+  if (!RESAMPLING_METHODS.has(value.resampling)) {
+    throw new HonuaCogError("invalid-window", "COG window resampling must be nearest or bilinear.");
+  }
+  const overviewDecimation = value.overviewDecimation;
+  if (typeof overviewDecimation !== "number" || !Number.isFinite(overviewDecimation) || overviewDecimation <= 0) {
+    throw new HonuaCogError("invalid-window", "COG window overview decimation must be positive and finite.");
+  }
+  if (overviewDecimation !== 1 && !(advertisedOverviews ?? []).includes(overviewDecimation)) {
+    throw new HonuaCogError("invalid-window", "COG window sampling selected an overview not advertised by inspection.");
+  }
+  return Object.freeze({ width, height, resampling: value.resampling, overviewDecimation });
 }
 
 function normalizeCrs(value: CogDecodedMetadata["crs"]): CogCrs {

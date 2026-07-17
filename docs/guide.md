@@ -663,7 +663,9 @@ for await (const item of stac.searchStream({ collections: ["sentinel-2"] })) {
 Static STAC discovery also exposes evidence-classified COG asset candidates.
 The experimental [`@honua/sdk-js/cog`](./cog.md) subpath accepts those
 candidates for bounded metadata and pixel-window range reads through a
-caller-injected decoder; it never guesses COG support from a filename suffix or
+caller-injected decoder. Its opt-in MapLibre bridge selects bounded
+viewport/overview windows and emits a native image source without importing a
+raster or renderer peer; it never guesses COG support from a filename suffix or
 falls back to a whole-file download.
 
 See [`docs/ogc-api.md`](./docs/ogc-api.md) for the full developer
