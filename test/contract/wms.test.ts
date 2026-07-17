@@ -659,7 +659,7 @@ describe("wms / MapLibre binding", () => {
   it("uses a validated non-default tileSize and preserves safe endpoint query parameters", () => {
     const spec = buildWmsRasterSourceSpec(
       mapLibreWmsDescriptor(
-        "https://mock.honua.test/rest/services/imagery/MapServer/WMS?tenant=oahu&SERVICE=stale&width=999",
+        "https://mock.honua.test/rest/services/imagery/MapServer/WMS?tenant=oahu&SERVICE=stale&SRS=EPSG%3A4326&width=999",
       ),
       { tileSize: 512, format: "image/webp", transparent: false },
     );
@@ -669,6 +669,7 @@ describe("wms / MapLibre binding", () => {
     expect(spec.tileSize).toBe(512);
     expect(params.get("tenant")).toBe("oahu");
     expect(params.get("SERVICE")).toBe("WMS");
+    expect(params.has("SRS")).toBe(false);
     expect(params.get("FORMAT")).toBe("image/webp");
     expect(params.get("TRANSPARENT")).toBe("FALSE");
     expect(params.get("BBOX")).toBe("{bbox-epsg-3857}");

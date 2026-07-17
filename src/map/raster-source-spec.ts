@@ -47,6 +47,7 @@ const WMS_REQUEST_KEYS = new Set([
   "LAYERS",
   "REQUEST",
   "SERVICE",
+  "SRS",
   "STYLES",
   "TRANSPARENT",
   "VERSION",
