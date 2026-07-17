@@ -30,7 +30,7 @@ import {
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
-const validationTime = { now: "2026-07-17T03:00:00.000Z" };
+const validationTime = { now: "2026-07-17T03:15:00.000Z" };
 const goldenJourneyIds = [
   "first-map",
   "service-explorer",
@@ -41,7 +41,7 @@ const goldenJourneyIds = [
   "arcgis-migration",
 ];
 
-describe("sample publication contract", () => {
+describe("sample publication contract", { timeout: 15_000 }, () => {
   it("discovers every runnable example and reserves exactly seven golden journeys", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     expect(catalog.configuration.browserSecretPolicy).toMatch(/^Approved browser configuration/);

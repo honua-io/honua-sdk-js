@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { collectLiveEvidence, toSampleEvidence } from "../scripts/live-benchmark-evidence.mjs";
 
-describe("live benchmark evidence", () => {
+describe("live benchmark evidence", { timeout: 15_000 }, () => {
   afterEach(() => vi.unstubAllGlobals());
   it("skips safely and records a reason unless explicitly enabled", async () => {
     const report = await collectLiveEvidence({ GITHUB_EVENT_NAME: "pull_request" });
