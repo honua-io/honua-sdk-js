@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
@@ -45,6 +47,18 @@ const goldenJourneyIds = [
   "cloud-native-analysis",
   "arcgis-migration",
 ];
+type MatrixSampleRecord = { sourcePath: string };
+type MatrixEvidenceBindingRecord = {
+  sampleId: string;
+  source: { revision: string; evidenceNeutralSha256: string };
+  packed: {
+    reportPath: string;
+    receiptPath: string;
+    receiptSha256: string;
+    observedAt: string;
+    expiresAt: string;
+  };
+};
 
 describe("sample publication contract", () => {
   it("discovers every runnable example and reserves exactly seven golden journeys", async () => {
@@ -178,6 +192,13 @@ describe("sample publication contract", () => {
           { id: "desktop", viewport: { width: 1280, height: 720 } },
           { id: "mobile", viewport: { width: 390, height: 844 } },
         ],
+        screenshotReproducibility: {
+          reportFormat: "honua.sdk.sample-screenshot-gate.v3",
+          captureCount: 2,
+          comparison: "byte-identical",
+          animations: "disabled",
+          stabilization: ["fonts-ready", "scroll-origin", "double-animation-frame"],
+        },
       },
       qualifiedGoldenJourneys: [],
     });
@@ -347,6 +368,75 @@ describe("sample publication contract", () => {
         verifyEvidenceFiles: false,
       }),
     ).resolves.toBeUndefined();
+
+    const forgedEvidenceRoot = await mkdtemp(path.join(os.tmpdir(), "honua-matrix-forged-evidence-"));
+    try {
+      for (const sample of matrix.samples as MatrixSampleRecord[]) {
+        await mkdir(path.join(forgedEvidenceRoot, sample.sourcePath), { recursive: true });
+      }
+      const forgedMatrix = structuredClone(matrix);
+      const forgedBinding = forgedMatrix.evidenceBindings[0] as unknown as MatrixEvidenceBindingRecord;
+      const producerBytes = Buffer.from("// bounded forged-evidence producer fixture\n");
+      await mkdir(path.join(forgedEvidenceRoot, "scripts"), { recursive: true });
+      await writeFile(path.join(forgedEvidenceRoot, "scripts/sample-runner.mjs"), producerBytes);
+      const report = {
+        format: "honua.sdk.sample-packed-build-gate.v1",
+        sampleId: forgedBinding.sampleId,
+        sourceRevision: forgedBinding.source.revision,
+        command: ["npm", "run", "forged-packed-build"],
+        sdkMode: "packed",
+      };
+      const reportBytes = Buffer.from(`${JSON.stringify(report, null, 2)}\n`);
+      await mkdir(path.dirname(path.join(forgedEvidenceRoot, forgedBinding.packed.reportPath)), {
+        recursive: true,
+      });
+      await writeFile(path.join(forgedEvidenceRoot, forgedBinding.packed.reportPath), reportBytes);
+      const runRoot = forgedBinding.packed.reportPath.slice(0, -"/artifacts/packed-build.json".length);
+      const receipt = {
+        format: "honua.sdk.sample-gate-receipt.v1",
+        schemaVersion: 1,
+        sampleId: forgedBinding.sampleId,
+        gate: "packed-build",
+        status: "passed",
+        sdkMode: "packed",
+        sourceRevision: forgedBinding.source.revision,
+        sourceDigest: forgedBinding.source.evidenceNeutralSha256,
+        runRoot,
+        command: { argv: ["npm", "run", "expected-packed-build"] },
+        producer: {
+          id: "honua-sdk-sample-runner",
+          version: 1,
+          path: "scripts/sample-runner.mjs",
+          sha256: createHash("sha256").update(producerBytes).digest("hex"),
+        },
+        observedAt: forgedBinding.packed.observedAt,
+        expiresAt: forgedBinding.packed.expiresAt,
+        durationMs: 1,
+        artifacts: [
+          {
+            kind: "packed-build-report",
+            path: forgedBinding.packed.reportPath,
+            bytes: reportBytes.byteLength,
+            sha256: createHash("sha256").update(reportBytes).digest("hex"),
+          },
+        ],
+      };
+      const receiptBytes = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`);
+      await mkdir(path.dirname(path.join(forgedEvidenceRoot, forgedBinding.packed.receiptPath)), {
+        recursive: true,
+      });
+      await writeFile(path.join(forgedEvidenceRoot, forgedBinding.packed.receiptPath), receiptBytes);
+      forgedBinding.packed.receiptSha256 = createHash("sha256").update(receiptBytes).digest("hex");
+      await expect(
+        validateCapabilitySampleMatrix(forgedMatrix, {
+          now: validationTime.now,
+          projectRoot: forgedEvidenceRoot,
+          verifyCheckout: false,
+        }),
+      ).rejects.toThrow("packed-build report command mismatch");
+    } finally {
+      await rm(forgedEvidenceRoot, { recursive: true, force: true });
+    }
     await expect(
       validateCapabilitySampleMatrix(matrix, {
         now: validationTime.now,
@@ -402,6 +492,75 @@ describe("sample publication contract", () => {
     await expect(validateCapabilitySampleMatrix(orphanedSource)).rejects.toThrow(
       "capability matrix source path is orphaned",
     );
+
+    const missingExport = structuredClone(partialMatrix);
+    missingExport.entrypoints[0].exportPresent = false;
+    await expect(validateCapabilitySampleMatrix(missingExport)).rejects.toThrow(
+      /JSON Schema validation failed|package entrypoint export parity is false/,
+    );
+
+    const duplicateCases: Array<[string, (candidate: typeof partialMatrix) => void]> = [
+      [
+        "capability matrix golden journey IDs must be unique",
+        (candidate) => {
+          candidate.goldenJourneys[1].id = candidate.goldenJourneys[0].id;
+        },
+      ],
+      [
+        "capability matrix protocol cell IDs must be unique",
+        (candidate) => {
+          candidate.protocolOperations[1].id = candidate.protocolOperations[0].id;
+        },
+      ],
+      [
+        "capability matrix support claim IDs must be unique",
+        (candidate) => {
+          candidate.supportClaims[1].id = candidate.supportClaims[0].id;
+        },
+      ],
+      [
+        "capability matrix entrypoint subpaths must be unique",
+        (candidate) => {
+          candidate.entrypoints[1].subpath = candidate.entrypoints[0].subpath;
+        },
+      ],
+      [
+        "capability matrix gap identities must be unique",
+        (candidate) => {
+          candidate.gaps[1].targetType = candidate.gaps[0].targetType;
+          candidate.gaps[1].targetId = candidate.gaps[0].targetId;
+        },
+      ],
+    ];
+    for (const [message, mutate] of duplicateCases) {
+      const duplicate = structuredClone(partialMatrix);
+      mutate(duplicate);
+      await expect(validateCapabilitySampleMatrix(duplicate)).rejects.toThrow(message);
+    }
+
+    const symlinkRoot = await mkdtemp(path.join(os.tmpdir(), "honua-matrix-source-symlink-"));
+    const externalExamples = await mkdtemp(path.join(os.tmpdir(), "honua-matrix-external-examples-"));
+    try {
+      for (const sample of partialMatrix.samples as MatrixSampleRecord[]) {
+        if (sample.sourcePath.startsWith("examples/")) {
+          await mkdir(path.join(externalExamples, sample.sourcePath.slice("examples/".length)), {
+            recursive: true,
+          });
+        } else {
+          await mkdir(path.join(symlinkRoot, sample.sourcePath), { recursive: true });
+        }
+      }
+      await symlink(externalExamples, path.join(symlinkRoot, "examples"), "dir");
+      await expect(
+        validateCapabilitySampleMatrix(partialMatrix, {
+          projectRoot: symlinkRoot,
+          verifyEvidenceFiles: false,
+        }),
+      ).rejects.toThrow("capability matrix source path component is a symlink: examples");
+    } finally {
+      await rm(symlinkRoot, { recursive: true, force: true });
+      await rm(externalExamples, { recursive: true, force: true });
+    }
   });
 
   it("derives release versions without catalog edits and still detects semantic drift", async () => {

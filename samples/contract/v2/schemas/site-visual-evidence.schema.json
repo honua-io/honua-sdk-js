@@ -23,6 +23,7 @@
       "required": [
         "requiredScreenshotVariants",
         "requiredSemanticGates",
+        "screenshotReproducibility",
         "executableSourceOwner",
         "presentationOwner"
       ],
@@ -65,6 +66,18 @@
             "fixture",
             "live"
           ]
+        },
+        "screenshotReproducibility": {
+          "type": "object",
+          "required": ["reportFormat", "captureCount", "comparison", "animations", "stabilization"],
+          "properties": {
+            "reportFormat": { "const": "honua.sdk.sample-screenshot-gate.v3" },
+            "captureCount": { "const": 2 },
+            "comparison": { "const": "byte-identical" },
+            "animations": { "const": "disabled" },
+            "stabilization": { "const": ["fonts-ready", "scroll-origin", "double-animation-frame"] }
+          },
+          "additionalProperties": false
         },
         "executableSourceOwner": { "const": "honua-io/honua-sdk-js" },
         "presentationOwner": { "const": "honua-io/honua-site" }
@@ -117,15 +130,20 @@
       "type": "object",
       "required": [
         "variant",
+        "projectName",
+        "browserName",
         "sourcePath",
         "publicationPath",
         "mediaType",
         "viewport",
         "bytes",
-        "sha256"
+        "sha256",
+        "reproducibility"
       ],
       "properties": {
         "variant": { "enum": ["desktop", "mobile"] },
+        "projectName": { "type": "string", "minLength": 1 },
+        "browserName": { "enum": ["chromium", "firefox", "webkit"] },
         "sourcePath": {
           "type": "string",
           "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/artifacts/screenshot-(?:desktop|mobile)\\.png$"
@@ -145,7 +163,22 @@
           "additionalProperties": false
         },
         "bytes": { "type": "integer", "minimum": 1 },
-        "sha256": { "$ref": "#/$defs/sha256" }
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "reproducibility": {
+          "type": "object",
+          "required": ["captureCount", "comparison", "repeatSourcePath", "repeatBytes", "repeatSha256"],
+          "properties": {
+            "captureCount": { "const": 2 },
+            "comparison": { "const": "byte-identical" },
+            "repeatSourcePath": {
+              "type": "string",
+              "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/artifacts/screenshot-(?:desktop|mobile)-repeat\\.png$"
+            },
+            "repeatBytes": { "type": "integer", "minimum": 1 },
+            "repeatSha256": { "$ref": "#/$defs/sha256" }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },

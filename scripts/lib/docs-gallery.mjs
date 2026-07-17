@@ -169,7 +169,10 @@ export async function verifyGalleryProjectionIntegrity({
   deepFreezeJson(capabilityMatrix);
   await validateSiteProjection(projection);
   await validateSiteVisualEvidence(visualEvidence, projection);
-  await validateCapabilitySampleMatrix(capabilityMatrix);
+  // The portable site handoff has no SDK checkout or receipt tree. SDK-side
+  // generation verifies those files; this boundary revalidates the complete
+  // relational matrix and its content-bound handoff digests.
+  await validateCapabilitySampleMatrix(capabilityMatrix, { verifyEvidenceFiles: false });
   invariant(
     capabilityMatrix.sdk.package === projection.catalog.package &&
       capabilityMatrix.sdk.version === projection.catalog.version,
@@ -694,7 +697,9 @@ export async function verifyGalleryVisualAssets(gallery, readAsset) {
       const publicationPath = validatedVisualPublicationPath(screenshot, card.sample.id);
       invariant(!publicationPaths.has(publicationPath), `duplicate gallery visual publication path ${publicationPath}`);
       publicationPaths.add(publicationPath);
-      const bytes = Buffer.from(await readAsset(screenshot.sourcePath));
+      const sourceAsset = await readAsset(screenshot.sourcePath);
+      invariant(sourceAsset !== undefined && sourceAsset !== null, `${card.sample.id} visual source asset is missing`);
+      const bytes = Buffer.from(sourceAsset);
       invariant(
         bytes.byteLength === screenshot.bytes && sha256(bytes) === screenshot.sha256,
         `${card.sample.id} ${screenshot.variant} screenshot bytes do not match visual evidence`,
@@ -706,6 +711,40 @@ export async function verifyGalleryVisualAssets(gallery, readAsset) {
       invariant(
         dimensions.width === screenshot.viewport.width && dimensions.height === screenshot.viewport.height,
         `${card.sample.id} ${screenshot.variant} PNG dimensions do not match its declared viewport`,
+      );
+      invariant(
+        safeRepositoryRelativeUrl(screenshot.reproducibility.repeatSourcePath) ===
+            screenshot.reproducibility.repeatSourcePath &&
+          new RegExp(
+            `^samples/evidence/${card.sample.id}/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/artifacts/screenshot-${screenshot.variant}-repeat\\.png$`,
+          ).test(screenshot.reproducibility.repeatSourcePath),
+        `${card.sample.id} repeat visual source path is unsafe`,
+      );
+      const repeatAsset = await readAsset(screenshot.reproducibility.repeatSourcePath);
+      invariant(
+        repeatAsset !== undefined && repeatAsset !== null,
+        `${card.sample.id} repeat visual source asset is missing`,
+      );
+      const repeatBytes = Buffer.from(repeatAsset);
+      invariant(
+        repeatBytes.byteLength === screenshot.reproducibility.repeatBytes &&
+          sha256(repeatBytes) === screenshot.reproducibility.repeatSha256,
+        `${card.sample.id} ${screenshot.variant} repeat screenshot bytes do not match visual evidence`,
+      );
+      const repeatDimensions = verifiedPngDimensions(
+        repeatBytes,
+        `${card.sample.id} ${screenshot.variant} repeat visual evidence`,
+      );
+      invariant(
+        repeatDimensions.width === screenshot.viewport.width &&
+          repeatDimensions.height === screenshot.viewport.height,
+        `${card.sample.id} ${screenshot.variant} repeat PNG dimensions do not match its declared viewport`,
+      );
+      invariant(
+        bytes.equals(repeatBytes) &&
+          screenshot.sha256 === screenshot.reproducibility.repeatSha256 &&
+          screenshot.bytes === screenshot.reproducibility.repeatBytes,
+        `${card.sample.id} ${screenshot.variant} captures are not byte-identical`,
       );
       assets.push({ publicationPath, bytes });
     }

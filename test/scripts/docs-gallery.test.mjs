@@ -16,6 +16,7 @@ import {
   verifyGalleryProjectionIntegrity,
   verifyGalleryVisualAssets,
 } from "../../scripts/lib/docs-gallery.mjs";
+import { generateCapabilitySampleMatrix } from "../../scripts/sample-contract.mjs";
 
 const projectionBytes = fs.readFileSync("samples/dist/honua-site-samples.v2.json", "utf8");
 const projection = JSON.parse(projectionBytes);
@@ -26,6 +27,10 @@ const capabilityMatrix = JSON.parse(capabilityMatrixBytes);
 const consumerFixture = JSON.parse(
   fs.readFileSync("samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json", "utf8"),
 );
+const catalog = JSON.parse(fs.readFileSync("samples/catalog.v2.json", "utf8"));
+const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const supportManifest = JSON.parse(fs.readFileSync("config/support-manifest.v1.json", "utf8"));
+const kitManifest = JSON.parse(fs.readFileSync("examples/_kit/manifest.v1.json", "utf8"));
 const repositorySourceResolver = (sample) => {
   const { docsPath } = sample.source;
   if (docsPath.startsWith("docs/") && docsPath.endsWith(".md")) {
@@ -115,43 +120,23 @@ function visualEvidenceForProjection(value) {
 }
 
 function matrixForEvidence(evidence, value = projection) {
-  const matrix = structuredClone(capabilityMatrix);
-  matrix.inputs.visualEvidence.sha256 = createHash("sha256").update(stableBytes(evidence)).digest("hex");
-  const evidenceBySample = new Map(evidence.qualifiedGoldenJourneys.map((entry) => [entry.sampleId, entry]));
-  for (const sample of matrix.samples) {
-    const entry = evidenceBySample.get(sample.id);
-    sample.qualification = entry
-      ? {
-          state: "qualified",
-          evidence: {
-            sourceRevision: entry.sourceRevision,
-            observedAt: entry.observedAt,
-            expiresAt: entry.expiresAt,
-            semanticGates: entry.semanticEvidence.map((item) => item.gate),
-            screenshotVariants: entry.screenshots.map((item) => item.variant),
-          },
-        }
-      : { state: sample.journeyId ? "planned" : "partial" };
+  const projectedCatalog = structuredClone(catalog);
+  for (const journey of projectedCatalog.goldenJourneys) {
+    journey.status = value.goldenJourneys.find((candidate) => candidate.id === journey.id).status;
   }
-  for (const journey of matrix.goldenJourneys) {
-    const projected = value.goldenJourneys.find((candidate) => candidate.id === journey.id);
-    journey.catalogStatus = projected.status;
-    journey.coverageState = evidenceBySample.has(journey.candidateSampleId) ? "qualified" : "planned";
+  for (const sample of projectedCatalog.samples) {
+    const projected = sampleById(value, sample.id);
+    sample.track = projected.track;
+    sample.lifecycle = structuredClone(projected.lifecycle);
+    sample.validationProfile = projected.validationProfile;
   }
-  matrix.gaps = [
-    ...matrix.gaps.filter((gap) => gap.targetType !== "golden-journey"),
-    ...matrix.goldenJourneys
-      .filter((journey) => journey.coverageState !== "qualified")
-      .map((journey) => ({
-        targetType: "golden-journey",
-        targetId: journey.id,
-        supportStatus: "supported",
-        coverageState: "planned",
-        candidateSampleIds: [journey.candidateSampleId],
-        reason: "The canonical journey remains planned until its complete receipt set is current.",
-      })),
-  ];
-  return matrix;
+  return generateCapabilitySampleMatrix(
+    projectedCatalog,
+    packageJson,
+    supportManifest,
+    kitManifest,
+    evidence,
+  );
 }
 
 function fixtureForProjection(
@@ -270,12 +255,21 @@ function qualifiedVisualFixture() {
     const digest = createHash("sha256").update(bytes).digest("hex");
     return {
       variant,
+      projectName: "chromium",
+      browserName: "chromium",
       sourcePath: `samples/evidence/${sample.id}/runs/${runId}/artifacts/screenshot-${variant}.png`,
       publicationPath: `assets/gallery-evidence/${sample.id}/${variant}-${digest.slice(0, 16)}.png`,
       mediaType: "image/png",
       viewport,
       bytes: bytes.byteLength,
       sha256: digest,
+      reproducibility: {
+        captureCount: 2,
+        comparison: "byte-identical",
+        repeatSourcePath: `samples/evidence/${sample.id}/runs/${runId}/artifacts/screenshot-${variant}-repeat.png`,
+        repeatBytes: bytes.byteLength,
+        repeatSha256: digest,
+      },
       fixtureBytes: bytes,
     };
   });
@@ -326,8 +320,12 @@ function qualifiedVisualFixture() {
       },
     },
   ];
-  const assets = new Map(screenshots.map((screenshot) => [screenshot.sourcePath, screenshot.fixtureBytes]));
-  for (const screenshot of screenshots) delete screenshot.fixtureBytes;
+  const assets = new Map();
+  for (const screenshot of screenshots) {
+    assets.set(screenshot.sourcePath, screenshot.fixtureBytes);
+    assets.set(screenshot.reproducibility.repeatSourcePath, screenshot.fixtureBytes);
+    delete screenshot.fixtureBytes;
+  }
   return { projection: qualifiedProjection, evidence, assets };
 }
 
@@ -336,8 +334,11 @@ function replaceScreenshotBytes(evidence, assets, variant, bytes) {
   const digest = createHash("sha256").update(bytes).digest("hex");
   screenshot.bytes = bytes.byteLength;
   screenshot.sha256 = digest;
+  screenshot.reproducibility.repeatBytes = bytes.byteLength;
+  screenshot.reproducibility.repeatSha256 = digest;
   screenshot.publicationPath = `assets/gallery-evidence/${screenshot.sourcePath.split("/")[2]}/${variant}-${digest.slice(0, 16)}.png`;
   assets.set(screenshot.sourcePath, bytes);
+  assets.set(screenshot.reproducibility.repeatSourcePath, bytes);
 }
 
 function occurrenceCount(value, pattern) {
@@ -742,10 +743,31 @@ test("publishes content-addressed desktop/mobile and semantic evidence only for 
   const card = galleryCards(gallery).find((candidate) => candidate.sample.id === "maplibre-quickstart");
   assert.equal(card.qualification.state, "receipt-qualified-golden");
   assert.deepEqual(
-    card.visualEvidence.screenshots.map(({ variant, viewport }) => ({ variant, viewport })),
+    card.visualEvidence.screenshots.map(({ variant, projectName, browserName, viewport, reproducibility }) => ({
+      variant,
+      projectName,
+      browserName,
+      viewport,
+      captureCount: reproducibility.captureCount,
+      comparison: reproducibility.comparison,
+    })),
     [
-      { variant: "desktop", viewport: { width: 1280, height: 720 } },
-      { variant: "mobile", viewport: { width: 390, height: 844 } },
+      {
+        variant: "desktop",
+        projectName: "chromium",
+        browserName: "chromium",
+        viewport: { width: 1280, height: 720 },
+        captureCount: 2,
+        comparison: "byte-identical",
+      },
+      {
+        variant: "mobile",
+        projectName: "chromium",
+        browserName: "chromium",
+        viewport: { width: 390, height: 844 },
+        captureCount: 2,
+        comparison: "byte-identical",
+      },
     ],
   );
   assert.deepEqual(
@@ -769,6 +791,21 @@ test("publishes content-addressed desktop/mobile and semantic evidence only for 
   await assert.rejects(
     () => verifyGalleryVisualAssets(gallery, () => Buffer.from("tampered")),
     /screenshot bytes do not match visual evidence/,
+  );
+
+  const repeatPath = card.visualEvidence.screenshots[0].reproducibility.repeatSourcePath;
+  const missingRepeat = new Map(fixture.assets);
+  missingRepeat.delete(repeatPath);
+  await assert.rejects(
+    () => verifyGalleryVisualAssets(gallery, (sourcePath) => missingRepeat.get(sourcePath)),
+    /repeat visual source asset is missing/,
+  );
+
+  const tamperedRepeat = new Map(fixture.assets);
+  tamperedRepeat.set(repeatPath, Buffer.from("tampered repeat"));
+  await assert.rejects(
+    () => verifyGalleryVisualAssets(gallery, (sourcePath) => tamperedRepeat.get(sourcePath)),
+    /repeat screenshot bytes do not match visual evidence/,
   );
 });
 
@@ -826,6 +863,21 @@ test("fails publication when qualified golden visual evidence is missing or inco
   await assert.rejects(
     () => verifiedGallery(fixture.projection, { evidence: incomplete }),
     /JSON Schema validation failed/,
+  );
+
+  const crossRunRepeat = structuredClone(fixture.evidence);
+  crossRunRepeat.qualifiedGoldenJourneys[0].screenshots[0].reproducibility.repeatSourcePath =
+    "samples/evidence/maplibre-quickstart/runs/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/artifacts/screenshot-desktop-repeat.png";
+  await assert.rejects(
+    () => verifiedGallery(fixture.projection, { evidence: crossRunRepeat }),
+    /desktop visual publication binding drift/,
+  );
+
+  const mixedBrowser = structuredClone(fixture.evidence);
+  mixedBrowser.qualifiedGoldenJourneys[0].screenshots[1].browserName = "firefox";
+  await assert.rejects(
+    () => verifiedGallery(fixture.projection, { evidence: mixedBrowser }),
+    /screenshot run, project, or browser provenance drift/,
   );
 
   const stale = structuredClone(fixture.evidence);

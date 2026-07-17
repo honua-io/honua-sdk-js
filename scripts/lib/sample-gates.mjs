@@ -4,6 +4,13 @@ export const SAMPLE_SCREENSHOT_VARIANTS = Object.freeze([
   Object.freeze({ id: "desktop", viewport: Object.freeze({ width: 1280, height: 720 }) }),
   Object.freeze({ id: "mobile", viewport: Object.freeze({ width: 390, height: 844 }) }),
 ]);
+export const SAMPLE_SCREENSHOT_REPORT_FORMAT = "honua.sdk.sample-screenshot-gate.v3";
+export const SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY = Object.freeze({
+  captureCount: 2,
+  comparison: "byte-identical",
+  animations: "disabled",
+  stabilization: Object.freeze(["fonts-ready", "scroll-origin", "double-animation-frame"]),
+});
 export const SAMPLE_SCREENSHOT_VIEWPORT = SAMPLE_SCREENSHOT_VARIANTS[0].viewport;
 export const SAMPLE_PERFORMANCE_METRIC = "sample-ready-duration";
 export const SAMPLE_PERFORMANCE_BUDGET_MS = 5_000;

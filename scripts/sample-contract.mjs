@@ -8,10 +8,15 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { expectedGateCommand, SAMPLE_SCREENSHOT_VARIANTS } from "./lib/sample-gates.mjs";
+import {
+  expectedGateCommand,
+  SAMPLE_SCREENSHOT_REPORT_FORMAT,
+  SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+  SAMPLE_SCREENSHOT_VARIANTS,
+} from "./lib/sample-gates.mjs";
 import {
   readCanonicalBoundedFile,
-  validateGateReceiptStructure,
+  validateGateReceipt,
   validateQualificationReceiptSet,
 } from "./sample-gate-receipt.mjs";
 
@@ -3449,19 +3454,35 @@ async function validateMatrixSourcePath(sample, projectRoot) {
     !sample.sourcePath.includes("\\") && path.posix.normalize(sample.sourcePath) === sample.sourcePath,
     `${sample.id}: capability matrix source path is not canonical`,
   );
-  let metadata;
-  try {
-    metadata = await lstat(path.join(projectRoot, sample.sourcePath));
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      throw new Error(`${sample.id}: capability matrix source path is orphaned: ${sample.sourcePath}`);
+  const components = sample.sourcePath.split("/");
+  let current = path.resolve(projectRoot);
+  for (let index = 0; index < components.length; index += 1) {
+    current = path.join(current, components[index]);
+    let metadata;
+    try {
+      metadata = await lstat(current);
+    } catch (error) {
+      if (error?.code === "ENOENT") {
+        throw new Error(`${sample.id}: capability matrix source path is orphaned: ${sample.sourcePath}`);
+      }
+      throw error;
     }
-    throw error;
+    invariant(
+      !metadata.isSymbolicLink(),
+      `${sample.id}: capability matrix source path component is a symlink: ${components.slice(0, index + 1).join("/")}`,
+    );
+    invariant(
+      index === components.length - 1
+        ? metadata.isDirectory() || metadata.isFile()
+        : metadata.isDirectory(),
+      `${sample.id}: capability matrix source path is not runnable repository content`,
+    );
   }
-  invariant(
-    (metadata.isDirectory() || metadata.isFile()) && !metadata.isSymbolicLink(),
-    `${sample.id}: capability matrix source path is not non-symlink runnable repository content`,
-  );
+}
+
+function validateUniqueMatrixIdentities(items, identity, label) {
+  const identities = items.map(identity);
+  invariant(new Set(identities).size === identities.length, `${label} must be unique`);
 }
 
 function validateMatrixCoverage(actual, supportStatus, candidates, qualified, label) {
@@ -3519,11 +3540,14 @@ async function validateMatrixPackedEvidence(binding, options) {
     `${binding.id}: packed capability receipt digest drift`,
   );
   const receipt = parseJsonDocument(receiptBytes.toString("utf8"), binding.packed.receiptPath);
-  validateGateReceiptStructure(receipt, {
+  await validateGateReceipt(receipt, {
     sampleId: binding.sampleId,
     gate: "packed-build",
     sourceRevision: binding.source.revision,
     sourceDigest: binding.source.evidenceNeutralSha256,
+    now: options.now,
+    projectRoot: options.projectRoot,
+    verifyCheckout: options.verifyCheckout,
   });
   invariant(
     receipt.sdkMode === "packed" &&
@@ -3531,29 +3555,6 @@ async function validateMatrixPackedEvidence(binding, options) {
       receipt.expiresAt === binding.packed.expiresAt &&
       receipt.artifacts[0].path === binding.packed.reportPath,
     `${binding.id}: packed capability receipt metadata drift`,
-  );
-  let reportBytes;
-  try {
-    reportBytes = await readCanonicalBoundedFile(options.projectRoot, binding.packed.reportPath, {
-      label: `${binding.sampleId} capability matrix packed report`,
-      maxBytes: 128 * 1024 * 1024,
-    });
-  } catch (error) {
-    if (error?.code === "ENOENT") throw new Error(`${binding.id}: packed capability report is missing`);
-    throw error;
-  }
-  invariant(
-    reportBytes.byteLength === receipt.artifacts[0].bytes &&
-      sha256(reportBytes) === receipt.artifacts[0].sha256,
-    `${binding.id}: packed capability report integrity drift`,
-  );
-  const report = parseJsonDocument(reportBytes.toString("utf8"), binding.packed.reportPath);
-  invariant(
-    report.format === "honua.sdk.sample-packed-build-gate.v1" &&
-      report.sampleId === binding.sampleId &&
-      report.sourceRevision === binding.source.revision &&
-      report.sdkMode === "packed",
-    `${binding.id}: packed capability report binding drift`,
   );
 }
 
@@ -3566,6 +3567,15 @@ export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
     "capability sample matrix sample IDs must be non-empty and unique",
   );
   const sampleById = new Map(matrix.samples.map((sample) => [sample.id, sample]));
+  validateUniqueMatrixIdentities(matrix.goldenJourneys, (journey) => journey.id, "capability matrix golden journey IDs");
+  validateUniqueMatrixIdentities(matrix.protocolOperations, (cell) => cell.id, "capability matrix protocol cell IDs");
+  validateUniqueMatrixIdentities(matrix.supportClaims, (claim) => claim.id, "capability matrix support claim IDs");
+  validateUniqueMatrixIdentities(matrix.entrypoints, (entrypoint) => entrypoint.subpath, "capability matrix entrypoint subpaths");
+  validateUniqueMatrixIdentities(
+    matrix.gaps,
+    (gap) => `${gap.targetType}:${gap.targetId}`,
+    "capability matrix gap identities",
+  );
   await Promise.all(matrix.samples.map((sample) => validateMatrixSourcePath(sample, projectRoot)));
 
   invariant(
@@ -3590,6 +3600,7 @@ export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
       now: inputs.now,
       projectRoot,
       verifyEvidenceFiles: inputs.verifyEvidenceFiles,
+      verifyCheckout: inputs.verifyCheckout,
     });
   }
   for (const sample of matrix.samples) {
@@ -3671,6 +3682,7 @@ export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
   }
 
   for (const entrypoint of matrix.entrypoints) {
+    invariant(entrypoint.exportPresent === true, `${entrypoint.subpath}: package entrypoint export parity is false`);
     invariant(
       entrypoint.candidateSampleIds.every((sampleId) => sampleById.has(sampleId)),
       `${entrypoint.subpath}: package entrypoint candidate is orphaned`,
@@ -3802,6 +3814,14 @@ export async function validateSiteVisualEvidence(evidence, projection, options =
     JSON.stringify(evidence.policy.requiredSemanticGates) === JSON.stringify(SITE_VISUAL_GATE_ORDER),
     "site visual evidence semantic gate policy drift",
   );
+  invariant(
+    JSON.stringify(evidence.policy.screenshotReproducibility) ===
+      JSON.stringify({
+        reportFormat: SAMPLE_SCREENSHOT_REPORT_FORMAT,
+        ...SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+      }),
+    "site visual evidence screenshot reproducibility policy drift",
+  );
   const entries = evidence.qualifiedGoldenJourneys;
   invariant(
     new Set(entries.map((entry) => entry.journeyId)).size === entries.length &&
@@ -3858,6 +3878,20 @@ export async function validateSiteVisualEvidence(evidence, projection, options =
         screenshot.variant === expected.id &&
           screenshot.sourcePath.startsWith(`samples/evidence/${entry.sampleId}/runs/`) &&
           screenshot.sourcePath.endsWith(`/artifacts/screenshot-${expected.id}.png`) &&
+          screenshot.reproducibility.repeatSourcePath.startsWith(
+            `samples/evidence/${entry.sampleId}/runs/`,
+          ) &&
+          screenshot.reproducibility.repeatSourcePath.endsWith(
+            `/artifacts/screenshot-${expected.id}-repeat.png`,
+          ) &&
+          screenshot.reproducibility.repeatSourcePath ===
+            screenshot.sourcePath.replace(/\.png$/u, "-repeat.png") &&
+          screenshot.reproducibility.captureCount ===
+            SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount &&
+          screenshot.reproducibility.comparison ===
+            SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison &&
+          screenshot.reproducibility.repeatBytes === screenshot.bytes &&
+          screenshot.reproducibility.repeatSha256 === screenshot.sha256 &&
           screenshot.publicationPath ===
             `assets/gallery-evidence/${entry.sampleId}/${expected.id}-${screenshot.sha256.slice(0, 16)}.png`,
         `${entry.sampleId}: ${expected.id} visual publication binding drift`,
@@ -3868,7 +3902,8 @@ export async function validateSiteVisualEvidence(evidence, projection, options =
       const itemExpiresAt = Date.parse(item.expiresAt);
       invariant(
         item.receiptPath === `samples/evidence/${entry.sampleId}/receipts/${item.gate}.v1.json` &&
-          item.reportPath.startsWith(`samples/evidence/${entry.sampleId}/runs/`),
+          item.reportPath.startsWith(`samples/evidence/${entry.sampleId}/runs/`) &&
+          item.reportPath.endsWith(`/artifacts/${item.gate}.json`),
         `${entry.sampleId}: ${item.gate} semantic evidence path binding drift`,
       );
       invariant(
@@ -3879,6 +3914,27 @@ export async function validateSiteVisualEvidence(evidence, projection, options =
         `${entry.sampleId}: ${item.gate} semantic evidence is stale or has an invalid observation window`,
       );
     }
+    const screenshotReceipt = entry.semanticEvidence.find((item) => item.gate === "screenshot");
+    const screenshotRunRoot = screenshotReceipt?.reportPath.slice(
+      0,
+      -"/artifacts/screenshot.json".length,
+    );
+    invariant(
+      screenshotRunRoot &&
+        entry.screenshots.every(
+          (screenshot) =>
+            screenshot.sourcePath.startsWith(`${screenshotRunRoot}/artifacts/`) &&
+            screenshot.reproducibility.repeatSourcePath.startsWith(
+              `${screenshotRunRoot}/artifacts/`,
+            ),
+        ) &&
+        new Set(
+          entry.screenshots.map(
+            (screenshot) => `${screenshot.projectName}:${screenshot.browserName}`,
+          ),
+        ).size === 1,
+      `${entry.sampleId}: screenshot run, project, or browser provenance drift`,
+    );
     const expectedObservedAt = new Date(
       Math.max(...entry.semanticEvidence.map((item) => Date.parse(item.observedAt))),
     ).toISOString();
@@ -4102,7 +4158,9 @@ export async function generateSiteVisualEvidence(catalog, projection, options = 
       "desktop/mobile visual handoff report",
     );
     invariant(
-      screenshotReport.format === "honua.sdk.sample-screenshot-gate.v2" &&
+      screenshotReport.format === SAMPLE_SCREENSHOT_REPORT_FORMAT &&
+        JSON.stringify(screenshotReport.reproducibilityPolicy) ===
+          JSON.stringify(SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY) &&
         Array.isArray(screenshotReport.screenshots) &&
         screenshotReport.screenshots.length === SAMPLE_SCREENSHOT_VARIANTS.length,
       `${sample.id}: visual handoff requires the desktop/mobile screenshot report`,
@@ -4117,12 +4175,21 @@ export async function generateSiteVisualEvidence(catalog, projection, options = 
       );
       return {
         variant: variant.id,
+        projectName: screenshot.projectName,
+        browserName: screenshot.browserName,
         sourcePath: screenshot.path,
         publicationPath: `assets/gallery-evidence/${sample.id}/${variant.id}-${screenshot.sha256.slice(0, 16)}.png`,
         mediaType: "image/png",
         viewport: { ...variant.viewport },
         bytes: screenshot.bytes,
         sha256: screenshot.sha256,
+        reproducibility: {
+          captureCount: screenshot.reproducibility.captureCount,
+          comparison: screenshot.reproducibility.comparison,
+          repeatSourcePath: screenshot.reproducibility.repeatPath,
+          repeatBytes: screenshot.reproducibility.repeatBytes,
+          repeatSha256: screenshot.reproducibility.repeatSha256,
+        },
       };
     });
 
@@ -4174,6 +4241,10 @@ export async function generateSiteVisualEvidence(catalog, projection, options = 
         viewport: { ...variant.viewport },
       })),
       requiredSemanticGates: [...SITE_VISUAL_GATE_ORDER],
+      screenshotReproducibility: {
+        reportFormat: SAMPLE_SCREENSHOT_REPORT_FORMAT,
+        ...SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+      },
       executableSourceOwner: "honua-io/honua-sdk-js",
       presentationOwner: "honua-io/honua-site",
     },

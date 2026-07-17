@@ -15,7 +15,11 @@ import {
   parseSampleCommand,
 } from "./lib/sample-command.mjs";
 import { verifyPreparedSdkArtifact } from "./lib/prepared-sdk-artifact.mjs";
-import { expectedGateCommand, isSampleEvidenceRunId } from "./lib/sample-gates.mjs";
+import {
+  expectedGateCommand,
+  isSampleEvidenceRunId,
+  SAMPLE_SCREENSHOT_REPORT_FORMAT,
+} from "./lib/sample-gates.mjs";
 import {
   captureGateSourceSnapshot,
   createGateReceipt,
@@ -984,10 +988,11 @@ async function writeGateReport({
       sourceSnapshot.capturedAtMs,
     );
     report = {
-      format: "honua.sdk.sample-screenshot-gate.v2",
+      format: SAMPLE_SCREENSHOT_REPORT_FORMAT,
       sampleId: sample.id,
       sourceRevision: revision,
       command,
+      reproducibilityPolicy: producer.value.reproducibilityPolicy,
       screenshots: producer.value.screenshots,
     };
   } else if (gate === "performance") {

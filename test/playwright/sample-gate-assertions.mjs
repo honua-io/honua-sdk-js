@@ -10,6 +10,7 @@ import {
   isSampleEvidenceRunId,
   SAMPLE_PERFORMANCE_BUDGET_MS,
   SAMPLE_PERFORMANCE_METRIC,
+  SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
   SAMPLE_SCREENSHOT_VARIANTS,
 } from "../../scripts/lib/sample-gates.mjs";
 
@@ -65,14 +66,26 @@ async function writeBrowserEvidenceArtifacts({
     const screenshots = [];
     for (const variant of SAMPLE_SCREENSHOT_VARIANTS) {
       await page.setViewportSize(variant.viewport);
-      await page.evaluate(async () => {
-        await document.fonts?.ready;
-        scrollTo(0, 0);
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      });
+      const stabilize = () =>
+        page.evaluate(async () => {
+          await document.fonts?.ready;
+          scrollTo(0, 0);
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        });
+      await stabilize();
       const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), `screenshot-${variant.id}.png`);
       await page.screenshot({ path: screenshotPath, animations: "disabled", fullPage: false });
       const bytes = await readFile(screenshotPath);
+      await stabilize();
+      const repeatPath = path.join(
+        path.dirname(screenshotOutput.absolute),
+        `screenshot-${variant.id}-repeat.png`,
+      );
+      await page.screenshot({ path: repeatPath, animations: "disabled", fullPage: false });
+      const repeatBytes = await readFile(repeatPath);
+      if (!bytes.equals(repeatBytes)) {
+        throw new Error(`${variant.id} screenshot captures are not byte-identical`);
+      }
       screenshots.push({
         variant: variant.id,
         projectName,
@@ -81,9 +94,19 @@ async function writeBrowserEvidenceArtifacts({
         path: path.relative(process.cwd(), screenshotPath).replaceAll(path.sep, "/"),
         bytes: bytes.byteLength,
         sha256: createHash("sha256").update(bytes).digest("hex"),
+        reproducibility: {
+          captureCount: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount,
+          comparison: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison,
+          repeatPath: path.relative(process.cwd(), repeatPath).replaceAll(path.sep, "/"),
+          repeatBytes: repeatBytes.byteLength,
+          repeatSha256: createHash("sha256").update(repeatBytes).digest("hex"),
+        },
       });
     }
-    const report = { screenshots };
+    const report = {
+      reproducibilityPolicy: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+      screenshots,
+    };
     await writeFile(screenshotOutput.absolute, `${JSON.stringify(report, null, 2)}\n`);
   }
 

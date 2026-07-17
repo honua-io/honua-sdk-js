@@ -21,7 +21,12 @@ execution evidence so none of those meanings has to be inferred from another.
   names, credential material, and executable source are not copied to the site.
 - `site-visual-evidence.schema.json` binds each qualified golden journey to its
   complete semantic receipt set plus content-addressed 1280×720 desktop and
-  390×844 mobile PNGs. The generated
+  390×844 mobile PNGs. Each viewport is captured twice after fonts, scroll
+  position, and two animation frames settle; both persisted PNGs must be
+  byte-identical before the canonical capture can be published. The handoff
+  retains the Playwright project, browser engine, repeat artifact binding,
+  semantic/accessibility/responsive gates, provenance, and freshness window.
+  The generated
   `samples/dist/honua-site-visual-evidence.v1.json` is empty while no journey is
   qualified; a qualification without both screenshots and all nine current
   receipts fails generation instead of publishing a placeholder.
@@ -34,10 +39,13 @@ execution evidence so none of those meanings has to be inferred from another.
   normalized `evidenceBindings`: each binding names the SDK-owned runnable
   source path and evidence-neutral revision/digest plus the current
   `packed-build` receipt and report. Generation and `samples:verify` reject
-  unknown sample or binding IDs, missing source paths, expired receipts,
-  content-digest drift, and a `qualified` state that cannot be derived from
-  those bindings. Partial and experimental cells remain visible without being
-  promoted by otherwise successful sample evidence.
+  duplicate identities, unknown sample or binding IDs, missing or symlinked
+  source-path components, expired receipts, content-digest drift, and a
+  `qualified` state that cannot be derived from those bindings. Packed evidence
+  is revalidated as a complete receipt, including producer, checkout, report,
+  tarball, final build inventory, and resolution semantics. Partial and
+  experimental cells remain visible without being promoted by otherwise
+  successful sample evidence.
 - `honua-site-consumer.v3.json` is the versioned site handoff. It binds the v2
   metadata projection, v1 visual-evidence projection, and v1 capability matrix
   by schema and SHA-256, asserts exact qualified-journey and visible-gap
@@ -188,9 +196,12 @@ browser engine, first-attempt results, and finalized assertion attachment sets.
 Console assertions are finalized after quality checks, fixture teardown, and
 explicit closure of the pilot-owned page and browser context.
 Screenshot and performance receipts come from that exact browser workflow.
-Screenshot v2 binds the canonical evidence project and engine to an ordered
-desktop/mobile pair of structurally decoded PNGs at the contract viewports;
-performance binds positive monotonic navigation/resource/interaction measurements,
+Screenshot v3 binds the canonical evidence project and engine to an ordered
+desktop/mobile pair of structurally decoded PNGs at the contract viewports.
+It persists two stabilized captures per viewport and requires their bytes and
+SHA-256 digests to match exactly; legacy single-capture, missing-repeat, and
+tampered-repeat evidence cannot qualify.
+Performance binds positive monotonic navigation/resource/interaction measurements,
 sample-ready measurement, and budget. Fixture receipts prove loopback
 readiness, a real probe, and zero listeners or connections after shutdown.
 Packed receipts bind the package tarball and re-read a self-contained copy of

@@ -6,6 +6,12 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
+import { deflateSync } from "node:zlib";
+
+import {
+  SAMPLE_SCREENSHOT_REPORT_FORMAT,
+  SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+} from "../../scripts/lib/sample-gates.mjs";
 
 import {
   captureGateSourceSnapshot,
@@ -35,6 +41,9 @@ async function artifact(name, value, targetSampleId = sampleId) {
     file,
     Buffer.isBuffer(value) ? value : typeof value === "string" ? value : `${JSON.stringify(value, null, 2)}\n`,
   );
+  if (name.endsWith(".png")) {
+    await writeFile(file.replace(/\.png$/u, "-repeat.png"), value);
+  }
   return path.relative(process.cwd(), file).replaceAll(path.sep, "/");
 }
 
@@ -112,6 +121,7 @@ function undecodableViewportPng(extraChunks = []) {
 }
 
 function screenshotVariant(variant, imagePath, imageBytes, viewport) {
+  const repeatPath = imagePath.replace(/\.png$/u, "-repeat.png");
   return {
     variant,
     projectName: "chromium",
@@ -120,17 +130,43 @@ function screenshotVariant(variant, imagePath, imageBytes, viewport) {
     bytes: imageBytes.byteLength,
     sha256: digest(imageBytes),
     viewport,
+    reproducibility: {
+      captureCount: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount,
+      comparison: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison,
+      repeatPath,
+      repeatBytes: imageBytes.byteLength,
+      repeatSha256: digest(imageBytes),
+    },
   };
 }
 
 function screenshotReport(targetSampleId, screenshots) {
   return {
-    format: "honua.sdk.sample-screenshot-gate.v2",
+    format: SAMPLE_SCREENSHOT_REPORT_FORMAT,
     sampleId: targetSampleId,
     sourceRevision: revision,
     command: ["npm", "run", "test:playwright:receipt"],
+    reproducibilityPolicy: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
     screenshots,
   };
+}
+
+function grayscaleViewportPng(width, height, shade) {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 0;
+  const scanlines = Buffer.alloc((width + 1) * height);
+  for (let row = 0; row < height; row += 1) {
+    scanlines.fill(shade, row * (width + 1) + 1, (row + 1) * (width + 1));
+  }
+  return Buffer.concat([
+    Buffer.from("89504e470d0a1a0a", "hex"),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(scanlines)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
 }
 
 function playwrightGateReport({
@@ -401,6 +437,43 @@ test("screenshot evidence requires an ordered desktop/mobile pair", async () => 
   await assert.rejects(
     createGateReceipt(receiptOptions("screenshot", "screenshot-report", reportPath, targetSampleId)),
     /complete desktop\/mobile variant set/,
+  );
+});
+
+test("screenshot evidence rejects legacy single-capture reports", async () => {
+  const targetSampleId = "standalone-quickstart";
+  const legacy = screenshotReport(targetSampleId, []);
+  legacy.format = "honua.sdk.sample-screenshot-gate.v2";
+  delete legacy.reproducibilityPolicy;
+  const reportPath = await artifact("legacy-screenshot.json", legacy, targetSampleId);
+  await assert.rejects(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", reportPath, targetSampleId)),
+    /screenshot report format is invalid/,
+  );
+});
+
+test("screenshot evidence rejects a self-consistent but non-identical repeat capture", async () => {
+  const targetSampleId = "standalone-quickstart";
+  const desktopBytes = grayscaleViewportPng(1280, 720, 0x44);
+  const mobileBytes = grayscaleViewportPng(390, 844, 0x66);
+  const repeatDesktopBytes = grayscaleViewportPng(1280, 720, 0x45);
+  const desktopPath = await artifact("stable-desktop.png", desktopBytes, targetSampleId);
+  const mobilePath = await artifact("stable-mobile.png", mobileBytes, targetSampleId);
+  const screenshots = [
+    screenshotVariant("desktop", desktopPath, desktopBytes, { width: 1280, height: 720 }),
+    screenshotVariant("mobile", mobilePath, mobileBytes, { width: 390, height: 844 }),
+  ];
+  await writeFile(path.resolve(screenshots[0].reproducibility.repeatPath), repeatDesktopBytes);
+  screenshots[0].reproducibility.repeatBytes = repeatDesktopBytes.byteLength;
+  screenshots[0].reproducibility.repeatSha256 = digest(repeatDesktopBytes);
+  const reportPath = await artifact(
+    "non-identical-repeat-screenshot.json",
+    screenshotReport(targetSampleId, screenshots),
+    targetSampleId,
+  );
+  await assert.rejects(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", reportPath, targetSampleId)),
+    /captures are not byte-identical/,
   );
 });
 

@@ -12,6 +12,8 @@ import {
   isSampleEvidenceRunId,
   SAMPLE_PERFORMANCE_BUDGET_MS,
   SAMPLE_PERFORMANCE_METRIC,
+  SAMPLE_SCREENSHOT_REPORT_FORMAT,
+  SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
   SAMPLE_SCREENSHOT_VARIANTS,
 } from "./lib/sample-gates.mjs";
 
@@ -914,17 +916,23 @@ function declaredEvidenceProject(sampleId) {
 }
 
 async function validateScreenshotReport(report, receipt, root) {
-  invariant(report?.format === "honua.sdk.sample-screenshot-gate.v2", "screenshot report format is invalid");
+  invariant(report?.format === SAMPLE_SCREENSHOT_REPORT_FORMAT, "screenshot report format is invalid");
   invariant(report.sampleId === receipt.sampleId && report.sourceRevision === receipt.sourceRevision, "screenshot report binding mismatch");
+  invariant(
+    JSON.stringify(report.reproducibilityPolicy) ===
+      JSON.stringify(SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY),
+    "screenshot reproducibility policy is invalid",
+  );
   const evidenceProject = declaredEvidenceProject(receipt.sampleId);
   invariant(
     Array.isArray(report.screenshots) && report.screenshots.length === SAMPLE_SCREENSHOT_VARIANTS.length,
     "screenshot report must contain the complete desktop/mobile variant set",
   );
-  invariant(
-    new Set(report.screenshots.map((screenshot) => screenshot?.path)).size === SAMPLE_SCREENSHOT_VARIANTS.length,
-    "screenshot report paths must be unique",
-  );
+  const artifactPaths = report.screenshots.flatMap((screenshot) => [
+    screenshot?.path,
+    screenshot?.reproducibility?.repeatPath,
+  ]);
+  invariant(new Set(artifactPaths).size === SAMPLE_SCREENSHOT_VARIANTS.length * 2, "screenshot report paths must be unique");
   for (let index = 0; index < SAMPLE_SCREENSHOT_VARIANTS.length; index += 1) {
     const expected = SAMPLE_SCREENSHOT_VARIANTS[index];
     const screenshot = report.screenshots[index];
@@ -933,7 +941,11 @@ async function validateScreenshotReport(report, receipt, root) {
         screenshot.projectName === evidenceProject.name &&
         screenshot.browserName === evidenceProject.browserName &&
         screenshot.viewport?.width === expected.viewport.width &&
-        screenshot.viewport?.height === expected.viewport.height,
+        screenshot.viewport?.height === expected.viewport.height &&
+        screenshot.reproducibility?.captureCount ===
+          SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount &&
+        screenshot.reproducibility?.comparison ===
+          SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison,
       `screenshot report ${expected.id} variant is not bound to the declared project, browser, and viewport`,
     );
     const image = await verifiedArtifact(
@@ -950,6 +962,27 @@ async function validateScreenshotReport(report, receipt, root) {
     invariant(
       image.sha256 === screenshot.sha256 && image.bytes === screenshot.bytes,
       `screenshot ${expected.id} report digest mismatch`,
+    );
+    const repeat = await verifiedArtifact(
+      { kind: `screenshot-${expected.id}-repeat`, path: screenshot.reproducibility.repeatPath },
+      root,
+      receipt.sampleId,
+      receipt.runRoot,
+    );
+    const repeatDimensions = validatePng(repeat.content);
+    invariant(
+      repeatDimensions.width === screenshot.viewport.width &&
+        repeatDimensions.height === screenshot.viewport.height,
+      `screenshot ${expected.id} repeat PNG dimensions do not match the declared viewport`,
+    );
+    invariant(
+      repeat.sha256 === screenshot.reproducibility.repeatSha256 &&
+        repeat.bytes === screenshot.reproducibility.repeatBytes,
+      `screenshot ${expected.id} repeat report digest mismatch`,
+    );
+    invariant(
+      image.sha256 === repeat.sha256 && image.bytes === repeat.bytes && image.content.equals(repeat.content),
+      `screenshot ${expected.id} captures are not byte-identical`,
     );
   }
 }

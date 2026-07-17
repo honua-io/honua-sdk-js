@@ -146,6 +146,7 @@ export function validateCapabilitySampleMatrix(
     now?: string;
     projectRoot?: string;
     verifyEvidenceFiles?: boolean;
+    verifyCheckout?: boolean;
   },
 ): Promise<void>;
 export function validateSiteConsumerFixture(

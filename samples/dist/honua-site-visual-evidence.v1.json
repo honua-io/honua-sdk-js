@@ -35,6 +35,17 @@
       "fixture",
       "live"
     ],
+    "screenshotReproducibility": {
+      "reportFormat": "honua.sdk.sample-screenshot-gate.v3",
+      "captureCount": 2,
+      "comparison": "byte-identical",
+      "animations": "disabled",
+      "stabilization": [
+        "fonts-ready",
+        "scroll-origin",
+        "double-animation-frame"
+      ]
+    },
     "executableSourceOwner": "honua-io/honua-sdk-js",
     "presentationOwner": "honua-io/honua-site"
   },
