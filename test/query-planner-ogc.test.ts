@@ -97,7 +97,8 @@ describe("OGC API Features query planner", () => {
     });
     expect(execute).toHaveBeenCalledWith(expect.objectContaining(query));
     await expect(executeQueryPlan(plan, source, { sourceVersion: "v2" })).rejects.toMatchObject({
-      code: "plan-context-mismatch",
+      code: "stale-plan",
+      reason: "source-version-changed",
     });
   });
 
@@ -130,8 +131,11 @@ describe("OGC API Features query planner", () => {
       },
     });
     expect(plan.steps[1]).toMatchObject({ operation: "aggregate", maxRows: 100 });
-    expect(plan.warnings).toContain(
-      "OGC API Features may transfer geometry because /items has no portable geometry-suppression parameter.",
+    expect(plan.warnings).toContainEqual(
+      expect.objectContaining({
+        code: "geometry-transfer-required",
+        path: "$.steps[0].query.returnGeometry",
+      }),
     );
   });
 
@@ -181,6 +185,13 @@ describe("OGC API Features query planner", () => {
     expect(plan.steps[0]).toMatchObject({
       query: { pagination: { limit: 100 } },
       compiled: { compiler: "ogc-api-features-query-v1", limit: 101 },
+      bounds: { rows: { confidence: "bounded", lower: 0, upper: 101 } },
+    });
+    expect(plan.bounds.rows).toMatchObject({
+      confidence: "bounded",
+      source: "plan-summary",
+      lower: 0,
+      upper: 201,
     });
   });
 

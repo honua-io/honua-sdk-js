@@ -1,6 +1,7 @@
 import type { Query, Result, Source } from "../contract/types.js";
 import { HonuaAbortError } from "../core/errors.js";
 import { canonicalStringify, toJsonValue } from "./canonical.js";
+import { createPlanValidity, createQueryPlanProvenance } from "./diagnostics.js";
 import { queryFromCanonical, queryIrSourceIdentity, queryIrSourceIdentityV2 } from "./ir.js";
 import { aggregateLocally } from "./local-aggregate.js";
 import { validateQueryPlanSnapshot } from "./planner.js";
@@ -42,12 +43,76 @@ function assertPlanContext<T>(plan: QueryExecutionPlan, source: Source<T>, optio
     plan.version === "2.0"
       ? queryIrSourceIdentityV2(source.descriptor, plan.ir.source.geoparquet.resource, options)
       : queryIrSourceIdentity(source.descriptor, options);
-  if (canonicalStringify(toJsonValue(current)) !== canonicalStringify(toJsonValue(plan.ir.source))) {
-    throw new HonuaQueryPlanExecutionError(
-      "plan-context-mismatch",
-      "Source identity, version, capabilities, or authorization scope changed after planning; explain a replacement plan",
-    );
+  const executionMode = options.executionMode ?? plan.validity.executionMode;
+  const currentIr = { ...plan.ir, source: current } as QueryExecutionPlan["ir"];
+  const currentProvenance = createQueryPlanProvenance(source.descriptor, current, options);
+  const currentValidity = createPlanValidity(
+    currentIr,
+    currentProvenance,
+    plan.capabilityPolicy,
+    plan.fallback,
+    executionMode,
+  );
+  if (currentValidity.fingerprint === plan.validity.fingerprint) return;
+
+  if (!sameForeignSourceIdentity(current, plan.ir.source)) {
+    throw planContextError("foreign-plan", "source-identity-changed");
   }
+  if (!sameJson(current.authorizationScope, plan.ir.source.authorizationScope)) {
+    throw planContextError("foreign-plan", "authorization-scope-changed");
+  }
+  if (executionMode !== plan.validity.executionMode) {
+    throw planContextError("foreign-plan", "execution-mode-changed");
+  }
+  if (current.sourceVersion !== plan.ir.source.sourceVersion) {
+    throw planContextError("stale-plan", "source-version-changed");
+  }
+  if (
+    current.schemaVersion !== plan.ir.source.schemaVersion ||
+    !sameJson(currentProvenance.schema, plan.provenance.schema)
+  ) {
+    throw planContextError("stale-plan", "schema-changed");
+  }
+  if (!sameJson(current.capabilities, plan.ir.source.capabilities)) {
+    throw planContextError("stale-plan", "capabilities-changed");
+  }
+  if (!sameJson(currentProvenance.discovery, plan.provenance.discovery)) {
+    throw planContextError("stale-plan", "discovery-changed");
+  }
+  throw planContextError("stale-plan", "source-identity-changed");
+}
+
+function sameForeignSourceIdentity(
+  current: QueryExecutionPlan["ir"]["source"],
+  planned: QueryExecutionPlan["ir"]["source"],
+): boolean {
+  const omitMutableBindings = (value: QueryExecutionPlan["ir"]["source"]): Record<string, unknown> => {
+    const {
+      authorizationScope: _authorizationScope,
+      capabilities: _capabilities,
+      schemaVersion: _schemaVersion,
+      sourceVersion: _sourceVersion,
+      ...identity
+    } = value;
+    return identity;
+  };
+  return sameJson(omitMutableBindings(current), omitMutableBindings(planned));
+}
+
+function sameJson(left: unknown, right: unknown): boolean {
+  return canonicalStringify(toJsonValue(left)) === canonicalStringify(toJsonValue(right));
+}
+
+function planContextError(
+  code: "stale-plan" | "foreign-plan",
+  reason: NonNullable<HonuaQueryPlanExecutionError["reason"]>,
+): HonuaQueryPlanExecutionError {
+  return new HonuaQueryPlanExecutionError(
+    code,
+    `${code === "stale-plan" ? "Query plan context is stale" : "Query plan belongs to a foreign context"}; explain a replacement plan`,
+    { context: { reason } },
+    reason,
+  );
 }
 
 interface ResolvedGeoParquetPlanInput<T> {

@@ -107,7 +107,7 @@ function writeEvidence(output, evidence) {
 }
 
 function remainingBudgetMs(startedAt) {
-  return Math.max(1, QUICKSTART_BUDGET_MS - Math.max(0, os.uptime() * 1000 - startedAt));
+  return Math.max(1, Math.floor(QUICKSTART_BUDGET_MS - Math.max(0, os.uptime() * 1000 - startedAt)));
 }
 
 async function withTimeout(promise, timeoutMs, label) {

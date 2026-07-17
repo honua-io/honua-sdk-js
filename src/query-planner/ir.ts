@@ -59,6 +59,7 @@ export function hashQueryIr(ir: QueryIrV1 | QueryIrV2): `sha256:${string}` {
 
 export function canonicalizeQuery<T>(query?: Readonly<Query<T>>): CanonicalQuery {
   if (!query) return deepFreeze({});
+  if (query.where !== undefined) assertSafeNativeExpression(query.where);
   const canonical: CanonicalQuery = {
     ...(query.where !== undefined ? { where: { kind: "source-native" as const, expression: query.where } } : {}),
     ...(query.spatialFilter
@@ -122,9 +123,14 @@ export function queryIrSourceIdentity(
   context: Pick<ExplainQueryOptions, "authorizationScope" | "schemaVersion" | "sourceVersion"> = {},
 ): QueryIrSourceIdentity {
   const authorizationScope = [...new Set(context.authorizationScope ?? [])].sort();
+  if (authorizationScope.some((scope) => !isStableAuthorizationScope(scope))) {
+    throw new HonuaQueryPlanningError("invalid-query", "authorization scope identity is invalid");
+  }
   const geometryProperty = descriptor.schema?.fields?.find((field) => field.type === "esriFieldTypeGeometry")?.name;
   const geoparquet =
     descriptor.protocol === "geoparquet" ? geoparquetIdentity(descriptor, geometryProperty) : undefined;
+  const schemaVersion = optionalPlanMetadata(context.schemaVersion, "schema version");
+  const sourceVersion = optionalPlanMetadata(context.sourceVersion, "source version");
   return deepFreeze({
     id: descriptor.id,
     protocol: descriptor.protocol,
@@ -136,8 +142,8 @@ export function queryIrSourceIdentity(
     ...(descriptor.locator.entitySet !== undefined ? { entitySet: descriptor.locator.entitySet } : {}),
     ...(geometryProperty ? { geometryProperty } : {}),
     ...(descriptor.locator.srsName !== undefined ? { srsName: String(descriptor.locator.srsName) } : {}),
-    ...(context.schemaVersion !== undefined ? { schemaVersion: context.schemaVersion } : {}),
-    ...(context.sourceVersion !== undefined ? { sourceVersion: context.sourceVersion } : {}),
+    ...(schemaVersion ? { schemaVersion } : {}),
+    ...(sourceVersion ? { sourceVersion } : {}),
     ...(geoparquet ? { geoparquet } : {}),
     authorizationScope,
     capabilities: [...descriptor.capabilities].sort(),
@@ -196,10 +202,23 @@ export function queryIrSourceIdentityV2(
 
 function optionalPlanMetadata(value: unknown, label: string): string | undefined {
   if (value === undefined) return undefined;
-  if (typeof value !== "string" || value.length === 0 || value.length > 1_024 || containsControlCharacter(value)) {
-    throw new HonuaQueryPlanningError("invalid-query", `GeoParquet ${label} identity is invalid`);
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    new TextEncoder().encode(value).byteLength > 1_024 ||
+    containsControlCharacter(value) ||
+    containsCredentialMaterial(value)
+  ) {
+    throw new HonuaQueryPlanningError("invalid-query", `Query plan ${label} identity is invalid`);
   }
   return value;
+}
+
+const CREDENTIAL_MATERIAL =
+  /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\bBasic\s+[A-Za-z0-9+/=]{8,}|\bAKIA[0-9A-Z]{16}\b|[?&;](?:access[-_]?token|id[-_]?token|refresh[-_]?token|x-amz-signature|x-goog-credential|signature|sig|token|api[-_]?key|password|secret)=[^\s&#;]*|\b(?:authorization|password|secret|token|api[-_]?key|account[-_]?key|shared[-_]?access[-_]?signature)\s*(?:=|:)\s*[^\s,;]+|[a-z][a-z0-9+.-]*:\/\/[^/\s"'<>]*@|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
+
+function containsCredentialMaterial(value: string): boolean {
+  return CREDENTIAL_MATERIAL.test(value);
 }
 
 function containsControlCharacter(value: string): boolean {
@@ -221,6 +240,17 @@ function isStableAuthorizationScope(value: unknown): value is string {
     !value.split("/").some((segment) => segment === "." || segment === "..") &&
     !/^eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$/.test(value)
   );
+}
+
+function assertSafeNativeExpression(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 65_536 || containsControlCharacter(value)) {
+    throw new HonuaQueryPlanningError("invalid-query", "query.where is invalid");
+  }
+  const sensitive =
+    /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\bBasic\s+[A-Za-z0-9+/=]{8,}|\bAKIA[0-9A-Z]{16}\b|\b(?:authorization|password|secret|token|api[-_]?key)\s*(?:=|eq)\s*['"][^'"]{4,}['"]|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
+  if (sensitive.test(value)) {
+    throw new HonuaQueryPlanningError("invalid-query", "query.where contains sensitive native expression material");
+  }
 }
 
 /**

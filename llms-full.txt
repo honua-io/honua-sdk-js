@@ -1743,15 +1743,15 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-17 at commit `fa9ff008`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-17 at commit `cc89ac4d`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 444.4 KiB | 116.3 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 460.3 KiB | 120.9 KiB |
 | Importing only `HonuaClient` (tree-shake guard) | 210.5 KiB | 53.2 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 33.3 KiB | 10.8 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 36.0 KiB | 11.4 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 259.0 KiB | 68.3 KiB |
 | ArcGIS compatibility layer (drop-in migration surface) | 978.1 KiB | 243.2 KiB |
 | Geocoding client | 25.1 KiB | 7.3 KiB |
@@ -1772,8 +1772,8 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 444.4 KiB ≈
-1.43 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 460.3 KiB ≈
+1.45 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
 0.38 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.
@@ -2915,6 +2915,12 @@ const plan = explainQuery({
   descriptor,
   sourceVersion: "2026-07-10",
   authorizationScope: ["data:read"],
+  cache: {
+    policy: "require-fresh",
+    freshness: "stale",
+    validator: { kind: "etag", value: currentEtag },
+  },
+  discovery: { state: "metadata", source: "catalog:incidents" },
   query: {
     where: "status = 'open'",
     aggregation: {
@@ -2925,12 +2931,14 @@ const plan = explainQuery({
 });
 
 console.log(plan.fingerprint, plan.steps[0]?.compiled);
+console.log(plan.bounds, plan.cache, plan.fidelity, plan.provenance);
 
 // `source` is the matching Source from Dataset.source(...). Version and scope
 // are repeated so execution can reject a stale or differently-authorized plan.
 const execution = await executeQueryPlan(plan, source, {
   sourceVersion: "2026-07-10",
   authorizationScope: ["data:read"],
+  discovery: { state: "metadata", source: "catalog:incidents" },
 });
 console.log(execution.result.aggregateRows);
 ```
@@ -3157,6 +3165,43 @@ honua explain parcels:current --protocol geoparquet \
   --resource-version snapshot:42 --json
 ```
 
+## Structured diagnostics
+
+Every plan and every step carries `diagnosticsVersion: "1.0"` data. Step
+diagnostics sit beside the step's `engine` and `pushdown` decision so consumers
+do not have to infer safety or fidelity from prose:
+
+- `bounds` describes requests, rows, bytes, transfer bytes, serialized local
+  materialization bytes, and actual heap memory. Each quantity declares its
+  unit, evidence source, and `exact`, `bounded`, `estimated`, or `unknown`
+  confidence. Plan bounds combine every step; incomplete evidence propagates
+  `unknown` instead of being hidden by one known step. `maxBytes` is enforced
+  against deterministic UTF-8 JSON bytes, not claimed as a heap-memory bound;
+  heap memory remains unknown without runtime evidence.
+- `fidelity` is `exact` when the source executes the requested semantics,
+  `equivalent` when bounded residual work preserves the result, and
+  `approximate` when it does not. Every approximation has a loss record with a
+  stable code, affected plan path, description, and remediation. For example,
+  DuckDB polygon-to-envelope reduction emits `spatial-envelope-reduction`; it
+  is never reported as exact.
+- `provenance` binds the credential-free source and descriptor, schema state,
+  discovery evidence, and authorization-scope identity. Endpoints, discovery
+  sources, validators, and authorization scopes are represented by
+  domain-separated SHA-256 fingerprints where a raw value is unnecessary.
+- `warnings` are stable objects with `code`, `path`, `message`, and
+  `remediation`. Bounded local execution, geometry transfer, and approximate
+  spatial filtering therefore remain machine-actionable.
+
+`cache` is a deterministic decision, not a cache side effect. The caller may
+select `bypass`, `prefer-cache`, or `require-fresh` and report `fresh`, `stale`,
+or `unknown` evidence. The plan records an action (`bypass`, `reuse`,
+`revalidate`, or `refresh`) and reason. ETags, last-modified values, revisions,
+and precomputed fingerprints are normalized to a kind plus digest; raw
+validators do not enter serialized plans. Cache storage and conditional
+requests remain the responsibility of the plan consumer. `bypass` always
+normalizes to `freshness: "unknown"` with no validator, so irrelevant cache
+observations cannot fragment plan identity.
+
 ## Bounded degraded execution
 
 Fallback is disabled by default. When a source can query features but cannot
@@ -3192,16 +3237,32 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
   GeoParquet resources.
 - Objects serialize with sorted keys; array order remains semantically
   significant. SHA-256 fingerprints are identical in browsers, workers, and
-  Node for the same descriptor, query, policy, versions, scope, and estimates.
-- Capabilities, authorization scopes, source/schema versions, CRS/query
-  fields, and fallback budgets participate in the fingerprint.
+  Node for the same descriptor, query, policy, versions, scope, estimates,
+  cache decision, and discovery evidence.
+- The versioned `validity` binding covers planner/contract version, source,
+  schema, capabilities, authorization scope, discovery, query, CRS, policy,
+  and execution mode. Signals, observation timestamps, expiry clocks, and raw
+  realtime cursors are execution state and never enter the fingerprint.
+- CRS validity includes the source SRS, input/filter geometry CRS bindings,
+  output CRS, and the no-implicit-transform policy. It never infers a transform
+  from output CRS alone.
+- Realtime callers select `executionMode: "snapshot"` or `"delta"`; the mode
+  is bound to the plan while live cursor bytes remain with the transport.
 - `executeQueryPlan` verifies the complete canonical v2 projection, its
-  fingerprint, and the current source context. A changed plan, stable source
-  identity, version, capability set, or scope is rejected; the executor does
-  not re-plan. Opaque GeoParquet credential rotation is intentionally outside
-  that identity.
-- Feature/query/result caching remains bypassed. Opt-in materialization is a
-  separate workflow.
+  fingerprint, and the current source context. Source or authorization-context
+  drift throws `HonuaQueryPlanExecutionError` with `code: "foreign-plan"`;
+  version, schema, capability, or discovery drift uses `code: "stale-plan"`.
+  Both include a typed `reason`, and the executor never silently replans.
+  Opaque GeoParquet credential rotation is intentionally outside that
+  identity.
+- Structured cache decisions are explanatory. The planner does not fetch,
+  persist, or materialize cached feature/query/result data.
+- Schema/source versions are byte-bounded and credential-screened before they
+  enter stable IR; provenance exposes domain-separated SHA-256 evidence instead
+  of repeating those values. Persistence also rejects credential material by
+  nested key and path (including locator, header, and query parameter forms) as
+  well as by value pattern; benign field names such as `token_count` remain
+  valid.
 
 ## Deliberate first-slice boundaries
 
@@ -3210,11 +3271,13 @@ AST, temporal values, canonical identity, and CQL2 JSON interchange are now
 available, while the existing v1 compilers remain on their compatibility path.
 Follow-on slices must adopt the AST in those compilers, negotiate richer OGC
 filter support, and add spatial-binning aggregation (grid/hex),
-joins/composition, cache/freshness decisions, cost models, realtime
-snapshot/delta plans, receipts, and richer renderer/MCP consumption. Histogram
-and time-series aggregation are rejected by the current compiler rather than
-silently ignored. The GeoServices, OGC API Features, WFS, OData, credential-free
-and opaque DuckDB SQL, gRPC, bounded columnar/worker paths,
+joins/composition, evidence-backed protocol cost models, execution-integrated
+cache storage, receipts, and richer renderer/MCP consumption. Structured
+cache/freshness decisions and snapshot/delta plan identity are available now;
+the planner does not store cache entries or persist live cursors. Histogram and
+time-series aggregation are rejected by the current compiler rather than
+silently ignored. The GeoServices, OGC API Features, WFS, OData,
+credential-free and opaque DuckDB SQL, gRPC, bounded columnar/worker paths,
 spatial-aggregation pushdown, and CLI plan consumer are now delivered.
 
 ---
@@ -7850,11 +7913,11 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-17 at commit `fa9ff008`._
+_Generated 2026-07-17 at commit `cc89ac4d`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 444.4 KiB | 488.7 KiB | 116.3 KiB | 127.9 KiB |
+| `.` (root) | 460.3 KiB | 488.7 KiB | 120.9 KiB | 127.9 KiB |
 | `/honua` | 544.4 KiB | 566.2 KiB | 143.4 KiB | 149.6 KiB |
 | `/contract` | 259.0 KiB | 287.3 KiB | 68.3 KiB | 72.9 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 631.2 KiB | 663.7 KiB | 129.3 KiB | 134.0 KiB |
@@ -7862,13 +7925,13 @@ _Generated 2026-07-17 at commit `fa9ff008`._
 | `/source-capability-discovery` (GeoServices/OData schema-bound evaluation) | 663.8 KiB | 733.3 KiB | 138.0 KiB | 152.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 53.2 KiB | 62.6 KiB | 16.5 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
-| `/agent-safety` | 51.4 KiB | 55.2 KiB | 14.8 KiB | 15.8 KiB |
-| `/nl-map-control` | 73.2 KiB | 84.5 KiB | 22.0 KiB | 25.3 KiB |
+| `/agent-safety` | 52.4 KiB | 55.2 KiB | 15.2 KiB | 15.8 KiB |
+| `/nl-map-control` | 73.8 KiB | 84.5 KiB | 22.2 KiB | 25.3 KiB |
 | `/runtime` | 451.4 KiB | 458.7 KiB | 119.4 KiB | 131.7 KiB |
 | `/realtime` | 41.2 KiB | 49.3 KiB | 11.4 KiB | 13.5 KiB |
 | `/offline` | 36.6 KiB | 44.3 KiB | 11.1 KiB | 13.2 KiB |
-| `/query-planner` (worker runtime injected) | 503.4 KiB | 515.0 KiB | 96.9 KiB | 98.3 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 90.0 KiB | 100.0 KiB | 28.0 KiB | 30.8 KiB |
+| `/query-planner` (worker runtime injected) | 519.8 KiB | 569.1 KiB | 101.8 KiB | 111.3 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 92.7 KiB | 100.0 KiB | 28.7 KiB | 30.8 KiB |
 | `/esri-compat` | 978.1 KiB | 1026.2 KiB | 243.2 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
@@ -7876,20 +7939,20 @@ _Generated 2026-07-17 at commit `fa9ff008`._
 | `/routing` | 18.7 KiB | 24.6 KiB | 6.0 KiB | 7.6 KiB |
 | `/auth` | 24.1 KiB | 30.6 KiB | 7.0 KiB | 8.7 KiB |
 | `/style` | 59.1 KiB | 69.0 KiB | 14.6 KiB | 17.2 KiB |
-| `/map` | 164.6 KiB | 182.2 KiB | 46.0 KiB | 50.7 KiB |
+| `/map` | 167.3 KiB | 182.2 KiB | 46.7 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 46.9 KiB | 53.6 KiB | 14.8 KiB | 16.8 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 432.9 KiB | 446.7 KiB | 114.4 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 445.0 KiB | 489.3 KiB | 116.5 KiB | 128.1 KiB |
-| browser ESM (`./browser`) | 443.7 KiB | 487.9 KiB | 116.3 KiB | 127.9 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 460.9 KiB | 489.3 KiB | 121.1 KiB | 128.1 KiB |
+| browser ESM (`./browser`) | 459.6 KiB | 487.9 KiB | 120.9 KiB | 127.9 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 210.5 KiB | 229.7 KiB | 53.2 KiB | 57.6 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 345.9 KiB | 359.2 KiB | 89.0 KiB | 92.8 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ createHonua }` managed discovery facade only) | 367.2 KiB | 397.7 KiB | 94.8 KiB | 102.6 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 225.3 KiB | 245.9 KiB | 56.6 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 33.3 KiB | 37.7 KiB | 10.8 KiB | 12.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 36.0 KiB | 37.7 KiB | 11.4 KiB | 12.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
 
 ---

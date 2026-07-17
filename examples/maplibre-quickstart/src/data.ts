@@ -245,7 +245,10 @@ export function buildQuickstartDataset(options: {
     features: renderableFeatures.map((summary) => summary.feature),
   };
   const observedAt = options.observedAt ?? new Date().toISOString();
-  const degradation = [...plan.warnings, ...(result.degraded?.map((reason) => reason.reason) ?? [])];
+  const degradation = [
+    ...plan.warnings.map((warning) => warning.message),
+    ...(result.degraded?.map((reason) => reason.reason) ?? []),
+  ];
   if (degradation.length === 0) degradation.push("None — exact remote pushdown");
 
   return {

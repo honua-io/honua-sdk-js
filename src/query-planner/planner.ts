@@ -6,6 +6,15 @@ import {
   capabilities,
 } from "../contract/types.js";
 import { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
+import {
+  createCacheDecision,
+  createPlanValidity,
+  createPlanWarnings,
+  createQueryPlanProvenance,
+  createStepDiagnostics,
+  summarizeFidelity,
+  summarizePlanBounds,
+} from "./diagnostics.js";
 import { compileDuckDbQuery, compileDuckDbQueryV2 } from "./duckdb.js";
 import { compileGeoServicesQuery } from "./geoservices.js";
 import { compileGrpcQuery } from "./grpc.js";
@@ -23,6 +32,7 @@ import {
   HonuaQueryPlanningError,
   type LocalAggregatePlanStep,
   MAX_LOCAL_MATERIALIZATION_ROWS,
+  QUERY_PLAN_DIAGNOSTICS_VERSION,
   QUERY_PLAN_KIND,
   QUERY_PLAN_V2_VERSION,
   QUERY_PLAN_VERSION,
@@ -49,9 +59,9 @@ export function explainQuery<T>(
   const capabilityPolicy = options.capabilityPolicy ?? "strict";
   const fallback = normalizeFallback(options.fallback);
   const estimates = normalizeEstimates(options.estimates);
-  let steps: readonly VersionedQueryPlanStep[];
+  const executionMode = normalizeExecutionMode(options.executionMode);
+  let baseSteps: readonly VersionedQueryPlanStepBase[];
   let pushdown: QueryExecutionPlan["pushdown"];
-  const warnings: string[] = [];
 
   if (ir.query.aggregation && !ir.source.capabilities.includes("queryAggregate")) {
     if (capabilityPolicy !== "degraded" || fallback.mode === "disabled") {
@@ -75,13 +85,12 @@ export function explainQuery<T>(
       options.descriptor.schema?.primaryKey,
       { preserveGeometry: ogcFallback, adapterOwnsLookahead: ogcFallback },
     );
-    steps = [
+    baseSteps = [
       {
         id: "remote-input",
         engine: "remote",
         operation: "queryAll",
         pushdown: "partial",
-        fidelity: "exact",
         reason: `Push filters and projection to ${remoteEngineName(ir.source.protocol)}, fetching at most ${fallback.maxRows + 1} rows as an overflow sentinel.`,
         requests: estimates.requests ?? 1,
         query: inputQuery,
@@ -92,7 +101,6 @@ export function explainQuery<T>(
         engine: "client",
         operation: "aggregate",
         pushdown: "none",
-        fidelity: "exact",
         reason: `queryAggregate is unavailable; compute only after enforcing the ${fallback.maxRows}-row local ceiling.`,
         inputStepId: "remote-input",
         aggregation: ir.query.aggregation,
@@ -101,12 +109,6 @@ export function explainQuery<T>(
       },
     ];
     pushdown = "partial";
-    warnings.push("Execution is degraded and will be rejected if the bounded input ceiling is exceeded.");
-    if (ir.source.protocol === "ogc-features") {
-      warnings.push(
-        "OGC API Features may transfer geometry because /items has no portable geometry-suppression parameter.",
-      );
-    }
   } else {
     const capability = ir.query.aggregation ? "queryAggregate" : "query";
     if (!ir.source.capabilities.includes(capability)) {
@@ -115,24 +117,37 @@ export function explainQuery<T>(
         `Source "${ir.source.id}" does not support ${capability}`,
       );
     }
+    if (estimates.requests !== undefined && estimates.requests !== 1) {
+      throw new HonuaQueryPlanningError(
+        "invalid-query",
+        `estimates.requests must be 1 for the exact single-request ${capability} operation`,
+      );
+    }
     const spatialAggregation = ir.query.aggregation !== undefined && ir.query.spatialFilter !== undefined;
-    steps = [
+    baseSteps = [
       {
         id: "remote-query",
         engine: "remote",
         operation: ir.query.aggregation ? "queryAggregate" : "query",
         pushdown: "full",
-        fidelity: "exact",
         reason: spatialAggregation
           ? `${remoteEngineName(ir.source.protocol)} executes the spatial aggregation server-side: the spatial filter constrains the grouped statistics without materializing features.`
           : `${remoteEngineName(ir.source.protocol)} can execute the complete canonical query remotely.`,
-        requests: estimates.requests ?? 1,
+        requests: 1,
         query: ir.query,
         compiled: compileRemoteQuery(ir.source, ir.query),
       },
     ];
     pushdown = "full";
   }
+
+  const provenance = createQueryPlanProvenance(options.descriptor, ir.source, options);
+  const steps = baseSteps.map((step) => ({ ...step, ...createStepDiagnostics(step, estimates, provenance) }));
+  const { fidelity, losses } = summarizeFidelity(steps);
+  const bounds = summarizePlanBounds(steps);
+  const cache = createCacheDecision(options.cache);
+  const validity = createPlanValidity(ir, provenance, capabilityPolicy, fallback, executionMode);
+  const warnings = createPlanWarnings(baseSteps, ir.source);
 
   const unsigned = {
     kind: QUERY_PLAN_KIND,
@@ -141,8 +156,13 @@ export function explainQuery<T>(
     capabilityPolicy,
     fallback,
     pushdown,
-    fidelity: "exact" as const,
-    cache: "bypass" as const,
+    diagnosticsVersion: QUERY_PLAN_DIAGNOSTICS_VERSION,
+    fidelity,
+    losses,
+    bounds,
+    cache,
+    provenance,
+    validity,
     estimates,
     steps,
     warnings,
@@ -183,10 +203,14 @@ function compileRemoteQuery(
   }
 }
 
-type VersionedRemoteQueryPlanStep = Omit<RemoteQueryPlanStep, "compiled"> & {
+type VersionedRemoteQueryPlanStepBase = Omit<
+  RemoteQueryPlanStep,
+  "compiled" | "fidelity" | "losses" | "bounds" | "provenance"
+> & {
   readonly compiled: RemoteCompiledQueryV1 | DuckDbCompiledQueryV2;
 };
-type VersionedQueryPlanStep = VersionedRemoteQueryPlanStep | LocalAggregatePlanStep;
+type LocalAggregatePlanStepBase = Omit<LocalAggregatePlanStep, "fidelity" | "losses" | "bounds" | "provenance">;
+type VersionedQueryPlanStepBase = VersionedRemoteQueryPlanStepBase | LocalAggregatePlanStepBase;
 
 function isGeoParquetV2Source(
   source: QueryIrSourceIdentity | QueryIrSourceIdentityV2,
@@ -238,7 +262,7 @@ export function hashQueryPlanV1(plan: QueryExecutionPlanV1): `sha256:${string}` 
         return undefined;
       }
     }
-    if (containsCredentialBearingPlanText(detached)) return undefined;
+    if (containsCredentialBearingPlanMaterial(detached)) return undefined;
     const { id: _id, fingerprint: _fingerprint, ...unsigned } = detached;
     return sha256(canonicalStringify(toJsonValue(unsigned)));
   } catch {
@@ -350,6 +374,7 @@ function assertCredentialFreeLegacyDescriptor(descriptor: SourceDescriptor): voi
 }
 
 function assertPlanPersistenceSafe(plan: QueryExecutionPlan): void {
+  assertStructuredDiagnostics(plan);
   if (plan.version === QUERY_PLAN_VERSION) {
     if (plan.ir.version !== "1.0") throw invalidPersistedPlan();
     if (plan.ir.source.protocol === "geoparquet") {
@@ -357,14 +382,17 @@ function assertPlanPersistenceSafe(plan: QueryExecutionPlan): void {
       if (!sources || sources.length === 0 || sources.some((source) => !isCredentialFreeLegacySource(source))) {
         throw invalidPersistedPlan();
       }
-      for (const step of plan.steps) {
-        if (step.engine !== "remote") continue;
-        if (step.compiled.compiler !== "duckdb-sql-v1") throw invalidPersistedPlan();
-        const expected = compileDuckDbQuery(plan.ir.source, step.query);
-        if (canonicalStringify(toJsonValue(step.compiled)) !== canonicalStringify(toJsonValue(expected))) {
-          throw invalidPersistedPlan();
-        }
+    }
+    for (const step of plan.steps) {
+      if (step.engine !== "remote") continue;
+      const expected = compileRemoteQuery(plan.ir.source, step.query, step.operation);
+      if (!sameCanonicalValue(step.compiled, expected)) {
+        throw invalidPersistedPlan();
       }
+    }
+    const expected = rebuildQueryPlanV1(plan);
+    if (canonicalStringify(toJsonValue(plan)) !== canonicalStringify(toJsonValue(expected))) {
+      throw invalidPersistedPlan();
     }
     return;
   }
@@ -378,6 +406,213 @@ function assertPlanPersistenceSafe(plan: QueryExecutionPlan): void {
   }
   const expected = rebuildGeoParquetQueryPlanV2(plan);
   if (canonicalStringify(toJsonValue(plan)) !== canonicalStringify(toJsonValue(expected))) throw invalidPersistedPlan();
+}
+
+function assertStructuredDiagnostics(plan: QueryExecutionPlan): void {
+  if (plan.capabilityPolicy !== "strict" && plan.capabilityPolicy !== "degraded") throw invalidPersistedPlan();
+  const fallback = normalizeFallback(plan.fallback);
+  const estimates = normalizeEstimates(plan.estimates);
+  const executionMode = normalizeExecutionMode(plan.validity.executionMode);
+  if (!sameCanonicalValue(plan.fallback, fallback) || !sameCanonicalValue(plan.estimates, estimates)) {
+    throw invalidPersistedPlan();
+  }
+  const expectedProvenance = rebuildPersistedProvenance(plan);
+  if (!sameCanonicalValue(plan.provenance, expectedProvenance)) throw invalidPersistedPlan();
+
+  const expectedSteps = plan.steps.map((step) => ({
+    pushdown: persistedStepPushdown(step),
+    ...createStepDiagnostics(step, estimates, expectedProvenance),
+  }));
+  for (let index = 0; index < plan.steps.length; index += 1) {
+    const step = plan.steps[index];
+    const expected = expectedSteps[index];
+    if (!step || !expected) throw invalidPersistedPlan();
+    const actual = {
+      pushdown: step.pushdown,
+      fidelity: step.fidelity,
+      losses: step.losses,
+      bounds: step.bounds,
+      provenance: step.provenance,
+    };
+    if (!sameCanonicalValue(actual, expected)) throw invalidPersistedPlan();
+    if (step.engine === "remote") {
+      const expectedRequests = step.operation === "queryAll" ? (estimates.requests ?? 1) : 1;
+      if (step.requests !== expectedRequests) throw invalidPersistedPlan();
+    }
+  }
+
+  const expectedFidelity = summarizeFidelity(expectedSteps);
+  const expected = {
+    diagnosticsVersion: QUERY_PLAN_DIAGNOSTICS_VERSION,
+    pushdown: summarizePersistedPushdown(expectedSteps),
+    fidelity: expectedFidelity.fidelity,
+    losses: expectedFidelity.losses,
+    bounds: summarizePlanBounds(expectedSteps),
+    cache: createCacheDecision(persistedCacheOptions(plan.cache)),
+    provenance: expectedProvenance,
+    validity: createPlanValidity(plan.ir, expectedProvenance, plan.capabilityPolicy, fallback, executionMode),
+    warnings: createPlanWarnings(plan.steps, plan.ir.source),
+  };
+  const actual = {
+    diagnosticsVersion: plan.diagnosticsVersion,
+    pushdown: plan.pushdown,
+    fidelity: plan.fidelity,
+    losses: plan.losses,
+    bounds: plan.bounds,
+    cache: plan.cache,
+    provenance: plan.provenance,
+    validity: plan.validity,
+    warnings: plan.warnings,
+  };
+  if (!sameCanonicalValue(actual, expected)) throw invalidPersistedPlan();
+}
+
+function persistedStepPushdown(step: QueryExecutionPlan["steps"][number]): "full" | "partial" | "none" {
+  if (step.engine === "client") {
+    if (step.operation !== "aggregate") throw invalidPersistedPlan();
+    return "none";
+  }
+  if (step.engine !== "remote") throw invalidPersistedPlan();
+  if (step.operation === "queryAll") return "partial";
+  if (step.operation === "query" || step.operation === "queryAggregate") return "full";
+  throw invalidPersistedPlan();
+}
+
+function summarizePersistedPushdown(
+  steps: readonly { readonly pushdown: "full" | "partial" | "none" }[],
+): QueryExecutionPlan["pushdown"] {
+  return steps.every((step) => step.pushdown === "full") ? "full" : "partial";
+}
+
+function rebuildPersistedProvenance(plan: QueryExecutionPlan): QueryExecutionPlan["provenance"] {
+  const source = plan.ir.source;
+  const schema = plan.provenance.schema;
+  const descriptor: SourceDescriptor = {
+    id: source.id,
+    protocol: source.protocol,
+    locator: { url: source.endpoint },
+    capabilities: capabilities(parsePlanCapabilities(source.capabilities)),
+    ...(schema.state === "known" && schema.basis === "schema-v2"
+      ? { schemaV2: { kind: "honua.source-schema", version: "2.0", fingerprint: schema.fingerprint } }
+      : {}),
+  };
+  return createQueryPlanProvenance(descriptor, source, {
+    ...(source.schemaVersion ? { schemaVersion: source.schemaVersion } : {}),
+    discovery: persistedDiscoveryContext(plan.provenance.discovery),
+  });
+}
+
+/** Rebuild legacy plans through the same pure planner to bind every persisted step to the IR. */
+function rebuildQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
+  const source = plan.ir.source;
+  const capabilitiesValue = parsePlanCapabilities(source.capabilities);
+  const geometryProperty = parseOptionalPlanMetadata(source.geometryProperty);
+  const primaryKey = persistedV1FallbackPrimaryKey(plan);
+  const schema =
+    geometryProperty || primaryKey
+      ? {
+          ...(geometryProperty ? { fields: [{ name: geometryProperty, type: "esriFieldTypeGeometry" as const }] } : {}),
+          ...(primaryKey ? { primaryKey } : {}),
+        }
+      : undefined;
+  const geoparquet = source.geoparquet;
+  const url = source.protocol === "geoparquet" ? geoparquet?.sources[0] : source.endpoint;
+  if (typeof url !== "string" || (source.protocol === "geoparquet" && url.length === 0)) {
+    throw invalidPersistedPlan();
+  }
+  const geometryEncoding = geoparquet?.geometryEncoding;
+  if (
+    geometryEncoding !== undefined &&
+    geometryEncoding !== "wkb" &&
+    geometryEncoding !== "native" &&
+    geometryEncoding !== "geojson"
+  ) {
+    throw invalidPersistedPlan();
+  }
+  const locator: SourceDescriptor["locator"] = {
+    url,
+    ...(source.serviceId !== undefined ? { serviceId: parseOptionalPlanMetadata(source.serviceId) } : {}),
+    ...(source.layerId !== undefined ? { layerId: parseOptionalLocatorNumber(source.layerId) } : {}),
+    ...(source.collectionId !== undefined ? { collectionId: parseOptionalLocatorId(source.collectionId) } : {}),
+    ...(source.typeName !== undefined ? { typeName: parseOptionalPlanMetadata(source.typeName) } : {}),
+    ...(source.entitySet !== undefined ? { entitySet: parseOptionalPlanMetadata(source.entitySet) } : {}),
+    ...(source.srsName !== undefined ? { srsName: parseOptionalPlanMetadata(source.srsName) } : {}),
+    ...(geoparquet
+      ? {
+          geoparquet: {
+            ...(geoparquet.sources.length > 1 ? { urls: geoparquet.sources.slice(1) } : {}),
+            ...(geoparquet.geometryColumn
+              ? { geometryColumn: parseOptionalPlanMetadata(geoparquet.geometryColumn) }
+              : {}),
+            ...(geometryEncoding ? { geometryEncoding } : {}),
+            ...(geoparquet.bboxColumn ? { bboxColumn: parseOptionalPlanMetadata(geoparquet.bboxColumn) } : {}),
+          },
+        }
+      : {}),
+  };
+  const descriptor: SourceDescriptor = {
+    id: requirePlanMetadata(source.id),
+    protocol: source.protocol,
+    locator,
+    capabilities: capabilities(capabilitiesValue),
+    ...(schema ? { schema } : {}),
+    ...(plan.provenance.schema.state === "known" && plan.provenance.schema.basis === "schema-v2"
+      ? {
+          schemaV2: {
+            kind: "honua.source-schema",
+            version: "2.0",
+            fingerprint: plan.provenance.schema.fingerprint,
+          },
+        }
+      : {}),
+  };
+  return explainQuery({
+    descriptor,
+    query: queryFromCanonical(plan.ir.query),
+    capabilityPolicy: plan.capabilityPolicy,
+    fallback: plan.fallback,
+    ...(source.schemaVersion !== undefined ? { schemaVersion: source.schemaVersion } : {}),
+    ...(source.sourceVersion !== undefined ? { sourceVersion: source.sourceVersion } : {}),
+    authorizationScope: source.authorizationScope,
+    estimates: plan.estimates,
+    cache: persistedCacheOptions(plan.cache),
+    discovery: persistedDiscoveryContext(plan.provenance.discovery),
+    executionMode: plan.validity.executionMode,
+  });
+}
+
+function persistedV1FallbackPrimaryKey(plan: QueryExecutionPlanV1): string | undefined {
+  const aggregation = plan.ir.query.aggregation;
+  if (!aggregation) return undefined;
+  const requiresProjectedField =
+    (aggregation.groupBy?.length ?? 0) > 0 || aggregation.metrics.some((metric) => metric.field !== "*");
+  if (requiresProjectedField) return undefined;
+  const remote = plan.steps[0];
+  if (remote?.engine !== "remote" || remote.operation !== "queryAll") return undefined;
+  const outFields = remote.query.outFields;
+  if (outFields === undefined) return undefined;
+  if (outFields.length !== 1) throw invalidPersistedPlan();
+  return parseOptionalPlanMetadata(outFields[0]);
+}
+
+function parseOptionalLocatorNumber(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) throw invalidPersistedPlan();
+  return value as number;
+}
+
+function parseOptionalLocatorId(value: unknown): string | number {
+  if (typeof value === "number") return parseOptionalLocatorNumber(value);
+  return requirePlanMetadata(value);
+}
+
+function requirePlanMetadata(value: unknown): string {
+  const parsed = parseOptionalPlanMetadata(value);
+  if (parsed === undefined) throw invalidPersistedPlan();
+  return parsed;
+}
+
+function sameCanonicalValue(left: unknown, right: unknown): boolean {
+  return canonicalStringify(toJsonValue(left)) === canonicalStringify(toJsonValue(right));
 }
 
 /**
@@ -417,6 +652,15 @@ function rebuildGeoParquetQueryPlanV2(plan: QueryExecutionPlanV2): QueryExecutio
     },
     capabilities: capabilities(sourceCapabilities),
     ...(primaryKey ? { schema: { primaryKey } } : {}),
+    ...(plan.provenance.schema.state === "known" && plan.provenance.schema.basis === "schema-v2"
+      ? {
+          schemaV2: {
+            kind: "honua.source-schema",
+            version: "2.0",
+            fingerprint: plan.provenance.schema.fingerprint,
+          },
+        }
+      : {}),
   };
   return explainQuery({
     descriptor,
@@ -428,7 +672,30 @@ function rebuildGeoParquetQueryPlanV2(plan: QueryExecutionPlanV2): QueryExecutio
     ...(sourceVersion ? { sourceVersion } : {}),
     authorizationScope: source.authorizationScope,
     estimates: plan.estimates,
+    cache: persistedCacheOptions(plan.cache),
+    discovery: persistedDiscoveryContext(plan.provenance.discovery),
+    executionMode: plan.validity.executionMode,
   });
+}
+
+function persistedCacheOptions(cache: QueryExecutionPlan["cache"]): NonNullable<ExplainQueryOptions["cache"]> {
+  return {
+    policy: cache.policy,
+    freshness: cache.freshness,
+    ...(cache.validator ? { validator: { kind: cache.validator.kind, fingerprint: cache.validator.fingerprint } } : {}),
+  };
+}
+
+function persistedDiscoveryContext(
+  discovery: QueryExecutionPlan["provenance"]["discovery"],
+): NonNullable<ExplainQueryOptions["discovery"]> {
+  return {
+    state: discovery.state,
+    ...(discovery.sourceFingerprint ? { sourceFingerprint: discovery.sourceFingerprint } : {}),
+    ...(discovery.validator
+      ? { validator: { kind: discovery.validator.kind, fingerprint: discovery.validator.fingerprint } }
+      : {}),
+  };
 }
 
 function parsePlanCapabilities(value: unknown): readonly Capability[] {
@@ -455,7 +722,34 @@ interface PersistedPlanSnapshot {
 }
 
 const CREDENTIAL_BEARING_PLAN_TEXT =
-  /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\bBasic\s+[A-Za-z0-9+/=]{8,}|\bAKIA[0-9A-Z]{16}\b|[?&](?:x-amz-signature|signature|sig|token|api[-_]?key)=[^\s&#]*|[a-z][a-z0-9+.-]*:\/\/[^/\s"'<>]*@|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
+  /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\bBasic\s+[A-Za-z0-9+/=]{8,}|\bAKIA[0-9A-Z]{16}\b|[?&;](?:access[-_]?token|id[-_]?token|refresh[-_]?token|x-amz-signature|x-goog-credential|signature|sig|token|api[-_]?key|password|secret)=[^\s&#;]*|\b(?:authorization|proxy[-_]?authorization|x-api-key|password|secret|token|api[-_]?key|account[-_]?key|shared[-_]?access[-_]?signature)\s*(?:=|:)\s*[^\s,;]+|[a-z][a-z0-9+.-]*:\/\/[^/\s"'<>]*@|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
+
+const CREDENTIAL_BEARING_PLAN_KEYS = new Set([
+  "authorization",
+  "proxyauthorization",
+  "cookie",
+  "setcookie",
+  "username",
+  "password",
+  "passwd",
+  "secret",
+  "token",
+  "accesstoken",
+  "refreshtoken",
+  "idtoken",
+  "apikey",
+  "xapikey",
+  "accesskey",
+  "secretkey",
+  "clientsecret",
+  "credential",
+  "credentials",
+  "signature",
+  "xamzsignature",
+  "xgoogcredential",
+  "accountkey",
+  "sharedaccesssignature",
+]);
 
 /** Detach once so hostile accessors/proxies cannot change between validation and hashing. */
 function persistedPlanSnapshot(value: unknown): PersistedPlanSnapshot {
@@ -463,7 +757,7 @@ function persistedPlanSnapshot(value: unknown): PersistedPlanSnapshot {
     const plan = deepFreeze(toJsonValue(value)) as unknown;
     if (!isPlanEnvelope(plan)) throw invalidPersistedPlan();
     assertPlanPersistenceSafe(plan);
-    if (containsCredentialBearingPlanText(plan)) throw invalidPersistedPlan();
+    if (containsCredentialBearingPlanMaterial(plan)) throw invalidPersistedPlan();
     const { id: _id, fingerprint: _fingerprint, ...unsigned } = plan;
     return { plan, hash: sha256(canonicalStringify(toJsonValue(unsigned))) };
   } catch {
@@ -471,11 +765,35 @@ function persistedPlanSnapshot(value: unknown): PersistedPlanSnapshot {
   }
 }
 
-function containsCredentialBearingPlanText(value: unknown): boolean {
+function containsCredentialBearingPlanMaterial(value: unknown, path: readonly string[] = []): boolean {
   if (typeof value === "string") return CREDENTIAL_BEARING_PLAN_TEXT.test(value);
-  if (Array.isArray(value)) return value.some(containsCredentialBearingPlanText);
+  if (Array.isArray(value)) {
+    return value.some((child, index) => containsCredentialBearingPlanMaterial(child, [...path, String(index)]));
+  }
   if (value === null || typeof value !== "object") return false;
-  return Object.values(value).some(containsCredentialBearingPlanText);
+  return Object.entries(value).some(([key, child]) => {
+    const normalizedKey = key.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+    const parent = path
+      .at(-1)
+      ?.replace(/[^A-Za-z0-9]/g, "")
+      .toLowerCase();
+    const sensitiveHeader =
+      parent === "headers" &&
+      (normalizedKey === "xauth" ||
+        normalizedKey === "xauthtoken" ||
+        normalizedKey === "xaccesskey" ||
+        normalizedKey === "xsessiontoken");
+    const sensitiveLocator = parent === "locator" && (normalizedKey === "user" || normalizedKey === "userinfo");
+    const sensitiveQueryParameter =
+      parent === "query" && (normalizedKey === "auth" || normalizedKey === "key" || normalizedKey === "session");
+    return (
+      CREDENTIAL_BEARING_PLAN_KEYS.has(normalizedKey) ||
+      sensitiveHeader ||
+      sensitiveLocator ||
+      sensitiveQueryParameter ||
+      containsCredentialBearingPlanMaterial(child, [...path, key])
+    );
+  });
 }
 
 function isCredentialFreeLegacySource(value: unknown): value is string {
@@ -504,6 +822,7 @@ function isPlanEnvelope(value: unknown): value is QueryExecutionPlan {
   return (
     plan.kind === QUERY_PLAN_KIND &&
     (plan.version === QUERY_PLAN_VERSION || plan.version === QUERY_PLAN_V2_VERSION) &&
+    plan.diagnosticsVersion === QUERY_PLAN_DIAGNOSTICS_VERSION &&
     typeof plan.id === "string" &&
     typeof plan.fingerprint === "string" &&
     /^sha256:[0-9a-f]{64}$/.test(plan.fingerprint) &&
@@ -512,6 +831,14 @@ function isPlanEnvelope(value: unknown): value is QueryExecutionPlan {
     Array.isArray(plan.steps) &&
     Array.isArray(plan.warnings)
   );
+}
+
+function normalizeExecutionMode(value: ExplainQueryOptions["executionMode"]): "snapshot" | "delta" {
+  if (value === undefined) return "snapshot";
+  if (value !== "snapshot" && value !== "delta") {
+    throw new HonuaQueryPlanningError("invalid-query", "executionMode is invalid");
+  }
+  return value;
 }
 
 function invalidPersistedPlan(): HonuaQueryPlanExecutionError {
@@ -550,6 +877,9 @@ function normalizeEstimates(estimates?: ExplainQueryOptions["estimates"]): Query
   for (const key of ["rows", "bytes", "requests"] as const) {
     const value = estimates?.[key];
     if (value === undefined) continue;
+    if (key === "requests" && (!Number.isSafeInteger(value) || value < 1)) {
+      throw new HonuaQueryPlanningError("invalid-query", "estimates.requests must be a safe integer >= 1");
+    }
     if (!Number.isFinite(value) || value < 0) {
       throw new HonuaQueryPlanningError("invalid-query", `estimates.${key} must be a finite non-negative number`);
     }

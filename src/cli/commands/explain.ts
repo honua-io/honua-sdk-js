@@ -136,7 +136,7 @@ export async function explainCommand(parsed: ParsedArgs, ctx: CommandContext): P
     return;
   }
 
-  printLine(`Plan ${plan.id}  (${plan.pushdown} pushdown, fidelity ${plan.fidelity}, cache ${plan.cache})`);
+  printLine(`Plan ${plan.id}  (${plan.pushdown} pushdown, fidelity ${plan.fidelity}, cache ${plan.cache.action})`);
   printLine(`Source: ${descriptor.id} [${protocol}]`);
   for (const step of plan.steps) {
     const op = "operation" in step ? step.operation : "aggregate";
@@ -149,7 +149,10 @@ export async function explainCommand(parsed: ParsedArgs, ctx: CommandContext): P
   }
   if (plan.warnings.length > 0) {
     printLine("\n  warnings:");
-    for (const warning of plan.warnings) printLine(`    - ${warning}`);
+    for (const warning of plan.warnings) {
+      printLine(`    - [${warning.code}] ${warning.message} (${warning.path})`);
+      printLine(`      remediation: ${warning.remediation}`);
+    }
   }
   printLine(`\n  fingerprint: ${plan.fingerprint}`);
 }

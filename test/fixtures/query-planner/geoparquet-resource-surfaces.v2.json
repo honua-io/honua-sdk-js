@@ -1,108 +1,255 @@
 {
-  "format": "honua.sdk.query-resource-surfaces.v2",
-  "schemaVersion": 2,
-  "persistence": {
-    "plan": "{\"cache\":\"bypass\",\"capabilityPolicy\":\"strict\",\"estimates\":{},\"fallback\":{\"mode\":\"disabled\"},\"fidelity\":\"exact\",\"fingerprint\":\"sha256:619dc7b00ff14c8e44857636101df01f8f7cc2c3ecdfaf92590d6601ebb96448\",\"id\":\"plan_619dc7b00ff14c8e\",\"ir\":{\"kind\":\"honua.query-ir\",\"query\":{\"outFields\":[\"id\",\"name\"],\"pagination\":{\"limit\":2},\"where\":{\"expression\":\"population > 10\",\"kind\":\"source-native\"}},\"source\":{\"authorizationScope\":[\"data:read\"],\"capabilities\":[\"query\",\"queryAggregate\",\"stream\"],\"endpoint\":\"[opaque-resource]\",\"geoparquet\":{\"geometryColumn\":\"geometry\",\"geometryEncoding\":\"wkb\",\"resource\":{\"authorizationContextId\":\"tenant:alpha/role:analyst\",\"kind\":\"honua.query-resource\",\"protocol\":\"geoparquet\",\"resource\":{\"id\":\"parcels:fixture\",\"kind\":\"resolver\",\"resolver\":\"io.honua.fixture\"},\"resourceVersion\":\"snapshot:42\",\"version\":\"1.0\"}},\"id\":\"parcels:fixture\",\"protocol\":\"geoparquet\",\"schemaVersion\":\"schema:4\",\"sourceVersion\":\"source:9\"},\"version\":\"2.0\"},\"kind\":\"honua.query-plan\",\"pushdown\":\"full\",\"steps\":[{\"compiled\":{\"compiler\":\"duckdb-sql-v2\",\"geometryColumn\":\"geometry\",\"geometryEncoding\":\"wkb\",\"resource\":{\"authorizationContextId\":\"tenant:alpha/role:analyst\",\"kind\":\"honua.query-resource\",\"protocol\":\"geoparquet\",\"resource\":{\"id\":\"parcels:fixture\",\"kind\":\"resolver\",\"resolver\":\"io.honua.fixture\"},\"resourceVersion\":\"snapshot:42\",\"version\":\"1.0\"},\"sqlTemplate\":\"SELECT \\\"id\\\", \\\"name\\\", ST_AsGeoJSON(ST_GeomFromWKB(\\\"geometry\\\")) AS \\\"geometry\\\" FROM read_parquet('honua-resource://resolve-at-execution', union_by_name = true, hive_partitioning = true) WHERE (population > 10) LIMIT 2\"},\"engine\":\"remote\",\"fidelity\":\"exact\",\"id\":\"remote-query\",\"operation\":\"query\",\"pushdown\":\"full\",\"query\":{\"outFields\":[\"id\",\"name\"],\"pagination\":{\"limit\":2},\"where\":{\"expression\":\"population > 10\",\"kind\":\"source-native\"}},\"reason\":\"DuckDB SQL (columnar) can execute the complete canonical query remotely.\",\"requests\":1}],\"version\":\"2.0\",\"warnings\":[]}"
-  },
-  "cache": {
-    "key": "honua-query-plan:2.0:sha256:619dc7b00ff14c8e44857636101df01f8f7cc2c3ecdfaf92590d6601ebb96448"
-  },
-  "explain": {
-    "kind": "honua.query-plan",
-    "version": "2.0",
-    "ir": {
-      "kind": "honua.query-ir",
-      "version": "2.0",
-      "source": {
-        "id": "parcels:fixture",
-        "protocol": "geoparquet",
-        "endpoint": "[opaque-resource]",
-        "schemaVersion": "schema:4",
-        "sourceVersion": "source:9",
-        "geoparquet": {
-          "resource": {
-            "kind": "honua.query-resource",
-            "version": "1.0",
-            "protocol": "geoparquet",
-            "resource": {
-              "kind": "resolver",
-              "resolver": "io.honua.fixture",
-              "id": "parcels:fixture"
-            },
-            "authorizationContextId": "tenant:alpha/role:analyst",
-            "resourceVersion": "snapshot:42"
-          },
-          "geometryColumn": "geometry",
-          "geometryEncoding": "wkb"
-        },
-        "authorizationScope": ["data:read"],
-        "capabilities": ["query", "queryAggregate", "stream"]
-      },
-      "query": {
-        "where": {
-          "kind": "source-native",
-          "expression": "population > 10"
-        },
-        "outFields": ["id", "name"],
-        "pagination": {
-          "limit": 2
-        }
-      }
-    },
-    "capabilityPolicy": "strict",
-    "fallback": {
-      "mode": "disabled"
-    },
-    "pushdown": "full",
-    "fidelity": "exact",
-    "cache": "bypass",
-    "estimates": {},
-    "steps": [
-      {
-        "id": "remote-query",
-        "engine": "remote",
-        "operation": "query",
-        "pushdown": "full",
-        "fidelity": "exact",
-        "reason": "DuckDB SQL (columnar) can execute the complete canonical query remotely.",
-        "requests": 1,
-        "query": {
-          "where": {
-            "kind": "source-native",
-            "expression": "population > 10"
-          },
-          "outFields": ["id", "name"],
-          "pagination": {
-            "limit": 2
-          }
-        },
-        "compiled": {
-          "compiler": "duckdb-sql-v2",
-          "sqlTemplate": "SELECT \"id\", \"name\", ST_AsGeoJSON(ST_GeomFromWKB(\"geometry\")) AS \"geometry\" FROM read_parquet('honua-resource://resolve-at-execution', union_by_name = true, hive_partitioning = true) WHERE (population > 10) LIMIT 2",
-          "resource": {
-            "kind": "honua.query-resource",
-            "version": "1.0",
-            "protocol": "geoparquet",
-            "resource": {
-              "kind": "resolver",
-              "resolver": "io.honua.fixture",
-              "id": "parcels:fixture"
-            },
-            "authorizationContextId": "tenant:alpha/role:analyst",
-            "resourceVersion": "snapshot:42"
-          },
-          "geometryColumn": "geometry",
-          "geometryEncoding": "wkb"
-        }
-      }
-    ],
-    "warnings": [],
-    "id": "plan_619dc7b00ff14c8e",
-    "fingerprint": "sha256:619dc7b00ff14c8e44857636101df01f8f7cc2c3ecdfaf92590d6601ebb96448"
-  },
-  "log": {
-    "event": "query-plan-explained",
-    "planId": "plan_619dc7b00ff14c8e",
-    "fingerprint": "sha256:619dc7b00ff14c8e44857636101df01f8f7cc2c3ecdfaf92590d6601ebb96448"
-  }
+	"format": "honua.sdk.query-resource-surfaces.v2",
+	"schemaVersion": 2,
+	"persistence": {
+		"plan": "{\"bounds\":{\"bytes\":{\"confidence\":\"unknown\",\"source\":\"unavailable\",\"unit\":\"byte\"},\"memoryBytes\":{\"confidence\":\"unknown\",\"source\":\"unavailable\",\"unit\":\"byte\"},\"requests\":{\"confidence\":\"exact\",\"estimate\":1,\"lower\":1,\"source\":\"compiler\",\"unit\":\"request\",\"upper\":1},\"rows\":{\"confidence\":\"bounded\",\"lower\":0,\"source\":\"query-limit\",\"unit\":\"row\",\"upper\":2},\"serializedMaterializationBytes\":{\"confidence\":\"exact\",\"estimate\":0,\"lower\":0,\"source\":\"compiler\",\"unit\":\"byte\",\"upper\":0},\"transferBytes\":{\"confidence\":\"unknown\",\"source\":\"unavailable\",\"unit\":\"byte\"},\"version\":\"1.0\"},\"cache\":{\"action\":\"bypass\",\"freshness\":\"unknown\",\"policy\":\"bypass\",\"reason\":\"policy-bypass\",\"version\":\"1.0\"},\"capabilityPolicy\":\"strict\",\"diagnosticsVersion\":\"1.0\",\"estimates\":{},\"fallback\":{\"mode\":\"disabled\"},\"fidelity\":\"exact\",\"fingerprint\":\"sha256:10539b53b75224ac7736e6bda43cf161ef4a0e63168bbd80ea19f84acb9c5816\",\"id\":\"plan_10539b53b75224ac\",\"ir\":{\"kind\":\"honua.query-ir\",\"query\":{\"outFields\":[\"id\",\"name\"],\"pagination\":{\"limit\":2},\"where\":{\"expression\":\"population > 10\",\"kind\":\"source-native\"}},\"source\":{\"authorizationScope\":[\"data:read\"],\"capabilities\":[\"query\",\"queryAggregate\",\"stream\"],\"endpoint\":\"[opaque-resource]\",\"geoparquet\":{\"geometryColumn\":\"geometry\",\"geometryEncoding\":\"wkb\",\"resource\":{\"authorizationContextId\":\"tenant:alpha/role:analyst\",\"kind\":\"honua.query-resource\",\"protocol\":\"geoparquet\",\"resource\":{\"id\":\"parcels:fixture\",\"kind\":\"resolver\",\"resolver\":\"io.honua.fixture\"},\"resourceVersion\":\"snapshot:42\",\"version\":\"1.0\"}},\"id\":\"parcels:fixture\",\"protocol\":\"geoparquet\",\"schemaVersion\":\"schema:4\",\"sourceVersion\":\"source:9\"},\"version\":\"2.0\"},\"kind\":\"honua.query-plan\",\"losses\":[],\"provenance\":{\"authorizationScope\":{\"count\":1,\"fingerprint\":\"sha256:881791d873d9bab05743baf8ce426d92c50a8da0dfae71ca76d2bb49a8ceeb92\"},\"discovery\":{\"fingerprint\":\"sha256:6c86dd33ed4b0ded4ed1c8226c7eb953bc10c5ea09e5439b860165e55732f6a7\",\"state\":\"unavailable\"},\"schema\":{\"basis\":\"version\",\"fingerprint\":\"sha256:0696e9dbbece5a714fc84e016bbb41a92a0e8ba45f56cb472b2635c63df55105\",\"state\":\"known\"},\"source\":{\"descriptorFingerprint\":\"sha256:5b6975b1a9974e2bb7fbb8dfdb863f9e8954afed97a5cd8107adff160f8a39f4\",\"endpointFingerprint\":\"sha256:ccbebdaacb9af2192b894a16ef944cbeb4e7cd83526e334dcccc41a23df866e9\",\"id\":\"parcels:fixture\",\"protocol\":\"geoparquet\",\"versionFingerprint\":\"sha256:4468d79998716d4cabfc44c9697bfc03af5727b7d1a2888071aef99d8ef76c44\"},\"version\":\"1.0\"},\"pushdown\":\"full\",\"steps\":[{\"bounds\":{\"bytes\":{\"confidence\":\"unknown\",\"source\":\"unavailable\",\"unit\":\"byte\"},\"memoryBytes\":{\"confidence\":\"unknown\",\"source\":\"unavailable\",\"unit\":\"byte\"},\"requests\":{\"confidence\":\"exact\",\"estimate\":1,\"lower\":1,\"source\":\"compiler\",\"unit\":\"request\",\"upper\":1},\"rows\":{\"confidence\":\"bounded\",\"lower\":0,\"source\":\"query-limit\",\"unit\":\"row\",\"upper\":2},\"serializedMaterializationBytes\":{\"confidence\":\"exact\",\"estimate\":0,\"lower\":0,\"source\":\"compiler\",\"unit\":\"byte\",\"upper\":0},\"transferBytes\":{\"confidence\":\"unknown\",\"source\":\"unavailable\",\"unit\":\"byte\"},\"version\":\"1.0\"},\"compiled\":{\"compiler\":\"duckdb-sql-v2\",\"geometryColumn\":\"geometry\",\"geometryEncoding\":\"wkb\",\"resource\":{\"authorizationContextId\":\"tenant:alpha/role:analyst\",\"kind\":\"honua.query-resource\",\"protocol\":\"geoparquet\",\"resource\":{\"id\":\"parcels:fixture\",\"kind\":\"resolver\",\"resolver\":\"io.honua.fixture\"},\"resourceVersion\":\"snapshot:42\",\"version\":\"1.0\"},\"sqlTemplate\":\"SELECT \\\"id\\\", \\\"name\\\", ST_AsGeoJSON(ST_GeomFromWKB(\\\"geometry\\\")) AS \\\"geometry\\\" FROM read_parquet('honua-resource://resolve-at-execution', union_by_name = true, hive_partitioning = true) WHERE (population > 10) LIMIT 2\"},\"engine\":\"remote\",\"fidelity\":\"exact\",\"id\":\"remote-query\",\"losses\":[],\"operation\":\"query\",\"provenance\":{\"authorizationScopeFingerprint\":\"sha256:881791d873d9bab05743baf8ce426d92c50a8da0dfae71ca76d2bb49a8ceeb92\",\"discoveryFingerprint\":\"sha256:6c86dd33ed4b0ded4ed1c8226c7eb953bc10c5ea09e5439b860165e55732f6a7\",\"schemaFingerprint\":\"sha256:0696e9dbbece5a714fc84e016bbb41a92a0e8ba45f56cb472b2635c63df55105\",\"sourceFingerprint\":\"sha256:5b6975b1a9974e2bb7fbb8dfdb863f9e8954afed97a5cd8107adff160f8a39f4\",\"version\":\"1.0\"},\"pushdown\":\"full\",\"query\":{\"outFields\":[\"id\",\"name\"],\"pagination\":{\"limit\":2},\"where\":{\"expression\":\"population > 10\",\"kind\":\"source-native\"}},\"reason\":\"DuckDB SQL (columnar) can execute the complete canonical query remotely.\",\"requests\":1}],\"validity\":{\"authorizationScopeFingerprint\":\"sha256:881791d873d9bab05743baf8ce426d92c50a8da0dfae71ca76d2bb49a8ceeb92\",\"contractVersion\":\"honua.query-ir@2.0\",\"crsFingerprint\":\"sha256:adbeda5e33bbd7f67d44f815ba95cba46c252da084f2d4f6c4bc3bc7437b3b5d\",\"discoveryFingerprint\":\"sha256:6c86dd33ed4b0ded4ed1c8226c7eb953bc10c5ea09e5439b860165e55732f6a7\",\"executionMode\":\"snapshot\",\"fingerprint\":\"sha256:d50a648290744053c626ead560e00b8bb4e671cda3905732265a6bfebc88d7f6\",\"plannerVersion\":\"honua-query-planner@1\",\"policyFingerprint\":\"sha256:9f3608217bea0eee54473fe93a27539f407b67b52a27c81f5f3473ee006b8ffe\",\"queryFingerprint\":\"sha256:c05fd4b1ebefc70ead39986a70c87c558394349928ec610bcaedafe921136a91\",\"schemaFingerprint\":\"sha256:24467301fd2b54fe449b62bf07b1fc3c352f70a7a9d91fdf6ccede4ca57214bd\",\"sourceFingerprint\":\"sha256:5b6975b1a9974e2bb7fbb8dfdb863f9e8954afed97a5cd8107adff160f8a39f4\",\"version\":\"1.0\"},\"version\":\"2.0\",\"warnings\":[]}"
+	},
+	"cache": {
+		"key": "honua-query-plan:2.0:sha256:10539b53b75224ac7736e6bda43cf161ef4a0e63168bbd80ea19f84acb9c5816"
+	},
+	"explain": {
+		"kind": "honua.query-plan",
+		"version": "2.0",
+		"ir": {
+			"kind": "honua.query-ir",
+			"version": "2.0",
+			"source": {
+				"id": "parcels:fixture",
+				"protocol": "geoparquet",
+				"endpoint": "[opaque-resource]",
+				"schemaVersion": "schema:4",
+				"sourceVersion": "source:9",
+				"geoparquet": {
+					"resource": {
+						"kind": "honua.query-resource",
+						"version": "1.0",
+						"protocol": "geoparquet",
+						"resource": {
+							"kind": "resolver",
+							"resolver": "io.honua.fixture",
+							"id": "parcels:fixture"
+						},
+						"authorizationContextId": "tenant:alpha/role:analyst",
+						"resourceVersion": "snapshot:42"
+					},
+					"geometryColumn": "geometry",
+					"geometryEncoding": "wkb"
+				},
+				"authorizationScope": [
+					"data:read"
+				],
+				"capabilities": [
+					"query",
+					"queryAggregate",
+					"stream"
+				]
+			},
+			"query": {
+				"where": {
+					"kind": "source-native",
+					"expression": "population > 10"
+				},
+				"outFields": [
+					"id",
+					"name"
+				],
+				"pagination": {
+					"limit": 2
+				}
+			}
+		},
+		"capabilityPolicy": "strict",
+		"fallback": {
+			"mode": "disabled"
+		},
+		"pushdown": "full",
+		"diagnosticsVersion": "1.0",
+		"fidelity": "exact",
+		"losses": [],
+		"bounds": {
+			"version": "1.0",
+			"requests": {
+				"unit": "request",
+				"confidence": "exact",
+				"source": "compiler",
+				"lower": 1,
+				"upper": 1,
+				"estimate": 1
+			},
+			"rows": {
+				"unit": "row",
+				"confidence": "bounded",
+				"source": "query-limit",
+				"lower": 0,
+				"upper": 2
+			},
+			"bytes": {
+				"unit": "byte",
+				"confidence": "unknown",
+				"source": "unavailable"
+			},
+			"transferBytes": {
+				"unit": "byte",
+				"confidence": "unknown",
+				"source": "unavailable"
+			},
+			"serializedMaterializationBytes": {
+				"unit": "byte",
+				"confidence": "exact",
+				"source": "compiler",
+				"lower": 0,
+				"upper": 0,
+				"estimate": 0
+			},
+			"memoryBytes": {
+				"unit": "byte",
+				"confidence": "unknown",
+				"source": "unavailable"
+			}
+		},
+		"cache": {
+			"version": "1.0",
+			"policy": "bypass",
+			"action": "bypass",
+			"freshness": "unknown",
+			"reason": "policy-bypass"
+		},
+		"provenance": {
+			"version": "1.0",
+			"source": {
+				"id": "parcels:fixture",
+				"protocol": "geoparquet",
+				"endpointFingerprint": "sha256:ccbebdaacb9af2192b894a16ef944cbeb4e7cd83526e334dcccc41a23df866e9",
+				"descriptorFingerprint": "sha256:5b6975b1a9974e2bb7fbb8dfdb863f9e8954afed97a5cd8107adff160f8a39f4",
+				"versionFingerprint": "sha256:4468d79998716d4cabfc44c9697bfc03af5727b7d1a2888071aef99d8ef76c44"
+			},
+			"schema": {
+				"state": "known",
+				"fingerprint": "sha256:0696e9dbbece5a714fc84e016bbb41a92a0e8ba45f56cb472b2635c63df55105",
+				"basis": "version"
+			},
+			"discovery": {
+				"state": "unavailable",
+				"fingerprint": "sha256:6c86dd33ed4b0ded4ed1c8226c7eb953bc10c5ea09e5439b860165e55732f6a7"
+			},
+			"authorizationScope": {
+				"fingerprint": "sha256:881791d873d9bab05743baf8ce426d92c50a8da0dfae71ca76d2bb49a8ceeb92",
+				"count": 1
+			}
+		},
+		"validity": {
+			"version": "1.0",
+			"plannerVersion": "honua-query-planner@1",
+			"contractVersion": "honua.query-ir@2.0",
+			"executionMode": "snapshot",
+			"sourceFingerprint": "sha256:5b6975b1a9974e2bb7fbb8dfdb863f9e8954afed97a5cd8107adff160f8a39f4",
+			"schemaFingerprint": "sha256:24467301fd2b54fe449b62bf07b1fc3c352f70a7a9d91fdf6ccede4ca57214bd",
+			"discoveryFingerprint": "sha256:6c86dd33ed4b0ded4ed1c8226c7eb953bc10c5ea09e5439b860165e55732f6a7",
+			"authorizationScopeFingerprint": "sha256:881791d873d9bab05743baf8ce426d92c50a8da0dfae71ca76d2bb49a8ceeb92",
+			"queryFingerprint": "sha256:c05fd4b1ebefc70ead39986a70c87c558394349928ec610bcaedafe921136a91",
+			"crsFingerprint": "sha256:adbeda5e33bbd7f67d44f815ba95cba46c252da084f2d4f6c4bc3bc7437b3b5d",
+			"policyFingerprint": "sha256:9f3608217bea0eee54473fe93a27539f407b67b52a27c81f5f3473ee006b8ffe",
+			"fingerprint": "sha256:d50a648290744053c626ead560e00b8bb4e671cda3905732265a6bfebc88d7f6"
+		},
+		"estimates": {},
+		"steps": [
+			{
+				"id": "remote-query",
+				"engine": "remote",
+				"operation": "query",
+				"pushdown": "full",
+				"reason": "DuckDB SQL (columnar) can execute the complete canonical query remotely.",
+				"requests": 1,
+				"query": {
+					"where": {
+						"kind": "source-native",
+						"expression": "population > 10"
+					},
+					"outFields": [
+						"id",
+						"name"
+					],
+					"pagination": {
+						"limit": 2
+					}
+				},
+				"compiled": {
+					"compiler": "duckdb-sql-v2",
+					"sqlTemplate": "SELECT \"id\", \"name\", ST_AsGeoJSON(ST_GeomFromWKB(\"geometry\")) AS \"geometry\" FROM read_parquet('honua-resource://resolve-at-execution', union_by_name = true, hive_partitioning = true) WHERE (population > 10) LIMIT 2",
+					"resource": {
+						"kind": "honua.query-resource",
+						"version": "1.0",
+						"protocol": "geoparquet",
+						"resource": {
+							"kind": "resolver",
+							"resolver": "io.honua.fixture",
+							"id": "parcels:fixture"
+						},
+						"authorizationContextId": "tenant:alpha/role:analyst",
+						"resourceVersion": "snapshot:42"
+					},
+					"geometryColumn": "geometry",
+					"geometryEncoding": "wkb"
+				},
+				"fidelity": "exact",
+				"losses": [],
+				"bounds": {
+					"version": "1.0",
+					"requests": {
+						"unit": "request",
+						"confidence": "exact",
+						"source": "compiler",
+						"lower": 1,
+						"upper": 1,
+						"estimate": 1
+					},
+					"rows": {
+						"unit": "row",
+						"confidence": "bounded",
+						"source": "query-limit",
+						"lower": 0,
+						"upper": 2
+					},
+					"bytes": {
+						"unit": "byte",
+						"confidence": "unknown",
+						"source": "unavailable"
+					},
+					"transferBytes": {
+						"unit": "byte",
+						"confidence": "unknown",
+						"source": "unavailable"
+					},
+					"serializedMaterializationBytes": {
+						"unit": "byte",
+						"confidence": "exact",
+						"source": "compiler",
+						"lower": 0,
+						"upper": 0,
+						"estimate": 0
+					},
+					"memoryBytes": {
+						"unit": "byte",
+						"confidence": "unknown",
+						"source": "unavailable"
+					}
+				},
+				"provenance": {
+					"version": "1.0",
+					"sourceFingerprint": "sha256:5b6975b1a9974e2bb7fbb8dfdb863f9e8954afed97a5cd8107adff160f8a39f4",
+					"schemaFingerprint": "sha256:0696e9dbbece5a714fc84e016bbb41a92a0e8ba45f56cb472b2635c63df55105",
+					"discoveryFingerprint": "sha256:6c86dd33ed4b0ded4ed1c8226c7eb953bc10c5ea09e5439b860165e55732f6a7",
+					"authorizationScopeFingerprint": "sha256:881791d873d9bab05743baf8ce426d92c50a8da0dfae71ca76d2bb49a8ceeb92"
+				}
+			}
+		],
+		"warnings": [],
+		"id": "plan_10539b53b75224ac",
+		"fingerprint": "sha256:10539b53b75224ac7736e6bda43cf161ef4a0e63168bbd80ea19f84acb9c5816"
+	},
+	"log": {
+		"event": "query-plan-explained",
+		"planId": "plan_10539b53b75224ac",
+		"fingerprint": "sha256:10539b53b75224ac7736e6bda43cf161ef4a0e63168bbd80ea19f84acb9c5816"
+	}
 }
