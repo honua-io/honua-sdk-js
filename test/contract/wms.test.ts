@@ -630,38 +630,93 @@ describe("wms / Source adapter", () => {
 });
 
 describe("wms / MapLibre binding", () => {
-  it("emits a raster source spec with the MapLibre runtime placeholders", () => {
-    const spec = buildWmsRasterSourceSpec({
-      id: "parcels",
-      protocol: "wms",
-      locator: {
-        url: "https://mock.honua.test/rest/services/imagery/MapServer/WMS",
-        serviceId: "imagery",
-        typeName: "parcels",
-        styleId: "default",
-      },
-      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wms,
-      attribution: "© Honua",
-    });
+  it("emits the exact MapLibre bbox token with literal default dimensions", () => {
+    const spec = buildWmsRasterSourceSpec(mapLibreWmsDescriptor());
     expect(spec.type).toBe("raster");
     expect(spec.tileSize).toBe(256);
     expect(spec.attribution).toBe("© Honua");
     const url = spec.tiles[0]!;
+    const params = new URL(url).searchParams;
     expect(url).toContain("REQUEST=GetMap");
     expect(url).toContain("LAYERS=parcels");
     expect(url).toContain("STYLES=default");
     expect(url).toContain("CRS=EPSG%3A3857");
-    expect(url).toContain("BBOX={bbox-epsg3857}");
-    expect(url).toContain("WIDTH={width}");
-    expect(url).toContain("HEIGHT={height}");
+    expect(params.get("BBOX")).toBe("{bbox-epsg-3857}");
+    expect(params.get("WIDTH")).toBe("256");
+    expect(params.get("HEIGHT")).toBe("256");
+    expect(url).not.toContain("{bbox-epsg3857}");
+    expect(url).not.toContain("{width}");
+    expect(url).not.toContain("{height}");
     // Honua Server's WMS handler reads WIDTH / HEIGHT through
     // `TryGetRequiredQueryValue` + `int.TryParse`, so the same key
-    // must appear exactly once. Counting the occurrences keeps a
-    // future regression that re-introduces a fixed `WIDTH=256` from
-    // silently breaking GetMap dispatch.
+    // must appear exactly once with the same literal value as tileSize.
     const widthOccurrences = url.match(/[?&]WIDTH=/g) ?? [];
     const heightOccurrences = url.match(/[?&]HEIGHT=/g) ?? [];
     expect(widthOccurrences).toHaveLength(1);
     expect(heightOccurrences).toHaveLength(1);
   });
+
+  it("uses a validated non-default tileSize and preserves safe endpoint query parameters", () => {
+    const spec = buildWmsRasterSourceSpec(
+      mapLibreWmsDescriptor(
+        "https://mock.honua.test/rest/services/imagery/MapServer/WMS?tenant=oahu&datasetVersion=2026-07&SERVICE=stale&SRS=EPSG%3A4326&width=999",
+      ),
+      { tileSize: 512, format: "image/webp", transparent: false },
+    );
+    const url = spec.tiles[0]!;
+    const params = new URL(url).searchParams;
+
+    expect(spec.tileSize).toBe(512);
+    expect(params.get("tenant")).toBe("oahu");
+    expect(params.get("datasetVersion")).toBe("2026-07");
+    expect(params.get("SERVICE")).toBe("WMS");
+    expect(params.has("SRS")).toBe(false);
+    expect(params.get("CRS")).toBe("EPSG:3857");
+    expect(params.get("FORMAT")).toBe("image/webp");
+    expect(params.get("TRANSPARENT")).toBe("FALSE");
+    expect(params.get("BBOX")).toBe("{bbox-epsg-3857}");
+    expect(params.get("WIDTH")).toBe("512");
+    expect(params.get("HEIGHT")).toBe("512");
+    expect([...params.keys()].filter((key) => key.toUpperCase() === "WIDTH")).toEqual(["WIDTH"]);
+  });
+
+  it("rejects unbounded tile sizes and credential-bearing WMS endpoints", () => {
+    for (const tileSize of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 4_097]) {
+      expect(() => buildWmsRasterSourceSpec(mapLibreWmsDescriptor(), { tileSize })).toThrow(
+        /tileSize must be a safe integer from 1 through 4096/u,
+      );
+    }
+    for (const url of [
+      "https://user:password@mock.honua.test/wms",
+      "https://mock.honua.test/wms?token=secret",
+      "https://mock.honua.test/wms?apiKey=secret",
+      "https://mock.honua.test/wms?accessToken=secret",
+      "https://mock.honua.test/wms?Signature=cloudfront-signature",
+      "https://mock.honua.test/wms?Policy=encoded-policy",
+      "https://mock.honua.test/wms?Key-Pair-Id=cloudfront-key",
+      "https://mock.honua.test/wms?AWSAccessKeyId=legacy-s3-key",
+      "https://mock.honua.test/wms?GoogleAccessId=legacy-gcs-key",
+      "https://mock.honua.test/wms?Expires=1999999999",
+      "https://mock.honua.test/wms?X-Amz-Expires=300",
+      "https://mock.honua.test/wms?X-Goog-Expires=300",
+      "https://mock.honua.test/wms?sv=2026-01-01",
+      "https://mock.honua.test/wms?se=2026-01-01T00%3A00%3A00Z",
+      "https://mock.honua.test/wms?sp=r",
+      "https://mock.honua.test/wms?sig=azure-signature",
+      "https://mock.honua.test/wms#fragment",
+      "/relative/wms",
+    ]) {
+      expect(() => buildWmsRasterSourceSpec(mapLibreWmsDescriptor(url))).toThrow(/credential-free HTTP\(S\)/u);
+    }
+  });
 });
+
+function mapLibreWmsDescriptor(url = "https://mock.honua.test/rest/services/imagery/MapServer/WMS"): SourceDescriptor {
+  return {
+    id: "parcels",
+    protocol: "wms",
+    locator: { url, serviceId: "imagery", typeName: "parcels", styleId: "default" },
+    capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wms,
+    attribution: "© Honua",
+  };
+}

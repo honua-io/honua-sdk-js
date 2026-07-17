@@ -117,6 +117,22 @@ describe("automatic Source to MapLibre strategy", () => {
     );
   });
 
+  it("projects corrected WMS request templates through the automatic strategy", () => {
+    const source = fakeSource(
+      descriptor("wms", { url: "https://maps.test/wms?tenant=oahu", typeName: "parcels", styleId: "default" }),
+    );
+    const plan = explainAutomaticSourceToMapLibre(source, { tileSize: 512 });
+    const template = plan.source?.tiles?.[0];
+
+    expect(plan.selected?.strategy).toBe("wms-raster");
+    expect(plan.source?.tileSize).toBe(512);
+    expect(template).toContain("tenant=oahu");
+    expect(template).toContain("BBOX={bbox-epsg-3857}");
+    expect(template).toContain("WIDTH=512");
+    expect(template).toContain("HEIGHT=512");
+    expect(template).not.toMatch(/\{(?:bbox-epsg3857|width|height)\}/u);
+  });
+
   it("selects only a bounded accepted feature-query plan and binds provenance", () => {
     const input = descriptor("geoservices-feature-service", {
       url: "https://demo.test/FeatureServer?display=true",
@@ -172,6 +188,19 @@ describe("automatic Source to MapLibre strategy", () => {
 
     const unsafe = descriptor("maplibre-vector", { url: "https://tiles.test/{z}/{x}/{y}.pbf?token=secret" });
     expect(explainAutomaticSourceToMapLibre(fakeSource(unsafe), { sourceLayer: "x" }).selected).toBeUndefined();
+
+    const signedWms = descriptor("wms", {
+      url: "https://maps.test/wms?X-Amz-Signature=secret",
+      typeName: "parcels",
+    });
+    expect(explainAutomaticSourceToMapLibre(fakeSource(signedWms)).candidates).toContainEqual(
+      expect.objectContaining({ strategy: "wms-raster", reason: "unsafe-url" }),
+    );
+
+    const oversizedWms = descriptor("wms", { url: "https://maps.test/wms", typeName: "parcels" });
+    expect(explainAutomaticSourceToMapLibre(fakeSource(oversizedWms), { tileSize: 4_097 }).candidates).toContainEqual(
+      expect.objectContaining({ strategy: "wms-raster", reason: "invalid-option" }),
+    );
 
     const crs = descriptor("maplibre-raster", { url: "https://tiles.test/{z}/{x}/{y}.png", srsName: "EPSG:26904" });
     expect(explainAutomaticSourceToMapLibre(fakeSource(crs)).candidates).toContainEqual(
