@@ -1,4 +1,4 @@
-/** Compile-only proof of the implemented #532 kernel slice. */
+/** Compile-only proof of the implemented kernel connect/inspect/explain/query slice. */
 import { type ConnectionInspection, type HonuaKernelConnection, createHonua } from "../../../src/index.js";
 
 interface Parcel {
@@ -25,8 +25,10 @@ export async function inspectManagedConnection(signal: AbortSignal): Promise<Con
 
   // @ts-expect-error Immutable snapshots do not expose array mutation.
   inspection.sources.push(inspection.sources[0]);
-  // @ts-expect-error The query facade belongs to a later implementation issue.
-  connection.query({});
+  const plan = await connection.explain({ pagination: { limit: 100 } }, { signal });
+  const result = await connection.query(plan, { signal });
+  plan.fingerprint satisfies `sha256:${string}`;
+  result.execution.terminal.state satisfies "completed";
   // @ts-expect-error Renderer mounting belongs to a later implementation issue.
   connection.mount("#map", {});
 

@@ -25,6 +25,7 @@ export async function executeQueryPlan<T>(
 ): Promise<QueryPlanExecution<T>> {
   const acceptedPlan = validateQueryPlanSnapshot(plan);
   assertPlanContext(acceptedPlan, source, options);
+  throwIfExecutionAborted(options.signal);
   const remote = acceptedPlan.steps[0];
   if (!remote || remote.engine !== "remote") {
     throw new HonuaQueryPlanExecutionError("invalid-plan", "A query plan must begin with a remote step");
@@ -33,8 +34,10 @@ export async function executeQueryPlan<T>(
     acceptedPlan.version === "2.0"
       ? await executeGeoParquetRemote(acceptedPlan, remote as GeoParquetRemoteQueryPlanStepV2, source, options)
       : await executeRemote(remote as RemoteQueryPlanStep, source, options.signal);
+  throwIfExecutionAborted(options.signal);
   const local = acceptedPlan.steps[1];
-  const result = local ? executeLocal(acceptedPlan, local, remoteResult) : remoteResult;
+  const result = local ? executeLocal(acceptedPlan, local, remoteResult, options.signal) : remoteResult;
+  throwIfExecutionAborted(options.signal);
   return { planId: acceptedPlan.id, fingerprint: acceptedPlan.fingerprint, result };
 }
 
@@ -237,7 +240,9 @@ function executeLocal<T>(
   plan: QueryExecutionPlan,
   step: LocalAggregatePlanStep | RemoteQueryPlanStep | GeoParquetRemoteQueryPlanStepV2,
   remoteResult: Result<T>,
+  signal?: AbortSignal,
 ): Result<T> {
+  throwIfExecutionAborted(signal);
   if (step.engine !== "client" || step.operation !== "aggregate" || plan.steps.length !== 2) {
     throw new HonuaQueryPlanExecutionError(
       "invalid-plan",
@@ -254,7 +259,9 @@ function executeLocal<T>(
     );
   }
   if (step.maxBytes !== undefined) {
+    throwIfExecutionAborted(signal);
     const actualBytes = new TextEncoder().encode(JSON.stringify(remoteResult.features)).byteLength;
+    throwIfExecutionAborted(signal);
     if (actualBytes > step.maxBytes) {
       throw new HonuaQueryPlanExecutionError(
         "unsafe-materialization",
@@ -262,7 +269,8 @@ function executeLocal<T>(
       );
     }
   }
-  const aggregateRows = aggregateLocally(remoteResult.features, step.aggregation, plan.ir.query);
+  const aggregateRows = aggregateLocally(remoteResult.features, step.aggregation, plan.ir.query, signal);
+  throwIfExecutionAborted(signal);
   return {
     features: [],
     exceededTransferLimit: false,
@@ -276,4 +284,8 @@ function executeLocal<T>(
       },
     ],
   };
+}
+
+function throwIfExecutionAborted(signal: AbortSignal | undefined): void {
+  if (signalAborted(signal)) throw new HonuaAbortError();
 }

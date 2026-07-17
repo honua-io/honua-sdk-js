@@ -1,5 +1,5 @@
 {
-  "$comment": "Reviewed final root surface for issues #451 and #532. Generated migration rows partition the b6e89a4 transition-era root; regenerate fixtures and migration documentation after reviewed additions.",
+  "$comment": "Reviewed final root surface for issues #451, #532, and #533. Generated migration rows partition the b6e89a4 transition-era root; regenerate fixtures and migration documentation after reviewed additions.",
   "schemaVersion": 1,
   "inclusionRule": [
     "Include symbols used directly by the committed connect-query-explain-mount golden root workflow.",
@@ -118,9 +118,12 @@
       "envelope",
       "executeQueryPlan",
       "ExecuteQueryPlanOptions",
+      "ExecutionReceipt",
+      "ExplainOptions",
       "explainQuery",
       "ExplainQueryOptions",
       "FeatureId",
+      "FeatureQueryResult",
       "GeoParquetSourceProfiler",
       "hashQueryPlan",
       "HONUA_CONNECT_ADAPTER_VERSION",
@@ -199,6 +202,7 @@
       "QueryFallbackPolicy",
       "QueryIrSourceIdentity",
       "QueryIrV1",
+      "QueryOptions",
       "QueryPlanExecution",
       "QueryPlanExecutionErrorCode",
       "QueryPlanExecutor",
@@ -261,6 +265,22 @@
     },
     {
       "symbol": "InspectOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "ExecutionReceipt",
+      "kind": "type"
+    },
+    {
+      "symbol": "ExplainOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "FeatureQueryResult",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryOptions",
       "kind": "type"
     },
     {

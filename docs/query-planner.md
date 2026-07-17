@@ -8,8 +8,50 @@ into a versioned, serializable IR and an immutable explain plan. Explaining is
 synchronous and side-effect free: it does not fetch metadata or rows, mutate a
 renderer, or execute the query.
 
-The subpath is experimental while the remaining compiler and columnar slices
-land. It is intentionally not exported from the root barrel.
+The complete subpath is experimental while the remaining compiler and columnar
+slices land. The stable root promotes only the reviewed plan/execution subset
+used by the managed connection and MapLibre source workflows.
+
+## Managed connection workflow
+
+The reviewed planner subset is also wired into the lifecycle-owned root
+connection. This is the shortest feature-result workflow for applications that
+do not need to compose planner and executor options themselves:
+
+```ts doc-test=compile
+import { createHonua } from "@honua/sdk-js";
+
+const honua = createHonua();
+const connection = await honua.connect({
+  url: "https://example.test/ogc/features",
+  protocol: "ogc-features",
+  sourceId: "incidents",
+});
+const plan = await connection.explain({
+  where: "status = 'open'",
+  pagination: { limit: 100 },
+});
+const result = await connection.query(plan);
+
+console.log(result.execution.plan.fingerprint, result.features.length);
+await honua.dispose();
+```
+
+`explain()` returns the canonical serializable `QueryExecutionPlanV1` rather
+than a facade-specific plan. `query(query)` plans once and executes through the
+same executor as `query(plan)`. The connection binds its logical identity,
+selected source, schema, discovered capability evidence, authorization-scope
+digest, and policy into that plan. Accepted plans are integrity-checked and
+must still match the current connection observation; mutation, a foreign
+connection or scope, and refreshed schema/capability evidence fail rather than
+silently re-planning.
+
+The returned feature result adds a credential-free terminal receipt containing
+plan identity, timings, hash-only provenance, discovery observation, structured
+diagnostics, and completion counts. Cancellation is combined with the kernel
+lifecycle and propagated through remote paging and bounded local fallback.
+Columnar and realtime plans are deliberately rejected here until their explicit
+engines own a corresponding result and cancellation contract.
 
 ## Typed semantic query AST
 

@@ -40,11 +40,15 @@ export { createHonua } from "./kernel/index.js";
 export type {
   ConnectLocator,
   ConnectionInspection,
+  ExecutionReceipt,
+  ExplainOptions,
+  FeatureQueryResult,
   HonuaKernel,
   HonuaKernelConnectOptions,
   HonuaKernelConnection,
   HonuaKernelOptions,
   InspectOptions,
+  QueryOptions,
 } from "./kernel/index.js";
 
 export {
