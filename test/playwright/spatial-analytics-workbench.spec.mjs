@@ -4,6 +4,98 @@ import { startSpatialAnalyticsWorkbenchFixtureServer } from "../../examples/spat
 
 test.setTimeout(90_000);
 
+test("bounded columnar artifact drives linked map, table, chart, and selection in source or packed mode", async ({
+  page,
+}) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  const server = await startSpatialAnalyticsWorkbenchFixtureServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__?.ready)).toBe(true);
+
+    const expectedMode = process.env.HONUA_SAMPLE_SDK_MODE === "packed" ? "packed" : "source";
+    await expect(page.getByTestId("honua-sample-mode")).toHaveAttribute("data-sdk-mode", expectedMode);
+    const resolution = await page.evaluate(async () => {
+      const response = await fetch("/honua-sample-sdk-resolution.json", { cache: "no-store" });
+      if (!response.ok) throw new Error(`SDK resolution request failed: ${response.status}`);
+      return response.json();
+    });
+    expect(resolution).toMatchObject({
+      format: "honua.sdk.sample-resolution.v1",
+      mode: expectedMode,
+      package: { name: "@honua/sdk-js" },
+    });
+    expect(resolution.entrypoints.map((entrypoint) => entrypoint.specifier).sort()).toEqual(
+      [
+        "@honua/sdk-js/app-workspace",
+        "@honua/sdk-js/contract",
+        "@honua/sdk-js/exploration",
+        "@honua/sdk-js/honua",
+        "@honua/sdk-js/interactions",
+        "@honua/sdk-js/query-planner",
+      ].sort(),
+    );
+
+    const load = page.getByRole("button", { name: "Load bounded artifact" });
+    await load.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#columnar-state")).toHaveText("Columnar Batch");
+    await expect(page.locator("#columnar-truth")).toContainText("range, worker, and peak-memory behavior remain unobserved");
+    await expect(page.locator("#columnar-evidence")).toContainText("columnar-batch");
+    await expect(page.locator("#columnar-evidence")).toContainText("Renderer commit");
+    await expect(page.locator("#result-count")).toHaveText("4");
+    await expect(page.locator("#result-table")).toContainText("Municipal power relay");
+    await expect(page.locator("#risk-chart")).toContainText("High");
+
+    const highBucket = page.locator('#risk-chart button[data-risk="high"]');
+    await highBucket.focus();
+    await page.keyboard.press("Enter");
+    await expect(highBucket).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#risk-filter")).toHaveValue("high");
+    await expect(page.locator("#result-count")).toHaveText("2");
+
+    const parcelRow = page.getByRole("button", { name: "Open Mixed-use parcel cluster" }).last();
+    await parcelRow.focus();
+    await page.keyboard.press("Space");
+    await expect(page.locator("#feature-detail")).toContainText("Mixed-use parcel cluster");
+    await expect(page.locator('.map-marker[aria-pressed="true"]')).toHaveAttribute(
+      "aria-label",
+      "Open Mixed-use parcel cluster",
+    );
+
+    const incidentMarker = page.getByRole("button", { name: "Open Open response incident" }).first();
+    await incidentMarker.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#feature-detail")).toContainText("Open response incident");
+    await expect(page.locator('#result-table button[aria-pressed="true"]')).toHaveText("Open Open response incident");
+
+    await page.locator("#risk-filter").selectOption("all");
+    await page.locator("#columnar-consumer").selectOption("bounded-object");
+    await expect(page.locator("#columnar-state")).toHaveText("Bounded Object Fallback");
+    await expect(page.locator("#columnar-truth")).toContainText("capped at 4 rows");
+    await expect(page.getByTestId("honua-sample-degradation")).toContainText("cannot accept a columnar batch");
+    await expect(page.locator("#result-count")).toHaveText("4");
+    await expect
+      .poll(() => page.evaluate(() => window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__?.cloudNativeArtifactKind))
+      .toBe("bounded-object-fallback");
+
+    const stateBeforeDispose = await page.locator("#columnar-state").textContent();
+    const disposeButton = page.getByTestId("honua-sample-dispose");
+    await disposeButton.focus();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => page.evaluate(() => window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__?.disposed)).toBe(true);
+    await page.getByRole("button", { name: "Load bounded artifact" }).click();
+    await expect(page.locator("#columnar-state")).toHaveText(stateBeforeDispose ?? "");
+    await expect
+      .poll(() => page.evaluate(() => window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__?.loadCloudNative()))
+      .toBe("disposed");
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await server.close();
+  }
+});
+
 test("one accepted plan drives linked map, table, chart, evidence, and output", async ({ page }, testInfo) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));

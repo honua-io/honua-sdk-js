@@ -279,6 +279,7 @@ export interface SpatialAnalyticsWorkbenchSession {
   setRiskFilter(risk: AnalyticsRisk | "all"): void;
   selectFeature(featureId: string): void;
   selectChartBucket(risk: AnalyticsRisk | "all"): void;
+  replaceLinkedFeatures(features: readonly AnalyticsFeature[]): void;
   currentProjection(): LinkedViewQueryProjection;
   buildRequest(): HonuaCloudAnalysisRequest;
   startAnalysis(): string;

@@ -88,6 +88,7 @@ export function createSpatialAnalyticsWorkbenchSession(
   let activePlanId = dataset.plans[0]?.id ?? "linked-risk-summary";
   let activeJobId: string | undefined;
   let jobCounter = 0;
+  let linkedSnapshotCounter = 0;
   const jobs = new Map<string, JobRecord>();
   let latestOutput: AnalyticsJobOutput | undefined;
   let linkedAnalysisContext: LinkedAnalysisContext | undefined;
@@ -175,6 +176,31 @@ export function createSpatialAnalyticsWorkbenchSession(
       } else {
         views.chart.setFilter("risk", { field: "risk", operator: "=", value: risk });
       }
+      syncWorkspaceExploration(dataset, workspace, exploration);
+      reconcileVisibleSelection(session);
+    },
+    replaceLinkedFeatures(features: readonly AnalyticsFeature[]): void {
+      if (features.some((feature) => feature.sourceId !== dataset.resultSourceId)) {
+        throw new Error(`Linked features must use result source ${dataset.resultSourceId}.`);
+      }
+      latestOutput = undefined;
+      activeJobId = undefined;
+      linkedSnapshotCounter += 1;
+      views.table.select([], { replace: true });
+      workspace.dispatch({
+        kind: "apply-realtime-event",
+        event: {
+          type: "snapshot",
+          eventId: `linked-artifact:${linkedSnapshotCounter}`,
+          cursor: `linked-artifact:${linkedSnapshotCounter}`,
+          receivedAt: Date.parse(dataset.generatedAt) + 20_000 + linkedSnapshotCounter,
+          features: features.map((feature) => ({
+            id: feature.id,
+            sourceId: dataset.resultSourceId,
+            feature,
+          })),
+        },
+      });
       syncWorkspaceExploration(dataset, workspace, exploration);
       reconcileVisibleSelection(session);
     },

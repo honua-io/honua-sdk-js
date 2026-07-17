@@ -5,6 +5,10 @@ import type {
   SpatialAggregationRangeValue,
   SpatialAggregationSummaryValue,
 } from "@honua/sdk-js/contract";
+import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
+import { mountSamplePresentation } from "../../_kit/presentation.js";
+import { prepareCloudNativeLinkedWorkflow } from "./cloud-native-linked-workflow.js";
+import type { CloudNativeLinkedResult } from "./cloud-native-linked-workflow.js";
 import { createAnalysisExecutionCoordinator } from "./execution-coordinator.js";
 import { createLinkedAnalysisController, linkedAnalysisConfigFromLocation } from "./linked-analysis.js";
 import { createSpatialAnalyticsWorkbenchSession, selectAnalyticsUiModels } from "./model.js";
@@ -16,19 +20,26 @@ import type {
   SpatialAnalyticsWorkbenchSession,
 } from "./types.js";
 
+import "../../_kit/presentation.css";
 import "./styles.css";
+
+declare const __HONUA_SDK_VERSION__: string;
+
+type CloudNativeConsumerMode = "columnar" | "bounded-object";
 
 interface SpatialAnalyticsWorkbenchRuntime {
   readonly ready: boolean;
   readonly disposed: boolean;
   readonly visibleResultCount: number;
   readonly linkedAnalysisState: string;
+  readonly cloudNativeArtifactKind: string;
   explain(lane?: LinkedAnalysisLane): string;
   accept(): string;
   execute(): Promise<string>;
+  loadCloudNative(mode?: CloudNativeConsumerMode): Promise<string>;
   selectAoi(aoiId: string): void;
   exportWorkspace(): string;
-  dispose(): void;
+  dispose(): Promise<void>;
 }
 
 declare global {
@@ -57,6 +68,39 @@ let retryContext: LinkedAnalysisContext | undefined;
 const executionCoordinator = createAnalysisExecutionCoordinator<LinkedAnalysisContext>();
 const uiEvents = new AbortController();
 const uiEventOptions = { signal: uiEvents.signal };
+const cleanup = new SampleCleanupRegistry();
+let cloudNativeConsumerMode: CloudNativeConsumerMode =
+  new URLSearchParams(window.location.search).get("columnar") === "objects" ? "bounded-object" : "columnar";
+let cloudNativeResult: CloudNativeLinkedResult | undefined;
+let cloudNativeRendererMs: number | null = null;
+let cloudNativeLoading = false;
+let cloudNativeError: string | undefined;
+let cloudNativeLoadController: AbortController | undefined;
+let cloudNativeLoadPromise: Promise<string> | undefined;
+let cloudNativeGeneration = 0;
+let disposePromise: Promise<void> | undefined;
+
+const defaultPresentationEvidence = Object.freeze({
+  SDK: `@honua/sdk-js ${__HONUA_SDK_VERSION__}`,
+  Workflow: "AOI → bounded prerequisite → shared exploration state",
+  Renderer: "Accessible DOM map fallback; direct deck.gl/GeoArrow and MapLibre runtime are unobserved",
+  Qualification: "Deterministic fixture prerequisite only",
+});
+const presentation = mountSamplePresentation({
+  sampleId: "spatial-analytics-workbench",
+  evidence: defaultPresentationEvidence,
+  onDispose: () => dispose(),
+});
+const skipLink = document.querySelector<HTMLElement>(".skip-link");
+if (skipLink) document.body.prepend(skipLink);
+cleanup.add(() => presentation.root.remove());
+cleanup.add(() => session.dispose());
+cleanup.add(() => uiEvents.abort("Spatial analytics workbench disposed."));
+cleanup.add(async () => {
+  cloudNativeLoadController?.abort("Spatial analytics workbench disposed.");
+  await cloudNativeLoadPromise?.catch(() => undefined);
+});
+cleanup.add(() => executionCoordinator.invalidate());
 
 function getElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -99,6 +143,7 @@ function render(): void {
   renderJobs();
   renderPlan();
   renderEvidence();
+  renderCloudNative();
   renderReport();
 }
 
@@ -106,6 +151,7 @@ function renderSelectors(): void {
   const aoiSelect = getElement<HTMLSelectElement>("#aoi-select");
   const riskFilter = getElement<HTMLSelectElement>("#risk-filter");
   const executionLane = getElement<HTMLSelectElement>("#execution-lane");
+  const cloudNativeConsumer = getElement<HTMLSelectElement>("#columnar-consumer");
 
   aoiSelect.innerHTML = session.dataset.aois
     .map(
@@ -116,6 +162,7 @@ function renderSelectors(): void {
   const risk = session.currentProjection().filters.risk?.value;
   riskFilter.value = typeof risk === "string" ? risk : "all";
   executionLane.value = selectedLane;
+  cloudNativeConsumer.value = cloudNativeConsumerMode;
 
   setText("#aoi-area", `${session.activeAoi.areaSqKm.toFixed(1)} sq km`);
   setText("#aoi-geometry", session.activeAoi.geometryLabel);
@@ -189,7 +236,11 @@ function renderCapabilities(): void {
 function renderMap(): void {
   setText(
     "#map-context",
-    linkedContext.plan ? `${linkedContext.id} · ${titleCase(linkedContext.state)}` : titleCase(linkedContext.state),
+    cloudNativeResult
+      ? `${titleCase(cloudNativeResult.artifactKind)} · one shared result`
+      : linkedContext.plan
+        ? `${linkedContext.id} · ${titleCase(linkedContext.state)}`
+        : titleCase(linkedContext.state),
   );
   const aggregation = session.latestAggregation();
   if (aggregation && session.activePlan.id === "indexed-aggregation") {
@@ -338,7 +389,7 @@ function renderChart(): void {
       "click",
       () => {
         session.selectChartBucket(button.dataset.risk as AnalyticsRisk);
-        explainCurrent();
+        if (!cloudNativeResult) explainCurrent();
         render();
       },
       uiEventOptions,
@@ -470,7 +521,23 @@ function renderRangeWidget(title: string, summary: SpatialAggregationRangeValue)
 }
 
 function renderMetrics(): void {
-  const metrics = session.latestOutput()?.metrics ?? session.createReport().metrics;
+  const metrics = cloudNativeResult
+    ? [
+        { label: "Artifact rows", value: String(cloudNativeResult.features.length), tone: "good" as const },
+        { label: "Visible rows", value: String(session.visibleFeatures().length), tone: "neutral" as const },
+        {
+          label: "Fixture bytes",
+          value: cloudNativeResult.truth.source.byteLength.toLocaleString(),
+          tone: "neutral" as const,
+        },
+        {
+          label: "Backing bytes",
+          value: cloudNativeResult.truth.artifact.backingBytes?.toLocaleString() ?? "object rows",
+          tone: cloudNativeResult.artifactKind === "columnar-batch" ? ("good" as const) : ("warn" as const),
+        },
+        { label: "Fidelity", value: cloudNativeResult.truth.artifact.artifactFidelity, tone: "neutral" as const },
+      ]
+    : (session.latestOutput()?.metrics ?? session.createReport().metrics);
   const list = getElement<HTMLElement>("#metric-list");
   list.innerHTML = metrics
     .map(
@@ -598,6 +665,74 @@ function renderEvidence(): void {
     : "No output artifact until an accepted plan executes.";
 }
 
+function renderCloudNative(): void {
+  const badge = getElement<HTMLElement>("#columnar-state");
+  const loadButton = getElement<HTMLButtonElement>("#load-cloud-native");
+  const consumer = getElement<HTMLSelectElement>("#columnar-consumer");
+  loadButton.disabled = cloudNativeLoading;
+  consumer.disabled = cloudNativeLoading;
+  loadButton.textContent = cloudNativeLoading ? "Loading bounded artifact…" : "Load bounded artifact";
+
+  if (cloudNativeLoading) {
+    badge.textContent = "Loading";
+    badge.dataset.state = "accepted";
+    setText("#columnar-truth", "Reading the digest-pinned same-origin fixture within the S1 byte and row ceilings.");
+    getElement<HTMLElement>("#columnar-evidence").replaceChildren();
+    getElement<HTMLPreElement>("#columnar-truth-json").textContent = "Preparation in progress.";
+    return;
+  }
+  if (cloudNativeError) {
+    badge.textContent = "Failed closed";
+    badge.dataset.state = "rejected";
+    setText("#columnar-truth", cloudNativeError);
+    getElement<HTMLElement>("#columnar-evidence").replaceChildren();
+    getElement<HTMLPreElement>("#columnar-truth-json").textContent = cloudNativeError;
+    return;
+  }
+  if (!cloudNativeResult) {
+    badge.textContent = "Not loaded";
+    badge.dataset.state = "estimate";
+    setText(
+      "#columnar-truth",
+      "Load the accepted S1 prerequisite to drive the existing map, table, chart, filter, and selection context.",
+    );
+    getElement<HTMLElement>("#columnar-evidence").replaceChildren();
+    getElement<HTMLPreElement>("#columnar-truth-json").textContent =
+      "No columnar artifact has been prepared or rendered.";
+    return;
+  }
+
+  const truth = cloudNativeResult.truth;
+  badge.textContent = titleCase(cloudNativeResult.artifactKind);
+  badge.dataset.state = cloudNativeResult.artifactKind === "columnar-batch" ? "executed-local" : "accepted";
+  setText(
+    "#columnar-truth",
+    cloudNativeResult.artifactKind === "columnar-batch"
+      ? "The public Honua columnar batch envelope drives one shared linked result. GeoParquet, range, worker, and peak-memory behavior remain unobserved."
+      : `Explicit degraded object conversion drives the same linked result and remains capped at ${truth.fallback.maxRows} rows.`,
+  );
+  getElement<HTMLElement>("#columnar-evidence").innerHTML = [
+    ["Artifact", cloudNativeResult.artifactKind],
+    ["Rows", String(truth.artifact.rows)],
+    ["Partitions", `${truth.query.selectedRowGroupIds.length}/${truth.query.availableRowGroups} fixture-evaluated`],
+    ["Fallback", truth.fallback.selected],
+    ["Range", truth.claims.rangeAccess.state],
+    ["Worker", truth.claims.workerExecution.state],
+    ["Peak memory", truth.claims.peakMemory.state],
+    ["Source + prerequisite", `${cloudNativeResult.timing.prerequisiteMs.toFixed(3)} ms (combined)`],
+    ["Engine", "unobserved"],
+    ["SDK link", `${cloudNativeResult.timing.sdkLinkMs.toFixed(3)} ms`],
+    ["Renderer commit", cloudNativeRendererMs === null ? "pending" : `${cloudNativeRendererMs.toFixed(3)} ms`],
+  ]
+    .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`)
+    .join("");
+  getElement<HTMLPreElement>("#columnar-truth-json").textContent = JSON.stringify(
+    { truth, timing: { ...cloudNativeResult.timing, rendererMs: cloudNativeRendererMs } },
+    null,
+    2,
+  );
+}
+
 function executionTruth(context: LinkedAnalysisContext): string {
   switch (context.state) {
     case "estimate":
@@ -623,8 +758,13 @@ function executionTruth(context: LinkedAnalysisContext): string {
 
 function renderReport(): void {
   const output = session.latestOutput();
-  setText("#materialized-layer", output?.resultLayer.id ?? "none");
-  setText("#lineage", output?.resultLayer.lineage.join(" -> ") ?? "no materialized lineage yet");
+  setText("#materialized-layer", cloudNativeResult?.artifactKind ?? output?.resultLayer.id ?? "none");
+  setText(
+    "#lineage",
+    cloudNativeResult
+      ? `${cloudNativeResult.truth.source.objectVersion} -> ${cloudNativeResult.truth.cacheIdentity} -> shared exploration context`
+      : (output?.resultLayer.lineage.join(" -> ") ?? "no materialized lineage yet"),
+  );
   getElement<HTMLPreElement>("#workspace-export").textContent =
     workspaceExport || JSON.stringify(session.createReport(), null, 2);
 }
@@ -648,8 +788,12 @@ function wireEvents(activeSession: SpatialAnalyticsWorkbenchSession): void {
     "change",
     (event) => {
       activeSession.selectAoi((event.currentTarget as HTMLSelectElement).value);
-      explainCurrent();
-      render();
+      if (cloudNativeResult) {
+        void loadCloudNative(cloudNativeConsumerMode).catch(() => undefined);
+      } else {
+        explainCurrent();
+        render();
+      }
     },
     uiEventOptions,
   );
@@ -666,7 +810,7 @@ function wireEvents(activeSession: SpatialAnalyticsWorkbenchSession): void {
     "change",
     (event) => {
       activeSession.setRiskFilter((event.currentTarget as HTMLSelectElement).value as AnalyticsRisk | "all");
-      explainCurrent();
+      if (!cloudNativeResult) explainCurrent();
       render();
     },
     uiEventOptions,
@@ -703,6 +847,19 @@ function wireEvents(activeSession: SpatialAnalyticsWorkbenchSession): void {
     },
     uiEventOptions,
   );
+  getElement<HTMLSelectElement>("#columnar-consumer").addEventListener(
+    "change",
+    (event) => {
+      cloudNativeConsumerMode = (event.currentTarget as HTMLSelectElement).value as CloudNativeConsumerMode;
+      if (cloudNativeResult) void loadCloudNative(cloudNativeConsumerMode).catch(() => undefined);
+    },
+    uiEventOptions,
+  );
+  getElement<HTMLButtonElement>("#load-cloud-native").addEventListener(
+    "click",
+    () => void loadCloudNative(cloudNativeConsumerMode).catch(() => undefined),
+    uiEventOptions,
+  );
   getElement<HTMLButtonElement>("#export-workspace").addEventListener(
     "click",
     () => {
@@ -714,6 +871,7 @@ function wireEvents(activeSession: SpatialAnalyticsWorkbenchSession): void {
 }
 
 function loadIndexedFixture(activeSession: SpatialAnalyticsWorkbenchSession): void {
+  clearCloudNativeState();
   invalidateExecution();
   activeSession.clearOutput();
   linkedContext = linkedController.explain(selectedLane, activeSession.activeAoi, activeSession.currentProjection());
@@ -728,6 +886,7 @@ function loadIndexedFixture(activeSession: SpatialAnalyticsWorkbenchSession): vo
 }
 
 function explainCurrent(): void {
+  clearCloudNativeState();
   invalidateExecution();
   session.clearOutput();
   linkedContext = linkedController.explain(selectedLane, session.activeAoi, session.currentProjection());
@@ -736,6 +895,7 @@ function explainCurrent(): void {
 }
 
 function acceptCurrent(): string {
+  clearCloudNativeState();
   invalidateExecution();
   session.clearOutput();
   linkedContext = linkedController.accept(linkedContext);
@@ -789,12 +949,101 @@ async function executeAcceptedPlan(): Promise<string> {
   }
 }
 
-function dispose(): void {
-  if (disposed) return;
+function loadCloudNative(mode: CloudNativeConsumerMode = cloudNativeConsumerMode): Promise<string> {
+  const tracked = runCloudNativeLoad(mode).finally(() => {
+    if (cloudNativeLoadPromise === tracked) cloudNativeLoadPromise = undefined;
+  });
+  cloudNativeLoadPromise = tracked;
+  return tracked;
+}
+
+async function runCloudNativeLoad(mode: CloudNativeConsumerMode): Promise<string> {
+  if (disposed) return "disposed";
+  cloudNativeConsumerMode = mode;
+  invalidateExecution();
+  cloudNativeLoadController?.abort("A newer bounded artifact request replaced this one.");
+  cloudNativeGeneration += 1;
+  const generation = cloudNativeGeneration;
+  const controller = new AbortController();
+  cloudNativeLoadController = controller;
+  cloudNativeLoading = true;
+  cloudNativeError = undefined;
+  cloudNativeResult = undefined;
+  cloudNativeRendererMs = null;
+  workspaceExport = "";
+  presentation.clearStatus();
+  presentation.updateEvidence(defaultPresentationEvidence);
+  session.clearOutput();
+  render();
+
+  const extent = session.activeAoi.extent;
+  try {
+    const result = await prepareCloudNativeLinkedWorkflow({
+      origin: window.location.origin,
+      aoiId: session.activeAoi.id,
+      aoi: [extent.xmin, extent.ymin, extent.xmax, extent.ymax],
+      resultSourceId: session.dataset.resultSourceId,
+      acceptsColumnar: mode === "columnar",
+      signal: controller.signal,
+    });
+    if (disposed || generation !== cloudNativeGeneration) return "superseded";
+    cloudNativeResult = result;
+    session.replaceLinkedFeatures(result.features);
+    cloudNativeLoading = false;
+    const rendererStarted = performance.now();
+    render();
+    await nextAnimationFrame();
+    if (disposed || generation !== cloudNativeGeneration) return "superseded";
+    cloudNativeRendererMs = Number(Math.max(0, performance.now() - rendererStarted).toFixed(3));
+    renderCloudNative();
+    presentation.updateEvidence({
+      SDK: `@honua/sdk-js ${__HONUA_SDK_VERSION__}`,
+      Workflow: "AOI → bounded prerequisite → shared exploration state",
+      Artifact: `${result.artifactKind}; ${result.features.length} row(s)`,
+      Timing: `prerequisite ${result.timing.prerequisiteMs.toFixed(3)} ms; SDK ${result.timing.sdkLinkMs.toFixed(3)} ms; renderer ${cloudNativeRendererMs.toFixed(3)} ms`,
+      Qualification: result.truth.qualification,
+    });
+    presentation.showDegradation(result.truth.degradations.map((degradation) => degradation.reason));
+    setText(
+      "#analysis-announcer",
+      `${result.features.length} ${result.artifactKind} rows are linked across the map, table, and risk chart.`,
+    );
+    return result.artifactKind;
+  } catch (error) {
+    if (disposed || generation !== cloudNativeGeneration) return "superseded";
+    cloudNativeLoading = false;
+    cloudNativeError = error instanceof Error ? error.message : String(error);
+    session.clearOutput();
+    presentation.showError(error);
+    render();
+    throw error;
+  } finally {
+    if (cloudNativeLoadController === controller) cloudNativeLoadController = undefined;
+  }
+}
+
+function clearCloudNativeState(): void {
+  cloudNativeGeneration += 1;
+  cloudNativeLoadController?.abort("The bounded artifact was invalidated by a different workflow.");
+  cloudNativeLoadController = undefined;
+  cloudNativeLoading = false;
+  cloudNativeError = undefined;
+  cloudNativeResult = undefined;
+  cloudNativeRendererMs = null;
+  presentation.clearStatus();
+  presentation.updateEvidence(defaultPresentationEvidence);
+}
+
+function nextAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+}
+
+function dispose(): Promise<void> {
+  if (disposePromise) return disposePromise;
   disposed = true;
-  executionCoordinator.invalidate();
-  uiEvents.abort();
-  session.dispose();
+  cloudNativeGeneration += 1;
+  disposePromise = cleanup.dispose();
+  return disposePromise;
 }
 
 wireEvents(session);
@@ -813,6 +1062,9 @@ window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__ = {
   get linkedAnalysisState() {
     return disposed ? "disposed" : linkedContext.state;
   },
+  get cloudNativeArtifactKind() {
+    return disposed ? "disposed" : (cloudNativeResult?.artifactKind ?? (cloudNativeLoading ? "loading" : "none"));
+  },
   explain(lane = selectedLane): string {
     if (disposed) return "disposed";
     selectedLane = lane;
@@ -826,6 +1078,9 @@ window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__ = {
   },
   execute(): Promise<string> {
     return executeAcceptedPlan();
+  },
+  loadCloudNative(mode = cloudNativeConsumerMode): Promise<string> {
+    return loadCloudNative(mode);
   },
   selectAoi(aoiId: string): void {
     if (disposed) return;
@@ -842,7 +1097,7 @@ window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__ = {
   dispose,
 };
 
-window.addEventListener("beforeunload", dispose, { once: true, signal: uiEvents.signal });
+cleanup.listen(window, "beforeunload", () => void dispose(), { once: true });
 
 function countValue(summary: SpatialAggregationSummaryValue | undefined): number {
   return summary && "value" in summary && typeof summary.value === "number" ? summary.value : 0;

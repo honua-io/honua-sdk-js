@@ -61,6 +61,33 @@
       "workflowSelectors": ["#source-picker", "#map", "#result-table-body"]
     },
     {
+      "id": "spatial-analytics-workbench",
+      "viteConfig": "examples/spatial-analytics-workbench/vite.config.ts",
+      "tsconfig": "examples/spatial-analytics-workbench/tsconfig.json",
+      "playwrightScript": "test:playwright:spatial-analytics",
+      "playwrightFile": "test/playwright/spatial-analytics-workbench.spec.mjs",
+      "playwrightTestTitle": "bounded columnar artifact drives linked map, table, chart, and selection in source or packed mode",
+      "playwrightProjects": [{ "name": "chromium", "browserName": "chromium" }],
+      "evidenceProject": "chromium",
+      "sdkEntrypoints": [
+        "@honua/sdk-js/app-workspace",
+        "@honua/sdk-js/contract",
+        "@honua/sdk-js/exploration",
+        "@honua/sdk-js/honua",
+        "@honua/sdk-js/interactions",
+        "@honua/sdk-js/query-planner"
+      ],
+      "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
+      "workflowSelectors": [
+        "#aoi-select",
+        "#load-cloud-native",
+        "#map-surface",
+        "#result-table",
+        "#risk-chart",
+        "#columnar-workflow"
+      ]
+    },
+    {
       "id": "standalone-quickstart",
       "viteConfig": "examples/standalone-quickstart/vite.config.ts",
       "tsconfig": "examples/standalone-quickstart/tsconfig.json",

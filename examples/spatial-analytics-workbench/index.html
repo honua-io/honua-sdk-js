@@ -61,6 +61,16 @@
                 <button id="accept-plan" type="button">Accept plan</button>
                 <button id="run-analysis" class="primary" type="button">Execute accepted plan</button>
               </div>
+              <label>
+                Bounded artifact consumer
+                <select id="columnar-consumer">
+                  <option value="columnar">Public columnar batch</option>
+                  <option value="bounded-object">Degraded object fallback (max 4)</option>
+                </select>
+              </label>
+              <div class="button-row">
+                <button id="load-cloud-native" class="primary" type="button">Load bounded artifact</button>
+              </div>
               <div id="execution-error" class="execution-error" role="alert" hidden>
                 <strong>Execution failed</strong>
                 <span id="execution-error-message"></span>
@@ -134,6 +144,18 @@
             <details>
               <summary>Reusable output artifact</summary>
               <pre id="artifact-json"></pre>
+            </details>
+          </section>
+          <section class="panel" id="columnar-workflow">
+            <div class="panel-header">
+              <h2>Bounded artifact truth</h2>
+              <span class="state-badge" id="columnar-state">not loaded</span>
+            </div>
+            <p id="columnar-truth" class="control-note"></p>
+            <dl class="provenance-grid" id="columnar-evidence"></dl>
+            <details>
+              <summary>Prerequisite truth and stage timing</summary>
+              <pre id="columnar-truth-json"></pre>
             </details>
           </section>
           <section class="panel">

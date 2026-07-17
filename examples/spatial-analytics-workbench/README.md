@@ -25,7 +25,7 @@ The advanced indexed-response panel remains a clearly labeled fixture for the
 existing `SpatialAggregationResult` widgets. It does **not** claim that #389
 already compiles OGC/CQL2, DuckDB, H3, or Quadbin execution.
 
-## Cloud-native S1 prerequisite
+## Cloud-native S1 prerequisite and S2 linked workflow
 
 `public/fixtures/cloud-native-analysis-columnar.v1.json` is a small,
 digest-pinned columnar analysis fixture served from the application origin.
@@ -37,8 +37,20 @@ batch, conversion is allowed only for four rows and otherwise fails closed.
 This prerequisite is deliberately truth-limited: committed partition envelopes
 model row-group selection, but HTTP range access, Parquet row-group counters,
 worker execution/cleanup, and browser peak memory remain explicitly unobserved.
-It is fixture preparation, not live or golden qualification. Those execution
-and evidence gates remain in later #547 slices.
+It is fixture preparation, not live or golden qualification.
+
+The S2 control consumes that accepted prerequisite through either the public
+columnar envelope or an explicit four-row object fallback. Both paths publish
+the same feature objects into one public SDK exploration context, so AOI,
+filter, map, table, chart, and detail selection remain linked. The UI reports
+combined prerequisite time, SDK adaptation time, and browser render-commit
+time separately; source-only and engine timing stay marked unobserved because
+S1 does not expose those boundaries. The accessible DOM map is an explicit
+fallback—not a claim of MapLibre, deck.gl/GeoArrow, or Kepler execution.
+
+The sample is registered with the shared sample kit. Source and extracted
+packed-package modes resolve only declared public SDK entrypoints and emit
+`honua-sample-sdk-resolution.json` for browser verification.
 
 ## Run the deterministic lane
 
