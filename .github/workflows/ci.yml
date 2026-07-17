@@ -311,6 +311,33 @@ jobs:
           path: test-results/browser-benchmark/
           if-no-files-found: error
 
+  first-map-release-browsers:
+    name: First Map (${{ matrix.sdk_mode }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk_mode: [source, packed]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install release browsers
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Qualify First Map
+        run: npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode "${{ matrix.sdk_mode }}"
+
   mcp-sdk:
     name: MCP SDK
     runs-on: ubuntu-latest

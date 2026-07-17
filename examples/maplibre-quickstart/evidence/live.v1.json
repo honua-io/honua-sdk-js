@@ -5,12 +5,12 @@
   "lane": "live",
   "status": "executed",
   "reason": null,
-  "observedAt": "2026-07-17T02:31:47.418Z",
+  "observedAt": "2026-07-17T02:58:37.403Z",
   "authMode": "anonymous",
   "sdk": {
     "package": "@honua/sdk-js",
     "version": "0.1.0-beta.0",
-    "gitCommit": "5987d16547be596746dd6b23ca39db6393ebee7b"
+    "gitCommit": "c592c19cbee8ce4b60d2ed00492d88ae8df14508"
   },
   "source": {
     "provider": "honua-demo",
@@ -21,7 +21,7 @@
   },
   "provenance": {
     "sourceId": "honua-demo:maui-parcels:1:geoservices+ogc-features",
-    "observedAt": "2026-07-17T02:31:47.418Z",
+    "observedAt": "2026-07-17T02:58:37.403Z",
     "validAt": null,
     "state": "live",
     "attribution": "Honua canonical demo data"
@@ -33,13 +33,13 @@
     "assertions": [
       "protocolsObserved=[\"geoservices\",\"ogc-features\"]",
       "sharedSourceTitle=\"maui-parcels\"",
-      "rawEndpointHealth={\"kind\":\"availability-only\",\"requestCount\":6,\"latencyMs\":3242.6005220000006,\"geoservices\":{\"serviceId\":\"maui-parcels\",\"layerId\":1,\"geometryType\":\"esriGeometryPolygon\",\"returnedFeatureCount\":1,\"renderableGeometry\":true},\"ogcFeatures\":{\"collectionId\":\"1\",\"coreConformance\":true,\"geoJsonConformance\":true,\"returnedFeatureCount\":1,\"renderableGeometry\":true}}",
-      "publicSdkWorkflowQualification={\"kind\":\"connect-inspect-explain-bounded-query-mount\",\"executions\":[{\"protocol\":\"geoservices-feature-service\",\"sourceId\":\"1\",\"strategy\":\"geojson\",\"featureCount\":1,\"geometryKinds\":[\"polygon\"],\"layerCount\":4,\"queryLimit\":1,\"runtimeMs\":374.78140000000076,\"budgetMs\":5000,\"withinBudget\":true,\"requestCount\":3},{\"protocol\":\"ogc-features\",\"sourceId\":\"1\",\"strategy\":\"geojson\",\"featureCount\":1,\"geometryKinds\":[\"polygon\"],\"layerCount\":4,\"queryLimit\":1,\"runtimeMs\":492.54810499999985,\"budgetMs\":5000,\"withinBudget\":true,\"requestCount\":5}],\"cleanup\":\"verified-empty-map-host-after-each-execution\"}"
+      "rawEndpointHealth={\"kind\":\"availability-only\",\"requestCount\":6,\"latencyMs\":3302.468641999999,\"geoservices\":{\"serviceId\":\"maui-parcels\",\"layerId\":1,\"geometryType\":\"esriGeometryPolygon\",\"returnedFeatureCount\":1,\"renderableGeometry\":true},\"ogcFeatures\":{\"collectionId\":\"1\",\"coreConformance\":true,\"geoJsonConformance\":true,\"returnedFeatureCount\":1,\"renderableGeometry\":true}}",
+      "publicSdkWorkflowQualification={\"kind\":\"connect-inspect-explain-bounded-query-mount\",\"executions\":[{\"protocol\":\"geoservices-feature-service\",\"sourceId\":\"1\",\"strategy\":\"geojson\",\"featureCount\":1,\"geometryKinds\":[\"polygon\"],\"layerCount\":4,\"queryLimit\":1,\"runtimeMs\":361.2798690000009,\"budgetMs\":5000,\"withinBudget\":true,\"requestCount\":3},{\"protocol\":\"ogc-features\",\"sourceId\":\"1\",\"strategy\":\"geojson\",\"featureCount\":1,\"geometryKinds\":[\"polygon\"],\"layerCount\":4,\"queryLimit\":1,\"runtimeMs\":501.59448599999996,\"budgetMs\":5000,\"withinBudget\":true,\"requestCount\":5}],\"cleanup\":\"verified-empty-map-host-after-each-execution\"}"
     ]
   },
   "timing": {
-    "totalMs": 4109.930027000001,
-    "firstSuccessfulInteractionMs": 4109.930027000001
+    "totalMs": 4165.342997,
+    "firstSuccessfulInteractionMs": 4165.342997
   },
   "degradation": {
     "state": "none",

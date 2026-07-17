@@ -635,6 +635,12 @@ function sdkEnvironment(mode, packed, additions = {}) {
   };
 }
 
+function playwrightProjectEnvironment(kitSample) {
+  return kitSample
+    ? { HONUA_SAMPLE_PLAYWRIGHT_PROJECTS: JSON.stringify(kitSample.playwrightProjects) }
+    : {};
+}
+
 export function allowedLiveEnvironment(catalogSample) {
   const config = catalogSample?.data?.config;
   const classifications = catalogSample?.data?.configClassifications;
@@ -769,6 +775,7 @@ async function executeAction(sample, action, context) {
       await context.supervisor.run(argv, {
         env: sdkEnvironment(context.mode, context.packed, {
           ...(playwrightOutput ? { HONUA_SAMPLE_PLAYWRIGHT_OUTPUT_DIR: playwrightOutput } : {}),
+          ...(playwrightOutput ? playwrightProjectEnvironment(context.kitSample) : {}),
         }),
       });
     }
@@ -2902,6 +2909,7 @@ async function executeEvidence(sample, options, context) {
         env: sdkEnvironment(commandMode, packed, {
           ...(playwrightReport ? { PLAYWRIGHT_JSON_OUTPUT_NAME: playwrightReport } : {}),
           ...(playwrightOutput ? { HONUA_SAMPLE_PLAYWRIGHT_OUTPUT_DIR: playwrightOutput } : {}),
+          ...(playwrightOutput ? playwrightProjectEnvironment(context.kitSample) : {}),
           ...(screenshotReport ? { HONUA_SAMPLE_SCREENSHOT_OUTPUT: screenshotReport } : {}),
           ...(performanceReport ? { HONUA_SAMPLE_PERFORMANCE_OUTPUT: performanceReport } : {}),
           ...(evidenceProject ? { HONUA_SAMPLE_EVIDENCE_PROJECT: evidenceProject } : {}),

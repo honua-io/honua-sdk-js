@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { resolvePlaywrightProjects } from "../../playwright.config.mjs";
 import { expectedGateCommand } from "../../scripts/lib/sample-gates.mjs";
 import { collectLiveEvidence } from "../../scripts/live-benchmark-evidence.mjs";
 import {
@@ -78,6 +79,33 @@ const packageScripts = {
   "demo:safe:mock": "node examples/safe/mock-server.mjs",
   "test:playwright:safe": "playwright test test/playwright/safe.spec.mjs",
 };
+
+test("Playwright executes the exact runner-declared browser matrix", () => {
+  const declared = [
+    { name: "chromium", browserName: "chromium" },
+    { name: "firefox", browserName: "firefox" },
+    { name: "webkit", browserName: "webkit" },
+  ];
+  assert.deepEqual(resolvePlaywrightProjects(JSON.stringify(declared)), [
+    { name: "chromium", use: { browserName: "chromium" } },
+    { name: "firefox", use: { browserName: "firefox" } },
+    { name: "webkit", use: { browserName: "webkit" } },
+  ]);
+  assert.deepEqual(resolvePlaywrightProjects(undefined), [
+    { name: "chromium", use: { browserName: "chromium" } },
+  ]);
+  assert.throws(
+    () =>
+      resolvePlaywrightProjects(
+        JSON.stringify([
+          { name: "chromium", browserName: "chromium" },
+          { name: "chromium-alias", browserName: "chromium" },
+        ]),
+      ),
+    /unique supported project matrix/,
+  );
+  assert.throws(() => resolvePlaywrightProjects("not-json"), /must be valid JSON/);
+});
 
 const artifactKinds = {
   "packed-build": "packed-build-report",
