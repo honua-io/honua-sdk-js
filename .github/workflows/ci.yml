@@ -248,6 +248,9 @@ jobs:
       - name: Verify generated support truth
         run: npm run support:check
 
+      - name: Verify sdk-coverage capability snapshot
+        run: npm run sdk-coverage:check
+
       - name: Verify browser artifact publication manifest
         run: |
           node scripts/sample-contract.mjs artifacts
@@ -313,6 +316,17 @@ jobs:
         with:
           name: sdk-browser-benchmark
           path: test-results/browser-benchmark/
+          if-no-files-found: error
+
+      - name: Publish sdk-coverage.v1.json artifact
+        # Versioned per-capability coverage snapshot for the capability matrix
+        # (honua-io/honua-sdk-js#618); published on trunk builds only so
+        # honua-evidence always ingests a merged, gate-passed snapshot.
+        if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sdk-coverage-v1
+          path: config/sdk-coverage.v1.json
           if-no-files-found: error
 
   mcp-sdk:
