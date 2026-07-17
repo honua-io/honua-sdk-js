@@ -1159,7 +1159,11 @@ export class HonuaClient {
     path: string,
     init?: RequestInit,
     callerSignal?: AbortSignal,
-    options: { okStatuses?: readonly number[]; redirect?: "safe-follow" | "error" } = {},
+    options: {
+      okStatuses?: readonly number[];
+      redirect?: "safe-follow" | "error";
+      discardErrorBody?: boolean;
+    } = {},
   ): Promise<Response> {
     const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
@@ -1177,6 +1181,14 @@ export class HonuaClient {
       callerSignal,
       ...(options.okStatuses ? { okStatuses: options.okStatuses } : {}),
       ...(options.redirect ? { redirect: options.redirect } : {}),
+      ...(options.discardErrorBody
+        ? {
+            errorBody: (response: Response) => {
+              void response.body?.cancel().catch(() => undefined);
+              return Promise.resolve({});
+            },
+          }
+        : {}),
       finalize: async (response, _durationMs, _request, runAfter) => {
         await runAfter();
         return response;
