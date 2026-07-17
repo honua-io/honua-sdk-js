@@ -735,7 +735,12 @@ function projectInspection(
   inspection: ConnectionInspection,
   request: ServiceExplorerRequestView,
 ): ServiceExplorerInspectionView {
-  const inspectedDefaultSourceId = inspection.defaultSourceId;
+  // The kernel validates a structured locator's sourceId against the
+  // discovered source inventory and uses it when connection.source() is
+  // called, but ConnectionInspection intentionally reports only a
+  // protocol-discovered default. Preserve that distinction while projecting
+  // the caller's already-kernel-validated selection for this workflow.
+  const inspectedDefaultSourceId = request.sourceId ?? inspection.defaultSourceId;
   const visibleInspections = inspection.sources.slice(0, MAX_SOURCES);
   const selectedSourceVisible =
     inspectedDefaultSourceId !== undefined &&

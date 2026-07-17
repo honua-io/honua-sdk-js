@@ -51,10 +51,32 @@ an exact SHA-256 scope identity, a separately validated structural label, or
 New inspections supersede and dispose stale connections; manual cancellation,
 the ten-second browser deadline, and demo disposal abort in-flight work.
 
-The focused fixture matrix covers GeoServices Feature/Map, OGC API
-Features/Tiles/Maps, WFS, WMS, WMTS, STAC, and OData truth projections. If an
-installed public adapter cannot connect to a supplied protocol, the model
-returns a structured unsupported state rather than simulating discovery.
+The focused fixture matrix feeds bounded raw JSON or XML metadata through a
+real, default `createHonua()` kernel for GeoServices Feature/Map, OGC API
+Features/Tiles/Maps, WFS, WMS, WMTS, STAC, and OData. Every row exercises the
+public `connect()`, `inspect()`, and `source()` surfaces; it does not inject a
+descriptor or capability profile. If an installed public adapter cannot
+connect to a supplied protocol, the model returns a structured unsupported
+state rather than simulating discovery.
+
+| Raw profile | Schema reported by root discovery | Minimum observed capabilities | Honest degradation |
+| --- | --- | --- | --- |
+| GeoServices FeatureServer | available | query, IDs, edits, stream | render unavailable |
+| GeoServices MapServer | available | query, IDs, render, tiles, stream | edits unavailable |
+| OGC API Features | unavailable | query, IDs, edits | render unavailable |
+| OGC API Tiles | unavailable | render, tiles | query unavailable |
+| OGC API Maps | unavailable | render | query and tiles unavailable |
+| WFS 2.0 | unavailable | query, edits, stream | render unavailable |
+| WMS 1.3 | unavailable | render, tiles | partial: raw `GetFeatureInfo` is not bound to canonical query |
+| WMTS 1.0 | unavailable | render, tiles | query unavailable |
+| STAC API | unavailable | query, IDs, stream | render unavailable |
+| OData v4 | available | query, IDs, edits, stream | render unavailable |
+
+“Unavailable” means the service-root metadata did not advertise a field
+inventory. The Explorer does not turn a collection or feature-type name into a
+schema. Claimed/observed/effective capability profiles and pagination
+constraints likewise remain `not reported` until a public projection supplies
+them.
 
 ## Local golden path
 
@@ -82,11 +104,13 @@ npm test -- test/service-explorer-truth-model.test.ts test/service-explorer-oper
 npm run test:playwright:service-explorer
 ```
 
-The model tests cover the ten-protocol fixture matrix, the real public-kernel
-endpoint boundary, opaque authorization fingerprints, selection integrity,
-collection budgets, supersession, cancellation, and disposal. Operation tests
-prove that claims alone do not enable work and that accepted query/render plans
-remain protocol-neutral.
+The model tests cover the ten-protocol raw metadata matrix through the real
+public kernel, the shared endpoint boundary, validated multi-source selection,
+opaque authorization fingerprints, collection budgets, supersession,
+cancellation, and disposal. Synthetic kernels are reserved for hostile,
+failure, race, and lifecycle boundaries. Operation tests prove that claims
+alone do not enable work and that accepted query/render plans remain
+protocol-neutral.
 
 The Playwright journey uses the real OGC fixture and public SDK implementation.
 It verifies inspection evidence, structured unsupported actions, strict plan

@@ -25,11 +25,16 @@ import type {
 } from "../src/index.js";
 import { HonuaAbortError, HonuaAuthError, HonuaDiscoveryError, createHonua } from "../src/index.js";
 import type { CapabilityProfile } from "../src/source-capability-types.js";
+import {
+  SERVICE_EXPLORER_PUBLIC_FIXTURES,
+  type ServiceExplorerPublicFixture,
+  createServiceExplorerRawFixtureFetch,
+} from "./service-explorer-public-fixtures.js";
 
 const ENDPOINT = "https://fixtures.example.test/services/root";
 const SHA256 = `sha256:${"0".repeat(64)}` as const;
 
-interface ProtocolFixtureProfile {
+interface SyntheticBoundaryProfile {
   readonly id: string;
   readonly protocol: Protocol;
   readonly schema: "available" | "unavailable";
@@ -38,88 +43,23 @@ interface ProtocolFixtureProfile {
   readonly pagination: readonly ("offset" | "cursor" | "next-link")[];
 }
 
-const PROTOCOL_FIXTURES: readonly ProtocolFixtureProfile[] = [
-  {
-    id: "geoservices-feature",
-    protocol: "geoservices-feature-service",
-    schema: "available",
-    query: true,
-    render: true,
-    pagination: ["offset"],
-  },
-  {
-    id: "geoservices-map",
-    protocol: "geoservices-map-service",
-    schema: "available",
-    query: true,
-    render: true,
-    pagination: ["offset"],
-  },
-  {
-    id: "ogc-features",
-    protocol: "ogc-features",
-    schema: "available",
-    query: true,
-    render: false,
-    pagination: ["next-link"],
-  },
-  {
-    id: "ogc-tiles",
-    protocol: "ogc-tiles",
-    schema: "unavailable",
-    query: false,
-    render: true,
-    pagination: [],
-  },
-  {
-    id: "ogc-maps",
-    protocol: "ogc-maps",
-    schema: "unavailable",
-    query: false,
-    render: true,
-    pagination: [],
-  },
-  {
-    id: "wfs",
-    protocol: "wfs",
-    schema: "available",
-    query: true,
-    render: false,
-    pagination: ["offset"],
-  },
-  {
-    id: "wms",
-    protocol: "wms",
-    schema: "unavailable",
-    query: false,
-    render: true,
-    pagination: [],
-  },
-  {
-    id: "wmts",
-    protocol: "wmts",
-    schema: "unavailable",
-    query: false,
-    render: true,
-    pagination: [],
-  },
-  {
-    id: "stac",
-    protocol: "stac",
-    schema: "available",
-    query: true,
-    render: false,
-    pagination: ["next-link"],
-  },
-  {
-    id: "odata",
-    protocol: "odata",
-    schema: "available",
-    query: true,
-    render: false,
-    pagination: ["next-link"],
-  },
-];
+const FEATURE_BOUNDARY_PROFILE: SyntheticBoundaryProfile = Object.freeze({
+  id: "geoservices-feature",
+  protocol: "geoservices-feature-service",
+  schema: "available",
+  query: true,
+  render: false,
+  pagination: Object.freeze(["offset"] as const),
+});
+
+const OGC_BOUNDARY_PROFILE: SyntheticBoundaryProfile = Object.freeze({
+  id: "ogc-features",
+  protocol: "ogc-features",
+  schema: "unavailable",
+  query: true,
+  render: false,
+  pagination: Object.freeze(["next-link"] as const),
+});
 
 describe("Service Explorer capability-truth model", () => {
   it("depends on the public kernel and contract surfaces only", async () => {
@@ -185,30 +125,30 @@ describe("Service Explorer capability-truth model", () => {
     await model.dispose();
   });
 
-  it.each(PROTOCOL_FIXTURES)(
-    "projects $protocol fixture truth without protocol inference",
-    async (profile: ProtocolFixtureProfile) => {
-      const source = sourceInspection(profile);
-      const managed = fixtureConnection({
-        protocol: profile.protocol,
-        sources: [source],
-        defaultSourceId: source.descriptor.id,
-      });
-      const fake = fakeKernel(async () => managed.connection);
-      const model = createServiceExplorerTruthModel({ honua: fake.kernel });
+  it.each(SERVICE_EXPLORER_PUBLIC_FIXTURES)(
+    "traverses raw $protocol metadata through createHonua connect, inspect, and source",
+    async (profile: ServiceExplorerPublicFixture) => {
+      const raw = createServiceExplorerRawFixtureFetch(profile.id);
+      const model = createServiceExplorerTruthModel();
 
       const state = await model.inspect(
-        { url: `${ENDPOINT}?format=json`, protocol: profile.protocol },
+        { url: profile.endpoint, protocol: profile.protocol, sourceId: profile.sourceId },
         {
           authorizationScopeFingerprint: `sha256:${"a".repeat(64)}`,
           authorizationScopeLabel: "tenant:alpha/readers",
+          clientOptions: { fetchFn: raw.fetchFn },
         },
       );
 
-      expect(state.kind).toBe("ready");
-      if (state.kind !== "ready") throw new Error(`Expected ready fixture state, received ${state.kind}`);
+      const terminalKind = profile.terminalKind ?? "ready";
+      expect(state.kind).toBe(terminalKind);
+      if (state.kind !== "ready" && state.kind !== "partial") {
+        throw new Error(
+          `Expected inspectable ${profile.id} fixture state: ${JSON.stringify({ state, requests: raw.requests })}`,
+        );
+      }
       expect(state.inspection.service).toMatchObject({
-        endpoint: ENDPOINT,
+        endpoint: profile.endpoint,
         protocol: profile.protocol,
         protocolHint: profile.protocol,
         detection: {
@@ -221,71 +161,58 @@ describe("Service Explorer capability-truth model", () => {
         authorization: { mode: "scoped", scopeIdentity: "tenant:alpha/readers", credentialsRetained: false },
       });
       expect(state.inspection.dataset).toMatchObject({
-        sourceCount: 1,
-        visibleSourceCount: 1,
-        selectedSourceId: source.descriptor.id,
+        sourceCount: profile.sourceCount,
+        visibleSourceCount: profile.sourceCount,
+        selectedSourceId: profile.sourceId,
         selectionRequired: false,
       });
-      const projected = state.inspection.sources[0];
-      expect(projected).toMatchObject({
-        id: profile.id,
+      const projected = state.inspection.sources.find((source) => source.id === profile.sourceId);
+      expect({
+        ...projected,
+        locator: projected ? { ...projected.locator, url: projected.locator.url.replace(/\/$/, "") } : undefined,
+      }).toMatchObject({
+        id: profile.sourceId,
         protocol: profile.protocol,
         discovery: "metadata",
-        crsCount: 2,
-        crs: ["EPSG:4326", "OGC:CRS84"],
         schema: { state: profile.schema },
-        provenanceCount: 1,
         truncated: false,
+        locator: profile.locator,
       });
-      expect(projected?.locator.url).toBe(ENDPOINT);
-      expect(projected?.capabilityDecisions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            capability: "query",
-            effective: profile.query,
-            code: profile.query ? "enabled" : "adapter-unsupported",
-          }),
-          expect.objectContaining({
-            capability: "render",
-            effective: profile.render,
-            code: profile.render ? "enabled" : "adapter-unsupported",
-          }),
-        ]),
-      );
-      expect(projected?.capabilityProfile?.entries).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: "query",
-            claimed: profile.query ? "supported" : "unsupported",
-            observed: profile.query ? "supported" : "unsupported",
-            effective: profile.query ? "supported" : "unsupported",
-            evidence: [
-              expect.objectContaining({
-                kind: profileEvidenceKind(profile),
-                truth: profile.query ? "supported" : "unsupported",
-              }),
-            ],
-            ...(profile.pagination.length > 0
-              ? { pagination: expect.objectContaining({ modes: profile.pagination, maxPageSize: 1000 }) }
-              : {}),
-          }),
-        ]),
-      );
-      expect(JSON.stringify(state)).not.toContain("never-retained");
-      expect(fake.connect.mock.calls[0]?.[0]).toMatchObject({ url: ENDPOINT });
+      expect(projected?.capabilityProfile).toBeUndefined();
+      for (const capability of profile.requiredCapabilities) {
+        expect(projected?.effectiveCapabilities, `${profile.id} must expose ${capability}`).toContain(capability);
+      }
+      for (const capability of profile.forbiddenCapabilities) {
+        expect(projected?.effectiveCapabilities, `${profile.id} must not expose ${capability}`).not.toContain(
+          capability,
+        );
+      }
+
+      const connection = model.connection();
+      if (!connection) throw new Error(`${profile.id} did not retain its public kernel connection.`);
+      const publicInspection = await connection.inspect();
+      expect(publicInspection.sources.map((source) => source.descriptor.id)).toHaveLength(profile.sourceCount);
+      const publicSource = connection.source(profile.sourceId);
+      expect(publicSource.descriptor).toMatchObject({
+        id: profile.sourceId,
+        protocol: profile.protocol,
+        locator: profile.locator,
+      });
+      expect([...publicSource.capabilities].sort()).toEqual(projected?.effectiveCapabilities);
+      expect(publicSource.descriptor.capabilityProfile).toBeUndefined();
+
+      expect(raw.requests).toHaveLength(profile.requestCount);
+      expect(raw.requests.every((request) => request.method === "GET")).toBe(true);
       expect(Object.isFrozen(state.inspection)).toBe(true);
       expect(Object.isFrozen(projected?.capabilityDecisions)).toBe(true);
-      expect(model.connection()).toBe(managed.connection);
 
       await model.dispose();
-      expect(managed.dispose).toHaveBeenCalledTimes(1);
-      expect(fake.dispose).not.toHaveBeenCalled();
     },
   );
 
   it("classifies ambiguous, partial, and source-less inspections explicitly", async () => {
-    const roads = sourceInspection(PROTOCOL_FIXTURES[2] as ProtocolFixtureProfile, "roads");
-    const parcels = sourceInspection(PROTOCOL_FIXTURES[2] as ProtocolFixtureProfile, "parcels");
+    const roads = sourceInspection(OGC_BOUNDARY_PROFILE, "roads");
+    const parcels = sourceInspection(OGC_BOUNDARY_PROFILE, "parcels");
     const warning: DiscoveryDiagnostic = {
       code: "partial-discovery",
       severity: "warning",
@@ -372,7 +299,7 @@ describe("Service Explorer capability-truth model", () => {
   });
 
   it("bounds hostile renderer input and oversized discovery collections", async () => {
-    const base = sourceInspection(PROTOCOL_FIXTURES[0] as ProtocolFixtureProfile);
+    const base = sourceInspection(FEATURE_BOUNDARY_PROFILE);
     const fields = Array.from({ length: 300 }, (_, index) => ({
       name: `field-${index}`,
       type: "esriFieldTypeString" as const,
@@ -446,7 +373,7 @@ describe("Service Explorer capability-truth model", () => {
   });
 
   it("keeps opaque authorization fingerprints transport-only", async () => {
-    const source = sourceInspection(PROTOCOL_FIXTURES[2] as ProtocolFixtureProfile);
+    const source = sourceInspection(OGC_BOUNDARY_PROFILE);
     const managed = fixtureConnection({
       protocol: "ogc-features",
       sources: [source],
@@ -470,8 +397,8 @@ describe("Service Explorer capability-truth model", () => {
     await model.dispose();
   });
 
-  it("uses only the inspected default source without scanning beyond the source projection budget", async () => {
-    const base = sourceInspection(PROTOCOL_FIXTURES[2] as ProtocolFixtureProfile);
+  it("uses the kernel-validated requested source without scanning beyond the source projection budget", async () => {
+    const base = sourceInspection(OGC_BOUNDARY_PROFILE);
     const sources = Array.from(
       { length: 257 },
       (_, index): SourceDiscoveryInspection => ({
@@ -482,7 +409,7 @@ describe("Service Explorer capability-truth model", () => {
     const managed = fixtureConnection({
       protocol: "ogc-features",
       sources,
-      defaultSourceId: "source-256",
+      defaultSourceId: "source-0",
     });
     const fake = fakeKernel(async () => managed.connection);
     const model = createServiceExplorerTruthModel({ honua: fake.kernel });
@@ -490,7 +417,7 @@ describe("Service Explorer capability-truth model", () => {
     const state = await model.inspect({
       url: ENDPOINT,
       protocol: "ogc-features",
-      sourceId: "caller-selection-is-not-discovery-truth",
+      sourceId: "source-256",
     });
 
     expect(state.kind).toBe("partial");
@@ -503,14 +430,13 @@ describe("Service Explorer capability-truth model", () => {
       selectionRequired: false,
     });
     expect(state.inspection.dataset.sourceIds).not.toContain("source-256");
-    expect(state.inspection.dataset.sourceIds).not.toContain("caller-selection-is-not-discovery-truth");
 
     await model.dispose();
   });
 
   it("does not accept a dangling inspected default source", async () => {
-    const roads = sourceInspection(PROTOCOL_FIXTURES[2] as ProtocolFixtureProfile, "roads");
-    const parcels = sourceInspection(PROTOCOL_FIXTURES[2] as ProtocolFixtureProfile, "parcels");
+    const roads = sourceInspection(OGC_BOUNDARY_PROFILE, "roads");
+    const parcels = sourceInspection(OGC_BOUNDARY_PROFILE, "parcels");
     const managed = fixtureConnection({
       protocol: "ogc-features",
       sources: [roads, parcels],
@@ -534,7 +460,7 @@ describe("Service Explorer capability-truth model", () => {
   });
 
   it("makes every nested projection bound visible and redacts common credential families", async () => {
-    const profile = PROTOCOL_FIXTURES[0] as ProtocolFixtureProfile;
+    const profile = FEATURE_BOUNDARY_PROFILE;
     const base = sourceInspection(profile);
     const descriptor = base.descriptor;
     const capabilityProfile = descriptor.capabilityProfile as CapabilityProfile;
@@ -635,12 +561,12 @@ describe("Service Explorer capability-truth model", () => {
   it("prevents a superseded inspection from replacing newer truth and disposes its stale handle", async () => {
     const first = fixtureConnection({
       protocol: "ogc-features",
-      sources: [sourceInspection(PROTOCOL_FIXTURES[2] as ProtocolFixtureProfile, "first")],
+      sources: [sourceInspection(OGC_BOUNDARY_PROFILE, "first")],
       defaultSourceId: "first",
     });
     const second = fixtureConnection({
       protocol: "ogc-features",
-      sources: [sourceInspection(PROTOCOL_FIXTURES[2] as ProtocolFixtureProfile, "second")],
+      sources: [sourceInspection(OGC_BOUNDARY_PROFILE, "second")],
       defaultSourceId: "second",
     });
     const firstInspection = await first.connection.inspect();
@@ -683,7 +609,7 @@ describe("Service Explorer capability-truth model", () => {
   it("publishes disposal before invoking managed connection cleanup", async () => {
     const managed = fixtureConnection({
       protocol: "ogc-features",
-      sources: [sourceInspection(PROTOCOL_FIXTURES[2] as ProtocolFixtureProfile)],
+      sources: [sourceInspection(OGC_BOUNDARY_PROFILE)],
       defaultSourceId: "ogc-features",
     });
     const dispose = vi.fn(() => {
@@ -748,7 +674,7 @@ describe("Service Explorer capability-truth model", () => {
 });
 
 function sourceInspection(
-  profile: ProtocolFixtureProfile,
+  profile: SyntheticBoundaryProfile,
   id = profile.id,
   overrides: Partial<SourceDiscoveryInspection> = {},
 ): SourceDiscoveryInspection {
@@ -811,7 +737,7 @@ function capabilityDecision(capability: Capability, effective: boolean): Discove
   };
 }
 
-function capabilityProfile(profile: ProtocolFixtureProfile): CapabilityProfile {
+function capabilityProfile(profile: SyntheticBoundaryProfile): CapabilityProfile {
   return {
     kind: "honua.capabilities",
     version: "1.0",
@@ -832,7 +758,7 @@ function capabilityProfile(profile: ProtocolFixtureProfile): CapabilityProfile {
   };
 }
 
-function profileEvidenceKind(profile: ProtocolFixtureProfile): "metadata" | "conformance" {
+function profileEvidenceKind(profile: SyntheticBoundaryProfile): "metadata" | "conformance" {
   return profile.protocol === "ogc-features" ||
     profile.protocol === "ogc-tiles" ||
     profile.protocol === "ogc-maps" ||
@@ -847,7 +773,7 @@ function profileEvidenceKind(profile: ProtocolFixtureProfile): "metadata" | "con
 function capabilityProfileEntry(
   id: "query" | "render",
   supported: boolean,
-  pagination: ProtocolFixtureProfile["pagination"],
+  pagination: SyntheticBoundaryProfile["pagination"],
   evidenceKind: "metadata" | "conformance",
 ): CapabilityProfile["entries"][number] {
   return {
