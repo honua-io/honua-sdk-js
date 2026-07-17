@@ -24,6 +24,14 @@
 export { loadMapPackage } from "./load-package.js";
 export type { LoadMapPackageOptions, SourceErrorPolicy } from "./load-package.js";
 
+export { maplibreRenderer } from "./maplibre-renderer.js";
+export type {
+  MapLibreRendererFactoryOptions,
+  MapLibreRendererMap,
+  MapLibreRendererOptions,
+  MapLibreRendererPeer,
+} from "./maplibre-renderer.js";
+
 export {
   BoundedMapPackageFetchCache,
   DEFAULT_MAP_PACKAGE_CACHE_LIMIT,
