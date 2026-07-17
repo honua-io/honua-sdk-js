@@ -297,6 +297,38 @@ describe("structured query-plan decisions", () => {
     }
   });
 
+  it("round-trips and executes same-origin v1 plans with an empty base endpoint", async () => {
+    const sameOriginDescriptor: SourceDescriptor = {
+      id: "quickstart-features",
+      protocol: "geoservices-feature-service",
+      locator: { url: "", serviceId: "natural-earth", layerId: 0 },
+      capabilities: capabilities(["query"]),
+      schema: {
+        fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }],
+        primaryKey: "OBJECTID",
+      },
+    };
+    const plan = explainQuery({
+      descriptor: sameOriginDescriptor,
+      query: {
+        where: "1=1",
+        outFields: ["*"],
+        returnGeometry: true,
+        outSr: 4326,
+        pagination: { limit: 25 },
+      },
+      sourceVersion: "honolulu-operations-v1",
+      estimates: { rows: 25, requests: 1 },
+    });
+
+    expect(parseQueryPlan(serializeQueryPlan(plan))).toEqual(plan);
+    await expect(
+      executeQueryPlan(plan, fakeSource(sameOriginDescriptor), {
+        sourceVersion: "honolulu-operations-v1",
+      }),
+    ).resolves.toMatchObject({ planId: plan.id, fingerprint: plan.fingerprint });
+  });
+
   it("validates request counts and keeps exact and queryAll request evidence consistent", () => {
     for (const requests of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
       expect(() => explainQuery({ descriptor: descriptor(), estimates: { requests } })).toThrow(

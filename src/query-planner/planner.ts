@@ -517,7 +517,9 @@ function rebuildQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
       : undefined;
   const geoparquet = source.geoparquet;
   const url = source.protocol === "geoparquet" ? geoparquet?.sources[0] : source.endpoint;
-  if (typeof url !== "string" || url.length === 0) throw invalidPersistedPlan();
+  if (typeof url !== "string" || (source.protocol === "geoparquet" && url.length === 0)) {
+    throw invalidPersistedPlan();
+  }
   const geometryEncoding = geoparquet?.geometryEncoding;
   if (
     geometryEncoding !== undefined &&
