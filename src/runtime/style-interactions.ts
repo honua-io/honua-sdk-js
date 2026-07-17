@@ -11,7 +11,14 @@
  */
 
 import type { FeatureId } from "../contract/types.js";
-import { type HonuaErrorMetadata, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorMetadata,
+  HonuaSdkError,
+  honuaErrorOptionsWithCause,
+  mergeHonuaErrorContext,
+  ownHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 import { sourceFeatureSelectionTarget } from "../exploration/selection.js";
 import type { SourceQualifiedFeatureSelectionTarget } from "../exploration/types.js";
 import { Expr } from "../expr/index.js";
@@ -45,8 +52,8 @@ export interface HonuaRuntimeDiagnostic {
 }
 
 export class HonuaRuntimeDiagnosticError extends HonuaSdkError {
-  public readonly diagnostics: readonly HonuaRuntimeDiagnostic[];
-  public override readonly cause: unknown;
+  public declare readonly diagnostics: readonly HonuaRuntimeDiagnostic[];
+  public declare readonly cause: unknown;
 
   public constructor(
     message: string,
@@ -54,15 +61,22 @@ export class HonuaRuntimeDiagnosticError extends HonuaSdkError {
     cause?: unknown,
     metadata: HonuaErrorMetadata = {},
   ) {
-    super("runtime.diagnostic", message, {
-      ...metadata,
-      cause,
-      context: mergeHonuaErrorContext(metadata.context, {
-        diagnosticCount: diagnostics.length,
-        diagnosticCodes: diagnostics.map(({ code }) => code),
-      }),
-    });
-    this.name = "HonuaRuntimeDiagnosticError";
+    super(
+      "runtime.diagnostic",
+      message,
+      withHonuaErrorClassification(
+        honuaErrorOptionsWithCause(metadata, cause),
+        "runtime.diagnostic",
+        "HonuaRuntimeDiagnosticError",
+        "runtime",
+        "validation",
+        false,
+        mergeHonuaErrorContext(ownHonuaErrorContext(metadata), {
+          diagnosticCount: diagnostics.length,
+          diagnosticCodes: diagnostics.map(({ code }) => code),
+        }),
+      ),
+    );
     this.diagnostics = diagnostics;
     this.cause = cause;
   }

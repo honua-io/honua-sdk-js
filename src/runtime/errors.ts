@@ -7,7 +7,14 @@
  * @module
  */
 
-import { type HonuaErrorMetadata, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorMetadata,
+  HonuaSdkError,
+  mergeHonuaErrorContext,
+  ownDataProperty,
+  ownHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 
 /**
  * Stage of the runtime pipeline a failure occurred in. Keeping this as a
@@ -39,10 +46,10 @@ export type HonuaMapPackageErrorStage =
  * `docs/composition.md`.
  */
 export class HonuaMapPackageError extends HonuaSdkError {
-  public readonly packageId: string | undefined;
-  public readonly stage: HonuaMapPackageErrorStage;
-  public readonly detail: unknown;
-  public override readonly cause: unknown;
+  public declare readonly packageId: string | undefined;
+  public declare readonly stage: HonuaMapPackageErrorStage;
+  public declare readonly detail: unknown;
+  public declare readonly cause: unknown;
 
   public constructor(
     message: string,
@@ -53,17 +60,30 @@ export class HonuaMapPackageError extends HonuaSdkError {
       cause?: unknown;
     } & HonuaErrorMetadata,
   ) {
-    super(MAP_PACKAGE_ERROR_CODES[options.stage], message, {
-      cause: options.cause,
-      operationId: options.operationId,
-      requestId: options.requestId,
-      context: mergeHonuaErrorContext(options.context, { packageId: options.packageId, stage: options.stage }),
-    });
-    this.name = "HonuaMapPackageError";
+    super(
+      MAP_PACKAGE_ERROR_CODES[options.stage],
+      message,
+      withHonuaErrorClassification(
+        options,
+        MAP_PACKAGE_ERROR_CODES[options.stage],
+        "HonuaMapPackageError",
+        "runtime",
+        options.stage === "fetch"
+          ? "network"
+          : options.stage === "validate" || options.stage === "style-compose" || options.stage === "popup"
+            ? "validation"
+            : "internal",
+        options.stage === "fetch" || options.stage === "dispose",
+        mergeHonuaErrorContext(ownHonuaErrorContext(options), {
+          packageId: options.packageId,
+          stage: options.stage,
+        }),
+      ),
+    );
     this.packageId = options.packageId;
     this.stage = options.stage;
     this.detail = options.detail;
-    this.cause = options.cause;
+    this.cause = ownDataProperty(options, "cause");
   }
 }
 

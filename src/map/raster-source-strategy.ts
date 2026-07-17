@@ -1,5 +1,11 @@
 import type { SourceDescriptor } from "../contract/types.js";
-import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import {
+  type HonuaErrorOptions,
+  HonuaSdkError,
+  mergeHonuaErrorContext,
+  ownHonuaErrorContext,
+  withHonuaErrorClassification,
+} from "../core/error-base.js";
 import {
   type MapLibreRasterSourceSpec,
   buildWmsRasterSourceSpec,
@@ -31,17 +37,34 @@ export interface MapLibreRasterDiagnostic {
 }
 
 export class HonuaMapLibreRasterStrategyError extends HonuaSdkError {
+  public declare readonly code: MapLibreRasterStrategyErrorCode;
+  public declare readonly detail?: Readonly<Record<string, unknown>> | undefined;
+
   public constructor(
-    public readonly code: MapLibreRasterStrategyErrorCode,
+    code: MapLibreRasterStrategyErrorCode,
     message: string,
-    public readonly detail?: Readonly<Record<string, unknown>>,
+    detail?: Readonly<Record<string, unknown>> | undefined,
     options: HonuaErrorOptions = {},
   ) {
-    super(MAPLIBRE_RASTER_ERROR_CODES[code], message, {
-      ...options,
-      context: mergeHonuaErrorContext(detail, options.context),
-    });
-    this.name = "HonuaMapLibreRasterStrategyError";
+    super(
+      MAPLIBRE_RASTER_ERROR_CODES[code],
+      message,
+      withHonuaErrorClassification(
+        options,
+        MAPLIBRE_RASTER_ERROR_CODES[code],
+        "HonuaMapLibreRasterStrategyError",
+        "map",
+        code === "unsupported-strategy" || code === "capability-mismatch"
+          ? "capability"
+          : code === "map-mutation-failed"
+            ? "internal"
+            : "validation",
+        false,
+        mergeHonuaErrorContext(detail, ownHonuaErrorContext(options)),
+      ),
+    );
+    this.code = code;
+    this.detail = detail;
   }
 }
 

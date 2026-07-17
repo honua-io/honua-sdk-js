@@ -37,7 +37,7 @@ import {
   stableJson,
 } from "../contract/tiles.js";
 import type { Capability, Protocol } from "../contract/types.js";
-import { HonuaSdkError } from "../core/error-envelope.js";
+import { HonuaSdkError, withHonuaErrorClassification } from "../core/error-base.js";
 import { trimLeadingSlashes, trimTrailingSlashes } from "../core/path-utils.js";
 
 export interface MapLibreQueryTileSourceSpec {
@@ -108,11 +108,11 @@ export interface QueryTileFeatureDetailFetchResult<T = Record<string, unknown>> 
 }
 
 export class QueryTileServerResponseError extends HonuaSdkError {
-  public readonly status: number;
-  public readonly url: string;
-  public readonly response: QueryTileServerErrorResponse | undefined;
-  public readonly body: unknown;
-  public readonly validators: QueryTileServerCacheValidators;
+  public declare readonly status: number;
+  public declare readonly url: string;
+  public declare readonly response: QueryTileServerErrorResponse | undefined;
+  public declare readonly body: unknown;
+  public declare readonly validators: QueryTileServerCacheValidators;
 
   public constructor(options: {
     status: number;
@@ -127,9 +127,17 @@ export class QueryTileServerResponseError extends HonuaSdkError {
         ? "runtime.query-tiles.transient"
         : "runtime.query-tiles.rejected",
       options.message,
-      { context: { status: options.status, url: options.url } },
+      withHonuaErrorClassification(
+        { context: { status: options.status, url: options.url } },
+        QUERY_TILE_RETRYABLE_STATUSES.has(options.status)
+          ? "runtime.query-tiles.transient"
+          : "runtime.query-tiles.rejected",
+        "QueryTileServerResponseError",
+        "runtime",
+        "protocol",
+        QUERY_TILE_RETRYABLE_STATUSES.has(options.status),
+      ),
     );
-    this.name = "QueryTileServerResponseError";
     this.status = options.status;
     this.url = options.url;
     this.response = options.response;
