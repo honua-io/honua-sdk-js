@@ -117,6 +117,48 @@ export interface CapabilitySampleMatrix {
   gaps: Array<Record<string, unknown>>;
 }
 
+export interface GoldenJourneyVisualEvidence {
+  format: "honua.sdk.golden-journey-visual-evidence.v1";
+  schemaVersion: 1;
+  inputs: {
+    catalog: { path: string; format: string; schemaVersion: number; sha256: string };
+    qualificationEvidence: { format: string; schemaVersion: number; sha256: string };
+  };
+  policy: {
+    sourceRepository: "honua-io/honua-sdk-js";
+    requiredScreenshotVariants: Array<{
+      id: "desktop" | "mobile";
+      viewport: { width: number; height: number };
+    }>;
+    screenshotReproducibility: Record<string, unknown>;
+    requiredSemanticGates: string[];
+    freshness: { maxFutureSkewSeconds: number; maxWindowSeconds: number };
+  };
+  qualifiedGoldenJourneys: Array<{
+    journeyId: string;
+    sampleId: string;
+    source: {
+      repository: "honua-io/honua-sdk-js";
+      path: string;
+      revision: string;
+      evidenceNeutralSha256: string;
+    };
+    runtime: {
+      playwrightVersion: string;
+      projectName: string;
+      browserName: "chromium" | "firefox" | "webkit";
+      browserVersion: string;
+      platform: string;
+      architecture: string;
+    };
+    observedAt: string;
+    expiresAt: string;
+    screenshots: Array<Record<string, unknown>>;
+    semanticEvidence: MatrixReceiptEvidenceBinding[];
+    liveEvidence: Record<string, unknown>;
+  }>;
+}
+
 export interface BrowserArtifactManifest {
   format: "honua.sdk.browser-artifacts.v1";
   schemaVersion: 1;
@@ -175,6 +217,15 @@ export function generateCapabilitySampleMatrix(
   supportTruth: Record<string, unknown>,
   qualificationEvidence: QualificationEvidenceInventory,
 ): CapabilitySampleMatrix;
+export function generateGoldenJourneyVisualEvidence(
+  catalog: SampleCatalog,
+  qualificationEvidence: QualificationEvidenceInventory,
+): Promise<GoldenJourneyVisualEvidence>;
+export function validateGoldenJourneyVisualEvidence(
+  visualEvidence: unknown,
+  catalog: SampleCatalog,
+  qualificationEvidence: QualificationEvidenceInventory,
+): Promise<void>;
 export function validateCapabilitySampleMatrix(
   matrix: unknown,
   inputs?: {
