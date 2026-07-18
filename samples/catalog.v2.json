@@ -73,7 +73,7 @@
     {
       "id": "service-explorer",
       "title": "Universal Service Explorer",
-      "status": "qualified",
+      "status": "planned",
       "candidateSampleId": "service-explorer"
     },
     {
@@ -418,6 +418,7 @@
         "map",
         "strategy-selection"
       ],
+      "capabilityKeys": [],
       "protocols": [
         "geoservices",
         "pmtiles",
@@ -455,8 +456,7 @@
       "validationProfile": "browser-fixture",
       "validation": [
         "npx playwright test test/playwright/automatic-source-workflow.spec.mjs"
-      ],
-      "capabilityKeys": []
+      ]
     },
     {
       "id": "cesium-route-playback",
@@ -476,6 +476,11 @@
         "route-playback",
         "terrain",
         "three-dimensional"
+      ],
+      "capabilityKeys": [
+        "raster.terrain-rgb",
+        "routing.solve",
+        "serve.3d-tiles-scene"
       ],
       "protocols": [
         "geoservices"
@@ -514,11 +519,6 @@
       "validation": [
         "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
         "npx vitest run test/cesium-route-playback.test.ts"
-      ],
-      "capabilityKeys": [
-        "raster.terrain-rgb",
-        "routing.solve",
-        "serve.3d-tiles-scene"
       ]
     },
     {
@@ -1980,12 +1980,12 @@
       "title": "Universal service explorer",
       "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "sourceKind": "root-example",
-      "track": "golden",
+      "track": "lab",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Qualified Universal Service Explorer journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and public GeoServices/OGC live receipts."
+        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."
       },
       "sourcePath": "examples/service-explorer",
       "docsPath": "examples/service-explorer/README.md",
@@ -2042,12 +2042,10 @@
         },
         "live": {
           "mode": "public-live",
-          "status": "executed",
+          "status": "planned",
           "commands": [
             "npm run demo:service-explorer:live-evidence"
-          ],
-          "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-08-08T00:00:00.000Z"
+          ]
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
@@ -2079,6 +2077,9 @@
         "filtering",
         "selection",
         "temporal"
+      ],
+      "capabilityKeys": [
+        "temporal.filtering"
       ],
       "protocols": [
         "honua"
@@ -2115,9 +2116,6 @@
       "validationProfile": "browser-lab",
       "validation": [
         "npx playwright test test/playwright/shared-renderer-state.spec.mjs"
-      ],
-      "capabilityKeys": [
-        "temporal.filtering"
       ]
     },
     {
