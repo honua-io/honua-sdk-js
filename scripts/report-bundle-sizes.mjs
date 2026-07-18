@@ -191,6 +191,19 @@ const TARGETS = [
     forbiddenInputs: ["dist/src/contract/schema.js", "dist/src/gen/projjson/"],
   },
   {
+    key: "tree-shake:error-leaf",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-error-leaf.mjs",
+    label: "tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded)",
+    forbiddenInputs: ["dist/src/core/error-code-registry.js"],
+  },
+  {
+    key: "tree-shake:error-registry",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-error-registry.mjs",
+    label: "explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries)",
+  },
+  {
     key: "tree-shake:root-createHonua",
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-root-create-honua.mjs",

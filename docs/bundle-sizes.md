@@ -8,16 +8,16 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-17 at commit `1f2aa85f`._
+_Generated 2026-07-18 at commit `3c08bd17`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 531.4 KiB | 568.6 KiB | 140.2 KiB | 150.2 KiB |
-| `/honua` | 698.0 KiB | 767.8 KiB | 185.3 KiB | 203.9 KiB |
+| `.` (root) | 532.9 KiB | 568.6 KiB | 140.5 KiB | 150.2 KiB |
+| `/honua` | 699.5 KiB | 767.8 KiB | 185.7 KiB | 203.9 KiB |
 | `/contract` | 264.6 KiB | 287.3 KiB | 70.0 KiB | 72.9 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 684.6 KiB | 737.1 KiB | 143.4 KiB | 154.0 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 686.1 KiB | 737.1 KiB | 143.7 KiB | 154.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 253.7 KiB | 257.5 KiB | 31.2 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData schema-bound evaluation) | 717.3 KiB | 733.3 KiB | 152.1 KiB | 152.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData schema-bound evaluation) | 718.8 KiB | 733.3 KiB | 152.5 KiB | 152.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 53.2 KiB | 62.6 KiB | 16.5 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 52.4 KiB | 55.2 KiB | 15.2 KiB | 15.8 KiB |
@@ -36,16 +36,18 @@ _Generated 2026-07-17 at commit `1f2aa85f`._
 | `/style` | 59.1 KiB | 69.0 KiB | 14.6 KiB | 17.2 KiB |
 | `/map` | 173.3 KiB | 182.2 KiB | 48.8 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 46.9 KiB | 53.6 KiB | 14.8 KiB | 16.8 KiB |
-| `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.0 KiB | 56.1 KiB | 14.6 KiB | 16.1 KiB |
+| `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 438.5 KiB | 446.7 KiB | 116.0 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 532.0 KiB | 569.2 KiB | 140.3 KiB | 150.5 KiB |
-| browser ESM (`./browser`) | 530.7 KiB | 567.8 KiB | 140.2 KiB | 150.2 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 533.5 KiB | 569.2 KiB | 140.7 KiB | 150.5 KiB |
+| browser ESM (`./browser`) | 532.2 KiB | 567.8 KiB | 140.5 KiB | 150.2 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 211.9 KiB | 229.7 KiB | 53.6 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 399.3 KiB | 423.2 KiB | 103.1 KiB | 109.5 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 400.8 KiB | 423.2 KiB | 103.4 KiB | 109.5 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 501.2 KiB | 535.3 KiB | 132.0 KiB | 141.2 KiB |
+| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 12.6 KiB | 13.8 KiB | 3.7 KiB | 4.1 KiB |
+| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 10.6 KiB | 11.7 KiB | 2.3 KiB | 2.6 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 502.7 KiB | 535.3 KiB | 132.3 KiB | 141.2 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 226.6 KiB | 245.9 KiB | 57.0 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 40.7 KiB | 44.7 KiB | 12.8 KiB | 14.0 KiB |
