@@ -1526,7 +1526,7 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-18 at commit `f701be7a`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-18 at commit `7d0d7048`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -7833,19 +7833,19 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-18 at commit `f701be7a`._
+_Generated 2026-07-18 at commit `7d0d7048`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
 | `.` (root) | 605.2 KiB | 661.1 KiB | 160.8 KiB | 168.9 KiB |
-| `/honua` | 771.9 KiB | 767.8 KiB | 206.2 KiB | 226.0 KiB |
-| `/contract` | 288.3 KiB | 287.3 KiB | 76.4 KiB | 83.7 KiB |
+| `/honua` | 771.9 KiB | 849.0 KiB | 206.2 KiB | 226.0 KiB |
+| `/contract` | 288.3 KiB | 317.1 KiB | 76.4 KiB | 83.7 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 755.6 KiB | 829.5 KiB | 163.5 KiB | 179.5 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.0 KiB | 257.5 KiB | 31.3 KiB | 33.2 KiB |
 | `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 788.6 KiB | 865.8 KiB | 172.2 KiB | 189.2 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 54.7 KiB | 62.6 KiB | 16.8 KiB | 19.3 KiB |
-| `/agent-tools` | 34.7 KiB | 22.7 KiB | 9.9 KiB | 7.0 KiB |
-| `/agent-safety` | 66.5 KiB | 55.2 KiB | 18.6 KiB | 15.8 KiB |
+| `/agent-tools` | 34.7 KiB | 38.2 KiB | 9.9 KiB | 10.9 KiB |
+| `/agent-safety` | 66.5 KiB | 73.2 KiB | 18.6 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.3 KiB | 84.5 KiB | 22.7 KiB | 25.3 KiB |
 | `/runtime` | 532.4 KiB | 550.7 KiB | 143.1 KiB | 147.5 KiB |
 | `/realtime` | 42.6 KiB | 49.3 KiB | 11.7 KiB | 13.5 KiB |
@@ -7870,8 +7870,8 @@ _Generated 2026-07-18 at commit `f701be7a`._
 | tree-shake guard (`{ HonuaClient }` only) | 217.3 KiB | 229.7 KiB | 55.5 KiB | 57.6 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 469.8 KiB | 515.1 KiB | 123.1 KiB | 135.1 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.1 KiB | 13.8 KiB | 4.0 KiB | 4.1 KiB |
-| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.2 KiB | 11.7 KiB | 2.8 KiB | 2.6 KiB |
+| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.1 KiB | 15.5 KiB | 4.0 KiB | 4.1 KiB |
+| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.2 KiB | 14.6 KiB | 2.8 KiB | 3.1 KiB |
 | tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 572.3 KiB | 627.9 KiB | 152.1 KiB | 167.0 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 231.8 KiB | 245.9 KiB | 58.8 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
