@@ -1,7 +1,7 @@
 {
   "format": "honua.sdk.sample-packed-build-gate.v1",
   "sampleId": "maplibre-quickstart",
-  "sourceRevision": "fd639782616d9c665e2a6946305e401b820f87d3",
+  "sourceRevision": "62fc90b1ff956ac26f682d4d8d9b9225c1bdf813",
   "command": [
     "npm",
     "run",
@@ -9,9 +9,9 @@
   ],
   "sdkMode": "packed",
   "packageTarballSha256": "9ab21445d034abbb94f0bbeef854065de00fc557de9cd4ce23daa9050600ff5c",
-  "packageTarball": "samples/evidence/maplibre-quickstart/runs/9cdebfc5-a711-46d3-a381-0f49e2a87744/artifacts/honua-sdk-js-0.1.0-beta.0.tgz",
+  "packageTarball": "samples/evidence/maplibre-quickstart/runs/74833b19-4df2-4b2e-90c2-2fee92f00570/artifacts/honua-sdk-js-0.1.0-beta.0.tgz",
   "packageTarballBytes": 2067880,
-  "sampleDistRoot": "samples/evidence/maplibre-quickstart/runs/9cdebfc5-a711-46d3-a381-0f49e2a87744/artifacts/packed-sample-dist",
+  "sampleDistRoot": "samples/evidence/maplibre-quickstart/runs/74833b19-4df2-4b2e-90c2-2fee92f00570/artifacts/packed-sample-dist",
   "resolution": {
     "format": "honua.sdk.sample-resolution.v1",
     "schemaVersion": 1,
@@ -40,7 +40,7 @@
         "kind": "chunk",
         "hashSubject": "final-written-bundle-file",
         "bytes": 1631263,
-        "sha256": "f99ea7bbe40abc9b3c92b971da624109b8ac28ae02c0ffc74b8a11c2213d165a"
+        "sha256": "f87d9e57650ac9aec95148c9d163cc9de670dbad3c59acb0eb7e8e81b55b46c3"
       },
       {
         "fileName": "assets/esm-B6JxQVfq.js",
@@ -141,7 +141,7 @@
     {
       "path": "assets/index-BilsvgE3.js",
       "bytes": 1631263,
-      "sha256": "f99ea7bbe40abc9b3c92b971da624109b8ac28ae02c0ffc74b8a11c2213d165a"
+      "sha256": "f87d9e57650ac9aec95148c9d163cc9de670dbad3c59acb0eb7e8e81b55b46c3"
     },
     {
       "path": "assets/index-Bv7JT98z.css",
@@ -161,7 +161,7 @@
     {
       "path": "honua-sample-sdk-resolution.json",
       "bytes": 3093,
-      "sha256": "cbeb6a4922f31fbd23257e865a88065933fdf3f0c98ad11fe3d4a134874ebe07"
+      "sha256": "6f5cde1dbffa26678ade3128fbd50c3e4cc16a1984d67410e15590a0fdc2fbdd"
     },
     {
       "path": "index.html",
