@@ -9,6 +9,7 @@ import { validateQueryPlanSnapshot } from "./planner.js";
 import { parseGeoParquetResourceHandle, resolveGeoParquetResource } from "./resource.js";
 import {
   type ExecuteQueryPlanOptions,
+  type GeoParquetEffectiveSchemaFieldV1,
   type GeoParquetRemoteQueryPlanStepV2,
   HonuaQueryPlanExecutionError,
   type LocalAggregatePlanStep,
@@ -130,6 +131,8 @@ interface ResolvedGeoParquetPlanInput<T> {
     readonly encoding: "wkb" | "native" | "geojson";
     readonly bboxColumn?: string;
   };
+  /** Bound plan-time effective DuckDB output schema (#627); undefined for legacy encoding. */
+  readonly effectiveSchema?: readonly GeoParquetEffectiveSchemaFieldV1[];
 }
 
 async function executeGeoParquetRemote<T>(
@@ -161,6 +164,7 @@ async function executeGeoParquetRemote<T>(
   const executeResolvedQuery = safeAdapterMethod(adapterValue, "executeResolvedQuery");
   if (!executeResolvedQuery) throw resourceExecutionFailed();
   const geometryColumn = plan.ir.source.geoparquet.geometryColumn;
+  const effectiveSchema = plan.ir.source.geoparquet.effectiveSchema;
   try {
     const result = (await Reflect.apply(executeResolvedQuery, adapterValue, [
       {
@@ -177,6 +181,7 @@ async function executeGeoParquetRemote<T>(
               },
             }
           : {}),
+        ...(effectiveSchema ? { effectiveSchema } : {}),
       } satisfies ResolvedGeoParquetPlanInput<T>,
     ])) as Result<T>;
     if (signalAborted(options.signal)) throw new HonuaAbortError();

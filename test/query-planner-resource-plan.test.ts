@@ -596,6 +596,154 @@ describe("opaque GeoParquet v2 query plans", () => {
     expect(fixture.log).toEqual({ event: "query-plan-explained", planId: parsed.id, fingerprint: parsed.fingerprint });
     assertRedacted([JSON.stringify(fixture)], MARKERS);
   });
+
+  describe("bound effective GeoParquet schema for lossless opaque execution (#627)", () => {
+    const EFFECTIVE_SCHEMA = [
+      { name: "id", type: "BIGINT", nullable: false },
+      { name: "name", type: "VARCHAR", nullable: true },
+    ] as const;
+
+    it("binds effective schema identity into the plan fingerprint and round-trips it through persistence", () => {
+      const registry = createGeoParquetResourceRegistry({ resolver: "io.honua.effective-schema" });
+      const handle = registry.register({
+        id: "parcels:effective",
+        authorizationContextId: CONTEXT,
+        sources: [SIGNED_SOURCE],
+      });
+      const plan = schemaPlan(handle, EFFECTIVE_SCHEMA);
+      expect(plan.ir.source.geoparquet.effectiveSchema).toEqual(EFFECTIVE_SCHEMA);
+
+      const withoutSchema = opaquePlan(handle);
+      expect(plan.fingerprint).not.toBe(withoutSchema.fingerprint);
+
+      const differentSchema = schemaPlan(handle, [{ name: "id", type: "INTEGER", nullable: false }]);
+      expect(differentSchema.fingerprint).not.toBe(plan.fingerprint);
+
+      const serialized = serializeQueryPlan(plan);
+      const parsed = parseQueryPlan(serialized);
+      expect(parsed).toEqual(plan);
+      assertRedacted([serialized, JSON.stringify(plan)], MARKERS);
+    });
+
+    it("rejects malformed effective schema evidence before returning a self-invalid plan", () => {
+      const handle = createGeoParquetResourceHandle({
+        resolver: "io.honua.effective-schema-invalid",
+        id: "parcels:invalid-schema",
+        authorizationContextId: CONTEXT,
+      });
+      const marker = "effective-schema-secret-marker";
+      const cases: readonly unknown[] = [
+        [],
+        [{ name: `id\n${marker}`, type: "BIGINT" }],
+        [
+          { name: "id", type: "BIGINT" },
+          { name: "id", type: "VARCHAR" },
+        ],
+        [{ name: "id", type: "BIGINT", nullable: "maybe" }],
+        [{ name: "id", type: "BIGINT", unexpected: marker }],
+      ];
+      for (const effectiveSchema of cases) {
+        const error = captureError(() => schemaPlan(handle, effectiveSchema as never));
+        expect(error).toMatchObject({ code: "invalid-query" });
+        assertErrorRedacted(error, [marker, ...MARKERS]);
+      }
+    });
+
+    it("threads the bound effective schema through resolved execution without profiling", async () => {
+      const registry = createGeoParquetResourceRegistry({ resolver: "io.honua.effective-schema-execute" });
+      const handle = registry.register({
+        id: "parcels:effective-execute",
+        authorizationContextId: CONTEXT,
+        sources: [SIGNED_SOURCE],
+      });
+      const plan = schemaPlan(handle, EFFECTIVE_SCHEMA);
+      const executeResolvedQuery = vi.fn(async (input: { readonly effectiveSchema?: unknown }) => {
+        expect(input.effectiveSchema).toEqual(EFFECTIVE_SCHEMA);
+        return result([{ attributes: { id: 1 } }]);
+      });
+      const source = fakeSource(descriptor(ROTATED_SOURCE), { executeResolvedQuery });
+
+      const execution = await executeQueryPlan(plan, source, {
+        ...PLAN_CONTEXT,
+        authorizationContextId: CONTEXT,
+        geoParquetResourceResolver: registry.resolver,
+        effectiveSchema: EFFECTIVE_SCHEMA,
+      });
+      expect(execution.result.features).toEqual([{ attributes: { id: 1 } }]);
+      expect(executeResolvedQuery).toHaveBeenCalledOnce();
+      assertRedacted([JSON.stringify(execution), serializeQueryPlan(plan)], MARKERS);
+    });
+
+    it("fails closed before resolution when execution-time effective schema diverges from the bound plan", async () => {
+      const registry = createGeoParquetResourceRegistry({ resolver: "io.honua.effective-schema-stale" });
+      const handle = registry.register({
+        id: "parcels:effective-stale",
+        authorizationContextId: CONTEXT,
+        sources: [SIGNED_SOURCE],
+      });
+      const plan = schemaPlan(handle, EFFECTIVE_SCHEMA);
+      const adapter = { executeResolvedQuery: vi.fn(async () => result([])) };
+      const source = fakeSource(descriptor(SIGNED_SOURCE), adapter);
+      const resolver = vi.fn(registry.resolver);
+
+      const mismatched = await rejectionOf(
+        executeQueryPlan(plan, source, {
+          ...PLAN_CONTEXT,
+          authorizationContextId: CONTEXT,
+          geoParquetResourceResolver: resolver,
+          effectiveSchema: [{ name: "id", type: "INTEGER", nullable: false }],
+        }),
+      );
+      expect(mismatched).toMatchObject({ code: "foreign-plan", reason: "source-identity-changed" });
+
+      const omitted = await rejectionOf(
+        executeQueryPlan(plan, source, {
+          ...PLAN_CONTEXT,
+          authorizationContextId: CONTEXT,
+          geoParquetResourceResolver: resolver,
+        }),
+      );
+      expect(omitted).toMatchObject({ code: "foreign-plan", reason: "source-identity-changed" });
+      expect(resolver).not.toHaveBeenCalled();
+      expect(adapter.executeResolvedQuery).not.toHaveBeenCalled();
+    });
+
+    it("rejects a persisted plan whose bound effective schema is structurally invalid at every boundary", async () => {
+      const registry = createGeoParquetResourceRegistry({ resolver: "io.honua.effective-schema-tamper" });
+      const handle = registry.register({
+        id: "parcels:effective-tamper",
+        authorizationContextId: CONTEXT,
+        sources: [SIGNED_SOURCE],
+      });
+      const plan = schemaPlan(handle, EFFECTIVE_SCHEMA);
+      const marker = "effective-schema-tamper-marker";
+      const hostile = structuredClone(plan) as QueryExecutionPlanV2;
+      (hostile.ir.source.geoparquet as unknown as { effectiveSchema: unknown[] }).effectiveSchema = [
+        { name: "id", type: "BIGINT", nullable: false, unexpected: marker },
+      ];
+      resignPlan(hostile);
+
+      const adapter = { executeResolvedQuery: vi.fn(async () => result([])) };
+      const source = fakeSource(descriptor(SIGNED_SOURCE), adapter);
+      const errors = [
+        captureError(() => serializeQueryPlan(hostile)),
+        captureError(() => parseQueryPlan(JSON.stringify(hostile))),
+        await rejectionOf(
+          executeQueryPlan(hostile, source, {
+            ...PLAN_CONTEXT,
+            authorizationContextId: CONTEXT,
+            geoParquetResourceResolver: registry.resolver,
+            effectiveSchema: [{ name: "id", type: "BIGINT", nullable: false }],
+          }),
+        ),
+      ];
+      for (const error of errors) {
+        expect(error).toMatchObject({ code: "invalid-plan", message: "Query plan is invalid or unsafe to persist" });
+        assertErrorRedacted(error, [marker, ...MARKERS]);
+      }
+      expect(adapter.executeResolvedQuery).not.toHaveBeenCalled();
+    });
+  });
 });
 
 function opaquePlan(handle: GeoParquetResourceHandleV1, locator = SIGNED_SOURCE): QueryExecutionPlanV2 {
@@ -603,6 +751,16 @@ function opaquePlan(handle: GeoParquetResourceHandleV1, locator = SIGNED_SOURCE)
     descriptor: descriptor(locator),
     geoparquetResource: handle,
     query: { where: "population > 10", outFields: ["id", "name"], pagination: { limit: 2 } },
+    ...PLAN_CONTEXT,
+  });
+}
+
+function schemaPlan(handle: GeoParquetResourceHandleV1, effectiveSchema: unknown): QueryExecutionPlanV2 {
+  return explainQuery({
+    descriptor: descriptor(SIGNED_SOURCE),
+    geoparquetResource: handle,
+    query: { where: "population > 10", outFields: ["id", "name"], pagination: { limit: 2 } },
+    effectiveSchema: effectiveSchema as never,
     ...PLAN_CONTEXT,
   });
 }
