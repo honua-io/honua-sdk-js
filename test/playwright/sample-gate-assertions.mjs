@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 
@@ -10,10 +11,13 @@ import {
   isSampleEvidenceRunId,
   SAMPLE_PERFORMANCE_BUDGET_MS,
   SAMPLE_PERFORMANCE_METRIC,
-  SAMPLE_SCREENSHOT_VIEWPORT,
+  SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+  SAMPLE_SCREENSHOT_VARIANTS,
 } from "../../scripts/lib/sample-gates.mjs";
 
 const FORMAT = "honua.sdk.sample-gate-assertion.v1";
+const require = createRequire(import.meta.url);
+const PLAYWRIGHT_VERSION = require("@playwright/test/package.json").version;
 
 function controlledEvidenceOutput(value, sampleId, fileName) {
   if (value === undefined) return undefined;
@@ -62,24 +66,125 @@ async function writeBrowserEvidenceArtifacts({
 
   if (screenshotOutput) {
     await mkdir(path.dirname(screenshotOutput.absolute), { recursive: true });
-    const previousViewport = page.viewportSize();
-    try {
-      await page.setViewportSize(SAMPLE_SCREENSHOT_VIEWPORT);
-      const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), "screenshot.png");
+    const browser = page.context().browser();
+    const actualBrowserName = browser?.browserType().name();
+    const browserVersion = browser?.version();
+    if (!browserVersion || actualBrowserName !== browserName) {
+      throw new Error("screenshot evidence requires the declared browser engine and runtime version");
+    }
+    const runtime = {
+      playwrightVersion: PLAYWRIGHT_VERSION,
+      projectName,
+      browserName: actualBrowserName,
+      browserVersion,
+      platform: process.platform,
+      architecture: process.arch,
+    };
+    const screenshots = [];
+    for (const variant of SAMPLE_SCREENSHOT_VARIANTS) {
+      await page.setViewportSize(variant.viewport);
+      const stabilize = () =>
+        page.evaluate(async () => {
+          // 1. map-idle: bring every MapLibre map on the page to a fully
+          // static, idle state before capturing. Two back-to-back
+          // screenshots of a live WebGL canvas are only byte-identical once
+          // tile loads, symbol placement, and camera transitions have all
+          // settled — "fonts ready + one frame" is not sufficient on its own.
+          const maps = [];
+          if (window.__HONUA_QUICKSTART_MAP__) maps.push(window.__HONUA_QUICKSTART_MAP__);
+          if (Array.isArray(window.__honuaMaps)) maps.push(...window.__honuaMaps);
+          await Promise.all(
+            maps.filter(Boolean).map(async (map) => {
+              if (typeof map.stop === "function") map.stop();
+              if (typeof map.loaded !== "function" || typeof map.once !== "function") return;
+              if (map.loaded()) return;
+              await new Promise((resolve) => {
+                let settled = false;
+                const finish = () => {
+                  if (settled) return;
+                  settled = true;
+                  clearInterval(poll);
+                  clearTimeout(timer);
+                  map.off?.("idle", finish);
+                  resolve();
+                };
+                const poll = setInterval(() => {
+                  if (map.loaded()) finish();
+                }, 25);
+                const timer = setTimeout(finish, 5_000);
+                map.once("idle", finish);
+              });
+            }),
+          );
+
+          // 2. css-animation-freeze: neutralize CSS animations/transitions
+          // and inherently non-deterministic chrome (e.g. a blinking caret)
+          // that would otherwise diverge between two captures taken a frame
+          // apart.
+          const FREEZE_STYLE_ID = "honua-sample-gate-freeze-style";
+          if (!document.getElementById(FREEZE_STYLE_ID)) {
+            const style = document.createElement("style");
+            style.id = FREEZE_STYLE_ID;
+            style.textContent = `
+              html {
+                scroll-behavior: auto !important;
+              }
+              *, *::before, *::after {
+                animation-play-state: paused !important;
+                animation-duration: 0s !important;
+                animation-delay: -1ms !important;
+                transition-duration: 0s !important;
+                transition-delay: 0s !important;
+                caret-color: transparent !important;
+              }
+            `;
+            document.head.appendChild(style);
+          }
+
+          // 3. fonts-ready
+          await document.fonts?.ready;
+          // 4. scroll-origin
+          scrollTo(0, 0);
+          // 5. double-animation-frame
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        });
+      await stabilize();
+      const screenshotPath = path.join(path.dirname(screenshotOutput.absolute), `screenshot-${variant.id}.png`);
       await page.screenshot({ path: screenshotPath, animations: "disabled", fullPage: false });
       const bytes = await readFile(screenshotPath);
-      const report = {
+      await stabilize();
+      const repeatPath = path.join(
+        path.dirname(screenshotOutput.absolute),
+        `screenshot-${variant.id}-repeat.png`,
+      );
+      await page.screenshot({ path: repeatPath, animations: "disabled", fullPage: false });
+      const repeatBytes = await readFile(repeatPath);
+      if (!bytes.equals(repeatBytes)) {
+        throw new Error(`${variant.id} screenshot captures are not byte-identical`);
+      }
+      screenshots.push({
+        variant: variant.id,
         projectName,
         browserName,
-        viewport: SAMPLE_SCREENSHOT_VIEWPORT,
+        viewport: variant.viewport,
         path: path.relative(process.cwd(), screenshotPath).replaceAll(path.sep, "/"),
         bytes: bytes.byteLength,
         sha256: createHash("sha256").update(bytes).digest("hex"),
-      };
-      await writeFile(screenshotOutput.absolute, `${JSON.stringify(report, null, 2)}\n`);
-    } finally {
-      if (previousViewport) await page.setViewportSize(previousViewport);
+        reproducibility: {
+          captureCount: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount,
+          comparison: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison,
+          repeatPath: path.relative(process.cwd(), repeatPath).replaceAll(path.sep, "/"),
+          repeatBytes: repeatBytes.byteLength,
+          repeatSha256: createHash("sha256").update(repeatBytes).digest("hex"),
+        },
+      });
     }
+    const report = {
+      reproducibilityPolicy: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+      runtime,
+      screenshots,
+    };
+    await writeFile(screenshotOutput.absolute, `${JSON.stringify(report, null, 2)}\n`);
   }
 
   if (performanceOutput) {

@@ -2,10 +2,17 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, rm, rmdir, symlink, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
+import { deflateSync } from "node:zlib";
+
+import {
+  SAMPLE_SCREENSHOT_REPORT_FORMAT,
+  SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+} from "../../scripts/lib/sample-gates.mjs";
 
 import {
   captureGateSourceSnapshot,
@@ -14,6 +21,7 @@ import {
   readCanonicalBoundedFile,
   requiredReceiptGates,
   validateGateReceipt,
+  validateGateReceiptStructure,
   validatePlaywrightGate,
   validateQualificationReceiptSet,
   verifyEvidenceNeutralCheckout,
@@ -21,6 +29,8 @@ import {
 } from "../../scripts/sample-gate-receipt.mjs";
 
 const sampleId = "receipt-adversary";
+const require = createRequire(import.meta.url);
+const playwrightVersion = require("@playwright/test/package.json").version;
 const revision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const fixtureSourceDigest = "2".repeat(64);
 const receiptRunId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -35,6 +45,7 @@ async function artifact(name, value, targetSampleId = sampleId) {
     file,
     Buffer.isBuffer(value) ? value : typeof value === "string" ? value : `${JSON.stringify(value, null, 2)}\n`,
   );
+  if (name.endsWith(".png")) await writeFile(file.replace(/\.png$/u, "-repeat.png"), value);
   return path.relative(process.cwd(), file).replaceAll(path.sep, "/");
 }
 
@@ -107,6 +118,63 @@ function undecodableViewportPng(extraChunks = []) {
     pngChunk("IHDR", header),
     ...extraChunks,
     pngChunk("IDAT", Buffer.from([1, 2, 3])),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+function screenshotVariant(variant, imagePath, imageBytes, viewport) {
+  const repeatPath = imagePath.replace(/\.png$/u, "-repeat.png");
+  return {
+    variant,
+    projectName: "chromium",
+    browserName: "chromium",
+    path: imagePath,
+    bytes: imageBytes.byteLength,
+    sha256: digest(imageBytes),
+    viewport,
+    reproducibility: {
+      captureCount: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount,
+      comparison: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison,
+      repeatPath,
+      repeatBytes: imageBytes.byteLength,
+      repeatSha256: digest(imageBytes),
+    },
+  };
+}
+
+function screenshotReport(targetSampleId, screenshots) {
+  return {
+    format: SAMPLE_SCREENSHOT_REPORT_FORMAT,
+    sampleId: targetSampleId,
+    sourceRevision: revision,
+    command: ["npm", "run", "test:playwright:receipt"],
+    reproducibilityPolicy: SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+    runtime: {
+      playwrightVersion,
+      projectName: "chromium",
+      browserName: "chromium",
+      browserVersion: "123.0.0.0",
+      platform: "linux",
+      architecture: "x64",
+    },
+    screenshots,
+  };
+}
+
+function grayscaleViewportPng(width, height, shade) {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 0;
+  const scanlines = Buffer.alloc((width + 1) * height);
+  for (let row = 0; row < height; row += 1) {
+    scanlines.fill(shade, row * (width + 1) + 1, (row + 1) * (width + 1));
+  }
+  return Buffer.concat([
+    Buffer.from("89504e470d0a1a0a", "hex"),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(scanlines)),
     pngChunk("IEND", Buffer.alloc(0)),
   ]);
 }
@@ -202,6 +270,14 @@ test.afterEach(async () => {
 test("arbitrary text cannot qualify a fixture gate", async () => {
   const file = await artifact("fixture.json", "plain text");
   await assert.rejects(createGateReceipt(receiptOptions("fixture", "fixture-probe-report", file)), /must be JSON/);
+});
+
+test("packed-build receipts require packed SDK mode", async () => {
+  const receipt = await validFixtureReceipt();
+  receipt.gate = "packed-build";
+  receipt.sdkMode = "source";
+  receipt.artifacts[0].kind = "packed-build-report";
+  assert.throws(() => validateGateReceiptStructure(receipt), /sdkMode/);
 });
 
 test("receipt creation rejects run roots that are not lowercase UUIDv4", async () => {
@@ -348,47 +424,153 @@ test("Playwright evidence binds every declared browser engine without assuming o
 
 test("renaming text to PNG cannot qualify a screenshot", async () => {
   const targetSampleId = "maplibre-quickstart";
-  const fakePng = await artifact("renamed.png", "not a png", targetSampleId);
-  const reportPath = await artifact("screenshot.json", {
-    format: "honua.sdk.sample-screenshot-gate.v1",
-    sampleId: targetSampleId,
-    sourceRevision: revision,
-    command: ["npm", "run", "test:playwright:receipt"],
-    screenshot: {
-      projectName: "chromium",
-      browserName: "chromium",
-      path: fakePng,
-      bytes: 9,
-      sha256: "0".repeat(64),
-      viewport: { width: 1280, height: 720 },
-    },
-  }, targetSampleId);
+  const fakeBytes = Buffer.from("not a png");
+  const desktop = await artifact("screenshot-desktop.png", fakeBytes, targetSampleId);
+  const mobile = await artifact("screenshot-mobile.png", fakeBytes, targetSampleId);
+  const reportPath = await artifact(
+    "screenshot.json",
+    screenshotReport(targetSampleId, [
+      screenshotVariant("desktop", desktop, fakeBytes, { width: 1280, height: 720 }),
+      screenshotVariant("mobile", mobile, fakeBytes, { width: 390, height: 844 }),
+    ]),
+    targetSampleId,
+  );
   await assert.rejects(
     createGateReceipt(receiptOptions("screenshot", "screenshot-report", reportPath, targetSampleId)),
     /not a PNG/,
   );
 });
 
+test("screenshot evidence requires an ordered desktop/mobile pair", async () => {
+  const targetSampleId = "maplibre-quickstart";
+  const imageBytes = undecodableViewportPng();
+  const imagePath = await artifact("screenshot-desktop.png", imageBytes, targetSampleId);
+  const reportPath = await artifact(
+    "desktop-only.json",
+    screenshotReport(targetSampleId, [
+      screenshotVariant("desktop", imagePath, imageBytes, { width: 1280, height: 720 }),
+    ]),
+    targetSampleId,
+  );
+  await assert.rejects(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", reportPath, targetSampleId)),
+    /complete desktop\/mobile variant set/,
+  );
+});
+
+test("screenshot evidence rejects legacy single-capture reports", async () => {
+  const targetSampleId = "maplibre-quickstart";
+  const legacy = screenshotReport(targetSampleId, []);
+  legacy.format = "honua.sdk.sample-screenshot-gate.v1";
+  delete legacy.reproducibilityPolicy;
+  const reportPath = await artifact("legacy-screenshot.json", legacy, targetSampleId);
+  await assert.rejects(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", reportPath, targetSampleId)),
+    /screenshot report format is invalid/,
+  );
+});
+
+test("screenshot evidence rejects aliased and non-identical repeat captures", async () => {
+  const targetSampleId = "maplibre-quickstart";
+  const desktopBytes = grayscaleViewportPng(1280, 720, 0x44);
+  const mobileBytes = grayscaleViewportPng(390, 844, 0x66);
+  const desktopPath = await artifact("screenshot-desktop.png", desktopBytes, targetSampleId);
+  const mobilePath = await artifact("screenshot-mobile.png", mobileBytes, targetSampleId);
+  const screenshots = [
+    screenshotVariant("desktop", desktopPath, desktopBytes, { width: 1280, height: 720 }),
+    screenshotVariant("mobile", mobilePath, mobileBytes, { width: 390, height: 844 }),
+  ];
+
+  const aliased = structuredClone(screenshots);
+  aliased[0].reproducibility.repeatPath = aliased[0].path;
+  const aliasedReport = await artifact(
+    "aliased-repeat-screenshot.json",
+    screenshotReport(targetSampleId, aliased),
+    targetSampleId,
+  );
+  await assert.rejects(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", aliasedReport, targetSampleId)),
+    /primary and repeat paths must be unique/,
+  );
+
+  const repeatDesktopBytes = grayscaleViewportPng(1280, 720, 0x45);
+  await writeFile(path.resolve(screenshots[0].reproducibility.repeatPath), repeatDesktopBytes);
+  screenshots[0].reproducibility.repeatBytes = repeatDesktopBytes.byteLength;
+  screenshots[0].reproducibility.repeatSha256 = digest(repeatDesktopBytes);
+  const mismatchedReport = await artifact(
+    "non-identical-repeat-screenshot.json",
+    screenshotReport(targetSampleId, screenshots),
+    targetSampleId,
+  );
+  await assert.rejects(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", mismatchedReport, targetSampleId)),
+    /captures are not byte-identical/,
+  );
+});
+
+test("screenshot evidence rejects runtime drift and noncanonical capture paths", async () => {
+  const targetSampleId = "maplibre-quickstart";
+  const desktopBytes = grayscaleViewportPng(1280, 720, 0x22);
+  const mobileBytes = grayscaleViewportPng(390, 844, 0x77);
+  const desktopPath = await artifact("screenshot-desktop.png", desktopBytes, targetSampleId);
+  const mobilePath = await artifact("screenshot-mobile.png", mobileBytes, targetSampleId);
+  const screenshots = [
+    screenshotVariant("desktop", desktopPath, desktopBytes, { width: 1280, height: 720 }),
+    screenshotVariant("mobile", mobilePath, mobileBytes, { width: 390, height: 844 }),
+  ];
+
+  const runtimeDrift = screenshotReport(targetSampleId, structuredClone(screenshots));
+  runtimeDrift.runtime.playwrightVersion = "0.0.0";
+  const runtimeDriftReport = await artifact("runtime-drift-screenshot.json", runtimeDrift, targetSampleId);
+  await assert.rejects(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", runtimeDriftReport, targetSampleId)),
+    /bound to the declared Playwright project and browser runtime/,
+  );
+
+  const noncanonical = structuredClone(screenshots);
+  noncanonical[0].path = noncanonical[0].path.replace("/artifacts/", "/artifacts/../artifacts/");
+  const noncanonicalReport = await artifact(
+    "noncanonical-screenshot.json",
+    screenshotReport(targetSampleId, noncanonical),
+    targetSampleId,
+  );
+  await assert.rejects(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", noncanonicalReport, targetSampleId)),
+    /unsafe artifact path/,
+  );
+});
+
+test("screenshot evidence accepts a runtime-bound reproducible desktop/mobile pair", async () => {
+  const targetSampleId = "maplibre-quickstart";
+  const desktopBytes = grayscaleViewportPng(1280, 720, 0x33);
+  const mobileBytes = grayscaleViewportPng(390, 844, 0x55);
+  const desktopPath = await artifact("screenshot-desktop.png", desktopBytes, targetSampleId);
+  const mobilePath = await artifact("screenshot-mobile.png", mobileBytes, targetSampleId);
+  const reportPath = await artifact(
+    "valid-screenshot.json",
+    screenshotReport(targetSampleId, [
+      screenshotVariant("desktop", desktopPath, desktopBytes, { width: 1280, height: 720 }),
+      screenshotVariant("mobile", mobilePath, mobileBytes, { width: 390, height: 844 }),
+    ]),
+    targetSampleId,
+  );
+
+  await assert.doesNotReject(
+    createGateReceipt(receiptOptions("screenshot", "screenshot-report", reportPath, targetSampleId)),
+  );
+});
+
 test("a CRC-correct PNG with undecodable image data cannot qualify", async () => {
   const targetSampleId = "maplibre-quickstart";
   const imageBytes = undecodableViewportPng();
-  const imagePath = await artifact("undecodable.png", imageBytes, targetSampleId);
+  const desktopPath = await artifact("screenshot-desktop.png", imageBytes, targetSampleId);
+  const mobilePath = await artifact("screenshot-mobile.png", imageBytes, targetSampleId);
   const reportPath = await artifact(
     "undecodable-screenshot.json",
-    {
-      format: "honua.sdk.sample-screenshot-gate.v1",
-      sampleId: targetSampleId,
-      sourceRevision: revision,
-      command: ["npm", "run", "test:playwright:receipt"],
-      screenshot: {
-        projectName: "chromium",
-        browserName: "chromium",
-        path: imagePath,
-        bytes: imageBytes.byteLength,
-        sha256: digest(imageBytes),
-        viewport: { width: 1280, height: 720 },
-      },
-    },
+    screenshotReport(targetSampleId, [
+      screenshotVariant("desktop", desktopPath, imageBytes, { width: 1280, height: 720 }),
+      screenshotVariant("mobile", mobilePath, imageBytes, { width: 390, height: 844 }),
+    ]),
     targetSampleId,
   );
   await assert.rejects(
@@ -410,22 +592,16 @@ test("PNG evidence rejects unknown critical chunks and duplicate IHDR chunks", a
     ["duplicate-ihdr", undecodableViewportPng([pngChunk("IHDR", header)]), /duplicate IHDR/],
   ];
   for (const [name, imageBytes, expected] of cases) {
-    const imagePath = await artifact(`${name}.png`, imageBytes, targetSampleId);
+    const desktopPath = await artifact("screenshot-desktop.png", imageBytes, targetSampleId);
+    const mobilePath = await artifact("screenshot-mobile.png", imageBytes, targetSampleId);
     const reportPath = await artifact(
       `${name}.json`,
       {
-        format: "honua.sdk.sample-screenshot-gate.v1",
-        sampleId: targetSampleId,
-        sourceRevision: revision,
+        ...screenshotReport(targetSampleId, [
+          screenshotVariant("desktop", desktopPath, imageBytes, { width: 1280, height: 720 }),
+          screenshotVariant("mobile", mobilePath, imageBytes, { width: 390, height: 844 }),
+        ]),
         command,
-        screenshot: {
-          projectName: "chromium",
-          browserName: "chromium",
-          path: imagePath,
-          bytes: imageBytes.byteLength,
-          sha256: digest(imageBytes),
-          viewport: { width: 1280, height: 720 },
-        },
       },
       targetSampleId,
     );
@@ -915,6 +1091,33 @@ test("qualification requires the exact gate set and profile boolean changes alte
         expectedCommand: () => ["npm", "run", "test:playwright:receipt"],
       }),
       /gate receipt set mismatch/,
+    );
+  } finally {
+    await rm(receiptRoot, { recursive: true, force: true });
+  }
+});
+
+test("qualification bounds adversarial excess receipt inventory at expected plus one", async () => {
+  const profile = { gates: { browser: false } };
+  const receiptRoot = path.resolve("test-results/qualification-excess-entry-adversary");
+  const directory = path.join(receiptRoot, sampleId, "receipts");
+  await mkdir(directory, { recursive: true });
+  await writeFile(path.join(directory, "fixture.v1.json"), "{}\n");
+  for (let index = 0; index < 128; index += 1) {
+    await writeFile(path.join(directory, `excess-${index.toString().padStart(3, "0")}.v1.json`), "{}\n");
+  }
+  try {
+    await assert.rejects(
+      validateQualificationReceiptSet({
+        sample: { id: sampleId },
+        profile,
+        receiptRoot,
+        sourceRevision: revision,
+        projectRoot: process.cwd(),
+        verifyCheckout: false,
+        expectedCommand: () => ["npm", "run", "test:playwright:receipt"],
+      }),
+      /gate receipt set mismatch;.*found more than 1 entries/,
     );
   } finally {
     await rm(receiptRoot, { recursive: true, force: true });

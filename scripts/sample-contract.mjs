@@ -2,21 +2,35 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, opendir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { expectedGateCommand } from "./lib/sample-gates.mjs";
+import { INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
+import {
+  expectedGateCommand,
+  isSampleEvidenceRunId,
+  SAMPLE_SCREENSHOT_REPORT_FORMAT,
+  SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+  SAMPLE_SCREENSHOT_VARIANTS,
+} from "./lib/sample-gates.mjs";
 import { loadCapabilityKeyList } from "./lib/capability-key-list.mjs";
-import { validateQualificationReceiptSet } from "./sample-gate-receipt.mjs";
+import {
+  readCanonicalBoundedFile,
+  requiredReceiptGates,
+  validateGateReceipt,
+  validateGateReceiptStructure,
+  validateQualificationReceiptSet,
+} from "./sample-gate-receipt.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
 const Ajv2020 = require("ajv/dist/2020").default;
 const addFormats = require("ajv-formats").default;
 const ts = require("typescript");
+const JSON_SCHEMA_VALIDATORS = new Map();
 const CATALOG_PATH = "samples/catalog.v2.json";
 const CAPABILITY_CROSSWALK_PATH = "config/capability-crosswalk.v1.json";
 const V1_CATALOG_PATH = "samples/catalog.v1.json";
@@ -26,9 +40,24 @@ const MIGRATION_SCHEMA_PATH = "samples/contract/v2/schemas/catalog-migration.sch
 const GENERATED_CATALOG_PATH = "docs/generated/sample-catalog.md";
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
+const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH =
+  "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
+const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence.v1.json";
+const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
+  "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json";
+const SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v1.json";
+const SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-handoff.schema.json";
+const SUPPORT_TRUTH_PATH = "config/support-manifest.v1.json";
+const QUALIFICATION_EVIDENCE_ROOT = "samples/evidence";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+const SITE_CONSUMER_V3_FIXTURE_PATH =
+  "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
+const SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-fixture.schema.json";
 const FIXTURE_BUILD_ENVIRONMENT_HELPER = "../../scripts/lib/fixture-build-environment.mjs";
 const REVIEWED_FIXTURE_HARNESS_IMPORTS = new Set([
   FIXTURE_BUILD_ENVIRONMENT_HELPER,
@@ -86,6 +115,66 @@ const RESERVED_GOLDEN_JOURNEY_IDS = [
   "cloud-native-analysis",
   "arcgis-migration",
 ];
+const GOLDEN_VISUAL_GATE_ORDER = Object.freeze([
+  "packed-build",
+  "browser",
+  "accessibility",
+  "console",
+  "responsive",
+  "screenshot",
+  "performance",
+  "fixture",
+  "live",
+]);
+const GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS = 300;
+const GOLDEN_VISUAL_MAX_WINDOW_SECONDS = 7 * 24 * 60 * 60;
+const SITE_CONSUMER_PUBLIC_TRACKS = Object.freeze(["golden", "recipe", "lab"]);
+const SITE_CONSUMER_FILTER_DIMENSIONS = Object.freeze([
+  "task",
+  "capability",
+  "protocol",
+  "renderer",
+  "data-mode",
+  "auth-mode",
+  "support-tier",
+  "lifecycle-state",
+  "qualification-state",
+]);
+const SITE_CONSUMER_CONTROL_ORDER = Object.freeze([
+  "task-search",
+  "capability-filter",
+  "protocol-filter",
+  "additional-filters",
+  "clear-filters",
+  "sample-cards",
+]);
+const SITE_CONSUMER_RESERVED_ROOT_ROUTES = new Set(["index.html", "gallery.html", "404.html"]);
+const SITE_CONSUMER_RESERVED_SAMPLE_ROUTES = new Set([
+  "samples/index.html",
+  "samples/routes.html",
+  "samples/site-handoff.v1.json",
+]);
+const SITE_CONSUMER_MAX_ARTIFACT_BYTES = 16 * 1024 * 1024;
+const SITE_CONSUMER_MAX_CARDS = 512;
+const SITE_CONSUMER_MAX_ROUTES = 1024;
+const SITE_CONSUMER_MAX_GAPS = 8192;
+const SITE_CONSUMER_MAX_FACET_VALUES = 2048;
+const SITE_CONSUMER_MAX_FILTER_VALUE_CHARACTERS = 512;
+const SITE_CONSUMER_MAX_SEARCH_TEXT_CHARACTERS = 32 * 1024;
+const SITE_CONSUMER_MAX_JSON_NODES = 250_000;
+const SITE_CONSUMER_MAX_JSON_DEPTH = 64;
+const SITE_CONSUMER_FILTER_KEYS = new Set([
+  "text",
+  "task",
+  "capability",
+  "protocol",
+  "renderer",
+  "dataMode",
+  "authMode",
+  "supportTier",
+  "lifecycleState",
+  "qualificationState",
+]);
 const SAMPLE_SOURCE_EXTENSIONS = new Set([".js", ".mjs", ".ts", ".tsx"]);
 const CONFIGURATION_NAME_PATTERN = /^(?:HONUA|STANDALONE|VITE)_[A-Z0-9_]+$/;
 const STANDARD_CONFIGURATION_EXEMPTIONS = new Map([
@@ -336,10 +425,14 @@ async function readJson(relativePath) {
 }
 
 async function validateJsonSchema(value, schemaPath) {
-  const schema = await readJson(schemaPath);
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
-  const validate = ajv.compile(schema);
+  let validate = JSON_SCHEMA_VALIDATORS.get(schemaPath);
+  if (!validate) {
+    const schema = await readJson(schemaPath);
+    const ajv = new Ajv2020({ allErrors: true, strict: false });
+    addFormats(ajv);
+    validate = ajv.compile(schema);
+    JSON_SCHEMA_VALIDATORS.set(schemaPath, validate);
+  }
   if (validate(value)) return;
   const details = (validate.errors ?? [])
     .map((error) => `${error.instancePath || "/"} ${error.message}`)
@@ -522,20 +615,22 @@ function validateSensitiveString(value, label) {
   invariant(!containsCredentialValue(value), `${label} contains a credential value`);
 }
 
-function validateSensitiveMetadata(value, label) {
+function validateSensitiveMetadata(value, label, limits = {}) {
+  const maxDepth = limits.maxDepth ?? MAX_SENSITIVE_METADATA_DEPTH;
+  const maxNodes = limits.maxNodes ?? MAX_SENSITIVE_METADATA_NODES;
   const activeObjects = new WeakSet();
   let nodeCount = 0;
   const countNode = (location) => {
     nodeCount += 1;
     invariant(
-      nodeCount <= MAX_SENSITIVE_METADATA_NODES,
-      `${label}${location} exceeds the ${MAX_SENSITIVE_METADATA_NODES}-node metadata limit`,
+      nodeCount <= maxNodes,
+      `${label}${location} exceeds the ${maxNodes}-node metadata limit`,
     );
   };
   const visit = (current, location, depth, sensitiveContext = false) => {
     invariant(
-      depth <= MAX_SENSITIVE_METADATA_DEPTH,
-      `${label}${location} exceeds the metadata depth limit of ${MAX_SENSITIVE_METADATA_DEPTH}`,
+      depth <= maxDepth,
+      `${label}${location} exceeds the metadata depth limit of ${maxDepth}`,
     );
     countNode(location);
     if (typeof current === "string") {
@@ -3159,7 +3254,2606 @@ export function generateSiteProjection(catalog, packageJson) {
     qualityProfiles: structuredClone(catalog.qualityProfiles),
     samples: effective.samples.map((sample) => publicSample(sample, effective.sdk)),
     routes,
+    sampleBundles: {
+      format: "honua.sdk.sample-bundles.v1",
+      schemaVersion: 1,
+      publication: {
+        repo: "honua-io/honua-sdk-js",
+        releaseTag: "sample-bundles-latest",
+        manifestAsset: "sample-bundles.v1.json",
+        bundleAsset: "sample-bundles.tar.gz",
+      },
+      sampleIds: [...INCLUDED_SAMPLE_IDS].sort(),
+    },
   };
+}
+
+function orderedUnique(values) {
+  return [...new Set(values)].sort();
+}
+
+function normalizedPackageExports(packageJson, supportTruth) {
+  invariant(
+    packageJson.exports && typeof packageJson.exports === "object" && !Array.isArray(packageJson.exports),
+    "package exports must be an object",
+  );
+  const lifecycleBySubpath = new Map();
+  for (const entrypoint of supportTruth.packageLifecycle.entrypoints) {
+    invariant(!lifecycleBySubpath.has(entrypoint.subpath), `duplicate support entrypoint ${entrypoint.subpath}`);
+    lifecycleBySubpath.set(entrypoint.subpath, entrypoint);
+  }
+  const exportSubpaths = Object.keys(packageJson.exports).sort();
+  const lifecycleSubpaths = [...lifecycleBySubpath.keys()].sort();
+  invariant(
+    JSON.stringify(exportSubpaths) === JSON.stringify(lifecycleSubpaths),
+    "package exports and support lifecycle entrypoints must match exactly",
+  );
+  for (const entrypoint of lifecycleBySubpath.values()) {
+    if (entrypoint.apiEquivalent) {
+      invariant(
+        lifecycleBySubpath.has(entrypoint.apiEquivalent),
+        `${entrypoint.subpath}: unknown API-equivalent export ${entrypoint.apiEquivalent}`,
+      );
+    }
+  }
+
+  return exportSubpaths.map((subpath) => {
+    const target = packageJson.exports[subpath];
+    invariant(target && typeof target === "object" && !Array.isArray(target), `${subpath}: export target must be an object`);
+    invariant(
+      Object.keys(target).sort().join(",") === "default,types",
+      `${subpath}: export target must declare exactly default and types`,
+    );
+    for (const [condition, value] of Object.entries(target)) {
+      invariant(typeof value === "string", `${subpath}: ${condition} export target must be a string`);
+      invariant(
+        value.startsWith("./dist/") &&
+          !value.includes("\\") &&
+          `./${path.posix.normalize(value.slice(2))}` === value,
+        `${subpath}: ${condition} export target must be a normalized dist path`,
+      );
+    }
+    invariant(target.types.endsWith(".d.ts"), `${subpath}: types export target must end in .d.ts`);
+    invariant(target.default.endsWith(".js"), `${subpath}: default export target must end in .js`);
+    return {
+      subpath,
+      lifecycle: lifecycleBySubpath.get(subpath),
+      targets: { types: target.types, default: target.default },
+    };
+  });
+}
+
+function validateSupportTruthForMatrix(supportTruth, packageJson) {
+  invariant(supportTruth.format === "honua.sdk.support-manifest.v1", "capability matrix support truth must be v1");
+  invariant(supportTruth.schemaVersion === 1, "capability matrix support truth schemaVersion must be 1");
+  invariant(
+    supportTruth.consumerContracts?.sampleCatalog?.format === "honua.sdk.sample-catalog.v2" &&
+      supportTruth.consumerContracts.sampleCatalog.source === CATALOG_PATH,
+    "support truth sample-catalog consumer binding drift",
+  );
+  const protocolIds = new Set(supportTruth.protocols.map((protocol) => protocol.id));
+  const claimProtocolIds = new Set([...protocolIds, ...supportTruth.claimOnlyProtocols]);
+  const claimIds = new Set(supportTruth.supportClaims.map((claim) => claim.id));
+  const evidenceIds = new Set(supportTruth.evidence.map((evidence) => evidence.id));
+  invariant(protocolIds.size === supportTruth.protocols.length, "support truth protocol IDs must be unique");
+  invariant(claimIds.size === supportTruth.supportClaims.length, "support truth claim IDs must be unique");
+  invariant(evidenceIds.size === supportTruth.evidence.length, "support truth evidence IDs must be unique");
+  const operationIds = new Set(supportTruth.protocolOperations);
+  const claimOperationIds = new Set([...supportTruth.protocolOperations, ...supportTruth.claimCapabilities]);
+  for (const protocol of supportTruth.protocols) {
+    for (const claim of protocol.operationClaims) {
+      for (const operation of claim.operations) {
+        invariant(operationIds.has(operation), `${protocol.id}: unknown protocol operation ${operation}`);
+      }
+      for (const evidenceId of claim.evidence) {
+        invariant(evidenceIds.has(evidenceId), `${protocol.id}: unknown support evidence ${evidenceId}`);
+      }
+    }
+  }
+  for (const claim of supportTruth.supportClaims) {
+    if (claim.protocol) {
+      invariant(claimProtocolIds.has(claim.protocol), `${claim.id}: unknown support protocol ${claim.protocol}`);
+    }
+    for (const operation of claim.operations) {
+      invariant(claimOperationIds.has(operation), `${claim.id}: unknown support-claim operation ${operation}`);
+    }
+    for (const evidenceId of claim.evidence) {
+      invariant(evidenceIds.has(evidenceId), `${claim.id}: unknown support evidence ${evidenceId}`);
+    }
+  }
+  for (const [token, binding] of Object.entries(supportTruth.consumerContracts.sampleCatalog.protocols)) {
+    for (const protocolId of binding.protocolIds) {
+      invariant(claimProtocolIds.has(protocolId), `${token}: unknown catalog protocol binding ${protocolId}`);
+    }
+    for (const claimId of binding.supportClaimIds) {
+      invariant(claimIds.has(claimId), `${token}: unknown catalog support-claim binding ${claimId}`);
+    }
+  }
+  return normalizedPackageExports(packageJson, supportTruth);
+}
+
+function packageEntrypointsInApi(api, packageJson) {
+  const escapedName = packageJson.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const references = api.match(new RegExp(`${escapedName}(?:/[a-z0-9-]+(?:/[a-z0-9-]+)*)?`, "g")) ?? [];
+  return orderedUnique(
+    references.map((reference) =>
+      reference === packageJson.name ? "." : `./${reference.slice(packageJson.name.length + 1)}`,
+    ),
+  );
+}
+
+function sampleSupportBinding(sample, supportTruth) {
+  const protocolIds = [];
+  const supportClaimIds = [];
+  const protocolBindings = [];
+  for (const token of sample.protocols) {
+    const binding = supportTruth.consumerContracts.sampleCatalog.protocols[token];
+    invariant(binding, `${sample.id}: no support-truth join exists for catalog protocol ${token}`);
+    protocolIds.push(...binding.protocolIds);
+    supportClaimIds.push(...binding.supportClaimIds);
+    protocolBindings.push({
+      catalogProtocol: token,
+      protocolIds: [...binding.protocolIds],
+      supportClaimIds: [...binding.supportClaimIds],
+      external: binding.external,
+    });
+  }
+  return {
+    protocolIds: orderedUnique(protocolIds),
+    supportClaimIds: orderedUnique(supportClaimIds),
+    protocolBindings,
+  };
+}
+
+function qualificationEvidenceSummary(entry) {
+  if (!entry) return undefined;
+  return {
+    receiptCount: entry.receipts.length,
+    gates: orderedUnique(entry.receipts.map((receipt) => receipt.gate)),
+    sdkModes: orderedUnique(entry.receipts.map((receipt) => receipt.sdkMode)),
+    sourceRevisions: orderedUnique(entry.receipts.map((receipt) => receipt.sourceRevision)),
+    sha256: sha256(Buffer.from(stableJson(entry))),
+  };
+}
+
+function qualificationReceiptReference(receipt) {
+  return {
+    gate: receipt.gate,
+    sdkMode: receipt.sdkMode,
+    receiptPath: receipt.path,
+    receiptSha256: receipt.sha256,
+    runRoot: receipt.runRoot,
+    observedAt: receipt.observedAt,
+    expiresAt: receipt.expiresAt,
+    reportKind: receipt.artifact.kind,
+    reportPath: receipt.artifact.path,
+    reportBytes: receipt.artifact.bytes,
+    reportSha256: receipt.artifact.sha256,
+  };
+}
+
+function qualificationEvidenceBinding(sample, entry) {
+  const sourceReceipts = entry.receipts
+    .filter((receipt) => receipt.sdkMode === "source")
+    .map(qualificationReceiptReference);
+  const packedReceipt = entry.receipts.find((receipt) => receipt.gate === "packed-build");
+  invariant(sourceReceipts.length > 0, `${sample.id}: qualified evidence has no source-mode receipt`);
+  invariant(packedReceipt?.sdkMode === "packed", `${sample.id}: qualified evidence has no packed-build receipt`);
+  const payload = {
+    sampleId: sample.id,
+    source: {
+      repository: "honua-io/honua-sdk-js",
+      path: sample.sourcePath,
+      revision: entry.receipts[0].sourceRevision,
+      evidenceNeutralSha256: entry.receipts[0].sourceDigest,
+      receipts: sourceReceipts,
+    },
+    packed: qualificationReceiptReference(packedReceipt),
+  };
+  return {
+    id: `qualification:${sha256(Buffer.from(stableJson(payload)))}`,
+    ...payload,
+  };
+}
+
+async function evidenceDirectoryEntries(
+  directory,
+  label,
+  { optional = false, maxEntries, containmentRoot = directory } = {},
+) {
+  invariant(Number.isSafeInteger(maxEntries) && maxEntries >= 0, `${label} entry bound is invalid`);
+  let metadata;
+  try {
+    metadata = await lstat(directory);
+  } catch (error) {
+    if (optional && error?.code === "ENOENT") return undefined;
+    if (error?.code === "ENOENT") throw new Error(`${label} is missing`);
+    throw error;
+  }
+  invariant(metadata.isDirectory() && !metadata.isSymbolicLink(), `${label} must be a non-symlink directory`);
+  const [canonicalDirectory, canonicalRoot] = await Promise.all([
+    realpath(directory),
+    realpath(containmentRoot),
+  ]);
+  invariant(
+    canonicalDirectory === canonicalRoot || canonicalDirectory.startsWith(`${canonicalRoot}${path.sep}`),
+    `${label} escapes its canonical evidence root`,
+  );
+  const handle = await opendir(canonicalDirectory);
+  const entries = [];
+  try {
+    for await (const entry of handle) {
+      invariant(
+        entries.length < maxEntries,
+        `${label} has orphan or missing entries; found more than ${maxEntries} entries for its exact expected set`,
+      );
+      entries.push(entry);
+    }
+  } finally {
+    try {
+      await handle.close();
+    } catch (error) {
+      if (error?.code !== "ERR_DIR_CLOSED") throw error;
+    }
+  }
+  return entries;
+}
+
+function exactEvidenceDirectoryNames(entries, expectedNames, label, options = {}) {
+  const allowedFiles = new Set(options.allowedFiles ?? []);
+  invariant(
+    entries.every((entry) => {
+      if (entry.isSymbolicLink()) return false;
+      if (entry.isDirectory()) return true;
+      return entry.isFile() && allowedFiles.has(entry.name);
+    }),
+    `${label} contains a non-directory or symlink orphan`,
+  );
+  const actualNames = entries.map((entry) => entry.name).sort();
+  invariant(
+    JSON.stringify(actualNames) === JSON.stringify([...expectedNames].sort()),
+    `${label} has orphan or missing entries; expected [${[...expectedNames].sort().join(", ")}], found [${actualNames.join(", ")}]`,
+  );
+}
+
+async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds, legacyLiveEvidenceFileBySample = new Map()) {
+  const rootEntries = await evidenceDirectoryEntries(receiptRoot, "qualification evidence root", {
+    optional: qualifiedSampleIds.length === 0,
+    maxEntries: qualifiedSampleIds.length,
+    containmentRoot: receiptRoot,
+  });
+  if (!rootEntries) return;
+  exactEvidenceDirectoryNames(rootEntries, qualifiedSampleIds, "qualification evidence root");
+  for (const sampleId of qualifiedSampleIds) {
+    // Some golden journeys (e.g. maplibre-quickstart, qualified since #631)
+    // publish a legacy top-level live-evidence sidecar file next to the
+    // receipts/runs qualification tree; the catalog itself names that exact
+    // path via sample.evidence.live.evidencePath, so it is an honest,
+    // declared artifact rather than an orphan.
+    const legacyLiveEvidenceFile = legacyLiveEvidenceFileBySample.get(sampleId);
+    const expectedNames = legacyLiveEvidenceFile
+      ? ["receipts", "runs", legacyLiveEvidenceFile]
+      : ["receipts", "runs"];
+    const sampleEntries = await evidenceDirectoryEntries(
+      path.join(receiptRoot, sampleId),
+      `${sampleId}: qualification evidence directory`,
+      { maxEntries: expectedNames.length, containmentRoot: receiptRoot },
+    );
+    exactEvidenceDirectoryNames(sampleEntries, expectedNames, `${sampleId}: qualification evidence directory`, {
+      allowedFiles: legacyLiveEvidenceFile ? [legacyLiveEvidenceFile] : [],
+    });
+  }
+}
+
+async function validateQualificationRunInventory(receiptRoot, sampleId, receipts) {
+  const runIds = orderedUnique(
+    receipts.map((receipt) => {
+      const prefix = `${QUALIFICATION_EVIDENCE_ROOT}/${sampleId}/runs/`;
+      invariant(receipt.runRoot.startsWith(prefix), `${sampleId}: receipt run root is orphaned`);
+      const runId = receipt.runRoot.slice(prefix.length);
+      invariant(isSampleEvidenceRunId(runId), `${sampleId}: receipt run root is invalid`);
+      return runId;
+    }),
+  );
+  const runEntries = await evidenceDirectoryEntries(
+    path.join(receiptRoot, sampleId, "runs"),
+    `${sampleId}: run directory`,
+    { maxEntries: runIds.length, containmentRoot: receiptRoot },
+  );
+  exactEvidenceDirectoryNames(runEntries, runIds, `${sampleId}: run directory`);
+}
+
+function validateQualificationEvidenceInput(qualificationEvidence, catalog) {
+  invariant(
+    qualificationEvidence?.format === "honua.sdk.sample-qualification-evidence.v1",
+    "qualification evidence format must be v1",
+  );
+  invariant(qualificationEvidence.schemaVersion === 1, "qualification evidence schemaVersion must be 1");
+  invariant(Array.isArray(qualificationEvidence.samples), "qualification evidence samples must be an array");
+  const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+  const profileById = new Map(catalog.qualityProfiles.map((profile) => [profile.id, profile]));
+  const qualifiedIds = catalog.goldenJourneys
+    .filter((journey) => journey.status === "qualified")
+    .map((journey) => journey.candidateSampleId)
+    .sort();
+  const evidenceIds = qualificationEvidence.samples.map((entry) => entry.sampleId);
+  invariant(
+    JSON.stringify(evidenceIds) === JSON.stringify([...new Set(evidenceIds)].sort()),
+    "qualification evidence sample IDs must be unique and sorted",
+  );
+  invariant(
+    JSON.stringify(evidenceIds) === JSON.stringify(qualifiedIds),
+    "qualification evidence must exactly cover catalog-qualified golden samples",
+  );
+  for (const entry of qualificationEvidence.samples) {
+    const sample = sampleById.get(entry.sampleId);
+    invariant(sample?.track === "golden", `${entry.sampleId}: qualification evidence requires a golden sample`);
+    const profile = profileById.get(sample.validationProfile);
+    invariant(profile, `${entry.sampleId}: qualification evidence references an unknown profile`);
+    const gates = entry.receipts.map((receipt) => receipt.gate);
+    invariant(
+      JSON.stringify(gates) === JSON.stringify([...new Set(gates)].sort()),
+      `${entry.sampleId}: qualification receipt gates must be unique and sorted`,
+    );
+    invariant(
+      JSON.stringify(gates) === JSON.stringify(requiredReceiptGates(profile)),
+      `${entry.sampleId}: qualification receipt gates do not match its quality profile`,
+    );
+    const sourceRevisions = new Set(entry.receipts.map((receipt) => receipt.sourceRevision));
+    const sourceDigests = new Set(entry.receipts.map((receipt) => receipt.sourceDigest));
+    invariant(sourceRevisions.size === 1, `${entry.sampleId}: qualification receipts must share one source revision`);
+    invariant(sourceDigests.size === 1, `${entry.sampleId}: qualification receipts must share one source digest`);
+    invariant(
+      entry.receipts.some((receipt) => receipt.sdkMode === "source"),
+      `${entry.sampleId}: qualification evidence requires source-mode receipts`,
+    );
+    invariant(
+      entry.receipts.find((receipt) => receipt.gate === "packed-build")?.sdkMode === "packed",
+      `${entry.sampleId}: qualification evidence requires a packed-mode packed-build receipt`,
+    );
+    const receiptPaths = new Set();
+    const artifactPaths = new Set();
+    for (const receipt of entry.receipts) {
+      invariant(["source", "packed"].includes(receipt.sdkMode), `${entry.sampleId}: invalid receipt SDK mode`);
+      invariant(
+        receipt.sdkMode === (receipt.gate === "packed-build" ? "packed" : "source"),
+        `${entry.sampleId} ${receipt.gate}: qualification receipt SDK mode is overstated`,
+      );
+      invariant(/^[a-f0-9]{40}$/.test(receipt.sourceRevision), `${entry.sampleId}: invalid receipt source revision`);
+      invariant(/^[a-f0-9]{64}$/.test(receipt.sourceDigest), `${entry.sampleId}: invalid receipt source digest`);
+      invariant(/^[a-f0-9]{64}$/.test(receipt.sha256), `${entry.sampleId}: invalid receipt digest`);
+      invariant(
+        receipt.path === `${QUALIFICATION_EVIDENCE_ROOT}/${entry.sampleId}/receipts/${receipt.gate}.v1.json`,
+        `${entry.sampleId}: qualification receipt path drift`,
+      );
+      invariant(!receiptPaths.has(receipt.path), `${entry.sampleId}: duplicate qualification receipt path`);
+      receiptPaths.add(receipt.path);
+      const observedAt = parseDateTime(receipt.observedAt, `${entry.sampleId} ${receipt.gate} observedAt`);
+      const expiresAt = parseDateTime(receipt.expiresAt, `${entry.sampleId} ${receipt.gate} expiresAt`);
+      invariant(expiresAt > observedAt, `${entry.sampleId} ${receipt.gate}: receipt expiry must follow observation`);
+      invariant(
+        expiresAt - observedAt <= 7 * 24 * 60 * 60 * 1000,
+        `${entry.sampleId} ${receipt.gate}: receipt exceeds seven-day freshness policy`,
+      );
+      invariant(
+        typeof receipt.runRoot === "string" &&
+          receipt.runRoot.startsWith(`${QUALIFICATION_EVIDENCE_ROOT}/${entry.sampleId}/runs/`) &&
+          isSampleEvidenceRunId(receipt.runRoot.split("/").at(-1)),
+        `${entry.sampleId} ${receipt.gate}: invalid qualification run root`,
+      );
+      invariant(
+        receipt.artifact &&
+          typeof receipt.artifact.kind === "string" &&
+          receipt.artifact.kind.length > 0 &&
+          typeof receipt.artifact.path === "string" &&
+          receipt.artifact.path.startsWith(`${receipt.runRoot}/`) &&
+          path.posix.normalize(receipt.artifact.path) === receipt.artifact.path &&
+          Number.isInteger(receipt.artifact.bytes) &&
+          receipt.artifact.bytes >= 0 &&
+          /^[a-f0-9]{64}$/.test(receipt.artifact.sha256),
+        `${entry.sampleId} ${receipt.gate}: invalid qualification artifact binding`,
+      );
+      invariant(!artifactPaths.has(receipt.artifact.path), `${entry.sampleId}: duplicate qualification artifact path`);
+      artifactPaths.add(receipt.artifact.path);
+    }
+  }
+}
+
+export async function collectQualificationEvidence(catalog, options = {}) {
+  const receiptRoot = path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT));
+  const profileById = new Map(catalog.qualityProfiles.map((profile) => [profile.id, profile]));
+  const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+  const qualifiedJourneys = [...catalog.goldenJourneys]
+    .filter((candidate) => candidate.status === "qualified")
+    .sort((left, right) => left.candidateSampleId.localeCompare(right.candidateSampleId));
+  const legacyLiveEvidenceFileBySample = new Map();
+  for (const journey of qualifiedJourneys) {
+    const sample = sampleById.get(journey.candidateSampleId);
+    const evidencePath = sample?.evidence?.live?.evidencePath;
+    const samplePrefix = `${QUALIFICATION_EVIDENCE_ROOT}/${journey.candidateSampleId}/`;
+    if (
+      typeof evidencePath === "string" &&
+      evidencePath.startsWith(samplePrefix) &&
+      !evidencePath.slice(samplePrefix.length).includes("/")
+    ) {
+      legacyLiveEvidenceFileBySample.set(journey.candidateSampleId, evidencePath.slice(samplePrefix.length));
+    }
+  }
+  await validateQualificationEvidenceRoot(
+    receiptRoot,
+    qualifiedJourneys.map((journey) => journey.candidateSampleId),
+    legacyLiveEvidenceFileBySample,
+  );
+  const samples = [];
+  for (const journey of qualifiedJourneys) {
+    const sample = sampleById.get(journey.candidateSampleId);
+    const profile = profileById.get(sample.validationProfile);
+    const selectedSample = {
+      id: sample.id,
+      commandPlan: {
+        validation: { execution: "automatic", commands: [...sample.validation] },
+        fixtureEvidence: { execution: "orchestrated", commands: [...sample.evidence.fixture.commands] },
+        liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
+      },
+    };
+    await validateQualificationReceiptSet({
+      sample: selectedSample,
+      profile,
+      expectedCommand: expectedGateCommand,
+      receiptRoot,
+      projectRoot: PROJECT_ROOT,
+    });
+    const receipts = [];
+    for (const gate of requiredReceiptGates(profile)) {
+      const receiptPath = path.join(receiptRoot, sample.id, "receipts", `${gate}.v1.json`);
+      const bytes = await readCanonicalBoundedFile(receiptRoot, `${sample.id}/receipts/${gate}.v1.json`, {
+        label: `${sample.id} ${gate} qualification receipt`,
+        maxBytes: 1024 * 1024,
+      });
+      const receipt = parseJsonDocument(bytes.toString("utf8"), receiptPath);
+      validateGateReceiptStructure(receipt, { sampleId: sample.id, gate });
+      receipts.push({
+        gate,
+        sdkMode: receipt.sdkMode,
+        sourceRevision: receipt.sourceRevision,
+        sourceDigest: receipt.sourceDigest,
+        runRoot: receipt.runRoot,
+        observedAt: receipt.observedAt,
+        expiresAt: receipt.expiresAt,
+        path: `${QUALIFICATION_EVIDENCE_ROOT}/${sample.id}/receipts/${gate}.v1.json`,
+        sha256: sha256(bytes),
+        artifact: structuredClone(receipt.artifacts[0]),
+      });
+    }
+    await validateQualificationRunInventory(receiptRoot, sample.id, receipts);
+    samples.push({ sampleId: sample.id, receipts });
+  }
+  const evidence = {
+    format: "honua.sdk.sample-qualification-evidence.v1",
+    schemaVersion: 1,
+    samples,
+  };
+  validateQualificationEvidenceInput(evidence, catalog);
+  return evidence;
+}
+
+function selectedQualificationSample(sample) {
+  return {
+    id: sample.id,
+    commandPlan: {
+      validation: { execution: "automatic", commands: [...sample.validation] },
+      fixtureEvidence: { execution: "orchestrated", commands: [...sample.evidence.fixture.commands] },
+      liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
+    },
+  };
+}
+
+async function readGoldenVisualReceipt(sampleId, inventoryReceipt) {
+  const expectedReceiptPath = `${QUALIFICATION_EVIDENCE_ROOT}/${sampleId}/receipts/${inventoryReceipt.gate}.v1.json`;
+  invariant(
+    inventoryReceipt.path === expectedReceiptPath,
+    `${sampleId} ${inventoryReceipt.gate}: visual evidence receipt path drift`,
+  );
+  const receiptBytes = await readCanonicalBoundedFile(PROJECT_ROOT, inventoryReceipt.path, {
+    label: `${sampleId} ${inventoryReceipt.gate} visual evidence receipt`,
+    maxBytes: 1024 * 1024,
+  });
+  invariant(
+    sha256(receiptBytes) === inventoryReceipt.sha256,
+    `${sampleId} ${inventoryReceipt.gate}: visual evidence receipt integrity drift`,
+  );
+  const receipt = parseJsonDocument(receiptBytes.toString("utf8"), inventoryReceipt.path);
+  await validateGateReceipt(receipt, {
+    sampleId,
+    gate: inventoryReceipt.gate,
+    sourceRevision: inventoryReceipt.sourceRevision,
+    sourceDigest: inventoryReceipt.sourceDigest,
+    projectRoot: PROJECT_ROOT,
+  });
+  invariant(
+    receipt.sdkMode === inventoryReceipt.sdkMode &&
+      receipt.runRoot === inventoryReceipt.runRoot &&
+      receipt.observedAt === inventoryReceipt.observedAt &&
+      receipt.expiresAt === inventoryReceipt.expiresAt &&
+      JSON.stringify(receipt.artifacts[0]) === JSON.stringify(inventoryReceipt.artifact),
+    `${sampleId} ${inventoryReceipt.gate}: visual evidence receipt metadata drift`,
+  );
+  const reportBytes = await readCanonicalBoundedFile(PROJECT_ROOT, inventoryReceipt.artifact.path, {
+    label: `${sampleId} ${inventoryReceipt.gate} visual evidence report`,
+    maxBytes: 128 * 1024 * 1024,
+  });
+  invariant(
+    reportBytes.byteLength === inventoryReceipt.artifact.bytes &&
+      sha256(reportBytes) === inventoryReceipt.artifact.sha256,
+    `${sampleId} ${inventoryReceipt.gate}: visual evidence report integrity drift`,
+  );
+  return {
+    inventory: inventoryReceipt,
+    receipt,
+    report: parseJsonDocument(reportBytes.toString("utf8"), inventoryReceipt.artifact.path),
+  };
+}
+
+function projectedGoldenLiveEvidence(sample, liveReport, liveReceipt) {
+  invariant(
+    liveReport?.format === "honua.sdk.sample-live-gate.v1" &&
+      liveReport.sampleId === sample.id &&
+      liveReport.sourceRevision === liveReceipt.sourceRevision,
+    `${sample.id}: visual live gate report binding drift`,
+  );
+  const evidence = liveReport.evidence;
+  invariant(
+    evidence?.sampleId === sample.id && evidence.lane === "live" && evidence.status === "executed",
+    `${sample.id}: visual live evidence is not executed`,
+  );
+  const realtime = evidence.realtime
+    ? {
+        observationWindowMs: evidence.realtime.observationWindowMs,
+        snapshotAt: evidence.realtime.snapshotAt,
+        cursor: evidence.realtime.cursor,
+        lagMs: evidence.realtime.lagMs,
+      }
+    : undefined;
+  if (sample.journeyId === "incident-operations") {
+    invariant(
+      realtime?.observationWindowMs > 0,
+      `${sample.id}: incident operations visual evidence must remain realtime`,
+    );
+  }
+  // The live gate receipt is stamped when its wrapper finishes writing to
+  // disk, which lands a little after the underlying live probe's own
+  // evidence.observedAt. Anchoring the published expiresAt off the receipt's
+  // observedAt (rather than the earlier evidence.observedAt this entry
+  // actually publishes) would silently stretch the freshness window beyond
+  // what the receipt itself grants. Preserve the receipt's window duration
+  // but anchor it on the observedAt actually published here so the two
+  // stay exactly consistent.
+  const liveReceiptObservedAtMs = Date.parse(liveReceipt.observedAt);
+  const liveReceiptExpiresAtMs = Date.parse(liveReceipt.expiresAt);
+  const evidenceObservedAtMs = Date.parse(evidence.observedAt);
+  invariant(
+    Number.isFinite(liveReceiptObservedAtMs) &&
+      Number.isFinite(liveReceiptExpiresAtMs) &&
+      Number.isFinite(evidenceObservedAtMs) &&
+      liveReceiptExpiresAtMs > liveReceiptObservedAtMs &&
+      evidenceObservedAtMs <= liveReceiptObservedAtMs,
+    `${sample.id}: visual live evidence timestamps are invalid`,
+  );
+  const liveWindowMs = liveReceiptExpiresAtMs - liveReceiptObservedAtMs;
+  return {
+    mode: sample.evidence.live.mode,
+    status: "executed",
+    observedAt: evidence.observedAt,
+    expiresAt: new Date(evidenceObservedAtMs + liveWindowMs).toISOString(),
+    evidencePath: liveReport.evidencePath,
+    provenance: {
+      state: evidence.provenance.state,
+      observedAt: evidence.provenance.observedAt,
+      attribution: evidence.provenance.attribution,
+    },
+    semantics: {
+      operation: evidence.semantics.operation,
+      outcome: evidence.semantics.outcome,
+      itemCount: evidence.semantics.itemCount,
+      assertions: [...evidence.semantics.assertions],
+    },
+    timing: { totalMs: evidence.timing.totalMs },
+    degradation: {
+      state: evidence.degradation.state,
+      reasons: [...evidence.degradation.reasons],
+    },
+    ...(realtime ? { realtime } : {}),
+  };
+}
+
+function goldenVisualPolicy() {
+  return {
+    sourceRepository: "honua-io/honua-sdk-js",
+    requiredScreenshotVariants: SAMPLE_SCREENSHOT_VARIANTS.map((variant) => ({
+      id: variant.id,
+      viewport: { ...variant.viewport },
+    })),
+    screenshotReproducibility: {
+      reportFormat: SAMPLE_SCREENSHOT_REPORT_FORMAT,
+      ...SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+    },
+    requiredSemanticGates: [...GOLDEN_VISUAL_GATE_ORDER],
+    freshness: {
+      maxFutureSkewSeconds: GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS,
+      maxWindowSeconds: GOLDEN_VISUAL_MAX_WINDOW_SECONDS,
+    },
+  };
+}
+
+export async function generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence) {
+  validateQualificationEvidenceInput(qualificationEvidence, catalog);
+  const profileById = new Map(catalog.qualityProfiles.map((profile) => [profile.id, profile]));
+  const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+  const evidenceBySample = new Map(
+    qualificationEvidence.samples.map((entry) => [entry.sampleId, entry]),
+  );
+  const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
+  const entries = [];
+  for (const journey of qualifiedJourneys) {
+    const sample = sampleById.get(journey.candidateSampleId);
+    const profile = profileById.get(sample?.validationProfile);
+    const evidence = evidenceBySample.get(journey.candidateSampleId);
+    invariant(sample && profile && evidence, `${journey.id}: qualified visual evidence source is missing`);
+    invariant(
+      sample.track === "golden" && Object.values(profile.gates).every(Boolean),
+      `${sample.id}: visual evidence requires a qualified golden sample and the complete quality profile`,
+    );
+    invariant(
+      JSON.stringify(requiredReceiptGates(profile)) ===
+        JSON.stringify([...GOLDEN_VISUAL_GATE_ORDER].sort()),
+      `${sample.id}: visual evidence semantic gate policy drift`,
+    );
+
+    await validateQualificationReceiptSet({
+      sample: selectedQualificationSample(sample),
+      profile,
+      expectedCommand: expectedGateCommand,
+      receiptRoot: path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT),
+      projectRoot: PROJECT_ROOT,
+    });
+
+    const inventoryByGate = new Map(evidence.receipts.map((receipt) => [receipt.gate, receipt]));
+    invariant(
+      inventoryByGate.size === GOLDEN_VISUAL_GATE_ORDER.length &&
+        GOLDEN_VISUAL_GATE_ORDER.every((gate) => inventoryByGate.has(gate)),
+      `${sample.id}: visual evidence semantic receipts are incomplete`,
+    );
+    const receiptRecords = new Map();
+    for (const gate of GOLDEN_VISUAL_GATE_ORDER) {
+      receiptRecords.set(gate, await readGoldenVisualReceipt(sample.id, inventoryByGate.get(gate)));
+    }
+
+    const sourceRevisions = new Set(
+      [...receiptRecords.values()].map(({ receipt }) => receipt.sourceRevision),
+    );
+    const sourceDigests = new Set(
+      [...receiptRecords.values()].map(({ receipt }) => receipt.sourceDigest),
+    );
+    invariant(
+      sourceRevisions.size === 1 && sourceDigests.size === 1,
+      `${sample.id}: visual evidence receipts do not share one source identity`,
+    );
+    const [sourceRevision] = sourceRevisions;
+    const [sourceDigest] = sourceDigests;
+
+    const screenshotRecord = receiptRecords.get("screenshot");
+    const screenshotReport = screenshotRecord.report;
+    invariant(
+      screenshotReport.format === SAMPLE_SCREENSHOT_REPORT_FORMAT &&
+        JSON.stringify(screenshotReport.reproducibilityPolicy) ===
+          JSON.stringify(SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY) &&
+        Array.isArray(screenshotReport.screenshots) &&
+        screenshotReport.screenshots.length === SAMPLE_SCREENSHOT_VARIANTS.length,
+      `${sample.id}: visual evidence requires the reproducible desktop/mobile screenshot report`,
+    );
+    const screenshots = SAMPLE_SCREENSHOT_VARIANTS.map((variant, index) => {
+      const screenshot = screenshotReport.screenshots[index];
+      invariant(
+        screenshot.variant === variant.id &&
+          screenshot.viewport?.width === variant.viewport.width &&
+          screenshot.viewport?.height === variant.viewport.height,
+        `${sample.id}: ${variant.id} visual evidence screenshot binding drift`,
+      );
+      return {
+        variant: variant.id,
+        projectName: screenshot.projectName,
+        browserName: screenshot.browserName,
+        sourcePath: screenshot.path,
+        mediaType: "image/png",
+        viewport: { ...variant.viewport },
+        bytes: screenshot.bytes,
+        sha256: screenshot.sha256,
+        reproducibility: {
+          captureCount: screenshot.reproducibility.captureCount,
+          comparison: screenshot.reproducibility.comparison,
+          repeatSourcePath: screenshot.reproducibility.repeatPath,
+          repeatBytes: screenshot.reproducibility.repeatBytes,
+          repeatSha256: screenshot.reproducibility.repeatSha256,
+        },
+      };
+    });
+
+    const observedAt = new Date(
+      Math.max(...[...receiptRecords.values()].map(({ receipt }) => Date.parse(receipt.observedAt))),
+    ).toISOString();
+    const expiresAt = new Date(
+      Math.min(...[...receiptRecords.values()].map(({ receipt }) => Date.parse(receipt.expiresAt))),
+    ).toISOString();
+    invariant(
+      Date.parse(expiresAt) > Date.parse(observedAt),
+      `${sample.id}: visual evidence aggregate freshness window is invalid`,
+    );
+    const liveRecord = receiptRecords.get("live");
+    entries.push({
+      journeyId: journey.id,
+      sampleId: sample.id,
+      source: {
+        repository: "honua-io/honua-sdk-js",
+        path: sample.sourcePath,
+        revision: sourceRevision,
+        evidenceNeutralSha256: sourceDigest,
+      },
+      runtime: structuredClone(screenshotReport.runtime),
+      observedAt,
+      expiresAt,
+      screenshots,
+      semanticEvidence: GOLDEN_VISUAL_GATE_ORDER.map((gate) => {
+        const record = receiptRecords.get(gate);
+        const receipt = record.inventory;
+        return {
+          gate,
+          sdkMode: receipt.sdkMode,
+          receiptPath: receipt.path,
+          receiptSha256: receipt.sha256,
+          runRoot: receipt.runRoot,
+          observedAt: receipt.observedAt,
+          expiresAt: receipt.expiresAt,
+          reportKind: receipt.artifact.kind,
+          reportPath: receipt.artifact.path,
+          reportBytes: receipt.artifact.bytes,
+          reportSha256: receipt.artifact.sha256,
+        };
+      }),
+      liveEvidence: projectedGoldenLiveEvidence(sample, liveRecord.report, liveRecord.receipt),
+    });
+  }
+
+  const visualEvidence = {
+    format: "honua.sdk.golden-journey-visual-evidence.v1",
+    schemaVersion: 1,
+    inputs: {
+      catalog: {
+        path: CATALOG_PATH,
+        format: catalog.format,
+        schemaVersion: catalog.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(catalog))),
+      },
+      qualificationEvidence: {
+        format: qualificationEvidence.format,
+        schemaVersion: qualificationEvidence.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(qualificationEvidence))),
+      },
+    },
+    policy: goldenVisualPolicy(),
+    qualifiedGoldenJourneys: entries,
+  };
+  validateSensitiveMetadata(visualEvidence, "golden journey visual evidence");
+  return visualEvidence;
+}
+
+function validateGoldenVisualEvidenceEntries(visualEvidence) {
+  const now = Date.now();
+  const maximumFutureSkewMs = GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS * 1000;
+  const maximumWindowMs = GOLDEN_VISUAL_MAX_WINDOW_SECONDS * 1000;
+  for (const entry of visualEvidence.qualifiedGoldenJourneys) {
+    invariant(
+      JSON.stringify(entry.semanticEvidence.map((item) => item.gate)) ===
+        JSON.stringify(GOLDEN_VISUAL_GATE_ORDER),
+      `${entry.sampleId}: visual semantic evidence is incomplete or out of order`,
+    );
+    const allFreshness = [
+      { observedAt: entry.observedAt, expiresAt: entry.expiresAt },
+      ...entry.semanticEvidence,
+      {
+        observedAt: entry.liveEvidence.observedAt,
+        expiresAt: entry.liveEvidence.expiresAt,
+      },
+    ];
+    for (const item of allFreshness) {
+      const observedAt = Date.parse(item.observedAt);
+      const expiresAt = Date.parse(item.expiresAt);
+      invariant(
+        Number.isFinite(observedAt) &&
+          Number.isFinite(expiresAt) &&
+          observedAt <= now + maximumFutureSkewMs &&
+          expiresAt > now &&
+          expiresAt > observedAt &&
+          expiresAt - observedAt <= maximumWindowMs,
+        `${entry.sampleId}: visual evidence is stale or has an invalid freshness window`,
+      );
+    }
+    invariant(
+      entry.screenshots.every(
+        (screenshot) =>
+          screenshot.projectName === entry.runtime.projectName &&
+          screenshot.browserName === entry.runtime.browserName &&
+          screenshot.sourcePath !== screenshot.reproducibility.repeatSourcePath &&
+          screenshot.bytes === screenshot.reproducibility.repeatBytes &&
+          screenshot.sha256 === screenshot.reproducibility.repeatSha256,
+      ),
+      `${entry.sampleId}: visual screenshot runtime, integrity, or reproducibility drift`,
+    );
+    if (entry.journeyId === "incident-operations") {
+      invariant(
+        entry.liveEvidence.realtime?.observationWindowMs > 0,
+        `${entry.sampleId}: incident operations visual evidence must remain realtime`,
+      );
+    }
+  }
+}
+
+export async function validateGoldenJourneyVisualEvidence(
+  visualEvidence,
+  catalog,
+  qualificationEvidence,
+) {
+  validateSensitiveMetadata(visualEvidence, "golden journey visual evidence");
+  await validateJsonSchema(visualEvidence, GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH);
+  invariant(
+    JSON.stringify(visualEvidence.policy) === JSON.stringify(goldenVisualPolicy()),
+    "golden journey visual evidence policy drift",
+  );
+  const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
+  invariant(
+    JSON.stringify(
+      visualEvidence.qualifiedGoldenJourneys.map((entry) => [entry.journeyId, entry.sampleId]),
+    ) ===
+      JSON.stringify(
+        qualifiedJourneys.map((journey) => [journey.id, journey.candidateSampleId]),
+      ),
+    "golden journey visual evidence is orphaned, missing, or overstated",
+  );
+  validateGoldenVisualEvidenceEntries(visualEvidence);
+  const expected = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
+  invariant(
+    JSON.stringify(visualEvidence) === JSON.stringify(expected),
+    "golden journey visual evidence does not match validated catalog and receipt truth",
+  );
+}
+
+function sampleQualification(sample, catalog, evidenceBySample, evidenceBindingBySample) {
+  const journey = sample.journeyId
+    ? catalog.goldenJourneys.find((candidate) => candidate.id === sample.journeyId)
+    : undefined;
+  const evidence = evidenceBySample.get(sample.id);
+  if (evidence) {
+    invariant(
+      sample.track === "golden" && journey?.status === "qualified",
+      `${sample.id}: qualification receipts cannot promote an unqualified catalog sample`,
+    );
+    return {
+      state: "qualified",
+      catalogStatus: "qualified",
+      evidenceBindingId: evidenceBindingBySample.get(sample.id).id,
+      evidence: qualificationEvidenceSummary(evidence),
+    };
+  }
+  if (sample.supportTier === "experimental") {
+    return { state: "experimental", catalogStatus: journey?.status ?? "not-a-golden-journey" };
+  }
+  if (
+    sample.supportTier === "internal" ||
+    sample.supportTier === "deprecated" ||
+    ["replace", "retire"].includes(sample.lifecycle.state)
+  ) {
+    return { state: "unsupported", catalogStatus: journey?.status ?? "not-a-golden-journey" };
+  }
+  if (journey || sample.evidence.fixture.status !== "executed") {
+    return { state: "planned", catalogStatus: journey?.status ?? "not-a-golden-journey" };
+  }
+  return { state: "partial", catalogStatus: "not-a-golden-journey" };
+}
+
+const SAMPLE_COVERAGE_ORDER = new Map([
+  ["qualified", 0],
+  ["partial", 1],
+  ["planned", 2],
+  ["experimental", 3],
+  ["unsupported", 4],
+]);
+const SAMPLE_TRACK_ORDER = new Map([
+  ["golden", 0],
+  ["recipe", 1],
+  ["lab", 2],
+  ["fixture", 3],
+]);
+
+function orderedCandidateIds(candidates) {
+  return [...candidates]
+    .sort(
+      (left, right) =>
+        SAMPLE_COVERAGE_ORDER.get(left.qualification.state) - SAMPLE_COVERAGE_ORDER.get(right.qualification.state) ||
+        SAMPLE_TRACK_ORDER.get(left.track) - SAMPLE_TRACK_ORDER.get(right.track) ||
+        left.id.localeCompare(right.id),
+    )
+    .map((sample) => sample.id);
+}
+
+function evidenceBindingIdsForSamples(sampleIds, evidenceBindingBySample) {
+  return sampleIds.map((sampleId) => {
+    const binding = evidenceBindingBySample.get(sampleId);
+    invariant(binding, `${sampleId}: qualifying sample has no source and packed evidence binding`);
+    return binding.id;
+  });
+}
+
+function coverageForSupport(supportStatus, candidates, qualifyingSampleIds, evidenceBindingBySample) {
+  const candidateSampleIds = orderedCandidateIds(candidates);
+  const orderedQualifyingIds = candidateSampleIds.filter((sampleId) => qualifyingSampleIds.includes(sampleId));
+  const evidenceBindingIds = evidenceBindingIdsForSamples(orderedQualifyingIds, evidenceBindingBySample);
+  const selectedSampleId = orderedQualifyingIds[0] ?? candidateSampleIds[0];
+  if (supportStatus === "unsupported" || supportStatus === "deprecated") {
+    return {
+      state: "unsupported",
+      reason: "SDK support truth marks this cell unsupported or deprecated.",
+      candidateSampleIds,
+      qualifyingSampleIds: [],
+      evidenceBindingIds: [],
+      ...(selectedSampleId ? { selectedSampleId } : {}),
+    };
+  }
+  if (supportStatus === "experimental" || supportStatus === "beta") {
+    return {
+      state: "experimental",
+      reason: "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+      candidateSampleIds,
+      qualifyingSampleIds: orderedQualifyingIds,
+      evidenceBindingIds,
+      ...(selectedSampleId ? { selectedSampleId } : {}),
+    };
+  }
+  if (orderedQualifyingIds.length > 0) {
+    return {
+      state: "qualified",
+      reason: "A catalog-qualified sample has a complete current qualification receipt set for this exact cell.",
+      candidateSampleIds,
+      qualifyingSampleIds: orderedQualifyingIds,
+      evidenceBindingIds,
+      selectedSampleId: orderedQualifyingIds[0],
+    };
+  }
+  if (
+    candidates.some(
+      (sample) => sample.qualification.state === "partial" || sample.qualification.state === "qualified",
+    )
+  ) {
+    return {
+      state: "partial",
+      reason: "Executable sample coverage exists without complete current qualification receipts.",
+      candidateSampleIds,
+      qualifyingSampleIds: [],
+      evidenceBindingIds: [],
+      ...(selectedSampleId ? { selectedSampleId } : {}),
+    };
+  }
+  if (candidates.some((sample) => sample.qualification.state === "experimental")) {
+    return {
+      state: "experimental",
+      reason: "Only experimental catalog samples map to this supported SDK cell.",
+      candidateSampleIds,
+      qualifyingSampleIds: [],
+      evidenceBindingIds: [],
+      ...(selectedSampleId ? { selectedSampleId } : {}),
+    };
+  }
+  return {
+    state: "planned",
+    reason:
+      candidateSampleIds.length > 0
+        ? "A catalog candidate is planned but has no complete current qualification receipts."
+        : "SDK support is present, but no catalog sample maps to this exact cell.",
+    candidateSampleIds,
+    qualifyingSampleIds: [],
+    evidenceBindingIds: [],
+    ...(selectedSampleId ? { selectedSampleId } : {}),
+  };
+}
+
+function matrixGap(targetType, targetId, supportStatus, coverage) {
+  return {
+    targetType,
+    targetId,
+    supportStatus,
+    coverageState: coverage.state,
+    candidateSampleIds: [...coverage.candidateSampleIds],
+    reason: coverage.reason,
+  };
+}
+
+/**
+ * Project SDK support and catalog truth without treating sample metadata as
+ * qualification evidence. Only validated gate receipts can produce a
+ * `qualified` coverage state; missing evidence remains explicitly visible.
+ */
+export function generateCapabilitySampleMatrix(catalog, packageJson, supportTruth, qualificationEvidence) {
+  const packageExports = validateSupportTruthForMatrix(supportTruth, packageJson);
+  validateQualificationEvidenceInput(qualificationEvidence, catalog);
+  const evidenceBySample = new Map(qualificationEvidence.samples.map((entry) => [entry.sampleId, entry]));
+  const catalogSampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+  const evidenceBindings = qualificationEvidence.samples
+    .map((entry) => qualificationEvidenceBinding(catalogSampleById.get(entry.sampleId), entry))
+    .sort((left, right) => left.sampleId.localeCompare(right.sampleId));
+  const evidenceBindingBySample = new Map(
+    evidenceBindings.map((binding) => [binding.sampleId, binding]),
+  );
+  const bindings = new Map(
+    catalog.samples.map((sample) => [sample.id, sampleSupportBinding(sample, supportTruth)]),
+  );
+  const samples = catalog.samples
+    .map((sample) => ({
+      id: sample.id,
+      title: sample.title,
+      sourcePath: sample.sourcePath,
+      track: sample.track,
+      ...(sample.journeyId ? { journeyId: sample.journeyId } : {}),
+      tasks: [...sample.capabilities],
+      catalogProtocols: [...sample.protocols],
+      protocolIds: [...bindings.get(sample.id).protocolIds],
+      supportClaimIds: [...bindings.get(sample.id).supportClaimIds],
+      protocolBindings: structuredClone(bindings.get(sample.id).protocolBindings),
+      renderers: [...sample.renderers],
+      dataMode: sample.data.mode,
+      authMode: sample.data.authMode,
+      supportTier: sample.supportTier,
+      lifecycleState: sample.lifecycle.state,
+      qualification: sampleQualification(sample, catalog, evidenceBySample, evidenceBindingBySample),
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const sampleById = new Map(samples.map((sample) => [sample.id, sample]));
+  const qualifiedSampleIds = new Set(
+    samples.filter((sample) => sample.qualification.state === "qualified").map((sample) => sample.id),
+  );
+
+  const protocolOperations = [];
+  for (const protocol of [...supportTruth.protocols].sort((left, right) => left.id.localeCompare(right.id))) {
+    for (const operation of [...supportTruth.protocolOperations].sort()) {
+      const matchingClaims = protocol.operationClaims.filter((claim) => claim.operations.includes(operation));
+      const candidates = samples.filter(
+        (sample) => sample.protocolIds.includes(protocol.id) && sample.tasks.includes(operation),
+      );
+      const qualifyingIds = candidates
+        .filter(
+          (sample) =>
+            qualifiedSampleIds.has(sample.id) &&
+            sample.protocolBindings.some(
+              (binding) => binding.protocolIds.length === 1 && binding.protocolIds[0] === protocol.id,
+            ),
+        )
+        .map((sample) => sample.id);
+      if (matchingClaims.length === 0) {
+        const coverage = coverageForSupport(
+          protocol.defaultOperationStatus,
+          candidates,
+          qualifyingIds,
+          evidenceBindingBySample,
+        );
+        protocolOperations.push({
+          id: `${protocol.id}:${operation}:default`,
+          protocolId: protocol.id,
+          protocolLabel: protocol.label,
+          operation,
+          authority: "default",
+          supportStatus: protocol.defaultOperationStatus,
+          truthEvidence: [],
+          coverage,
+        });
+        continue;
+      }
+      for (const claim of matchingClaims) {
+        const coverage = coverageForSupport(claim.status, candidates, qualifyingIds, evidenceBindingBySample);
+        protocolOperations.push({
+          id: `${protocol.id}:${operation}:${claim.environment}:${claim.executionMode}`,
+          protocolId: protocol.id,
+          protocolLabel: protocol.label,
+          operation,
+          authority: "claim",
+          supportStatus: claim.status,
+          environment: claim.environment,
+          executionMode: claim.executionMode,
+          truthEvidence: [...claim.evidence],
+          coverage,
+        });
+      }
+    }
+  }
+  protocolOperations.sort((left, right) => left.id.localeCompare(right.id));
+
+  const packageExportSubpaths = new Set(packageExports.map((entrypoint) => entrypoint.subpath));
+  const supportClaims = supportTruth.supportClaims
+    .map((claim) => {
+      const apiEntrypoints = packageEntrypointsInApi(claim.api, packageJson);
+      for (const subpath of apiEntrypoints) {
+        invariant(packageExportSubpaths.has(subpath), `${claim.id}: API references missing package export ${subpath}`);
+      }
+      const apiTokens = apiEntrypoints
+        .filter((subpath) => subpath !== ".")
+        .map((subpath) => subpath.slice(2));
+      const candidateEvidence = samples
+        .map((sample) => {
+          const explicitlyBound = sample.supportClaimIds.includes(claim.id);
+          const apiBound = apiTokens.some((token) => sample.tasks.includes(token));
+          const idBound = sample.tasks.includes(claim.id);
+          if (!explicitlyBound && !apiBound && !idBound) return undefined;
+          const matchedOperations = claim.operations.filter((operation) => sample.tasks.includes(operation));
+          if (matchedOperations.length === 0) return undefined;
+          const exactProtocolBinding = sample.protocolBindings.some(
+            (binding) =>
+              binding.supportClaimIds.length === 1 && binding.supportClaimIds[0] === claim.id,
+          );
+          return {
+            sampleId: sample.id,
+            matchedOperations,
+            binding: apiBound || idBound || exactProtocolBinding ? "exact" : "ambiguous",
+          };
+        })
+        .filter(Boolean)
+        .sort((left, right) => left.sampleId.localeCompare(right.sampleId));
+      const candidates = candidateEvidence.map((entry) => sampleById.get(entry.sampleId));
+      const qualifyingIds = candidateEvidence
+        .filter(
+          (entry) =>
+            entry.binding === "exact" &&
+            qualifiedSampleIds.has(entry.sampleId) &&
+            entry.matchedOperations.length === claim.operations.length,
+        )
+        .map((entry) => entry.sampleId);
+      return {
+        id: claim.id,
+        label: claim.label,
+        ...(claim.protocol ? { protocolId: claim.protocol } : {}),
+        operations: [...claim.operations],
+        api: claim.api,
+        apiEntrypoints,
+        supportStatus: claim.status,
+        environment: claim.environment,
+        executionMode: claim.executionMode,
+        truthEvidence: [...claim.evidence],
+        candidateEvidence,
+        coverage: coverageForSupport(claim.status, candidates, qualifyingIds, evidenceBindingBySample),
+      };
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  const claimCandidatesByEntrypoint = new Map();
+  const claimQualifyingByEntrypoint = new Map();
+  for (const claim of supportClaims) {
+    for (const subpath of claim.apiEntrypoints) {
+      const candidates = claimCandidatesByEntrypoint.get(subpath) ?? [];
+      candidates.push(...claim.coverage.candidateSampleIds);
+      claimCandidatesByEntrypoint.set(subpath, orderedUnique(candidates));
+      const qualifying = claimQualifyingByEntrypoint.get(subpath) ?? [];
+      qualifying.push(...claim.coverage.qualifyingSampleIds);
+      claimQualifyingByEntrypoint.set(subpath, orderedUnique(qualifying));
+    }
+  }
+  const packageEntrypoints = packageExports
+    .map(({ subpath, lifecycle, targets }) => {
+      const token = subpath === "." ? packageJson.name : subpath.slice(2);
+      const directlyBoundSamples = samples.filter(
+        (sample) =>
+          sample.tasks.includes(token) ||
+          (subpath !== "." && sample.catalogProtocols.includes(token)),
+      );
+      const candidateIds = orderedUnique([
+        ...(claimCandidatesByEntrypoint.get(subpath) ?? []),
+        ...directlyBoundSamples.map((sample) => sample.id),
+      ]);
+      const candidates = candidateIds.map((sampleId) => sampleById.get(sampleId));
+      const qualifyingIds = orderedUnique([
+        ...(claimQualifyingByEntrypoint.get(subpath) ?? []),
+        ...directlyBoundSamples
+          .filter((sample) => qualifiedSampleIds.has(sample.id))
+          .map((sample) => sample.id),
+      ]);
+      return {
+        subpath,
+        supportStatus: lifecycle.status,
+        ...(lifecycle.replacement ? { replacement: lifecycle.replacement } : {}),
+        targets,
+        coverage: coverageForSupport(lifecycle.status, candidates, qualifyingIds, evidenceBindingBySample),
+      };
+    })
+    .sort((left, right) => left.subpath.localeCompare(right.subpath));
+
+  const supportTierMap = supportTruth.consumerContracts.sampleCatalog.supportTierMap;
+  const goldenJourneys = catalog.goldenJourneys.map((journey) => {
+    const sample = sampleById.get(journey.candidateSampleId);
+    const supportStatus = supportTierMap[sample.supportTier] ?? "unsupported";
+    const coverage = coverageForSupport(
+      supportStatus,
+      [sample],
+      qualifiedSampleIds.has(sample.id) ? [sample.id] : [],
+      evidenceBindingBySample,
+    );
+    return {
+      id: journey.id,
+      title: journey.title,
+      candidateSampleId: journey.candidateSampleId,
+      catalogStatus: journey.status,
+      supportStatus,
+      coverage,
+    };
+  });
+
+  const gaps = [
+    ...goldenJourneys
+      .filter((journey) => journey.coverage.state !== "qualified")
+      .map((journey) =>
+        matrixGap(
+          "golden-journey",
+          journey.id,
+          supportTierMap[sampleById.get(journey.candidateSampleId).supportTier] ?? "unsupported",
+          journey.coverage,
+        ),
+      ),
+    ...protocolOperations
+      .filter((cell) => cell.coverage.state !== "qualified")
+      .map((cell) =>
+        matrixGap("protocol-operation", cell.id, cell.supportStatus, cell.coverage),
+      ),
+    ...supportClaims
+      .filter((claim) => claim.coverage.state !== "qualified")
+      .map((claim) => matrixGap("support-claim", claim.id, claim.supportStatus, claim.coverage)),
+    ...packageEntrypoints
+      .filter((entrypoint) => entrypoint.coverage.state !== "qualified")
+      .map((entrypoint) =>
+        matrixGap("package-entrypoint", entrypoint.subpath, entrypoint.supportStatus, entrypoint.coverage),
+      ),
+  ].sort(
+    (left, right) =>
+      left.targetType.localeCompare(right.targetType) || left.targetId.localeCompare(right.targetId),
+  );
+
+  const packageExportInput = {
+    name: packageJson.name,
+    version: packageJson.version,
+    exports: packageJson.exports,
+  };
+  return {
+    format: "honua.site.sdk-capability-sample-matrix.v1",
+    schemaVersion: 1,
+    sdk: { package: packageJson.name, version: packageJson.version },
+    inputs: {
+      supportTruth: {
+        path: SUPPORT_TRUTH_PATH,
+        format: supportTruth.format,
+        schemaVersion: supportTruth.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(supportTruth))),
+      },
+      packageExports: {
+        path: "package.json",
+        package: packageJson.name,
+        sha256: sha256(Buffer.from(stableJson(packageExportInput))),
+      },
+      catalog: {
+        path: CATALOG_PATH,
+        format: catalog.format,
+        schemaVersion: catalog.schemaVersion,
+        sha256: sha256(Buffer.from(stableJson(catalog))),
+      },
+      qualificationEvidence: {
+        root: QUALIFICATION_EVIDENCE_ROOT,
+        format: qualificationEvidence.format,
+        schemaVersion: qualificationEvidence.schemaVersion,
+        receiptCount: qualificationEvidence.samples.reduce(
+          (count, entry) => count + entry.receipts.length,
+          0,
+        ),
+        sha256: sha256(Buffer.from(stableJson(qualificationEvidence))),
+      },
+    },
+    statusVocabulary: {
+      coverage: ["qualified", "partial", "planned", "experimental", "unsupported"],
+      support: [...supportTruth.statusVocabulary],
+    },
+    dimensions: {
+      tasks: orderedUnique(catalog.samples.flatMap((sample) => sample.capabilities)),
+      catalogProtocols: orderedUnique(catalog.samples.flatMap((sample) => sample.protocols)),
+      protocolIds: orderedUnique([
+        ...supportTruth.protocols.map((protocol) => protocol.id),
+        ...supportTruth.claimOnlyProtocols,
+      ]),
+      renderers: orderedUnique(catalog.samples.flatMap((sample) => sample.renderers)),
+      dataModes: orderedUnique(catalog.samples.map((sample) => sample.data.mode)),
+      authModes: orderedUnique(catalog.samples.map((sample) => sample.data.authMode)),
+      supportTiers: orderedUnique(catalog.samples.map((sample) => sample.supportTier)),
+      lifecycleStates: orderedUnique(catalog.samples.map((sample) => sample.lifecycle.state)),
+      packageEntrypoints: packageEntrypoints.map((entrypoint) => entrypoint.subpath),
+    },
+    goldenJourneys,
+    samples,
+    evidenceBindings,
+    protocolOperations,
+    supportClaims,
+    packageEntrypoints,
+    gaps,
+  };
+}
+
+function evidenceEntryFromBinding(binding) {
+  const references = [...binding.source.receipts, binding.packed];
+  return {
+    sampleId: binding.sampleId,
+    receipts: references
+      .map((reference) => ({
+        gate: reference.gate,
+        sdkMode: reference.sdkMode,
+        sourceRevision: binding.source.revision,
+        sourceDigest: binding.source.evidenceNeutralSha256,
+        runRoot: reference.runRoot,
+        observedAt: reference.observedAt,
+        expiresAt: reference.expiresAt,
+        path: reference.receiptPath,
+        sha256: reference.receiptSha256,
+        artifact: {
+          kind: reference.reportKind,
+          path: reference.reportPath,
+          bytes: reference.reportBytes,
+          sha256: reference.reportSha256,
+        },
+      }))
+      .sort((left, right) => left.gate.localeCompare(right.gate)),
+  };
+}
+
+function validateEvidenceBindingShape(binding, sampleById) {
+  const sample = sampleById.get(binding.sampleId);
+  invariant(sample, `${binding.id}: capability matrix evidence binding is orphaned from a sample`);
+  const { id: _id, ...payload } = binding;
+  invariant(
+    binding.id === `qualification:${sha256(Buffer.from(stableJson(payload)))}`,
+    `${binding.sampleId}: capability matrix evidence binding ID is stale`,
+  );
+  invariant(
+    binding.source.repository === "honua-io/honua-sdk-js" && binding.source.path === sample.sourcePath,
+    `${binding.id}: capability matrix source binding is orphaned or stale`,
+  );
+  assertRelativePath(binding.source.path, `${binding.id}.source.path`);
+  invariant(
+    !binding.source.path.includes("\\") && path.posix.normalize(binding.source.path) === binding.source.path,
+    `${binding.id}: capability matrix source path is not canonical`,
+  );
+  const sourceGates = binding.source.receipts.map((receipt) => receipt.gate);
+  invariant(
+    sourceGates.length > 0 &&
+      JSON.stringify(sourceGates) === JSON.stringify([...new Set(sourceGates)].sort()) &&
+      binding.source.receipts.every((receipt) => receipt.sdkMode === "source"),
+    `${binding.id}: capability matrix source receipts are missing, duplicated, or unordered`,
+  );
+  invariant(
+    binding.packed.gate === "packed-build" && binding.packed.sdkMode === "packed",
+    `${binding.id}: capability matrix packed-build evidence is missing or overstated`,
+  );
+  const entry = evidenceEntryFromBinding(binding);
+  const expectedQualification = qualificationEvidenceSummary(entry);
+  invariant(
+    sample.qualification.state === "qualified" &&
+      sample.qualification.catalogStatus === "qualified" &&
+      sample.qualification.evidenceBindingId === binding.id &&
+      JSON.stringify(sample.qualification.evidence) === JSON.stringify(expectedQualification),
+    `${binding.id}: capability matrix sample qualification is orphaned or stale`,
+  );
+  return entry;
+}
+
+function validateCoverage(actual, expected, label) {
+  invariant(
+    JSON.stringify(actual) === JSON.stringify(expected),
+    `${label}: capability matrix coverage is orphaned, stale, or overstated`,
+  );
+}
+
+function supportClaimCandidateEvidence(claim, samples) {
+  const apiTokens = claim.apiEntrypoints
+    .filter((subpath) => subpath !== ".")
+    .map((subpath) => subpath.slice(2));
+  return samples
+    .map((sample) => {
+      const explicitlyBound = sample.supportClaimIds.includes(claim.id);
+      const apiBound = apiTokens.some((token) => sample.tasks.includes(token));
+      const idBound = sample.tasks.includes(claim.id);
+      if (!explicitlyBound && !apiBound && !idBound) return undefined;
+      const matchedOperations = claim.operations.filter((operation) => sample.tasks.includes(operation));
+      if (matchedOperations.length === 0) return undefined;
+      const exactProtocolBinding = sample.protocolBindings.some(
+        (binding) => binding.supportClaimIds.length === 1 && binding.supportClaimIds[0] === claim.id,
+      );
+      return {
+        sampleId: sample.id,
+        matchedOperations,
+        binding: apiBound || idBound || exactProtocolBinding ? "exact" : "ambiguous",
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sampleId.localeCompare(right.sampleId));
+}
+
+async function validateEvidenceReceiptReference(binding, reference, now) {
+  const observedAt = parseDateTime(reference.observedAt, `${binding.id} ${reference.gate} observedAt`);
+  const expiresAt = parseDateTime(reference.expiresAt, `${binding.id} ${reference.gate} expiresAt`);
+  invariant(observedAt <= now + 5 * 60 * 1000, `${binding.id}: qualification evidence is future-dated`);
+  invariant(
+    expiresAt > now && expiresAt > observedAt && expiresAt - observedAt <= 7 * 24 * 60 * 60 * 1000,
+    `${binding.id}: qualification evidence is stale`,
+  );
+  invariant(
+    reference.receiptPath ===
+      `${QUALIFICATION_EVIDENCE_ROOT}/${binding.sampleId}/receipts/${reference.gate}.v1.json` &&
+      reference.runRoot.startsWith(`${QUALIFICATION_EVIDENCE_ROOT}/${binding.sampleId}/runs/`) &&
+      isSampleEvidenceRunId(reference.runRoot.split("/").at(-1)) &&
+      reference.reportPath.startsWith(`${reference.runRoot}/`) &&
+      path.posix.normalize(reference.reportPath) === reference.reportPath,
+    `${binding.id}: qualification evidence path binding is orphaned or stale`,
+  );
+  let receiptBytes;
+  try {
+    receiptBytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.receiptPath, {
+      label: `${binding.sampleId} ${reference.gate} capability receipt`,
+      maxBytes: 1024 * 1024,
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") throw new Error(`${binding.id}: qualification receipt is orphaned`);
+    throw error;
+  }
+  invariant(
+    sha256(receiptBytes) === reference.receiptSha256,
+    `${binding.id}: qualification receipt digest is stale`,
+  );
+  const receipt = parseJsonDocument(receiptBytes.toString("utf8"), reference.receiptPath);
+  validateGateReceiptStructure(receipt, {
+    sampleId: binding.sampleId,
+    gate: reference.gate,
+    sourceRevision: binding.source.revision,
+    sourceDigest: binding.source.evidenceNeutralSha256,
+  });
+  invariant(
+    receipt.sdkMode === reference.sdkMode &&
+      receipt.runRoot === reference.runRoot &&
+      receipt.observedAt === reference.observedAt &&
+      receipt.expiresAt === reference.expiresAt &&
+      JSON.stringify(receipt.artifacts[0]) ===
+        JSON.stringify({
+          kind: reference.reportKind,
+          path: reference.reportPath,
+          bytes: reference.reportBytes,
+          sha256: reference.reportSha256,
+        }),
+    `${binding.id}: qualification receipt metadata is stale`,
+  );
+  await validateGateReceipt(receipt, {
+    sampleId: binding.sampleId,
+    gate: reference.gate,
+    sourceRevision: binding.source.revision,
+    sourceDigest: binding.source.evidenceNeutralSha256,
+    now: new Date(now).toISOString(),
+    projectRoot: PROJECT_ROOT,
+  });
+}
+
+async function validateEvidenceBindingFiles(binding, now) {
+  const sourceMetadata = await lstat(path.join(PROJECT_ROOT, binding.source.path)).catch((error) => {
+    if (error?.code === "ENOENT") throw new Error(`${binding.id}: capability matrix source is orphaned`);
+    throw error;
+  });
+  invariant(
+    (sourceMetadata.isDirectory() || sourceMetadata.isFile()) && !sourceMetadata.isSymbolicLink(),
+    `${binding.id}: capability matrix source must be non-symlink repository content`,
+  );
+  for (const reference of [...binding.source.receipts, binding.packed]) {
+    await validateEvidenceReceiptReference(binding, reference, now);
+  }
+}
+
+export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
+  validateSensitiveMetadata(matrix, "capability sample matrix");
+  await validateJsonSchema(matrix, CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH);
+  const sampleById = new Map(matrix.samples.map((sample) => [sample.id, sample]));
+  invariant(sampleById.size === matrix.samples.length, "capability matrix sample IDs must be unique");
+  invariant(
+    JSON.stringify(matrix.samples.map((sample) => sample.id)) ===
+      JSON.stringify(matrix.samples.map((sample) => sample.id).sort()),
+    "capability matrix samples must be sorted",
+  );
+
+  const evidenceBindingBySample = new Map();
+  const evidenceBindingIds = new Set();
+  for (const binding of matrix.evidenceBindings) {
+    invariant(!evidenceBindingIds.has(binding.id), "capability matrix evidence binding IDs must be unique");
+    invariant(
+      !evidenceBindingBySample.has(binding.sampleId),
+      `${binding.sampleId}: capability matrix contains duplicate evidence bindings`,
+    );
+    evidenceBindingIds.add(binding.id);
+    evidenceBindingBySample.set(binding.sampleId, binding);
+    validateEvidenceBindingShape(binding, sampleById);
+  }
+  invariant(
+    JSON.stringify(matrix.evidenceBindings.map((binding) => binding.sampleId)) ===
+      JSON.stringify(matrix.evidenceBindings.map((binding) => binding.sampleId).sort()),
+    "capability matrix evidence bindings must be sorted by sample ID",
+  );
+  const qualifiedSamples = matrix.samples.filter((sample) => sample.qualification.state === "qualified");
+  const goldenJourneyBySample = new Map(
+    matrix.goldenJourneys.map((journey) => [journey.candidateSampleId, journey]),
+  );
+  invariant(
+    qualifiedSamples.length === matrix.evidenceBindings.length &&
+      qualifiedSamples.every((sample) => evidenceBindingBySample.has(sample.id)),
+    "capability matrix qualification evidence contains orphan or missing bindings",
+  );
+  invariant(
+    qualifiedSamples.every(
+      (sample) =>
+        sample.track === "golden" &&
+        sample.journeyId &&
+        goldenJourneyBySample.get(sample.id)?.id === sample.journeyId &&
+        goldenJourneyBySample.get(sample.id)?.catalogStatus === "qualified",
+    ),
+    "capability matrix qualified sample is orphaned from an admitted golden journey",
+  );
+  for (const sample of matrix.samples.filter((candidate) => candidate.qualification.state !== "qualified")) {
+    invariant(
+      !sample.qualification.evidenceBindingId && !sample.qualification.evidence,
+      `${sample.id}: non-qualified sample overstates qualification evidence`,
+    );
+  }
+
+  for (const journey of matrix.goldenJourneys) {
+    const sample = sampleById.get(journey.candidateSampleId);
+    invariant(sample?.journeyId === journey.id, `${journey.id}: golden journey candidate is orphaned`);
+    const qualifyingIds = sample.qualification.state === "qualified" ? [sample.id] : [];
+    validateCoverage(
+      journey.coverage,
+      coverageForSupport(journey.supportStatus, [sample], qualifyingIds, evidenceBindingBySample),
+      journey.id,
+    );
+    invariant(
+      (journey.catalogStatus === "qualified") === (sample.qualification.state === "qualified"),
+      `${journey.id}: golden journey qualification is overstated or stale`,
+    );
+  }
+
+  for (const cell of matrix.protocolOperations) {
+    const candidates = matrix.samples.filter(
+      (sample) => sample.protocolIds.includes(cell.protocolId) && sample.tasks.includes(cell.operation),
+    );
+    const qualifyingIds = candidates
+      .filter(
+        (sample) =>
+          sample.qualification.state === "qualified" &&
+          sample.protocolBindings.some(
+            (binding) => binding.protocolIds.length === 1 && binding.protocolIds[0] === cell.protocolId,
+          ),
+      )
+      .map((sample) => sample.id);
+    validateCoverage(
+      cell.coverage,
+      coverageForSupport(cell.supportStatus, candidates, qualifyingIds, evidenceBindingBySample),
+      cell.id,
+    );
+  }
+
+  for (const claim of matrix.supportClaims) {
+    const expectedCandidateEvidence = supportClaimCandidateEvidence(claim, matrix.samples);
+    invariant(
+      JSON.stringify(claim.candidateEvidence) === JSON.stringify(expectedCandidateEvidence),
+      `${claim.id}: support claim candidate join is orphaned, stale, or overstated`,
+    );
+    const candidates = expectedCandidateEvidence.map((entry) => sampleById.get(entry.sampleId));
+    const qualifyingIds = expectedCandidateEvidence
+      .filter(
+        (entry) =>
+          entry.binding === "exact" &&
+          sampleById.get(entry.sampleId).qualification.state === "qualified" &&
+          entry.matchedOperations.length === claim.operations.length,
+      )
+      .map((entry) => entry.sampleId);
+    validateCoverage(
+      claim.coverage,
+      coverageForSupport(claim.supportStatus, candidates, qualifyingIds, evidenceBindingBySample),
+      claim.id,
+    );
+  }
+
+  const claimCandidatesByEntrypoint = new Map();
+  const claimQualifyingByEntrypoint = new Map();
+  for (const claim of matrix.supportClaims) {
+    for (const subpath of claim.apiEntrypoints) {
+      claimCandidatesByEntrypoint.set(
+        subpath,
+        orderedUnique([...(claimCandidatesByEntrypoint.get(subpath) ?? []), ...claim.coverage.candidateSampleIds]),
+      );
+      claimQualifyingByEntrypoint.set(
+        subpath,
+        orderedUnique([...(claimQualifyingByEntrypoint.get(subpath) ?? []), ...claim.coverage.qualifyingSampleIds]),
+      );
+    }
+  }
+  for (const entrypoint of matrix.packageEntrypoints) {
+    const token = entrypoint.subpath === "." ? matrix.sdk.package : entrypoint.subpath.slice(2);
+    const directlyBoundSamples = matrix.samples.filter(
+      (sample) => sample.tasks.includes(token) || (entrypoint.subpath !== "." && sample.catalogProtocols.includes(token)),
+    );
+    const candidateIds = orderedUnique([
+      ...(claimCandidatesByEntrypoint.get(entrypoint.subpath) ?? []),
+      ...directlyBoundSamples.map((sample) => sample.id),
+    ]);
+    const candidates = candidateIds.map((sampleId) => sampleById.get(sampleId));
+    const qualifyingIds = orderedUnique([
+      ...(claimQualifyingByEntrypoint.get(entrypoint.subpath) ?? []),
+      ...directlyBoundSamples
+        .filter((sample) => sample.qualification.state === "qualified")
+        .map((sample) => sample.id),
+    ]);
+    validateCoverage(
+      entrypoint.coverage,
+      coverageForSupport(entrypoint.supportStatus, candidates, qualifyingIds, evidenceBindingBySample),
+      entrypoint.subpath,
+    );
+  }
+
+  const expectedGaps = [];
+  for (const [targetType, collection, idField] of [
+    ["golden-journey", matrix.goldenJourneys, "id"],
+    ["protocol-operation", matrix.protocolOperations, "id"],
+    ["support-claim", matrix.supportClaims, "id"],
+    ["package-entrypoint", matrix.packageEntrypoints, "subpath"],
+  ]) {
+    invariant(
+      new Set(collection.map((item) => item[idField])).size === collection.length,
+      `capability matrix ${targetType} IDs must be unique`,
+    );
+    for (const item of collection) {
+      if (item.coverage.state === "qualified") continue;
+      expectedGaps.push(matrixGap(targetType, item[idField], item.supportStatus, item.coverage));
+    }
+  }
+  expectedGaps.sort(
+    (left, right) =>
+      left.targetType.localeCompare(right.targetType) || left.targetId.localeCompare(right.targetId),
+  );
+  invariant(
+    JSON.stringify(matrix.gaps) === JSON.stringify(expectedGaps),
+    "capability matrix visible-gap coverage drift",
+  );
+
+  const validationNow = Date.now();
+  for (const binding of matrix.evidenceBindings) {
+    await validateEvidenceBindingFiles(binding, validationNow);
+  }
+  if (inputs.catalog && inputs.packageJson && inputs.supportTruth && inputs.qualificationEvidence) {
+    const expected = generateCapabilitySampleMatrix(
+      inputs.catalog,
+      inputs.packageJson,
+      inputs.supportTruth,
+      inputs.qualificationEvidence,
+    );
+    invariant(JSON.stringify(matrix) === JSON.stringify(expected), "capability matrix does not match its source truth");
+  }
+}
+
+function validateSiteConsumerJsonBudget(value, label) {
+  let nodes = 0;
+  let stringCharacters = 0;
+  let estimatedStableJsonBytes = 0;
+  const active = new WeakSet();
+  const visit = (candidate, depth) => {
+    nodes += 1;
+    invariant(nodes <= SITE_CONSUMER_MAX_JSON_NODES, `${label} exceeds its JSON node budget`);
+    invariant(depth <= SITE_CONSUMER_MAX_JSON_DEPTH, `${label} exceeds its JSON depth budget`);
+    estimatedStableJsonBytes += 2 * depth + 8;
+    invariant(
+      estimatedStableJsonBytes <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+      `${label} exceeds its estimated stable JSON byte budget`,
+    );
+    if (typeof candidate === "string") {
+      invariant(
+        candidate.length <= SITE_CONSUMER_MAX_SEARCH_TEXT_CHARACTERS,
+        `${label} contains an overlong JSON string`,
+      );
+      stringCharacters += candidate.length;
+      estimatedStableJsonBytes += Buffer.byteLength(JSON.stringify(candidate));
+      invariant(
+        stringCharacters <= SITE_CONSUMER_MAX_ARTIFACT_BYTES &&
+          estimatedStableJsonBytes <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+        `${label} exceeds its aggregate string character budget`,
+      );
+      return;
+    }
+    if (candidate === null || typeof candidate !== "object") {
+      estimatedStableJsonBytes += String(candidate).length;
+      invariant(
+        estimatedStableJsonBytes <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+        `${label} exceeds its estimated stable JSON byte budget`,
+      );
+      return;
+    }
+    invariant(!active.has(candidate), `${label} contains a JSON cycle`);
+    active.add(candidate);
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) visit(item, depth + 1);
+    } else {
+      for (const [key, item] of Object.entries(candidate)) {
+        stringCharacters += key.length;
+        estimatedStableJsonBytes += Buffer.byteLength(JSON.stringify(key));
+        invariant(
+          stringCharacters <= SITE_CONSUMER_MAX_ARTIFACT_BYTES &&
+            estimatedStableJsonBytes <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+          `${label} exceeds its aggregate string character budget`,
+        );
+        visit(item, depth + 1);
+      }
+    }
+    active.delete(candidate);
+  };
+  visit(value, 0);
+}
+
+function siteConsumerArtifactReference(relativePath, schemaPath, artifact) {
+  validateSiteConsumerJsonBudget(artifact, relativePath);
+  const bytes = Buffer.from(stableJson(artifact));
+  invariant(
+    bytes.byteLength <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+    `${relativePath}: site consumer authority exceeds its ${SITE_CONSUMER_MAX_ARTIFACT_BYTES}-byte budget`,
+  );
+  return {
+    path: relativePath,
+    schemaPath,
+    format: artifact.format,
+    schemaVersion: artifact.schemaVersion,
+    bytes: bytes.byteLength,
+    sha256: sha256(bytes),
+  };
+}
+
+function canonicalSiteSamplePath(sampleId) {
+  invariant(
+    typeof sampleId === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(sampleId),
+    `${sampleId}: invalid canonical site sample ID`,
+  );
+  const route = `samples/${sampleId}.html`;
+  invariant(
+    !SITE_CONSUMER_RESERVED_SAMPLE_ROUTES.has(route),
+    `${sampleId}: canonical site route collides with reserved content`,
+  );
+  return route;
+}
+
+function normalizedSiteConsumerText(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function siteConsumerSearchText(card) {
+  const searchText = normalizedSiteConsumerText(
+    [
+      card.id,
+      card.title,
+      card.summary,
+      card.track,
+      card.journey?.id,
+      card.journey?.title,
+      card.journey?.status,
+      ...card.tasks,
+      ...card.capabilities,
+      ...card.protocols,
+      ...card.catalogProtocols,
+      ...card.renderers,
+      card.data.mode,
+      card.data.authMode,
+      card.supportTier,
+      card.lifecycle.state,
+      card.qualification.state,
+      card.expectedDegradation,
+    ]
+      .filter((value) => value !== undefined && value !== null)
+      .join(" "),
+  );
+  invariant(
+    searchText.length <= SITE_CONSUMER_MAX_SEARCH_TEXT_CHARACTERS,
+    `${card.id}: site consumer search text exceeds its character budget`,
+  );
+  return searchText;
+}
+
+export function filterSiteConsumerCards(cards, filters = {}) {
+  invariant(
+    Array.isArray(cards) && cards.length <= SITE_CONSUMER_MAX_CARDS,
+    `site consumer cards must be an array with at most ${SITE_CONSUMER_MAX_CARDS} entries`,
+  );
+  invariant(
+    filters && typeof filters === "object" && !Array.isArray(filters),
+    "site consumer filters must be an object",
+  );
+  for (const [key, value] of Object.entries(filters)) {
+    invariant(SITE_CONSUMER_FILTER_KEYS.has(key), `site consumer filter is unsupported: ${key}`);
+    invariant(
+      typeof value === "string" && value.length <= SITE_CONSUMER_MAX_FILTER_VALUE_CHARACTERS,
+      `${key}: site consumer filter exceeds its character budget`,
+    );
+  }
+  const terms = normalizedSiteConsumerText(filters.text).split(" ").filter(Boolean);
+  invariant(
+    terms.every((term) => term.length <= SITE_CONSUMER_MAX_FILTER_VALUE_CHARACTERS),
+    "site consumer normalized text filter exceeds its character budget",
+  );
+  const exactArrayFacets = [
+    ["task", "tasks"],
+    ["capability", "capabilities"],
+    ["protocol", "protocols"],
+    ["renderer", "renderers"],
+  ];
+  const exactValueFacets = [
+    ["dataMode", ["data", "mode"]],
+    ["authMode", ["data", "authMode"]],
+    ["supportTier", ["supportTier"]],
+    ["lifecycleState", ["lifecycle", "state"]],
+    ["qualificationState", ["qualification", "state"]],
+  ];
+  return cards.filter((card) => {
+    invariant(
+      typeof card?.searchText === "string" &&
+        card.searchText.length <= SITE_CONSUMER_MAX_SEARCH_TEXT_CHARACTERS,
+      "site consumer card search text is missing or exceeds its character budget",
+    );
+    if (!terms.every((term) => card.searchText.includes(term))) return false;
+    for (const [filterKey, cardKey] of exactArrayFacets) {
+      const value = String(filters[filterKey] ?? "");
+      if (value && !card[cardKey].includes(value)) return false;
+    }
+    for (const [filterKey, cardPath] of exactValueFacets) {
+      const value = String(filters[filterKey] ?? "");
+      let actual = card;
+      for (const key of cardPath) actual = actual?.[key];
+      if (value && actual !== value) return false;
+    }
+    return true;
+  });
+}
+
+function resolvedSiteConsumerReplacement(replacement, indexes, publicSampleIds) {
+  if (!replacement) return null;
+  if (replacement.kind === "sample") {
+    const sample = indexes.samples.get(replacement.id);
+    invariant(sample, `replacement references missing sample ${replacement.id}`);
+    return {
+      kind: replacement.kind,
+      id: replacement.id,
+      title: sample.title,
+      canonicalPath: publicSampleIds.has(sample.id) ? canonicalSiteSamplePath(sample.id) : null,
+    };
+  }
+  if (replacement.kind === "journey") {
+    const journey = indexes.journeys.get(replacement.id);
+    invariant(journey, `replacement references missing journey ${replacement.id}`);
+    const candidate = indexes.samples.get(journey.candidateSampleId);
+    invariant(candidate, `replacement journey ${replacement.id} has no candidate sample`);
+    return {
+      kind: replacement.kind,
+      id: replacement.id,
+      title: journey.title,
+      status: journey.status,
+      candidateSampleId: candidate.id,
+      canonicalPath: publicSampleIds.has(candidate.id) ? canonicalSiteSamplePath(candidate.id) : null,
+    };
+  }
+  invariant(replacement.kind === "external", `replacement ${replacement.id} has an unsupported kind`);
+  const external = indexes.externalReplacements.get(replacement.id);
+  invariant(external, `replacement references missing external target ${replacement.id}`);
+  return {
+    kind: replacement.kind,
+    id: replacement.id,
+    title: external.title,
+    url: external.url,
+  };
+}
+
+function siteConsumerLegacyRoutes(projection, indexes, publicSampleIds) {
+  const routeByPath = new Map();
+  for (const declared of projection.routes) {
+    invariant(
+      typeof declared.route === "string" && /^[-a-z0-9]+\.html$/.test(declared.route),
+      `${declared.id}: unsafe legacy site route`,
+    );
+    invariant(
+      !SITE_CONSUMER_RESERVED_ROOT_ROUTES.has(declared.route),
+      `${declared.id}: legacy site route collides with reserved content`,
+    );
+    let route;
+    if (declared.ownership === "sdk-projection") {
+      const sample = indexes.samples.get(declared.sampleId);
+      invariant(sample, `${declared.id}: legacy route references missing sample ${declared.sampleId}`);
+      const isPublic = publicSampleIds.has(sample.id);
+      route = {
+        path: declared.route,
+        routeIds: [declared.id],
+        ownership: declared.ownership,
+        resolution: isPublic ? "canonical-sample" : "not-public",
+        sampleId: sample.id,
+        canonicalPath: isPublic ? canonicalSiteSamplePath(sample.id) : null,
+        httpStatus: isPublic ? 308 : null,
+        presentation: isPublic ? "permanent-redirect" : "status-page",
+        title: sample.title,
+        track: sample.track,
+        supportTier: sample.supportTier,
+        reason: isPublic
+          ? "Redirect to the stable canonical SDK sample route."
+          : "Display an explicit status: the mapped SDK entry is an internal fixture, not a public application.",
+      };
+    } else {
+      invariant(declared.ownership === "site-exception", `${declared.id}: unsupported legacy route ownership`);
+      route = {
+        path: declared.route,
+        routeIds: [declared.id],
+        ownership: declared.ownership,
+        resolution: "site-exception",
+        sampleId: null,
+        canonicalPath: null,
+        httpStatus: null,
+        presentation: "status-page",
+        title: declared.title,
+        track: declared.track,
+        supportTier: declared.supportTier,
+        reason: `Display an explicit site-owned exception or retirement status. ${declared.exceptionReason}`,
+      };
+    }
+    const existing = routeByPath.get(route.path);
+    if (!existing) {
+      routeByPath.set(route.path, route);
+      continue;
+    }
+    const comparable = ({ routeIds: _routeIds, ...value }) => value;
+    invariant(
+      JSON.stringify(comparable(existing)) === JSON.stringify(comparable(route)),
+      `${route.path}: conflicting legacy route resolutions`,
+    );
+    existing.routeIds = orderedUnique([...existing.routeIds, ...route.routeIds]);
+  }
+  return [...routeByPath.values()].sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function siteConsumerInteractionContract(visualEvidence) {
+  return {
+    filters: {
+      dimensions: [...SITE_CONSUMER_FILTER_DIMENSIONS],
+      textNormalization: "NFKC-lowercase-trim-collapse-whitespace",
+      textTerms: "and",
+      facetMatching: "exact-and",
+      zeroResultsVisible: true,
+      clearControlRequired: true,
+    },
+    accessibility: {
+      filterRegionRole: "search",
+      filterRegionAccessibleNameRequired: true,
+      nativeControlLabelsRequired: true,
+      resultsRole: "status",
+      resultsAriaLive: "polite",
+      resultsAriaAtomic: true,
+      cardHeadingsRequired: true,
+      screenshotAlternativeTextRequired: true,
+      lifecycleStatusVisible: true,
+      focusIndicatorRequired: true,
+    },
+    keyboard: {
+      navigation: "native-tab-order",
+      controlOrder: [...SITE_CONSUMER_CONTROL_ORDER],
+      activationKeys: ["Enter", "Space"],
+      clearFiltersControl: "button",
+      focusAfterClear: "task-search",
+      noKeyboardTrap: true,
+    },
+    responsive: {
+      requiredViewports: structuredClone(visualEvidence.policy.requiredScreenshotVariants),
+      desktopControls: "multi-column",
+      mobileControls: "single-column",
+      minimumTouchTargetCssPixels: 44,
+      horizontalPageOverflowForbidden: true,
+      contentLossForbidden: true,
+    },
+  };
+}
+
+function qualifiedCoverageCount(collection) {
+  return collection.filter((entry) => entry.coverage.state === "qualified").length;
+}
+
+export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) {
+  invariant(
+    projection.format === "honua.site.sdk-sample-projection.v2" && projection.schemaVersion === 2,
+    "site consumer handoff requires site projection v2",
+  );
+  invariant(
+    matrix.format === "honua.site.sdk-capability-sample-matrix.v1" && matrix.schemaVersion === 1,
+    "site consumer handoff requires capability matrix v1",
+  );
+  invariant(
+    visualEvidence.format === "honua.sdk.golden-journey-visual-evidence.v1" &&
+      visualEvidence.schemaVersion === 1,
+    "site consumer handoff requires golden visual evidence v1",
+  );
+  invariant(
+    projection.catalog.package === matrix.sdk.package && projection.catalog.version === matrix.sdk.version,
+    "site consumer handoff SDK package/version inputs disagree",
+  );
+  invariant(
+    Array.isArray(projection.samples) && projection.samples.length <= SITE_CONSUMER_MAX_CARDS &&
+      Array.isArray(projection.routes) && projection.routes.length <= SITE_CONSUMER_MAX_ROUTES &&
+      Array.isArray(projection.goldenJourneys) && projection.goldenJourneys.length <= SITE_CONSUMER_MAX_CARDS &&
+      Array.isArray(projection.externalReplacements) &&
+      projection.externalReplacements.length <= SITE_CONSUMER_MAX_CARDS,
+    "site consumer projection exceeds its bounded inventory",
+  );
+  invariant(
+    Array.isArray(matrix.samples) && matrix.samples.length <= SITE_CONSUMER_MAX_CARDS &&
+      Array.isArray(matrix.evidenceBindings) && matrix.evidenceBindings.length <= SITE_CONSUMER_MAX_CARDS &&
+      Array.isArray(matrix.gaps) && matrix.gaps.length <= SITE_CONSUMER_MAX_GAPS,
+    "site consumer capability matrix exceeds its bounded inventory",
+  );
+  invariant(
+    Array.isArray(visualEvidence.qualifiedGoldenJourneys) &&
+      visualEvidence.qualifiedGoldenJourneys.length <= SITE_CONSUMER_MAX_CARDS,
+    "site consumer visual evidence exceeds its bounded inventory",
+  );
+
+  const indexes = {
+    samples: new Map(projection.samples.map((sample) => [sample.id, sample])),
+    matrixSamples: new Map(matrix.samples.map((sample) => [sample.id, sample])),
+    journeys: new Map(projection.goldenJourneys.map((journey) => [journey.id, journey])),
+    externalReplacements: new Map(
+      projection.externalReplacements.map((replacement) => [replacement.id, replacement]),
+    ),
+    evidenceBindings: new Map(matrix.evidenceBindings.map((binding) => [binding.id, binding])),
+    visualBySample: new Map(
+      visualEvidence.qualifiedGoldenJourneys.map((entry) => [entry.sampleId, entry]),
+    ),
+  };
+  invariant(indexes.samples.size === projection.samples.length, "site projection sample IDs are not unique");
+  invariant(indexes.matrixSamples.size === matrix.samples.length, "capability matrix sample IDs are not unique");
+  invariant(
+    projection.samples.every((sample) => indexes.matrixSamples.has(sample.id)) &&
+      matrix.samples.every((sample) => indexes.samples.has(sample.id)),
+    "site projection and capability matrix sample inventories disagree",
+  );
+
+  const publicSamples = projection.samples
+    .filter((sample) => SITE_CONSUMER_PUBLIC_TRACKS.includes(sample.track))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  invariant(publicSamples.length > 0, "eligible site sample inventory unexpectedly produced zero cards");
+  const publicSampleIds = new Set(publicSamples.map((sample) => sample.id));
+  const cards = publicSamples.map((sample) => {
+    const matrixSample = indexes.matrixSamples.get(sample.id);
+    invariant(matrixSample.sourcePath === sample.source.path, `${sample.id}: source path join drift`);
+    const journey = sample.journeyId ? indexes.journeys.get(sample.journeyId) : null;
+    invariant(!sample.journeyId || journey, `${sample.id}: journey join is orphaned`);
+    const evidenceBindingId = matrixSample.qualification.evidenceBindingId ?? null;
+    const visual = indexes.visualBySample.get(sample.id) ?? null;
+    if (matrixSample.qualification.state === "qualified") {
+      invariant(evidenceBindingId && indexes.evidenceBindings.has(evidenceBindingId), `${sample.id}: missing evidence binding`);
+      invariant(visual && visual.journeyId === sample.journeyId, `${sample.id}: missing qualified visual evidence`);
+    } else {
+      invariant(!evidenceBindingId && !visual, `${sample.id}: unqualified card overstates evidence`);
+    }
+    const card = {
+      id: sample.id,
+      title: sample.title,
+      summary: sample.summary,
+      canonicalPath: canonicalSiteSamplePath(sample.id),
+      track: sample.track,
+      journey: journey
+        ? { id: journey.id, title: journey.title, status: journey.status }
+        : null,
+      source: structuredClone(sample.source),
+      sdk: structuredClone(sample.sdk),
+      tasks: [...matrixSample.tasks],
+      capabilities: [...matrixSample.supportClaimIds],
+      protocols: [...matrixSample.protocolIds],
+      catalogProtocols: [...matrixSample.catalogProtocols],
+      renderers: [...matrixSample.renderers],
+      data: structuredClone(sample.data),
+      supportTier: sample.supportTier,
+      lifecycle: structuredClone(sample.lifecycle),
+      evidence: structuredClone(sample.evidence),
+      expectedDegradation: sample.expectedDegradation,
+      qualification: structuredClone(matrixSample.qualification),
+      evidenceBindingId,
+      visualEvidence: visual ? structuredClone(visual) : null,
+    };
+    return { ...card, searchText: siteConsumerSearchText(card) };
+  });
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+  const qualifiedCards = cards.filter((card) => card.qualification.state === "qualified");
+  const qualifiedJourneys = qualifiedCards.map((card) => ({
+    journeyId: card.journey.id,
+    sampleId: card.id,
+    canonicalPath: card.canonicalPath,
+    evidenceBindingId: card.evidenceBindingId,
+    visualEvidence: structuredClone(card.visualEvidence),
+  }));
+  const visualSampleIds = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.sampleId).sort();
+  invariant(
+    JSON.stringify(qualifiedCards.map((card) => card.id).sort()) === JSON.stringify(visualSampleIds),
+    "site consumer handoff qualified and visual sample sets disagree",
+  );
+  for (const entry of qualifiedJourneys) {
+    if (entry.journeyId === "incident-operations") {
+      invariant(
+        entry.visualEvidence.liveEvidence.realtime?.observationWindowMs > 0,
+        "incident operations consumer handoff must remain realtime",
+      );
+    }
+  }
+
+  const filters = {
+    tasks: orderedUnique(cards.flatMap((card) => card.tasks)),
+    capabilities: orderedUnique(cards.flatMap((card) => card.capabilities)),
+    protocols: orderedUnique(cards.flatMap((card) => card.protocols)),
+    catalogProtocols: orderedUnique(cards.flatMap((card) => card.catalogProtocols)),
+    renderers: orderedUnique(cards.flatMap((card) => card.renderers)),
+    dataModes: orderedUnique(cards.map((card) => card.data.mode)),
+    authModes: orderedUnique(cards.map((card) => card.data.authMode)),
+    supportTiers: orderedUnique(cards.map((card) => card.supportTier)),
+    lifecycleStates: orderedUnique(cards.map((card) => card.lifecycle.state)),
+    qualificationStates: orderedUnique(cards.map((card) => card.qualification.state)),
+  };
+  invariant(
+    filters.tasks.length > 0 && filters.capabilities.length > 0 && filters.protocols.length > 0,
+    "site consumer task/capability/protocol filters must each resolve at least one public card",
+  );
+  invariant(
+    Object.values(filters).every((values) => values.length <= SITE_CONSUMER_MAX_FACET_VALUES),
+    "site consumer facet inventory exceeds its bounded value count",
+  );
+
+  const lifecycleNotices = cards
+    .filter((card) => card.lifecycle.state !== "active")
+    .map((card) => ({
+      sampleId: card.id,
+      canonicalPath: card.canonicalPath,
+      state: card.lifecycle.state,
+      reason: card.lifecycle.reason,
+      targetRelease: card.lifecycle.targetRelease,
+      replacement: resolvedSiteConsumerReplacement(
+        card.lifecycle.replacement,
+        indexes,
+        publicSampleIds,
+      ),
+    }));
+  const gaps = matrix.gaps.map((gap) => ({
+    ...structuredClone(gap),
+    candidateRoutes: gap.candidateSampleIds
+      .filter((sampleId) => cardById.has(sampleId))
+      .map((sampleId) => ({ sampleId, canonicalPath: cardById.get(sampleId).canonicalPath })),
+  }));
+
+  const handoff = {
+    format: "honua.site.sdk-sample-consumer-handoff.v1",
+    schemaVersion: 1,
+    sdk: structuredClone(matrix.sdk),
+    ownership: {
+      producer: "honua-io/honua-sdk-js#550",
+      consumer: "honua-io/honua-site",
+      executableSourceOwner: "honua-io/honua-sdk-js",
+      presentationOwner: "honua-io/honua-site",
+      sourceImplementationDuplicated: false,
+    },
+    inputs: {
+      siteProjection: siteConsumerArtifactReference(
+        SITE_PROJECTION_PATH,
+        SITE_PROJECTION_SCHEMA_PATH,
+        projection,
+      ),
+      capabilityMatrix: siteConsumerArtifactReference(
+        CAPABILITY_SAMPLE_MATRIX_PATH,
+        CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH,
+        matrix,
+      ),
+      visualEvidence: siteConsumerArtifactReference(
+        GOLDEN_VISUAL_EVIDENCE_PATH,
+        GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH,
+        visualEvidence,
+      ),
+    },
+    policy: {
+      qualificationAuthority: "validated-matrix-and-visual-evidence",
+      qualifiedRequires: ["source", "packed", "fixture", "live", "desktop", "mobile", "semantic-gates"],
+      honestZeroQualificationAllowed: true,
+      externalListings: "canonical-routes-only",
+      canonicalRoutes: {
+        index: "samples/index.html",
+        detailPattern: "samples/<sample-id>.html",
+        migrationMap: "samples/routes.html",
+        manifest: "samples/site-handoff.v1.json",
+        statusPages: ["fixture", "retire", "replace"],
+      },
+      limits: {
+        maxArtifactBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+        maxCards: SITE_CONSUMER_MAX_CARDS,
+        maxRoutes: SITE_CONSUMER_MAX_ROUTES,
+        maxGaps: SITE_CONSUMER_MAX_GAPS,
+        maxFacetValues: SITE_CONSUMER_MAX_FACET_VALUES,
+        maxFilterValueCharacters: SITE_CONSUMER_MAX_FILTER_VALUE_CHARACTERS,
+        maxJsonNodes: SITE_CONSUMER_MAX_JSON_NODES,
+        maxJsonDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
+        maxStringCharacters: SITE_CONSUMER_MAX_SEARCH_TEXT_CHARACTERS,
+        maxAggregateStringCharacters: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+      },
+      interaction: siteConsumerInteractionContract(visualEvidence),
+    },
+    filters,
+    counts: {
+      cards: cards.length,
+      qualifiedJourneys: qualifiedJourneys.length,
+      canonicalRoutes: cards.length,
+      legacyRoutes: siteConsumerLegacyRoutes(projection, indexes, publicSampleIds).length,
+      lifecycleNotices: lifecycleNotices.length,
+      gaps: gaps.length,
+      qualifiedMatrixCells: {
+        goldenJourneys: qualifiedCoverageCount(matrix.goldenJourneys),
+        protocolOperations: qualifiedCoverageCount(matrix.protocolOperations),
+        supportClaims: qualifiedCoverageCount(matrix.supportClaims),
+        packageEntrypoints: qualifiedCoverageCount(matrix.packageEntrypoints),
+      },
+    },
+    cards,
+    qualifiedJourneys,
+    canonicalRoutes: cards.map((card) => ({
+      sampleId: card.id,
+      path: card.canonicalPath,
+      track: card.track,
+      lifecycleState: card.lifecycle.state,
+      presentation: ["retire", "replace"].includes(card.lifecycle.state)
+        ? "lifecycle-status"
+        : "sample-detail",
+      externalListingEligible: true,
+    })),
+    legacyRoutes: siteConsumerLegacyRoutes(projection, indexes, publicSampleIds),
+    lifecycleNotices,
+    gaps,
+  };
+  validateSiteConsumerJsonBudget(handoff, "generated site consumer handoff");
+  return handoff;
+}
+
+async function validateSiteConsumerLocalLink(relativePath, label, expectedKind) {
+  invariant(
+    typeof relativePath === "string" &&
+      relativePath.length > 0 &&
+      relativePath.length <= 512 &&
+      !path.isAbsolute(relativePath) &&
+      !relativePath.includes("\\") &&
+      path.posix.normalize(relativePath) === relativePath &&
+      relativePath !== ".." &&
+      !relativePath.startsWith("../"),
+    `${label} must be a bounded canonical repository-relative path`,
+  );
+  const canonicalRoot = await realpath(PROJECT_ROOT);
+  let absolute = PROJECT_ROOT;
+  let metadata;
+  const segments = relativePath.split("/");
+  for (let index = 0; index < segments.length; index += 1) {
+    absolute = path.join(absolute, segments[index]);
+    metadata = await lstat(absolute).catch((error) => {
+      if (error?.code === "ENOENT") throw new Error(`${label} is broken or missing`);
+      throw error;
+    });
+    invariant(!metadata.isSymbolicLink(), `${label} must not contain a symlink`);
+    if (index < segments.length - 1) invariant(metadata.isDirectory(), `${label} ancestor must be a directory`);
+  }
+  const canonical = await realpath(absolute);
+  invariant(
+    canonical === path.join(canonicalRoot, ...segments),
+    `${label} escapes its canonical repository root`,
+  );
+  const finalMetadata = await lstat(absolute);
+  invariant(
+    !finalMetadata.isSymbolicLink() &&
+      finalMetadata.dev === metadata.dev &&
+      finalMetadata.ino === metadata.ino &&
+      finalMetadata.mode === metadata.mode,
+    `${label} changed while it was being validated`,
+  );
+  invariant(
+    expectedKind === "directory" ? finalMetadata.isDirectory() : finalMetadata.isFile(),
+    `${label} must be a ${expectedKind}`,
+  );
+}
+
+function validateSiteConsumerExternalUrl(value, label) {
+  invariant(
+    typeof value === "string" && value.length > 0 && value.length <= 2048,
+    `${label} exceeds its URL character budget`,
+  );
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${label} must be an absolute URL`);
+  }
+  invariant(
+    url.protocol === "https:" &&
+      url.href === value &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash,
+    `${label} must be credential-free canonical HTTPS`,
+  );
+}
+
+async function validateSiteConsumerArtifactInput(reference, label) {
+  await validateSiteConsumerLocalLink(reference.schemaPath, `${label} schema`, "file");
+  const bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
+    label: `${label} artifact`,
+    maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+  });
+  invariant(
+    bytes.byteLength === reference.bytes && sha256(bytes) === reference.sha256,
+    `${label} artifact byte or digest binding drift`,
+  );
+  const artifact = parseJsonDocument(bytes.toString("utf8"), reference.path);
+  invariant(
+    artifact?.format === reference.format && artifact.schemaVersion === reference.schemaVersion,
+    `${label} artifact format or schema version drift`,
+  );
+  await validateJsonSchema(artifact, reference.schemaPath);
+  return artifact;
+}
+
+export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
+  validateSiteConsumerJsonBudget(handoff, "site consumer handoff");
+  validateSensitiveMetadata(handoff, "site consumer handoff", {
+    maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
+    maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
+  });
+  await validateJsonSchema(handoff, SITE_CONSUMER_HANDOFF_SCHEMA_PATH);
+  const { projection, matrix, visualEvidence, catalog, packageJson, supportTruth, qualificationEvidence } = inputs;
+  let contentBoundExpected;
+  const authorityInputSupplied = [
+    projection,
+    matrix,
+    visualEvidence,
+    catalog,
+    packageJson,
+    supportTruth,
+    qualificationEvidence,
+  ].some((value) => value !== undefined);
+  if (authorityInputSupplied) {
+    invariant(
+      projection &&
+        matrix &&
+        visualEvidence &&
+        catalog &&
+        packageJson &&
+        supportTruth &&
+        qualificationEvidence,
+      "site consumer handoff validation requires the complete authority input set",
+    );
+    await validateSiteProjection(projection);
+    await validateCapabilitySampleMatrix(matrix, {
+      catalog,
+      packageJson,
+      supportTruth,
+      qualificationEvidence,
+    });
+    await validateGoldenJourneyVisualEvidence(visualEvidence, catalog, qualificationEvidence);
+    const expected = generateSiteConsumerHandoff(projection, matrix, visualEvidence);
+    invariant(
+      JSON.stringify(handoff) === JSON.stringify(expected),
+      "site consumer handoff does not match its validated authority inputs",
+    );
+  } else if (inputs.verifyCheckout !== false) {
+    const artifacts = {};
+    for (const [name, reference] of Object.entries(handoff.inputs)) {
+      artifacts[name] = await validateSiteConsumerArtifactInput(reference, `site consumer ${name}`);
+    }
+    validateGoldenVisualEvidenceEntries(artifacts.visualEvidence);
+    contentBoundExpected = generateSiteConsumerHandoff(
+      artifacts.siteProjection,
+      artifacts.capabilityMatrix,
+      artifacts.visualEvidence,
+    );
+  }
+
+  const cardById = new Map(handoff.cards.map((card) => [card.id, card]));
+  invariant(cardById.size === handoff.cards.length, "site consumer handoff card IDs must be unique");
+  invariant(
+    handoff.cards.length > 0 &&
+      handoff.counts.cards === handoff.cards.length &&
+      handoff.counts.qualifiedJourneys === handoff.qualifiedJourneys.length &&
+      handoff.counts.canonicalRoutes === handoff.canonicalRoutes.length &&
+      handoff.counts.legacyRoutes === handoff.legacyRoutes.length &&
+      handoff.counts.lifecycleNotices === handoff.lifecycleNotices.length &&
+      handoff.counts.gaps === handoff.gaps.length,
+    "site consumer handoff unexpectedly contains zero or miscounted bounded collections",
+  );
+  for (const values of Object.values(handoff.filters)) sortedUnique(values, "site consumer filter values");
+  invariant(
+    new Set(handoff.canonicalRoutes.map((route) => route.path)).size === handoff.canonicalRoutes.length,
+    "site consumer canonical routes must be unique",
+  );
+  invariant(
+    handoff.canonicalRoutes.every(
+      (route) =>
+        cardById.get(route.sampleId)?.canonicalPath === route.path &&
+        route.path === canonicalSiteSamplePath(route.sampleId) &&
+        route.presentation ===
+          (["retire", "replace"].includes(cardById.get(route.sampleId)?.lifecycle.state)
+            ? "lifecycle-status"
+            : "sample-detail") &&
+        route.externalListingEligible === true,
+    ),
+    "site consumer external listings must use only stable canonical routes",
+  );
+  invariant(
+    new Set(handoff.legacyRoutes.map((route) => route.path)).size === handoff.legacyRoutes.length &&
+      handoff.legacyRoutes.every(
+        (route) =>
+          route.resolution === "canonical-sample"
+            ? route.httpStatus === 308 &&
+              route.presentation === "permanent-redirect" &&
+              cardById.get(route.sampleId)?.canonicalPath === route.canonicalPath
+            : route.httpStatus === null &&
+              route.presentation === "status-page" &&
+              route.canonicalPath === null,
+      ),
+    "site consumer legacy routes are duplicated, broken, or unresolved",
+  );
+  const qualifiedCards = handoff.cards.filter((card) => card.qualification.state === "qualified");
+  invariant(
+    JSON.stringify(qualifiedCards.map((card) => card.id)) ===
+      JSON.stringify(handoff.qualifiedJourneys.map((entry) => entry.sampleId)) &&
+      qualifiedCards.every(
+        (card) => card.evidenceBindingId && card.visualEvidence && card.journey?.status === "qualified",
+      ),
+    "site consumer handoff does not include every qualified canonical track",
+  );
+  for (const entry of handoff.qualifiedJourneys) {
+    if (entry.journeyId === "incident-operations") {
+      invariant(
+        entry.visualEvidence.liveEvidence.realtime?.observationWindowMs > 0,
+        "incident operations consumer handoff must remain realtime",
+      );
+    }
+  }
+  invariant(
+    handoff.lifecycleNotices.every(
+      (notice) =>
+        cardById.get(notice.sampleId)?.canonicalPath === notice.canonicalPath &&
+        cardById.get(notice.sampleId)?.lifecycle.state === notice.state &&
+        (!["retire", "replace"].includes(notice.state) || notice.replacement),
+    ),
+    "site consumer lifecycle status or replacement route is incomplete",
+  );
+  for (const card of handoff.cards) {
+    invariant(
+      card.source.repository === "honua-io/honua-sdk-js",
+      `${card.id}: executable source owner is not canonical`,
+    );
+    if (inputs.verifyCheckout !== false) {
+      await validateSiteConsumerLocalLink(card.source.path, `${card.id} source link`, "directory");
+      await validateSiteConsumerLocalLink(card.source.docsPath, `${card.id} docs link`, "file");
+    }
+  }
+  for (const notice of handoff.lifecycleNotices) {
+    if (notice.replacement?.kind === "external") {
+      validateSiteConsumerExternalUrl(notice.replacement.url, `${notice.sampleId} replacement link`);
+    }
+  }
+  if (contentBoundExpected) {
+    invariant(
+      JSON.stringify(handoff) === JSON.stringify(contentBoundExpected),
+      "site consumer handoff does not match its content-bound projection inputs",
+    );
+  }
+}
+
+function siteConsumerFilterCase(id, handoff, filters) {
+  return {
+    id,
+    filters,
+    expectedSampleIds: filterSiteConsumerCards(handoff.cards, filters).map((card) => card.id),
+  };
+}
+
+export function generateSiteConsumerFixtureV3(handoff) {
+  const representative = handoff.cards.find(
+    (card) => card.tasks.length > 0 && card.capabilities.length > 0 && card.protocols.length > 0,
+  );
+  invariant(representative, "site consumer fixture requires a filterable representative card");
+  const filterCases = [
+    siteConsumerFilterCase("all-public-cards", handoff, {}),
+    siteConsumerFilterCase("task", handoff, { task: handoff.filters.tasks[0] }),
+    siteConsumerFilterCase("capability", handoff, { capability: handoff.filters.capabilities[0] }),
+    siteConsumerFilterCase("protocol", handoff, { protocol: handoff.filters.protocols[0] }),
+    siteConsumerFilterCase("combined", handoff, {
+      task: representative.tasks[0],
+      capability: representative.capabilities[0],
+      protocol: representative.protocols[0],
+    }),
+    siteConsumerFilterCase("text", handoff, { text: representative.id }),
+    siteConsumerFilterCase("zero-results", handoff, { text: "__no_sdk_sample_matches__" }),
+  ];
+  return {
+    format: "honua.site.sdk-sample-consumer-fixture.v3",
+    schemaVersion: 3,
+    accepts: {
+      handoffFormat: handoff.format,
+      handoffSchemaVersion: handoff.schemaVersion,
+      siteProjectionFormat: handoff.inputs.siteProjection.format,
+      capabilityMatrixFormat: handoff.inputs.capabilityMatrix.format,
+      visualEvidenceFormat: handoff.inputs.visualEvidence.format,
+    },
+    input: siteConsumerArtifactReference(
+      SITE_CONSUMER_HANDOFF_PATH,
+      SITE_CONSUMER_HANDOFF_SCHEMA_PATH,
+      handoff,
+    ),
+    assertions: {
+      cardCount: handoff.counts.cards,
+      qualifiedJourneyCount: handoff.counts.qualifiedJourneys,
+      canonicalRouteCount: handoff.counts.canonicalRoutes,
+      legacyRouteCount: handoff.counts.legacyRoutes,
+      gapCount: handoff.counts.gaps,
+      everyQualifiedTrackHandedOff: true,
+      honestZeroQualificationAllowed: true,
+      allLegacyRoutesResolved: true,
+      externalListingsCanonicalOnly: true,
+      sourceImplementationDuplicated: false,
+      taskCapabilityProtocolFiltersRequired: true,
+      accessibleKeyboardContractRequired: true,
+      desktopMobileResponsiveContractRequired: true,
+      incidentOperationsRealtimeRequired: true,
+    },
+    filterCases,
+    interaction: structuredClone(handoff.policy.interaction),
+  };
+}
+
+export async function validateSiteConsumerFixtureV3(fixture, handoff) {
+  validateSiteConsumerJsonBudget(fixture, "site consumer fixture v3");
+  validateSensitiveMetadata(fixture, "site consumer fixture v3", {
+    maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
+    maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
+  });
+  await validateJsonSchema(fixture, SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH);
+  const expected = generateSiteConsumerFixtureV3(handoff);
+  invariant(
+    JSON.stringify(fixture) === JSON.stringify(expected),
+    "site consumer fixture v3 does not match the versioned handoff",
+  );
+  for (const filterCase of fixture.filterCases) {
+    invariant(
+      JSON.stringify(
+        filterSiteConsumerCards(handoff.cards, filterCase.filters).map((card) => card.id),
+      ) === JSON.stringify(filterCase.expectedSampleIds),
+      `${filterCase.id}: site consumer executable filter fixture drift`,
+    );
+  }
+  invariant(
+    fixture.interaction.keyboard.focusAfterClear === "task-search" &&
+      fixture.interaction.keyboard.noKeyboardTrap &&
+      fixture.interaction.responsive.requiredViewports.some((entry) => entry.id === "desktop") &&
+      fixture.interaction.responsive.requiredViewports.some((entry) => entry.id === "mobile"),
+    "site consumer keyboard or responsive fixture is incomplete",
+  );
 }
 
 export function generateCiSelection(catalog) {
@@ -3247,6 +5941,7 @@ function generateSiteConsumerFixture(projection) {
       goldenJourneyCount: projection.goldenJourneys.length,
       qualifiedGoldenCount: projection.goldenJourneys.filter((journey) => journey.status === "qualified").length,
       routeCount: projection.routes.length,
+      sampleBundleCount: projection.sampleBundles.sampleIds.length,
       sampleIdsUnique: true,
       routeIdsUnique: true,
       routesEndInHtml: true,
@@ -3319,15 +6014,43 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-export async function generatedOutputs(catalog, packageJson) {
+export async function generatedOutputs(catalog, packageJson, options = {}) {
   const readme = await readFile(path.join(PROJECT_ROOT, "README.md"), "utf8");
   const projection = generateSiteProjection(catalog, packageJson);
   const ciSelection = generateCiSelection(catalog);
+  const supportTruth = options.supportTruth ?? (await readJson(SUPPORT_TRUTH_PATH));
+  // Publication is intentionally anchored to the canonical evidence root. Tests inject
+  // adversaries through the lower-level collectors/generators so generated artifacts can
+  // never trust a caller-supplied receipt inventory or alternate receipt directory.
+  const qualificationEvidence = await collectQualificationEvidence(catalog);
+  const capabilityMatrix = generateCapabilitySampleMatrix(
+    catalog,
+    packageJson,
+    supportTruth,
+    qualificationEvidence,
+  );
+  const visualEvidence = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
+  const handoff = generateSiteConsumerHandoff(projection, capabilityMatrix, visualEvidence);
+  const consumerFixtureV3 = generateSiteConsumerFixtureV3(handoff);
+  await validateSiteConsumerHandoff(handoff, {
+    projection,
+    matrix: capabilityMatrix,
+    visualEvidence,
+    catalog,
+    packageJson,
+    supportTruth,
+    qualificationEvidence,
+  });
+  await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff);
   return new Map([
     [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
+    [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
+    [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
+    [SITE_CONSUMER_HANDOFF_PATH, stableJson(handoff)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
     [SITE_CONSUMER_FIXTURE_PATH, stableJson(generateSiteConsumerFixture(projection))],
+    [SITE_CONSUMER_V3_FIXTURE_PATH, stableJson(consumerFixtureV3)],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
   ]);
 }

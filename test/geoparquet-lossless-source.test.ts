@@ -40,6 +40,12 @@ const LOSSLESS_FEATURE_ROW = {
   nested: { ids: [9007199254740993n, 9223372036854775807n], amount: "0.00001" },
 } satisfies DuckRow;
 
+const LOSSLESS_EFFECTIVE_SCHEMA: readonly SourceProfileField[] = LOSSLESS_DESCRIBE.map((field) => ({
+  name: field.column_name,
+  type: field.column_type,
+  nullable: (field.null as string) === "YES",
+}));
+
 function descriptor(): SourceDescriptor {
   return {
     id: "lossless",
@@ -220,6 +226,150 @@ describe("GeoParquet lossless-json source wiring", () => {
       path: "$.resolvedQuery",
       declaredType: "EFFECTIVE_SCHEMA",
     });
+    expect(h.scans).toEqual([]);
+    await h.runtime.dispose();
+  });
+
+  it("decodes an opaque planned feature query losslessly from a bound effective schema (#627)", async () => {
+    const h = harness({ query: () => [LOSSLESS_FEATURE_ROW] });
+    const source = geoparquetSource(descriptor(), { runtime: h.runtime, resultEncoding: "lossless-json" });
+    const handle = source.protocol("geoparquet")!;
+    const result = await handle.executeResolvedQuery({
+      sources: ["resolved-lossless.parquet"],
+      operation: "query",
+      query: { returnGeometry: false },
+      sourceId: "resolved-lossless",
+      effectiveSchema: LOSSLESS_EFFECTIVE_SCHEMA,
+    });
+    expect(result.features[0]?.attributes).toEqual({
+      group_key: "9007199254740993",
+      int_value: 7,
+      big_value: "9223372036854775807",
+      unsigned_value: "18446744073709551615",
+      amount: "123456789012345.67890",
+      event_date: "2026-07-15",
+      event_time: "12:34:56.123456",
+      event_ts: "2026-07-15T12:34:56.123456789",
+      payload: "AP+A",
+      nested: { ids: ["9007199254740993", "9223372036854775807"], amount: "0.00001" },
+    });
+    expect(() => JSON.stringify(result)).not.toThrow();
+    expect(h.scans).toHaveLength(1);
+    expect(h.scans[0]).toContain("FROM (SELECT");
+    expect(readCount(h.scans[0]!)).toBe(1);
+    await h.runtime.dispose();
+  });
+
+  it("decodes an opaque planned aggregate query with widened output types from a bound effective schema (#627)", async () => {
+    const h = harness({
+      query: (sql) => {
+        expect(sql).toContain('CAST("n" AS VARCHAR)');
+        expect(sql).toContain('CAST("int_sum" AS VARCHAR)');
+        return [{ group_key: "9007199254740993", n: "2", int_sum: "4294967294" }];
+      },
+    });
+    const source = geoparquetSource(descriptor(), { runtime: h.runtime, resultEncoding: "lossless-json" });
+    const handle = source.protocol("geoparquet")!;
+    const result = await handle.executeResolvedQuery({
+      sources: ["resolved-lossless.parquet"],
+      operation: "queryAggregate",
+      query: {
+        aggregation: {
+          groupBy: ["group_key"],
+          metrics: [
+            { fn: "count", field: "*", alias: "n" },
+            { fn: "sum", field: "int_value", alias: "int_sum" },
+          ],
+        },
+      },
+      sourceId: "resolved-lossless",
+      effectiveSchema: LOSSLESS_EFFECTIVE_SCHEMA,
+    });
+    expect(result.aggregateRows).toEqual([{ group_key: "9007199254740993", n: "2", int_sum: "4294967294" }]);
+    expect(() => JSON.stringify(result)).not.toThrow();
+    expect(h.scans).toHaveLength(1);
+    expect(readCount(h.scans[0]!)).toBe(1);
+    await h.runtime.dispose();
+  });
+
+  it("fails closed before executing when the bound effective schema is malformed (#627)", async () => {
+    const h = harness({ query: () => [LOSSLESS_FEATURE_ROW] });
+    const source = geoparquetSource(descriptor(), { runtime: h.runtime, resultEncoding: "lossless-json" });
+    const handle = source.protocol("geoparquet")!;
+    const malformedCases: readonly unknown[] = [
+      [],
+      [{ name: "value" }],
+      [
+        { name: "value", type: "INTEGER" },
+        { name: "value", type: "BIGINT" },
+      ],
+      [{ name: "value", type: "INTEGER", nullable: "maybe" }],
+      "not-an-array",
+    ];
+    for (const effectiveSchema of malformedCases) {
+      await expect(
+        handle.executeResolvedQuery({
+          sources: ["resolved-lossless.parquet"],
+          operation: "query",
+          query: { returnGeometry: false },
+          sourceId: "resolved-lossless",
+          effectiveSchema: effectiveSchema as never,
+        }),
+      ).rejects.toMatchObject({
+        code: "GEOPARQUET_LOSSLESS_SCHEMA_REQUIRED",
+        path: "$.resolvedQuery",
+        declaredType: "EFFECTIVE_SCHEMA",
+      });
+    }
+    expect(h.scans).toEqual([]);
+    await h.runtime.dispose();
+  });
+
+  it("fails closed without invoking caller-supplied schema accessors (#627)", async () => {
+    const h = harness({ query: () => [LOSSLESS_FEATURE_ROW] });
+    const source = geoparquetSource(descriptor(), { runtime: h.runtime, resultEncoding: "lossless-json" });
+    const handle = source.protocol("geoparquet")!;
+    let getterInvocations = 0;
+    const hostileField = Object.defineProperty({ type: "INTEGER" }, "name", {
+      enumerable: true,
+      get() {
+        getterInvocations += 1;
+        throw new Error("accessor side effect escaped the fail-closed boundary");
+      },
+    });
+    await expect(
+      handle.executeResolvedQuery({
+        sources: ["resolved-lossless.parquet"],
+        operation: "query",
+        query: { returnGeometry: false },
+        sourceId: "resolved-lossless",
+        effectiveSchema: [hostileField] as never,
+      }),
+    ).rejects.toMatchObject({
+      code: "GEOPARQUET_LOSSLESS_SCHEMA_REQUIRED",
+      path: "$.resolvedQuery",
+      declaredType: "EFFECTIVE_SCHEMA",
+    });
+    expect(getterInvocations).toBe(0);
+    expect(h.scans).toEqual([]);
+    await h.runtime.dispose();
+  });
+
+  it("preserves the profiled outFields error taxonomy for a bound effective schema that omits a requested field (#627)", async () => {
+    const h = harness({ query: () => [LOSSLESS_FEATURE_ROW] });
+    const source = geoparquetSource(descriptor(), { runtime: h.runtime, resultEncoding: "lossless-json" });
+    const handle = source.protocol("geoparquet")!;
+    const error = await handle
+      .executeResolvedQuery({
+        sources: ["resolved-lossless.parquet"],
+        operation: "query",
+        query: { returnGeometry: false, outFields: ["not_a_real_column"] },
+        sourceId: "resolved-lossless",
+        effectiveSchema: LOSSLESS_EFFECTIVE_SCHEMA,
+      })
+      .catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(DuckDbLosslessDecodeError);
+    expect(error).toMatchObject({ code: "GEOPARQUET_LOSSLESS_INVALID_TYPE", path: "$.outFields[0]" });
     expect(h.scans).toEqual([]);
     await h.runtime.dispose();
   });

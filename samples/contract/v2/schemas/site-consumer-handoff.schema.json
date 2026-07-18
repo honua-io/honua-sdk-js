@@ -1,0 +1,769 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/site-sample-consumer-handoff.v1.schema.json",
+  "title": "Honua site SDK sample consumer handoff v1",
+  "type": "object",
+  "required": [
+    "format",
+    "schemaVersion",
+    "sdk",
+    "ownership",
+    "inputs",
+    "policy",
+    "filters",
+    "counts",
+    "cards",
+    "qualifiedJourneys",
+    "canonicalRoutes",
+    "legacyRoutes",
+    "lifecycleNotices",
+    "gaps"
+  ],
+  "properties": {
+    "format": { "const": "honua.site.sdk-sample-consumer-handoff.v1" },
+    "schemaVersion": { "const": 1 },
+    "sdk": { "$ref": "#/$defs/sdk" },
+    "ownership": {
+      "type": "object",
+      "required": [
+        "producer",
+        "consumer",
+        "executableSourceOwner",
+        "presentationOwner",
+        "sourceImplementationDuplicated"
+      ],
+      "properties": {
+        "producer": { "const": "honua-io/honua-sdk-js#550" },
+        "consumer": { "const": "honua-io/honua-site" },
+        "executableSourceOwner": { "const": "honua-io/honua-sdk-js" },
+        "presentationOwner": { "const": "honua-io/honua-site" },
+        "sourceImplementationDuplicated": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "inputs": {
+      "type": "object",
+      "required": ["siteProjection", "capabilityMatrix", "visualEvidence"],
+      "properties": {
+        "siteProjection": {
+          "allOf": [
+            { "$ref": "#/$defs/artifactInput" },
+            {
+              "properties": {
+                "path": { "const": "samples/dist/honua-site-samples.v2.json" },
+                "schemaPath": { "const": "samples/contract/v2/schemas/site-projection.schema.json" },
+                "format": { "const": "honua.site.sdk-sample-projection.v2" },
+                "schemaVersion": { "const": 2 }
+              }
+            }
+          ]
+        },
+        "capabilityMatrix": {
+          "allOf": [
+            { "$ref": "#/$defs/artifactInput" },
+            {
+              "properties": {
+                "path": { "const": "samples/dist/capability-sample-matrix.v1.json" },
+                "schemaPath": {
+                  "const": "samples/contract/v2/schemas/capability-sample-matrix.schema.json"
+                },
+                "format": { "const": "honua.site.sdk-capability-sample-matrix.v1" },
+                "schemaVersion": { "const": 1 }
+              }
+            }
+          ]
+        },
+        "visualEvidence": {
+          "allOf": [
+            { "$ref": "#/$defs/artifactInput" },
+            {
+              "properties": {
+                "path": { "const": "samples/dist/golden-journey-visual-evidence.v1.json" },
+                "schemaPath": {
+                  "const": "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json"
+                },
+                "format": { "const": "honua.sdk.golden-journey-visual-evidence.v1" },
+                "schemaVersion": { "const": 1 }
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "qualificationAuthority",
+        "qualifiedRequires",
+        "honestZeroQualificationAllowed",
+        "externalListings",
+        "canonicalRoutes",
+        "limits",
+        "interaction"
+      ],
+      "properties": {
+        "qualificationAuthority": { "const": "validated-matrix-and-visual-evidence" },
+        "qualifiedRequires": {
+          "const": ["source", "packed", "fixture", "live", "desktop", "mobile", "semantic-gates"]
+        },
+        "honestZeroQualificationAllowed": { "const": true },
+        "externalListings": { "const": "canonical-routes-only" },
+        "canonicalRoutes": {
+          "type": "object",
+          "required": ["index", "detailPattern", "migrationMap", "manifest", "statusPages"],
+          "properties": {
+            "index": { "const": "samples/index.html" },
+            "detailPattern": { "const": "samples/<sample-id>.html" },
+            "migrationMap": { "const": "samples/routes.html" },
+            "manifest": { "const": "samples/site-handoff.v1.json" },
+            "statusPages": { "const": ["fixture", "retire", "replace"] }
+          },
+          "additionalProperties": false
+        },
+        "limits": {
+          "type": "object",
+          "required": [
+            "maxArtifactBytes",
+            "maxCards",
+            "maxRoutes",
+            "maxGaps",
+            "maxFacetValues",
+            "maxFilterValueCharacters",
+            "maxJsonNodes",
+            "maxJsonDepth",
+            "maxStringCharacters",
+            "maxAggregateStringCharacters"
+          ],
+          "properties": {
+            "maxArtifactBytes": { "const": 16777216 },
+            "maxCards": { "const": 512 },
+            "maxRoutes": { "const": 1024 },
+            "maxGaps": { "const": 8192 },
+            "maxFacetValues": { "const": 2048 },
+            "maxFilterValueCharacters": { "const": 512 },
+            "maxJsonNodes": { "const": 250000 },
+            "maxJsonDepth": { "const": 64 },
+            "maxStringCharacters": { "const": 32768 },
+            "maxAggregateStringCharacters": { "const": 16777216 }
+          },
+          "additionalProperties": false
+        },
+        "interaction": { "$ref": "#/$defs/interaction" }
+      },
+      "additionalProperties": false
+    },
+    "filters": { "$ref": "#/$defs/filters" },
+    "counts": {
+      "type": "object",
+      "required": [
+        "cards",
+        "qualifiedJourneys",
+        "canonicalRoutes",
+        "legacyRoutes",
+        "lifecycleNotices",
+        "gaps",
+        "qualifiedMatrixCells"
+      ],
+      "properties": {
+        "cards": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "qualifiedJourneys": { "type": "integer", "minimum": 0, "maximum": 512 },
+        "canonicalRoutes": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "legacyRoutes": { "type": "integer", "minimum": 1, "maximum": 1024 },
+        "lifecycleNotices": { "type": "integer", "minimum": 0, "maximum": 512 },
+        "gaps": { "type": "integer", "minimum": 0, "maximum": 8192 },
+        "qualifiedMatrixCells": {
+          "type": "object",
+          "required": ["goldenJourneys", "protocolOperations", "supportClaims", "packageEntrypoints"],
+          "properties": {
+            "goldenJourneys": { "type": "integer", "minimum": 0, "maximum": 8192 },
+            "protocolOperations": { "type": "integer", "minimum": 0, "maximum": 8192 },
+            "supportClaims": { "type": "integer", "minimum": 0, "maximum": 8192 },
+            "packageEntrypoints": { "type": "integer", "minimum": 0, "maximum": 8192 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "cards": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 512,
+      "items": { "$ref": "#/$defs/card" }
+    },
+    "qualifiedJourneys": {
+      "type": "array",
+      "maxItems": 512,
+      "items": { "$ref": "#/$defs/qualifiedJourney" }
+    },
+    "canonicalRoutes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 512,
+      "items": { "$ref": "#/$defs/canonicalRoute" }
+    },
+    "legacyRoutes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": { "$ref": "#/$defs/legacyRoute" }
+    },
+    "lifecycleNotices": {
+      "type": "array",
+      "maxItems": 512,
+      "items": { "$ref": "#/$defs/lifecycleNotice" }
+    },
+    "gaps": {
+      "type": "array",
+      "maxItems": 8192,
+      "items": { "$ref": "#/$defs/gap" }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "slug": { "type": "string", "maxLength": 128, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "sha256": { "type": "string", "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+    "canonicalPath": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^samples/[a-z0-9]+(?:-[a-z0-9]+)*\\.html$"
+    },
+    "stringArray": {
+      "type": "array",
+      "maxItems": 2048,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonEmptyString" }
+    },
+    "nonEmptyStringArray": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2048,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonEmptyString" }
+    },
+    "sdk": {
+      "type": "object",
+      "required": ["package", "version"],
+      "properties": {
+        "package": { "const": "@honua/sdk-js" },
+        "version": { "$ref": "#/$defs/nonEmptyString" }
+      },
+      "additionalProperties": false
+    },
+    "artifactInput": {
+      "type": "object",
+      "required": ["path", "schemaPath", "format", "schemaVersion", "bytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/nonEmptyString" },
+        "schemaPath": { "$ref": "#/$defs/nonEmptyString" },
+        "format": { "$ref": "#/$defs/nonEmptyString" },
+        "schemaVersion": { "type": "integer", "minimum": 1 },
+        "bytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "filters": {
+      "type": "object",
+      "required": [
+        "tasks",
+        "capabilities",
+        "protocols",
+        "catalogProtocols",
+        "renderers",
+        "dataModes",
+        "authModes",
+        "supportTiers",
+        "lifecycleStates",
+        "qualificationStates"
+      ],
+      "properties": {
+        "tasks": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "capabilities": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "protocols": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "catalogProtocols": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "renderers": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "dataModes": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "authModes": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "supportTiers": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "lifecycleStates": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "qualificationStates": { "$ref": "#/$defs/nonEmptyStringArray" }
+      },
+      "additionalProperties": false
+    },
+    "interaction": {
+      "type": "object",
+      "required": ["filters", "accessibility", "keyboard", "responsive"],
+      "properties": {
+        "filters": {
+          "type": "object",
+          "required": [
+            "dimensions",
+            "textNormalization",
+            "textTerms",
+            "facetMatching",
+            "zeroResultsVisible",
+            "clearControlRequired"
+          ],
+          "properties": {
+            "dimensions": {
+              "const": [
+                "task",
+                "capability",
+                "protocol",
+                "renderer",
+                "data-mode",
+                "auth-mode",
+                "support-tier",
+                "lifecycle-state",
+                "qualification-state"
+              ]
+            },
+            "textNormalization": { "const": "NFKC-lowercase-trim-collapse-whitespace" },
+            "textTerms": { "const": "and" },
+            "facetMatching": { "const": "exact-and" },
+            "zeroResultsVisible": { "const": true },
+            "clearControlRequired": { "const": true }
+          },
+          "additionalProperties": false
+        },
+        "accessibility": {
+          "type": "object",
+          "required": [
+            "filterRegionRole",
+            "filterRegionAccessibleNameRequired",
+            "nativeControlLabelsRequired",
+            "resultsRole",
+            "resultsAriaLive",
+            "resultsAriaAtomic",
+            "cardHeadingsRequired",
+            "screenshotAlternativeTextRequired",
+            "lifecycleStatusVisible",
+            "focusIndicatorRequired"
+          ],
+          "properties": {
+            "filterRegionRole": { "const": "search" },
+            "filterRegionAccessibleNameRequired": { "const": true },
+            "nativeControlLabelsRequired": { "const": true },
+            "resultsRole": { "const": "status" },
+            "resultsAriaLive": { "const": "polite" },
+            "resultsAriaAtomic": { "const": true },
+            "cardHeadingsRequired": { "const": true },
+            "screenshotAlternativeTextRequired": { "const": true },
+            "lifecycleStatusVisible": { "const": true },
+            "focusIndicatorRequired": { "const": true }
+          },
+          "additionalProperties": false
+        },
+        "keyboard": {
+          "type": "object",
+          "required": [
+            "navigation",
+            "controlOrder",
+            "activationKeys",
+            "clearFiltersControl",
+            "focusAfterClear",
+            "noKeyboardTrap"
+          ],
+          "properties": {
+            "navigation": { "const": "native-tab-order" },
+            "controlOrder": {
+              "const": [
+                "task-search",
+                "capability-filter",
+                "protocol-filter",
+                "additional-filters",
+                "clear-filters",
+                "sample-cards"
+              ]
+            },
+            "activationKeys": { "const": ["Enter", "Space"] },
+            "clearFiltersControl": { "const": "button" },
+            "focusAfterClear": { "const": "task-search" },
+            "noKeyboardTrap": { "const": true }
+          },
+          "additionalProperties": false
+        },
+        "responsive": {
+          "type": "object",
+          "required": [
+            "requiredViewports",
+            "desktopControls",
+            "mobileControls",
+            "minimumTouchTargetCssPixels",
+            "horizontalPageOverflowForbidden",
+            "contentLossForbidden"
+          ],
+          "properties": {
+            "requiredViewports": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "required": ["id", "viewport"],
+                  "properties": {
+                    "id": { "const": "desktop" },
+                    "viewport": {
+                      "type": "object",
+                      "required": ["width", "height"],
+                      "properties": { "width": { "const": 1280 }, "height": { "const": 720 } },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": ["id", "viewport"],
+                  "properties": {
+                    "id": { "const": "mobile" },
+                    "viewport": {
+                      "type": "object",
+                      "required": ["width", "height"],
+                      "properties": { "width": { "const": 390 }, "height": { "const": 844 } },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "desktopControls": { "const": "multi-column" },
+            "mobileControls": { "const": "single-column" },
+            "minimumTouchTargetCssPixels": { "const": 44 },
+            "horizontalPageOverflowForbidden": { "const": true },
+            "contentLossForbidden": { "const": true }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["repository", "path", "docsPath"],
+      "properties": {
+        "repository": { "const": "honua-io/honua-sdk-js" },
+        "path": { "type": "string", "maxLength": 512, "pattern": "^(?:examples|docs/examples)/[a-z0-9._/-]+$" },
+        "docsPath": { "type": "string", "maxLength": 512, "pattern": "^(?:examples|docs)/[A-Za-z0-9._/-]+\\.md$" }
+      },
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "required": ["mode", "authMode", "provenance", "attribution", "freshness", "configurationStatus"],
+      "properties": {
+        "mode": { "enum": ["fixture", "public-live", "demo-live", "authenticated-live", "hybrid", "none"] },
+        "authMode": { "enum": ["none", "anonymous", "api-key", "bearer", "oauth", "host-mediated"] },
+        "provenance": { "$ref": "#/$defs/nonEmptyString" },
+        "attribution": { "$ref": "#/$defs/nonEmptyString" },
+        "freshness": { "$ref": "#/$defs/nonEmptyString" },
+        "configurationStatus": { "enum": ["approved", "not-required", "legacy-unsafe"] },
+        "configurationGap": { "$ref": "#/$defs/nonEmptyString" }
+      },
+      "additionalProperties": false
+    },
+    "lifecycle": {
+      "type": "object",
+      "required": ["state", "reason"],
+      "properties": {
+        "state": { "enum": ["active", "rework", "merge", "replace", "retire"] },
+        "reason": { "$ref": "#/$defs/nonEmptyString" },
+        "targetRelease": { "$ref": "#/$defs/nonEmptyString" },
+        "replacement": {
+          "type": "object",
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": { "enum": ["sample", "journey", "external"] },
+            "id": { "$ref": "#/$defs/slug" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["fixture", "live"],
+      "properties": {
+        "fixture": { "type": "object", "maxProperties": 32 },
+        "live": { "type": "object", "maxProperties": 32 }
+      },
+      "additionalProperties": false
+    },
+    "qualification": {
+      "type": "object",
+      "required": ["state", "catalogStatus"],
+      "properties": {
+        "state": { "enum": ["qualified", "partial", "planned", "experimental", "unsupported"] },
+        "catalogStatus": { "enum": ["qualified", "planned", "not-a-golden-journey"] },
+        "evidenceBindingId": { "type": "string", "maxLength": 78, "pattern": "^qualification:[a-f0-9]{64}$" },
+        "evidence": { "type": "object", "maxProperties": 32 }
+      },
+      "additionalProperties": false
+    },
+    "journey": {
+      "type": "object",
+      "required": ["id", "title", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "title": { "$ref": "#/$defs/nonEmptyString" },
+        "status": { "enum": ["planned", "qualified"] }
+      },
+      "additionalProperties": false
+    },
+    "visualEvidence": {
+      "type": "object",
+      "required": [
+        "journeyId",
+        "sampleId",
+        "source",
+        "runtime",
+        "observedAt",
+        "expiresAt",
+        "screenshots",
+        "semanticEvidence",
+        "liveEvidence"
+      ],
+      "properties": {
+        "journeyId": { "$ref": "#/$defs/slug" },
+        "sampleId": { "$ref": "#/$defs/slug" },
+        "source": { "type": "object", "maxProperties": 8 },
+        "runtime": { "type": "object", "maxProperties": 12 },
+        "observedAt": { "type": "string", "maxLength": 64, "format": "date-time" },
+        "expiresAt": { "type": "string", "maxLength": 64, "format": "date-time" },
+        "screenshots": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "object", "maxProperties": 16 }
+        },
+        "semanticEvidence": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "items": { "type": "object", "maxProperties": 16 }
+        },
+        "liveEvidence": { "type": "object", "maxProperties": 16 }
+      },
+      "additionalProperties": false
+    },
+    "card": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "summary",
+        "canonicalPath",
+        "track",
+        "journey",
+        "source",
+        "sdk",
+        "tasks",
+        "capabilities",
+        "protocols",
+        "catalogProtocols",
+        "renderers",
+        "data",
+        "supportTier",
+        "lifecycle",
+        "evidence",
+        "expectedDegradation",
+        "qualification",
+        "evidenceBindingId",
+        "visualEvidence",
+        "searchText"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "title": { "$ref": "#/$defs/nonEmptyString" },
+        "summary": { "$ref": "#/$defs/nonEmptyString" },
+        "canonicalPath": { "$ref": "#/$defs/canonicalPath" },
+        "track": { "enum": ["golden", "recipe", "lab"] },
+        "journey": { "oneOf": [{ "$ref": "#/$defs/journey" }, { "type": "null" }] },
+        "source": { "$ref": "#/$defs/source" },
+        "sdk": { "$ref": "#/$defs/sdk" },
+        "tasks": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "capabilities": { "$ref": "#/$defs/stringArray" },
+        "protocols": { "$ref": "#/$defs/stringArray" },
+        "catalogProtocols": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "renderers": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "data": { "$ref": "#/$defs/data" },
+        "supportTier": { "enum": ["supported", "experimental", "deprecated"] },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" },
+        "evidence": { "$ref": "#/$defs/evidence" },
+        "expectedDegradation": { "$ref": "#/$defs/nonEmptyString" },
+        "qualification": { "$ref": "#/$defs/qualification" },
+        "evidenceBindingId": {
+          "oneOf": [
+            { "type": "string", "maxLength": 78, "pattern": "^qualification:[a-f0-9]{64}$" },
+            { "type": "null" }
+          ]
+        },
+        "visualEvidence": { "oneOf": [{ "$ref": "#/$defs/visualEvidence" }, { "type": "null" }] },
+        "searchText": { "$ref": "#/$defs/nonEmptyString" }
+      },
+      "additionalProperties": false
+    },
+    "qualifiedJourney": {
+      "type": "object",
+      "required": ["journeyId", "sampleId", "canonicalPath", "evidenceBindingId", "visualEvidence"],
+      "properties": {
+        "journeyId": { "$ref": "#/$defs/slug" },
+        "sampleId": { "$ref": "#/$defs/slug" },
+        "canonicalPath": { "$ref": "#/$defs/canonicalPath" },
+        "evidenceBindingId": { "type": "string", "maxLength": 78, "pattern": "^qualification:[a-f0-9]{64}$" },
+        "visualEvidence": { "$ref": "#/$defs/visualEvidence" }
+      },
+      "additionalProperties": false
+    },
+    "canonicalRoute": {
+      "type": "object",
+      "required": [
+        "sampleId",
+        "path",
+        "track",
+        "lifecycleState",
+        "presentation",
+        "externalListingEligible"
+      ],
+      "properties": {
+        "sampleId": { "$ref": "#/$defs/slug" },
+        "path": { "$ref": "#/$defs/canonicalPath" },
+        "track": { "enum": ["golden", "recipe", "lab"] },
+        "lifecycleState": { "enum": ["active", "rework", "merge", "replace", "retire"] },
+        "presentation": { "enum": ["sample-detail", "lifecycle-status"] },
+        "externalListingEligible": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "legacyRoute": {
+      "type": "object",
+      "required": [
+        "path",
+        "routeIds",
+        "ownership",
+        "resolution",
+        "sampleId",
+        "canonicalPath",
+        "httpStatus",
+        "presentation",
+        "title",
+        "track",
+        "supportTier",
+        "reason"
+      ],
+      "properties": {
+        "path": { "type": "string", "maxLength": 256, "pattern": "^[-a-z0-9]+\\.html$" },
+        "routeIds": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "ownership": { "enum": ["sdk-projection", "site-exception"] },
+        "resolution": { "enum": ["canonical-sample", "not-public", "site-exception"] },
+        "sampleId": { "oneOf": [{ "$ref": "#/$defs/slug" }, { "type": "null" }] },
+        "canonicalPath": { "oneOf": [{ "$ref": "#/$defs/canonicalPath" }, { "type": "null" }] },
+        "httpStatus": { "type": ["integer", "null"], "enum": [308, null] },
+        "presentation": { "enum": ["permanent-redirect", "status-page"] },
+        "title": { "$ref": "#/$defs/nonEmptyString" },
+        "track": { "enum": ["golden", "recipe", "lab", "fixture"] },
+        "supportTier": { "enum": ["supported", "experimental", "internal", "deprecated"] },
+        "reason": { "$ref": "#/$defs/nonEmptyString" }
+      },
+      "additionalProperties": false
+    },
+    "resolvedReplacement": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "id", "title", "canonicalPath"],
+          "properties": {
+            "kind": { "const": "sample" },
+            "id": { "$ref": "#/$defs/slug" },
+            "title": { "$ref": "#/$defs/nonEmptyString" },
+            "canonicalPath": { "oneOf": [{ "$ref": "#/$defs/canonicalPath" }, { "type": "null" }] }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "id", "title", "status", "candidateSampleId", "canonicalPath"],
+          "properties": {
+            "kind": { "const": "journey" },
+            "id": { "$ref": "#/$defs/slug" },
+            "title": { "$ref": "#/$defs/nonEmptyString" },
+            "status": { "enum": ["planned", "qualified"] },
+            "candidateSampleId": { "$ref": "#/$defs/slug" },
+            "canonicalPath": { "oneOf": [{ "$ref": "#/$defs/canonicalPath" }, { "type": "null" }] }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "id", "title", "url"],
+          "properties": {
+            "kind": { "const": "external" },
+            "id": { "$ref": "#/$defs/slug" },
+            "title": { "$ref": "#/$defs/nonEmptyString" },
+            "url": { "type": "string", "maxLength": 2048, "format": "uri", "pattern": "^https://" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "lifecycleNotice": {
+      "type": "object",
+      "required": ["sampleId", "canonicalPath", "state", "reason", "targetRelease", "replacement"],
+      "properties": {
+        "sampleId": { "$ref": "#/$defs/slug" },
+        "canonicalPath": { "$ref": "#/$defs/canonicalPath" },
+        "state": { "enum": ["rework", "merge", "replace", "retire"] },
+        "reason": { "$ref": "#/$defs/nonEmptyString" },
+        "targetRelease": { "$ref": "#/$defs/nonEmptyString" },
+        "replacement": { "oneOf": [{ "$ref": "#/$defs/resolvedReplacement" }, { "type": "null" }] }
+      },
+      "additionalProperties": false
+    },
+    "candidateRoute": {
+      "type": "object",
+      "required": ["sampleId", "canonicalPath"],
+      "properties": {
+        "sampleId": { "$ref": "#/$defs/slug" },
+        "canonicalPath": { "$ref": "#/$defs/canonicalPath" }
+      },
+      "additionalProperties": false
+    },
+    "gap": {
+      "type": "object",
+      "required": [
+        "targetType",
+        "targetId",
+        "supportStatus",
+        "coverageState",
+        "candidateSampleIds",
+        "reason",
+        "candidateRoutes"
+      ],
+      "properties": {
+        "targetType": {
+          "enum": ["golden-journey", "protocol-operation", "support-claim", "package-entrypoint"]
+        },
+        "targetId": { "$ref": "#/$defs/nonEmptyString" },
+        "supportStatus": {
+          "enum": ["supported", "beta", "experimental", "deprecated", "unsupported", "facade-required"]
+        },
+        "coverageState": { "enum": ["partial", "planned", "experimental", "unsupported"] },
+        "candidateSampleIds": { "$ref": "#/$defs/stringArray" },
+        "reason": { "$ref": "#/$defs/nonEmptyString" },
+        "candidateRoutes": {
+          "type": "array",
+          "maxItems": 512,
+          "items": { "$ref": "#/$defs/candidateRoute" }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -264,6 +264,7 @@ export type {
   ExecuteQueryPlanOptions,
   ExplainGeoParquetQueryOptions,
   ExplainQueryOptions,
+  GeoParquetEffectiveSchemaFieldV1,
   GeoParquetRemoteQueryPlanStepV2,
   GeoServicesCompiledQueryV1,
   GrpcCompiledQueryV1,

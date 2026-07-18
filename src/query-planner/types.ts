@@ -92,6 +92,18 @@ export interface QueryIrGeoparquetIdentity {
   readonly bboxColumn?: string;
 }
 
+/**
+ * One projected DuckDB output field of an effective GeoParquet schema: the
+ * exact name/type/nullable evidence {@link module:geoparquet/lossless-decoder}
+ * needs to compile a lossless row decoder without a runtime `DESCRIBE`.
+ */
+export interface GeoParquetEffectiveSchemaFieldV1 {
+  readonly name: string;
+  /** Effective DuckDB DESCRIBE type text (e.g. `BIGINT`, `DECIMAL(20,5)`). */
+  readonly type: string;
+  readonly nullable?: boolean;
+}
+
 /** Credential-free GeoParquet identity used by v2 plans. */
 export interface QueryIrGeoparquetResourceIdentity {
   readonly resource: GeoParquetResourceHandleV1;
@@ -99,6 +111,13 @@ export interface QueryIrGeoparquetResourceIdentity {
   readonly geometryColumn?: string;
   readonly geometryEncoding?: DuckDbGeometryEncoding;
   readonly bboxColumn?: string;
+  /**
+   * Validated, versioned effective DuckDB output schema bound to this plan so
+   * opaque `resultEncoding: "lossless-json"` execution can decode exactly,
+   * without profiling the resolved locator (#627). Absent for legacy/default
+   * result encoding.
+   */
+  readonly effectiveSchema?: readonly GeoParquetEffectiveSchemaFieldV1[];
 }
 
 /** GeoParquet-only v2 source identity. Raw locators are deliberately absent. */
@@ -307,6 +326,12 @@ export interface ExplainQueryOptions<T = Record<string, unknown>> {
 export interface ExplainGeoParquetQueryOptions<T = Record<string, unknown>> extends ExplainQueryOptions<T> {
   /** Opaque stable identity; the locator remains private to the injected resolver. */
   readonly geoparquetResource: GeoParquetResourceHandleV1;
+  /**
+   * Trustworthy effective DuckDB output schema for this resource, established
+   * out-of-band by the trusted plan author (#627). Required to bind a plan
+   * that a `resultEncoding: "lossless-json"` source can execute opaquely.
+   */
+  readonly effectiveSchema?: readonly GeoParquetEffectiveSchemaFieldV1[];
 }
 
 export interface GeoServicesCompiledQueryV1 {
@@ -623,6 +648,8 @@ export interface ExecuteQueryPlanOptions {
   readonly authorizationContextId?: string;
   /** Lifecycle-scoped resolver used only at the trusted v2 execution boundary. */
   readonly geoParquetResourceResolver?: GeoParquetResourceResolver;
+  /** Must match the effective schema the plan was explained with (#627). */
+  readonly effectiveSchema?: readonly GeoParquetEffectiveSchemaFieldV1[];
 }
 
 export type QueryPlanExecutionFailureReason =

@@ -670,6 +670,7 @@ function rebuildGeoParquetQueryPlanV2(plan: QueryExecutionPlanV2): QueryExecutio
     fallback: plan.fallback,
     ...(schemaVersion ? { schemaVersion } : {}),
     ...(sourceVersion ? { sourceVersion } : {}),
+    ...(source.geoparquet.effectiveSchema ? { effectiveSchema: source.geoparquet.effectiveSchema } : {}),
     authorizationScope: source.authorizationScope,
     estimates: plan.estimates,
     cache: persistedCacheOptions(plan.cache),

@@ -5,6 +5,7 @@ import {
   type CanonicalQuery,
   type ExplainGeoParquetQueryOptions,
   type ExplainQueryOptions,
+  type GeoParquetEffectiveSchemaFieldV1,
   HonuaQueryPlanningError,
   type JsonValue,
   QUERY_IR_KIND,
@@ -15,6 +16,16 @@ import {
   type QueryIrV1,
   type QueryIrV2,
 } from "./types.js";
+
+const MAX_EFFECTIVE_SCHEMA_FIELDS = 512;
+
+/** Context accepted by {@link queryIrSourceIdentityV2}: shared by explain and execute call sites. */
+export interface GeoParquetV2IdentityContext {
+  readonly authorizationScope?: readonly string[];
+  readonly schemaVersion?: string;
+  readonly sourceVersion?: string;
+  readonly effectiveSchema?: readonly GeoParquetEffectiveSchemaFieldV1[];
+}
 
 export function createQueryIr<T>(options: ExplainQueryOptions<T>): QueryIrV1 {
   try {
@@ -154,7 +165,7 @@ export function queryIrSourceIdentity(
 export function queryIrSourceIdentityV2(
   descriptor: SourceDescriptor,
   resourceValue: unknown,
-  context: Pick<ExplainQueryOptions, "authorizationScope" | "schemaVersion" | "sourceVersion"> = {},
+  context: GeoParquetV2IdentityContext = {},
 ): QueryIrSourceIdentityV2 {
   if (descriptor.protocol !== "geoparquet") {
     throw new HonuaQueryPlanningError("invalid-query", "Opaque GeoParquet resources require protocol geoparquet");
@@ -182,6 +193,7 @@ export function queryIrSourceIdentityV2(
   ) {
     throw new HonuaQueryPlanningError("invalid-query", "GeoParquet geometry encoding identity is invalid");
   }
+  const effectiveSchema = geoparquetEffectiveSchema(context.effectiveSchema);
   return deepFreeze({
     id: resource.resource.id,
     protocol: "geoparquet",
@@ -194,10 +206,62 @@ export function queryIrSourceIdentityV2(
       ...(geometryColumn ? { geometryColumn } : {}),
       ...(geometryEncoding ? { geometryEncoding } : {}),
       ...(bboxColumn ? { bboxColumn } : {}),
+      ...(effectiveSchema ? { effectiveSchema } : {}),
     },
     authorizationScope,
     capabilities: [...descriptor.capabilities].sort(),
   });
+}
+
+/**
+ * Validate and freeze caller-supplied effective GeoParquet schema evidence
+ * (#627). Reuses the same bounded string checks as other plan metadata so
+ * field name/type text can never smuggle credential material or control
+ * characters into a persisted plan.
+ */
+function geoparquetEffectiveSchema(
+  value: readonly GeoParquetEffectiveSchemaFieldV1[] | undefined,
+): readonly GeoParquetEffectiveSchemaFieldV1[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_EFFECTIVE_SCHEMA_FIELDS) {
+    throw new HonuaQueryPlanningError("invalid-query", "GeoParquet effective schema identity is invalid");
+  }
+  const names = new Set<string>();
+  const fields = value.map((field, index) => {
+    if (field === null || typeof field !== "object" || Array.isArray(field)) {
+      throw new HonuaQueryPlanningError("invalid-query", `GeoParquet effective schema field ${index} is invalid`);
+    }
+    const keys = Object.keys(field);
+    if (keys.some((key) => key !== "name" && key !== "type" && key !== "nullable")) {
+      throw new HonuaQueryPlanningError("invalid-query", `GeoParquet effective schema field ${index} is invalid`);
+    }
+    const name = requiredPlanMetadata(field.name, `effective schema field ${index} name`);
+    const type = requiredPlanMetadata(field.type, `effective schema field ${index} type`);
+    if (names.has(name)) {
+      throw new HonuaQueryPlanningError(
+        "invalid-query",
+        `GeoParquet effective schema field ${index} duplicates name "${name}"`,
+      );
+    }
+    names.add(name);
+    const nullable = field.nullable;
+    if (nullable !== undefined && typeof nullable !== "boolean") {
+      throw new HonuaQueryPlanningError(
+        "invalid-query",
+        `GeoParquet effective schema field ${index} nullable is invalid`,
+      );
+    }
+    return deepFreeze({ name, type, ...(nullable !== undefined ? { nullable } : {}) });
+  });
+  return deepFreeze(fields);
+}
+
+function requiredPlanMetadata(value: unknown, label: string): string {
+  const parsed = optionalPlanMetadata(value, label);
+  if (parsed === undefined) {
+    throw new HonuaQueryPlanningError("invalid-query", `Query plan ${label} identity is invalid`);
+  }
+  return parsed;
 }
 
 function optionalPlanMetadata(value: unknown, label: string): string | undefined {
