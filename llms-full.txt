@@ -995,7 +995,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey. |
 | <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | <a id="runtime-parity-showcase"></a>[`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | lab | - | experimental | replace | browser-lab | fixture | not-required | Compares supported rendering paths and makes fidelity differences explicit. |
-| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | lab | service-explorer | supported | rework | browser-lab | hybrid | legacy-unsafe | Browses heterogeneous spatial services with capability and cache diagnostics. |
+| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | lab | service-explorer | supported | active | golden-browser | hybrid | approved | Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code. |
 | <a id="shared-renderer-state"></a>[`shared-renderer-state`](../../docs/examples/shared-renderer-state/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | Exercises loop-safe camera, selection, filter, and time synchronization across MapLibre and Cesium. |
 | <a id="sketch-editing"></a>[`sketch-editing`](../../examples/sketch-editing/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
 | <a id="spatial-analytics-workbench"></a>[`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | lab | cloud-native-analysis | experimental | rework | browser-lab | hybrid | approved | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
@@ -1178,22 +1178,22 @@ Labels: `fixture` · `public-live`
 
 Discover services, layers, schemas, and capability gaps before choosing a workflow.
 
-Labels: `fixture` · `demo-live` · `authenticated` · `degraded`
+Labels: `fixture` · `public-live` · `degraded`
 
 - Guide: [docs/shared-client-contract.md](../shared-client-contract.md)
 - Runnable example: [service-explorer](../../examples/service-explorer)
-- Executable entry: [examples/service-explorer/src/data.ts](../../examples/service-explorer/src/data.ts)
+- Executable entry: [examples/service-explorer/src/main.ts](../../examples/service-explorer/src/main.ts)
 - Example notes: [examples/service-explorer/README.md](../../examples/service-explorer/README.md)
 - Compile check: `npm run demo:service-explorer:typecheck`
-- Sample contract: `lab` · `supported` · `rework`
-- Data and auth: `hybrid` · `api-key`
-- Provenance: Committed multi-protocol catalog or configured Honua catalog.
-- Freshness: Metadata cache and live observation timestamps.
-- Catalog degradation: Unavailable admin metadata falls back to service discovery with a visible diagnostic.
-- Live sample: [sample-service-explorer.html](https://honua.io/sample-service-explorer.html)
-- Supported API imports: `@honua/sdk-js/contract` (`createDataset`); `@honua/sdk-js/honua` (`HonuaClient`)
+- Sample contract: `lab` · `supported` · `active`
+- Data and auth: `hybrid` · `anonymous`
+- Provenance: Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.
+- Freshness: Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics.
+- Catalog degradation: Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.
+- Live sample: [sample-service-explorer.html](https://honua.io/sample-service-explorer.html) · [demo-two-protocols.html](https://honua.io/demo-two-protocols.html)
+- Supported API imports: `@honua/sdk-js` (`createHonua`, `executeQueryPlan`, `explainQuery`); `@honua/sdk-js/contract` (`PROTOCOLS`); `@honua/sdk-js/map` (`explainAutomaticSourceToMapLibre`, `projectSourceToMapLibre`)
 - honua.io journey: `connect-existing-gis`
-- Degradation: The current shell still uses the 0.1.x app-workspace compatibility shim; #399 owns its supported-import migration.
+- Degradation: Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.
 
 ### 3. Query from Node or browser code
 
@@ -7860,12 +7860,12 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-18 at commit `e40477d6`._
+_Generated 2026-07-18 at commit `2ecd7106`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 606.4 KiB | 661.1 KiB | 161.1 KiB | 168.9 KiB |
-| `/honua` | 773.1 KiB | 849.0 KiB | 206.5 KiB | 226.0 KiB |
+| `.` (root) | 606.6 KiB | 661.1 KiB | 161.2 KiB | 168.9 KiB |
+| `/honua` | 773.3 KiB | 849.0 KiB | 206.6 KiB | 226.0 KiB |
 | `/contract` | 288.3 KiB | 317.1 KiB | 76.4 KiB | 83.7 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 755.6 KiB | 829.5 KiB | 163.5 KiB | 179.5 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.0 KiB | 257.5 KiB | 31.3 KiB | 33.2 KiB |
@@ -7892,14 +7892,14 @@ _Generated 2026-07-18 at commit `e40477d6`._
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 462.1 KiB | 506.7 KiB | 122.6 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 607.0 KiB | 661.8 KiB | 161.4 KiB | 176.3 KiB |
-| browser ESM (`./browser`) | 605.7 KiB | 660.4 KiB | 161.1 KiB | 176.0 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 607.2 KiB | 661.8 KiB | 161.5 KiB | 176.3 KiB |
+| browser ESM (`./browser`) | 605.9 KiB | 660.4 KiB | 161.2 KiB | 176.0 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 217.3 KiB | 229.7 KiB | 55.5 KiB | 57.6 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 469.8 KiB | 515.1 KiB | 123.1 KiB | 135.1 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.1 KiB | 15.5 KiB | 4.0 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.2 KiB | 14.6 KiB | 2.8 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 573.5 KiB | 627.9 KiB | 152.4 KiB | 167.0 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 573.8 KiB | 627.9 KiB | 152.5 KiB | 167.0 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 231.8 KiB | 245.9 KiB | 58.8 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 42.2 KiB | 44.7 KiB | 13.0 KiB | 14.0 KiB |
