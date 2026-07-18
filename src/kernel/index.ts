@@ -1916,6 +1916,10 @@ function containsCredentialMaterial(
   seen.add(value);
   try {
     for (const key of Reflect.ownKeys(value)) {
+      // `Error.prototype.stack` is a lazily-materialized engine accessor (no
+      // "value" in its own descriptor) until first read; it never carries
+      // structured credential material, so it must not fail this scan closed.
+      if (key === "stack" && value instanceof Error) continue;
       const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
       if (!descriptor || !("value" in descriptor)) return true;
       if (containsCredentialMaterial(descriptor.value, secrets, seen, depth + 1)) {
