@@ -87,6 +87,34 @@ function gitOutput(args, root) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
 
+// Paths that are regenerated OUTPUT rather than authored SOURCE, and are
+// therefore excluded from the "evidence-neutral" source digest:
+//  - samples/evidence: the gate receipts and captured artifacts themselves.
+//  - samples/dist, samples/contract/v2/consumer-fixtures: dist projections
+//    (golden-journey visual evidence, capability matrix, site consumer
+//    handoff/fixtures) generated FROM qualification evidence by
+//    `samples:generate`. These embed the evidence capture's own
+//    sourceRevision/runId/observedAt, so including them in the digest would
+//    make the digest a function of its own output: regenerating them after
+//    a capture changes the tree, which would invalidate the very receipts
+//    that capture just produced, and no commit could ever be self-consistent.
+//    Their integrity is instead enforced by generatedOutputDrift's direct
+//    byte comparison against a fresh generation, and each entry's own
+//    receipt-bound sourceRevision/sourceDigest fields.
+const EVIDENCE_NEUTRAL_EXCLUDED_ROOTS = Object.freeze([
+  "samples/evidence",
+  "samples/dist",
+  "samples/contract/v2/consumer-fixtures",
+]);
+
+function evidenceNeutralExcludePathspecs() {
+  return EVIDENCE_NEUTRAL_EXCLUDED_ROOTS.map((root) => `:(exclude)${root}`);
+}
+
+function isEvidenceNeutralExcluded(file) {
+  return EVIDENCE_NEUTRAL_EXCLUDED_ROOTS.some((root) => file === root || file.startsWith(`${root}/`));
+}
+
 function canonicalTreeListing(buffer, format, excludeEvidence = false) {
   const records = buffer.toString("utf8").split("\0").filter(Boolean);
   const entries = [];
@@ -96,7 +124,7 @@ function canonicalTreeListing(buffer, format, excludeEvidence = false) {
     const metadata = record.slice(0, tab).split(" ");
     const file = record.slice(tab + 1);
     invariant(file.length > 0 && !file.includes("\0"), `invalid Git ${format} tree path`);
-    if (excludeEvidence && (file === "samples/evidence" || file.startsWith("samples/evidence/"))) continue;
+    if (excludeEvidence && isEvidenceNeutralExcluded(file)) continue;
     if (format === "index") {
       invariant(metadata.length === 3 && metadata[2] === "0", "source index contains an unresolved stage");
       entries.push(`${metadata[0]}\0${metadata[1]}\0${file}\0`);
@@ -110,7 +138,7 @@ function canonicalTreeListing(buffer, format, excludeEvidence = false) {
 }
 
 function indexSourceListing(root) {
-  const index = execFileSync("git", ["ls-files", "-s", "-z", "--", ".", ":(exclude)samples/evidence"], {
+  const index = execFileSync("git", ["ls-files", "-s", "-z", "--", ".", ...evidenceNeutralExcludePathspecs()], {
     cwd: root,
     encoding: null,
     stdio: ["ignore", "pipe", "pipe"],
@@ -139,7 +167,7 @@ function revisionSourceDigest(revision, root) {
 }
 
 function rejectHiddenIndexInputs(root) {
-  const output = execFileSync("git", ["ls-files", "-v", "-z", "--", ".", ":(exclude)samples/evidence"], {
+  const output = execFileSync("git", ["ls-files", "-v", "-z", "--", ".", ...evidenceNeutralExcludePathspecs()], {
     cwd: root,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -160,12 +188,12 @@ export function evidenceNeutralSourceDigest(root = projectRoot) {
 export function verifyEvidenceNeutralCheckout(expectedSourceDigest, root = projectRoot, sourceRevision) {
   rejectHiddenIndexInputs(root);
   const status = gitOutput(
-    ["status", "--porcelain=v1", "--untracked-files=all", "--", ".", ":(exclude)samples/evidence"],
+    ["status", "--porcelain=v1", "--untracked-files=all", "--", ".", ...evidenceNeutralExcludePathspecs()],
     root,
   );
   invariant(
     status === "",
-    `gate evidence requires a clean source checkout outside samples/evidence; found ${status.split("\n")[0]}`,
+    `gate evidence requires a clean source checkout outside samples/evidence, samples/dist, and samples/contract/v2/consumer-fixtures; found ${status.split("\n")[0]}`,
   );
   const digest = evidenceNeutralSourceDigest(root);
   if (expectedSourceDigest !== undefined) {

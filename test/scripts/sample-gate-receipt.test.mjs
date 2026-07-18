@@ -423,7 +423,7 @@ test("Playwright evidence binds every declared browser engine without assuming o
 });
 
 test("renaming text to PNG cannot qualify a screenshot", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const fakeBytes = Buffer.from("not a png");
   const desktop = await artifact("screenshot-desktop.png", fakeBytes, targetSampleId);
   const mobile = await artifact("screenshot-mobile.png", fakeBytes, targetSampleId);
@@ -442,7 +442,7 @@ test("renaming text to PNG cannot qualify a screenshot", async () => {
 });
 
 test("screenshot evidence requires an ordered desktop/mobile pair", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const imageBytes = undecodableViewportPng();
   const imagePath = await artifact("screenshot-desktop.png", imageBytes, targetSampleId);
   const reportPath = await artifact(
@@ -459,7 +459,7 @@ test("screenshot evidence requires an ordered desktop/mobile pair", async () => 
 });
 
 test("screenshot evidence rejects legacy single-capture reports", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const legacy = screenshotReport(targetSampleId, []);
   legacy.format = "honua.sdk.sample-screenshot-gate.v1";
   delete legacy.reproducibilityPolicy;
@@ -471,7 +471,7 @@ test("screenshot evidence rejects legacy single-capture reports", async () => {
 });
 
 test("screenshot evidence rejects aliased and non-identical repeat captures", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const desktopBytes = grayscaleViewportPng(1280, 720, 0x44);
   const mobileBytes = grayscaleViewportPng(390, 844, 0x66);
   const desktopPath = await artifact("screenshot-desktop.png", desktopBytes, targetSampleId);
@@ -509,7 +509,7 @@ test("screenshot evidence rejects aliased and non-identical repeat captures", as
 });
 
 test("screenshot evidence rejects runtime drift and noncanonical capture paths", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const desktopBytes = grayscaleViewportPng(1280, 720, 0x22);
   const mobileBytes = grayscaleViewportPng(390, 844, 0x77);
   const desktopPath = await artifact("screenshot-desktop.png", desktopBytes, targetSampleId);
@@ -541,7 +541,7 @@ test("screenshot evidence rejects runtime drift and noncanonical capture paths",
 });
 
 test("screenshot evidence accepts a runtime-bound reproducible desktop/mobile pair", async () => {
-  const targetSampleId = "standalone-quickstart";
+  const targetSampleId = "maplibre-quickstart";
   const desktopBytes = grayscaleViewportPng(1280, 720, 0x33);
   const mobileBytes = grayscaleViewportPng(390, 844, 0x55);
   const desktopPath = await artifact("screenshot-desktop.png", desktopBytes, targetSampleId);
