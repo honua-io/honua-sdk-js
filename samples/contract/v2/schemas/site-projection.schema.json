@@ -60,7 +60,8 @@
     "routes": {
       "type": "array",
       "items": { "$ref": "#/$defs/route" }
-    }
+    },
+    "sampleBundles": { "$ref": "#/$defs/sampleBundles" }
   },
   "$defs": {
     "goldenJourney": {
@@ -338,6 +339,30 @@
           "not": { "required": ["sampleId"] }
         }
       ],
+      "additionalProperties": false
+    },
+    "sampleBundles": {
+      "type": "object",
+      "required": ["format", "schemaVersion", "publication", "sampleIds"],
+      "properties": {
+        "format": { "const": "honua.sdk.sample-bundles.v1" },
+        "schemaVersion": { "const": 1 },
+        "publication": {
+          "type": "object",
+          "required": ["repo", "releaseTag", "manifestAsset", "bundleAsset"],
+          "properties": {
+            "repo": { "type": "string" },
+            "releaseTag": { "type": "string" },
+            "manifestAsset": { "type": "string" },
+            "bundleAsset": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "sampleIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
       "additionalProperties": false
     }
   },
