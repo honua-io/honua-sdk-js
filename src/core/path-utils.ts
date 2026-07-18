@@ -52,6 +52,26 @@ export function trimChar(value: string, char: string): string {
 }
 
 /**
+ * Remove a trailing run of characters from `value` that belong to `chars`.
+ *
+ * Equivalent to `value.replace(new RegExp(\`[${chars}]+$\`), "")` but avoids
+ * building an anchored character-class regex (which can exhibit polynomial
+ * matching on adversarial input) by scanning backward from the end with
+ * simple index arithmetic instead.
+ */
+export function trimTrailingCharsIn(value: string, chars: string): string {
+  const allowed = new Set<number>();
+  for (let i = 0; i < chars.length; i += 1) {
+    allowed.add(chars.charCodeAt(i));
+  }
+  let end = value.length;
+  while (end > 0 && allowed.has(value.charCodeAt(end - 1))) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
+}
+
+/**
  * Return `value` with any `?query` and `#fragment` suffix removed.
  *
  * Equivalent to `value.replace(/[?#].*$/, "")` but uses `indexOf` slicing
