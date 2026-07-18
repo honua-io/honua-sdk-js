@@ -18,6 +18,12 @@ const NODE_EXECUTABLE_PATTERN = /^node(?:\.exe)?$/i;
 const PREPARATION_SCRIPT_PATTERN = /^prepare:test-sdk(?::(?:force|already|capture|adopt))?$/;
 const PREPARATION_OWNER_PATH_PATTERN = /(?:^|[/\\])scripts[/\\]prepare-sdk-test-artifacts\.mjs$/i;
 const OWNED_BUILD_FILE = "scripts/prepare-sdk-test-artifacts.mjs";
+// The sample-bundle builder (#642) iterates a literal table of demo:*:build
+// scripts, so its script name is dynamic at the callsite but bounded by the
+// table. Grant it package-script launches the same way OWNED_BUILD_FILE owns
+// the root compile — a named file, not a pattern loophole; preparation-script
+// and root-compile crossings below still apply to it.
+const SAMPLE_BUNDLES_FILE = "scripts/build-sample-bundles.mjs";
 const NON_SCRIPT_PACKAGE_COMMANDS = new Set([
   "add",
   "audit",
@@ -327,7 +333,10 @@ function rootBuildReason(launch, context, relativeFile) {
     const tscReason = packageManagerTscReason(manager, argvElements, context);
     if (tscReason) return tscReason;
     const scriptNames = packageScriptNames(manager, argvElements, context);
-    if (!scriptNames) return "package-manager script is dynamic and not fixture-scoped";
+    if (!scriptNames) {
+      if (relativeFile === SAMPLE_BUNDLES_FILE) return undefined;
+      return "package-manager script is dynamic and not fixture-scoped";
+    }
     for (const script of scriptNames) {
       if (PREPARATION_SCRIPT_PATTERN.test(script)) {
         return `package script ${script} crosses the prepared-artifact owner boundary from a test`;

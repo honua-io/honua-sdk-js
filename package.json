@@ -319,6 +319,8 @@
     "samples:run": "node scripts/sample-runner.mjs",
     "samples:list": "node scripts/sample-runner.mjs list",
     "samples:runner:test": "node --test test/scripts/sample-runner.test.mjs test/scripts/sample-gate-receipt.test.mjs",
+    "samples:bundles:build": "node scripts/build-sample-bundles.mjs build",
+    "samples:bundles:verify": "node scripts/build-sample-bundles.mjs check",
     "samples:artifacts": "npm run build:browser --silent && node scripts/sample-contract.mjs artifacts",
     "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",
     "verify:api-report": "npm run build --silent && node scripts/report-api-surface.mjs --check && node scripts/check-error-codes.mjs",

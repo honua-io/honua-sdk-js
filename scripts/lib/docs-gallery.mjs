@@ -147,6 +147,9 @@ export async function verifyGalleryProjectionIntegrity({ projectionBytes, consum
     goldenJourneyCount: journeys.length,
     qualifiedGoldenCount: journeys.filter((journey) => journey.status === "qualified").length,
     routeCount: routes.length,
+    sampleBundleCount: Array.isArray(projection.sampleBundles?.sampleIds)
+      ? projection.sampleBundles.sampleIds.length
+      : 0,
     sampleIdsUnique: new Set(sampleIds).size === sampleIds.length,
     routeIdsUnique: new Set(routeIds).size === routeIds.length,
     routesEndInHtml: routes.every((route) => typeof route.route === "string" && route.route.endsWith(".html")),

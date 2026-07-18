@@ -57,6 +57,7 @@ function fixtureForProjection(value) {
     goldenJourneyCount: value.goldenJourneys.length,
     qualifiedGoldenCount: value.goldenJourneys.filter((journey) => journey.status === "qualified").length,
     routeCount: value.routes.length,
+    sampleBundleCount: Array.isArray(value.sampleBundles?.sampleIds) ? value.sampleBundles.sampleIds.length : 0,
     sampleIdsUnique: new Set(sampleIds).size === sampleIds.length,
     routeIdsUnique: new Set(routeIds).size === routeIds.length,
     routesEndInHtml: value.routes.every((route) => route.route.endsWith(".html")),
