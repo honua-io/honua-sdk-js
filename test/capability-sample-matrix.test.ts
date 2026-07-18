@@ -197,9 +197,13 @@ describe("capability-to-sample matrix contract", () => {
       source: { path: sample.sourcePath, receipts: expect.any(Array) },
       packed: { gate: "packed-build", sdkMode: "packed" },
     });
-    expect(matrix.protocolOperations.find((cell) => cell.id === "grpc:query:honua-facade:native")?.coverage.state).toBe(
-      "qualified",
-    );
+    // maplibre-quickstart's catalog protocols are geoservices + ogc-features
+    // (not grpc); ogc-features:query:protocol-adapter:native is the cell it
+    // unambiguously qualifies on its own.
+    expect(
+      matrix.protocolOperations.find((cell) => cell.id === "ogc-features:query:protocol-adapter:native")?.coverage
+        .state,
+    ).toBe("qualified");
     expect(
       matrix.protocolOperations.find((cell) => cell.id === "geoservices-feature-service:query:protocol-adapter:native")
         ?.coverage.state,
