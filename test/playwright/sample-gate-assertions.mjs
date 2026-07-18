@@ -126,6 +126,9 @@ async function writeBrowserEvidenceArtifacts({
             const style = document.createElement("style");
             style.id = FREEZE_STYLE_ID;
             style.textContent = `
+              html {
+                scroll-behavior: auto !important;
+              }
               *, *::before, *::after {
                 animation-play-state: paused !important;
                 animation-duration: 0s !important;
