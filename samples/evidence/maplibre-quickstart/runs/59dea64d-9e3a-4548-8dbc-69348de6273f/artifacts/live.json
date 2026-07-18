@@ -1,13 +1,13 @@
 {
   "format": "honua.sdk.sample-live-gate.v1",
   "sampleId": "maplibre-quickstart",
-  "sourceRevision": "f9fa6f60bc7224277e20f1cdea8f52e56c90b838",
+  "sourceRevision": "7215a1f22beb7a183db04eb57b192cb90fb9e2fb",
   "command": [
     "npm",
     "run",
     "evidence:first-map:live"
   ],
-  "evidencePath": "samples/evidence/maplibre-quickstart/runs/f74274a3-3564-4cff-ae8e-580738c9b037/artifacts/live-evidence.json",
+  "evidencePath": "samples/evidence/maplibre-quickstart/runs/59dea64d-9e3a-4548-8dbc-69348de6273f/artifacts/live-evidence.json",
   "evidence": {
     "format": "honua.sdk.sample-evidence.v1",
     "schemaVersion": 1,
@@ -15,12 +15,12 @@
     "lane": "live",
     "status": "executed",
     "reason": null,
-    "observedAt": "2026-07-18T00:53:58.844Z",
+    "observedAt": "2026-07-18T01:12:35.221Z",
     "authMode": "anonymous",
     "sdk": {
       "package": "@honua/sdk-js",
       "version": "0.1.0-beta.0",
-      "gitCommit": "f9fa6f60bc7224277e20f1cdea8f52e56c90b838"
+      "gitCommit": "7215a1f22beb7a183db04eb57b192cb90fb9e2fb"
     },
     "source": {
       "provider": "esri-living-atlas",
@@ -31,7 +31,7 @@
     },
     "provenance": {
       "sourceId": "geoservices-feature-service:0",
-      "observedAt": "2026-07-18T00:54:00.302Z",
+      "observedAt": "2026-07-18T01:12:36.861Z",
       "validAt": null,
       "state": "live",
       "attribution": "States 2020 Apportionment - U.S. House of Representatives Seats"
@@ -55,8 +55,8 @@
       ]
     },
     "timing": {
-      "totalMs": 734,
-      "firstSuccessfulInteractionMs": 734
+      "totalMs": 1171,
+      "firstSuccessfulInteractionMs": 1171
     },
     "degradation": {
       "state": "none",
@@ -70,8 +70,8 @@
       },
       {
         "kind": "live-screenshot",
-        "path": "samples/evidence/maplibre-quickstart/runs/f74274a3-3564-4cff-ae8e-580738c9b037/artifacts/live-evidence.png",
-        "sha256": "61659cb942193ec7eba5aa882fc104f462c1a44b3f7028cfc3b74e02dc8a4df5"
+        "path": "samples/evidence/maplibre-quickstart/runs/59dea64d-9e3a-4548-8dbc-69348de6273f/artifacts/live-evidence.png",
+        "sha256": "9fd3653b98f9ce2b37427fb571607b271dc1c5b0347a18f0b2722460e608d513"
       }
     ]
   }
