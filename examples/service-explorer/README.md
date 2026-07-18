@@ -76,6 +76,29 @@ For any other endpoint, paste its service root, choose a protocol hint or
 kernel transport boundary by an application host; this browser sample has no
 API-key or bearer-token field.
 
+## Control-Plane Handoff
+
+Hosted Honua deployments can use the experimental control-plane subpath to discover a hosted map and pass its package locator to the runtime loader without mixing admin APIs into data queries:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { HonuaClient } from "@honua/sdk-js";
+import { createHonuaControlPlane } from "@honua/sdk-js/control-plane";
+import { loadMapPackageFromId } from "@honua/sdk-js/runtime";
+
+const client = new HonuaClient({ baseUrl: "https://cloud.honua.io", apiKey: process.env.HONUA_API_KEY });
+const controlPlane = createHonuaControlPlane({ client });
+const maps = await controlPlane.hostedMaps.list({ workspaceId: "workspace-ops", limit: 10 });
+
+if (maps.supported && maps.value.items[0]) {
+  const locator = await controlPlane.hostedMaps.getPackageLocator(maps.value.items[0].id);
+  if (locator.supported) {
+    await loadMapPackageFromId(locator.value, maplibreMap, { client });
+  }
+}
+```
+
+When `/api/v1/admin` is not exposed, control-plane calls return `{ supported: false, capability, reason }` for 404/501 capability misses so the sample can stay on fixture/service discovery lanes.
+
 ## Validation
 
 ```sh
