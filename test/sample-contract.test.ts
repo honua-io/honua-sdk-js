@@ -30,7 +30,7 @@ import {
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
-const validationTime = { now: "2026-07-18T18:00:00.000Z" };
+const validationTime = { now: "2026-07-19T12:00:00.000Z" };
 const goldenJourneyIds = [
   "first-map",
   "service-explorer",
