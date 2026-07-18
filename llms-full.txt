@@ -6683,10 +6683,13 @@ subpaths, the public realtime resume error, and the offline region plus replica
 synchronization classes migrated by
 [#569](https://github.com/honua-io/honua-sdk-js/issues/569), plus the plugin
 registry error migrated by
-[#571](https://github.com/honua-io/honua-sdk-js/issues/571). Agent errors
-([#570](https://github.com/honua-io/honua-sdk-js/issues/570)) remain an explicit
-residual. Other experimental domains likewise retain their current
-domain-specific contracts until a scoped migration lands.
+[#571](https://github.com/honua-io/honua-sdk-js/issues/571), and the
+stable `agent-tools`/`agent-safety` errors plus the deprecated `generated-app`
+error migrated by [#570](https://github.com/honua-io/honua-sdk-js/issues/570).
+The experimental `nl-map-control` domain's error class remains an explicit
+residual pending a scoped migration; other experimental domains likewise
+retain their current domain-specific contracts until a scoped migration
+lands.
 
 ## Envelope contract
 
@@ -6695,7 +6698,7 @@ Every migrated instance has these common fields:
 | Field | Meaning |
 |-------|---------|
 | `kind` | Constant `"honua.sdk.error.v1"` tag used by the cross-realm guard. |
-| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, `runtime`, `realtime`, `offline`, or `plugin`. |
+| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, `runtime`, `realtime`, `offline`, `plugin`, `agent`, or `app`. |
 | `sdkCode` | Globally unique code from `HONUA_ERROR_CODE_REGISTRY`. |
 | `category` | Stable `authentication`, `cancellation`, `capability`, `internal`, `network`, `protocol`, `timeout`, or `validation` classification. |
 | `retryable` | Stable boolean for this exact `sdkCode`. This metadata describes the existing policy; it does not initiate retries. |
@@ -6717,8 +6720,11 @@ response bodies, details, cause payloads, credentials, authorization/cookie
 headers, cached feature bodies, raw cursors/resume tokens, signed URL values,
 query/filter/SQL values, local storage paths, plugin manifests/configuration,
 tool payloads, cleanup failures, binary payloads, and prototype-manipulation
-keys. The raw instance still retains its message, documented detail fields,
-exact cause, and documented cleanup aggregates for local use.
+keys. Agent-domain errors additionally never serialize prompts, plans, tool
+arguments/results, feature values, approvals, or execution receipts — only
+fixed reason codes and, for `HonuaAgentToolError`, the invoked tool name. The
+raw instance still retains its message, documented detail fields, exact
+cause, and documented cleanup aggregates for local use.
 
 ```ts doc-test=skip reason="partial excerpt requires application retry and logging hosts"
 import { isHonuaError, serializeHonuaError } from "@honua/sdk-js";
@@ -6763,6 +6769,10 @@ try {
 | `HonuaOfflineRegionError` | `@honua/sdk-js/offline` | Offline manifest validation, quota admission, resource loading, integrity verification, cancellation, or atomic store work fails. | Branch on the existing detailed `.code`. Rebuild invalid manifests, free quota, and treat abort as terminal. Retry through the application's loader/store policy only when `.sdkCode` is `offline.transport.transient`; generic loader failures remain conservative. Raw resource identifiers and storage paths remain local-only. |
 | `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync` shim remains through 0.1.x) | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
 | `HonuaPluginRegistryError` | `@honua/sdk-js/plugin` | Plugin registry validation, compatibility, policy, capability, activation, execution validation, cancellation, or cleanup fails. | Branch on the existing `PLUGIN_*` `.code` or its grouped `.sdkCode`. Correct declarations or host policy/capability, treat cancellation as terminal, and inspect `.cause` / `.cleanupErrors` locally for activation or cleanup failures. No plugin classification is automatically retryable. |
+| `HonuaAgentToolError` | `@honua/sdk-js/agent-tools` | An agent tool call names an unknown tool, the tool kit is created without a usable runtime, a selection target is not source-qualified, or the adapted runtime does not implement the requested tool method. | Branch on `.code` or `.sdkCode`; correct the tool name, provide a runtime/controller/generated-app runtime, or qualify the selection. Not retryable. |
+| `HonuaAgentSafetyError` | `@honua/sdk-js/agent-safety` | Agent plan validation, policy evaluation, dry-run, approval, or safety-evidence derivation/verification fails (aborted, invalid input, policy denial, integrity failure, expired approval, context mismatch, or invalid signature). | Branch on `.code`; correct the plan/policy/approval input, re-request approval, or treat cancellation as terminal. Not retryable. |
+| `HonuaAgentExecutionError` | `@honua/sdk-js/agent-safety` | A plan step's authorization, start audit, execution, receipt issuance, or terminal audit fails. Extends `HonuaAgentSafetyError` with `.phase` and, when execution reached that point, the signed `.receipt`. | Branch on `.code` / `.phase`; the caller must consume `.receipt` directly (never serialized). Not retryable. |
+| `HonuaGeneratedAppError` | `@honua/sdk-js/generated-app` (deprecated shim; canonical home `@honua/app-platform/generated-app`) | Generated-app preview/runtime manifest, projection, load, interaction, render, or dispose stage fails. | Branch on `.code` / `.stage`; use `toGeneratedAppDiagnostic(error)` for the legacy `{code, stage, message, detail}` shape. Not retryable. |
 
 ## Registered code families
 
@@ -6806,6 +6816,10 @@ and this class/family documentation.
 | `HonuaOfflineRegionError` | `offline.region.validation`, `offline.region.quota`, `offline.region.integrity`, `offline.cancelled`, `offline.transport.failure`, `offline.transport.transient`, `offline.storage.*` |
 | `HonuaReplicaSyncError` | `offline.replica-sync.capability`, `offline.replica-sync.validation`, `offline.replica-sync.permission-denied`, `offline.transport.failure`, `offline.transport.transient` |
 | `HonuaPluginRegistryError` | `plugin.registry.validation`, `plugin.compatibility`, `plugin.execution.policy-denied`, `plugin.capability-unavailable`, `plugin.lifecycle.activation`, `plugin.execution.validation`, `plugin.lifecycle.cleanup`, `plugin.cancelled`, `plugin.internal` |
+| `HonuaAgentToolError` | `agent.tool.unknown-tool`, `agent.tool.missing-runtime`, `agent.tool.unqualified-selection`, `agent.tool.missing-runtime-method`, `agent.tool.internal` |
+| `HonuaAgentSafetyError` | `agent.safety.aborted`, `agent.safety.invalid-input`, `agent.safety.policy-denied`, `agent.safety.integrity-failed`, `agent.safety.approval-expired`, `agent.safety.context-mismatch`, `agent.safety.signature-invalid`, `agent.safety.execution-failed`, `agent.safety.audit-failed`, `agent.safety.receipt-failed` |
+| `HonuaAgentExecutionError` | `agent.safety.aborted`, `agent.safety.execution-failed`, `agent.safety.audit-failed`, `agent.safety.receipt-failed` (subset of `HonuaAgentSafetyError`'s family) |
+| `HonuaGeneratedAppError` | `app.unsupported-profile`, `app.unsupported-widget`, `app.missing-manifest`, `app.missing-manifest-artifact`, `app.missing-map-package`, `app.map-package-mismatch`, `app.missing-widget`, `app.missing-binding`, `app.map-load-failed`, `app.data-load-failed`, `app.render-failed`, `app.disposed` |
 
 `HonuaRealtimeResumeError.code` remains the existing detailed reason (for
 example, `invalid-checkpoint`, `sequence-gap`, `transport-gap`, or
@@ -6837,6 +6851,24 @@ fixed known `reasonCode`; it never emits manifests, plugin/configuration IDs,
 raw cause payloads, or cleanup payloads. Unknown runtime codes project to
 `plugin.internal` with `reasonCode: "PLUGIN_UNKNOWN"` without changing a valid
 string's local legacy `.code` or message.
+
+`HonuaAgentToolError.code` remains the existing free-form reason string;
+unrecognized runtime values project to `agent.tool.internal` without
+changing the local `.code` or message. `HonuaAgentSafetyError.code` and
+`HonuaAgentExecutionError.code` remain the existing fixed `AgentSafetyErrorCode`
+reasons, each mapped one-to-one to a registered `agent.safety.*` `sdkCode`, so
+no information is lost by the grouping and no additional context is needed.
+`HonuaGeneratedAppError.code`/`.stage`/`.detail` remain the existing values;
+`.detail` stays local-only (never serialized as envelope context) because it
+is an open, caller-supplied bag. None of the four agent-domain classes ever
+place a prompt, plan, tool argument/result, feature value, approval, receipt,
+credential, or query value in serialized context — `HonuaAgentToolError`
+serializes only the invoked tool name (one of ten fixed identifiers); the
+others serialize no context at all, relying solely on the fixed `sdkCode`
+classification. The signed `AgentExecutionReceiptV1` on
+`HonuaAgentExecutionError.receipt` is a local-only instance property, exactly
+like `.cause`, and is never copied into the envelope. Every agent/app
+classification is conservatively non-retryable.
 
 ### Individual code registry
 
@@ -6950,6 +6982,33 @@ string's local legacy `.code` or message.
 | `plugin.lifecycle.cleanup` | `plugin` | `internal` | no | Plugin lifecycle cleanup failed |
 | `plugin.cancelled` | `plugin` | `cancellation` | no | Plugin registration was cancelled |
 | `plugin.internal` | `plugin` | `internal` | no | Plugin registry internal failure |
+| `agent.tool.unknown-tool` | `agent` | `validation` | no | Requested agent tool name is not registered |
+| `agent.tool.missing-runtime` | `agent` | `validation` | no | Agent tool kit requires a runtime, controller, or generated-app runtime |
+| `agent.tool.unqualified-selection` | `agent` | `validation` | no | Agent tool selection target is not source-qualified |
+| `agent.tool.missing-runtime-method` | `agent` | `capability` | no | Adapted runtime does not implement the requested agent tool |
+| `agent.tool.internal` | `agent` | `internal` | no | Agent tool executor internal failure |
+| `agent.safety.aborted` | `agent` | `cancellation` | no | Agent safety operation was aborted |
+| `agent.safety.invalid-input` | `agent` | `validation` | no | Agent safety input is invalid |
+| `agent.safety.policy-denied` | `agent` | `capability` | no | Agent plan step was denied by host policy |
+| `agent.safety.integrity-failed` | `agent` | `protocol` | no | Agent safety evidence integrity verification failed |
+| `agent.safety.approval-expired` | `agent` | `authentication` | no | Agent step approval has expired |
+| `agent.safety.context-mismatch` | `agent` | `validation` | no | Agent execution context does not match the authorized plan |
+| `agent.safety.signature-invalid` | `agent` | `validation` | no | Agent approval or receipt signature is invalid |
+| `agent.safety.execution-failed` | `agent` | `internal` | no | Agent plan step execution failed |
+| `agent.safety.audit-failed` | `agent` | `internal` | no | Agent execution audit record could not be appended |
+| `agent.safety.receipt-failed` | `agent` | `internal` | no | Agent execution receipt could not be issued or verified |
+| `app.unsupported-profile` | `app` | `capability` | no | Generated app profile is not supported |
+| `app.unsupported-widget` | `app` | `capability` | no | Generated app widget kind is not supported |
+| `app.missing-manifest` | `app` | `validation` | no | Generated app manifest or app package is missing |
+| `app.missing-manifest-artifact` | `app` | `validation` | no | Generated app manifest artifact is missing |
+| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a MapPackage |
+| `app.map-package-mismatch` | `app` | `validation` | no | Generated app MapPackage does not match its manifest |
+| `app.missing-widget` | `app` | `validation` | no | Generated app manifest is missing a required widget |
+| `app.missing-binding` | `app` | `validation` | no | Generated app runtime is missing a required binding |
+| `app.map-load-failed` | `app` | `internal` | no | Generated app map widget failed to load |
+| `app.data-load-failed` | `app` | `internal` | no | Generated app feature data failed to load |
+| `app.render-failed` | `app` | `internal` | no | Generated app render failed |
+| `app.disposed` | `app` | `validation` | no | Generated app runtime is disposed |
 <!-- error-code-registry:end -->
 
 ## Narrowing in `catch`
@@ -7002,6 +7061,9 @@ subset of these errors when configured:
 | `HonuaGeometryError` | **No** — input must be corrected |
 | `HonuaWfsExceptionError` | **No** — caller bug |
 | `HonuaExplorationContextError` | **No** — state bug |
+| `HonuaAgentToolError` | **No** — caller/config bug |
+| `HonuaAgentSafetyError` / `HonuaAgentExecutionError` | **No automatic retry** — every agent-safety classification is conservatively non-retryable; the host must correct plan/policy/approval input or re-request approval explicitly. |
+| `HonuaGeneratedAppError` | **No automatic retry** — manifest/projection/load/render diagnostics are surfaced for the embedder to correct or retry explicitly. |
 
 ## Capability policy
 
