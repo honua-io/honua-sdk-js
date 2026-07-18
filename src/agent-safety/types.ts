@@ -1,4 +1,5 @@
 import type { Capability, Protocol } from "../contract/index.js";
+import { type HonuaErrorCode, HonuaSdkError } from "../core/error-envelope.js";
 import type { JsonValue } from "../query-planner/index.js";
 
 export const AGENT_PLAN_KIND = "honua.agent-plan" as const;
@@ -416,16 +417,48 @@ export type AgentSafetyErrorCode =
   | "audit-failed"
   | "receipt-failed";
 
-export class HonuaAgentSafetyError extends Error {
+/**
+ * `AgentSafetyErrorCode` maps one-to-one onto a registered `agent.safety.*`
+ * `sdkCode`, so the code already fully classifies the failure — no
+ * additional context is placed in the envelope.
+ */
+const AGENT_SAFETY_ERROR_SDK_CODES = {
+  aborted: "agent.safety.aborted",
+  "invalid-input": "agent.safety.invalid-input",
+  "policy-denied": "agent.safety.policy-denied",
+  "integrity-failed": "agent.safety.integrity-failed",
+  "approval-expired": "agent.safety.approval-expired",
+  "context-mismatch": "agent.safety.context-mismatch",
+  "signature-invalid": "agent.safety.signature-invalid",
+  "execution-failed": "agent.safety.execution-failed",
+  "audit-failed": "agent.safety.audit-failed",
+  "receipt-failed": "agent.safety.receipt-failed",
+} as const satisfies Readonly<Record<AgentSafetyErrorCode, HonuaErrorCode>>;
+
+/**
+ * Tagged agent-safety failure. Participates in the shared SDK error envelope
+ * (`isHonuaError`, `serializeHonuaError`) while preserving the legacy `.code`
+ * reason and message. No plan, policy, approval, evidence, or receipt
+ * payload is ever placed in serialized context — the fixed `AgentSafetyErrorCode`
+ * value already fully classifies the failure via `sdkCode`.
+ */
+export class HonuaAgentSafetyError extends HonuaSdkError {
   public constructor(
     public readonly code: AgentSafetyErrorCode,
     message: string,
   ) {
-    super(message);
+    super(AGENT_SAFETY_ERROR_SDK_CODES[code], message);
     this.name = "HonuaAgentSafetyError";
   }
 }
 
+/**
+ * Tagged agent plan-step execution failure. `.phase` and `.receipt` remain
+ * local-only instance properties — the signed {@link AgentExecutionReceiptV1}
+ * is never copied into the serialized envelope context (it is not a prompt,
+ * plan, or credential, but it is a structured payload the caller must
+ * consume directly, not through telemetry serialization).
+ */
 export class HonuaAgentExecutionError extends HonuaAgentSafetyError {
   public constructor(
     code: Extract<AgentSafetyErrorCode, "aborted" | "execution-failed" | "audit-failed" | "receipt-failed">,

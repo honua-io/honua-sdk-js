@@ -7,6 +7,8 @@
  * @module
  */
 
+import { type HonuaErrorCode, HonuaSdkError } from "../core/error-envelope.js";
+
 export type HonuaGeneratedAppErrorCode =
   | "unsupported-profile"
   | "unsupported-widget"
@@ -42,7 +44,42 @@ export interface HonuaGeneratedAppDiagnostic {
   readonly detail?: HonuaGeneratedAppErrorDetail;
 }
 
-export class HonuaGeneratedAppError extends Error {
+/**
+ * Legacy detailed reason codes mapped to registered `app.*` `sdkCode`
+ * values, one-to-one.
+ */
+const GENERATED_APP_ERROR_SDK_CODES = {
+  "unsupported-profile": "app.unsupported-profile",
+  "unsupported-widget": "app.unsupported-widget",
+  "missing-manifest": "app.missing-manifest",
+  "missing-manifest-artifact": "app.missing-manifest-artifact",
+  "missing-map-package": "app.missing-map-package",
+  "map-package-mismatch": "app.map-package-mismatch",
+  "missing-widget": "app.missing-widget",
+  "missing-binding": "app.missing-binding",
+  "map-load-failed": "app.map-load-failed",
+  "data-load-failed": "app.data-load-failed",
+  "render-failed": "app.render-failed",
+  disposed: "app.disposed",
+} as const satisfies Readonly<Record<HonuaGeneratedAppErrorCode, HonuaErrorCode>>;
+
+/**
+ * Tagged generated-app preview/runtime failure. Participates in the shared
+ * SDK error envelope (`isHonuaError`, `serializeHonuaError`) while
+ * preserving the legacy `.code`/`.stage`/`.detail`/`.cause` fields consumed
+ * by {@link toGeneratedAppDiagnostic}. `detail` is an open, caller-supplied
+ * bag (`expected`/`received`/etc.) and is deliberately kept local-only — it
+ * is never placed in the envelope's serialized `context`.
+ *
+ * The base `HonuaSdkError.toJSON()` (the redacted envelope projection) is
+ * inherited unchanged, so `JSON.stringify(error)` now returns the safe,
+ * sanitized `SerializedHonuaError` shape rather than the raw diagnostic
+ * (which could otherwise echo an unsanitized `detail`). Callers that need
+ * the legacy `{name, code, stage, message, detail}` diagnostic shape use
+ * {@link toGeneratedAppDiagnostic}, which reads the documented fields
+ * directly rather than relying on `toJSON()`.
+ */
+export class HonuaGeneratedAppError extends HonuaSdkError {
   public readonly code: HonuaGeneratedAppErrorCode;
   public readonly stage: HonuaGeneratedAppErrorStage;
   public readonly detail: HonuaGeneratedAppErrorDetail | undefined;
@@ -57,27 +94,25 @@ export class HonuaGeneratedAppError extends Error {
       readonly cause?: unknown;
     },
   ) {
-    super(message);
+    super(GENERATED_APP_ERROR_SDK_CODES[code], message, options.cause === undefined ? {} : { cause: options.cause });
     this.name = "HonuaGeneratedAppError";
     this.code = code;
     this.stage = options.stage;
     this.detail = options.detail;
     this.cause = options.cause;
   }
-
-  public toJSON(): HonuaGeneratedAppDiagnostic {
-    return {
-      name: "HonuaGeneratedAppError",
-      code: this.code,
-      stage: this.stage,
-      message: this.message,
-      ...(this.detail ? { detail: this.detail } : {}),
-    };
-  }
 }
 
 export function toGeneratedAppDiagnostic(error: unknown): HonuaGeneratedAppDiagnostic {
-  if (error instanceof HonuaGeneratedAppError) return error.toJSON();
+  if (error instanceof HonuaGeneratedAppError) {
+    return {
+      name: "HonuaGeneratedAppError",
+      code: error.code,
+      stage: error.stage,
+      message: error.message,
+      ...(error.detail ? { detail: error.detail } : {}),
+    };
+  }
   return {
     name: "HonuaGeneratedAppError",
     code: "render-failed",
