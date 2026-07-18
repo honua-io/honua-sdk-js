@@ -2174,5 +2174,24 @@
       "ownership": "sdk-projection",
       "sampleId": "imagery-cog-quickstart"
     }
-  ]
+  ],
+  "sampleBundles": {
+    "format": "honua.sdk.sample-bundles.v1",
+    "schemaVersion": 1,
+    "publication": {
+      "repo": "honua-io/honua-sdk-js",
+      "releaseTag": "sample-bundles-latest",
+      "manifestAsset": "sample-bundles.v1.json",
+      "bundleAsset": "sample-bundles.tar.gz"
+    },
+    "sampleIds": [
+      "maplibre-quickstart",
+      "migration-workbench",
+      "nl-map-control",
+      "pmtiles-static",
+      "sketch-editing",
+      "stac-imagery-browser",
+      "temporal-playback"
+    ]
+  }
 }

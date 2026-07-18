@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/sample-bundles.v1.schema.json",
+  "title": "Honua SDK sample browser bundle publication manifest v1",
+  "description": "Per-sample static browser bundle inventory published for the samples gallery to embed (honua-io/honua-sdk-js#642, completing honua-io/honua-sdk-js#401 REQ-003's publication leg).",
+  "type": "object",
+  "required": ["format", "schemaVersion", "build", "samples"],
+  "properties": {
+    "format": { "const": "honua.sdk.sample-bundles.v1" },
+    "schemaVersion": { "const": 1 },
+    "build": {
+      "type": "object",
+      "required": ["node", "lockfileSha256"],
+      "properties": {
+        "node": { "type": "string" },
+        "lockfileSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "samples": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/sample" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sample": {
+      "type": "object",
+      "required": ["id", "entrypoint", "dataMode", "configDefaults", "builtFrom", "files"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "entrypoint": { "type": "string", "minLength": 1 },
+        "dataMode": { "type": "string", "enum": ["fixture", "hybrid", "public-live", "live"] },
+        "configDefaults": {
+          "type": "object",
+          "description": "Declared browser-public config surface for this sample (samples/catalog.v2.json data.config). A null value means the build applied no override and the sample's own committed fixture-mode default (or scenario fallback) was used.",
+          "additionalProperties": { "type": ["string", "null"] }
+        },
+        "builtFrom": {
+          "type": "object",
+          "required": ["commit", "packageVersion"],
+          "properties": {
+            "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+            "packageVersion": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/file" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "file": {
+      "type": "object",
+      "required": ["path", "bytes", "sha256", "integrity", "mediaType"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "integrity": { "type": "string", "pattern": "^sha256-[A-Za-z0-9+/]+=*$" },
+        "mediaType": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}
