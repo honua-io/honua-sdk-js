@@ -24,6 +24,7 @@ import {
   type Query,
   type SourceId,
 } from "../contract/index.js";
+import { type HonuaErrorCode, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
 import type { HonuaExtent } from "../core/types.js";
 import {
   type FeatureSelectionTarget,
@@ -627,12 +628,45 @@ export const HONUA_AGENT_TOOL_DEFINITIONS: readonly HonuaAgentToolDefinition[] =
   },
 ] as const;
 
-export class HonuaAgentToolError extends Error {
+/**
+ * Legacy detailed reason codes mapped to registered `agent.tool.*` `sdkCode`
+ * values. Any other runtime string (defensively, since `.code` is typed
+ * `string` for legacy callers) projects to `agent.tool.internal` without
+ * changing the local `.code`/message.
+ */
+const AGENT_TOOL_ERROR_SDK_CODES = {
+  "unknown-tool": "agent.tool.unknown-tool",
+  "missing-runtime": "agent.tool.missing-runtime",
+  "unqualified-selection": "agent.tool.unqualified-selection",
+  "missing-runtime-method": "agent.tool.missing-runtime-method",
+} as const satisfies Readonly<Record<string, HonuaErrorCode>>;
+
+type KnownHonuaAgentToolErrorCode = keyof typeof AGENT_TOOL_ERROR_SDK_CODES;
+
+function isKnownAgentToolErrorCode(code: unknown): code is KnownHonuaAgentToolErrorCode {
+  return typeof code === "string" && Object.hasOwn(AGENT_TOOL_ERROR_SDK_CODES, code);
+}
+
+function agentToolSdkCode(code: unknown): HonuaErrorCode {
+  return isKnownAgentToolErrorCode(code) ? AGENT_TOOL_ERROR_SDK_CODES[code] : "agent.tool.internal";
+}
+
+/**
+ * Tagged agent-tools failure. Participates in the shared SDK error envelope
+ * (`isHonuaError`, `serializeHonuaError`) while preserving the legacy `.code`
+ * string and `.tool` name. Only the tool name — one of the ten fixed
+ * {@link HonuaAgentToolName} values — is ever placed in serialized context;
+ * no tool arguments, results, prompts, or runtime metadata cross the
+ * boundary.
+ */
+export class HonuaAgentToolError extends HonuaSdkError {
   public readonly code: string;
   public readonly tool: HonuaAgentToolName | undefined;
 
   public constructor(code: string, message: string, options: { readonly tool?: HonuaAgentToolName } = {}) {
-    super(message);
+    super(agentToolSdkCode(code), message, {
+      context: mergeHonuaErrorContext(options.tool ? { tool: options.tool } : undefined),
+    });
     this.name = "HonuaAgentToolError";
     this.code = code;
     this.tool = options.tool;
