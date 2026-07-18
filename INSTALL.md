@@ -62,9 +62,9 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection, bounded overview/window reads, and an opt-in viewport-driven MapLibre image source through caller-injected decoder/renderer peers; neither peer enters the root graph ([guide](./docs/cog.md)). |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
-| `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |
+| `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet/WMS/WMTS normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |
 | `@honua/sdk-js/source-capabilities` | SourceSchemaV2-bound static evidence/CRS validation plus lightweight claimed/observed/effective evaluation, current-source cache checks, bounded strict transport, and dynamic policy/peer/authorization gates; serialized caller data remains potentially sensitive ([guide](./docs/source-capabilities.md)). |
-| `@honua/sdk-js/source-capability-discovery` | Focused GeoServices/OData `connectWithSourceCapabilities()` integration with canonical descriptor replay binding and fresh policy/environment/peer/authorization evaluation. |
+| `@honua/sdk-js/source-capability-discovery` | Focused GeoServices/OData/WMS/WMTS `connectWithSourceCapabilities()` integration with canonical descriptor replay binding and fresh policy/environment/peer/authorization evaluation. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |

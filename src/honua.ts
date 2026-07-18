@@ -515,8 +515,21 @@ export type {
   HonuaOdataMetadata,
   HonuaOdataPage,
   HonuaOdataQueryParams,
+  HonuaOdataWriteRequestOptions,
   OdataSpatialFilterContext,
 } from "./core/odata.js";
+export {
+  HonuaOdataEdmEncodingError,
+  encodeOdataEntityKey,
+  encodeOdataWriteBody,
+} from "./core/odata-write-codec.js";
+export type {
+  HonuaOdataEdmEncodingErrorCode,
+  HonuaOdataEdmEncodingOptions,
+  HonuaOdataEncodedEntityKey,
+  HonuaOdataEncodedWriteBody,
+  HonuaOdataEntityKeyEncodingOptions,
+} from "./core/odata-write-codec.js";
 export {
   HonuaWfs,
   HonuaWfsFeatureType,
@@ -545,7 +558,9 @@ export type {
   WmsCapabilityBoundingBox,
   WmsCapabilityDimension,
   WmsCapabilityLayer,
+  WmsCapabilityOperation,
   WmsCapabilityStyle,
+  WmsOperationName,
 } from "./core/wms-capabilities.js";
 export {
   HonuaWmtsCapabilitiesParseError,
@@ -556,7 +571,9 @@ export {
 export type {
   WmtsCapabilities,
   WmtsCapabilitiesService,
+  WmtsCapabilityDimension,
   WmtsCapabilityLayer,
+  WmtsCapabilityOperation,
   WmtsCapabilityResourceUrl,
   WmtsCapabilityStyle,
   WmtsCapabilityTileMatrix,
@@ -955,9 +972,16 @@ export type {
   AnalyticsSourceDescriptor,
   AnalyticsSourceDescriptorBase,
   DiscoveryCacheIdentityOptions,
+  DiscoveryAxisOrderMetadata,
   DiscoveryCapabilityEvidence,
   DiscoveryCapabilityPolicy,
   DiscoveryCapabilityResolution,
+  DiscoveryDimensionMetadata,
+  DiscoveryOperationMetadata,
+  DiscoverySourceMetadata,
+  DiscoveryStyleMetadata,
+  DiscoveryTileMatrixMetadata,
+  DiscoveryTileMatrixSetMetadata,
   AnalyticsSourceFallbackMode,
   AnalyticsSourceFallbackPolicy,
   AnalyticsSourceKind,
@@ -1033,9 +1057,12 @@ export type {
   JobSnapshotListener,
   JobStatus,
   MapBinding,
+  OdataSourceOptions,
+  OdataWriteEncoding,
   PaginationSpec,
   Protocol,
   Query,
+  RasterRequestBinding,
   QueryTileCacheIdentityDescriptor,
   QueryTileCacheKeyOptions,
   QueryTileCachePolicy,

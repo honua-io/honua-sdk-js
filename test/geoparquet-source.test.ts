@@ -14,6 +14,7 @@ import { createNodeDuckDbDriver } from "./helpers/geoparquet-node-driver.mjs";
 
 const GEOPARQUET_URL = "places-geoparquet.parquet";
 const WKB_URL = "places-wkb-nometa.parquet";
+const LOSSLESS_URL = "lossless-values.parquet";
 
 function fixtureBytes(name: string): Uint8Array {
   return new Uint8Array(readFileSync(fileURLToPath(new URL(`./fixtures/geoparquet/${name}`, import.meta.url))));
@@ -23,6 +24,7 @@ async function makeRuntime(): Promise<GeoparquetRuntime> {
   const runtime = new GeoparquetRuntime({ driverFactory: createNodeDuckDbDriver });
   await runtime.registerFileBuffer(GEOPARQUET_URL, fixtureBytes("places-geoparquet.parquet"));
   await runtime.registerFileBuffer(WKB_URL, fixtureBytes("places-wkb-nometa.parquet"));
+  await runtime.registerFileBuffer(LOSSLESS_URL, fixtureBytes("lossless-values.parquet"));
   return runtime;
 }
 
@@ -145,6 +147,57 @@ describe("geoparquet Source — real DuckDB-WASM against fixtures", () => {
     const pages: number[] = [];
     for await (const page of source.stream({})) pages.push(page.features.length);
     expect(pages).toEqual([8]);
+  });
+
+  it("returns exact JSON-safe values and real DuckDB widened aggregates", async () => {
+    const source = geoparquetSource(descriptor("lossless-real", LOSSLESS_URL), {
+      runtime,
+      resultEncoding: "lossless-json",
+    });
+    const result = await source.query({ returnGeometry: false, pagination: { limit: 1 } });
+    expect(result.features[0]?.attributes).toEqual({
+      group_key: "9007199254740993",
+      int_value: 2147483647,
+      big_value: "9223372036854775807",
+      unsigned_value: "18446744073709551615",
+      amount: "123456789012345.67890",
+      event_date: "2026-07-15",
+      event_time: "12:34:56.123456",
+      event_ts: "2026-07-15T12:34:56.123456789",
+      event_tz: "2026-07-15T07:04:56.123456Z",
+      payload: "AP+A",
+      nested: {
+        ids: ["9007199254740993", "9223372036854775807"],
+        amount: "0.00001",
+      },
+      fixed_ids: ["9007199254740993", "9223372036854775807"],
+      measures: [{ key: "9007199254740993", value: "1.23" }],
+    });
+    expect(() => JSON.stringify(result)).not.toThrow();
+
+    const aggregate = await source.queryAggregate({
+      aggregation: {
+        groupBy: ["group_key"],
+        metrics: [
+          { fn: "count", field: "*", alias: "n" },
+          { fn: "sum", field: "int_value", alias: "int_sum" },
+          { fn: "sum", field: "big_value", alias: "big_sum" },
+          { fn: "sum", field: "unsigned_value", alias: "unsigned_sum" },
+          { fn: "sum", field: "amount", alias: "amount_sum" },
+        ],
+      },
+    });
+    expect(aggregate.aggregateRows).toEqual([
+      {
+        group_key: "9007199254740993",
+        n: "2",
+        int_sum: "4294967294",
+        big_sum: "18446744073709551614",
+        unsigned_sum: "36893488147419103230",
+        amount_sum: "246913578024691.35780",
+      },
+    ]);
+    expect(() => JSON.stringify(aggregate)).not.toThrow();
   });
 });
 

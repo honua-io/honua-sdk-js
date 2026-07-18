@@ -1,6 +1,7 @@
 /** Internal dual-read normalizers for the experimental source-schema v2 rollout. */
 
 import type { GeoParquetGeometryPlan, GeoParquetSourceProfile } from "./connect-geoparquet.js";
+import type { DiscoverySourceMetadata } from "./contract/discovery.js";
 import {
   type AxisOrder,
   type CrsBinding,
@@ -47,6 +48,46 @@ const MAX_CODED_DOMAIN_VALUES = 10_000;
 // root type, leaving 31 safe recursive adapter steps.
 const MAX_DISCOVERED_TYPE_DEPTH = 31;
 const SUPPORTED_CSDL_VERSIONS = new Set(["4.0", "4.01"]);
+
+/** Normalize a WMS layer whose feature-field inventory is not advertised. */
+export function wmsSourceSchemaV2(
+  metadata: DiscoverySourceMetadata,
+  context: Omit<SchemaNormalizationContext, "protocol">,
+): SourceSchemaV2 {
+  return rasterServiceSourceSchemaV2("wms", metadata, context, true);
+}
+
+/** Normalize a render/tile-only WMTS layer as an observed zero-field schema. */
+export function wmtsSourceSchemaV2(
+  metadata: DiscoverySourceMetadata,
+  context: Omit<SchemaNormalizationContext, "protocol">,
+): SourceSchemaV2 {
+  return rasterServiceSourceSchemaV2("wmts", metadata, context, false);
+}
+
+function rasterServiceSourceSchemaV2(
+  protocol: "wms" | "wmts",
+  metadata: DiscoverySourceMetadata,
+  context: Omit<SchemaNormalizationContext, "protocol">,
+  mayReturnFeatures: boolean,
+): SourceSchemaV2 {
+  return createSourceSchemaV2({
+    fields: [],
+    key: { state: "none" },
+    geometry: mayReturnFeatures
+      ? {
+          state: "unknown",
+          reason: "metadata-unavailable",
+          native: nativeReference(protocol, "capabilities-layer", ["Layer"], {
+            protocolVersion: metadata.protocolVersion ?? "unknown",
+          }),
+        }
+      : { state: "none", reason: "no-geometry-fields" },
+    temporal: { state: "none" },
+    openContent: mayReturnFeatures ? "unknown" : "closed",
+    provenance: [provenance({ ...context, protocol })],
+  });
+}
 
 export interface SchemaNormalizationContext {
   readonly protocol: SourceProtocol;

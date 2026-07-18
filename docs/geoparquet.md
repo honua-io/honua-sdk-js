@@ -79,6 +79,63 @@ await geoparquet.dispose();
 You can also construct a source directly with `geoparquetSource(descriptor,
 { runtime })` if you are not using `createDataset`.
 
+## Lossless JSON results
+
+GeoParquet keeps its historical result behavior by default: DuckDB `bigint`
+values are converted to JavaScript `number`. Applications that need exact,
+portable JSON can opt in for a source directly or for every source built by a
+resolver:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+const geoparquet = geoparquetResolver({ resultEncoding: "lossless-json" });
+
+// Equivalent direct-source option:
+const source = geoparquetSource(descriptor, {
+  runtime,
+  resultEncoding: "lossless-json",
+});
+```
+
+The opt-in applies consistently to `query()`, `queryAll()`, `stream()`, and
+`queryAggregate()`:
+
+| Effective DuckDB type | JSON-safe value |
+| --- | --- |
+| `BIGINT`, `UBIGINT`, `HUGEINT`, `UHUGEINT` | exact canonical decimal string |
+| `DECIMAL` / `NUMERIC` | exact fixed-scale decimal string |
+| `DATE`, `TIME`, `TIMESTAMP*` | deterministic ISO-style string at the declared precision |
+| `BLOB`, `BINARY`, `VARBINARY`, `BYTEA` | padded standard base64 string |
+| `LIST`, `ARRAY`, `STRUCT`, `MAP` | recursively normalized JSON arrays/objects (`MAP` is an array of `{ key, value }`) |
+| safe integers, finite floating point, booleans, text, null | native JSON scalar |
+
+Aggregate decoding uses DuckDB's **output** types, not its input column types:
+`count` is `BIGINT`, integer `sum` through `UBIGINT` is `HUGEINT`, decimal
+`sum` is `DECIMAL(38, scale)`, and grouped keys retain their source types.
+DuckDB's `sum(UHUGEINT)` exception is a `DOUBLE` and is decoded as that
+effective result type. Consequently, exact counts and exact widened sums are
+strings in lossless mode, even when their current values happen to fit in a
+JavaScript safe integer.
+
+The source casts exact root scalars to text in an outer projection over the
+already-compiled query. This prevents Arrow from rounding a value first and
+does not add another `read_parquet` scan. Nested Arrow values are decoded at a
+bounded, accessor-free boundary; ambiguous wrappers, unsafe numbers, cycles,
+or excessive depth/width throw `DuckDbLosslessDecodeError` instead of silently
+changing data. The bounded compiled-decoder cache is tied to both the effective
+`DESCRIBE` profile and the optional `SourceSchemaV2` fingerprint and is cleared
+when either identity changes. `Query.signal` is checked around profile, query,
+batch, and row decoding boundaries; aborting one caller stops its wait without
+cancelling a shared profile build needed by other sources.
+
+Lossless mode guarantees that `JSON.stringify(result)` does not encounter a
+`bigint`, typed array, `Map`, or `Date`. It does not change geometry output or
+the raw `source.protocol("geoparquet").sql(...)` escape hatch. Opaque query-plan
+execution does not currently carry the effective DuckDB field types needed for
+lossless decoding. A source configured for lossless results therefore rejects
+that internal path with `GEOPARQUET_LOSSLESS_SCHEMA_REQUIRED` before executing
+the resolved relation instead of silently returning legacy, precision-losing
+values.
+
 ## How the Query compiles to SQL
 
 | `Query` field | DuckDB SQL |
@@ -226,5 +283,7 @@ materialization.
 ## Regenerating the test fixtures
 
 The tiny committed fixtures under `test/fixtures/geoparquet/` are produced by
-`npm run geoparquet:fixtures` (which drives DuckDB-WASM's Node bindings). Only
-run it when the fixture schema changes.
+`npm run geoparquet:fixtures` (which drives DuckDB-WASM's Node bindings). They
+include the two spatial fixture styles plus exact wide integer, decimal,
+temporal, binary, and nested values. Only run the generator when a fixture
+schema changes.

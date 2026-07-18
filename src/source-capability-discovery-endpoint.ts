@@ -4,7 +4,12 @@ import { normalizeCapabilitySourceEndpoint } from "./source-capability-endpoint.
 import type { CapabilitySourceEndpointIdentity } from "./source-capability-types.js";
 
 /** Protocols whose descriptor-to-endpoint replay binding is certified by capability discovery. */
-export type CapabilityDiscoveryProtocol = "geoservices-feature-service" | "geoservices-map-service" | "odata";
+export type CapabilityDiscoveryProtocol =
+  | "geoservices-feature-service"
+  | "geoservices-map-service"
+  | "odata"
+  | "wms"
+  | "wmts";
 
 /**
  * Reconstruct the smallest credential-free source endpoint from one resolved
@@ -35,9 +40,27 @@ export function sourceCapabilityEndpointIdentity(
       sourceId: descriptor.id,
     });
   }
+  if (protocol === "wms" || protocol === "wmts") {
+    const layer = requiredRasterLayer(locator.typeName, protocol);
+    if (descriptor.id !== layer) {
+      throw new TypeError(`${protocol.toUpperCase()} descriptor.id must match locator.typeName`);
+    }
+    return endpointIdentity({
+      endpoint: requiredEndpoint(locator.url),
+      protocol,
+      sourceId: layer,
+    });
+  }
   throw new TypeError(
     `Capability discovery endpoint binding is not certified for protocol "${String(protocol)}"; use the protocol rollout issue for that adapter.`,
   );
+}
+
+function requiredRasterLayer(value: unknown, protocol: "wms" | "wmts"): string {
+  if (typeof value !== "string" || value.length === 0 || value.trim() !== value) {
+    throw new TypeError(`${protocol.toUpperCase()} locator.typeName must be a non-empty trimmed layer identifier`);
+  }
+  return value;
 }
 
 function canonicalOdataEntityEndpoint(rawEndpoint: string, entityPath: readonly string[]): string {

@@ -67,7 +67,7 @@ unsupported-capability, and degraded-result scenarios.
 | `Protocol` | One of twenty identifiers — shared canonical gRPC FeatureService transport (`grpc`), five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), OGC API + STAC adapters (`ogc-features`, `ogc-tiles`, `ogc-maps`, `ogc-records`, `stac`), `wfs`, `wms`, `wmts`, `odata`, static-data adapters (`pmtiles`, `geoparquet`), plus three MapLibre-native sources (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
 | `Capability` | A coarse-grained per-source operation capability (`query`, `queryAggregate`, `spatialAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `image`, `geometry`, `geoprocess`, `processes`). The canonical `Source` surface standardizes the query / edit / related / attachment / object-id subset today; `spatialAggregate`, `image` / `geometry` / `geoprocess` / `processes` are negotiated for indexed analytics, `Source.protocol()` escape hatches, and for the `IJobRun`-based OGC API Processes runner because their request shapes are too protocol-specific to belong on the unified query envelope. Top-level `connect()` is product discovery, not an operation on one `Source`, and is tracked as a `discovery` support claim instead. |
 | `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party protocol support, whether the caller consumes it through a canonical `Source` method or the typed protocol escape hatch. Under `strict` (default) a missing capability throws `HonuaCapabilityNotSupportedError`. Under `degraded` only call sites with a defined fallback proceed (today: OGC `queryAggregate` and `queryExtent`); every other missing capability still throws. |
-| `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `tileMatrixSetId`, `styleId`, `typeName`, `entitySet`, `taskName`). Field-compatible with the server `SourceBinding.locator`; `tileMatrixSetId` / `styleId` carry OGC API Tiles / Maps route hints for downstream `SourceBinding` work tracked in [`source-binding-alignment.md`](./source-binding-alignment.md). |
+| `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `tileMatrixSetId`, `styleId`, `typeName`, `entitySet`, `taskName`, and an optional reviewed WMS/WMTS `raster` binding). It is a superset of the server `SourceBinding.locator`; additive route and binding hints are tracked in [`source-binding-alignment.md`](./source-binding-alignment.md). |
 | `SourceDescriptor` | `{ id, protocol, locator, capabilities, schema?, attribution? }`. The serializable identity of one source. |
 | `Source<T>` | Runtime handle. Methods: `query`, `queryAll`, `queryAggregate`, `queryExtent`, `stream`, `queryObjectIds`, `applyEdits`, `queryRelated`, `attachments` (namespace), `protocol` (typed escape hatch; `adapter` is the legacy alias). |
 | `Dataset` | Logical grouping of sources sharing identity. Methods: `source(id)`, `sourceIds()`, `isCompatible()`, `supportsFeature()`. |
@@ -208,12 +208,15 @@ The OGC API and STAC factories cover `docs/ogc-api.md`:
 The WMS / WMTS factories cover the OGC web-map services per
 `docs/protocol-capability-matrix.md`:
 
-- `wmsSource` — WMS 1.3.0 (render + tiles via `GetMap`; `query` via
-  point-only `GetFeatureInfo`; raw multi-pixel `featureInfo()` and the
+- `wmsSource` — WMS 1.3.0 (render + tiles via `GetMap`; canonical Honua
+  service bindings may expose point-only `GetFeatureInfo` query; raw
+  third-party discovery remains render-only and uses its reviewed
+  `locator.raster` GetMap URL; raw multi-pixel `featureInfo()` and the
   per-layer service handles reachable via
   `Source.protocol("wms" | "wms-layer")`).
-- `wmtsSource` — WMTS 1.0.0 (render + tiles via RESTful tiles; query
-  family throws; service / layer / tileset handles reachable via
+- `wmtsSource` — WMTS 1.0.0 (render + tiles through a reviewed ResourceURL
+  or KVP binding for raw discovery, or canonical RESTful tiles for Honua
+  descriptors; query family throws; service / layer / tileset handles reachable via
   `Source.protocol("wmts" | "wmts-layer" | "wmts-tileset")`).
 
 `docs/wfs.md` documents the WFS 2.0 factory in the same shape:

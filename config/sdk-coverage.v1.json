@@ -450,10 +450,13 @@
       "status": "covered",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "connect(), Source (protocol: \"wms\")"
+        "@honua/sdk-js/map",
+        "Source descriptor",
+        "connect()"
       ],
       "evidence": [
-        "test/contract/wms.test.ts"
+        "test/connect-wms-wmts.test.ts",
+        "test/raster-source-strategy.test.ts"
       ],
       "source": "support-manifest"
     },
@@ -462,10 +465,13 @@
       "status": "covered",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "connect(), Source (protocol: \"wmts\")"
+        "@honua/sdk-js/map",
+        "Source descriptor",
+        "connect()"
       ],
       "evidence": [
-        "test/contract/wmts.test.ts"
+        "test/connect-wms-wmts.test.ts",
+        "test/raster-source-strategy.test.ts"
       ],
       "source": "support-manifest"
     },
