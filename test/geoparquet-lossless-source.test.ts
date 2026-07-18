@@ -325,6 +325,36 @@ describe("GeoParquet lossless-json source wiring", () => {
     await h.runtime.dispose();
   });
 
+  it("fails closed without invoking caller-supplied schema accessors (#627)", async () => {
+    const h = harness({ query: () => [LOSSLESS_FEATURE_ROW] });
+    const source = geoparquetSource(descriptor(), { runtime: h.runtime, resultEncoding: "lossless-json" });
+    const handle = source.protocol("geoparquet")!;
+    let getterInvocations = 0;
+    const hostileField = Object.defineProperty({ type: "INTEGER" }, "name", {
+      enumerable: true,
+      get() {
+        getterInvocations += 1;
+        throw new Error("accessor side effect escaped the fail-closed boundary");
+      },
+    });
+    await expect(
+      handle.executeResolvedQuery({
+        sources: ["resolved-lossless.parquet"],
+        operation: "query",
+        query: { returnGeometry: false },
+        sourceId: "resolved-lossless",
+        effectiveSchema: [hostileField] as never,
+      }),
+    ).rejects.toMatchObject({
+      code: "GEOPARQUET_LOSSLESS_SCHEMA_REQUIRED",
+      path: "$.resolvedQuery",
+      declaredType: "EFFECTIVE_SCHEMA",
+    });
+    expect(getterInvocations).toBe(0);
+    expect(h.scans).toEqual([]);
+    await h.runtime.dispose();
+  });
+
   it("preserves the profiled outFields error taxonomy for a bound effective schema that omits a requested field (#627)", async () => {
     const h = harness({ query: () => [LOSSLESS_FEATURE_ROW] });
     const source = geoparquetSource(descriptor(), { runtime: h.runtime, resultEncoding: "lossless-json" });

@@ -596,9 +596,24 @@ function requireEffectiveSchema(value: readonly SourceProfileField[] | undefined
   const names = new Set<string>();
   for (const entry of value) {
     if (entry === null || typeof entry !== "object" || Array.isArray(entry)) resolvedSchemaRequired();
-    const name = (entry as { readonly name?: unknown }).name;
-    const type = (entry as { readonly type?: unknown }).type;
-    const nullable = (entry as { readonly nullable?: unknown }).nullable;
+    // Read only own data-property values via descriptors so a caller-supplied
+    // accessor cannot execute a getter (throwing or side-effecting) at this
+    // fail-closed boundary before validation returns the fixed error.
+    const nameDesc = Object.getOwnPropertyDescriptor(entry, "name");
+    const typeDesc = Object.getOwnPropertyDescriptor(entry, "type");
+    const nullableDesc = Object.getOwnPropertyDescriptor(entry, "nullable");
+    if (
+      nameDesc === undefined ||
+      !("value" in nameDesc) ||
+      typeDesc === undefined ||
+      !("value" in typeDesc) ||
+      (nullableDesc !== undefined && !("value" in nullableDesc))
+    ) {
+      resolvedSchemaRequired();
+    }
+    const name: unknown = nameDesc.value;
+    const type: unknown = typeDesc.value;
+    const nullable: unknown = nullableDesc?.value;
     if (
       typeof name !== "string" ||
       name.length === 0 ||
