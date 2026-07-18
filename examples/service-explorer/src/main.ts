@@ -1,6 +1,12 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { type ConnectProtocolHint, type Result, executeQueryPlan, isHonuaError } from "@honua/sdk-js";
+import {
+  type ConnectProtocolHint,
+  type QueryExecutionPlanV1,
+  type Result,
+  executeQueryPlan,
+  isHonuaError,
+} from "@honua/sdk-js";
 import { type AutomaticMapLibrePlan, projectSourceToMapLibre } from "@honua/sdk-js/map";
 import maplibregl from "maplibre-gl";
 
@@ -426,12 +432,20 @@ function refreshOperationProjection(): void {
   updateGeneratedCode(generatedOperation);
 }
 
+function formatCacheDecision(cache: QueryExecutionPlanV1["cache"] | undefined): string {
+  if (!cache) return "not accepted";
+  return `${cache.action} · ${cache.reason}`;
+}
+
 function renderQueryPlan(projection: ServiceExplorerOperationProjection): void {
   const plan = projection.queryPlan;
   setText("#plan-id", plan?.id ?? projection.renderPlan?.id ?? "not accepted");
   setText("#plan-pushdown", plan?.pushdown ?? "not applicable");
   setText("#plan-fidelity", plan?.fidelity ?? projection.renderPlan?.selected?.fidelity ?? "not accepted");
-  setText("#plan-cache", plan?.cache ?? projection.renderPlan?.cache ?? "not accepted");
+  setText(
+    "#plan-cache",
+    plan?.cache ? formatCacheDecision(plan.cache) : (projection.renderPlan?.cache ?? "not accepted"),
+  );
   setText(
     "#plan-residual",
     plan?.steps.some((step) => step.engine === "client") ? "bounded client step" : plan ? "none" : "not accepted",

@@ -24,7 +24,11 @@ describe("Service Explorer accepted-operation projection", () => {
     );
 
     expect(projection.actions.query).toMatchObject({ enabled: true, code: "planner.accepted" });
-    expect(projection.queryPlan).toMatchObject({ pushdown: "full", fidelity: "exact", cache: "bypass" });
+    expect(projection.queryPlan).toMatchObject({
+      pushdown: "full",
+      fidelity: "exact",
+      cache: { action: "bypass", policy: "bypass", reason: "policy-bypass" },
+    });
     expect(projection.actions.render).toMatchObject({ enabled: true, code: "map-planner.accepted" });
     expect(projection.renderPlan?.selected?.strategy).toBe("geojson-query");
   });

@@ -890,7 +890,7 @@ function fixtureConnection(options: {
   const dispose = vi.fn(async () => undefined);
   const sourceDescriptors = options.sources.map((source) => source.descriptor);
   const dataset = { id: `dataset-${options.protocol}` } as Dataset;
-  const connection = {
+  const connection: HonuaKernelConnection = {
     id: inspection.id,
     dataset,
     sourceDescriptors,
@@ -898,9 +898,18 @@ function fixtureConnection(options: {
     source: vi.fn((_id?: string) => {
       throw new Error("Fixture source execution is outside S1.");
     }) as unknown as <T = Record<string, unknown>>(id?: string) => Source<T>,
+    explain: vi.fn(() => {
+      throw new Error("Fixture explain execution is outside S1.");
+    }) as unknown as HonuaKernelConnection["explain"],
+    query: vi.fn(() => {
+      throw new Error("Fixture query execution is outside S1.");
+    }) as unknown as HonuaKernelConnection["query"],
+    mount: vi.fn(() => {
+      throw new Error("Fixture mount execution is outside S1.");
+    }) as unknown as HonuaKernelConnection["mount"],
     dispose,
     [Symbol.asyncDispose]: dispose,
-  } satisfies HonuaKernelConnection;
+  };
   return { connection, dispose };
 }
 
