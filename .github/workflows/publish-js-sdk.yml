@@ -22,6 +22,11 @@ on:
     tags:
       - "js-sdk-*"
 
+# Restrictive top-level default (Scorecard Token-Permissions); the publish
+# job below grants the extra id-token:write scope trusted publishing needs.
+permissions:
+  contents: read
+
 jobs:
   publish-js-packages:
     runs-on: ubuntu-latest
@@ -58,8 +63,25 @@ jobs:
 
       - name: Upgrade npm for trusted publishing
         # Node 20 bundles npm 10; the OIDC credential exchange needs npm >= 11.5.
+        # The tarball's sha512 integrity hash (from the registry's own
+        # dist.integrity field, recorded when this workflow was authored) is
+        # pinned here and verified before install, so a re-published or
+        # tampered registry artifact for the same version can't install
+        # silently (mirrors SHA-pinning `uses:` actions elsewhere in CI).
         run: |
-          npm install -g npm@11.18.0
+          set -euo pipefail
+          npm_pkg="npm@11.18.0"
+          npm_expected_sha512="T67M4L5wNm0cZ7EBLErcEkY1SmzEW/WJ+SADBzsFUY1UdAPfFHXFQtZ6SEXiK0+vzXysCvAsepbMaBTwnrAD+w=="
+          npm_tarball_url="$(npm view "$npm_pkg" dist.tarball)"
+          npm_tarball_path="$(mktemp -t npm-pinned-XXXXXX.tgz)"
+          curl -fsSL -o "$npm_tarball_path" "$npm_tarball_url"
+          npm_actual_sha512="$(openssl dgst -sha512 -binary "$npm_tarball_path" | openssl base64 -A)"
+          if [[ "$npm_actual_sha512" != "$npm_expected_sha512" ]]; then
+            echo "::error::${npm_pkg} tarball sha512 mismatch: expected ${npm_expected_sha512}, got ${npm_actual_sha512}"
+            exit 1
+          fi
+          npm install -g "$npm_tarball_path"
+          rm -f "$npm_tarball_path"
           npm --version
 
       - name: Install dependencies

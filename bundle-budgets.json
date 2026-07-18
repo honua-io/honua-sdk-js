@@ -1,227 +1,228 @@
 {
-  "$comment": [
-    "Per-entrypoint bundle-size budgets for @honua/sdk-js (issue #350).",
-    "Each budget is a hard byte ceiling for a single public entrypoint bundled the",
-    "way a real consumer would build it: esbuild --bundle --minify, target es2020,",
-    "runtime peers (maplibre-gl, cesium, @bufbuild/*, @connectrpc/*) kept external.",
-    "'min' is the minified byte size; 'gzip' is the gzip-compressed byte size.",
-    "",
-    "HEADROOM POLICY: budgets are set to the measured current size + ~10% headroom",
-    "(ceil(actual * 1.1)). The 10% absorbs normal churn without hiding real bloat.",
-    "When a legitimate change pushes an entry over budget, re-run",
-    "'npm run report:bundle-sizes' to refresh docs/bundle-sizes.md, then RESET that",
-    "entry's budget to the new actual + ~10% in the SAME PR (never widen silently).",
-    "'npm run verify:bundle-budgets' is the CI gate; it fails on any exceedance with",
-    "a per-entry delta table.",
-    "",
-    "'tree-shake:HonuaClient' is a deep-import-hygiene guard: a fixture importing ONLY",
-    "{ HonuaClient } from the root entry must stay under its ceiling, proving a single",
-    "symbol does not drag the whole SDK into a consumer bundle.",
-    "/source-schema is the focused experimental SourceSchemaV2 runtime, including the pinned PROJJSON validator. 'tree-shake:root-connect' proves default root discovery does not retain that validation stack. Both ceilings are measured actual plus ~10% headroom.",
-    "/geoparquet was reset for bounded GeoParquet 1.0/1.1 projection validation (exact versions, geometry types, bbox, epoch, and covering checks): 22,092 minified / 7,889 gzip bytes. /map's gzip ceiling was reset after the lightweight structural SourceSchemaV2 envelope check reached its shared discovery path: 42,656 gzip bytes. Ceilings are measured actual plus ~10% headroom; root, /honua, browser, /contract, and /query-planner ceilings remain unchanged.",
-    "/react and /geometry landed with the adoption-wave-1 bundle (issues #349/#351). /esri-compat's budget was reset for the geometryEngine shim's turf/proj4 backing; 'tree-shake:esri-compat-FeatureLayerCompat' guards that compat consumers who never touch geometryEngine keep paying only the pre-shim cost. 'tree-shake:geometry-buffer' is intentionally large: @turf/buffer carries a JSTS port (~66 KiB gzip); light ops like area() shake down to ~1 KiB.",
-    "/map was reset for the accepted-plan source workflow (#390): 62.6 to 79.5 KiB min and 16.2 to 21.8 KiB gzip after removing the generic aggregate executor. Keeping the adapter on /map preserves the canonical endpoint-to-map import; 'tree-shake:map-source-workflow' isolates its 17.1 KiB min / 6.4 KiB gzip consumer cost.",
-    "/contract gzip was reset for credential-safe discovery (#391): provider-aware Azure SAS, CloudFront, AWS, and GCS signed-URL normalization plus runtime evidence-kind validation. The measured 61,493 bytes gzip is budgeted at 67,643 bytes per the 10% headroom policy.",
-    "/realtime gained its first dedicated guard with the resumable checkpoint kernel (#393); its trust-boundary hardening adds runtime event validation and credential-free envelope projection. The ceiling is the measured subpath bundle plus 10% headroom.",
-    "/offline is a subpath-only experimental contract (#396), keeping the root/browser bundle unchanged while its dedicated budget guards deterministic manifest and download-coordinator growth.",
-    "/query-planner gained its first dedicated guard with the bounded columnar worker session (#453); browser/Node worker implementations and heavy analytics peers remain injected, while the full planner plus worker protocol is measured with 10% headroom.",
-    "/query-planner was reset for the DuckDB SQL and gRPC query compilers plus spatial-aggregation pushdown (#389): the DuckDB compiler reuses the dependency-free geoparquet-sql builder so planner and adapter emit identical SQL. Measured 75,024 minified / 22,254 gzip; the ceiling is actual plus ~10% headroom.",
-    "/agent-safety was reset again for binding safety authorization to accepted-plan and discovery evidence (#468): derived accepted-evidence gating over the approved execution/audit boundary (#456) measures 51,401 minified / 14,693 gzip bytes; each ceiling is actual plus 10% headroom and the code remains out of root barrels.",
-    "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
-    "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
-    "/plugin gained its first dedicated guard with the application-local lifecycle (#455): certification, deterministic dependency ordering, transactional rollback, scoped service wrappers, and immutable diagnostics measure 35,329 minified / 11,814 gzip bytes; the ceiling is measured actual plus 10% headroom.",
-    "/plugin was reset for the behavioral-conformance kit, signed-report verification, and support-status program (#392): the deterministic conformance harness, report digest re-verification, and supportStatus validation measure 40,714 minified / 13,410 gzip bytes; the ceiling is measured actual plus ~10% headroom.",
-    "/scene-workspace guards renderer-neutral shared state while MapLibre and Cesium stay external optional peers.",
-    "/contract min was reset for edit-sketch snapping (#491): the renderer-neutral SnapIndex packed grid, deterministic candidate resolution, and edit-session invalidation hooks measure 243,020 minified bytes (gzip stayed under its existing ceiling); the ceiling is measured actual plus ~10% headroom.",
-    "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom.",
-    "/geocoding was reset for the provider-pluggable geocoding interface (#495): the GeocodingProvider contract plus Nominatim/Photon/Pelias/Honua adapters with capability declarations and attribution provenance measure 12,775 minified / 4,023 gzip bytes; the ceiling is measured actual plus ~10% headroom. /routing gained its first dedicated guard in the same change (RoutingProvider contract, OSRM/Valhalla adapters, polyline decoding, esri-compat bridge) at 6,124 minified / 2,491 gzip bytes; the entrypoint is subpath-only and stays out of the root/browser barrels, which are unchanged.",
-    "/map was reset for the standalone data-to-map bridge (#496): mountSource/explainDataToMapStrategy add capability+result-size strategy selection, geometry-default styling, popup/hover wiring, and reuse of the dynamic query-tile spec builders (contract/tiles + runtime/query-tiles) on the entrypoint. Measured 139,458 minified / 38,686 gzip \u2014 the gzip growth over the prior 31.2 KiB actual is ~6.5 KiB, and the measured size stays under the prior ceiling plus the 4 KiB gzip allowance granted by #496 NFR-001 (35,055 + 4,096 = 39,151). Ceilings are measured actual plus ~10% headroom.",
-    "/nl-map-control gained its first dedicated guard with the natural-language map-control layer (#500): plan-first NL-to-plan compilation over agent-tools, agent-safety approval bridging, recorded-completion replay, and MCP/OpenAI tool publication measure 61,291 minified / 18,975 gzip bytes (the entry bundles its agent-tools/agent-safety/query-planner-canonical dependencies the way a real consumer build does); the ceiling is measured actual plus ~10% headroom. The subpath is experimental and subpath-only \u2014 root and browser barrels are unchanged.",
-    "'tree-shake:runtime-terra-draw-sketch' guards the terra-draw sketch binding (#492): terra-draw and terra-draw-maplibre-gl-adapter are optional peers kept external (reached only via dynamic import in createTerraDrawSketch), so importing { bindTerraDrawSketch } from /runtime measures 3,078 minified / 1,393 gzip bytes; the ceiling is measured actual plus ~10% headroom. /runtime absorbed the binding within its existing ceiling.",
-    "/style and /webmap were reset for first-class renderer objects (#497): the /style entrypoint gains the classBreaks/uniqueValue/heatmap/cluster renderer factories, legend contracts, and the shared /expr-based compiler (measured 47,836 minified / 11,551 gzip; gzip growth over the prior actual is ~3 KiB, within the 6 KiB NFR-001 allowance); /webmap now emits renderer objects and compiles through the same single implementation, adding the shared compiler to its bundle (measured 25,383 minified / 7,705 gzip). Each ceiling is measured actual plus ~10% headroom.",
-    "/react was reset for the react depth pass (#498): HonuaSourceLayer/useMountedSource pull the data-to-map bridge (mountSource + geojson projection + popup/hover wiring) and the selection context pulls the interactions feature-state + exploration selection-target primitives onto the entrypoint. Measured 415,869 minified / 109,064 gzip before the trunk rebase (+0.4 KiB min / +2.0 KiB gzip over the prior ceiling); ceilings are measured actual plus ~10% headroom.",
-    "/agent-tools gained its first dedicated guard when it was promoted to the stable tier alongside /agent-safety (#502): the ten JSON-Schema tool definitions, the bounded executor with audit/redaction, the runtime adapters, and the MCP/OpenAI exporters measure 21,131 minified / 6,523 gzip bytes; the ceiling is measured actual plus ~10% headroom. Both agent entrypoints remain subpath-only \u2014 root and browser barrels are unchanged.",
-    "The affected entrypoint ceilings were reset for the unified error envelope (#524): migrated public errors now carry stable domain/category/retryability metadata, bounded redacted context, cause projection, and a governed 102-code registry. Small domain entrypoints gain roughly 3.5\u20134.4 KiB gzip for this common runtime contract; only exceeded metrics were reset to measured actual plus 10% headroom. After the geometry error family joined the envelope on trunk, the root/browser gzip ceilings were reset from the merged measurements to restore the same 10% headroom policy.",
-    "The exceeded /honua, /contract, /runtime, and /geoparquet metrics were reset for the merged SourceSchemaV2 contract foundation (#523). /geoparquet carries bounded GeoParquet metadata consistency and native-geometry support validation while preserving v1 query-result normalization; the other entrypoints expose or consume the stable schema envelope. Only exceeded metrics were reset to measured actual plus 10% headroom.",
-    "/query-planner was reset for versioned opaque GeoParquet resource handles and the lifecycle-scoped resolver registry (#587): strict scope/expiry/cancellation checks, bounded private locator resolution, and fixed redacted errors measure 101,266 minified / 29,409 gzip bytes. Both ceilings are measured actual plus 10% headroom. /geoparquet's exceeded minified ceiling was likewise reset after the shared resource-resolution error codes added 9 bytes to that entrypoint; its gzip ceiling remained unchanged.",
-    "/query-planner was reset for the typed semantic-query S1 runtime (#526): bounded untrusted parsing, complete SourceSchemaV2 field/type/domain validation, exact decimal and temporal admission, immutable typed builders, and native-dialect checks measure 380,453 minified / 66,427 gzip bytes. The opt-in subpath ceiling is the measured exact-head size plus 10% headroom; root, /honua, browser, and protocol-specific entrypoints remain unchanged.",
-    "/query-planner was reset at the completed semantic-query S2 boundary (#526): deterministic canonical identity, strict lossless CQL2 JSON 1.0 interchange with prototype-pollution resistance, and the explicit raw-where compatibility bridge measure 408,678 minified / 73,290 gzip bytes. Both ceilings are the measured exact-head size plus 10% headroom; the codec remains opt-in, and root, /honua, browser, and protocol-specific budget ceilings remain unchanged.",
-    "/source-capabilities was reset after #525 slice 1 review required complete ResolvedCrsDefinition and official PROJJSON v0.7 validation plus bounded, pollution-safe, freshness-aware capability evaluation. The final audit adds credential-safe structural identifiers, redacted rejection paths, canonical-JSON UTF-8 set ordering, and a normalized credential-free source-endpoint digest that prevents same-schema cross-endpoint replay. The full experimental subpath now measures 30,918 gzip bytes; only its exceeded gzip ceiling is reset to 34,010 bytes (measured actual plus 10% headroom). The named evaluateCapabilityProfile fixture remains isolated from the endpoint and CRS/PROJJSON validators.",
-    "/source-capability-discovery has its first dedicated guard for #525 slice 3. It intentionally owns the heavy SourceSchemaV2 validator plus GeoServices/OData connect graph while /source-capabilities remains evaluator-only and tree-shakeable. The initial 682,644 minified / 142,099 gzip measurement is budgeted at measured actual plus 10% headroom.",
-    "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom.",
-    "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation.",
-    "/cog gained its first dedicated guard for #537 S1: the evidence-bound STAC candidate gate, caller-injected decoder contract, exact partial-range transport, deterministic transfer ledger, typed metadata/window validation, and lifecycle cancellation measure 26,653 minified / 7,927 gzip bytes. The ceiling is measured actual plus 10% headroom; the raster decoder remains injected and the subpath is explicitly forbidden from the root createHonua graph.",
-    "The #537 S2/S3 closeout resets /cog for its bounded MapLibre image-source adapter at 52,231 minified / 14,980 gzip bytes and adds explicit GeoTIFF/MapLibre/Cesium retention attribution. Root, /honua, browser, source-schema, and connect/createHonua fixtures are remeasured after bounded static STAC discovery landed immediately before S1; their exceeded ceilings are reset to actual plus 10% headroom. Direct COG and GeoTIFF.js remain absent from all stable/browser graphs.",
-    "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged.",
-    "'tree-shake:root-createHonua' guards the managed application-kernel facade established by #532 and extended by #533: importing only createHonua retains reviewed discovery, lifecycle/inspection, and canonical accepted-plan execution, while renderer, plugin, application-platform, Arrow, and DuckDB runtime systems remain shakeable. Measured createHonua is 445,050 minified / 116,741 gzip bytes; /honua is 626,543 / 166,605 after retaining the same facade; /query-planner is 528,880 / 103,412 after cooperative local-fallback cancellation. Each affected ceiling is measured actual plus 10% headroom. The standalone root-connect fixture remains independently guarded.",
-    "/query-planner was reset for deterministic CQL2 JSON/text and WFS 2.0 FES compilation (#527): explicit conformance/capability evidence, typed escaping, executable CRS axis ordering, and shared adversarial equivalence fixtures measure 479,395 minified / 91,471 gzip bytes. Both ceilings are measured actual plus 10% headroom; the compiler remains opt-in under /query-planner, so root and browser entrypoints remain unchanged.",
-    "/query-planner's exceeded minified ceiling was reset for exact GeoServices SQL-92 and OData v4 semantic artifacts (#528): deterministic identifier/literal compilation, logical-to-physical path evidence, source-version request identity, and fail-closed spatial metadata admission measure 471,030 minified bytes. Only the exceeded minified metric is reset to measured size plus 10% headroom; gzip remains below its existing ceiling and root/browser entrypoints remain unchanged.",
-    "/query-planner was reset for structured plan diagnostics and persisted-claim validation (#530): versioned bounds, fidelity losses, cache decisions, provenance, validity reasons, and credential-safe warning evidence measure 529,749 minified / 103,586 gzip bytes. Both exceeded ceilings are measured actual plus 10% headroom; root and browser measurements remain within their existing ceilings.",
-    "/runtime and 'tree-shake:map-source-workflow' were reset for the connection-level MapLibre lifecycle (#534): the caller-injected renderer reuses automatic feature/vector/PMTiles/raster mounting, while the map workflow shares the lightweight accepted-plan context guard with the canonical executor. Measured sizes are 512,677 / 137,337 bytes for /runtime and 41,657 / 13,059 bytes for the isolated map workflow; each ceiling is measured actual plus 10% headroom.",
-    "Root, /source-schema, browser, root-connect, and root-createHonua ceilings were reset for bounded static STAC discovery (#552): same-origin traversal, byte/structure ceilings, validator-bound caching, and evidence-based COG/GeoParquet/PMTiles/tile classification are intentionally part of universal connect. The reviewed root measures 529,272 minified / 139,865 gzip bytes; each affected ceiling is measured actual plus 10% headroom.",
-    "/honua was reset for metadata-only ImageServer, GeometryServer, and GPServer discovery (#553): bounded JSON admission, credential-safe redirect handling, explicit non-Source operation descriptors, and honest canonical-route support add 25,580 minified / 6,523 gzip bytes to the advanced facade while root and browser stay within their existing ceilings. The reviewed /honua entrypoint measures 714,778 minified / 189,789 gzip bytes; both ceilings are measured actual plus 10% headroom.",
-    "'tree-shake:error-leaf' (#583) guards the unified error envelope's leaf cost: importing a single leaf error class ({ HonuaTimeoutError }) retains the compact runtime classification table and the envelope serializer but forbids the descriptive code registry (error-code-registry.js), measured 12,892 minified / 3,839 gzip bytes. 'tree-shake:error-registry' measures the explicit descriptive registry import at 10,858 minified / 2,388 gzip, proving the ~100-code human-readable summaries are bundled only when requested. Each ceiling is measured actual plus 10% headroom."
-  ],
-  "entrypoints": {
-    ".": {
-      "min": 582200,
-      "gzip": 153852
-    },
-    "/honua": {
-      "min": 786256,
-      "gzip": 208768
-    },
-    "/contract": {
-      "min": 294195,
-      "gzip": 74642
-    },
-    "/source-schema": {
-      "min": 754765,
-      "gzip": 157684
-    },
-    "/source-capabilities": {
-      "min": 263724,
-      "gzip": 34010
-    },
-    "/source-capability-discovery": {
-      "min": 750909,
-      "gzip": 156309
-    },
-    "/plugin": {
-      "min": 64080,
-      "gzip": 19751
-    },
-    "/agent-tools": {
-      "min": 23245,
-      "gzip": 7176
-    },
-    "/agent-safety": {
-      "min": 56542,
-      "gzip": 16163
-    },
-    "/nl-map-control": {
-      "min": 86514,
-      "gzip": 25947
-    },
-    "/runtime": {
-      "min": 563945,
-      "gzip": 151071
-    },
-    "/realtime": {
-      "min": 50483,
-      "gzip": 13858
-    },
-    "/offline": {
-      "min": 45404,
-      "gzip": 13532
-    },
-    "/query-planner": {
-      "min": 581768,
-      "gzip": 113754
-    },
-    "/scene-workspace": {
-      "min": 102449,
-      "gzip": 31583
-    },
-    "/esri-compat": {
-      "min": 1050877,
-      "gzip": 259650
-    },
-    "/expr": {
-      "min": 8651,
-      "gzip": 2717
-    },
-    "/webmap": {
-      "min": 27922,
-      "gzip": 8476
-    },
-    "/geocoding": {
-      "min": 32362,
-      "gzip": 9337
-    },
-    "/routing": {
-      "min": 25201,
-      "gzip": 7820
-    },
-    "/auth": {
-      "min": 31305,
-      "gzip": 8953
-    },
-    "/style": {
-      "min": 70674,
-      "gzip": 17575
-    },
-    "/map": {
-      "min": 186535,
-      "gzip": 51896
-    },
-    "/geoparquet": {
-      "min": 54908,
-      "gzip": 17174
-    },
-    "/cog": {
-      "min": 57455,
-      "gzip": 16478
-    },
-    "/deckgl": {
-      "min": 16916,
-      "gzip": 5687
-    },
-    "browser-iife": {
-      "min": 582868,
-      "gzip": 154076
-    },
-    "browser-esm": {
-      "min": 581404,
-      "gzip": 153773
-    },
-    "tree-shake:HonuaClient": {
-      "min": 235231,
-      "gzip": 59002
-    },
-    "tree-shake:root-connect": {
-      "min": 433370,
-      "gzip": 112115
-    },
-    "tree-shake:source-capabilities-evaluate": {
-      "min": 18332,
-      "gzip": 6372
-    },
-    "tree-shake:root-createHonua": {
-      "min": 548138,
-      "gzip": 144633
-    },
-    "/react": {
-      "min": 457456,
-      "gzip": 119971
-    },
-    "/geometry": {
-      "min": 581674,
-      "gzip": 160738
-    },
-    "tree-shake:geometry-buffer": {
-      "min": 323840,
-      "gzip": 73892
-    },
-    "tree-shake:esri-compat-FeatureLayerCompat": {
-      "min": 251831,
-      "gzip": 62870
-    },
-    "tree-shake:map-source-workflow": {
-      "min": 45823,
-      "gzip": 14365
-    },
-    "tree-shake:runtime-terra-draw-sketch": {
-      "min": 3386,
-      "gzip": 1533
-    },
-    "tree-shake:error-leaf": {
-      "min": 14182,
-      "gzip": 4223
-    },
-    "tree-shake:error-registry": {
-      "min": 11944,
-      "gzip": 2627
-    }
+ "$comment": [
+  "Per-entrypoint bundle-size budgets for @honua/sdk-js (issue #350).",
+  "Each budget is a hard byte ceiling for a single public entrypoint bundled the",
+  "way a real consumer would build it: esbuild --bundle --minify, target es2020,",
+  "runtime peers (maplibre-gl, cesium, @bufbuild/*, @connectrpc/*) kept external.",
+  "'min' is the minified byte size; 'gzip' is the gzip-compressed byte size.",
+  "",
+  "HEADROOM POLICY: budgets are set to the measured current size + ~10% headroom",
+  "(ceil(actual * 1.1)). The 10% absorbs normal churn without hiding real bloat.",
+  "When a legitimate change pushes an entry over budget, re-run",
+  "'npm run report:bundle-sizes' to refresh docs/bundle-sizes.md, then RESET that",
+  "entry's budget to the new actual + ~10% in the SAME PR (never widen silently).",
+  "'npm run verify:bundle-budgets' is the CI gate; it fails on any exceedance with",
+  "a per-entry delta table.",
+  "",
+  "'tree-shake:HonuaClient' is a deep-import-hygiene guard: a fixture importing ONLY",
+  "{ HonuaClient } from the root entry must stay under its ceiling, proving a single",
+  "symbol does not drag the whole SDK into a consumer bundle.",
+  "/source-schema is the focused experimental SourceSchemaV2 runtime, including the pinned PROJJSON validator. 'tree-shake:root-connect' proves default root discovery does not retain that validation stack. Both ceilings are measured actual plus ~10% headroom.",
+  "/geoparquet was reset for bounded GeoParquet 1.0/1.1 projection validation (exact versions, geometry types, bbox, epoch, and covering checks): 22,092 minified / 7,889 gzip bytes. /map's gzip ceiling was reset after the lightweight structural SourceSchemaV2 envelope check reached its shared discovery path: 42,656 gzip bytes. Ceilings are measured actual plus ~10% headroom; root, /honua, browser, /contract, and /query-planner ceilings remain unchanged.",
+  "/react and /geometry landed with the adoption-wave-1 bundle (issues #349/#351). /esri-compat's budget was reset for the geometryEngine shim's turf/proj4 backing; 'tree-shake:esri-compat-FeatureLayerCompat' guards that compat consumers who never touch geometryEngine keep paying only the pre-shim cost. 'tree-shake:geometry-buffer' is intentionally large: @turf/buffer carries a JSTS port (~66 KiB gzip); light ops like area() shake down to ~1 KiB.",
+  "/map was reset for the accepted-plan source workflow (#390): 62.6 to 79.5 KiB min and 16.2 to 21.8 KiB gzip after removing the generic aggregate executor. Keeping the adapter on /map preserves the canonical endpoint-to-map import; 'tree-shake:map-source-workflow' isolates its 17.1 KiB min / 6.4 KiB gzip consumer cost.",
+  "/contract gzip was reset for credential-safe discovery (#391): provider-aware Azure SAS, CloudFront, AWS, and GCS signed-URL normalization plus runtime evidence-kind validation. The measured 61,493 bytes gzip is budgeted at 67,643 bytes per the 10% headroom policy.",
+  "/realtime gained its first dedicated guard with the resumable checkpoint kernel (#393); its trust-boundary hardening adds runtime event validation and credential-free envelope projection. The ceiling is the measured subpath bundle plus 10% headroom.",
+  "/offline is a subpath-only experimental contract (#396), keeping the root/browser bundle unchanged while its dedicated budget guards deterministic manifest and download-coordinator growth.",
+  "/query-planner gained its first dedicated guard with the bounded columnar worker session (#453); browser/Node worker implementations and heavy analytics peers remain injected, while the full planner plus worker protocol is measured with 10% headroom.",
+  "/query-planner was reset for the DuckDB SQL and gRPC query compilers plus spatial-aggregation pushdown (#389): the DuckDB compiler reuses the dependency-free geoparquet-sql builder so planner and adapter emit identical SQL. Measured 75,024 minified / 22,254 gzip; the ceiling is actual plus ~10% headroom.",
+  "/agent-safety was reset again for binding safety authorization to accepted-plan and discovery evidence (#468): derived accepted-evidence gating over the approved execution/audit boundary (#456) measures 51,401 minified / 14,693 gzip bytes; each ceiling is actual plus 10% headroom and the code remains out of root barrels.",
+  "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
+  "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
+  "/plugin gained its first dedicated guard with the application-local lifecycle (#455): certification, deterministic dependency ordering, transactional rollback, scoped service wrappers, and immutable diagnostics measure 35,329 minified / 11,814 gzip bytes; the ceiling is measured actual plus 10% headroom.",
+  "/plugin was reset for the behavioral-conformance kit, signed-report verification, and support-status program (#392): the deterministic conformance harness, report digest re-verification, and supportStatus validation measure 40,714 minified / 13,410 gzip bytes; the ceiling is measured actual plus ~10% headroom.",
+  "/scene-workspace guards renderer-neutral shared state while MapLibre and Cesium stay external optional peers.",
+  "/contract min was reset for edit-sketch snapping (#491): the renderer-neutral SnapIndex packed grid, deterministic candidate resolution, and edit-session invalidation hooks measure 243,020 minified bytes (gzip stayed under its existing ceiling); the ceiling is measured actual plus ~10% headroom.",
+  "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom.",
+  "/geocoding was reset for the provider-pluggable geocoding interface (#495): the GeocodingProvider contract plus Nominatim/Photon/Pelias/Honua adapters with capability declarations and attribution provenance measure 12,775 minified / 4,023 gzip bytes; the ceiling is measured actual plus ~10% headroom. /routing gained its first dedicated guard in the same change (RoutingProvider contract, OSRM/Valhalla adapters, polyline decoding, esri-compat bridge) at 6,124 minified / 2,491 gzip bytes; the entrypoint is subpath-only and stays out of the root/browser barrels, which are unchanged.",
+  "/map was reset for the standalone data-to-map bridge (#496): mountSource/explainDataToMapStrategy add capability+result-size strategy selection, geometry-default styling, popup/hover wiring, and reuse of the dynamic query-tile spec builders (contract/tiles + runtime/query-tiles) on the entrypoint. Measured 139,458 minified / 38,686 gzip \u2014 the gzip growth over the prior 31.2 KiB actual is ~6.5 KiB, and the measured size stays under the prior ceiling plus the 4 KiB gzip allowance granted by #496 NFR-001 (35,055 + 4,096 = 39,151). Ceilings are measured actual plus ~10% headroom.",
+  "/nl-map-control gained its first dedicated guard with the natural-language map-control layer (#500): plan-first NL-to-plan compilation over agent-tools, agent-safety approval bridging, recorded-completion replay, and MCP/OpenAI tool publication measure 61,291 minified / 18,975 gzip bytes (the entry bundles its agent-tools/agent-safety/query-planner-canonical dependencies the way a real consumer build does); the ceiling is measured actual plus ~10% headroom. The subpath is experimental and subpath-only \u2014 root and browser barrels are unchanged.",
+  "'tree-shake:runtime-terra-draw-sketch' guards the terra-draw sketch binding (#492): terra-draw and terra-draw-maplibre-gl-adapter are optional peers kept external (reached only via dynamic import in createTerraDrawSketch), so importing { bindTerraDrawSketch } from /runtime measures 3,078 minified / 1,393 gzip bytes; the ceiling is measured actual plus ~10% headroom. /runtime absorbed the binding within its existing ceiling.",
+  "/style and /webmap were reset for first-class renderer objects (#497): the /style entrypoint gains the classBreaks/uniqueValue/heatmap/cluster renderer factories, legend contracts, and the shared /expr-based compiler (measured 47,836 minified / 11,551 gzip; gzip growth over the prior actual is ~3 KiB, within the 6 KiB NFR-001 allowance); /webmap now emits renderer objects and compiles through the same single implementation, adding the shared compiler to its bundle (measured 25,383 minified / 7,705 gzip). Each ceiling is measured actual plus ~10% headroom.",
+  "/react was reset for the react depth pass (#498): HonuaSourceLayer/useMountedSource pull the data-to-map bridge (mountSource + geojson projection + popup/hover wiring) and the selection context pulls the interactions feature-state + exploration selection-target primitives onto the entrypoint. Measured 415,869 minified / 109,064 gzip before the trunk rebase (+0.4 KiB min / +2.0 KiB gzip over the prior ceiling); ceilings are measured actual plus ~10% headroom.",
+  "/agent-tools gained its first dedicated guard when it was promoted to the stable tier alongside /agent-safety (#502): the ten JSON-Schema tool definitions, the bounded executor with audit/redaction, the runtime adapters, and the MCP/OpenAI exporters measure 21,131 minified / 6,523 gzip bytes; the ceiling is measured actual plus ~10% headroom. Both agent entrypoints remain subpath-only \u2014 root and browser barrels are unchanged.",
+  "The affected entrypoint ceilings were reset for the unified error envelope (#524): migrated public errors now carry stable domain/category/retryability metadata, bounded redacted context, cause projection, and a governed 102-code registry. Small domain entrypoints gain roughly 3.5\u20134.4 KiB gzip for this common runtime contract; only exceeded metrics were reset to measured actual plus 10% headroom. After the geometry error family joined the envelope on trunk, the root/browser gzip ceilings were reset from the merged measurements to restore the same 10% headroom policy.",
+  "The exceeded /honua, /contract, /runtime, and /geoparquet metrics were reset for the merged SourceSchemaV2 contract foundation (#523). /geoparquet carries bounded GeoParquet metadata consistency and native-geometry support validation while preserving v1 query-result normalization; the other entrypoints expose or consume the stable schema envelope. Only exceeded metrics were reset to measured actual plus 10% headroom.",
+  "/query-planner was reset for versioned opaque GeoParquet resource handles and the lifecycle-scoped resolver registry (#587): strict scope/expiry/cancellation checks, bounded private locator resolution, and fixed redacted errors measure 101,266 minified / 29,409 gzip bytes. Both ceilings are measured actual plus 10% headroom. /geoparquet's exceeded minified ceiling was likewise reset after the shared resource-resolution error codes added 9 bytes to that entrypoint; its gzip ceiling remained unchanged.",
+  "/query-planner was reset for the typed semantic-query S1 runtime (#526): bounded untrusted parsing, complete SourceSchemaV2 field/type/domain validation, exact decimal and temporal admission, immutable typed builders, and native-dialect checks measure 380,453 minified / 66,427 gzip bytes. The opt-in subpath ceiling is the measured exact-head size plus 10% headroom; root, /honua, browser, and protocol-specific entrypoints remain unchanged.",
+  "/query-planner was reset at the completed semantic-query S2 boundary (#526): deterministic canonical identity, strict lossless CQL2 JSON 1.0 interchange with prototype-pollution resistance, and the explicit raw-where compatibility bridge measure 408,678 minified / 73,290 gzip bytes. Both ceilings are the measured exact-head size plus 10% headroom; the codec remains opt-in, and root, /honua, browser, and protocol-specific budget ceilings remain unchanged.",
+  "/source-capabilities was reset after #525 slice 1 review required complete ResolvedCrsDefinition and official PROJJSON v0.7 validation plus bounded, pollution-safe, freshness-aware capability evaluation. The final audit adds credential-safe structural identifiers, redacted rejection paths, canonical-JSON UTF-8 set ordering, and a normalized credential-free source-endpoint digest that prevents same-schema cross-endpoint replay. The full experimental subpath now measures 30,918 gzip bytes; only its exceeded gzip ceiling is reset to 34,010 bytes (measured actual plus 10% headroom). The named evaluateCapabilityProfile fixture remains isolated from the endpoint and CRS/PROJJSON validators.",
+  "/source-capability-discovery has its first dedicated guard for #525 slice 3. It intentionally owns the heavy SourceSchemaV2 validator plus GeoServices/OData connect graph while /source-capabilities remains evaluator-only and tree-shakeable. The initial 682,644 minified / 142,099 gzip measurement is budgeted at measured actual plus 10% headroom.",
+  "/geoparquet was reset for #525 slice 3 because its public direct factory now installs the same verified fail-closed CapabilityAwareSource view as every contract adapter. The shared profile registration/schema-binding guard measures 49,916 minified / 15,612 gzip bytes; ceilings are measured actual plus 10% headroom.",
+  "The complete #525 evaluator was remeasured on the typed semantic-query trunk after asynchronous discovery context snapshotting and validation closed the final admission race. The isolated evaluateCapabilityProfile fixture measures 16,665 minified / 5,792 gzip bytes; only its exceeded ceilings were reset to measured actual plus 10% headroom, and the fixture still excludes discovery, endpoint, CRS, and PROJJSON validation.",
+  "/cog gained its first dedicated guard for #537 S1: the evidence-bound STAC candidate gate, caller-injected decoder contract, exact partial-range transport, deterministic transfer ledger, typed metadata/window validation, and lifecycle cancellation measure 26,653 minified / 7,927 gzip bytes. The ceiling is measured actual plus 10% headroom; the raster decoder remains injected and the subpath is explicitly forbidden from the root createHonua graph.",
+  "The #537 S2/S3 closeout resets /cog for its bounded MapLibre image-source adapter at 52,231 minified / 14,980 gzip bytes and adds explicit GeoTIFF/MapLibre/Cesium retention attribution. Root, /honua, browser, source-schema, and connect/createHonua fixtures are remeasured after bounded static STAC discovery landed immediately before S1; their exceeded ceilings are reset to actual plus 10% headroom. Direct COG and GeoTIFF.js remain absent from all stable/browser graphs.",
+  "/query-planner's exceeded gzip ceiling was reset for executable DuckDB/gRPC semantic artifacts (#529): server-grammar admission, public-field mapping, and explicit output-geometry provenance measure 81,759 gzip bytes. Only the exceeded gzip metric is reset to measured size plus 10% headroom; protobuf, Connect, and DuckDB runtimes remain external and root/browser entrypoints remain unchanged.",
+  "'tree-shake:root-createHonua' guards the managed application-kernel facade established by #532 and extended by #533: importing only createHonua retains reviewed discovery, lifecycle/inspection, and canonical accepted-plan execution, while renderer, plugin, application-platform, Arrow, and DuckDB runtime systems remain shakeable. Measured createHonua is 445,050 minified / 116,741 gzip bytes; /honua is 626,543 / 166,605 after retaining the same facade; /query-planner is 528,880 / 103,412 after cooperative local-fallback cancellation. Each affected ceiling is measured actual plus 10% headroom. The standalone root-connect fixture remains independently guarded.",
+  "/query-planner was reset for deterministic CQL2 JSON/text and WFS 2.0 FES compilation (#527): explicit conformance/capability evidence, typed escaping, executable CRS axis ordering, and shared adversarial equivalence fixtures measure 479,395 minified / 91,471 gzip bytes. Both ceilings are measured actual plus 10% headroom; the compiler remains opt-in under /query-planner, so root and browser entrypoints remain unchanged.",
+  "/query-planner's exceeded minified ceiling was reset for exact GeoServices SQL-92 and OData v4 semantic artifacts (#528): deterministic identifier/literal compilation, logical-to-physical path evidence, source-version request identity, and fail-closed spatial metadata admission measure 471,030 minified bytes. Only the exceeded minified metric is reset to measured size plus 10% headroom; gzip remains below its existing ceiling and root/browser entrypoints remain unchanged.",
+  "/query-planner was reset for structured plan diagnostics and persisted-claim validation (#530): versioned bounds, fidelity losses, cache decisions, provenance, validity reasons, and credential-safe warning evidence measure 529,749 minified / 103,586 gzip bytes. Both exceeded ceilings are measured actual plus 10% headroom; root and browser measurements remain within their existing ceilings.",
+  "/runtime and 'tree-shake:map-source-workflow' were reset for the connection-level MapLibre lifecycle (#534): the caller-injected renderer reuses automatic feature/vector/PMTiles/raster mounting, while the map workflow shares the lightweight accepted-plan context guard with the canonical executor. Measured sizes are 512,677 / 137,337 bytes for /runtime and 41,657 / 13,059 bytes for the isolated map workflow; each ceiling is measured actual plus 10% headroom.",
+  "Root, /source-schema, browser, root-connect, and root-createHonua ceilings were reset for bounded static STAC discovery (#552): same-origin traversal, byte/structure ceilings, validator-bound caching, and evidence-based COG/GeoParquet/PMTiles/tile classification are intentionally part of universal connect. The reviewed root measures 529,272 minified / 139,865 gzip bytes; each affected ceiling is measured actual plus 10% headroom.",
+  "/honua was reset for metadata-only ImageServer, GeometryServer, and GPServer discovery (#553): bounded JSON admission, credential-safe redirect handling, explicit non-Source operation descriptors, and honest canonical-route support add 25,580 minified / 6,523 gzip bytes to the advanced facade while root and browser stay within their existing ceilings. The reviewed /honua entrypoint measures 714,778 minified / 189,789 gzip bytes; both ceilings are measured actual plus 10% headroom.",
+  "'tree-shake:error-leaf' (#583) guards the unified error envelope's leaf cost: importing a single leaf error class ({ HonuaTimeoutError }) retains the compact runtime classification table and the envelope serializer but forbids the descriptive code registry (error-code-registry.js), measured 12,892 minified / 3,839 gzip bytes. 'tree-shake:error-registry' measures the explicit descriptive registry import at 10,858 minified / 2,388 gzip, proving the ~100-code human-readable summaries are bundled only when requested. Each ceiling is measured actual plus 10% headroom.",
+  "The agent error envelope (#570) migrated agent-tools/agent-safety error classes onto the tagged SDK error envelope and expanded the descriptive error-code registry, so /honua, /contract, /agent-tools, /agent-safety, and the error-leaf/error-registry tree-shake guards were remeasured. Only the exceeded metrics were reset to measured actual plus ~10% headroom."
+ ],
+ "entrypoints": {
+  ".": {
+   "min": 677005,
+   "gzip": 172968
+  },
+  "/honua": {
+   "min": 869414,
+   "gzip": 231380
+  },
+  "/contract": {
+   "min": 324737,
+   "gzip": 85730
+  },
+  "/source-schema": {
+   "min": 849418,
+   "gzip": 183804
+  },
+  "/source-capabilities": {
+   "min": 263724,
+   "gzip": 34010
+  },
+  "/source-capability-discovery": {
+   "min": 886603,
+   "gzip": 193694
+  },
+  "/plugin": {
+   "min": 64080,
+   "gzip": 19751
+  },
+  "/agent-tools": {
+   "min": 39107,
+   "gzip": 11180
+  },
+  "/agent-safety": {
+   "min": 74925,
+   "gzip": 20971
+  },
+  "/nl-map-control": {
+   "min": 86514,
+   "gzip": 25947
+  },
+  "/runtime": {
+   "min": 563945,
+   "gzip": 151071
+  },
+  "/realtime": {
+   "min": 50483,
+   "gzip": 13858
+  },
+  "/offline": {
+   "min": 45404,
+   "gzip": 13532
+  },
+  "/query-planner": {
+   "min": 581768,
+   "gzip": 113754
+  },
+  "/scene-workspace": {
+   "min": 102449,
+   "gzip": 31583
+  },
+  "/esri-compat": {
+   "min": 1050877,
+   "gzip": 259650
+  },
+  "/expr": {
+   "min": 8651,
+   "gzip": 2717
+  },
+  "/webmap": {
+   "min": 27922,
+   "gzip": 8476
+  },
+  "/geocoding": {
+   "min": 32362,
+   "gzip": 9337
+  },
+  "/routing": {
+   "min": 25201,
+   "gzip": 7820
+  },
+  "/auth": {
+   "min": 31305,
+   "gzip": 8953
+  },
+  "/style": {
+   "min": 70674,
+   "gzip": 17575
+  },
+  "/map": {
+   "min": 186535,
+   "gzip": 51896
+  },
+  "/geoparquet": {
+   "min": 83558,
+   "gzip": 25940
+  },
+  "/cog": {
+   "min": 57455,
+   "gzip": 16478
+  },
+  "/deckgl": {
+   "min": 16916,
+   "gzip": 5687
+  },
+  "browser-iife": {
+   "min": 677675,
+   "gzip": 180536
+  },
+  "browser-esm": {
+   "min": 676210,
+   "gzip": 180210
+  },
+  "tree-shake:HonuaClient": {
+   "min": 235231,
+   "gzip": 59002
+  },
+  "tree-shake:root-connect": {
+   "min": 527459,
+   "gzip": 138318
+  },
+  "tree-shake:source-capabilities-evaluate": {
+   "min": 18332,
+   "gzip": 6372
+  },
+  "tree-shake:root-createHonua": {
+   "min": 642935,
+   "gzip": 171021
+  },
+  "/react": {
+   "min": 518846,
+   "gzip": 137796
+  },
+  "/geometry": {
+   "min": 581674,
+   "gzip": 160738
+  },
+  "tree-shake:geometry-buffer": {
+   "min": 323840,
+   "gzip": 73892
+  },
+  "tree-shake:esri-compat-FeatureLayerCompat": {
+   "min": 251831,
+   "gzip": 62870
+  },
+  "tree-shake:map-source-workflow": {
+   "min": 45823,
+   "gzip": 14365
+  },
+  "tree-shake:runtime-terra-draw-sketch": {
+   "min": 3386,
+   "gzip": 1533
+  },
+  "tree-shake:error-leaf": {
+   "min": 15857,
+   "gzip": 4223
+  },
+  "tree-shake:error-registry": {
+   "min": 14918,
+   "gzip": 3206
   }
+ }
 }

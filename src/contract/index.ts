@@ -78,6 +78,7 @@ export type {
   PaginationSpec,
   Protocol,
   Query,
+  RasterRequestBinding,
   RelatedGroup,
   RelatedQuery,
   RelatedResult,
@@ -173,6 +174,7 @@ export type {
   DiscoveryCacheIdentity,
   DiscoveryCacheIdentityOptions,
   DiscoveryCacheResourceIdentity,
+  DiscoveryAxisOrderMetadata,
   DiscoveryCapabilityDecision,
   DiscoveryCapabilityDecisionCode,
   DiscoveryCapabilityEvidence,
@@ -181,9 +183,15 @@ export type {
   DiscoveryCapabilityResolution,
   DiscoveryDiagnostic,
   DiscoveryDiagnosticCode,
+  DiscoveryDimensionMetadata,
   DiscoveryEvidenceKind,
+  DiscoveryOperationMetadata,
   DiscoveryProvenance,
+  DiscoverySourceMetadata,
   DiscoveryState,
+  DiscoveryStyleMetadata,
+  DiscoveryTileMatrixMetadata,
+  DiscoveryTileMatrixSetMetadata,
   SourceDiscoveryInspection,
 } from "./discovery.js";
 export { HonuaDiscoveryError } from "../core/errors.js";
@@ -436,6 +444,7 @@ export {
   wmsSource,
   wmtsSource,
 } from "./source.js";
+export type { OdataSourceOptions, OdataWriteEncoding } from "./source.js";
 
 export type {
   IJobRun,

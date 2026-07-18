@@ -9,7 +9,13 @@
  * @module
  */
 
-import { geoParquetSourceSchemaV2, geoServicesSourceSchemaV2, odataSourceSchemaV2 } from "./connect-schema.js";
+import {
+  geoParquetSourceSchemaV2,
+  geoServicesSourceSchemaV2,
+  odataSourceSchemaV2,
+  wmsSourceSchemaV2,
+  wmtsSourceSchemaV2,
+} from "./connect-schema.js";
 import { connectWithSourceSchemaProjection } from "./connect.js";
 import type { ConnectOptions, HonuaConnection, HonuaConnectionInspection } from "./connect.js";
 import type { SourceDiscoveryInspection } from "./contract/discovery.js";
@@ -22,6 +28,8 @@ export {
   geoParquetSourceSchemaV2,
   geoServicesSourceSchemaV2,
   odataSourceSchemaV2,
+  wmsSourceSchemaV2,
+  wmtsSourceSchemaV2,
 } from "./connect-schema.js";
 export type { SchemaNormalizationContext } from "./connect-schema.js";
 

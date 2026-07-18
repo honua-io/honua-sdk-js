@@ -6,7 +6,17 @@
  * remains the public documentation source of truth; `check:error-codes`
  * verifies the compact table against every descriptor.
  */
-export type HonuaErrorDomain = "core" | "discovery" | "query" | "map" | "runtime" | "realtime" | "offline" | "plugin";
+export type HonuaErrorDomain =
+  | "core"
+  | "discovery"
+  | "query"
+  | "map"
+  | "runtime"
+  | "realtime"
+  | "offline"
+  | "plugin"
+  | "agent"
+  | "app";
 
 export type HonuaErrorCategory =
   | "authentication"
@@ -472,6 +482,113 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "plugin.lifecycle.cleanup": classification("plugin", "internal", false, "Plugin lifecycle cleanup failed"),
   "plugin.cancelled": classification("plugin", "cancellation", false, "Plugin registration was cancelled"),
   "plugin.internal": classification("plugin", "internal", false, "Plugin registry internal failure"),
+  "agent.tool.unknown-tool": classification(
+    "agent",
+    "validation",
+    false,
+    "Requested agent tool name is not registered",
+  ),
+  "agent.tool.missing-runtime": classification(
+    "agent",
+    "validation",
+    false,
+    "Agent tool kit requires a runtime, controller, or generated-app runtime",
+  ),
+  "agent.tool.unqualified-selection": classification(
+    "agent",
+    "validation",
+    false,
+    "Agent tool selection target is not source-qualified",
+  ),
+  "agent.tool.missing-runtime-method": classification(
+    "agent",
+    "capability",
+    false,
+    "Adapted runtime does not implement the requested agent tool",
+  ),
+  "agent.tool.internal": classification("agent", "internal", false, "Agent tool executor internal failure"),
+  "agent.safety.aborted": classification("agent", "cancellation", false, "Agent safety operation was aborted"),
+  "agent.safety.invalid-input": classification("agent", "validation", false, "Agent safety input is invalid"),
+  "agent.safety.policy-denied": classification(
+    "agent",
+    "capability",
+    false,
+    "Agent plan step was denied by host policy",
+  ),
+  "agent.safety.integrity-failed": classification(
+    "agent",
+    "protocol",
+    false,
+    "Agent safety evidence integrity verification failed",
+  ),
+  "agent.safety.approval-expired": classification("agent", "authentication", false, "Agent step approval has expired"),
+  "agent.safety.context-mismatch": classification(
+    "agent",
+    "validation",
+    false,
+    "Agent execution context does not match the authorized plan",
+  ),
+  "agent.safety.signature-invalid": classification(
+    "agent",
+    "validation",
+    false,
+    "Agent approval or receipt signature is invalid",
+  ),
+  "agent.safety.execution-failed": classification("agent", "internal", false, "Agent plan step execution failed"),
+  "agent.safety.audit-failed": classification(
+    "agent",
+    "internal",
+    false,
+    "Agent execution audit record could not be appended",
+  ),
+  "agent.safety.receipt-failed": classification(
+    "agent",
+    "internal",
+    false,
+    "Agent execution receipt could not be issued or verified",
+  ),
+  "app.unsupported-profile": classification("app", "capability", false, "Generated app profile is not supported"),
+  "app.unsupported-widget": classification("app", "capability", false, "Generated app widget kind is not supported"),
+  "app.missing-manifest": classification(
+    "app",
+    "validation",
+    false,
+    "Generated app manifest or app package is missing",
+  ),
+  "app.missing-manifest-artifact": classification(
+    "app",
+    "validation",
+    false,
+    "Generated app manifest artifact is missing",
+  ),
+  "app.missing-map-package": classification(
+    "app",
+    "validation",
+    false,
+    "Generated app map widget requires a MapPackage",
+  ),
+  "app.map-package-mismatch": classification(
+    "app",
+    "validation",
+    false,
+    "Generated app MapPackage does not match its manifest",
+  ),
+  "app.missing-widget": classification(
+    "app",
+    "validation",
+    false,
+    "Generated app manifest is missing a required widget",
+  ),
+  "app.missing-binding": classification(
+    "app",
+    "validation",
+    false,
+    "Generated app runtime is missing a required binding",
+  ),
+  "app.map-load-failed": classification("app", "internal", false, "Generated app map widget failed to load"),
+  "app.data-load-failed": classification("app", "internal", false, "Generated app feature data failed to load"),
+  "app.render-failed": classification("app", "internal", false, "Generated app render failed"),
+  "app.disposed": classification("app", "validation", false, "Generated app runtime is disposed"),
 } as const satisfies Record<string, HonuaErrorCodeDescriptor>);
 
 export type HonuaErrorCode = keyof typeof HONUA_ERROR_CODE_REGISTRY;

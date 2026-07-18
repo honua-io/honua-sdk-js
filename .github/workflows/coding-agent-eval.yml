@@ -91,9 +91,27 @@ jobs:
         run: npm run build
 
       - name: Install Claude Code CLI
-        # Exact-version pin (Scorecard Pinned-Dependencies): the CLI version is
-        # also recorded in the scorecard's adapter metadata for traceability.
-        run: npm install -g @anthropic-ai/claude-code@2.1.207
+        # Exact-version pin, plus a pinned sha512 integrity hash (from the
+        # registry's dist.integrity field, recorded when this workflow was
+        # authored) verified before install — Scorecard's Pinned-Dependencies
+        # check flags a bare `npm install -g pkg@version` as not hash-pinned,
+        # since a re-published registry artifact for the same version could
+        # otherwise install silently. The CLI version is also recorded in the
+        # scorecard's adapter metadata for traceability.
+        run: |
+          set -euo pipefail
+          claude_pkg="@anthropic-ai/claude-code@2.1.207"
+          claude_expected_sha512="30D3lGMO0iPmWnz6rCSHKd6d6gWtQ8CV2zKHHspEHZFyjDJsNOr2Xg6Kb/XEPsaFFu4BGIJz/7L6FQkcFq5cNA=="
+          claude_tarball_url="$(npm view "$claude_pkg" dist.tarball)"
+          claude_tarball_path="$(mktemp -t claude-code-pinned-XXXXXX.tgz)"
+          curl -fsSL -o "$claude_tarball_path" "$claude_tarball_url"
+          claude_actual_sha512="$(openssl dgst -sha512 -binary "$claude_tarball_path" | openssl base64 -A)"
+          if [[ "$claude_actual_sha512" != "$claude_expected_sha512" ]]; then
+            echo "::error::${claude_pkg} tarball sha512 mismatch: expected ${claude_expected_sha512}, got ${claude_actual_sha512}"
+            exit 1
+          fi
+          npm install -g "$claude_tarball_path"
+          rm -f "$claude_tarball_path"
 
       - name: Live claude-cli lane
         env:

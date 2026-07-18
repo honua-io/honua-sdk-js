@@ -11,7 +11,18 @@ const DOC_PATH = path.join(ROOT, "docs/errors.md");
 let doc = fs.readFileSync(DOC_PATH, "utf8");
 const TABLE_START = "<!-- error-code-registry:start -->";
 const TABLE_END = "<!-- error-code-registry:end -->";
-const VALID_DOMAINS = new Set(["core", "discovery", "query", "map", "runtime", "realtime", "offline", "plugin"]);
+const VALID_DOMAINS = new Set([
+  "core",
+  "discovery",
+  "query",
+  "map",
+  "runtime",
+  "realtime",
+  "offline",
+  "plugin",
+  "agent",
+  "app",
+]);
 const VALID_CATEGORIES = new Set([
   "authentication",
   "cancellation",
@@ -52,6 +63,10 @@ const MIGRATED_PUBLIC_CLASSES = [
   "HonuaOfflineRegionError",
   "HonuaReplicaSyncError",
   "HonuaPluginRegistryError",
+  "HonuaAgentToolError",
+  "HonuaAgentSafetyError",
+  "HonuaAgentExecutionError",
+  "HonuaGeneratedAppError",
 ];
 
 const codes = Object.keys(HONUA_ERROR_CODE_REGISTRY);

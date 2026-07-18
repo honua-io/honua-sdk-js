@@ -4,9 +4,13 @@ import { type Plugin, defineConfig } from "vite";
 
 import { createSampleViteConfig } from "../_kit/vite.config.js";
 
+// Reset for the connect batch that adds WMS/WMTS discovery (#551), OData lossless
+// writes (#585), and GeoParquet lossless JSON (#586): the demo's connect() import
+// path now reaches that added discovery/codec surface, measured 1,828,695 JS /
+// 485,371 gzip. Ceilings are measured actual plus ~4% headroom.
 export const FIRST_MAP_BUNDLE_BUDGET = Object.freeze({
-  javascriptBytes: 1_800_000,
-  javascriptGzipBytes: 475_000,
+  javascriptBytes: 1_900_000,
+  javascriptGzipBytes: 505_000,
 });
 
 let bundleBudgetFailure: Error | undefined;

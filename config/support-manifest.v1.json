@@ -66,6 +66,7 @@
     { "id": "pmtiles-fixtures", "kind": "fixture", "path": "test/pmtiles-contract.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "geoparquet-fixtures", "kind": "fixture", "path": "test/geoparquet-source.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "geoparquet-connect-fixtures", "kind": "fixture", "path": "test/connect-geoparquet.test.ts", "freshnessPolicy": "release-gated" },
+    { "id": "wms-wmts-connect-fixtures", "kind": "fixture", "path": "test/connect-wms-wmts.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "first-map-live", "kind": "live", "path": "scripts/first-map-live-evidence.mjs", "freshnessPolicy": "scheduled-live" },
     { "id": "esri-compat-fixtures", "kind": "fixture", "path": "test/feature-layer-compat.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "migration-fixtures", "kind": "fixture", "path": "test/migration-codemod.test.ts", "freshnessPolicy": "release-gated" },
@@ -87,6 +88,8 @@
     "ogc-records",
     "ogc-tiles",
     "ogc-maps",
+    "wms",
+    "wmts",
     "geoservices-feature-service",
     "geoservices-map-service",
     "geoservices-image-service"
@@ -167,8 +170,8 @@
         "stac": { "protocolIds": ["stac"], "supportClaimIds": ["stac-standalone"], "external": false },
         "terrain-rgb": { "protocolIds": [], "supportClaimIds": [], "external": true },
         "wfs": { "protocolIds": ["wfs"], "supportClaimIds": ["wfs-standalone"], "external": false },
-        "wms": { "protocolIds": ["wms"], "supportClaimIds": [], "external": false },
-        "wmts": { "protocolIds": ["wmts"], "supportClaimIds": [], "external": false }
+        "wms": { "protocolIds": ["wms"], "supportClaimIds": ["wms-discovery-standalone"], "external": false },
+        "wmts": { "protocolIds": ["wmts"], "supportClaimIds": ["wmts-discovery-standalone"], "external": false }
       }
     },
     "honuaSite": {
@@ -182,7 +185,7 @@
       "stableEntrypoints": 22,
       "rootRuntimeExports": 45,
       "rootTypeExports": 165,
-      "rootGzipBytes": 153852
+      "rootGzipBytes": 172968
     },
     "downstreamProjection": {
       "catalogOwner": "honua-io/honua-site",
@@ -277,6 +280,8 @@
     { "id": "geometry-client-only", "label": "Geometry operations", "operations": ["geometry"], "environment": "client-only", "executionMode": "native", "status": "supported", "backendNeeded": "None", "api": "@honua/sdk-js/geometry", "notes": "Buffer, area, simplify, measure, and reprojection run in the client through optional peers.", "evidence": ["geometry-fixtures"] },
     { "id": "ogc-features-standalone", "label": "OGC API Features", "protocol": "ogc-features", "operations": ["discovery", "query", "queryObjectIds", "applyEdits", "stream"], "environment": "standalone", "executionMode": "discovery", "status": "supported", "backendNeeded": "Any OGC API Features server", "api": "connect(), Source with locator.layout=ogc-api or auto", "notes": "Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path.", "evidence": ["ogc-features-fixtures"] },
     { "id": "wfs-standalone", "label": "WFS 2.0", "protocol": "wfs", "operations": ["discovery", "query", "queryExtent", "queryObjectIds", "applyEdits", "stream"], "environment": "standalone", "executionMode": "discovery", "status": "supported", "backendNeeded": "Any WFS 2.0 server", "api": "connect(), Source, HonuaWfs", "notes": "Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path.", "evidence": ["wfs-fixtures"] },
+    { "id": "wms-discovery-standalone", "label": "WMS 1.3 discovery and raster rendering", "protocol": "wms", "operations": ["discovery", "render", "tiles"], "environment": "standalone", "executionMode": "discovery", "status": "supported", "backendNeeded": "Any WMS 1.3.0 server with a MapLibre-compatible GetMap binding", "api": "connect(), Source descriptor, @honua/sdk-js/map", "notes": "Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding; canonical query remains disabled unless a Honua service id binds the existing FeatureInfo adapter.", "evidence": ["wms-wmts-connect-fixtures", "maplibre-raster-source-fixtures"] },
+    { "id": "wmts-discovery-standalone", "label": "WMTS 1.0 discovery and raster tiles", "protocol": "wmts", "operations": ["discovery", "render", "tiles"], "environment": "standalone", "executionMode": "discovery", "status": "supported", "backendNeeded": "Any WMTS 1.0.0 server with a Web Mercator, z-addressable tile matrix set", "api": "connect(), Source descriptor, @honua/sdk-js/map", "notes": "Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms.", "evidence": ["wms-wmts-connect-fixtures", "maplibre-raster-source-fixtures"] },
     { "id": "stac-standalone", "label": "STAC API and static catalogs", "protocol": "stac", "operations": ["discovery", "query", "queryObjectIds", "stream"], "environment": "standalone", "executionMode": "discovery", "status": "supported", "backendNeeded": "Any STAC API or static catalog", "api": "connect(), Source with locator.layout=stac-api or stac-static", "notes": "Searches a raw STAC API or walks static catalog links with client-side filtering.", "evidence": ["stac-fixtures"] },
     { "id": "odata-standalone", "label": "OData v4", "protocol": "odata", "operations": ["discovery", "query", "queryObjectIds", "applyEdits", "stream"], "environment": "standalone", "executionMode": "discovery", "status": "supported", "backendNeeded": "Any OData v4 service", "api": "connect(), Source, HonuaOdataEntitySet", "notes": "Reads $metadata, intersects advertised capabilities, and uses the raw service root.", "evidence": ["odata-fixtures"] },
     { "id": "geoparquet-discovery-client-only", "label": "GeoParquet asset discovery", "protocol": "geoparquet", "operations": ["discovery"], "environment": "client-only", "executionMode": "discovery", "status": "experimental", "backendNeeded": "None; caller provides a GeoParquet profiler", "api": "connect({ protocol: 'geoparquet', geoparquet: { profiler } })", "notes": "Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver.", "evidence": ["geoparquet-connect-fixtures"] },

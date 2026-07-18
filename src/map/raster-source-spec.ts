@@ -53,6 +53,18 @@ const WMS_REQUEST_KEYS = new Set([
   "VERSION",
   "WIDTH",
 ]);
+const WMTS_REQUEST_KEYS = new Set([
+  "FORMAT",
+  "LAYER",
+  "REQUEST",
+  "SERVICE",
+  "STYLE",
+  "TILECOL",
+  "TILEMATRIX",
+  "TILEMATRIXSET",
+  "TILEROW",
+  "VERSION",
+]);
 
 export interface RasterSourceSpecOptions {
   readonly tileSize?: number;
@@ -83,9 +95,18 @@ export function buildWmsRasterSourceSpec(
   descriptor: SourceDescriptor,
   options: WmsRasterSourceSpecOptions = {},
 ): MapLibreRasterSourceSpec {
-  const endpoint = requireSafeWmsLocatorUrl(descriptor);
+  const binding = descriptor.locator.raster;
+  if (binding && binding.kind !== "wms-kvp") {
+    throw new TypeError(`descriptor for "${descriptor.id}" carries a non-WMS raster binding`);
+  }
+  const endpoint = requireSafeRasterLocatorUrl(descriptor, binding?.url);
   const tileSize = validateRasterTileSize(options.tileSize ?? DEFAULT_RASTER_TILE_SIZE);
-  const format = options.format ?? "image/png";
+  const format = options.format ?? binding?.format ?? "image/png";
+  if (binding && options.format !== undefined && options.format.toLowerCase() !== binding.format.toLowerCase()) {
+    throw new TypeError(
+      `descriptor for "${descriptor.id}" was discovered with WMS format "${binding.format}", not "${options.format}"`,
+    );
+  }
   const transparent = options.transparent ?? true;
   const params = new URLSearchParams(endpoint.search);
   for (const key of [...params.keys()]) {
@@ -114,17 +135,30 @@ export function buildWmtsRasterSourceSpec(
   descriptor: SourceDescriptor,
   options: WmtsRasterSourceSpecOptions = {},
 ): MapLibreRasterSourceSpec {
-  const url = requireLocatorUrl(descriptor);
-  const ext = wmtsExtensionForFormat(options.format ?? "image/png");
+  const binding = descriptor.locator.raster;
+  if (binding?.kind === "wms-kvp") {
+    throw new TypeError(`descriptor for "${descriptor.id}" carries a non-WMTS raster binding`);
+  }
+  const url = requireSafeRasterLocatorUrl(descriptor, binding?.url).toString();
+  const format = options.format ?? binding?.format ?? "image/png";
+  if (binding && options.format !== undefined && options.format.toLowerCase() !== binding.format.toLowerCase()) {
+    throw new TypeError(
+      `descriptor for "${descriptor.id}" was discovered with WMTS format "${binding.format}", not "${options.format}"`,
+    );
+  }
+  const ext = wmtsExtensionForFormat(format);
   const layer = descriptor.locator.typeName ?? "";
   const style = descriptor.locator.styleId ?? "default";
   const tms = descriptor.locator.tileMatrixSetId ?? "WebMercatorQuad";
+  const tileUrl = binding
+    ? binding.kind === "wmts-template"
+      ? wmtsResourceTemplate(binding.url, layer, style, tms, binding.tileMatrixTemplate)
+      : wmtsKvpTemplate(binding.url, layer, style, tms, format, binding.tileMatrixTemplate)
+    : `${url}/${encodeURIComponent(layer)}/${encodeURIComponent(style)}/${encodeURIComponent(tms)}/{z}/{y}/{x}.${ext}`;
   return {
     type: "raster",
-    tiles: [
-      `${url}/${encodeURIComponent(layer)}/${encodeURIComponent(style)}/${encodeURIComponent(tms)}/{z}/{y}/{x}.${ext}`,
-    ],
-    tileSize: options.tileSize ?? DEFAULT_RASTER_TILE_SIZE,
+    tiles: [tileUrl],
+    tileSize: validateRasterTileSize(options.tileSize ?? DEFAULT_RASTER_TILE_SIZE),
     scheme: "xyz",
     ...(options.minzoom !== undefined ? { minzoom: options.minzoom } : {}),
     ...(options.maxzoom !== undefined ? { maxzoom: options.maxzoom } : {}),
@@ -154,8 +188,8 @@ export function validateRasterTileSize(value: number): number {
   return value;
 }
 
-function requireSafeWmsLocatorUrl(descriptor: SourceDescriptor): URL {
-  const value = descriptor.locator.url;
+function requireSafeRasterLocatorUrl(descriptor: SourceDescriptor, discoveredUrl?: string): URL {
+  const value = discoveredUrl ?? descriptor.locator.url;
   if (!isSafeMapLibreRasterEndpoint(value)) {
     throw new TypeError(
       `descriptor for "${descriptor.id}" must use a credential-free HTTP(S) locator.url without a fragment`,
@@ -169,10 +203,44 @@ function isCredentialQueryKey(key: string): boolean {
   return CREDENTIAL_QUERY_KEYS.has(normalized) || normalized.startsWith("xamz") || normalized.startsWith("xgoog");
 }
 
-function requireLocatorUrl(descriptor: SourceDescriptor): string {
-  const url = descriptor.locator.url;
-  if (typeof url !== "string" || url.length === 0) {
-    throw new TypeError(`descriptor for "${descriptor.id}" is missing locator.url`);
+function wmtsResourceTemplate(
+  template: string,
+  layer: string,
+  style: string,
+  tileMatrixSet: string,
+  tileMatrix: string,
+): string {
+  return template
+    .replaceAll("{Layer}", encodeURIComponent(layer))
+    .replaceAll("{Style}", encodeURIComponent(style))
+    .replaceAll("{TileMatrixSet}", encodeURIComponent(tileMatrixSet))
+    .replaceAll("{TileMatrix}", encodeTemplateValue(tileMatrix))
+    .replaceAll("{TileRow}", "{y}")
+    .replaceAll("{TileCol}", "{x}");
+}
+
+function wmtsKvpTemplate(
+  url: string,
+  layer: string,
+  style: string,
+  tileMatrixSet: string,
+  format: string,
+  tileMatrix: string,
+): string {
+  const request = new URL(url);
+  for (const key of [...request.searchParams.keys()]) {
+    if (WMTS_REQUEST_KEYS.has(key.toUpperCase())) request.searchParams.delete(key);
   }
-  return url;
+  request.searchParams.set("SERVICE", "WMTS");
+  request.searchParams.set("VERSION", "1.0.0");
+  request.searchParams.set("REQUEST", "GetTile");
+  request.searchParams.set("LAYER", layer);
+  request.searchParams.set("STYLE", style);
+  request.searchParams.set("FORMAT", format);
+  request.searchParams.set("TILEMATRIXSET", tileMatrixSet);
+  return `${request.toString()}&TILEMATRIX=${encodeTemplateValue(tileMatrix)}&TILEROW={y}&TILECOL={x}`;
+}
+
+function encodeTemplateValue(value: string): string {
+  return encodeURIComponent(value).replace(/%7Bz%7D/gi, "{z}");
 }
