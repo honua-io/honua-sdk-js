@@ -395,14 +395,14 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const byId = new Map(cards.map((card) => [card.sample.id, card]));
 
   assert.equal(gallery.cardCount, 30);
-  assert.deepEqual(counts, { golden: 2, recipe: 12, lab: 16 });
+  assert.deepEqual(counts, { golden: 1, recipe: 12, lab: 17 });
   assert.ok(!byId.has("arcgis-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
   assert.deepEqual(byId.get("runtime-parity-showcase").replacement, {
     kind: "journey",
     id: "service-explorer",
     title: "Universal Service Explorer",
-    status: "qualified",
+    status: "planned",
     candidateSampleId: "service-explorer",
     publicSampleId: "service-explorer",
   });
@@ -433,26 +433,12 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const firstMapCard = byId.get("maplibre-quickstart");
   assert.equal(firstMapCard.qualification.state, "receipt-qualified-golden");
   assert.equal(firstMapCard.qualification.label, "Receipt-qualified golden journey");
-  const serviceExplorerCard = byId.get("service-explorer");
-  assert.equal(serviceExplorerCard.qualification.state, "receipt-qualified-golden");
-  assert.equal(serviceExplorerCard.qualification.label, "Receipt-qualified golden journey");
-  const receiptQualifiedIds = new Set(["maplibre-quickstart", "service-explorer"]);
   assert.ok(
     cards
-      .filter((card) => !receiptQualifiedIds.has(card.sample.id))
+      .filter((card) => card.sample.id !== "maplibre-quickstart")
       .every((card) => card.qualification.label.includes("not receipt-qualified")),
   );
   assert.deepEqual(firstMapCard.qualification.requiredGates, [
-    "packedBuild",
-    "browser",
-    "accessibility",
-    "console",
-    "responsive",
-    "screenshot",
-    "performance",
-    "liveEvidence",
-  ]);
-  assert.deepEqual(serviceExplorerCard.qualification.requiredGates, [
     "packedBuild",
     "browser",
     "accessibility",
