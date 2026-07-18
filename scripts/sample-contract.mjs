@@ -3475,9 +3475,14 @@ async function evidenceDirectoryEntries(
   return entries;
 }
 
-function exactEvidenceDirectoryNames(entries, expectedNames, label) {
+function exactEvidenceDirectoryNames(entries, expectedNames, label, options = {}) {
+  const allowedFiles = new Set(options.allowedFiles ?? []);
   invariant(
-    entries.every((entry) => entry.isDirectory() && !entry.isSymbolicLink()),
+    entries.every((entry) => {
+      if (entry.isSymbolicLink()) return false;
+      if (entry.isDirectory()) return true;
+      return entry.isFile() && allowedFiles.has(entry.name);
+    }),
     `${label} contains a non-directory or symlink orphan`,
   );
   const actualNames = entries.map((entry) => entry.name).sort();
@@ -3487,7 +3492,7 @@ function exactEvidenceDirectoryNames(entries, expectedNames, label) {
   );
 }
 
-async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds) {
+async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds, legacyLiveEvidenceFileBySample = new Map()) {
   const rootEntries = await evidenceDirectoryEntries(receiptRoot, "qualification evidence root", {
     optional: qualifiedSampleIds.length === 0,
     maxEntries: qualifiedSampleIds.length,
@@ -3496,12 +3501,23 @@ async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds
   if (!rootEntries) return;
   exactEvidenceDirectoryNames(rootEntries, qualifiedSampleIds, "qualification evidence root");
   for (const sampleId of qualifiedSampleIds) {
+    // Some golden journeys (e.g. maplibre-quickstart, qualified since #631)
+    // publish a legacy top-level live-evidence sidecar file next to the
+    // receipts/runs qualification tree; the catalog itself names that exact
+    // path via sample.evidence.live.evidencePath, so it is an honest,
+    // declared artifact rather than an orphan.
+    const legacyLiveEvidenceFile = legacyLiveEvidenceFileBySample.get(sampleId);
+    const expectedNames = legacyLiveEvidenceFile
+      ? ["receipts", "runs", legacyLiveEvidenceFile]
+      : ["receipts", "runs"];
     const sampleEntries = await evidenceDirectoryEntries(
       path.join(receiptRoot, sampleId),
       `${sampleId}: qualification evidence directory`,
-      { maxEntries: 2, containmentRoot: receiptRoot },
+      { maxEntries: expectedNames.length, containmentRoot: receiptRoot },
     );
-    exactEvidenceDirectoryNames(sampleEntries, ["receipts", "runs"], `${sampleId}: qualification evidence directory`);
+    exactEvidenceDirectoryNames(sampleEntries, expectedNames, `${sampleId}: qualification evidence directory`, {
+      allowedFiles: legacyLiveEvidenceFile ? [legacyLiveEvidenceFile] : [],
+    });
   }
 }
 
@@ -3626,9 +3642,23 @@ export async function collectQualificationEvidence(catalog, options = {}) {
   const qualifiedJourneys = [...catalog.goldenJourneys]
     .filter((candidate) => candidate.status === "qualified")
     .sort((left, right) => left.candidateSampleId.localeCompare(right.candidateSampleId));
+  const legacyLiveEvidenceFileBySample = new Map();
+  for (const journey of qualifiedJourneys) {
+    const sample = sampleById.get(journey.candidateSampleId);
+    const evidencePath = sample?.evidence?.live?.evidencePath;
+    const samplePrefix = `${QUALIFICATION_EVIDENCE_ROOT}/${journey.candidateSampleId}/`;
+    if (
+      typeof evidencePath === "string" &&
+      evidencePath.startsWith(samplePrefix) &&
+      !evidencePath.slice(samplePrefix.length).includes("/")
+    ) {
+      legacyLiveEvidenceFileBySample.set(journey.candidateSampleId, evidencePath.slice(samplePrefix.length));
+    }
+  }
   await validateQualificationEvidenceRoot(
     receiptRoot,
     qualifiedJourneys.map((journey) => journey.candidateSampleId),
+    legacyLiveEvidenceFileBySample,
   );
   const samples = [];
   for (const journey of qualifiedJourneys) {
