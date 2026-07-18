@@ -1,11 +1,7 @@
 {
   "format": "honua.sdk.sample-fixture-gate.v1",
   "sampleId": "maplibre-quickstart",
-<<<<<<<< HEAD:samples/evidence/maplibre-quickstart/runs/fb899af4-5ed8-4aff-aa00-2d6e5dd15034/artifacts/fixture.json
-  "sourceRevision": "bd266816b242f8f86bebd93f4a9e9d63df9ffdf9",
-========
   "sourceRevision": "be3f7925225fb82a747fde9e09eedf2bc0ebf810",
->>>>>>>> origin/trunk:samples/evidence/maplibre-quickstart/runs/ad6318b3-d50f-474a-be01-424b711034ec/artifacts/fixture.json
   "command": [
     "npm",
     "run",
@@ -16,11 +12,7 @@
   "transport": "loopback-http",
   "networkScope": "loopback-only",
   "host": "127.0.0.1",
-<<<<<<<< HEAD:samples/evidence/maplibre-quickstart/runs/fb899af4-5ed8-4aff-aa00-2d6e5dd15034/artifacts/fixture.json
-  "port": 45759,
-========
   "port": 43873,
->>>>>>>> origin/trunk:samples/evidence/maplibre-quickstart/runs/ad6318b3-d50f-474a-be01-424b711034ec/artifacts/fixture.json
   "ready": true,
   "started": true,
   "probe": {
@@ -28,7 +20,7 @@
     "path": "/",
     "status": 200,
     "bodyBytes": 11202,
-    "bodySha256": "4ec32f07285c34d4efe8be9ef2f2303fa825b95afa86b17808b6820a4f58e7ba",
+    "bodySha256": "a0ca1f7f2c760c6dfd778b52d83effb6533b0b668f4870103aa19d33824eb28a",
     "contentType": "text/html; charset=utf-8"
   },
   "closed": true,

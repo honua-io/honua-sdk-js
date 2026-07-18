@@ -1,11 +1,7 @@
 {
   "format": "honua.sdk.sample-performance-gate.v1",
   "sampleId": "maplibre-quickstart",
-<<<<<<<< HEAD:samples/evidence/maplibre-quickstart/runs/d5b7b74b-3767-4baf-b1e6-2c4f72eac930/artifacts/performance.json
-  "sourceRevision": "bd266816b242f8f86bebd93f4a9e9d63df9ffdf9",
-========
   "sourceRevision": "be3f7925225fb82a747fde9e09eedf2bc0ebf810",
->>>>>>>> origin/trunk:samples/evidence/maplibre-quickstart/runs/d35add63-a692-4b2a-b912-d699aca4b748/artifacts/performance.json
   "command": [
     "npm",
     "run",
@@ -23,26 +19,6 @@
       "operator": "<=",
       "value": 5000
     },
-<<<<<<<< HEAD:samples/evidence/maplibre-quickstart/runs/d5b7b74b-3767-4baf-b1e6-2c4f72eac930/artifacts/performance.json
-    "value": 502,
-    "observations": {
-      "navigation": {
-        "entryType": "navigation",
-        "sampleReadyMs": 502,
-        "responseStartMs": 18.400000005960464,
-        "domContentLoadedMs": 195.80000001192093,
-        "loadEventMs": 219.1000000089407
-      },
-      "resources": {
-        "count": 6,
-        "transferBytes": 1717974,
-        "decodedBodyBytes": 1716174,
-        "completedByMs": 346.1000000089407
-      },
-      "interaction": {
-        "name": "evidence-drawer-keyboard-workflow",
-        "durationMs": 67.19999998807907
-========
     "value": 708.8000000119209,
     "observations": {
       "navigation": {
@@ -61,7 +37,6 @@
       "interaction": {
         "name": "evidence-drawer-keyboard-workflow",
         "durationMs": 161.80000001192093
->>>>>>>> origin/trunk:samples/evidence/maplibre-quickstart/runs/d35add63-a692-4b2a-b912-d699aca4b748/artifacts/performance.json
       }
     }
   }

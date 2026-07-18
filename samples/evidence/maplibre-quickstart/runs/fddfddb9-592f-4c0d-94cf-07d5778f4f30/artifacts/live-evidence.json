@@ -5,20 +5,12 @@
   "lane": "live",
   "status": "executed",
   "reason": null,
-<<<<<<<< HEAD:samples/evidence/maplibre-quickstart/runs/1fe7527f-115d-447c-9e32-cfaaebdc6760/artifacts/live-evidence.json
-  "observedAt": "2026-07-18T17:42:00.242Z",
-========
   "observedAt": "2026-07-18T17:28:52.233Z",
->>>>>>>> origin/trunk:samples/evidence/maplibre-quickstart/runs/fddfddb9-592f-4c0d-94cf-07d5778f4f30/artifacts/live-evidence.json
   "authMode": "anonymous",
   "sdk": {
     "package": "@honua/sdk-js",
     "version": "0.1.0-beta.0",
-<<<<<<<< HEAD:samples/evidence/maplibre-quickstart/runs/1fe7527f-115d-447c-9e32-cfaaebdc6760/artifacts/live-evidence.json
-    "gitCommit": "bd266816b242f8f86bebd93f4a9e9d63df9ffdf9"
-========
     "gitCommit": "be3f7925225fb82a747fde9e09eedf2bc0ebf810"
->>>>>>>> origin/trunk:samples/evidence/maplibre-quickstart/runs/fddfddb9-592f-4c0d-94cf-07d5778f4f30/artifacts/live-evidence.json
   },
   "source": {
     "provider": "esri-living-atlas",
@@ -29,11 +21,7 @@
   },
   "provenance": {
     "sourceId": "geoservices-feature-service:0",
-<<<<<<<< HEAD:samples/evidence/maplibre-quickstart/runs/1fe7527f-115d-447c-9e32-cfaaebdc6760/artifacts/live-evidence.json
-    "observedAt": "2026-07-18T17:42:01.120Z",
-========
     "observedAt": "2026-07-18T17:28:54.204Z",
->>>>>>>> origin/trunk:samples/evidence/maplibre-quickstart/runs/fddfddb9-592f-4c0d-94cf-07d5778f4f30/artifacts/live-evidence.json
     "validAt": null,
     "state": "live",
     "attribution": "States 2020 Apportionment - U.S. House of Representatives Seats"
@@ -57,13 +45,8 @@
     ]
   },
   "timing": {
-<<<<<<<< HEAD:samples/evidence/maplibre-quickstart/runs/1fe7527f-115d-447c-9e32-cfaaebdc6760/artifacts/live-evidence.json
-    "totalMs": 629,
-    "firstSuccessfulInteractionMs": 629
-========
     "totalMs": 755,
     "firstSuccessfulInteractionMs": 755
->>>>>>>> origin/trunk:samples/evidence/maplibre-quickstart/runs/fddfddb9-592f-4c0d-94cf-07d5778f4f30/artifacts/live-evidence.json
   },
   "degradation": {
     "state": "none",
@@ -77,13 +60,8 @@
     },
     {
       "kind": "live-screenshot",
-<<<<<<<< HEAD:samples/evidence/maplibre-quickstart/runs/1fe7527f-115d-447c-9e32-cfaaebdc6760/artifacts/live-evidence.json
-      "path": "samples/evidence/maplibre-quickstart/runs/1fe7527f-115d-447c-9e32-cfaaebdc6760/artifacts/live-evidence.png",
-      "sha256": "31dba5ac27cde83d659981853fc740151b90ac99f8f492a7ac3945fa4b30e87a"
-========
       "path": "samples/evidence/maplibre-quickstart/runs/fddfddb9-592f-4c0d-94cf-07d5778f4f30/artifacts/live-evidence.png",
       "sha256": "f49b7ff9c35730f0fc0620ca2d5f69ea6e5b48fa314d3b5603bd7b3c43fca2f2"
->>>>>>>> origin/trunk:samples/evidence/maplibre-quickstart/runs/fddfddb9-592f-4c0d-94cf-07d5778f4f30/artifacts/live-evidence.json
     }
   ]
 }
