@@ -49,6 +49,9 @@ jobs:
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
 
+      - name: Test backlog dependency reconciliation policy
+        run: node --test test/scripts/backlog-dependencies.test.mjs
+
       - name: Install dependencies
         run: npm ci
 
@@ -115,6 +118,9 @@ jobs:
 
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
+
+      - name: Test backlog dependency reconciliation policy
+        run: node --test test/scripts/backlog-dependencies.test.mjs
 
       # The enforceable five-minute clock includes npm ci, browser
       # provisioning, the fixture build, and the first usable map.
