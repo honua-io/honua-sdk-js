@@ -735,7 +735,12 @@ function projectInspection(
   inspection: ConnectionInspection,
   request: ServiceExplorerRequestView,
 ): ServiceExplorerInspectionView {
-  const inspectedDefaultSourceId = inspection.defaultSourceId;
+  // Honor an explicitly requested source id (from the picker) when it exists in the
+  // inspected sources; otherwise fall back to the discovery-reported default.
+  const requestedSourceId = request.sourceId;
+  const requestedSourcePresent =
+    requestedSourceId !== undefined && inspection.sources.some((source) => source.descriptor.id === requestedSourceId);
+  const inspectedDefaultSourceId = requestedSourcePresent ? requestedSourceId : inspection.defaultSourceId;
   const visibleInspections = inspection.sources.slice(0, MAX_SOURCES);
   const selectedSourceVisible =
     inspectedDefaultSourceId !== undefined &&
