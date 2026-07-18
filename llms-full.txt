@@ -1526,19 +1526,19 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-18 at commit `9debd658`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-18 at commit `2f6b71a8`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 532.9 KiB | 140.5 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 211.9 KiB | 53.6 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 40.7 KiB | 12.8 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 264.6 KiB | 70.0 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 979.4 KiB | 243.6 KiB |
-| Geocoding client | 25.1 KiB | 7.3 KiB |
-| Routing client | 18.7 KiB | 6.0 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 605.2 KiB | 160.8 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 217.3 KiB | 55.5 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 42.2 KiB | 13.0 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 288.3 KiB | 76.4 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 984.7 KiB | 245.5 KiB |
+| Geocoding client | 26.6 KiB | 7.6 KiB |
+| Routing client | 20.2 KiB | 6.2 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 5.21.1, measured locally from
 this repo's pinned dependency (`dist/maplibre-gl.js`) — is 1024.9 KiB minified / **267.9 KiB gzip**.
@@ -1555,10 +1555,10 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 532.9 KiB ≈
-1.52 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 605.2 KiB ≈
+1.59 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
-0.40 MB over the wire with gzip. Esri's totals also grow with widgets;
+0.42 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.
 
 **`@esri/arcgis-rest-js`** (<https://developers.arcgis.com/arcgis-rest-js/>, retrieved 2026-07-13).
@@ -6982,6 +6982,33 @@ classification is conservatively non-retryable.
 | `plugin.lifecycle.cleanup` | `plugin` | `internal` | no | Plugin lifecycle cleanup failed |
 | `plugin.cancelled` | `plugin` | `cancellation` | no | Plugin registration was cancelled |
 | `plugin.internal` | `plugin` | `internal` | no | Plugin registry internal failure |
+| `agent.tool.unknown-tool` | `agent` | `validation` | no | Requested agent tool name is not registered |
+| `agent.tool.missing-runtime` | `agent` | `validation` | no | Agent tool kit requires a runtime, controller, or generated-app runtime |
+| `agent.tool.unqualified-selection` | `agent` | `validation` | no | Agent tool selection target is not source-qualified |
+| `agent.tool.missing-runtime-method` | `agent` | `capability` | no | Adapted runtime does not implement the requested agent tool |
+| `agent.tool.internal` | `agent` | `internal` | no | Agent tool executor internal failure |
+| `agent.safety.aborted` | `agent` | `cancellation` | no | Agent safety operation was aborted |
+| `agent.safety.invalid-input` | `agent` | `validation` | no | Agent safety input is invalid |
+| `agent.safety.policy-denied` | `agent` | `capability` | no | Agent plan step was denied by host policy |
+| `agent.safety.integrity-failed` | `agent` | `protocol` | no | Agent safety evidence integrity verification failed |
+| `agent.safety.approval-expired` | `agent` | `authentication` | no | Agent step approval has expired |
+| `agent.safety.context-mismatch` | `agent` | `validation` | no | Agent execution context does not match the authorized plan |
+| `agent.safety.signature-invalid` | `agent` | `validation` | no | Agent approval or receipt signature is invalid |
+| `agent.safety.execution-failed` | `agent` | `internal` | no | Agent plan step execution failed |
+| `agent.safety.audit-failed` | `agent` | `internal` | no | Agent execution audit record could not be appended |
+| `agent.safety.receipt-failed` | `agent` | `internal` | no | Agent execution receipt could not be issued or verified |
+| `app.unsupported-profile` | `app` | `capability` | no | Generated app profile is not supported |
+| `app.unsupported-widget` | `app` | `capability` | no | Generated app widget kind is not supported |
+| `app.missing-manifest` | `app` | `validation` | no | Generated app manifest or app package is missing |
+| `app.missing-manifest-artifact` | `app` | `validation` | no | Generated app manifest artifact is missing |
+| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a MapPackage |
+| `app.map-package-mismatch` | `app` | `validation` | no | Generated app MapPackage does not match its manifest |
+| `app.missing-widget` | `app` | `validation` | no | Generated app manifest is missing a required widget |
+| `app.missing-binding` | `app` | `validation` | no | Generated app runtime is missing a required binding |
+| `app.map-load-failed` | `app` | `internal` | no | Generated app map widget failed to load |
+| `app.data-load-failed` | `app` | `internal` | no | Generated app feature data failed to load |
+| `app.render-failed` | `app` | `internal` | no | Generated app render failed |
+| `app.disposed` | `app` | `validation` | no | Generated app runtime is disposed |
 <!-- error-code-registry:end -->
 
 ## Narrowing in `catch`
