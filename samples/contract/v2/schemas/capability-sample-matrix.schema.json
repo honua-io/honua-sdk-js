@@ -1,0 +1,499 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/capability-sample-matrix.v1.schema.json",
+  "title": "Honua SDK capability-to-sample matrix v1",
+  "type": "object",
+  "required": [
+    "format",
+    "schemaVersion",
+    "sdk",
+    "inputs",
+    "statusVocabulary",
+    "dimensions",
+    "goldenJourneys",
+    "samples",
+    "evidenceBindings",
+    "protocolOperations",
+    "supportClaims",
+    "packageEntrypoints",
+    "gaps"
+  ],
+  "properties": {
+    "format": { "const": "honua.site.sdk-capability-sample-matrix.v1" },
+    "schemaVersion": { "const": 1 },
+    "sdk": {
+      "type": "object",
+      "required": ["package", "version"],
+      "properties": {
+        "package": { "$ref": "#/$defs/nonEmptyString" },
+        "version": { "$ref": "#/$defs/nonEmptyString" }
+      },
+      "additionalProperties": false
+    },
+    "inputs": {
+      "type": "object",
+      "required": ["supportTruth", "packageExports", "catalog", "qualificationEvidence"],
+      "properties": {
+        "supportTruth": { "$ref": "#/$defs/versionedFileInput" },
+        "packageExports": {
+          "type": "object",
+          "required": ["path", "package", "sha256"],
+          "properties": {
+            "path": { "const": "package.json" },
+            "package": { "$ref": "#/$defs/nonEmptyString" },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          },
+          "additionalProperties": false
+        },
+        "catalog": { "$ref": "#/$defs/versionedFileInput" },
+        "qualificationEvidence": {
+          "type": "object",
+          "required": ["root", "format", "schemaVersion", "receiptCount", "sha256"],
+          "properties": {
+            "root": { "const": "samples/evidence" },
+            "format": { "const": "honua.sdk.sample-qualification-evidence.v1" },
+            "schemaVersion": { "const": 1 },
+            "receiptCount": { "type": "integer", "minimum": 0 },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "statusVocabulary": {
+      "type": "object",
+      "required": ["coverage", "support"],
+      "properties": {
+        "coverage": {
+          "const": ["qualified", "partial", "planned", "experimental", "unsupported"]
+        },
+        "support": {
+          "const": ["supported", "beta", "experimental", "deprecated", "unsupported", "facade-required"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "dimensions": {
+      "type": "object",
+      "required": [
+        "tasks",
+        "catalogProtocols",
+        "protocolIds",
+        "renderers",
+        "dataModes",
+        "authModes",
+        "supportTiers",
+        "lifecycleStates",
+        "packageEntrypoints"
+      ],
+      "properties": {
+        "tasks": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "catalogProtocols": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "protocolIds": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "renderers": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "dataModes": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "authModes": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "supportTiers": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "lifecycleStates": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "packageEntrypoints": { "$ref": "#/$defs/nonEmptyStringArray" }
+      },
+      "additionalProperties": false
+    },
+    "goldenJourneys": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/goldenJourney" }
+    },
+    "samples": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/sample" }
+    },
+    "evidenceBindings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidenceBinding" }
+    },
+    "protocolOperations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/protocolOperation" }
+    },
+    "supportClaims": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/supportClaim" }
+    },
+    "packageEntrypoints": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/packageEntrypoint" }
+    },
+    "gaps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/gap" }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "stringArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonEmptyString" }
+    },
+    "nonEmptyStringArray": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonEmptyString" }
+    },
+    "supportStatus": {
+      "enum": ["supported", "beta", "experimental", "deprecated", "unsupported", "facade-required"]
+    },
+    "coverageState": {
+      "enum": ["qualified", "partial", "planned", "experimental", "unsupported"]
+    },
+    "versionedFileInput": {
+      "type": "object",
+      "required": ["path", "format", "schemaVersion", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/nonEmptyString" },
+        "format": { "$ref": "#/$defs/nonEmptyString" },
+        "schemaVersion": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["state", "reason", "candidateSampleIds", "qualifyingSampleIds", "evidenceBindingIds"],
+      "properties": {
+        "state": { "$ref": "#/$defs/coverageState" },
+        "reason": { "$ref": "#/$defs/nonEmptyString" },
+        "candidateSampleIds": { "$ref": "#/$defs/stringArray" },
+        "qualifyingSampleIds": { "$ref": "#/$defs/stringArray" },
+        "evidenceBindingIds": { "$ref": "#/$defs/stringArray" },
+        "selectedSampleId": { "$ref": "#/$defs/nonEmptyString" }
+      },
+      "additionalProperties": false
+    },
+    "qualificationEvidence": {
+      "type": "object",
+      "required": ["receiptCount", "gates", "sdkModes", "sourceRevisions", "sha256"],
+      "properties": {
+        "receiptCount": { "type": "integer", "minimum": 1 },
+        "gates": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "sdkModes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["source", "packed"] }
+        },
+        "sourceRevisions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/sourceRevision" }
+        },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "qualification": {
+      "type": "object",
+      "required": ["state", "catalogStatus"],
+      "properties": {
+        "state": { "$ref": "#/$defs/coverageState" },
+        "catalogStatus": { "enum": ["planned", "qualified", "not-a-golden-journey"] },
+        "evidenceBindingId": {
+          "type": "string",
+          "pattern": "^qualification:[a-f0-9]{64}$"
+        },
+        "evidence": { "$ref": "#/$defs/qualificationEvidence" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "state": { "const": "qualified" } }, "required": ["state"] },
+          "then": { "required": ["evidenceBindingId", "evidence"] },
+          "else": {
+            "not": {
+              "anyOf": [{ "required": ["evidenceBindingId"] }, { "required": ["evidence"] }]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "receiptEvidenceBinding": {
+      "type": "object",
+      "required": [
+        "gate",
+        "sdkMode",
+        "receiptPath",
+        "receiptSha256",
+        "runRoot",
+        "observedAt",
+        "expiresAt",
+        "reportKind",
+        "reportPath",
+        "reportBytes",
+        "reportSha256"
+      ],
+      "properties": {
+        "gate": { "$ref": "#/$defs/nonEmptyString" },
+        "sdkMode": { "enum": ["source", "packed"] },
+        "receiptPath": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/receipts/[a-z0-9]+(?:-[a-z0-9]+)*\\.v1\\.json$"
+        },
+        "receiptSha256": { "$ref": "#/$defs/sha256" },
+        "runRoot": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "reportKind": { "$ref": "#/$defs/nonEmptyString" },
+        "reportPath": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/.+$"
+        },
+        "reportBytes": { "type": "integer", "minimum": 0 },
+        "reportSha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "evidenceBinding": {
+      "type": "object",
+      "required": ["id", "sampleId", "source", "packed"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^qualification:[a-f0-9]{64}$"
+        },
+        "sampleId": { "$ref": "#/$defs/nonEmptyString" },
+        "source": {
+          "type": "object",
+          "required": ["repository", "path", "revision", "evidenceNeutralSha256", "receipts"],
+          "properties": {
+            "repository": { "const": "honua-io/honua-sdk-js" },
+            "path": { "$ref": "#/$defs/nonEmptyString" },
+            "revision": { "$ref": "#/$defs/sourceRevision" },
+            "evidenceNeutralSha256": { "$ref": "#/$defs/sha256" },
+            "receipts": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/receiptEvidenceBinding" },
+                  { "properties": { "sdkMode": { "const": "source" } }, "required": ["sdkMode"] }
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "packed": {
+          "allOf": [
+            { "$ref": "#/$defs/receiptEvidenceBinding" },
+            {
+              "properties": {
+                "gate": { "const": "packed-build" },
+                "sdkMode": { "const": "packed" }
+              },
+              "required": ["gate", "sdkMode"]
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "sample": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "sourcePath",
+        "track",
+        "tasks",
+        "catalogProtocols",
+        "protocolIds",
+        "supportClaimIds",
+        "protocolBindings",
+        "renderers",
+        "dataMode",
+        "authMode",
+        "supportTier",
+        "lifecycleState",
+        "qualification"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "title": { "$ref": "#/$defs/nonEmptyString" },
+        "sourcePath": { "$ref": "#/$defs/nonEmptyString" },
+        "track": { "enum": ["golden", "recipe", "lab", "fixture"] },
+        "journeyId": { "$ref": "#/$defs/nonEmptyString" },
+        "tasks": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "catalogProtocols": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "protocolIds": { "$ref": "#/$defs/stringArray" },
+        "supportClaimIds": { "$ref": "#/$defs/stringArray" },
+        "protocolBindings": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/protocolBinding" }
+        },
+        "renderers": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "dataMode": { "$ref": "#/$defs/nonEmptyString" },
+        "authMode": { "$ref": "#/$defs/nonEmptyString" },
+        "supportTier": { "$ref": "#/$defs/nonEmptyString" },
+        "lifecycleState": { "$ref": "#/$defs/nonEmptyString" },
+        "qualification": { "$ref": "#/$defs/qualification" }
+      },
+      "additionalProperties": false
+    },
+    "protocolBinding": {
+      "type": "object",
+      "required": ["catalogProtocol", "protocolIds", "supportClaimIds", "external"],
+      "properties": {
+        "catalogProtocol": { "$ref": "#/$defs/nonEmptyString" },
+        "protocolIds": { "$ref": "#/$defs/stringArray" },
+        "supportClaimIds": { "$ref": "#/$defs/stringArray" },
+        "external": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "goldenJourney": {
+      "type": "object",
+      "required": ["id", "title", "candidateSampleId", "catalogStatus", "supportStatus", "coverage"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "title": { "$ref": "#/$defs/nonEmptyString" },
+        "candidateSampleId": { "$ref": "#/$defs/nonEmptyString" },
+        "catalogStatus": { "enum": ["planned", "qualified"] },
+        "supportStatus": { "$ref": "#/$defs/supportStatus" },
+        "coverage": { "$ref": "#/$defs/coverage" }
+      },
+      "additionalProperties": false
+    },
+    "protocolOperation": {
+      "type": "object",
+      "required": [
+        "id",
+        "protocolId",
+        "protocolLabel",
+        "operation",
+        "authority",
+        "supportStatus",
+        "truthEvidence",
+        "coverage"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "protocolId": { "$ref": "#/$defs/nonEmptyString" },
+        "protocolLabel": { "$ref": "#/$defs/nonEmptyString" },
+        "operation": { "$ref": "#/$defs/nonEmptyString" },
+        "authority": { "enum": ["claim", "default"] },
+        "supportStatus": { "$ref": "#/$defs/supportStatus" },
+        "environment": { "$ref": "#/$defs/nonEmptyString" },
+        "executionMode": { "$ref": "#/$defs/nonEmptyString" },
+        "truthEvidence": { "$ref": "#/$defs/stringArray" },
+        "coverage": { "$ref": "#/$defs/coverage" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "authority": { "const": "claim" } }, "required": ["authority"] },
+          "then": { "required": ["environment", "executionMode"] },
+          "else": {
+            "not": {
+              "anyOf": [{ "required": ["environment"] }, { "required": ["executionMode"] }]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "candidateEvidence": {
+      "type": "object",
+      "required": ["sampleId", "matchedOperations", "binding"],
+      "properties": {
+        "sampleId": { "$ref": "#/$defs/nonEmptyString" },
+        "matchedOperations": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "binding": { "enum": ["exact", "ambiguous"] }
+      },
+      "additionalProperties": false
+    },
+    "supportClaim": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "operations",
+        "api",
+        "apiEntrypoints",
+        "supportStatus",
+        "environment",
+        "executionMode",
+        "truthEvidence",
+        "candidateEvidence",
+        "coverage"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "label": { "$ref": "#/$defs/nonEmptyString" },
+        "protocolId": { "$ref": "#/$defs/nonEmptyString" },
+        "operations": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "api": { "$ref": "#/$defs/nonEmptyString" },
+        "apiEntrypoints": { "$ref": "#/$defs/stringArray" },
+        "supportStatus": { "$ref": "#/$defs/supportStatus" },
+        "environment": { "$ref": "#/$defs/nonEmptyString" },
+        "executionMode": { "$ref": "#/$defs/nonEmptyString" },
+        "truthEvidence": { "$ref": "#/$defs/stringArray" },
+        "candidateEvidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/candidateEvidence" }
+        },
+        "coverage": { "$ref": "#/$defs/coverage" }
+      },
+      "additionalProperties": false
+    },
+    "packageEntrypoint": {
+      "type": "object",
+      "required": ["subpath", "supportStatus", "targets", "coverage"],
+      "properties": {
+        "subpath": { "$ref": "#/$defs/nonEmptyString" },
+        "supportStatus": { "$ref": "#/$defs/supportStatus" },
+        "replacement": { "$ref": "#/$defs/nonEmptyString" },
+        "targets": {
+          "type": "object",
+          "required": ["types", "default"],
+          "properties": {
+            "types": { "type": "string", "pattern": "^\\./dist/.+\\.d\\.ts$" },
+            "default": { "type": "string", "pattern": "^\\./dist/.+\\.js$" }
+          },
+          "additionalProperties": false
+        },
+        "coverage": { "$ref": "#/$defs/coverage" }
+      },
+      "additionalProperties": false
+    },
+    "gap": {
+      "type": "object",
+      "required": ["targetType", "targetId", "supportStatus", "coverageState", "candidateSampleIds", "reason"],
+      "properties": {
+        "targetType": {
+          "enum": ["golden-journey", "protocol-operation", "support-claim", "package-entrypoint"]
+        },
+        "targetId": { "$ref": "#/$defs/nonEmptyString" },
+        "supportStatus": { "$ref": "#/$defs/supportStatus" },
+        "coverageState": { "$ref": "#/$defs/coverageState" },
+        "candidateSampleIds": { "$ref": "#/$defs/stringArray" },
+        "reason": { "$ref": "#/$defs/nonEmptyString" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

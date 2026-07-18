@@ -25,6 +25,18 @@ import "./styles.css";
 
 declare const __HONUA_SDK_VERSION__: string;
 
+declare global {
+  interface Window {
+    /**
+     * Test-only hook: the currently mounted MapLibre map instance, used by
+     * the sample-gate visual-evidence harness (test/playwright/sample-gate-assertions.mjs)
+     * to wait for a fully idle map before capturing reproducible screenshots.
+     * Not part of the sample's product surface.
+     */
+    __HONUA_QUICKSTART_MAP__?: maplibregl.Map;
+  }
+}
+
 const FIRST_MAP_SOURCE_ID = "first-map-features";
 const FIRST_MAP_LAYER_ID = "first-map-feature";
 const FIXTURE_FEATURE_PATH = "/rest/services/natural-earth/FeatureServer/0";
@@ -454,11 +466,19 @@ async function bootstrap(): Promise<void> {
       style: basemapStyle,
       center: [-157.8583, 21.3069],
       zoom: 11,
+      // Deterministic capture: MapLibre's default 300ms label/marker fade
+      // makes back-to-back screenshots non-byte-identical while symbols are
+      // still cross-fading in. The sample-gate visual-evidence harness also
+      // waits for map.once("idle"), but eliminating the fade at the source
+      // is what actually makes that wait sufficient.
+      fadeDuration: 0,
     });
+    window.__HONUA_QUICKSTART_MAP__ = map;
     let mapRemoved = false;
     const removeMap = () => {
       if (mapRemoved) return;
       mapRemoved = true;
+      if (window.__HONUA_QUICKSTART_MAP__ === map) window.__HONUA_QUICKSTART_MAP__ = undefined;
       map.remove();
     };
     removeInFlightMap = removeMap;

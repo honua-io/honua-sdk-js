@@ -2,15 +2,17 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createFixtureBuildEnvironment } from "../scripts/lib/fixture-build-environment.mjs";
 import {
   buildBrowserArtifactManifest,
   classifyConfigurationName,
+  collectQualificationEvidence,
   compareReleases,
   extractSampleConfiguration,
   generateCiSelection,
+  generateGoldenJourneyVisualEvidence,
   generateSiteProjection,
   generatedOutputDrift,
   generatedOutputs,
@@ -23,10 +25,20 @@ import {
   validateEvidenceEnvelope,
   validateFixtureBuildHarnessSource,
   validateFixtureBuildHarnesses,
+  validateGoldenJourneyVisualEvidence,
   validateLiveEvidenceProducer,
   validateSiteProjection,
   verifyBrowserArtifactManifest,
 } from "../scripts/sample-contract.mjs";
+import type { GoldenJourneyVisualEvidence } from "../scripts/sample-contract.mjs";
+
+// validateCatalog and the golden-journey visual-evidence helpers below read
+// the real samples/evidence tree (receipts, screenshots, live evidence) for
+// the now genuinely qualified First Map journey. That real I/O regularly
+// exceeds vitest's 5s default under full-suite contention; the default
+// empty-evidence case was effectively instant, so this was never exercised
+// before. Raise this file's timeout rather than the global default.
+vi.setConfig({ testTimeout: 20_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
@@ -40,6 +52,88 @@ const goldenJourneyIds = [
   "cloud-native-analysis",
   "arcgis-migration",
 ];
+const visualSemanticGates = [
+  "packed-build",
+  "browser",
+  "accessibility",
+  "console",
+  "responsive",
+  "screenshot",
+  "performance",
+  "fixture",
+  "live",
+] as const;
+
+function visualEvidenceAdversary(
+  journeyId: string,
+  sampleId: string,
+  observedAt: string,
+  expiresAt: string,
+): GoldenJourneyVisualEvidence["qualifiedGoldenJourneys"][number] {
+  const runRoot = `samples/evidence/${sampleId}/runs/11111111-1111-4111-8111-111111111111`;
+  const screenshot = (variant: "desktop" | "mobile", width: number, height: number) => ({
+    variant,
+    projectName: "chromium",
+    browserName: "chromium",
+    sourcePath: `${runRoot}/artifacts/screenshot-${variant}.png`,
+    mediaType: "image/png",
+    viewport: { width, height },
+    bytes: 1,
+    sha256: "a".repeat(64),
+    reproducibility: {
+      captureCount: 2,
+      comparison: "byte-identical",
+      repeatSourcePath: `${runRoot}/artifacts/screenshot-${variant}-repeat.png`,
+      repeatBytes: 1,
+      repeatSha256: "a".repeat(64),
+    },
+  });
+  return {
+    journeyId,
+    sampleId,
+    source: {
+      repository: "honua-io/honua-sdk-js",
+      path: "examples/maplibre-quickstart",
+      revision: "b".repeat(40),
+      evidenceNeutralSha256: "c".repeat(64),
+    },
+    runtime: {
+      playwrightVersion: "1.58.0",
+      projectName: "chromium",
+      browserName: "chromium",
+      browserVersion: "123.0.0.0",
+      platform: "linux",
+      architecture: "x64",
+    },
+    observedAt,
+    expiresAt,
+    screenshots: [screenshot("desktop", 1280, 720), screenshot("mobile", 390, 844)],
+    semanticEvidence: visualSemanticGates.map((gate) => ({
+      gate,
+      sdkMode: gate === "packed-build" ? "packed" : "source",
+      receiptPath: `samples/evidence/${sampleId}/receipts/${gate}.v1.json`,
+      receiptSha256: "d".repeat(64),
+      runRoot,
+      observedAt,
+      expiresAt,
+      reportKind: `${gate}-report`,
+      reportPath: `${runRoot}/artifacts/${gate}.json`,
+      reportBytes: 1,
+      reportSha256: "e".repeat(64),
+    })),
+    liveEvidence: {
+      mode: "public-live",
+      status: "executed",
+      observedAt,
+      expiresAt,
+      evidencePath: `${runRoot}/artifacts/live-evidence.json`,
+      provenance: { state: "live", observedAt, attribution: "Fixture adversary" },
+      semantics: { operation: "query", outcome: "passed", itemCount: 1, assertions: ["bounded"] },
+      timing: { totalMs: 1 },
+      degradation: { state: "none", reasons: [] },
+    },
+  };
+}
 
 describe("sample publication contract", () => {
   it("discovers every runnable example and reserves exactly seven golden journeys", async () => {
@@ -131,9 +225,14 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
     const projection = generateSiteProjection(catalog, packageJson);
     const ciSelection = generateCiSelection(catalog);
+    const qualificationEvidence = await collectQualificationEvidence(catalog);
+    const visualEvidence = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
 
     await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
     await expect(validateCiSelection(ciSelection)).resolves.toBeUndefined();
+    await expect(
+      validateGoldenJourneyVisualEvidence(visualEvidence, catalog, qualificationEvidence),
+    ).resolves.toBeUndefined();
 
     expect(projection.samples).toHaveLength(32);
     expect(projection.routes).toHaveLength(21);
@@ -143,6 +242,40 @@ describe("sample publication contract", () => {
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
     expect(ciSelection.samples).toHaveLength(32);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
+    expect(visualEvidence).toMatchObject({
+      format: "honua.sdk.golden-journey-visual-evidence.v1",
+      schemaVersion: 1,
+      policy: {
+        sourceRepository: "honua-io/honua-sdk-js",
+        requiredScreenshotVariants: [
+          { id: "desktop", viewport: { width: 1280, height: 720 } },
+          { id: "mobile", viewport: { width: 390, height: 844 } },
+        ],
+        screenshotReproducibility: {
+          reportFormat: "honua.sdk.sample-screenshot-gate.v3",
+          captureCount: 2,
+          comparison: "byte-identical",
+          scope: "same-page-session",
+          runtimeBinding: [
+            "playwright-version",
+            "project-name",
+            "browser-name",
+            "browser-version",
+            "platform",
+            "architecture",
+          ],
+        },
+      },
+    });
+    // maplibre-quickstart is the one real, evidence-backed golden journey;
+    // check its stable identity fields rather than the full volatile object
+    // (timestamps, run IDs, screenshot hashes all legitimately change every
+    // capture).
+    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(1);
+    expect(visualEvidence.qualifiedGoldenJourneys[0]).toMatchObject({
+      journeyId: "first-map",
+      sampleId: "maplibre-quickstart",
+    });
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
     expect(JSON.stringify(projection)).not.toContain("VITE_");
@@ -203,6 +336,72 @@ describe("sample publication contract", () => {
     await expect(validateCiSelection(flattenedCi)).rejects.toThrow("JSON Schema validation failed");
   });
 
+  it("rejects overstated, stale, cross-runtime, and non-realtime visual evidence", async () => {
+    const catalog = await readJson("samples/catalog.v2.json");
+    const qualificationEvidence = await collectQualificationEvidence(catalog);
+    const canonical = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
+    const observedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+    const overstated = structuredClone(canonical);
+    overstated.qualifiedGoldenJourneys.push(
+      visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt),
+    );
+    await expect(validateGoldenJourneyVisualEvidence(overstated, catalog, qualificationEvidence)).rejects.toThrow(
+      "orphaned, missing, or overstated",
+    );
+
+    const staleCatalog = structuredClone(catalog);
+    staleCatalog.goldenJourneys[0].status = "qualified";
+    staleCatalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").track = "golden";
+    // Replace (not push): canonical already carries the one real first-map
+    // entry, and this sub-case isolates a stale freshness window on the
+    // catalog's single qualified journey rather than an extra/duplicate one.
+    const stale = structuredClone(canonical);
+    stale.qualifiedGoldenJourneys = [
+      visualEvidenceAdversary(
+        "first-map",
+        "maplibre-quickstart",
+        "2026-07-01T00:00:00.000Z",
+        "2026-07-08T00:00:00.000Z",
+      ),
+    ];
+    await expect(validateGoldenJourneyVisualEvidence(stale, staleCatalog, qualificationEvidence)).rejects.toThrow(
+      "stale or has an invalid freshness window",
+    );
+
+    const staleLive = structuredClone(canonical);
+    staleLive.qualifiedGoldenJourneys = [
+      visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt),
+    ];
+    staleLive.qualifiedGoldenJourneys[0].liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
+    staleLive.qualifiedGoldenJourneys[0].liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
+    await expect(validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence)).rejects.toThrow(
+      "stale or has an invalid freshness window",
+    );
+
+    const incidentCatalog = structuredClone(catalog);
+    const incidentJourney = incidentCatalog.goldenJourneys.find(
+      (journey: { id: string }) => journey.id === "incident-operations",
+    );
+    incidentJourney.status = "qualified";
+    incidentCatalog.samples.find((sample: { id: string }) => sample.id === "realtime-incident-dashboard").track =
+      "golden";
+    const staticIncident = structuredClone(canonical);
+    staticIncident.qualifiedGoldenJourneys.push(
+      visualEvidenceAdversary("incident-operations", "realtime-incident-dashboard", observedAt, expiresAt),
+    );
+    await expect(
+      validateGoldenJourneyVisualEvidence(staticIncident, incidentCatalog, qualificationEvidence),
+    ).rejects.toThrow("must remain realtime");
+
+    const crossRuntime = structuredClone(canonical);
+    crossRuntime.policy.screenshotReproducibility.scope = "cross-platform";
+    await expect(validateGoldenJourneyVisualEvidence(crossRuntime, catalog, qualificationEvidence)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+  });
+
   it("derives release versions without catalog edits and still detects semantic drift", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
@@ -218,7 +417,10 @@ describe("sample publication contract", () => {
     expect(bumpedProjection.samples[0].sdk.version).toBe("0.1.1-beta.0");
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
+      "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
 
     const semanticDrift = new Map(currentOutputs);
@@ -236,7 +438,10 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
+      "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v1.json",
       fixturePath,
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
   });
 

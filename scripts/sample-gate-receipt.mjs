@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
-import { lstat, mkdir, open, readFile, readdir, realpath } from "node:fs/promises";
+import { lstat, mkdir, open, opendir, readFile, readdir, realpath } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,10 +12,13 @@ import {
   isSampleEvidenceRunId,
   SAMPLE_PERFORMANCE_BUDGET_MS,
   SAMPLE_PERFORMANCE_METRIC,
-  SAMPLE_SCREENSHOT_VIEWPORT,
+  SAMPLE_SCREENSHOT_REPORT_FORMAT,
+  SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY,
+  SAMPLE_SCREENSHOT_VARIANTS,
 } from "./lib/sample-gates.mjs";
 
 const require = createRequire(import.meta.url);
+const PLAYWRIGHT_VERSION = require("@playwright/test/package.json").version;
 const Ajv2020 = require("ajv/dist/2020").default;
 const addFormats = require("ajv-formats").default;
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -84,6 +87,34 @@ function gitOutput(args, root) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
 
+// Paths that are regenerated OUTPUT rather than authored SOURCE, and are
+// therefore excluded from the "evidence-neutral" source digest:
+//  - samples/evidence: the gate receipts and captured artifacts themselves.
+//  - samples/dist, samples/contract/v2/consumer-fixtures: dist projections
+//    (golden-journey visual evidence, capability matrix, site consumer
+//    handoff/fixtures) generated FROM qualification evidence by
+//    `samples:generate`. These embed the evidence capture's own
+//    sourceRevision/runId/observedAt, so including them in the digest would
+//    make the digest a function of its own output: regenerating them after
+//    a capture changes the tree, which would invalidate the very receipts
+//    that capture just produced, and no commit could ever be self-consistent.
+//    Their integrity is instead enforced by generatedOutputDrift's direct
+//    byte comparison against a fresh generation, and each entry's own
+//    receipt-bound sourceRevision/sourceDigest fields.
+const EVIDENCE_NEUTRAL_EXCLUDED_ROOTS = Object.freeze([
+  "samples/evidence",
+  "samples/dist",
+  "samples/contract/v2/consumer-fixtures",
+]);
+
+function evidenceNeutralExcludePathspecs() {
+  return EVIDENCE_NEUTRAL_EXCLUDED_ROOTS.map((root) => `:(exclude)${root}`);
+}
+
+function isEvidenceNeutralExcluded(file) {
+  return EVIDENCE_NEUTRAL_EXCLUDED_ROOTS.some((root) => file === root || file.startsWith(`${root}/`));
+}
+
 function canonicalTreeListing(buffer, format, excludeEvidence = false) {
   const records = buffer.toString("utf8").split("\0").filter(Boolean);
   const entries = [];
@@ -93,7 +124,7 @@ function canonicalTreeListing(buffer, format, excludeEvidence = false) {
     const metadata = record.slice(0, tab).split(" ");
     const file = record.slice(tab + 1);
     invariant(file.length > 0 && !file.includes("\0"), `invalid Git ${format} tree path`);
-    if (excludeEvidence && (file === "samples/evidence" || file.startsWith("samples/evidence/"))) continue;
+    if (excludeEvidence && isEvidenceNeutralExcluded(file)) continue;
     if (format === "index") {
       invariant(metadata.length === 3 && metadata[2] === "0", "source index contains an unresolved stage");
       entries.push(`${metadata[0]}\0${metadata[1]}\0${file}\0`);
@@ -107,7 +138,7 @@ function canonicalTreeListing(buffer, format, excludeEvidence = false) {
 }
 
 function indexSourceListing(root) {
-  const index = execFileSync("git", ["ls-files", "-s", "-z", "--", ".", ":(exclude)samples/evidence"], {
+  const index = execFileSync("git", ["ls-files", "-s", "-z", "--", ".", ...evidenceNeutralExcludePathspecs()], {
     cwd: root,
     encoding: null,
     stdio: ["ignore", "pipe", "pipe"],
@@ -136,7 +167,7 @@ function revisionSourceDigest(revision, root) {
 }
 
 function rejectHiddenIndexInputs(root) {
-  const output = execFileSync("git", ["ls-files", "-v", "-z", "--", ".", ":(exclude)samples/evidence"], {
+  const output = execFileSync("git", ["ls-files", "-v", "-z", "--", ".", ...evidenceNeutralExcludePathspecs()], {
     cwd: root,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -157,12 +188,12 @@ export function evidenceNeutralSourceDigest(root = projectRoot) {
 export function verifyEvidenceNeutralCheckout(expectedSourceDigest, root = projectRoot, sourceRevision) {
   rejectHiddenIndexInputs(root);
   const status = gitOutput(
-    ["status", "--porcelain=v1", "--untracked-files=all", "--", ".", ":(exclude)samples/evidence"],
+    ["status", "--porcelain=v1", "--untracked-files=all", "--", ".", ...evidenceNeutralExcludePathspecs()],
     root,
   );
   invariant(
     status === "",
-    `gate evidence requires a clean source checkout outside samples/evidence; found ${status.split("\n")[0]}`,
+    `gate evidence requires a clean source checkout outside samples/evidence, samples/dist, and samples/contract/v2/consumer-fixtures; found ${status.split("\n")[0]}`,
   );
   const digest = evidenceNeutralSourceDigest(root);
   if (expectedSourceDigest !== undefined) {
@@ -915,31 +946,98 @@ function declaredEvidenceProject(sampleId) {
 }
 
 async function validateScreenshotReport(report, receipt, root) {
-  invariant(report?.format === "honua.sdk.sample-screenshot-gate.v1", "screenshot report format is invalid");
+  invariant(report?.format === SAMPLE_SCREENSHOT_REPORT_FORMAT, "screenshot report format is invalid");
   invariant(report.sampleId === receipt.sampleId && report.sourceRevision === receipt.sourceRevision, "screenshot report binding mismatch");
+  invariant(
+    JSON.stringify(report.reproducibilityPolicy) ===
+      JSON.stringify(SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY),
+    "screenshot reproducibility policy is invalid",
+  );
   const evidenceProject = declaredEvidenceProject(receipt.sampleId);
   invariant(
-    report.screenshot?.projectName === evidenceProject.name &&
-      report.screenshot?.browserName === evidenceProject.browserName &&
-      report.screenshot?.viewport?.width === SAMPLE_SCREENSHOT_VIEWPORT.width &&
-      report.screenshot?.viewport?.height === SAMPLE_SCREENSHOT_VIEWPORT.height,
-    "screenshot report is not bound to the declared project, browser, and viewport",
-  );
-  const image = await verifiedArtifact(
-    { kind: "screenshot", path: report.screenshot.path },
-    root,
-    receipt.sampleId,
-    receipt.runRoot,
-  );
-  const dimensions = validatePng(image.content);
-  invariant(
-    dimensions.width === report.screenshot.viewport.width && dimensions.height === report.screenshot.viewport.height,
-    "screenshot PNG dimensions do not match the declared viewport",
+    report.runtime?.playwrightVersion === PLAYWRIGHT_VERSION &&
+      report.runtime?.projectName === evidenceProject.name &&
+      report.runtime?.browserName === evidenceProject.browserName &&
+      typeof report.runtime?.browserVersion === "string" &&
+      report.runtime.browserVersion.length > 0 &&
+      report.runtime.browserVersion.length <= 128 &&
+      typeof report.runtime?.platform === "string" &&
+      /^[a-z0-9_-]+$/u.test(report.runtime.platform) &&
+      typeof report.runtime?.architecture === "string" &&
+      /^[a-z0-9_-]+$/u.test(report.runtime.architecture),
+    "screenshot report is not bound to the declared Playwright project and browser runtime",
   );
   invariant(
-    image.sha256 === report.screenshot.sha256 && image.bytes === report.screenshot.bytes,
-    "screenshot report digest mismatch",
+    Array.isArray(report.screenshots) && report.screenshots.length === SAMPLE_SCREENSHOT_VARIANTS.length,
+    "screenshot report must contain the complete desktop/mobile variant set",
   );
+  const artifactPaths = report.screenshots.flatMap((screenshot) => [
+    screenshot?.path,
+    screenshot?.reproducibility?.repeatPath,
+  ]);
+  invariant(
+    artifactPaths.every((artifactPath) => typeof artifactPath === "string") &&
+      new Set(artifactPaths).size === SAMPLE_SCREENSHOT_VARIANTS.length * 2,
+    "screenshot report primary and repeat paths must be unique",
+  );
+  for (let index = 0; index < SAMPLE_SCREENSHOT_VARIANTS.length; index += 1) {
+    const expected = SAMPLE_SCREENSHOT_VARIANTS[index];
+    const screenshot = report.screenshots[index];
+    invariant(
+      screenshot?.variant === expected.id &&
+        screenshot.projectName === evidenceProject.name &&
+        screenshot.browserName === evidenceProject.browserName &&
+        screenshot.projectName === report.runtime.projectName &&
+        screenshot.browserName === report.runtime.browserName &&
+        screenshot.viewport?.width === expected.viewport.width &&
+        screenshot.viewport?.height === expected.viewport.height &&
+        screenshot.path.endsWith(`/artifacts/screenshot-${expected.id}.png`) &&
+        screenshot.reproducibility?.captureCount ===
+          SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount &&
+        screenshot.reproducibility?.comparison ===
+          SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison &&
+        screenshot.reproducibility.repeatPath.endsWith(
+          `/artifacts/screenshot-${expected.id}-repeat.png`,
+        ),
+      `screenshot report ${expected.id} variant is not bound to the declared project, browser, viewport, and artifact identity`,
+    );
+    const image = await verifiedArtifact(
+      { kind: `screenshot-${expected.id}`, path: screenshot.path },
+      root,
+      receipt.sampleId,
+      receipt.runRoot,
+    );
+    const dimensions = validatePng(image.content);
+    invariant(
+      dimensions.width === screenshot.viewport.width && dimensions.height === screenshot.viewport.height,
+      `screenshot ${expected.id} PNG dimensions do not match the declared viewport`,
+    );
+    invariant(
+      image.sha256 === screenshot.sha256 && image.bytes === screenshot.bytes,
+      `screenshot ${expected.id} report digest mismatch`,
+    );
+    const repeat = await verifiedArtifact(
+      { kind: `screenshot-${expected.id}-repeat`, path: screenshot.reproducibility.repeatPath },
+      root,
+      receipt.sampleId,
+      receipt.runRoot,
+    );
+    const repeatDimensions = validatePng(repeat.content);
+    invariant(
+      repeatDimensions.width === screenshot.viewport.width &&
+        repeatDimensions.height === screenshot.viewport.height,
+      `screenshot ${expected.id} repeat PNG dimensions do not match the declared viewport`,
+    );
+    invariant(
+      repeat.sha256 === screenshot.reproducibility.repeatSha256 &&
+        repeat.bytes === screenshot.reproducibility.repeatBytes,
+      `screenshot ${expected.id} repeat report digest mismatch`,
+    );
+    invariant(
+      image.sha256 === repeat.sha256 && image.bytes === repeat.bytes && image.content.equals(repeat.content),
+      `screenshot ${expected.id} captures are not byte-identical within the bound browser session`,
+    );
+  }
 }
 
 async function validateLiveEvidence(evidence, evidencePath, receipt, root) {
@@ -1357,8 +1455,24 @@ export async function validateQualificationReceiptSet(options) {
   invariant(directoryMetadata.isDirectory() && !directoryMetadata.isSymbolicLink(), `${options.sample.id}: receipt directory must not be a symlink`);
   const canonicalDirectory = await realpath(directory);
   invariant(canonicalDirectory.startsWith(`${path.resolve(options.receiptRoot)}${path.sep}`), `${options.sample.id}: receipt directory escapes its root`);
-  const names = await readdir(directory);
   const expectedNames = required.map((gate) => `${gate}.v1.json`).sort();
+  const names = [];
+  const handle = await opendir(canonicalDirectory);
+  try {
+    for await (const entry of handle) {
+      invariant(
+        names.length < expectedNames.length,
+        `${options.sample.id}: gate receipt set mismatch; expected [${expectedNames.join(", ")}], found more than ${expectedNames.length} entries`,
+      );
+      names.push(entry.name);
+    }
+  } finally {
+    try {
+      await handle.close();
+    } catch (error) {
+      if (error?.code !== "ERR_DIR_CLOSED") throw error;
+    }
+  }
   invariant(
     JSON.stringify([...names].sort()) === JSON.stringify(expectedNames),
     `${options.sample.id}: gate receipt set mismatch; expected [${expectedNames.join(", ")}], found [${[...names].sort().join(", ")}]`,
