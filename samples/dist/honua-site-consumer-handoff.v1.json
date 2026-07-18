@@ -18,24 +18,24 @@
       "schemaPath": "samples/contract/v2/schemas/site-projection.schema.json",
       "format": "honua.site.sdk-sample-projection.v2",
       "schemaVersion": 2,
-      "bytes": 70582,
-      "sha256": "54f26ce5879d571f969a93a2ac58cf96c562a24be04dc174581f2673944177a4"
+      "bytes": 70118,
+      "sha256": "2b9fbac7453a791e7e8cd97a73ea90740ca1bb459154d8ec149c9ecc9efbc803"
     },
     "capabilityMatrix": {
       "path": "samples/dist/capability-sample-matrix.v1.json",
       "schemaPath": "samples/contract/v2/schemas/capability-sample-matrix.schema.json",
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
-      "bytes": 407909,
-      "sha256": "5293770765a93f0068670c0713c0dc56b70f19aef9a69efa7c36f29c9d04ac22"
+      "bytes": 419695,
+      "sha256": "5441cf294fe5709bc2a0c6be753207bf1b5f336adc72a753b91b20e00d104297"
     },
     "visualEvidence": {
       "path": "samples/dist/golden-journey-visual-evidence.v1.json",
       "schemaPath": "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json",
       "format": "honua.sdk.golden-journey-visual-evidence.v1",
       "schemaVersion": 1,
-      "bytes": 1751,
-      "sha256": "93a766b503d1115283d2375318fea999d9729d2a3e1cb8afd836526b637ac3a8"
+      "bytes": 12843,
+      "sha256": "2cbbfee847567385c93cdb3a99b8cdd64ebf7c896bc97df660fff772130ee13a"
     }
   },
   "policy": {
@@ -205,6 +205,7 @@
       "query",
       "query-planning",
       "range-reads",
+      "range-requests",
       "raster",
       "react",
       "realtime",
@@ -241,7 +242,9 @@
       "ogc-processes-execution-facade",
       "realtime-facade",
       "stac-standalone",
-      "wfs-standalone"
+      "wfs-standalone",
+      "wms-discovery-standalone",
+      "wmts-discovery-standalone"
     ],
     "protocols": [
       "geoparquet",
@@ -319,21 +322,22 @@
       "experimental",
       "partial",
       "planned",
+      "qualified",
       "unsupported"
     ]
   },
   "counts": {
-    "cards": 32,
-    "qualifiedJourneys": 0,
-    "canonicalRoutes": 32,
+    "cards": 30,
+    "qualifiedJourneys": 1,
+    "canonicalRoutes": 30,
     "legacyRoutes": 20,
-    "lifecycleNotices": 19,
-    "gaps": 419,
+    "lifecycleNotices": 15,
+    "gaps": 421,
     "qualifiedMatrixCells": {
-      "goldenJourneys": 0,
-      "protocolOperations": 0,
+      "goldenJourneys": 1,
+      "protocolOperations": 1,
       "supportClaims": 0,
-      "packageEntrypoints": 0
+      "packageEntrypoints": 1
     }
   },
   "cards": [
@@ -624,73 +628,6 @@
       "searchText": "edit-workflow-demo conflict-aware editing workflow demonstrates optimistic edits, attachments, conflicts, and safe recovery. recipe attachments editing optimistic-updates compatibility-gate-facade geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service grpc geoservices honua maplibre fixture none supported rework partial editing is read-only when the service does not advertise mutation capability."
     },
     {
-      "id": "endpoint-to-map",
-      "title": "Endpoint to map: the standalone data-to-map bridge",
-      "summary": "mountSource() turns a public FeatureServer into a styled, interactive MapLibre map in four statements.",
-      "canonicalPath": "samples/endpoint-to-map.html",
-      "track": "recipe",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/endpoint-to-map",
-        "docsPath": "examples/endpoint-to-map/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.1.0-beta.0"
-      },
-      "tasks": [
-        "direct-connect",
-        "map",
-        "query"
-      ],
-      "capabilities": [],
-      "protocols": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service"
-      ],
-      "catalogProtocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "anonymous",
-        "provenance": "Committed public-response fixture or public Esri Living Atlas endpoint.",
-        "attribution": "Endpoint attribution shown in the sample.",
-        "freshness": "Fixture retrieval metadata or live response time.",
-        "configurationStatus": "approved"
-      },
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "active",
-        "reason": "Headline proof of the data-to-map bridge (#496): connect() plus mountSource() with no MapPackage or server."
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "public-live",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Strategy selection, overflow truncation, and capability gaps are reported through the mounted handle's diagnostics.",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "endpoint-to-map endpoint to map: the standalone data-to-map bridge mountsource() turns a public featureserver into a styled, interactive maplibre map in four statements. recipe direct-connect map query geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service geoservices maplibre hybrid anonymous experimental active experimental strategy selection, overflow truncation, and capability gaps are reported through the mounted handle's diagnostics."
-    },
-    {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
       "summary": "Runs forward, reverse, and suggestion workflows with map feedback.",
@@ -839,8 +776,8 @@
     },
     {
       "id": "imagery-cog-quickstart",
-      "title": "Imagery and COG quickstart",
-      "summary": "Compares WMS imagery, COG-backed ImageServer tiles, and export previews.",
+      "title": "Imagery and Terrain journey",
+      "summary": "Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles.",
       "canonicalPath": "samples/imagery-cog-quickstart.html",
       "track": "recipe",
       "journey": {
@@ -859,20 +796,31 @@
       },
       "tasks": [
         "cog",
+        "elevation",
         "imagery",
-        "raster"
+        "profile",
+        "range-requests",
+        "raster",
+        "stac",
+        "terrain"
       ],
-      "capabilities": [],
+      "capabilities": [
+        "stac-standalone",
+        "wms-discovery-standalone"
+      ],
       "protocols": [
         "geoservices-feature-service",
         "geoservices-geometry-service",
         "geoservices-gp-service",
         "geoservices-image-service",
         "geoservices-map-service",
+        "stac",
         "wms"
       ],
       "catalogProtocols": [
         "geoservices",
+        "stac",
+        "terrain-rgb",
         "wms"
       ],
       "renderers": [
@@ -880,18 +828,16 @@
       ],
       "data": {
         "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed imagery metadata or configured Honua imagery service.",
-        "attribution": "Imagery-provider attribution is rendered on the map.",
-        "freshness": "Capture metadata or live response observation time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+        "authMode": "host-mediated",
+        "provenance": "Committed STAC, bounded COG range/decoded-window, imagery, and terrain fixtures; a configured same-origin Honua service; or the scheduled pinned Element 84 Earth Search Sentinel-2 item.",
+        "attribution": "STAC and elevation provider attribution, license, version, checksum, and ETag remain visible in workflow receipts; the pinned lane records ESA, Sinergise, AWS, and Element 84 attribution from its reviewed contract.",
+        "freshness": "Fixture acquisition/version metadata, configured-service response observation time, or the scheduled pinned-item observation time.",
+        "configurationStatus": "approved"
       },
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Consolidate the imagery candidate and its overlapping recipes before journey qualification.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "The fixture-first browser workflow, opt-in /cog renderer, pinned live semantic probe, and legacy WMS/Terrain routes now converge on one runnable journey; golden receipt qualification remains intentionally planned."
       },
       "evidence": {
         "fixture": {
@@ -899,18 +845,18 @@
           "status": "executed"
         },
         "live": {
-          "mode": "authenticated",
+          "mode": "public-live",
           "status": "planned"
         }
       },
-      "expectedDegradation": "Unavailable raster operations remain visible and the supported preview lane stays usable.",
+      "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
       "qualification": {
         "state": "planned",
         "catalogStatus": "planned"
       },
       "evidenceBindingId": null,
       "visualEvidence": null,
-      "searchText": "imagery-cog-quickstart imagery and cog quickstart compares wms imagery, cog-backed imageserver tiles, and export previews. recipe imagery-terrain imagery and terrain planned cog imagery raster geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service wms geoservices wms maplibre hybrid api-key supported rework planned unavailable raster operations remain visible and the supported preview lane stays usable."
+      "searchText": "imagery-cog-quickstart imagery and terrain journey searches stac, renders a bounded direct cog window in maplibre, compares published imagery, and samples terrain elevation profiles. recipe imagery-terrain imagery and terrain planned cog elevation imagery profile range-requests raster stac terrain stac-standalone wms-discovery-standalone geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service stac wms geoservices stac terrain-rgb wms maplibre hybrid host-mediated supported active planned credential-bearing urls, cors, missing or oversized range responses, unsupported crs/format, and nodata return structured outcomes while published imagery remains usable. public live proof covers classified cog inspection and a bounded decoded window in epsg:32621; browser-side utm reprojection and a georeferenced live maplibre mount remain explicitly unclaimed."
     },
     {
       "id": "kepler-analytics",
@@ -983,14 +929,14 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "Honua × MapLibre flagship workflow",
-      "summary": "Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence.",
+      "title": "First Map: endpoint to inspected MapLibre map",
+      "summary": "Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result.",
       "canonicalPath": "samples/maplibre-quickstart.html",
-      "track": "recipe",
+      "track": "golden",
       "journey": {
         "id": "first-map",
         "title": "First Map",
-        "status": "planned"
+        "status": "qualified"
       },
       "source": {
         "repository": "honua-io/honua-sdk-js",
@@ -1002,6 +948,7 @@
         "version": "0.1.0-beta.0"
       },
       "tasks": [
+        "direct-connect",
         "discovery",
         "explain-plan",
         "linked-views",
@@ -1010,7 +957,7 @@
         "query"
       ],
       "capabilities": [
-        "compatibility-gate-facade"
+        "ogc-features-standalone"
       ],
       "protocols": [
         "geoservices-feature-service",
@@ -1018,11 +965,11 @@
         "geoservices-gp-service",
         "geoservices-image-service",
         "geoservices-map-service",
-        "grpc"
+        "ogc-features"
       ],
       "catalogProtocols": [
         "geoservices",
-        "honua"
+        "ogc-features"
       ],
       "renderers": [
         "maplibre"
@@ -1030,17 +977,15 @@
       "data": {
         "mode": "hybrid",
         "authMode": "anonymous",
-        "provenance": "Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.",
-        "attribution": "Source attribution and protocol identity are shown beside the map.",
-        "freshness": "Fixture capture time and data version, or live response observation time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The source still reads browser API-key and bearer-token variables in order to reject them."
+        "provenance": "Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.",
+        "attribution": "Endpoint-advertised attribution is shown and preserved; unavailable attribution is stated explicitly.",
+        "freshness": "SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.",
+        "configurationStatus": "approved"
       },
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Remove the rejected browser credential variables from the supported configuration surface before journey qualification.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Qualified First Map journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous live receipts."
       },
       "evidence": {
         "fixture": {
@@ -1048,20 +993,260 @@
           "status": "executed"
         },
         "live": {
-          "mode": "demo-live",
+          "mode": "public-live",
           "status": "executed",
-          "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json",
-          "expiresAt": "2026-08-12T02:18:02.654Z"
+          "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
+          "expiresAt": "2026-07-24T15:44:54.411Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
       "qualification": {
-        "state": "planned",
-        "catalogStatus": "planned"
+        "state": "qualified",
+        "catalogStatus": "qualified",
+        "evidenceBindingId": "qualification:c893930ec1b3b37b31026aa4617ec8a395d7a500d073fba2c0b1fd1e7106bf06",
+        "evidence": {
+          "receiptCount": 9,
+          "gates": [
+            "accessibility",
+            "browser",
+            "console",
+            "fixture",
+            "live",
+            "packed-build",
+            "performance",
+            "responsive",
+            "screenshot"
+          ],
+          "sdkModes": [
+            "packed",
+            "source"
+          ],
+          "sourceRevisions": [
+            "fdf3ee431f49e3a15f1b09f1167da8e659b47744"
+          ],
+          "sha256": "4a0e0f93f1c513a644fa10a70a9ff7bd90761d92ba3ed95992649396a3b8065b"
+        }
       },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "maplibre-quickstart honua × maplibre flagship workflow connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence. recipe first-map first map planned discovery explain-plan linked-views map provenance query compatibility-gate-facade geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service grpc geoservices honua maplibre hybrid anonymous supported rework planned capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
+      "evidenceBindingId": "qualification:c893930ec1b3b37b31026aa4617ec8a395d7a500d073fba2c0b1fd1e7106bf06",
+      "visualEvidence": {
+        "journeyId": "first-map",
+        "sampleId": "maplibre-quickstart",
+        "source": {
+          "repository": "honua-io/honua-sdk-js",
+          "path": "examples/maplibre-quickstart",
+          "revision": "fdf3ee431f49e3a15f1b09f1167da8e659b47744",
+          "evidenceNeutralSha256": "a9668e7090bea1ebb2df41253b716457d25035b214ea3699492ba1acf246c2cf"
+        },
+        "runtime": {
+          "playwrightVersion": "1.58.2",
+          "projectName": "chromium",
+          "browserName": "chromium",
+          "browserVersion": "145.0.7632.6",
+          "platform": "linux",
+          "architecture": "x64"
+        },
+        "observedAt": "2026-07-18T07:31:31.990Z",
+        "expiresAt": "2026-07-25T07:31:23.003Z",
+        "screenshots": [
+          {
+            "variant": "desktop",
+            "projectName": "chromium",
+            "browserName": "chromium",
+            "sourcePath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot-desktop.png",
+            "mediaType": "image/png",
+            "viewport": {
+              "width": 1280,
+              "height": 720
+            },
+            "bytes": 100654,
+            "sha256": "f57b379a63728656b4a0c32668affc5fc8bf1539a4c8db30624ddb2f63de8d9f",
+            "reproducibility": {
+              "captureCount": 2,
+              "comparison": "byte-identical",
+              "repeatSourcePath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot-desktop-repeat.png",
+              "repeatBytes": 100654,
+              "repeatSha256": "f57b379a63728656b4a0c32668affc5fc8bf1539a4c8db30624ddb2f63de8d9f"
+            }
+          },
+          {
+            "variant": "mobile",
+            "projectName": "chromium",
+            "browserName": "chromium",
+            "sourcePath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot-mobile.png",
+            "mediaType": "image/png",
+            "viewport": {
+              "width": 390,
+              "height": 844
+            },
+            "bytes": 66609,
+            "sha256": "181156bc967ca2f026936b4b8d48e0b4b6de129332608bcc8373597f60d352aa",
+            "reproducibility": {
+              "captureCount": 2,
+              "comparison": "byte-identical",
+              "repeatSourcePath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot-mobile-repeat.png",
+              "repeatBytes": 66609,
+              "repeatSha256": "181156bc967ca2f026936b4b8d48e0b4b6de129332608bcc8373597f60d352aa"
+            }
+          }
+        ],
+        "semanticEvidence": [
+          {
+            "gate": "packed-build",
+            "sdkMode": "packed",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/packed-build.v1.json",
+            "receiptSha256": "502aefe0d5b5b255f97033eb9af835471bbe6fec7e8c3036ac8788a519631dba",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/0ce30fde-a207-4604-abcd-3f2fafd5a3d5",
+            "observedAt": "2026-07-18T07:31:31.990Z",
+            "expiresAt": "2026-07-25T07:31:31.990Z",
+            "reportKind": "packed-build-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/0ce30fde-a207-4604-abcd-3f2fafd5a3d5/artifacts/packed-build.json",
+            "reportBytes": 5907,
+            "reportSha256": "2f1041e23fa4be2a88da4e7146a7d957845514a2989b1b3c71ee0cbbef088d5d"
+          },
+          {
+            "gate": "browser",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/browser.v1.json",
+            "receiptSha256": "ecbb3545340882c6412ae3341754f834e55bba247946f981c5389bbc2bc986fe",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.093Z",
+            "expiresAt": "2026-07-25T07:31:23.093Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/browser.json",
+            "reportBytes": 10638,
+            "reportSha256": "c6890a1212577d1abcbab806c40fdc019b75876d40318da5362c3ec6cbce92c0"
+          },
+          {
+            "gate": "accessibility",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/accessibility.v1.json",
+            "receiptSha256": "b062691d6c2819e19aa76d386130e391ca0c8fb4a3ab638fbb5fd77644345518",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.003Z",
+            "expiresAt": "2026-07-25T07:31:23.003Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/accessibility.json",
+            "reportBytes": 10644,
+            "reportSha256": "92c297b35fe849a96cebfbd216b0cb3ac99a65c5bf1152f93dae8a18b53f37d4"
+          },
+          {
+            "gate": "console",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/console.v1.json",
+            "receiptSha256": "770d5784ef71c40f0de1b2522c4ccc12f747f5bd4179c849228d9726e7368e4f",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.175Z",
+            "expiresAt": "2026-07-25T07:31:23.175Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/console.json",
+            "reportBytes": 10638,
+            "reportSha256": "a5b18e9bc496b3b829ff620ad34eb761a238a42b64bddf232db247e90d68a2e7"
+          },
+          {
+            "gate": "responsive",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/responsive.v1.json",
+            "receiptSha256": "d88179f4602821194c8acdcef6b1acada991482f02f2199ad7bd5e6f7c4c0d91",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.349Z",
+            "expiresAt": "2026-07-25T07:31:23.349Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/responsive.json",
+            "reportBytes": 10641,
+            "reportSha256": "60fd102c74ac984a13acb00cad469c26d7235efcdde146aacfde4b4bb68d56db"
+          },
+          {
+            "gate": "screenshot",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/screenshot.v1.json",
+            "receiptSha256": "aeb7ee04604c44c712905ec2fc11db7aa64a8d8c72169ff55e6b9d7624eee637",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.440Z",
+            "expiresAt": "2026-07-25T07:31:23.440Z",
+            "reportKind": "screenshot-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot.json",
+            "reportBytes": 2532,
+            "reportSha256": "7c74a03f25a1b03df487bc4a12e5a2ee49d185831b54917ff9c561b4797d2a3d"
+          },
+          {
+            "gate": "performance",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/performance.v1.json",
+            "receiptSha256": "874eb7e537f1fe089588c0fef362282ec1f221c069cb5a1480bcd5daa08436a4",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.267Z",
+            "expiresAt": "2026-07-25T07:31:23.267Z",
+            "reportKind": "performance-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/performance.json",
+            "reportBytes": 1098,
+            "reportSha256": "08148fd1cfb2e87565992070b752fc572467e34195c980043f315be49fa82288"
+          },
+          {
+            "gate": "fixture",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/fixture.v1.json",
+            "receiptSha256": "0ace8b9f5697edf677c8e60e50f78409fad6b56ef3cf0f21e780fd319dad33cf",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/6f20538a-c9a7-4756-bc59-329c7522eb5c",
+            "observedAt": "2026-07-18T07:31:24.775Z",
+            "expiresAt": "2026-07-25T07:31:24.775Z",
+            "reportKind": "fixture-probe-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/6f20538a-c9a7-4756-bc59-329c7522eb5c/artifacts/fixture.json",
+            "reportBytes": 714,
+            "reportSha256": "7a270f1c50f2a2a61f2206f8abd3533732d8d4377610386caaeb5cb891622815"
+          },
+          {
+            "gate": "live",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/live.v1.json",
+            "receiptSha256": "81cf605995be2962c52433d267b7fd22d0a69dc5203dc3c2864d2e11ef018626",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/46f14a08-bb64-41f4-af20-c5012bc91c66",
+            "observedAt": "2026-07-18T07:31:28.322Z",
+            "expiresAt": "2026-07-25T07:31:28.322Z",
+            "reportKind": "live-evidence-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/46f14a08-bb64-41f4-af20-c5012bc91c66/artifacts/live.json",
+            "reportBytes": 2669,
+            "reportSha256": "f207f2a3417931cefe8988b3007c57287c6844dce0ff108e8f5fa8afbb1d3678"
+          }
+        ],
+        "liveEvidence": {
+          "mode": "public-live",
+          "status": "executed",
+          "observedAt": "2026-07-18T07:31:25.770Z",
+          "expiresAt": "2026-07-25T07:31:25.770Z",
+          "evidencePath": "samples/evidence/maplibre-quickstart/runs/46f14a08-bb64-41f4-af20-c5012bc91c66/artifacts/live-evidence.json",
+          "provenance": {
+            "state": "live",
+            "observedAt": "2026-07-18T07:31:26.714Z",
+            "attribution": "States 2020 Apportionment - U.S. House of Representatives Seats"
+          },
+          "semantics": {
+            "operation": "first-map-anonymous-public-endpoint",
+            "outcome": "map-popup-filter-plan-ready",
+            "itemCount": 1,
+            "assertions": [
+              "protocol=\"geoservices-feature-service\"",
+              "sourceId=\"0\"",
+              "attribution=\"States 2020 Apportionment - U.S. House of Representatives Seats\"",
+              "freshness=\"observed\"",
+              "cacheStatus=\"miss\"",
+              "degradationCount=0",
+              "planFingerprint=\"sha256:0885ae4a8d3e0e73be390693ccbb07052cfb9db059ade26c6515c73212e058a7\"",
+              "mode=\"Anonymous live\"",
+              "credentialsSent=false",
+              "unexpectedNetworkRequests=0",
+              "cleanupBudgetMet=true"
+            ]
+          },
+          "timing": {
+            "totalMs": 1158
+          },
+          "degradation": {
+            "state": "none",
+            "reasons": []
+          }
+        }
+      },
+      "searchText": "maplibre-quickstart first map: endpoint to inspected maplibre map pastes a public geoservices or ogc features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result. golden first-map first map qualified direct-connect discovery explain-plan linked-views map provenance query ogc-features-standalone geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service ogc-features geoservices ogc-features maplibre hybrid anonymous supported active qualified capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
     },
     {
       "id": "mcp-gis-assistant",
@@ -1605,7 +1790,7 @@
     {
       "id": "react-quickstart",
       "title": "React quickstart",
-      "summary": "Uses the React provider, hooks, and map component over the same quickstart contract.",
+      "summary": "Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey.",
       "canonicalPath": "samples/react-quickstart.html",
       "track": "recipe",
       "journey": null,
@@ -1646,7 +1831,7 @@
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Maintain framework parity with the canonical quickstart."
+        "reason": "Keep one focused React integration recipe without duplicating or redesigning First Map."
       },
       "evidence": {
         "fixture": {
@@ -1665,7 +1850,7 @@
       },
       "evidenceBindingId": null,
       "visualEvidence": null,
-      "searchText": "react-quickstart react quickstart uses the react provider, hooks, and map component over the same quickstart contract. recipe map query react compatibility-gate-facade grpc honua maplibre hybrid api-key supported active partial the component exposes connection and capability errors through react state."
+      "searchText": "react-quickstart react quickstart focused react provider, hooks, and map-component recipe alongside the framework-neutral first map journey. recipe map query react compatibility-gate-facade grpc honua maplibre hybrid api-key supported active partial the component exposes connection and capability errors through react state."
     },
     {
       "id": "realtime-incident-dashboard",
@@ -1847,7 +2032,9 @@
       "capabilities": [
         "odata-standalone",
         "stac-standalone",
-        "wfs-standalone"
+        "wfs-standalone",
+        "wms-discovery-standalone",
+        "wmts-discovery-standalone"
       ],
       "protocols": [
         "geoservices-feature-service",
@@ -1910,7 +2097,7 @@
       },
       "evidenceBindingId": null,
       "visualEvidence": null,
-      "searchText": "service-explorer universal service explorer browses heterogeneous spatial services with capability and cache diagnostics. lab service-explorer universal service explorer planned capability-discovery catalog protocols odata-standalone stac-standalone wfs-standalone geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service odata ogc-features ogc-maps ogc-processes ogc-records ogc-tiles stac wfs wms wmts geoservices odata ogc stac wfs wms wmts maplibre hybrid api-key supported rework planned unavailable admin metadata falls back to service discovery with a visible diagnostic."
+      "searchText": "service-explorer universal service explorer browses heterogeneous spatial services with capability and cache diagnostics. lab service-explorer universal service explorer planned capability-discovery catalog protocols odata-standalone stac-standalone wfs-standalone wms-discovery-standalone wmts-discovery-standalone geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service odata ogc-features ogc-maps ogc-processes ogc-records ogc-tiles stac wfs wms wmts geoservices odata ogc stac wfs wms wmts maplibre hybrid api-key supported rework planned unavailable admin metadata falls back to service discovery with a visible diagnostic."
     },
     {
       "id": "shared-renderer-state",
@@ -2173,13 +2360,8 @@
       },
       "supportTier": "supported",
       "lifecycle": {
-        "state": "merge",
-        "reason": "Fold into the imagery journey while keeping a focused STAC recipe.",
-        "targetRelease": "0.2.0-beta.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "imagery-terrain"
-        }
+        "state": "active",
+        "reason": "Retain as the small credential-free STAC discovery recipe; the imagery journey owns full range, comparison, elevation, and terrain qualification."
       },
       "evidence": {
         "fixture": {
@@ -2198,79 +2380,7 @@
       },
       "evidenceBindingId": null,
       "visualEvidence": null,
-      "searchText": "stac-imagery-browser stac imagery browser discovers stac collections and previews supported imagery assets. recipe cog imagery stac stac-standalone stac stac maplibre fixture none supported merge partial unsupported asset types retain metadata but disable rendering with a reason."
-    },
-    {
-      "id": "standalone-quickstart",
-      "title": "Standalone public-service quickstart",
-      "summary": "Connects a public Esri service directly to MapLibre without a Honua server.",
-      "canonicalPath": "samples/standalone-quickstart.html",
-      "track": "recipe",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/standalone-quickstart",
-        "docsPath": "examples/standalone-quickstart/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.1.0-beta.0"
-      },
-      "tasks": [
-        "direct-connect",
-        "map",
-        "query"
-      ],
-      "capabilities": [],
-      "protocols": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service"
-      ],
-      "catalogProtocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "anonymous",
-        "provenance": "Committed public-response fixture or public Esri endpoint.",
-        "attribution": "Endpoint attribution shown in the sample.",
-        "freshness": "Fixture retrieval metadata or live response time.",
-        "configurationStatus": "approved"
-      },
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "merge",
-        "reason": "Make this direct-public path the zero-account mode of the canonical quickstart.",
-        "targetRelease": "0.2.0-beta.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "first-map"
-        }
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "public-live",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Protocol capability gaps are surfaced without requiring a Honua facade.",
-      "qualification": {
-        "state": "partial",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "standalone-quickstart standalone public-service quickstart connects a public esri service directly to maplibre without a honua server. recipe direct-connect map query geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service geoservices maplibre hybrid anonymous supported merge partial protocol capability gaps are surfaced without requiring a honua facade."
+      "searchText": "stac-imagery-browser stac imagery browser discovers stac collections and previews supported imagery assets. recipe cog imagery stac stac-standalone stac stac maplibre fixture none supported active partial unsupported asset types retain metadata but disable rendering with a reason."
     },
     {
       "id": "storytelling-25d-map",
@@ -2619,7 +2729,232 @@
       "searchText": "web-components-basic web components basic demonstrates the sdk custom-element controls against a map. lab controls custom-elements map compatibility-gate-facade grpc honua maplibre fixture none deprecated retire unsupported deprecated controls are linked to their app-platform replacements."
     }
   ],
-  "qualifiedJourneys": [],
+  "qualifiedJourneys": [
+    {
+      "journeyId": "first-map",
+      "sampleId": "maplibre-quickstart",
+      "canonicalPath": "samples/maplibre-quickstart.html",
+      "evidenceBindingId": "qualification:c893930ec1b3b37b31026aa4617ec8a395d7a500d073fba2c0b1fd1e7106bf06",
+      "visualEvidence": {
+        "journeyId": "first-map",
+        "sampleId": "maplibre-quickstart",
+        "source": {
+          "repository": "honua-io/honua-sdk-js",
+          "path": "examples/maplibre-quickstart",
+          "revision": "fdf3ee431f49e3a15f1b09f1167da8e659b47744",
+          "evidenceNeutralSha256": "a9668e7090bea1ebb2df41253b716457d25035b214ea3699492ba1acf246c2cf"
+        },
+        "runtime": {
+          "playwrightVersion": "1.58.2",
+          "projectName": "chromium",
+          "browserName": "chromium",
+          "browserVersion": "145.0.7632.6",
+          "platform": "linux",
+          "architecture": "x64"
+        },
+        "observedAt": "2026-07-18T07:31:31.990Z",
+        "expiresAt": "2026-07-25T07:31:23.003Z",
+        "screenshots": [
+          {
+            "variant": "desktop",
+            "projectName": "chromium",
+            "browserName": "chromium",
+            "sourcePath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot-desktop.png",
+            "mediaType": "image/png",
+            "viewport": {
+              "width": 1280,
+              "height": 720
+            },
+            "bytes": 100654,
+            "sha256": "f57b379a63728656b4a0c32668affc5fc8bf1539a4c8db30624ddb2f63de8d9f",
+            "reproducibility": {
+              "captureCount": 2,
+              "comparison": "byte-identical",
+              "repeatSourcePath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot-desktop-repeat.png",
+              "repeatBytes": 100654,
+              "repeatSha256": "f57b379a63728656b4a0c32668affc5fc8bf1539a4c8db30624ddb2f63de8d9f"
+            }
+          },
+          {
+            "variant": "mobile",
+            "projectName": "chromium",
+            "browserName": "chromium",
+            "sourcePath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot-mobile.png",
+            "mediaType": "image/png",
+            "viewport": {
+              "width": 390,
+              "height": 844
+            },
+            "bytes": 66609,
+            "sha256": "181156bc967ca2f026936b4b8d48e0b4b6de129332608bcc8373597f60d352aa",
+            "reproducibility": {
+              "captureCount": 2,
+              "comparison": "byte-identical",
+              "repeatSourcePath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot-mobile-repeat.png",
+              "repeatBytes": 66609,
+              "repeatSha256": "181156bc967ca2f026936b4b8d48e0b4b6de129332608bcc8373597f60d352aa"
+            }
+          }
+        ],
+        "semanticEvidence": [
+          {
+            "gate": "packed-build",
+            "sdkMode": "packed",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/packed-build.v1.json",
+            "receiptSha256": "502aefe0d5b5b255f97033eb9af835471bbe6fec7e8c3036ac8788a519631dba",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/0ce30fde-a207-4604-abcd-3f2fafd5a3d5",
+            "observedAt": "2026-07-18T07:31:31.990Z",
+            "expiresAt": "2026-07-25T07:31:31.990Z",
+            "reportKind": "packed-build-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/0ce30fde-a207-4604-abcd-3f2fafd5a3d5/artifacts/packed-build.json",
+            "reportBytes": 5907,
+            "reportSha256": "2f1041e23fa4be2a88da4e7146a7d957845514a2989b1b3c71ee0cbbef088d5d"
+          },
+          {
+            "gate": "browser",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/browser.v1.json",
+            "receiptSha256": "ecbb3545340882c6412ae3341754f834e55bba247946f981c5389bbc2bc986fe",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.093Z",
+            "expiresAt": "2026-07-25T07:31:23.093Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/browser.json",
+            "reportBytes": 10638,
+            "reportSha256": "c6890a1212577d1abcbab806c40fdc019b75876d40318da5362c3ec6cbce92c0"
+          },
+          {
+            "gate": "accessibility",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/accessibility.v1.json",
+            "receiptSha256": "b062691d6c2819e19aa76d386130e391ca0c8fb4a3ab638fbb5fd77644345518",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.003Z",
+            "expiresAt": "2026-07-25T07:31:23.003Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/accessibility.json",
+            "reportBytes": 10644,
+            "reportSha256": "92c297b35fe849a96cebfbd216b0cb3ac99a65c5bf1152f93dae8a18b53f37d4"
+          },
+          {
+            "gate": "console",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/console.v1.json",
+            "receiptSha256": "770d5784ef71c40f0de1b2522c4ccc12f747f5bd4179c849228d9726e7368e4f",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.175Z",
+            "expiresAt": "2026-07-25T07:31:23.175Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/console.json",
+            "reportBytes": 10638,
+            "reportSha256": "a5b18e9bc496b3b829ff620ad34eb761a238a42b64bddf232db247e90d68a2e7"
+          },
+          {
+            "gate": "responsive",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/responsive.v1.json",
+            "receiptSha256": "d88179f4602821194c8acdcef6b1acada991482f02f2199ad7bd5e6f7c4c0d91",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.349Z",
+            "expiresAt": "2026-07-25T07:31:23.349Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/responsive.json",
+            "reportBytes": 10641,
+            "reportSha256": "60fd102c74ac984a13acb00cad469c26d7235efcdde146aacfde4b4bb68d56db"
+          },
+          {
+            "gate": "screenshot",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/screenshot.v1.json",
+            "receiptSha256": "aeb7ee04604c44c712905ec2fc11db7aa64a8d8c72169ff55e6b9d7624eee637",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.440Z",
+            "expiresAt": "2026-07-25T07:31:23.440Z",
+            "reportKind": "screenshot-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot.json",
+            "reportBytes": 2532,
+            "reportSha256": "7c74a03f25a1b03df487bc4a12e5a2ee49d185831b54917ff9c561b4797d2a3d"
+          },
+          {
+            "gate": "performance",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/performance.v1.json",
+            "receiptSha256": "874eb7e537f1fe089588c0fef362282ec1f221c069cb5a1480bcd5daa08436a4",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.267Z",
+            "expiresAt": "2026-07-25T07:31:23.267Z",
+            "reportKind": "performance-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/performance.json",
+            "reportBytes": 1098,
+            "reportSha256": "08148fd1cfb2e87565992070b752fc572467e34195c980043f315be49fa82288"
+          },
+          {
+            "gate": "fixture",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/fixture.v1.json",
+            "receiptSha256": "0ace8b9f5697edf677c8e60e50f78409fad6b56ef3cf0f21e780fd319dad33cf",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/6f20538a-c9a7-4756-bc59-329c7522eb5c",
+            "observedAt": "2026-07-18T07:31:24.775Z",
+            "expiresAt": "2026-07-25T07:31:24.775Z",
+            "reportKind": "fixture-probe-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/6f20538a-c9a7-4756-bc59-329c7522eb5c/artifacts/fixture.json",
+            "reportBytes": 714,
+            "reportSha256": "7a270f1c50f2a2a61f2206f8abd3533732d8d4377610386caaeb5cb891622815"
+          },
+          {
+            "gate": "live",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/live.v1.json",
+            "receiptSha256": "81cf605995be2962c52433d267b7fd22d0a69dc5203dc3c2864d2e11ef018626",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/46f14a08-bb64-41f4-af20-c5012bc91c66",
+            "observedAt": "2026-07-18T07:31:28.322Z",
+            "expiresAt": "2026-07-25T07:31:28.322Z",
+            "reportKind": "live-evidence-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/46f14a08-bb64-41f4-af20-c5012bc91c66/artifacts/live.json",
+            "reportBytes": 2669,
+            "reportSha256": "f207f2a3417931cefe8988b3007c57287c6844dce0ff108e8f5fa8afbb1d3678"
+          }
+        ],
+        "liveEvidence": {
+          "mode": "public-live",
+          "status": "executed",
+          "observedAt": "2026-07-18T07:31:25.770Z",
+          "expiresAt": "2026-07-25T07:31:25.770Z",
+          "evidencePath": "samples/evidence/maplibre-quickstart/runs/46f14a08-bb64-41f4-af20-c5012bc91c66/artifacts/live-evidence.json",
+          "provenance": {
+            "state": "live",
+            "observedAt": "2026-07-18T07:31:26.714Z",
+            "attribution": "States 2020 Apportionment - U.S. House of Representatives Seats"
+          },
+          "semantics": {
+            "operation": "first-map-anonymous-public-endpoint",
+            "outcome": "map-popup-filter-plan-ready",
+            "itemCount": 1,
+            "assertions": [
+              "protocol=\"geoservices-feature-service\"",
+              "sourceId=\"0\"",
+              "attribution=\"States 2020 Apportionment - U.S. House of Representatives Seats\"",
+              "freshness=\"observed\"",
+              "cacheStatus=\"miss\"",
+              "degradationCount=0",
+              "planFingerprint=\"sha256:0885ae4a8d3e0e73be390693ccbb07052cfb9db059ade26c6515c73212e058a7\"",
+              "mode=\"Anonymous live\"",
+              "credentialsSent=false",
+              "unexpectedNetworkRequests=0",
+              "cleanupBudgetMet=true"
+            ]
+          },
+          "timing": {
+            "totalMs": 1158
+          },
+          "degradation": {
+            "state": "none",
+            "reasons": []
+          }
+        }
+      }
+    }
+  ],
   "canonicalRoutes": [
     {
       "sampleId": "ai-spatial-app-builder",
@@ -2654,14 +2989,6 @@
       "externalListingEligible": true
     },
     {
-      "sampleId": "endpoint-to-map",
-      "path": "samples/endpoint-to-map.html",
-      "track": "recipe",
-      "lifecycleState": "active",
-      "presentation": "sample-detail",
-      "externalListingEligible": true
-    },
-    {
       "sampleId": "geocoding-quickstart",
       "path": "samples/geocoding-quickstart.html",
       "track": "recipe",
@@ -2681,7 +3008,7 @@
       "sampleId": "imagery-cog-quickstart",
       "path": "samples/imagery-cog-quickstart.html",
       "track": "recipe",
-      "lifecycleState": "rework",
+      "lifecycleState": "active",
       "presentation": "sample-detail",
       "externalListingEligible": true
     },
@@ -2696,8 +3023,8 @@
     {
       "sampleId": "maplibre-quickstart",
       "path": "samples/maplibre-quickstart.html",
-      "track": "recipe",
-      "lifecycleState": "rework",
+      "track": "golden",
+      "lifecycleState": "active",
       "presentation": "sample-detail",
       "externalListingEligible": true
     },
@@ -2825,15 +3152,7 @@
       "sampleId": "stac-imagery-browser",
       "path": "samples/stac-imagery-browser.html",
       "track": "recipe",
-      "lifecycleState": "merge",
-      "presentation": "sample-detail",
-      "externalListingEligible": true
-    },
-    {
-      "sampleId": "standalone-quickstart",
-      "path": "samples/standalone-quickstart.html",
-      "track": "recipe",
-      "lifecycleState": "merge",
+      "lifecycleState": "active",
       "presentation": "sample-detail",
       "externalListingEligible": true
     },
@@ -2954,7 +3273,7 @@
       "canonicalPath": "samples/imagery-cog-quickstart.html",
       "httpStatus": 308,
       "presentation": "permanent-redirect",
-      "title": "Imagery and COG quickstart",
+      "title": "Imagery and Terrain journey",
       "track": "recipe",
       "supportTier": "supported",
       "reason": "Redirect to the stable canonical SDK sample route."
@@ -2966,12 +3285,12 @@
       ],
       "ownership": "sdk-projection",
       "resolution": "canonical-sample",
-      "sampleId": "storytelling-25d-map",
-      "canonicalPath": "samples/storytelling-25d-map.html",
+      "sampleId": "imagery-cog-quickstart",
+      "canonicalPath": "samples/imagery-cog-quickstart.html",
       "httpStatus": 308,
       "presentation": "permanent-redirect",
-      "title": "2.5D storytelling map",
-      "track": "lab",
+      "title": "Imagery and Terrain journey",
+      "track": "recipe",
       "supportTier": "supported",
       "reason": "Redirect to the stable canonical SDK sample route."
     },
@@ -3051,8 +3370,8 @@
       "canonicalPath": "samples/maplibre-quickstart.html",
       "httpStatus": 308,
       "presentation": "permanent-redirect",
-      "title": "Honua × MapLibre flagship workflow",
-      "track": "recipe",
+      "title": "First Map: endpoint to inspected MapLibre map",
+      "track": "golden",
       "supportTier": "supported",
       "reason": "Redirect to the stable canonical SDK sample route."
     },
@@ -3111,12 +3430,12 @@
       ],
       "ownership": "sdk-projection",
       "resolution": "canonical-sample",
-      "sampleId": "standalone-quickstart",
-      "canonicalPath": "samples/standalone-quickstart.html",
+      "sampleId": "maplibre-quickstart",
+      "canonicalPath": "samples/maplibre-quickstart.html",
       "httpStatus": 308,
       "presentation": "permanent-redirect",
-      "title": "Standalone public-service quickstart",
-      "track": "recipe",
+      "title": "First Map: endpoint to inspected MapLibre map",
+      "track": "golden",
       "supportTier": "supported",
       "reason": "Redirect to the stable canonical SDK sample route."
     },
@@ -3163,7 +3482,7 @@
       "canonicalPath": "samples/imagery-cog-quickstart.html",
       "httpStatus": 308,
       "presentation": "permanent-redirect",
-      "title": "Imagery and COG quickstart",
+      "title": "Imagery and Terrain journey",
       "track": "recipe",
       "supportTier": "supported",
       "reason": "Redirect to the stable canonical SDK sample route."
@@ -3255,26 +3574,10 @@
       }
     },
     {
-      "sampleId": "imagery-cog-quickstart",
-      "canonicalPath": "samples/imagery-cog-quickstart.html",
-      "state": "rework",
-      "reason": "Consolidate the imagery candidate and its overlapping recipes before journey qualification.",
-      "targetRelease": "0.2.0-beta.0",
-      "replacement": null
-    },
-    {
       "sampleId": "kepler-analytics",
       "canonicalPath": "samples/kepler-analytics.html",
       "state": "rework",
       "reason": "Retain as a renderer recipe and align it with the columnar large-data journey.",
-      "targetRelease": "0.2.0-beta.0",
-      "replacement": null
-    },
-    {
-      "sampleId": "maplibre-quickstart",
-      "canonicalPath": "samples/maplibre-quickstart.html",
-      "state": "rework",
-      "reason": "Remove the rejected browser credential variables from the supported configuration surface before journey qualification.",
       "targetRelease": "0.2.0-beta.0",
       "replacement": null
     },
@@ -3324,36 +3627,6 @@
       "reason": "Join the large-data journey and distinguish fixture estimates from executed plans.",
       "targetRelease": "0.2.0-beta.0",
       "replacement": null
-    },
-    {
-      "sampleId": "stac-imagery-browser",
-      "canonicalPath": "samples/stac-imagery-browser.html",
-      "state": "merge",
-      "reason": "Fold into the imagery journey while keeping a focused STAC recipe.",
-      "targetRelease": "0.2.0-beta.0",
-      "replacement": {
-        "kind": "journey",
-        "id": "imagery-terrain",
-        "title": "Imagery and Terrain",
-        "status": "planned",
-        "candidateSampleId": "imagery-cog-quickstart",
-        "canonicalPath": "samples/imagery-cog-quickstart.html"
-      }
-    },
-    {
-      "sampleId": "standalone-quickstart",
-      "canonicalPath": "samples/standalone-quickstart.html",
-      "state": "merge",
-      "reason": "Make this direct-public path the zero-account mode of the canonical quickstart.",
-      "targetRelease": "0.2.0-beta.0",
-      "replacement": {
-        "kind": "journey",
-        "id": "first-map",
-        "title": "First Map",
-        "status": "planned",
-        "candidateSampleId": "maplibre-quickstart",
-        "canonicalPath": "samples/maplibre-quickstart.html"
-      }
     },
     {
       "sampleId": "storytelling-25d-map",
@@ -3444,22 +3717,6 @@
         {
           "sampleId": "spatial-analytics-workbench",
           "canonicalPath": "samples/spatial-analytics-workbench.html"
-        }
-      ]
-    },
-    {
-      "targetType": "golden-journey",
-      "targetId": "first-map",
-      "supportStatus": "supported",
-      "coverageState": "planned",
-      "candidateSampleIds": [
-        "maplibre-quickstart"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-      "candidateRoutes": [
-        {
-          "sampleId": "maplibre-quickstart",
-          "canonicalPath": "samples/maplibre-quickstart.html"
         }
       ]
     },
@@ -3622,6 +3879,27 @@
     },
     {
       "targetType": "package-entrypoint",
+      "targetId": "./cog",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [
+        "stac-imagery-browser",
+        "imagery-cog-quickstart"
+      ],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+      "candidateRoutes": [
+        {
+          "sampleId": "stac-imagery-browser",
+          "canonicalPath": "samples/stac-imagery-browser.html"
+        },
+        {
+          "sampleId": "imagery-cog-quickstart",
+          "canonicalPath": "samples/imagery-cog-quickstart.html"
+        }
+      ]
+    },
+    {
+      "targetType": "package-entrypoint",
       "targetId": "./collaboration",
       "supportStatus": "deprecated",
       "coverageState": "unsupported",
@@ -3770,7 +4048,6 @@
         "node-backend-quickstart",
         "react-quickstart",
         "storytelling-25d-map",
-        "maplibre-quickstart",
         "planning-permitting-workbench",
         "ai-spatial-app-builder",
         "kepler-analytics",
@@ -3799,10 +4076,6 @@
         {
           "sampleId": "storytelling-25d-map",
           "canonicalPath": "samples/storytelling-25d-map.html"
-        },
-        {
-          "sampleId": "maplibre-quickstart",
-          "canonicalPath": "samples/maplibre-quickstart.html"
         },
         {
           "sampleId": "planning-permitting-workbench",
@@ -3854,58 +4127,6 @@
       "candidateSampleIds": [],
       "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
       "candidateRoutes": []
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./map",
-      "supportStatus": "supported",
-      "coverageState": "partial",
-      "candidateSampleIds": [
-        "react-quickstart",
-        "standalone-quickstart",
-        "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map",
-        "temporal-playback",
-        "nl-map-control",
-        "web-components-basic",
-        "automatic-source-workflow"
-      ],
-      "reason": "Executable sample coverage exists without complete current qualification receipts.",
-      "candidateRoutes": [
-        {
-          "sampleId": "react-quickstart",
-          "canonicalPath": "samples/react-quickstart.html"
-        },
-        {
-          "sampleId": "standalone-quickstart",
-          "canonicalPath": "samples/standalone-quickstart.html"
-        },
-        {
-          "sampleId": "maplibre-quickstart",
-          "canonicalPath": "samples/maplibre-quickstart.html"
-        },
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
-        {
-          "sampleId": "endpoint-to-map",
-          "canonicalPath": "samples/endpoint-to-map.html"
-        },
-        {
-          "sampleId": "temporal-playback",
-          "canonicalPath": "samples/temporal-playback.html"
-        },
-        {
-          "sampleId": "nl-map-control",
-          "canonicalPath": "samples/nl-map-control.html"
-        },
-        {
-          "sampleId": "web-components-basic",
-          "canonicalPath": "samples/web-components-basic.html"
-        }
-      ]
     },
     {
       "targetType": "package-entrypoint",
@@ -4407,17 +4628,11 @@
       "supportStatus": "supported",
       "coverageState": "partial",
       "candidateSampleIds": [
-        "standalone-quickstart",
         "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map"
+        "planning-permitting-workbench"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts.",
       "candidateRoutes": [
-        {
-          "sampleId": "standalone-quickstart",
-          "canonicalPath": "samples/standalone-quickstart.html"
-        },
         {
           "sampleId": "maplibre-quickstart",
           "canonicalPath": "samples/maplibre-quickstart.html"
@@ -4425,10 +4640,6 @@
         {
           "sampleId": "planning-permitting-workbench",
           "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
-        {
-          "sampleId": "endpoint-to-map",
-          "canonicalPath": "samples/endpoint-to-map.html"
         }
       ]
     },
@@ -4589,17 +4800,11 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "standalone-quickstart",
         "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map"
+        "planning-permitting-workbench"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
       "candidateRoutes": [
-        {
-          "sampleId": "standalone-quickstart",
-          "canonicalPath": "samples/standalone-quickstart.html"
-        },
         {
           "sampleId": "maplibre-quickstart",
           "canonicalPath": "samples/maplibre-quickstart.html"
@@ -4607,10 +4812,6 @@
         {
           "sampleId": "planning-permitting-workbench",
           "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
-        {
-          "sampleId": "endpoint-to-map",
-          "canonicalPath": "samples/endpoint-to-map.html"
         }
       ]
     },
@@ -4771,17 +4972,11 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "standalone-quickstart",
         "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map"
+        "planning-permitting-workbench"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
       "candidateRoutes": [
-        {
-          "sampleId": "standalone-quickstart",
-          "canonicalPath": "samples/standalone-quickstart.html"
-        },
         {
           "sampleId": "maplibre-quickstart",
           "canonicalPath": "samples/maplibre-quickstart.html"
@@ -4789,10 +4984,6 @@
         {
           "sampleId": "planning-permitting-workbench",
           "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
-        {
-          "sampleId": "endpoint-to-map",
-          "canonicalPath": "samples/endpoint-to-map.html"
         }
       ]
     },
@@ -4953,17 +5144,11 @@
       "supportStatus": "supported",
       "coverageState": "partial",
       "candidateSampleIds": [
-        "standalone-quickstart",
         "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map"
+        "planning-permitting-workbench"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts.",
       "candidateRoutes": [
-        {
-          "sampleId": "standalone-quickstart",
-          "canonicalPath": "samples/standalone-quickstart.html"
-        },
         {
           "sampleId": "maplibre-quickstart",
           "canonicalPath": "samples/maplibre-quickstart.html"
@@ -4971,10 +5156,6 @@
         {
           "sampleId": "planning-permitting-workbench",
           "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
-        {
-          "sampleId": "endpoint-to-map",
-          "canonicalPath": "samples/endpoint-to-map.html"
         }
       ]
     },
@@ -5135,17 +5316,11 @@
       "supportStatus": "supported",
       "coverageState": "partial",
       "candidateSampleIds": [
-        "standalone-quickstart",
         "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map"
+        "planning-permitting-workbench"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts.",
       "candidateRoutes": [
-        {
-          "sampleId": "standalone-quickstart",
-          "canonicalPath": "samples/standalone-quickstart.html"
-        },
         {
           "sampleId": "maplibre-quickstart",
           "canonicalPath": "samples/maplibre-quickstart.html"
@@ -5153,10 +5328,6 @@
         {
           "sampleId": "planning-permitting-workbench",
           "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
-        {
-          "sampleId": "endpoint-to-map",
-          "canonicalPath": "samples/endpoint-to-map.html"
         }
       ]
     },
@@ -5319,7 +5490,6 @@
       "candidateSampleIds": [
         "node-backend-quickstart",
         "react-quickstart",
-        "maplibre-quickstart",
         "planning-permitting-workbench",
         "mcp-gis-assistant"
       ],
@@ -5332,10 +5502,6 @@
         {
           "sampleId": "react-quickstart",
           "canonicalPath": "samples/react-quickstart.html"
-        },
-        {
-          "sampleId": "maplibre-quickstart",
-          "canonicalPath": "samples/maplibre-quickstart.html"
         },
         {
           "sampleId": "planning-permitting-workbench",
@@ -6101,15 +6267,6 @@
       "coverageState": "unsupported",
       "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": []
-    },
-    {
-      "targetType": "protocol-operation",
-      "targetId": "ogc-features:query:protocol-adapter:native",
-      "supportStatus": "supported",
-      "coverageState": "planned",
-      "candidateSampleIds": [],
-      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
       "candidateRoutes": []
     },
     {
@@ -7494,6 +7651,24 @@
     },
     {
       "targetType": "support-claim",
+      "targetId": "geoservices-geometry-discovery-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+      "candidateRoutes": []
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "geoservices-gp-discovery-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+      "candidateRoutes": []
+    },
+    {
+      "targetType": "support-claim",
       "targetId": "geoservices-image-standalone",
       "supportStatus": "supported",
       "coverageState": "planned",
@@ -7549,10 +7724,17 @@
       "targetType": "support-claim",
       "targetId": "ogc-features-standalone",
       "supportStatus": "supported",
-      "coverageState": "planned",
-      "candidateSampleIds": [],
-      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
-      "candidateRoutes": []
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "reason": "Executable sample coverage exists without complete current qualification receipts.",
+      "candidateRoutes": [
+        {
+          "sampleId": "maplibre-quickstart",
+          "canonicalPath": "samples/maplibre-quickstart.html"
+        }
+      ]
     },
     {
       "targetType": "support-claim",
@@ -7642,6 +7824,38 @@
       "candidateSampleIds": [],
       "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
       "candidateRoutes": []
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "wms-discovery-standalone",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "reason": "Executable sample coverage exists without complete current qualification receipts.",
+      "candidateRoutes": [
+        {
+          "sampleId": "maplibre-quickstart",
+          "canonicalPath": "samples/maplibre-quickstart.html"
+        }
+      ]
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "wmts-discovery-standalone",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "reason": "Executable sample coverage exists without complete current qualification receipts.",
+      "candidateRoutes": [
+        {
+          "sampleId": "maplibre-quickstart",
+          "canonicalPath": "samples/maplibre-quickstart.html"
+        }
+      ]
     }
   ]
 }

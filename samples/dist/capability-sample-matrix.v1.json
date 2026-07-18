@@ -10,25 +10,25 @@
       "path": "config/support-manifest.v1.json",
       "format": "honua.sdk.support-manifest.v1",
       "schemaVersion": 1,
-      "sha256": "94dd200371f6e254cd826a00cabe4b10a29e3c3ab45dfacc1ce046211005587b"
+      "sha256": "d1e16475331c43dfafea2fea5cda81a0b6fcb721beac8e6ceded24f0cefedcc8"
     },
     "packageExports": {
       "path": "package.json",
       "package": "@honua/sdk-js",
-      "sha256": "70bc39aa63b4052721083f42bf5c758bebb97ddc5182844fc4c02878610e384d"
+      "sha256": "b68a46e59e018b7d2fe58c9b66250fba36a5003202cb0aea3ab868a150ed36d0"
     },
     "catalog": {
       "path": "samples/catalog.v2.json",
       "format": "honua.sdk.sample-catalog.v2",
       "schemaVersion": 2,
-      "sha256": "a3016229c72ae1dc927b7617c07cefe850722761d2e70d4858c72f7812c5ea9e"
+      "sha256": "c5c5dcbfe915f743bcae590bbfa922c47a44b435cf6b63e0b6f93ad7408b19c7"
     },
     "qualificationEvidence": {
       "root": "samples/evidence",
       "format": "honua.sdk.sample-qualification-evidence.v1",
       "schemaVersion": 1,
-      "receiptCount": 0,
-      "sha256": "b922a09666feb7c76cba635d8047ca9666fc3eb0ba775e3c26365b0b4365d6cb"
+      "receiptCount": 9,
+      "sha256": "13e821eb0dd3040f89f27caca8a277aff8cd96fdfeed6fc7cb911bd51a00a6d9"
     }
   },
   "statusVocabulary": {
@@ -107,6 +107,7 @@
       "query",
       "query-planning",
       "range-reads",
+      "range-requests",
       "raster",
       "react",
       "realtime",
@@ -221,6 +222,7 @@
       "./auth",
       "./browser",
       "./cli",
+      "./cog",
       "./collaboration",
       "./contract",
       "./control-plane",
@@ -270,16 +272,20 @@
       "id": "first-map",
       "title": "First Map",
       "candidateSampleId": "maplibre-quickstart",
-      "catalogStatus": "planned",
+      "catalogStatus": "qualified",
       "supportStatus": "supported",
       "coverage": {
-        "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
+        "state": "qualified",
+        "reason": "A catalog-qualified sample has a complete current qualification receipt set for this exact cell.",
         "candidateSampleIds": [
           "maplibre-quickstart"
         ],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
+        "qualifyingSampleIds": [
+          "maplibre-quickstart"
+        ],
+        "evidenceBindingIds": [
+          "qualification:c893930ec1b3b37b31026aa4617ec8a395d7a500d073fba2c0b1fd1e7106bf06"
+        ],
         "selectedSampleId": "maplibre-quickstart"
       }
     },
@@ -564,7 +570,10 @@
         "wms",
         "wmts"
       ],
-      "supportClaimIds": [],
+      "supportClaimIds": [
+        "wms-discovery-standalone",
+        "wmts-discovery-standalone"
+      ],
       "protocolBindings": [
         {
           "catalogProtocol": "geoservices",
@@ -591,7 +600,9 @@
           "protocolIds": [
             "wms"
           ],
-          "supportClaimIds": [],
+          "supportClaimIds": [
+            "wms-discovery-standalone"
+          ],
           "external": false
         },
         {
@@ -599,7 +610,9 @@
           "protocolIds": [
             "wmts"
           ],
-          "supportClaimIds": [],
+          "supportClaimIds": [
+            "wmts-discovery-standalone"
+          ],
           "external": false
         }
       ],
@@ -724,53 +737,6 @@
       }
     },
     {
-      "id": "endpoint-to-map",
-      "title": "Endpoint to map: the standalone data-to-map bridge",
-      "sourcePath": "examples/endpoint-to-map",
-      "track": "recipe",
-      "tasks": [
-        "direct-connect",
-        "map",
-        "query"
-      ],
-      "catalogProtocols": [
-        "geoservices"
-      ],
-      "protocolIds": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service"
-      ],
-      "supportClaimIds": [],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "geoservices",
-          "protocolIds": [
-            "geoservices-feature-service",
-            "geoservices-map-service",
-            "geoservices-image-service",
-            "geoservices-geometry-service",
-            "geoservices-gp-service"
-          ],
-          "supportClaimIds": [],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "hybrid",
-      "authMode": "anonymous",
-      "supportTier": "experimental",
-      "lifecycleState": "active",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
       "sourcePath": "examples/geocoding-quickstart",
@@ -882,17 +848,24 @@
     },
     {
       "id": "imagery-cog-quickstart",
-      "title": "Imagery and COG quickstart",
+      "title": "Imagery and Terrain journey",
       "sourcePath": "examples/imagery-cog-quickstart",
       "track": "recipe",
       "journeyId": "imagery-terrain",
       "tasks": [
         "cog",
+        "elevation",
         "imagery",
-        "raster"
+        "profile",
+        "range-requests",
+        "raster",
+        "stac",
+        "terrain"
       ],
       "catalogProtocols": [
         "geoservices",
+        "stac",
+        "terrain-rgb",
         "wms"
       ],
       "protocolIds": [
@@ -901,9 +874,13 @@
         "geoservices-gp-service",
         "geoservices-image-service",
         "geoservices-map-service",
+        "stac",
         "wms"
       ],
-      "supportClaimIds": [],
+      "supportClaimIds": [
+        "stac-standalone",
+        "wms-discovery-standalone"
+      ],
       "protocolBindings": [
         {
           "catalogProtocol": "geoservices",
@@ -918,11 +895,29 @@
           "external": false
         },
         {
+          "catalogProtocol": "stac",
+          "protocolIds": [
+            "stac"
+          ],
+          "supportClaimIds": [
+            "stac-standalone"
+          ],
+          "external": false
+        },
+        {
+          "catalogProtocol": "terrain-rgb",
+          "protocolIds": [],
+          "supportClaimIds": [],
+          "external": true
+        },
+        {
           "catalogProtocol": "wms",
           "protocolIds": [
             "wms"
           ],
-          "supportClaimIds": [],
+          "supportClaimIds": [
+            "wms-discovery-standalone"
+          ],
           "external": false
         }
       ],
@@ -930,9 +925,9 @@
         "maplibre"
       ],
       "dataMode": "hybrid",
-      "authMode": "api-key",
+      "authMode": "host-mediated",
       "supportTier": "supported",
-      "lifecycleState": "rework",
+      "lifecycleState": "active",
       "qualification": {
         "state": "planned",
         "catalogStatus": "planned"
@@ -993,11 +988,12 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "Honua × MapLibre flagship workflow",
+      "title": "First Map: endpoint to inspected MapLibre map",
       "sourcePath": "examples/maplibre-quickstart",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "first-map",
       "tasks": [
+        "direct-connect",
         "discovery",
         "explain-plan",
         "linked-views",
@@ -1007,7 +1003,7 @@
       ],
       "catalogProtocols": [
         "geoservices",
-        "honua"
+        "ogc-features"
       ],
       "protocolIds": [
         "geoservices-feature-service",
@@ -1015,10 +1011,10 @@
         "geoservices-gp-service",
         "geoservices-image-service",
         "geoservices-map-service",
-        "grpc"
+        "ogc-features"
       ],
       "supportClaimIds": [
-        "compatibility-gate-facade"
+        "ogc-features-standalone"
       ],
       "protocolBindings": [
         {
@@ -1034,12 +1030,12 @@
           "external": false
         },
         {
-          "catalogProtocol": "honua",
+          "catalogProtocol": "ogc-features",
           "protocolIds": [
-            "grpc"
+            "ogc-features"
           ],
           "supportClaimIds": [
-            "compatibility-gate-facade"
+            "ogc-features-standalone"
           ],
           "external": false
         }
@@ -1050,10 +1046,33 @@
       "dataMode": "hybrid",
       "authMode": "anonymous",
       "supportTier": "supported",
-      "lifecycleState": "rework",
+      "lifecycleState": "active",
       "qualification": {
-        "state": "planned",
-        "catalogStatus": "planned"
+        "state": "qualified",
+        "catalogStatus": "qualified",
+        "evidenceBindingId": "qualification:c893930ec1b3b37b31026aa4617ec8a395d7a500d073fba2c0b1fd1e7106bf06",
+        "evidence": {
+          "receiptCount": 9,
+          "gates": [
+            "accessibility",
+            "browser",
+            "console",
+            "fixture",
+            "live",
+            "packed-build",
+            "performance",
+            "responsive",
+            "screenshot"
+          ],
+          "sdkModes": [
+            "packed",
+            "source"
+          ],
+          "sourceRevisions": [
+            "fdf3ee431f49e3a15f1b09f1167da8e659b47744"
+          ],
+          "sha256": "4a0e0f93f1c513a644fa10a70a9ff7bd90761d92ba3ed95992649396a3b8065b"
+        }
       }
     },
     {
@@ -1621,7 +1640,9 @@
       "supportClaimIds": [
         "odata-standalone",
         "stac-standalone",
-        "wfs-standalone"
+        "wfs-standalone",
+        "wms-discovery-standalone",
+        "wmts-discovery-standalone"
       ],
       "protocolBindings": [
         {
@@ -1683,7 +1704,9 @@
           "protocolIds": [
             "wms"
           ],
-          "supportClaimIds": [],
+          "supportClaimIds": [
+            "wms-discovery-standalone"
+          ],
           "external": false
         },
         {
@@ -1691,7 +1714,9 @@
           "protocolIds": [
             "wmts"
           ],
-          "supportClaimIds": [],
+          "supportClaimIds": [
+            "wmts-discovery-standalone"
+          ],
           "external": false
         }
       ],
@@ -1905,54 +1930,7 @@
       "dataMode": "fixture",
       "authMode": "none",
       "supportTier": "supported",
-      "lifecycleState": "merge",
-      "qualification": {
-        "state": "partial",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
-      "id": "standalone-quickstart",
-      "title": "Standalone public-service quickstart",
-      "sourcePath": "examples/standalone-quickstart",
-      "track": "recipe",
-      "tasks": [
-        "direct-connect",
-        "map",
-        "query"
-      ],
-      "catalogProtocols": [
-        "geoservices"
-      ],
-      "protocolIds": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service"
-      ],
-      "supportClaimIds": [],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "geoservices",
-          "protocolIds": [
-            "geoservices-feature-service",
-            "geoservices-map-service",
-            "geoservices-image-service",
-            "geoservices-geometry-service",
-            "geoservices-gp-service"
-          ],
-          "supportClaimIds": [],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "hybrid",
-      "authMode": "anonymous",
-      "supportTier": "supported",
-      "lifecycleState": "merge",
+      "lifecycleState": "active",
       "qualification": {
         "state": "partial",
         "catalogStatus": "not-a-golden-journey"
@@ -2185,7 +2163,137 @@
       }
     }
   ],
-  "evidenceBindings": [],
+  "evidenceBindings": [
+    {
+      "id": "qualification:c893930ec1b3b37b31026aa4617ec8a395d7a500d073fba2c0b1fd1e7106bf06",
+      "sampleId": "maplibre-quickstart",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/maplibre-quickstart",
+        "revision": "fdf3ee431f49e3a15f1b09f1167da8e659b47744",
+        "evidenceNeutralSha256": "a9668e7090bea1ebb2df41253b716457d25035b214ea3699492ba1acf246c2cf",
+        "receipts": [
+          {
+            "gate": "accessibility",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/accessibility.v1.json",
+            "receiptSha256": "b062691d6c2819e19aa76d386130e391ca0c8fb4a3ab638fbb5fd77644345518",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.003Z",
+            "expiresAt": "2026-07-25T07:31:23.003Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/accessibility.json",
+            "reportBytes": 10644,
+            "reportSha256": "92c297b35fe849a96cebfbd216b0cb3ac99a65c5bf1152f93dae8a18b53f37d4"
+          },
+          {
+            "gate": "browser",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/browser.v1.json",
+            "receiptSha256": "ecbb3545340882c6412ae3341754f834e55bba247946f981c5389bbc2bc986fe",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.093Z",
+            "expiresAt": "2026-07-25T07:31:23.093Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/browser.json",
+            "reportBytes": 10638,
+            "reportSha256": "c6890a1212577d1abcbab806c40fdc019b75876d40318da5362c3ec6cbce92c0"
+          },
+          {
+            "gate": "console",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/console.v1.json",
+            "receiptSha256": "770d5784ef71c40f0de1b2522c4ccc12f747f5bd4179c849228d9726e7368e4f",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.175Z",
+            "expiresAt": "2026-07-25T07:31:23.175Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/console.json",
+            "reportBytes": 10638,
+            "reportSha256": "a5b18e9bc496b3b829ff620ad34eb761a238a42b64bddf232db247e90d68a2e7"
+          },
+          {
+            "gate": "fixture",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/fixture.v1.json",
+            "receiptSha256": "0ace8b9f5697edf677c8e60e50f78409fad6b56ef3cf0f21e780fd319dad33cf",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/6f20538a-c9a7-4756-bc59-329c7522eb5c",
+            "observedAt": "2026-07-18T07:31:24.775Z",
+            "expiresAt": "2026-07-25T07:31:24.775Z",
+            "reportKind": "fixture-probe-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/6f20538a-c9a7-4756-bc59-329c7522eb5c/artifacts/fixture.json",
+            "reportBytes": 714,
+            "reportSha256": "7a270f1c50f2a2a61f2206f8abd3533732d8d4377610386caaeb5cb891622815"
+          },
+          {
+            "gate": "live",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/live.v1.json",
+            "receiptSha256": "81cf605995be2962c52433d267b7fd22d0a69dc5203dc3c2864d2e11ef018626",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/46f14a08-bb64-41f4-af20-c5012bc91c66",
+            "observedAt": "2026-07-18T07:31:28.322Z",
+            "expiresAt": "2026-07-25T07:31:28.322Z",
+            "reportKind": "live-evidence-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/46f14a08-bb64-41f4-af20-c5012bc91c66/artifacts/live.json",
+            "reportBytes": 2669,
+            "reportSha256": "f207f2a3417931cefe8988b3007c57287c6844dce0ff108e8f5fa8afbb1d3678"
+          },
+          {
+            "gate": "performance",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/performance.v1.json",
+            "receiptSha256": "874eb7e537f1fe089588c0fef362282ec1f221c069cb5a1480bcd5daa08436a4",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.267Z",
+            "expiresAt": "2026-07-25T07:31:23.267Z",
+            "reportKind": "performance-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/performance.json",
+            "reportBytes": 1098,
+            "reportSha256": "08148fd1cfb2e87565992070b752fc572467e34195c980043f315be49fa82288"
+          },
+          {
+            "gate": "responsive",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/responsive.v1.json",
+            "receiptSha256": "d88179f4602821194c8acdcef6b1acada991482f02f2199ad7bd5e6f7c4c0d91",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.349Z",
+            "expiresAt": "2026-07-25T07:31:23.349Z",
+            "reportKind": "playwright-gate-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/responsive.json",
+            "reportBytes": 10641,
+            "reportSha256": "60fd102c74ac984a13acb00cad469c26d7235efcdde146aacfde4b4bb68d56db"
+          },
+          {
+            "gate": "screenshot",
+            "sdkMode": "source",
+            "receiptPath": "samples/evidence/maplibre-quickstart/receipts/screenshot.v1.json",
+            "receiptSha256": "aeb7ee04604c44c712905ec2fc11db7aa64a8d8c72169ff55e6b9d7624eee637",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c",
+            "observedAt": "2026-07-18T07:31:23.440Z",
+            "expiresAt": "2026-07-25T07:31:23.440Z",
+            "reportKind": "screenshot-report",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ef9a365d-6bc1-4231-aae4-fabce9b7890c/artifacts/screenshot.json",
+            "reportBytes": 2532,
+            "reportSha256": "7c74a03f25a1b03df487bc4a12e5a2ee49d185831b54917ff9c561b4797d2a3d"
+          }
+        ]
+      },
+      "packed": {
+        "gate": "packed-build",
+        "sdkMode": "packed",
+        "receiptPath": "samples/evidence/maplibre-quickstart/receipts/packed-build.v1.json",
+        "receiptSha256": "502aefe0d5b5b255f97033eb9af835471bbe6fec7e8c3036ac8788a519631dba",
+        "runRoot": "samples/evidence/maplibre-quickstart/runs/0ce30fde-a207-4604-abcd-3f2fafd5a3d5",
+        "observedAt": "2026-07-18T07:31:31.990Z",
+        "expiresAt": "2026-07-25T07:31:31.990Z",
+        "reportKind": "packed-build-report",
+        "reportPath": "samples/evidence/maplibre-quickstart/runs/0ce30fde-a207-4604-abcd-3f2fafd5a3d5/artifacts/packed-build.json",
+        "reportBytes": 5907,
+        "reportSha256": "2f1041e23fa4be2a88da4e7146a7d957845514a2989b1b3c71ee0cbbef088d5d"
+      }
+    }
+  ],
   "protocolOperations": [
     {
       "id": "geoparquet:applyEdits:default",
@@ -2614,14 +2722,12 @@
         "state": "partial",
         "reason": "Executable sample coverage exists without complete current qualification receipts.",
         "candidateSampleIds": [
-          "standalone-quickstart",
           "maplibre-quickstart",
-          "planning-permitting-workbench",
-          "endpoint-to-map"
+          "planning-permitting-workbench"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "standalone-quickstart"
+        "selectedSampleId": "maplibre-quickstart"
       }
     },
     {
@@ -2928,14 +3034,12 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [
-          "standalone-quickstart",
           "maplibre-quickstart",
-          "planning-permitting-workbench",
-          "endpoint-to-map"
+          "planning-permitting-workbench"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "standalone-quickstart"
+        "selectedSampleId": "maplibre-quickstart"
       }
     },
     {
@@ -3215,14 +3319,12 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [
-          "standalone-quickstart",
           "maplibre-quickstart",
-          "planning-permitting-workbench",
-          "endpoint-to-map"
+          "planning-permitting-workbench"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "standalone-quickstart"
+        "selectedSampleId": "maplibre-quickstart"
       }
     },
     {
@@ -3504,14 +3606,12 @@
         "state": "partial",
         "reason": "Executable sample coverage exists without complete current qualification receipts.",
         "candidateSampleIds": [
-          "standalone-quickstart",
           "maplibre-quickstart",
-          "planning-permitting-workbench",
-          "endpoint-to-map"
+          "planning-permitting-workbench"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "standalone-quickstart"
+        "selectedSampleId": "maplibre-quickstart"
       }
     },
     {
@@ -3806,14 +3906,12 @@
         "state": "partial",
         "reason": "Executable sample coverage exists without complete current qualification receipts.",
         "candidateSampleIds": [
-          "standalone-quickstart",
           "maplibre-quickstart",
-          "planning-permitting-workbench",
-          "endpoint-to-map"
+          "planning-permitting-workbench"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "standalone-quickstart"
+        "selectedSampleId": "maplibre-quickstart"
       }
     },
     {
@@ -4137,7 +4235,6 @@
         "candidateSampleIds": [
           "node-backend-quickstart",
           "react-quickstart",
-          "maplibre-quickstart",
           "planning-permitting-workbench",
           "mcp-gis-assistant"
         ],
@@ -5561,11 +5658,18 @@
         "ogc-features-fixtures"
       ],
       "coverage": {
-        "state": "planned",
-        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
+        "state": "qualified",
+        "reason": "A catalog-qualified sample has a complete current qualification receipt set for this exact cell.",
+        "candidateSampleIds": [
+          "maplibre-quickstart"
+        ],
+        "qualifyingSampleIds": [
+          "maplibre-quickstart"
+        ],
+        "evidenceBindingIds": [
+          "qualification:c893930ec1b3b37b31026aa4617ec8a395d7a500d073fba2c0b1fd1e7106bf06"
+        ],
+        "selectedSampleId": "maplibre-quickstart"
       }
     },
     {
@@ -8171,7 +8275,55 @@
         "connect-fixtures",
         "contract-conformance",
         "geoservices-conformance",
-        "standalone-live"
+        "first-map-live"
+      ],
+      "candidateEvidence": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "geoservices-geometry-discovery-standalone",
+      "label": "GeoServices GeometryServer discovery",
+      "protocolId": "geoservices-geometry-service",
+      "operations": [
+        "discovery"
+      ],
+      "api": "discoverGeoServices()",
+      "apiEntrypoints": [],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "truthEvidence": [
+        "geoservices-discovery-fixtures"
+      ],
+      "candidateEvidence": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "geoservices-gp-discovery-standalone",
+      "label": "GeoServices GPServer discovery",
+      "protocolId": "geoservices-gp-service",
+      "operations": [
+        "discovery"
+      ],
+      "api": "discoverGeoServices()",
+      "apiEntrypoints": [],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "truthEvidence": [
+        "geoservices-discovery-fixtures"
       ],
       "candidateEvidence": [],
       "coverage": {
@@ -8187,17 +8339,19 @@
       "label": "GeoServices ImageServer reads",
       "protocolId": "geoservices-image-service",
       "operations": [
+        "discovery",
         "query",
         "render",
         "tiles",
         "image"
       ],
-      "api": "HonuaClient.imageService, Source.protocol()",
+      "api": "connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol()",
       "apiEntrypoints": [],
       "supportStatus": "supported",
       "environment": "standalone",
       "executionMode": "native",
       "truthEvidence": [
+        "geoservices-discovery-fixtures",
         "geoservices-conformance",
         "image-service-integration"
       ],
@@ -8229,8 +8383,7 @@
         "connect-fixtures",
         "honua-surface-fixtures",
         "tile-layer-fixtures",
-        "map-service-integration",
-        "standalone-live"
+        "map-service-integration"
       ],
       "candidateEvidence": [],
       "coverage": {
@@ -8327,8 +8480,7 @@
       "environment": "standalone",
       "executionMode": "discovery",
       "truthEvidence": [
-        "odata-fixtures",
-        "standalone-live"
+        "odata-fixtures"
       ],
       "candidateEvidence": [],
       "coverage": {
@@ -8356,16 +8508,27 @@
       "environment": "standalone",
       "executionMode": "discovery",
       "truthEvidence": [
-        "ogc-features-fixtures",
-        "standalone-live"
+        "ogc-features-fixtures"
       ],
-      "candidateEvidence": [],
+      "candidateEvidence": [
+        {
+          "sampleId": "maplibre-quickstart",
+          "matchedOperations": [
+            "discovery",
+            "query"
+          ],
+          "binding": "exact"
+        }
+      ],
       "coverage": {
-        "state": "planned",
-        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
-        "candidateSampleIds": [],
+        "state": "partial",
+        "reason": "Executable sample coverage exists without complete current qualification receipts.",
+        "candidateSampleIds": [
+          "maplibre-quickstart"
+        ],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
+        "evidenceBindingIds": [],
+        "selectedSampleId": "maplibre-quickstart"
       }
     },
     {
@@ -8562,8 +8725,7 @@
       "environment": "standalone",
       "executionMode": "discovery",
       "truthEvidence": [
-        "stac-fixtures",
-        "standalone-live"
+        "stac-fixtures"
       ],
       "candidateEvidence": [],
       "coverage": {
@@ -8592,8 +8754,7 @@
       "environment": "standalone",
       "executionMode": "discovery",
       "truthEvidence": [
-        "wfs-fixtures",
-        "standalone-live"
+        "wfs-fixtures"
       ],
       "candidateEvidence": [],
       "coverage": {
@@ -8602,6 +8763,86 @@
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wms-discovery-standalone",
+      "label": "WMS 1.3 discovery and raster rendering",
+      "protocolId": "wms",
+      "operations": [
+        "discovery",
+        "render",
+        "tiles"
+      ],
+      "api": "connect(), Source descriptor, @honua/sdk-js/map",
+      "apiEntrypoints": [
+        "./map"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "truthEvidence": [
+        "wms-wmts-connect-fixtures",
+        "maplibre-raster-source-fixtures"
+      ],
+      "candidateEvidence": [
+        {
+          "sampleId": "maplibre-quickstart",
+          "matchedOperations": [
+            "discovery"
+          ],
+          "binding": "exact"
+        }
+      ],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable sample coverage exists without complete current qualification receipts.",
+        "candidateSampleIds": [
+          "maplibre-quickstart"
+        ],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
+        "selectedSampleId": "maplibre-quickstart"
+      }
+    },
+    {
+      "id": "wmts-discovery-standalone",
+      "label": "WMTS 1.0 discovery and raster tiles",
+      "protocolId": "wmts",
+      "operations": [
+        "discovery",
+        "render",
+        "tiles"
+      ],
+      "api": "connect(), Source descriptor, @honua/sdk-js/map",
+      "apiEntrypoints": [
+        "./map"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "truthEvidence": [
+        "wms-wmts-connect-fixtures",
+        "maplibre-raster-source-fixtures"
+      ],
+      "candidateEvidence": [
+        {
+          "sampleId": "maplibre-quickstart",
+          "matchedOperations": [
+            "discovery"
+          ],
+          "binding": "exact"
+        }
+      ],
+      "coverage": {
+        "state": "partial",
+        "reason": "Executable sample coverage exists without complete current qualification receipts.",
+        "candidateSampleIds": [
+          "maplibre-quickstart"
+        ],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
+        "selectedSampleId": "maplibre-quickstart"
       }
     }
   ],
@@ -8746,6 +8987,25 @@
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
+      }
+    },
+    {
+      "subpath": "./cog",
+      "supportStatus": "experimental",
+      "targets": {
+        "types": "./dist/src/cog/index.d.ts",
+        "default": "./dist/src/cog/index.js"
+      },
+      "coverage": {
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": [
+          "stac-imagery-browser",
+          "imagery-cog-quickstart"
+        ],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
+        "selectedSampleId": "stac-imagery-browser"
       }
     },
     {
@@ -8983,7 +9243,6 @@
           "node-backend-quickstart",
           "react-quickstart",
           "storytelling-25d-map",
-          "maplibre-quickstart",
           "planning-permitting-workbench",
           "ai-spatial-app-builder",
           "kepler-analytics",
@@ -9023,22 +9282,24 @@
         "default": "./dist/src/map/index.js"
       },
       "coverage": {
-        "state": "partial",
-        "reason": "Executable sample coverage exists without complete current qualification receipts.",
+        "state": "qualified",
+        "reason": "A catalog-qualified sample has a complete current qualification receipt set for this exact cell.",
         "candidateSampleIds": [
-          "react-quickstart",
-          "standalone-quickstart",
           "maplibre-quickstart",
+          "react-quickstart",
           "planning-permitting-workbench",
-          "endpoint-to-map",
           "temporal-playback",
           "nl-map-control",
           "web-components-basic",
           "automatic-source-workflow"
         ],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "react-quickstart"
+        "qualifyingSampleIds": [
+          "maplibre-quickstart"
+        ],
+        "evidenceBindingIds": [
+          "qualification:c893930ec1b3b37b31026aa4617ec8a395d7a500d073fba2c0b1fd1e7106bf06"
+        ],
+        "selectedSampleId": "maplibre-quickstart"
       }
     },
     {
@@ -9469,16 +9730,6 @@
     },
     {
       "targetType": "golden-journey",
-      "targetId": "first-map",
-      "supportStatus": "supported",
-      "coverageState": "planned",
-      "candidateSampleIds": [
-        "maplibre-quickstart"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
-    },
-    {
-      "targetType": "golden-journey",
       "targetId": "imagery-terrain",
       "supportStatus": "supported",
       "coverageState": "planned",
@@ -9591,6 +9842,17 @@
       "coverageState": "planned",
       "candidateSampleIds": [],
       "reason": "SDK support is present, but no catalog sample maps to this exact cell."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./cog",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [
+        "stac-imagery-browser",
+        "imagery-cog-quickstart"
+      ],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
     },
     {
       "targetType": "package-entrypoint",
@@ -9718,7 +9980,6 @@
         "node-backend-quickstart",
         "react-quickstart",
         "storytelling-25d-map",
-        "maplibre-quickstart",
         "planning-permitting-workbench",
         "ai-spatial-app-builder",
         "kepler-analytics",
@@ -9739,24 +10000,6 @@
       "coverageState": "planned",
       "candidateSampleIds": [],
       "reason": "SDK support is present, but no catalog sample maps to this exact cell."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./map",
-      "supportStatus": "supported",
-      "coverageState": "partial",
-      "candidateSampleIds": [
-        "react-quickstart",
-        "standalone-quickstart",
-        "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map",
-        "temporal-playback",
-        "nl-map-control",
-        "web-components-basic",
-        "automatic-source-workflow"
-      ],
-      "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
     {
       "targetType": "package-entrypoint",
@@ -10171,10 +10414,8 @@
       "supportStatus": "supported",
       "coverageState": "partial",
       "candidateSampleIds": [
-        "standalone-quickstart",
         "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map"
+        "planning-permitting-workbench"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
@@ -10314,10 +10555,8 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "standalone-quickstart",
         "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map"
+        "planning-permitting-workbench"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
@@ -10457,10 +10696,8 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "standalone-quickstart",
         "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map"
+        "planning-permitting-workbench"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
@@ -10600,10 +10837,8 @@
       "supportStatus": "supported",
       "coverageState": "partial",
       "candidateSampleIds": [
-        "standalone-quickstart",
         "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map"
+        "planning-permitting-workbench"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
@@ -10743,10 +10978,8 @@
       "supportStatus": "supported",
       "coverageState": "partial",
       "candidateSampleIds": [
-        "standalone-quickstart",
         "maplibre-quickstart",
-        "planning-permitting-workbench",
-        "endpoint-to-map"
+        "planning-permitting-workbench"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
@@ -10888,7 +11121,6 @@
       "candidateSampleIds": [
         "node-backend-quickstart",
         "react-quickstart",
-        "maplibre-quickstart",
         "planning-permitting-workbench",
         "mcp-gis-assistant"
       ],
@@ -11565,14 +11797,6 @@
       "coverageState": "unsupported",
       "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "protocol-operation",
-      "targetId": "ogc-features:query:protocol-adapter:native",
-      "supportStatus": "supported",
-      "coverageState": "planned",
-      "candidateSampleIds": [],
-      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "protocol-operation",
@@ -12795,6 +13019,22 @@
     },
     {
       "targetType": "support-claim",
+      "targetId": "geoservices-geometry-discovery-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "geoservices-gp-discovery-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
+    },
+    {
+      "targetType": "support-claim",
       "targetId": "geoservices-image-standalone",
       "supportStatus": "supported",
       "coverageState": "planned",
@@ -12840,9 +13080,11 @@
       "targetType": "support-claim",
       "targetId": "ogc-features-standalone",
       "supportStatus": "supported",
-      "coverageState": "planned",
-      "candidateSampleIds": [],
-      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
     {
       "targetType": "support-claim",
@@ -12911,6 +13153,26 @@
       "coverageState": "planned",
       "candidateSampleIds": [],
       "reason": "SDK support is present, but no catalog sample maps to this exact cell."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "wms-discovery-standalone",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "reason": "Executable sample coverage exists without complete current qualification receipts."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "wmts-discovery-standalone",
+      "supportStatus": "supported",
+      "coverageState": "partial",
+      "candidateSampleIds": [
+        "maplibre-quickstart"
+      ],
+      "reason": "Executable sample coverage exists without complete current qualification receipts."
     }
   ]
 }
