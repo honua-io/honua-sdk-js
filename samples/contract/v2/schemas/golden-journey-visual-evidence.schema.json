@@ -90,7 +90,13 @@
             "scope": { "const": "same-page-session" },
             "animations": { "const": "disabled" },
             "stabilization": {
-              "const": ["fonts-ready", "scroll-origin", "double-animation-frame"]
+              "const": [
+                "map-idle",
+                "css-animation-freeze",
+                "fonts-ready",
+                "scroll-origin",
+                "double-animation-frame"
+              ]
             },
             "runtimeBinding": {
               "const": [

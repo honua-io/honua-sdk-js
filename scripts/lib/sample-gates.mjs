@@ -10,7 +10,13 @@ export const SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY = Object.freeze({
   comparison: "byte-identical",
   scope: "same-page-session",
   animations: "disabled",
-  stabilization: Object.freeze(["fonts-ready", "scroll-origin", "double-animation-frame"]),
+  stabilization: Object.freeze([
+    "map-idle",
+    "css-animation-freeze",
+    "fonts-ready",
+    "scroll-origin",
+    "double-animation-frame",
+  ]),
   runtimeBinding: Object.freeze([
     "playwright-version",
     "project-name",

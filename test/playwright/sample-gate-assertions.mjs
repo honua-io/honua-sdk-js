@@ -85,8 +85,64 @@ async function writeBrowserEvidenceArtifacts({
       await page.setViewportSize(variant.viewport);
       const stabilize = () =>
         page.evaluate(async () => {
+          // 1. map-idle: bring every MapLibre map on the page to a fully
+          // static, idle state before capturing. Two back-to-back
+          // screenshots of a live WebGL canvas are only byte-identical once
+          // tile loads, symbol placement, and camera transitions have all
+          // settled — "fonts ready + one frame" is not sufficient on its own.
+          const maps = [];
+          if (window.__HONUA_QUICKSTART_MAP__) maps.push(window.__HONUA_QUICKSTART_MAP__);
+          if (Array.isArray(window.__honuaMaps)) maps.push(...window.__honuaMaps);
+          await Promise.all(
+            maps.filter(Boolean).map(async (map) => {
+              if (typeof map.stop === "function") map.stop();
+              if (typeof map.loaded !== "function" || typeof map.once !== "function") return;
+              if (map.loaded()) return;
+              await new Promise((resolve) => {
+                let settled = false;
+                const finish = () => {
+                  if (settled) return;
+                  settled = true;
+                  clearInterval(poll);
+                  clearTimeout(timer);
+                  map.off?.("idle", finish);
+                  resolve();
+                };
+                const poll = setInterval(() => {
+                  if (map.loaded()) finish();
+                }, 25);
+                const timer = setTimeout(finish, 5_000);
+                map.once("idle", finish);
+              });
+            }),
+          );
+
+          // 2. css-animation-freeze: neutralize CSS animations/transitions
+          // and inherently non-deterministic chrome (e.g. a blinking caret)
+          // that would otherwise diverge between two captures taken a frame
+          // apart.
+          const FREEZE_STYLE_ID = "honua-sample-gate-freeze-style";
+          if (!document.getElementById(FREEZE_STYLE_ID)) {
+            const style = document.createElement("style");
+            style.id = FREEZE_STYLE_ID;
+            style.textContent = `
+              *, *::before, *::after {
+                animation-play-state: paused !important;
+                animation-duration: 0s !important;
+                animation-delay: -1ms !important;
+                transition-duration: 0s !important;
+                transition-delay: 0s !important;
+                caret-color: transparent !important;
+              }
+            `;
+            document.head.appendChild(style);
+          }
+
+          // 3. fonts-ready
           await document.fonts?.ready;
+          // 4. scroll-origin
           scrollTo(0, 0);
+          // 5. double-animation-frame
           await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         });
       await stabilize();
