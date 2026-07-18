@@ -3796,11 +3796,31 @@ function projectedGoldenLiveEvidence(sample, liveReport, liveReceipt) {
       `${sample.id}: incident operations visual evidence must remain realtime`,
     );
   }
+  // The live gate receipt is stamped when its wrapper finishes writing to
+  // disk, which lands a little after the underlying live probe's own
+  // evidence.observedAt. Anchoring the published expiresAt off the receipt's
+  // observedAt (rather than the earlier evidence.observedAt this entry
+  // actually publishes) would silently stretch the freshness window beyond
+  // what the receipt itself grants. Preserve the receipt's window duration
+  // but anchor it on the observedAt actually published here so the two
+  // stay exactly consistent.
+  const liveReceiptObservedAtMs = Date.parse(liveReceipt.observedAt);
+  const liveReceiptExpiresAtMs = Date.parse(liveReceipt.expiresAt);
+  const evidenceObservedAtMs = Date.parse(evidence.observedAt);
+  invariant(
+    Number.isFinite(liveReceiptObservedAtMs) &&
+      Number.isFinite(liveReceiptExpiresAtMs) &&
+      Number.isFinite(evidenceObservedAtMs) &&
+      liveReceiptExpiresAtMs > liveReceiptObservedAtMs &&
+      evidenceObservedAtMs <= liveReceiptObservedAtMs,
+    `${sample.id}: visual live evidence timestamps are invalid`,
+  );
+  const liveWindowMs = liveReceiptExpiresAtMs - liveReceiptObservedAtMs;
   return {
     mode: sample.evidence.live.mode,
     status: "executed",
     observedAt: evidence.observedAt,
-    expiresAt: liveReceipt.expiresAt,
+    expiresAt: new Date(evidenceObservedAtMs + liveWindowMs).toISOString(),
     evidencePath: liveReport.evidencePath,
     provenance: {
       state: evidence.provenance.state,
