@@ -1,0 +1,23 @@
+{
+  "format": "honua.sdk.sample-screenshot-gate.v1",
+  "sampleId": "maplibre-quickstart",
+  "sourceRevision": "4dae23cf9dfe6caabe8c1b9f83545c3c3c23033f",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:quickstart",
+    "--",
+    "--reporter=json"
+  ],
+  "screenshot": {
+    "projectName": "chromium",
+    "browserName": "chromium",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "path": "samples/evidence/maplibre-quickstart/runs/08f9f2d2-599a-4ea1-b48f-8f03da8a46b7/artifacts/screenshot.png",
+    "bytes": 91790,
+    "sha256": "861383b072a46a18e55bdfb5759c19b4fafbbb971bb93e7e420339595143e55d"
+  }
+}
