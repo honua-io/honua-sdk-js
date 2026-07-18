@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   collectQualificationEvidence,
@@ -9,6 +9,13 @@ import {
   validateCapabilitySampleMatrix,
 } from "../scripts/sample-contract.mjs";
 import type { QualificationEvidenceInventory } from "../scripts/sample-contract.mjs";
+
+// canonicalInputs() (below) calls collectQualificationEvidence against the
+// real samples/evidence tree for the now genuinely qualified First Map
+// journey. That real I/O regularly exceeds vitest's 5s default under
+// full-suite contention; it was effectively instant against the previously
+// always-empty evidence set, so this was never exercised before.
+vi.setConfig({ testTimeout: 20_000 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(file, "utf8"));
 

@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createFixtureBuildEnvironment } from "../scripts/lib/fixture-build-environment.mjs";
 import {
@@ -31,6 +31,14 @@ import {
   verifyBrowserArtifactManifest,
 } from "../scripts/sample-contract.mjs";
 import type { GoldenJourneyVisualEvidence } from "../scripts/sample-contract.mjs";
+
+// validateCatalog and the golden-journey visual-evidence helpers below read
+// the real samples/evidence tree (receipts, screenshots, live evidence) for
+// the now genuinely qualified First Map journey. That real I/O regularly
+// exceeds vitest's 5s default under full-suite contention; the default
+// empty-evidence case was effectively instant, so this was never exercised
+// before. Raise this file's timeout rather than the global default.
+vi.setConfig({ testTimeout: 20_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);

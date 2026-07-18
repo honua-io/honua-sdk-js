@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   collectQualificationEvidence,
@@ -19,6 +19,13 @@ import type {
   GoldenJourneyVisualEvidence,
   SiteConsumerHandoff,
 } from "../scripts/sample-contract.mjs";
+
+// canonicalInputs() reads the real samples/evidence tree (receipts,
+// screenshots, live evidence) for the now genuinely qualified First Map
+// journey. That real I/O regularly exceeds vitest's 5s default under
+// full-suite contention; it was effectively instant against the previously
+// always-empty evidence set, so this was never exercised before.
+vi.setConfig({ testTimeout: 20_000 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(file, "utf8"));
 const sha256 = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
