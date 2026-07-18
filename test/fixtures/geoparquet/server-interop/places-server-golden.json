@@ -1,0 +1,134 @@
+{
+  "version": "1.1.0",
+  "primaryColumn": "geometry",
+  "encoding": "WKB",
+  "crs": "EPSG:32604",
+  "geometryTypes": [
+    "Point Z"
+  ],
+  "bboxColumn": "bbox",
+  "features": [
+    {
+      "attributes": {
+        "id": "08f2a3c1d4e5f601",
+        "name": "Honolulu Hale",
+        "category": "civic",
+        "population": 0
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          618417.0901821383,
+          2356542.4574141996
+        ]
+      }
+    },
+    {
+      "attributes": {
+        "id": "08f2a3c1d4e5f602",
+        "name": "Diamond Head",
+        "category": "landmark",
+        "population": 0
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          623931.7819695587,
+          2351601.7932764282,
+          232
+        ]
+      }
+    },
+    {
+      "attributes": {
+        "id": "08f2a3c1d4e5f603",
+        "name": "Ala Moana Center",
+        "category": "retail",
+        "population": 0
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          619975.4981652896,
+          2354804.7676836615
+        ]
+      }
+    },
+    {
+      "attributes": {
+        "id": "08f2a3c1d4e5f604",
+        "name": "Waikiki Beach",
+        "category": "beach",
+        "population": 0
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          621782.500456936,
+          2353168.687313003
+        ]
+      }
+    },
+    {
+      "attributes": {
+        "id": "08f2a3c1d4e5f605",
+        "name": "Pearl Harbor",
+        "category": "historic",
+        "population": 0
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          608924.5461492185,
+          2362896.8307444565
+        ]
+      }
+    },
+    {
+      "attributes": {
+        "id": "08f2a3c1d4e5f606",
+        "name": "University of Hawaii",
+        "category": "education",
+        "population": 20000
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          622782.0891020059,
+          2355467.6449616533
+        ]
+      }
+    },
+    {
+      "attributes": {
+        "id": "08f2a3c1d4e5f607",
+        "name": "Kailua Beach Park",
+        "category": "beach",
+        "population": 0
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          630674.8881580161,
+          2366112.09929609
+        ]
+      }
+    },
+    {
+      "attributes": {
+        "id": "08f2a3c1d4e5f608",
+        "name": "Dole Plantation",
+        "category": "attraction",
+        "population": 0
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          599711.7599946497,
+          2380604.314176569,
+          169
+        ]
+      }
+    }
+  ]
+}

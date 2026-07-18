@@ -399,6 +399,7 @@
     "demo:overture:typecheck": "tsc -p examples/overture-geoparquet/tsconfig.json --noEmit",
     "demo:overture:fixture": "node examples/overture-geoparquet/generate-fixture.mjs",
     "geoparquet:fixtures": "node test/fixtures/geoparquet/generate.mjs",
+    "geoparquet:fixtures:server-interop": "node test/fixtures/geoparquet/server-interop/generate.mjs",
     "demo:imagery-cog": "vite --config examples/imagery-cog-quickstart/vite.config.ts",
     "demo:imagery-cog:build": "vite build --config examples/imagery-cog-quickstart/vite.config.ts",
     "demo:imagery-cog:preview": "vite preview --config examples/imagery-cog-quickstart/vite.config.ts --host 127.0.0.1",
