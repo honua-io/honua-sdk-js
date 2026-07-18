@@ -113,19 +113,24 @@ describe("capability-to-sample matrix contract", () => {
         inputs.qualificationEvidence,
       ),
     ).toEqual(matrix);
-    expect(matrix.samples).toHaveLength(34);
+    expect(matrix.samples).toHaveLength(32);
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
-    expect(matrix.supportClaims).toHaveLength(21);
-    expect(matrix.packageEntrypoints).toHaveLength(51);
-    expect(matrix.evidenceBindings).toEqual([]);
-    expect(matrix.inputs.qualificationEvidence).toMatchObject({ receiptCount: 0 });
+    expect(matrix.supportClaims).toHaveLength(25);
+    expect(matrix.packageEntrypoints).toHaveLength(52);
+    // maplibre-quickstart is the one real, evidence-backed qualified sample
+    // (the First Map golden journey); everything else must stay unqualified.
+    expect(matrix.evidenceBindings).toHaveLength(1);
+    expect(matrix.evidenceBindings[0]).toMatchObject({ sampleId: "maplibre-quickstart" });
+    expect(matrix.inputs.qualificationEvidence).toMatchObject({ receiptCount: 9 });
     expect(Object.values(matrix.inputs).every((input) => /^[a-f0-9]{64}$/.test(String(input.sha256)))).toBe(true);
     expect(JSON.stringify(matrix)).not.toContain("generatedAt");
-    expect(matrix.samples.some((sample) => sample.qualification.state === "qualified")).toBe(false);
+    expect(
+      matrix.samples.filter((sample) => sample.qualification.state === "qualified").map((sample) => sample.id),
+    ).toEqual(["maplibre-quickstart"]);
 
-    expect(matrix.goldenJourneys.find((journey) => journey.id === "first-map")?.coverage.state).toBe("planned");
+    expect(matrix.goldenJourneys.find((journey) => journey.id === "first-map")?.coverage.state).toBe("qualified");
     expect(matrix.goldenJourneys.find((journey) => journey.id === "cloud-native-analysis")?.coverage.state).toBe(
       "experimental",
     );
@@ -155,8 +160,18 @@ describe("capability-to-sample matrix contract", () => {
     sample.track = "golden";
     sample.validationProfile = "golden-browser";
 
+    // maplibre-quickstart is now genuinely qualified with real evidence, so
+    // inputs.qualificationEvidence would no longer disagree with the catalog
+    // here. Use an explicitly empty inventory to isolate "catalog claims
+    // qualified, evidence provides nothing" from "evidence is real but
+    // stale/mismatched", which the later sub-cases in this test cover.
+    const emptyEvidence: QualificationEvidenceInventory = {
+      format: "honua.sdk.sample-qualification-evidence.v1",
+      schemaVersion: 1,
+      samples: [],
+    };
     expect(() =>
-      generateCapabilitySampleMatrix(catalog, inputs.packageJson, inputs.supportTruth, inputs.qualificationEvidence),
+      generateCapabilitySampleMatrix(catalog, inputs.packageJson, inputs.supportTruth, emptyEvidence),
     ).toThrow("qualification evidence must exactly cover catalog-qualified golden samples");
 
     const qualificationEvidence: QualificationEvidenceInventory = {
@@ -298,8 +313,11 @@ describe("capability-to-sample matrix contract", () => {
       for (let index = 0; index < 128; index += 1) {
         await mkdir(path.join(receiptRoot, `unexpected-${index.toString().padStart(3, "0")}`));
       }
+      // The catalog currently has exactly one catalog-qualified journey
+      // (first-map/maplibre-quickstart), so the root bound is 1: the walk
+      // must stop at the second unexpected entry rather than reading all 128.
       await expect(collectQualificationEvidence(inputs.catalog, { receiptRoot })).rejects.toThrow(
-        "qualification evidence root has orphan or missing entries; found more than 0 entries",
+        "qualification evidence root has orphan or missing entries; found more than 1 entries",
       );
     } finally {
       await rm(receiptRoot, { recursive: true, force: true });

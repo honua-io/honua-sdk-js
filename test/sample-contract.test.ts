@@ -258,7 +258,15 @@ describe("sample publication contract", () => {
           ],
         },
       },
-      qualifiedGoldenJourneys: [],
+    });
+    // maplibre-quickstart is the one real, evidence-backed golden journey;
+    // check its stable identity fields rather than the full volatile object
+    // (timestamps, run IDs, screenshot hashes all legitimately change every
+    // capture).
+    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(1);
+    expect(visualEvidence.qualifiedGoldenJourneys[0]).toMatchObject({
+      journeyId: "first-map",
+      sampleId: "maplibre-quickstart",
     });
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
@@ -338,23 +346,26 @@ describe("sample publication contract", () => {
     const staleCatalog = structuredClone(catalog);
     staleCatalog.goldenJourneys[0].status = "qualified";
     staleCatalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").track = "golden";
+    // Replace (not push): canonical already carries the one real first-map
+    // entry, and this sub-case isolates a stale freshness window on the
+    // catalog's single qualified journey rather than an extra/duplicate one.
     const stale = structuredClone(canonical);
-    stale.qualifiedGoldenJourneys.push(
+    stale.qualifiedGoldenJourneys = [
       visualEvidenceAdversary(
         "first-map",
         "maplibre-quickstart",
         "2026-07-01T00:00:00.000Z",
         "2026-07-08T00:00:00.000Z",
       ),
-    );
+    ];
     await expect(validateGoldenJourneyVisualEvidence(stale, staleCatalog, qualificationEvidence)).rejects.toThrow(
       "stale or has an invalid freshness window",
     );
 
     const staleLive = structuredClone(canonical);
-    staleLive.qualifiedGoldenJourneys.push(
+    staleLive.qualifiedGoldenJourneys = [
       visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt),
-    );
+    ];
     staleLive.qualifiedGoldenJourneys[0].liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
     staleLive.qualifiedGoldenJourneys[0].liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
     await expect(validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence)).rejects.toThrow(

@@ -81,13 +81,22 @@ describe("honua-site consumer handoff", () => {
         sourceImplementationDuplicated: false,
       },
       counts: {
-        cards: 32,
-        qualifiedJourneys: 0,
-        canonicalRoutes: 32,
+        cards: 30,
+        qualifiedJourneys: 1,
+        canonicalRoutes: 30,
         legacyRoutes: 20,
         gaps: inputs.matrix.gaps.length,
       },
-      qualifiedJourneys: [],
+    });
+    // maplibre-quickstart is the one real, evidence-backed golden journey;
+    // check stable identity fields rather than the full volatile object
+    // (timestamps, run IDs, and screenshot hashes legitimately change every
+    // capture).
+    expect(inputs.handoff.qualifiedJourneys).toHaveLength(1);
+    expect(inputs.handoff.qualifiedJourneys[0]).toMatchObject({
+      journeyId: "first-map",
+      sampleId: "maplibre-quickstart",
+      canonicalPath: "samples/maplibre-quickstart.html",
     });
     expect(inputs.handoff.policy).toMatchObject({
       canonicalRoutes: { statusPages: ["fixture", "retire", "replace"] },
@@ -104,15 +113,24 @@ describe("honua-site consumer handoff", () => {
         maxAggregateStringCharacters: 16 * 1024 * 1024,
       },
     });
-    expect(inputs.handoff.cards.every((card) => card.track === "recipe" || card.track === "lab")).toBe(true);
-    expect(inputs.handoff.cards.every((card) => card.evidenceBindingId === null && card.visualEvidence === null)).toBe(
-      true,
-    );
+    expect(
+      inputs.handoff.cards.every((card) => card.track === "golden" || card.track === "recipe" || card.track === "lab"),
+    ).toBe(true);
+    // maplibre-quickstart is the one real, evidence-backed qualified card;
+    // every OTHER card must still carry no invented evidence.
+    expect(
+      inputs.handoff.cards
+        .filter((card) => card.id !== "maplibre-quickstart")
+        .every((card) => card.evidenceBindingId === null && card.visualEvidence === null),
+    ).toBe(true);
+    const quickstartCard = inputs.handoff.cards.find((card) => card.id === "maplibre-quickstart");
+    expect(quickstartCard?.evidenceBindingId).not.toBeNull();
+    expect(quickstartCard?.visualEvidence).not.toBeNull();
     expect(inputs.handoff.counts.qualifiedMatrixCells).toEqual({
-      goldenJourneys: 0,
-      protocolOperations: 0,
+      goldenJourneys: 1,
+      protocolOperations: 1,
       supportClaims: 0,
-      packageEntrypoints: 0,
+      packageEntrypoints: 1,
     });
   });
 
@@ -355,7 +373,13 @@ describe("honua-site consumer handoff", () => {
       id: `qualification:${"b".repeat(64)}`,
       sampleId: firstMap.id,
     } as never);
-    expect(() => generateSiteConsumerHandoff(inputs.projection, missingQualifiedVisual, inputs.visualEvidence)).toThrow(
+    // inputs.visualEvidence now genuinely carries maplibre-quickstart's real
+    // entry, so it would satisfy the fabricated binding above by accident.
+    // Clear it to isolate "matrix claims qualified but visual evidence has
+    // nothing for this sample".
+    const noVisualEvidence = structuredClone(inputs.visualEvidence);
+    noVisualEvidence.qualifiedGoldenJourneys = [];
+    expect(() => generateSiteConsumerHandoff(inputs.projection, missingQualifiedVisual, noVisualEvidence)).toThrow(
       "missing qualified visual evidence",
     );
 
