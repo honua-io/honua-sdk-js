@@ -8,6 +8,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
 import { expectedGateCommand } from "./lib/sample-gates.mjs";
 import { loadCapabilityKeyList } from "./lib/capability-key-list.mjs";
 import { validateQualificationReceiptSet } from "./sample-gate-receipt.mjs";
@@ -3147,6 +3148,17 @@ export function generateSiteProjection(catalog, packageJson) {
     qualityProfiles: structuredClone(catalog.qualityProfiles),
     samples: effective.samples.map((sample) => publicSample(sample, effective.sdk)),
     routes,
+    sampleBundles: {
+      format: "honua.sdk.sample-bundles.v1",
+      schemaVersion: 1,
+      publication: {
+        repo: "honua-io/honua-sdk-js",
+        releaseTag: "sample-bundles-latest",
+        manifestAsset: "sample-bundles.v1.json",
+        bundleAsset: "sample-bundles.tar.gz",
+      },
+      sampleIds: [...INCLUDED_SAMPLE_IDS].sort(),
+    },
   };
 }
 
@@ -3235,6 +3247,7 @@ function generateSiteConsumerFixture(projection) {
       goldenJourneyCount: projection.goldenJourneys.length,
       qualifiedGoldenCount: projection.goldenJourneys.filter((journey) => journey.status === "qualified").length,
       routeCount: projection.routes.length,
+      sampleBundleCount: projection.sampleBundles.sampleIds.length,
       sampleIdsUnique: true,
       routeIdsUnique: true,
       routesEndInHtml: true,

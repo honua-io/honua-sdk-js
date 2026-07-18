@@ -303,6 +303,25 @@ jobs:
       - name: Example builds
         run: npm run demo:examples:build:prepared
 
+      - name: Build sample bundles
+        # Reproducible static browser bundles for the samples gallery to
+        # embed (#642, completing #401 REQ-003's publication leg). See
+        # docs/sample-bundles.md.
+        run: npm run samples:bundles:build
+
+      - name: Verify sample bundle manifest
+        run: npm run samples:bundles:verify
+
+      - name: Upload sample bundles workflow artifact
+        # Versioned artifact for every push; the stable, plain-HTTPS-fetchable
+        # publication is the sample-bundles-release job's GitHub Release below.
+        if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sample-bundles
+          path: .artifacts/sample-bundles/
+          if-no-files-found: error
+
       - name: Unit tests with coverage
         run: npm run test:coverage:prepared
 
@@ -423,3 +442,64 @@ jobs:
             mcp/mcp-eval-results.json
             mcp/mcp-eval-results.md
           if-no-files-found: warn
+
+  sample-bundles-release:
+    concurrency:
+      group: sample-bundles-release
+      cancel-in-progress: false
+    name: Publish sample bundles release
+    # Rebinds the manifest to trunk once js-sdk (which already builds and
+    # schema/hash-verifies it) is green, then publishes it somewhere a
+    # consumer can fetch with a stable URL. Built bundles are never committed
+    # (dist/ is gitignored, and this repo binds golden-journey qualification
+    # receipts to a source digest over every other tracked file — see
+    # docs/sample-bundles.md), so this job re-runs the build rather than
+    # downloading js-sdk's workflow artifact.
+    needs: js-sdk
+    if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build sample bundles
+        run: npm run samples:bundles:build
+
+      - name: Verify sample bundle manifest
+        run: npm run samples:bundles:verify
+
+      - name: Package release assets
+        run: |
+          set -euo pipefail
+          sample_dirs=$(node -e "const m=require('./dist/sample-bundles/sample-bundles.v1.json'); console.log(m.samples.map((s) => s.id).join(' '))")
+          tar -czf dist/sample-bundles/sample-bundles.tar.gz -C dist/sample-bundles $sample_dirs
+
+      - name: Publish rolling GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          sha="${{ github.sha }}"
+          notes="Reproducible browser bundles for the samples gallery (honua-io/honua-sdk-js#642), built from commit $sha."
+          if gh release view sample-bundles-latest -R "$repo" >/dev/null 2>&1; then
+            gh release edit sample-bundles-latest -R "$repo" --target "$sha" --notes "$notes"
+          else
+            gh release create sample-bundles-latest -R "$repo" --target "$sha" \
+              --title "Sample bundles (latest trunk build)" --notes "$notes"
+          fi
+          gh release upload sample-bundles-latest -R "$repo" \
+            dist/sample-bundles/sample-bundles.v1.json \
+            dist/sample-bundles/sample-bundles.tar.gz \
+            --clobber
