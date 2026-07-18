@@ -86,7 +86,7 @@ jobs:
       HONUA_INTEGRATION_TILE_MATRIX_SET: ${{ vars.HONUA_INTEGRATION_TILE_MATRIX_SET || 'WebMercatorQuad' }}
       HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       # Decide mode. External when a base URL is configured (dispatch input or
       # repo variable); self-contained otherwise. Self-contained needs no
@@ -204,7 +204,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -322,10 +322,10 @@ jobs:
     # Kept as its own job so a server-bring-up flake in `integration` never
     # masks a regression in the drift detector itself.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm

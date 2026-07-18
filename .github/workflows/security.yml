@@ -8,16 +8,19 @@ on:
   schedule:
     - cron: '0 6 * * 1'
 
+# Top level stays read-only; each job below grants only the extra scopes it
+# actually uses (security-events:write for SARIF upload, id-token:write for
+# Scorecard's OpenSSF publish step, actions:read for Scorecard's own repo
+# introspection) instead of every job inheriting write access it doesn't need.
 permissions:
   contents: read
-  security-events: write
-  id-token: write
-  actions: read
 
 jobs:
   binary-artifacts:
     name: Binary artifact policy
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
@@ -26,9 +29,17 @@ jobs:
       - run: npm run security:binary-artifacts
 
   trivy:
+    permissions:
+      contents: read
+      security-events: write
     uses: honua-io/.github/.github/workflows/reusable-trivy.yml@main
     with:
       scan-type: fs
 
   scorecard:
+    permissions:
+      contents: read
+      security-events: write
+      id-token: write
+      actions: read
     uses: honua-io/.github/.github/workflows/reusable-scorecard.yml@main

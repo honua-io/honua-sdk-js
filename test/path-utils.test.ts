@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeServiceIdPath } from "../src/core/path-utils.js";
+import { encodeServiceIdPath, trimTrailingCharsIn } from "../src/core/path-utils.js";
 
 describe("encodeServiceIdPath", () => {
   it("encodes a flat serviceId exactly like encodeURIComponent", () => {
@@ -24,5 +24,31 @@ describe("encodeServiceIdPath", () => {
   it("drops empty segments from leading, trailing, or doubled slashes", () => {
     expect(encodeServiceIdPath("/MyFolder/MyService/")).toBe("MyFolder/MyService");
     expect(encodeServiceIdPath("MyFolder//MyService")).toBe("MyFolder/MyService");
+  });
+});
+
+describe("trimTrailingCharsIn", () => {
+  it("removes a trailing run of characters that belong to the given set", () => {
+    expect(trimTrailingCharsIn("foo),.;]", "),.;]")).toBe("foo");
+    expect(trimTrailingCharsIn("foo)bar;", "),.;]")).toBe("foo)bar");
+  });
+
+  it("leaves the value untouched when nothing trailing matches", () => {
+    expect(trimTrailingCharsIn("foo", "),.;]")).toBe("foo");
+    expect(trimTrailingCharsIn("", "),.;]")).toBe("");
+  });
+
+  it("stays linear-time on an adversarially long trailing run (js/polynomial-redos regression)", () => {
+    // The equivalent regex, `/[),.;\]]+$/`, is an unanchored-at-the-start,
+    // anchored-at-the-end quantifier that a backtracking engine can be
+    // forced to retry at every start position on adversarial input.
+    const adversarial = `x${")".repeat(500_000)}`;
+
+    const start = performance.now();
+    const result = trimTrailingCharsIn(adversarial, "),.;]");
+    const elapsedMs = performance.now() - start;
+
+    expect(result).toBe("x");
+    expect(elapsedMs).toBeLessThan(1000);
   });
 });
