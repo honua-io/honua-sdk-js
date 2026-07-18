@@ -1526,16 +1526,16 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-17 at commit `a18e3f01`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-18 at commit `36cc2bc6`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 579.2 KiB | 153.6 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 215.6 KiB | 55.1 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 601.0 KiB | 160.0 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 215.8 KiB | 55.3 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 40.7 KiB | 12.8 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 264.9 KiB | 70.1 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 286.8 KiB | 76.1 KiB |
 | ArcGIS compatibility layer (drop-in migration surface) | 983.2 KiB | 245.2 KiB |
 | Geocoding client | 25.1 KiB | 7.3 KiB |
 | Routing client | 18.7 KiB | 6.0 KiB |
@@ -1555,10 +1555,10 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 579.2 KiB ≈
-1.57 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 601.0 KiB ≈
+1.59 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
-0.41 MB over the wire with gzip. Esri's totals also grow with widgets;
+0.42 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.
 
 **`@esri/arcgis-rest-js`** (<https://developers.arcgis.com/arcgis-rest-js/>, retrieved 2026-07-13).
@@ -7798,21 +7798,21 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-17 at commit `a18e3f01`._
+_Generated 2026-07-18 at commit `36cc2bc6`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 579.2 KiB | 637.1 KiB | 153.6 KiB | 168.9 KiB |
-| `/honua` | 745.8 KiB | 781.2 KiB | 198.8 KiB | 209.3 KiB |
-| `/contract` | 264.9 KiB | 287.3 KiB | 70.1 KiB | 72.9 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 732.3 KiB | 737.1 KiB | 157.1 KiB | 172.8 KiB |
+| `.` (root) | 601.0 KiB | 637.1 KiB | 160.0 KiB | 168.9 KiB |
+| `/honua` | 767.7 KiB | 781.2 KiB | 205.4 KiB | 209.3 KiB |
+| `/contract` | 286.8 KiB | 287.3 KiB | 76.1 KiB | 83.7 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 754.1 KiB | 829.5 KiB | 163.2 KiB | 172.8 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.0 KiB | 257.5 KiB | 31.3 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 765.3 KiB | 824.2 KiB | 165.8 KiB | 178.4 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 787.1 KiB | 824.2 KiB | 172.0 KiB | 178.4 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 53.2 KiB | 62.6 KiB | 16.5 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 52.4 KiB | 55.2 KiB | 15.2 KiB | 15.8 KiB |
 | `/nl-map-control` | 73.8 KiB | 84.5 KiB | 22.2 KiB | 25.3 KiB |
-| `/runtime` | 509.1 KiB | 550.7 KiB | 136.7 KiB | 147.5 KiB |
+| `/runtime` | 530.9 KiB | 550.7 KiB | 142.8 KiB | 147.5 KiB |
 | `/realtime` | 41.2 KiB | 49.3 KiB | 11.4 KiB | 13.5 KiB |
 | `/offline` | 36.6 KiB | 44.3 KiB | 11.1 KiB | 13.2 KiB |
 | `/query-planner` (worker runtime injected) | 521.4 KiB | 568.1 KiB | 102.7 KiB | 111.1 KiB |
@@ -7824,18 +7824,18 @@ _Generated 2026-07-17 at commit `a18e3f01`._
 | `/routing` | 18.7 KiB | 24.6 KiB | 6.0 KiB | 7.6 KiB |
 | `/auth` | 24.1 KiB | 30.6 KiB | 7.0 KiB | 8.7 KiB |
 | `/style` | 59.1 KiB | 69.0 KiB | 14.6 KiB | 17.2 KiB |
-| `/map` | 174.8 KiB | 182.2 KiB | 49.3 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 46.9 KiB | 53.6 KiB | 14.8 KiB | 16.8 KiB |
-| `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.0 KiB | 56.1 KiB | 14.6 KiB | 16.1 KiB |
+| `/map` | 174.9 KiB | 182.2 KiB | 49.3 KiB | 50.7 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 74.2 KiB | 81.6 KiB | 23.0 KiB | 25.3 KiB |
+| `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 438.9 KiB | 446.7 KiB | 116.1 KiB | 117.2 KiB |
+| `/react` (react/react-dom external) | 460.6 KiB | 506.7 KiB | 122.3 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 579.8 KiB | 637.8 KiB | 153.7 KiB | 169.1 KiB |
-| browser ESM (`./browser`) | 578.5 KiB | 636.4 KiB | 153.5 KiB | 168.9 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 215.6 KiB | 229.7 KiB | 55.1 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 446.5 KiB | 473.4 KiB | 116.3 KiB | 123.8 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 601.6 KiB | 637.8 KiB | 160.3 KiB | 169.1 KiB |
+| browser ESM (`./browser`) | 600.3 KiB | 636.4 KiB | 160.0 KiB | 168.9 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 215.8 KiB | 229.7 KiB | 55.3 KiB | 57.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 468.3 KiB | 473.4 KiB | 122.8 KiB | 123.8 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 549.0 KiB | 603.9 KiB | 145.4 KiB | 155.7 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 570.8 KiB | 603.9 KiB | 151.8 KiB | 155.7 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 230.4 KiB | 245.9 KiB | 58.5 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 40.7 KiB | 44.7 KiB | 12.8 KiB | 14.0 KiB |
@@ -9867,6 +9867,63 @@ await geoparquet.dispose();
 You can also construct a source directly with `geoparquetSource(descriptor,
 { runtime })` if you are not using `createDataset`.
 
+## Lossless JSON results
+
+GeoParquet keeps its historical result behavior by default: DuckDB `bigint`
+values are converted to JavaScript `number`. Applications that need exact,
+portable JSON can opt in for a source directly or for every source built by a
+resolver:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+const geoparquet = geoparquetResolver({ resultEncoding: "lossless-json" });
+
+// Equivalent direct-source option:
+const source = geoparquetSource(descriptor, {
+  runtime,
+  resultEncoding: "lossless-json",
+});
+```
+
+The opt-in applies consistently to `query()`, `queryAll()`, `stream()`, and
+`queryAggregate()`:
+
+| Effective DuckDB type | JSON-safe value |
+| --- | --- |
+| `BIGINT`, `UBIGINT`, `HUGEINT`, `UHUGEINT` | exact canonical decimal string |
+| `DECIMAL` / `NUMERIC` | exact fixed-scale decimal string |
+| `DATE`, `TIME`, `TIMESTAMP*` | deterministic ISO-style string at the declared precision |
+| `BLOB`, `BINARY`, `VARBINARY`, `BYTEA` | padded standard base64 string |
+| `LIST`, `ARRAY`, `STRUCT`, `MAP` | recursively normalized JSON arrays/objects (`MAP` is an array of `{ key, value }`) |
+| safe integers, finite floating point, booleans, text, null | native JSON scalar |
+
+Aggregate decoding uses DuckDB's **output** types, not its input column types:
+`count` is `BIGINT`, integer `sum` through `UBIGINT` is `HUGEINT`, decimal
+`sum` is `DECIMAL(38, scale)`, and grouped keys retain their source types.
+DuckDB's `sum(UHUGEINT)` exception is a `DOUBLE` and is decoded as that
+effective result type. Consequently, exact counts and exact widened sums are
+strings in lossless mode, even when their current values happen to fit in a
+JavaScript safe integer.
+
+The source casts exact root scalars to text in an outer projection over the
+already-compiled query. This prevents Arrow from rounding a value first and
+does not add another `read_parquet` scan. Nested Arrow values are decoded at a
+bounded, accessor-free boundary; ambiguous wrappers, unsafe numbers, cycles,
+or excessive depth/width throw `DuckDbLosslessDecodeError` instead of silently
+changing data. The bounded compiled-decoder cache is tied to both the effective
+`DESCRIBE` profile and the optional `SourceSchemaV2` fingerprint and is cleared
+when either identity changes. `Query.signal` is checked around profile, query,
+batch, and row decoding boundaries; aborting one caller stops its wait without
+cancelling a shared profile build needed by other sources.
+
+Lossless mode guarantees that `JSON.stringify(result)` does not encounter a
+`bigint`, typed array, `Map`, or `Date`. It does not change geometry output or
+the raw `source.protocol("geoparquet").sql(...)` escape hatch. Opaque query-plan
+execution does not currently carry the effective DuckDB field types needed for
+lossless decoding. A source configured for lossless results therefore rejects
+that internal path with `GEOPARQUET_LOSSLESS_SCHEMA_REQUIRED` before executing
+the resolved relation instead of silently returning legacy, precision-losing
+values.
+
 ## How the Query compiles to SQL
 
 | `Query` field | DuckDB SQL |
@@ -10014,8 +10071,10 @@ materialization.
 ## Regenerating the test fixtures
 
 The tiny committed fixtures under `test/fixtures/geoparquet/` are produced by
-`npm run geoparquet:fixtures` (which drives DuckDB-WASM's Node bindings). Only
-run it when the fixture schema changes.
+`npm run geoparquet:fixtures` (which drives DuckDB-WASM's Node bindings). They
+include the two spatial fixture styles plus exact wide integer, decimal,
+temporal, binary, and nested values. Only run the generator when a fixture
+schema changes.
 
 ---
 
