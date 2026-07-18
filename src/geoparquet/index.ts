@@ -514,12 +514,14 @@ function requireLosslessFields(profile: SourceProfile): readonly SourceProfileFi
   return profile.fields;
 }
 
-function featureOutputFields(
+/** Shared projection logic for both the profiled and opaque-resolved lossless paths (#627, reuses #586). */
+function projectedLosslessFields(
+  fields: readonly SourceProfileField[],
+  columns: readonly string[],
+  geometryColumn: string | undefined,
   request: Query | undefined,
-  profile: SourceProfile,
   wantGeometry: boolean,
 ): readonly SourceProfileField[] {
-  const fields = requireLosslessFields(profile);
   const byName = new Map<string, SourceProfileField>();
   for (const [index, field] of fields.entries()) {
     if (byName.has(field.name)) {
@@ -529,8 +531,8 @@ function featureOutputFields(
   }
   const requested =
     request?.outFields && request.outFields.length > 0
-      ? request.outFields.filter((name) => name !== profile.geometry?.column)
-      : profile.columns;
+      ? request.outFields.filter((name) => name !== geometryColumn)
+      : columns;
   const output = requested.map((name, index) => {
     const field = byName.get(name);
     if (!field) losslessProjectionFailure(`$.outFields[${index}]`);
@@ -538,6 +540,79 @@ function featureOutputFields(
   });
   if (wantGeometry) output.push({ name: GEOPARQUET_ALIAS, type: "VARCHAR", nullable: true });
   return output;
+}
+
+function featureOutputFields(
+  request: Query | undefined,
+  profile: SourceProfile,
+  wantGeometry: boolean,
+): readonly SourceProfileField[] {
+  return projectedLosslessFields(
+    requireLosslessFields(profile),
+    profile.columns,
+    profile.geometry?.column,
+    request,
+    wantGeometry,
+  );
+}
+
+/**
+ * Resolved-execution counterpart of {@link featureOutputFields} (#627): the
+ * "profile" is the bound plan-time effective schema, never a DESCRIBE result.
+ */
+function resolvedFeatureOutputFields(
+  effectiveSchema: readonly SourceProfileField[],
+  geometryColumn: string | undefined,
+  request: Query | undefined,
+  wantGeometry: boolean,
+): readonly SourceProfileField[] {
+  const columns = effectiveSchema.map((field) => field.name).filter((name) => name !== geometryColumn);
+  return projectedLosslessFields(effectiveSchema, columns, geometryColumn, request, wantGeometry);
+}
+
+const RESOLVED_SCHEMA_REQUIRED_PATH = "$.resolvedQuery" as const;
+
+/**
+ * Fixed, redacted fail-closed error for missing or malformed effective schema
+ * evidence at the opaque resolved-execution boundary (#627, REQ-006). Thrown
+ * before any relation scan.
+ */
+function resolvedSchemaRequired(): never {
+  throw new DuckDbLosslessDecodeError(
+    "GEOPARQUET_LOSSLESS_SCHEMA_REQUIRED",
+    RESOLVED_SCHEMA_REQUIRED_PATH,
+    "EFFECTIVE_SCHEMA",
+  );
+}
+
+/**
+ * Validate the shape of caller-supplied effective schema evidence without
+ * invoking accessors. Field-level type support is validated downstream by the
+ * reused #586 decoder compiler, preserving its exact error taxonomy.
+ */
+function requireEffectiveSchema(value: readonly SourceProfileField[] | undefined): readonly SourceProfileField[] {
+  if (!Array.isArray(value) || value.length === 0) resolvedSchemaRequired();
+  const fields: SourceProfileField[] = [];
+  const names = new Set<string>();
+  for (const entry of value) {
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) resolvedSchemaRequired();
+    const name = (entry as { readonly name?: unknown }).name;
+    const type = (entry as { readonly type?: unknown }).type;
+    const nullable = (entry as { readonly nullable?: unknown }).nullable;
+    if (
+      typeof name !== "string" ||
+      name.length === 0 ||
+      typeof type !== "string" ||
+      type.length === 0 ||
+      (nullable !== undefined && typeof nullable !== "boolean") ||
+      names.has(name)
+    ) {
+      resolvedSchemaRequired();
+    }
+    names.add(name);
+    fields.push({ name, type, ...(nullable !== undefined ? { nullable } : {}) });
+  }
+  return fields;
 }
 
 function losslessTransportSql(sql: string, fields: readonly SourceProfileField[]): string {
@@ -649,6 +724,12 @@ export interface GeoparquetResolvedQueryInput<T = Record<string, unknown>> {
   /** Validated logical id from the opaque handle, used only for degradation diagnostics. */
   readonly sourceId: string;
   readonly geometry?: GeometryColumnPlan;
+  /**
+   * Effective DuckDB output schema bound to the originating plan (#627).
+   * Required, and validated before any relation scan, when this source was
+   * constructed with `resultEncoding: "lossless-json"`.
+   */
+  readonly effectiveSchema?: readonly SourceProfileField[];
 }
 
 declare module "../contract/types.js" {
@@ -730,11 +811,13 @@ export function geoparquetSource<T = Record<string, unknown>>(
     return { profile, opts };
   }
 
-  function losslessDecoder(profile: SourceProfile, fields: readonly SourceProfileField[]): DuckDbLosslessRowDecoder {
-    const profileIdentity = JSON.stringify([
-      sourceDescriptor.schemaV2?.fingerprint ?? null,
-      requireLosslessFields(profile).map((field) => [field.name, field.type, field.nullable ?? null]),
-    ]);
+  /**
+   * Bounded, LRU-evicted decoder cache shared by the profiled and opaque
+   * resolved lossless paths (#627). `profileIdentity` partitions the cache so
+   * a schema change (profiled or resolved) invalidates every prior decoder
+   * instead of silently reusing one compiled against a stale effective type.
+   */
+  function losslessDecoder(profileIdentity: string, fields: readonly SourceProfileField[]): DuckDbLosslessRowDecoder {
     if (decoderProfileIdentity !== profileIdentity) {
       decoderCache.clear();
       decoderProfileIdentity = profileIdentity;
@@ -753,6 +836,21 @@ export function geoparquetSource<T = Record<string, unknown>>(
     }
     decoderCache.set(projectionIdentity, compiled);
     return compiled;
+  }
+
+  function profiledDecoderIdentity(profile: SourceProfile): string {
+    return JSON.stringify([
+      sourceDescriptor.schemaV2?.fingerprint ?? null,
+      requireLosslessFields(profile).map((field) => [field.name, field.type, field.nullable ?? null]),
+    ]);
+  }
+
+  function resolvedDecoderIdentity(sourceId: string, effectiveSchema: readonly SourceProfileField[]): string {
+    return JSON.stringify([
+      "resolved",
+      sourceId,
+      effectiveSchema.map((field) => [field.name, field.type, field.nullable ?? null]),
+    ]);
   }
 
   async function queryRows(sql: string, signal?: AbortSignal): Promise<DuckRow[]> {
@@ -802,13 +900,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
       return runtime.query(query);
     },
     async executeResolvedQuery<TResolved>(input: GeoparquetResolvedQueryInput<TResolved>) {
-      if (resultEncoding === "lossless-json") {
-        throw new DuckDbLosslessDecodeError(
-          "GEOPARQUET_LOSSLESS_SCHEMA_REQUIRED",
-          "$.resolvedQuery",
-          "EFFECTIVE_SCHEMA",
-        );
-      }
+      const lossless = resultEncoding === "lossless-json";
       const opts: CompileOptions = {
         sources: input.sources,
         geometryAlias: GEOPARQUET_ALIAS,
@@ -817,12 +909,23 @@ export function geoparquetSource<T = Record<string, unknown>>(
       if (input.operation === "queryAggregate") {
         ensureCapability(descriptor, caps, "queryAggregate");
         if (!input.query.aggregation) throw new Error("geoparquet: planned aggregate is missing aggregation intent");
-        const compiled = compileAggregate(
-          { ...input.query, aggregation: input.query.aggregation as AggregationSpec },
-          opts,
-        );
-        const rows = await runtime.query(compiled.sql, { signal: input.query.signal });
+        const aggregation = input.query.aggregation as AggregationSpec;
+        // Establish the exact decode plan (REQ-006: fail closed before any
+        // relation scan) before compiling or running SQL (NFR-001: exactly
+        // one read_parquet scan, no DESCRIBE round-trip).
+        const effectiveFields = lossless ? requireEffectiveSchema(input.effectiveSchema) : undefined;
+        const losslessFields = effectiveFields
+          ? deriveDuckDbAggregateOutputFields(aggregation, effectiveFields)
+          : undefined;
+        const decoder =
+          losslessFields && effectiveFields
+            ? losslessDecoder(resolvedDecoderIdentity(input.sourceId, effectiveFields), losslessFields)
+            : undefined;
+        const compiled = compileAggregate({ ...input.query, aggregation }, opts);
+        const sql = losslessFields ? losslessTransportSql(compiled.sql, losslessFields) : compiled.sql;
+        const rows = await runtime.query(sql, { signal: input.query.signal });
         const aggregateRows = rows.map((row) => {
+          if (decoder) return decoder.decode(row);
           const out: Record<string, unknown> = {};
           for (const [key, value] of Object.entries(row)) out[key] = normalizeScalar(value);
           return out;
@@ -838,9 +941,22 @@ export function geoparquetSource<T = Record<string, unknown>>(
 
       ensureCapability(descriptor, caps, "query");
       const wantGeometry = input.query.returnGeometry !== false && input.geometry !== undefined;
+      const effectiveFields = lossless ? requireEffectiveSchema(input.effectiveSchema) : undefined;
+      const losslessFields = effectiveFields
+        ? resolvedFeatureOutputFields(effectiveFields, input.geometry?.column, input.query, wantGeometry)
+        : undefined;
+      const decoder =
+        losslessFields && effectiveFields
+          ? losslessDecoder(resolvedDecoderIdentity(input.sourceId, effectiveFields), losslessFields)
+          : undefined;
       const compiled = compileQuery(input.query, opts);
-      const rows = await runtime.query(compiled.sql, { signal: input.query.signal });
-      const features = rows.map((row) => rowToFeature<TResolved>(row, wantGeometry));
+      const sql = losslessFields ? losslessTransportSql(compiled.sql, losslessFields) : compiled.sql;
+      const rows = await runtime.query(sql, { signal: input.query.signal });
+      const features = rows.map((row) =>
+        decoder
+          ? rowToLosslessFeature<TResolved>(row, decoder, wantGeometry)
+          : rowToFeature<TResolved>(row, wantGeometry),
+      );
       const degraded = degradedFor(compiled.bboxApproximated, input.sourceId);
       if (input.operation === "queryAll") {
         return {
@@ -872,7 +988,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
     const compiled = compileQuery(request ?? {}, opts);
     const losslessFields =
       resultEncoding === "lossless-json" ? featureOutputFields(request, profile, wantGeometry) : undefined;
-    const decoder = losslessFields ? losslessDecoder(profile, losslessFields) : undefined;
+    const decoder = losslessFields ? losslessDecoder(profiledDecoderIdentity(profile), losslessFields) : undefined;
     const sql = losslessFields ? losslessTransportSql(compiled.sql, losslessFields) : compiled.sql;
     const rows = await queryRows(sql, request?.signal);
     const features: HonuaTypedFeature<T>[] = [];
@@ -913,7 +1029,9 @@ export function geoparquetSource<T = Record<string, unknown>>(
       resultEncoding === "lossless-json"
         ? deriveDuckDbAggregateOutputFields(request.aggregation, requireLosslessFields(compiledOptions.profile))
         : undefined;
-    const decoder = losslessFields ? losslessDecoder(compiledOptions.profile, losslessFields) : undefined;
+    const decoder = losslessFields
+      ? losslessDecoder(profiledDecoderIdentity(compiledOptions.profile), losslessFields)
+      : undefined;
     const sql = losslessFields ? losslessTransportSql(compiled.sql, losslessFields) : compiled.sql;
     const rows = await queryRows(sql, request.signal);
     const aggregateRows: Record<string, unknown>[] = [];
@@ -971,7 +1089,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
       const compiled = compileQuery(request ?? {}, opts);
       const losslessFields =
         resultEncoding === "lossless-json" ? featureOutputFields(request, profile, wantGeometry) : undefined;
-      const decoder = losslessFields ? losslessDecoder(profile, losslessFields) : undefined;
+      const decoder = losslessFields ? losslessDecoder(profiledDecoderIdentity(profile), losslessFields) : undefined;
       const sql = losslessFields ? losslessTransportSql(compiled.sql, losslessFields) : compiled.sql;
       try {
         for await (const rows of runtime.stream(sql, { signal: request?.signal })) {
