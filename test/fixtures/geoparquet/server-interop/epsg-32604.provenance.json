@@ -1,0 +1,9 @@
+{
+  "epsg": 32604,
+  "name": "WGS 84 / UTM zone 4N",
+  "source": "honua-server GeoParquetProjJsonCatalog (src/Honua.Core/Features/Infrastructure/Crs/Resources/geoparquet-crs-projjson.json)",
+  "generator": "scripts/geoparquet/generate-projjson-catalog.py (pyproj/PROJ)",
+  "schema": "https://proj.org/schemas/v0.7/projjson.schema.json",
+  "note": "Vendored verbatim (byte-for-byte, including the \\u00b0 escape as stored in the source JSON file) from the same embedded catalog honua-server's GeoParquetFeatureWriter splices into the GeoParquet `geo` column `crs` metadata for GeoParquet 1.1.0 output at a non-4326 SRID. Used here to build a reader-side fixture that reproduces exactly what the server writer emits, per honua-server GeoParquetFeatureWriter.BuildGeoParquetMetadata / ResolveGeoParquetCrsProjJson.",
+  "sha256": "597704385525f6881a77cfea2ffce0ca366058588bbda4fa9d111ab054bc5684"
+}
