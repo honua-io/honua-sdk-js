@@ -154,7 +154,7 @@ with a runnable repro (`npm run bench:ttfm`) — live in
 
 <!-- support-manifest:standalone:start -->
 **Honua Server is optional for standards clients.** Supported GeoServices, OGC API
-Features, WFS 2.0, STAC, and OData claims work against raw standards-speaking endpoints.
+Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (`beta`), Maps (`beta`), and Records
 (`beta`) also discover and use raw advertised paths. OGC API Processes
 keeps two honest lanes: raw discovery is `experimental`, while typed execution
@@ -676,9 +676,9 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection, bounded overview/window reads, and an opt-in viewport-driven MapLibre image source through caller-injected decoder/renderer peers; neither peer enters the root graph ([guide](./docs/cog.md)). |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
-| `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |
+| `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet/WMS/WMTS normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |
 | `@honua/sdk-js/source-capabilities` | SourceSchemaV2-bound static evidence/CRS validation plus lightweight claimed/observed/effective evaluation, current-source cache checks, bounded strict transport, and dynamic policy/peer/authorization gates; serialized caller data remains potentially sensitive ([guide](./docs/source-capabilities.md)). |
-| `@honua/sdk-js/source-capability-discovery` | Focused GeoServices/OData `connectWithSourceCapabilities()` integration with canonical descriptor replay binding and fresh policy/environment/peer/authorization evaluation. |
+| `@honua/sdk-js/source-capability-discovery` | Focused GeoServices/OData/WMS/WMTS `connectWithSourceCapabilities()` integration with canonical descriptor replay binding and fresh policy/environment/peer/authorization evaluation. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
@@ -1526,7 +1526,7 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-18 at commit `3c08bd17`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-18 at commit `9debd658`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -1734,7 +1734,7 @@ unsupported-capability, and degraded-result scenarios.
 | `Protocol` | One of twenty identifiers — shared canonical gRPC FeatureService transport (`grpc`), five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), OGC API + STAC adapters (`ogc-features`, `ogc-tiles`, `ogc-maps`, `ogc-records`, `stac`), `wfs`, `wms`, `wmts`, `odata`, static-data adapters (`pmtiles`, `geoparquet`), plus three MapLibre-native sources (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
 | `Capability` | A coarse-grained per-source operation capability (`query`, `queryAggregate`, `spatialAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `image`, `geometry`, `geoprocess`, `processes`). The canonical `Source` surface standardizes the query / edit / related / attachment / object-id subset today; `spatialAggregate`, `image` / `geometry` / `geoprocess` / `processes` are negotiated for indexed analytics, `Source.protocol()` escape hatches, and for the `IJobRun`-based OGC API Processes runner because their request shapes are too protocol-specific to belong on the unified query envelope. Top-level `connect()` is product discovery, not an operation on one `Source`, and is tracked as a `discovery` support claim instead. |
 | `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party protocol support, whether the caller consumes it through a canonical `Source` method or the typed protocol escape hatch. Under `strict` (default) a missing capability throws `HonuaCapabilityNotSupportedError`. Under `degraded` only call sites with a defined fallback proceed (today: OGC `queryAggregate` and `queryExtent`); every other missing capability still throws. |
-| `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `tileMatrixSetId`, `styleId`, `typeName`, `entitySet`, `taskName`). Field-compatible with the server `SourceBinding.locator`; `tileMatrixSetId` / `styleId` carry OGC API Tiles / Maps route hints for downstream `SourceBinding` work tracked in [`source-binding-alignment.md`](./source-binding-alignment.md). |
+| `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `tileMatrixSetId`, `styleId`, `typeName`, `entitySet`, `taskName`, and an optional reviewed WMS/WMTS `raster` binding). It is a superset of the server `SourceBinding.locator`; additive route and binding hints are tracked in [`source-binding-alignment.md`](./source-binding-alignment.md). |
 | `SourceDescriptor` | `{ id, protocol, locator, capabilities, schema?, attribution? }`. The serializable identity of one source. |
 | `Source<T>` | Runtime handle. Methods: `query`, `queryAll`, `queryAggregate`, `queryExtent`, `stream`, `queryObjectIds`, `applyEdits`, `queryRelated`, `attachments` (namespace), `protocol` (typed escape hatch; `adapter` is the legacy alias). |
 | `Dataset` | Logical grouping of sources sharing identity. Methods: `source(id)`, `sourceIds()`, `isCompatible()`, `supportsFeature()`. |
@@ -1875,12 +1875,15 @@ The OGC API and STAC factories cover `docs/ogc-api.md`:
 The WMS / WMTS factories cover the OGC web-map services per
 `docs/protocol-capability-matrix.md`:
 
-- `wmsSource` — WMS 1.3.0 (render + tiles via `GetMap`; `query` via
-  point-only `GetFeatureInfo`; raw multi-pixel `featureInfo()` and the
+- `wmsSource` — WMS 1.3.0 (render + tiles via `GetMap`; canonical Honua
+  service bindings may expose point-only `GetFeatureInfo` query; raw
+  third-party discovery remains render-only and uses its reviewed
+  `locator.raster` GetMap URL; raw multi-pixel `featureInfo()` and the
   per-layer service handles reachable via
   `Source.protocol("wms" | "wms-layer")`).
-- `wmtsSource` — WMTS 1.0.0 (render + tiles via RESTful tiles; query
-  family throws; service / layer / tileset handles reachable via
+- `wmtsSource` — WMTS 1.0.0 (render + tiles through a reviewed ResourceURL
+  or KVP binding for raw discovery, or canonical RESTful tiles for Honua
+  descriptors; query family throws; service / layer / tileset handles reachable via
   `Source.protocol("wmts" | "wmts-layer" | "wmts-tileset")`).
 
 `docs/wfs.md` documents the WFS 2.0 factory in the same shape:
@@ -6173,6 +6176,30 @@ itself, so callers can — and should — pass a bare ObjectId on
 from the entity-set key parens to produce
 `/odata/Layers(<n>)/Features(<objectId>)` directly.
 
+Exact EDM write encoding is available through the explicit
+`odataSource(..., { writeEncoding: "lossless-json" })` opt-in. The option
+preflights the complete edit envelope against the adapter's existing cached
+`$metadata` snapshot. It preserves `Edm.Int64` and `Edm.Decimal` values as
+validated JSON strings, recursively encodes complex values and collections,
+uses `NaN` / `INF` / `-INF` for non-finite `Edm.Single` and `Edm.Double`
+values, and formats URL keys by their declared metadata types. A body receives
+`application/json;IEEE754Compatible=true` only when it contains a non-null
+Int64 or Decimal; JSON `$batch` carries that media type on the individual
+request part. Direct and atomic edits consume the same preflight projection.
+Nesting, container breadth, and aggregate value nodes are hard-bounded;
+malformed or over-budget values and keys fail locally with a bounded,
+value-redacted path. When the option is omitted, the original body bytes, ordinary
+`application/json` media type, and legacy key formatter are unchanged.
+
+The codec module is lazy and memoized, so legacy/default writes do not load it.
+Lossless updates reject a scalar `feature.id` that disagrees with the
+metadata-encoded single key in `attributes`, and reject scalar ids altogether
+for composite updates because equivalence to the named components cannot be
+proved. The generic `deletes: FeatureId[]` envelope cannot carry a structured
+composite identity; opted-in composite deletes therefore fail before any
+direct or `$batch` request. Legacy preformatted composite delete expressions
+remain available only on the unchanged legacy encoding path.
+
 When `EditEnvelope.rollbackOnFailure === true` AND `$metadata`
 advertises `Capabilities.BatchSupported`, the adapter collapses the
 envelope into a single `$batch` request whose every operation carries
@@ -6352,6 +6379,8 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | Geometry operations | `supported` | `client-only` | `native` | None | @honua/sdk-js/geometry | [fixture: geometry-fixtures](../test/geometry/ops.test.ts) | Buffer, area, simplify, measure, and reprojection run in the client through optional peers. |
 | OGC API Features | `supported` | `standalone` | `discovery` | Any OGC API Features server | connect(), Source with locator.layout=ogc-api or auto | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts) | Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path. |
 | WFS 2.0 | `supported` | `standalone` | `discovery` | Any WFS 2.0 server | connect(), Source, HonuaWfs | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts) | Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path. |
+| WMS 1.3 discovery and raster rendering | `supported` | `standalone` | `discovery` | Any WMS 1.3.0 server with a MapLibre-compatible GetMap binding | connect(), Source descriptor, @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) | Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding; canonical query remains disabled unless a Honua service id binds the existing FeatureInfo adapter. |
+| WMTS 1.0 discovery and raster tiles | `supported` | `standalone` | `discovery` | Any WMTS 1.0.0 server with a Web Mercator, z-addressable tile matrix set | connect(), Source descriptor, @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) | Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms. |
 | STAC API and static catalogs | `supported` | `standalone` | `discovery` | Any STAC API or static catalog | connect(), Source with locator.layout=stac-api or stac-static | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts) | Searches a raw STAC API or walks static catalog links with client-side filtering. |
 | OData v4 | `supported` | `standalone` | `discovery` | Any OData v4 service | connect(), Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
 | GeoParquet asset discovery | `experimental` | `client-only` | `discovery` | None; caller provides a GeoParquet profiler | connect({ protocol: 'geoparquet', geoparquet: { profiler } }) | [fixture: geoparquet-connect-fixtures](../test/connect-geoparquet.test.ts) | Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver. |
@@ -6654,10 +6683,13 @@ subpaths, the public realtime resume error, and the offline region plus replica
 synchronization classes migrated by
 [#569](https://github.com/honua-io/honua-sdk-js/issues/569), plus the plugin
 registry error migrated by
-[#571](https://github.com/honua-io/honua-sdk-js/issues/571). Agent errors
-([#570](https://github.com/honua-io/honua-sdk-js/issues/570)) remain an explicit
-residual. Other experimental domains likewise retain their current
-domain-specific contracts until a scoped migration lands.
+[#571](https://github.com/honua-io/honua-sdk-js/issues/571), and the
+stable `agent-tools`/`agent-safety` errors plus the deprecated `generated-app`
+error migrated by [#570](https://github.com/honua-io/honua-sdk-js/issues/570).
+The experimental `nl-map-control` domain's error class remains an explicit
+residual pending a scoped migration; other experimental domains likewise
+retain their current domain-specific contracts until a scoped migration
+lands.
 
 ## Envelope contract
 
@@ -6666,7 +6698,7 @@ Every migrated instance has these common fields:
 | Field | Meaning |
 |-------|---------|
 | `kind` | Constant `"honua.sdk.error.v1"` tag used by the cross-realm guard. |
-| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, `runtime`, `realtime`, `offline`, or `plugin`. |
+| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, `runtime`, `realtime`, `offline`, `plugin`, `agent`, or `app`. |
 | `sdkCode` | Globally unique code from `HONUA_ERROR_CODE_REGISTRY`. |
 | `category` | Stable `authentication`, `cancellation`, `capability`, `internal`, `network`, `protocol`, `timeout`, or `validation` classification. |
 | `retryable` | Stable boolean for this exact `sdkCode`. This metadata describes the existing policy; it does not initiate retries. |
@@ -6688,8 +6720,11 @@ response bodies, details, cause payloads, credentials, authorization/cookie
 headers, cached feature bodies, raw cursors/resume tokens, signed URL values,
 query/filter/SQL values, local storage paths, plugin manifests/configuration,
 tool payloads, cleanup failures, binary payloads, and prototype-manipulation
-keys. The raw instance still retains its message, documented detail fields,
-exact cause, and documented cleanup aggregates for local use.
+keys. Agent-domain errors additionally never serialize prompts, plans, tool
+arguments/results, feature values, approvals, or execution receipts — only
+fixed reason codes and, for `HonuaAgentToolError`, the invoked tool name. The
+raw instance still retains its message, documented detail fields, exact
+cause, and documented cleanup aggregates for local use.
 
 ```ts doc-test=skip reason="partial excerpt requires application retry and logging hosts"
 import { isHonuaError, serializeHonuaError } from "@honua/sdk-js";
@@ -6734,6 +6769,10 @@ try {
 | `HonuaOfflineRegionError` | `@honua/sdk-js/offline` | Offline manifest validation, quota admission, resource loading, integrity verification, cancellation, or atomic store work fails. | Branch on the existing detailed `.code`. Rebuild invalid manifests, free quota, and treat abort as terminal. Retry through the application's loader/store policy only when `.sdkCode` is `offline.transport.transient`; generic loader failures remain conservative. Raw resource identifiers and storage paths remain local-only. |
 | `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync` shim remains through 0.1.x) | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
 | `HonuaPluginRegistryError` | `@honua/sdk-js/plugin` | Plugin registry validation, compatibility, policy, capability, activation, execution validation, cancellation, or cleanup fails. | Branch on the existing `PLUGIN_*` `.code` or its grouped `.sdkCode`. Correct declarations or host policy/capability, treat cancellation as terminal, and inspect `.cause` / `.cleanupErrors` locally for activation or cleanup failures. No plugin classification is automatically retryable. |
+| `HonuaAgentToolError` | `@honua/sdk-js/agent-tools` | An agent tool call names an unknown tool, the tool kit is created without a usable runtime, a selection target is not source-qualified, or the adapted runtime does not implement the requested tool method. | Branch on `.code` or `.sdkCode`; correct the tool name, provide a runtime/controller/generated-app runtime, or qualify the selection. Not retryable. |
+| `HonuaAgentSafetyError` | `@honua/sdk-js/agent-safety` | Agent plan validation, policy evaluation, dry-run, approval, or safety-evidence derivation/verification fails (aborted, invalid input, policy denial, integrity failure, expired approval, context mismatch, or invalid signature). | Branch on `.code`; correct the plan/policy/approval input, re-request approval, or treat cancellation as terminal. Not retryable. |
+| `HonuaAgentExecutionError` | `@honua/sdk-js/agent-safety` | A plan step's authorization, start audit, execution, receipt issuance, or terminal audit fails. Extends `HonuaAgentSafetyError` with `.phase` and, when execution reached that point, the signed `.receipt`. | Branch on `.code` / `.phase`; the caller must consume `.receipt` directly (never serialized). Not retryable. |
+| `HonuaGeneratedAppError` | `@honua/sdk-js/generated-app` (deprecated shim; canonical home `@honua/app-platform/generated-app`) | Generated-app preview/runtime manifest, projection, load, interaction, render, or dispose stage fails. | Branch on `.code` / `.stage`; use `toGeneratedAppDiagnostic(error)` for the legacy `{code, stage, message, detail}` shape. Not retryable. |
 
 ## Registered code families
 
@@ -6777,6 +6816,10 @@ and this class/family documentation.
 | `HonuaOfflineRegionError` | `offline.region.validation`, `offline.region.quota`, `offline.region.integrity`, `offline.cancelled`, `offline.transport.failure`, `offline.transport.transient`, `offline.storage.*` |
 | `HonuaReplicaSyncError` | `offline.replica-sync.capability`, `offline.replica-sync.validation`, `offline.replica-sync.permission-denied`, `offline.transport.failure`, `offline.transport.transient` |
 | `HonuaPluginRegistryError` | `plugin.registry.validation`, `plugin.compatibility`, `plugin.execution.policy-denied`, `plugin.capability-unavailable`, `plugin.lifecycle.activation`, `plugin.execution.validation`, `plugin.lifecycle.cleanup`, `plugin.cancelled`, `plugin.internal` |
+| `HonuaAgentToolError` | `agent.tool.unknown-tool`, `agent.tool.missing-runtime`, `agent.tool.unqualified-selection`, `agent.tool.missing-runtime-method`, `agent.tool.internal` |
+| `HonuaAgentSafetyError` | `agent.safety.aborted`, `agent.safety.invalid-input`, `agent.safety.policy-denied`, `agent.safety.integrity-failed`, `agent.safety.approval-expired`, `agent.safety.context-mismatch`, `agent.safety.signature-invalid`, `agent.safety.execution-failed`, `agent.safety.audit-failed`, `agent.safety.receipt-failed` |
+| `HonuaAgentExecutionError` | `agent.safety.aborted`, `agent.safety.execution-failed`, `agent.safety.audit-failed`, `agent.safety.receipt-failed` (subset of `HonuaAgentSafetyError`'s family) |
+| `HonuaGeneratedAppError` | `app.unsupported-profile`, `app.unsupported-widget`, `app.missing-manifest`, `app.missing-manifest-artifact`, `app.missing-map-package`, `app.map-package-mismatch`, `app.missing-widget`, `app.missing-binding`, `app.map-load-failed`, `app.data-load-failed`, `app.render-failed`, `app.disposed` |
 
 `HonuaRealtimeResumeError.code` remains the existing detailed reason (for
 example, `invalid-checkpoint`, `sequence-gap`, `transport-gap`, or
@@ -6808,6 +6851,24 @@ fixed known `reasonCode`; it never emits manifests, plugin/configuration IDs,
 raw cause payloads, or cleanup payloads. Unknown runtime codes project to
 `plugin.internal` with `reasonCode: "PLUGIN_UNKNOWN"` without changing a valid
 string's local legacy `.code` or message.
+
+`HonuaAgentToolError.code` remains the existing free-form reason string;
+unrecognized runtime values project to `agent.tool.internal` without
+changing the local `.code` or message. `HonuaAgentSafetyError.code` and
+`HonuaAgentExecutionError.code` remain the existing fixed `AgentSafetyErrorCode`
+reasons, each mapped one-to-one to a registered `agent.safety.*` `sdkCode`, so
+no information is lost by the grouping and no additional context is needed.
+`HonuaGeneratedAppError.code`/`.stage`/`.detail` remain the existing values;
+`.detail` stays local-only (never serialized as envelope context) because it
+is an open, caller-supplied bag. None of the four agent-domain classes ever
+place a prompt, plan, tool argument/result, feature value, approval, receipt,
+credential, or query value in serialized context — `HonuaAgentToolError`
+serializes only the invoked tool name (one of ten fixed identifiers); the
+others serialize no context at all, relying solely on the fixed `sdkCode`
+classification. The signed `AgentExecutionReceiptV1` on
+`HonuaAgentExecutionError.receipt` is a local-only instance property, exactly
+like `.cause`, and is never copied into the envelope. Every agent/app
+classification is conservatively non-retryable.
 
 ### Individual code registry
 
@@ -6973,6 +7034,9 @@ subset of these errors when configured:
 | `HonuaGeometryError` | **No** — input must be corrected |
 | `HonuaWfsExceptionError` | **No** — caller bug |
 | `HonuaExplorationContextError` | **No** — state bug |
+| `HonuaAgentToolError` | **No** — caller/config bug |
+| `HonuaAgentSafetyError` / `HonuaAgentExecutionError` | **No automatic retry** — every agent-safety classification is conservatively non-retryable; the host must correct plan/policy/approval input or re-request approval explicitly. |
+| `HonuaGeneratedAppError` | **No automatic retry** — manifest/projection/load/render diagnostics are surfaced for the embedder to correct or retry explicitly. |
 
 ## Capability policy
 
@@ -7769,49 +7833,49 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-18 at commit `9debd658`._
+_Generated 2026-07-18 at commit `2f6b71a8`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 532.9 KiB | 568.6 KiB | 140.5 KiB | 150.2 KiB |
-| `/honua` | 699.5 KiB | 767.8 KiB | 185.7 KiB | 203.9 KiB |
-| `/contract` | 264.6 KiB | 287.3 KiB | 70.0 KiB | 72.9 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 686.1 KiB | 737.1 KiB | 143.7 KiB | 154.0 KiB |
-| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 253.7 KiB | 257.5 KiB | 31.2 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData schema-bound evaluation) | 718.8 KiB | 733.3 KiB | 152.5 KiB | 152.6 KiB |
-| `/plugin` (registry + certification, no heavy peers) | 53.2 KiB | 62.6 KiB | 16.5 KiB | 19.3 KiB |
-| `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
-| `/agent-safety` | 52.4 KiB | 55.2 KiB | 15.2 KiB | 15.8 KiB |
-| `/nl-map-control` | 73.8 KiB | 84.5 KiB | 22.2 KiB | 25.3 KiB |
-| `/runtime` | 507.2 KiB | 550.7 KiB | 136.3 KiB | 147.5 KiB |
-| `/realtime` | 41.2 KiB | 49.3 KiB | 11.4 KiB | 13.5 KiB |
-| `/offline` | 36.6 KiB | 44.3 KiB | 11.1 KiB | 13.2 KiB |
-| `/query-planner` (worker runtime injected) | 521.4 KiB | 568.1 KiB | 102.7 KiB | 111.1 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 92.7 KiB | 100.0 KiB | 28.7 KiB | 30.8 KiB |
-| `/esri-compat` | 979.4 KiB | 1026.2 KiB | 243.6 KiB | 253.6 KiB |
+| `.` (root) | 605.2 KiB | 661.1 KiB | 160.8 KiB | 168.9 KiB |
+| `/honua` | 771.9 KiB | 849.0 KiB | 206.2 KiB | 226.0 KiB |
+| `/contract` | 288.3 KiB | 317.1 KiB | 76.4 KiB | 83.7 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 755.6 KiB | 829.5 KiB | 163.5 KiB | 179.5 KiB |
+| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.0 KiB | 257.5 KiB | 31.3 KiB | 33.2 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 788.6 KiB | 865.8 KiB | 172.2 KiB | 189.2 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 54.7 KiB | 62.6 KiB | 16.8 KiB | 19.3 KiB |
+| `/agent-tools` | 34.7 KiB | 38.2 KiB | 9.9 KiB | 10.9 KiB |
+| `/agent-safety` | 66.5 KiB | 73.2 KiB | 18.6 KiB | 20.5 KiB |
+| `/nl-map-control` | 76.3 KiB | 84.5 KiB | 22.7 KiB | 25.3 KiB |
+| `/runtime` | 532.4 KiB | 550.7 KiB | 143.1 KiB | 147.5 KiB |
+| `/realtime` | 42.6 KiB | 49.3 KiB | 11.7 KiB | 13.5 KiB |
+| `/offline` | 38.1 KiB | 44.3 KiB | 11.3 KiB | 13.2 KiB |
+| `/query-planner` (worker runtime injected) | 522.9 KiB | 568.1 KiB | 103.0 KiB | 111.1 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 94.2 KiB | 100.0 KiB | 29.0 KiB | 30.8 KiB |
+| `/esri-compat` | 984.7 KiB | 1026.2 KiB | 245.5 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
-| `/geocoding` | 25.1 KiB | 31.6 KiB | 7.3 KiB | 9.1 KiB |
-| `/routing` | 18.7 KiB | 24.6 KiB | 6.0 KiB | 7.6 KiB |
-| `/auth` | 24.1 KiB | 30.6 KiB | 7.0 KiB | 8.7 KiB |
-| `/style` | 59.1 KiB | 69.0 KiB | 14.6 KiB | 17.2 KiB |
-| `/map` | 173.3 KiB | 182.2 KiB | 48.8 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 46.9 KiB | 53.6 KiB | 14.8 KiB | 16.8 KiB |
+| `/geocoding` | 26.6 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
+| `/routing` | 20.2 KiB | 24.6 KiB | 6.2 KiB | 7.6 KiB |
+| `/auth` | 25.6 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
+| `/style` | 60.6 KiB | 69.0 KiB | 14.9 KiB | 17.2 KiB |
+| `/map` | 176.4 KiB | 182.2 KiB | 49.6 KiB | 50.7 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 75.7 KiB | 81.6 KiB | 23.3 KiB | 25.3 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 438.5 KiB | 446.7 KiB | 116.0 KiB | 117.2 KiB |
+| `/react` (react/react-dom external) | 462.1 KiB | 506.7 KiB | 122.6 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 533.5 KiB | 569.2 KiB | 140.7 KiB | 150.5 KiB |
-| browser ESM (`./browser`) | 532.2 KiB | 567.8 KiB | 140.5 KiB | 150.2 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 211.9 KiB | 229.7 KiB | 53.6 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 400.8 KiB | 423.2 KiB | 103.4 KiB | 109.5 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 605.8 KiB | 661.8 KiB | 161.1 KiB | 176.3 KiB |
+| browser ESM (`./browser`) | 604.5 KiB | 660.4 KiB | 160.8 KiB | 176.0 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 217.3 KiB | 229.7 KiB | 55.5 KiB | 57.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 469.8 KiB | 515.1 KiB | 123.1 KiB | 135.1 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 12.6 KiB | 13.8 KiB | 3.7 KiB | 4.1 KiB |
-| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 10.6 KiB | 11.7 KiB | 2.3 KiB | 2.6 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 502.7 KiB | 535.3 KiB | 132.3 KiB | 141.2 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 226.6 KiB | 245.9 KiB | 57.0 KiB | 61.4 KiB |
+| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.1 KiB | 15.5 KiB | 4.0 KiB | 4.1 KiB |
+| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.2 KiB | 14.6 KiB | 2.8 KiB | 3.1 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 572.3 KiB | 627.9 KiB | 152.1 KiB | 167.0 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 231.8 KiB | 245.9 KiB | 58.8 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 40.7 KiB | 44.7 KiB | 12.8 KiB | 14.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 42.2 KiB | 44.7 KiB | 13.0 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
 
 ---
@@ -8591,6 +8655,56 @@ const aggregated = await odata.apply(
   "groupby((STATE),aggregate(ACRES with sum as SumAcres))",
 );
 ```
+
+Lossless OData writes are deliberately opt-in on the OData source factory. The
+default remains the original `JSON.stringify` body and key formatter. Choose
+`writeEncoding: "lossless-json"` when edit values must follow their declared
+EDM types exactly:
+
+```ts doc-test=compile
+import { PROTOCOL_DEFAULT_CAPABILITIES, odataSource } from "@honua/sdk-js/contract";
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({ baseUrl: "https://server.honua.io" });
+const exactParcels = odataSource<Record<string, unknown>>(
+  {
+    id: "parcels-odata",
+    protocol: "odata",
+    locator: { url: "https://server.honua.io/odata", entitySet: "Parcels" },
+    capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+  },
+  client,
+  "strict",
+  { writeEncoding: "lossless-json" },
+);
+
+await exactParcels.applyEdits({
+  adds: [{ attributes: { ObjectId: 9_223_372_036_854_775_807n, AssessedValue: "1234567890.125" } }],
+  updates: [{ id: "9223372036854775807", attributes: { AssessedValue: "1234567890.250" } }],
+});
+```
+
+The adapter reuses its single-flight `$metadata` snapshot to validate and
+encode `Edm.Int64`, `Edm.Decimal`, special `Edm.Single`/`Edm.Double` values,
+nested complex values, collections, and typed single/composite keys. Bodies
+that contain an exact integer or decimal use
+`application/json;IEEE754Compatible=true`; ordinary bodies keep
+`application/json`. The same preflight projection feeds independent edits and
+JSON `$batch` parts. Nesting, per-container breadth, and the aggregate value
+graph are hard-bounded. Invalid values—including braced or malformed GUID
+keys—fail locally before any edit request, and diagnostics retain only a
+bounded property path, never the rejected value or request body.
+
+The lossless codec is loaded lazily on the first opted-in edit; sources that
+keep the default legacy encoding do not load its runtime. For a single-key
+update, `feature.id` and the corresponding body attribute may both be present
+only when metadata encoding proves they identify the same row. A mismatch
+fails the whole envelope before transport. Composite updates must carry every
+named key component in `attributes` and omit the ambiguous scalar `feature.id`.
+The unchanged generic `deletes: FeatureId[]` contract cannot represent named
+composite components, so lossless composite deletes fail locally; use the
+native typed OData surface until the generic edit contract gains structured
+feature identity.
 
 `Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites
 the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` →
@@ -9790,6 +9904,63 @@ await geoparquet.dispose();
 You can also construct a source directly with `geoparquetSource(descriptor,
 { runtime })` if you are not using `createDataset`.
 
+## Lossless JSON results
+
+GeoParquet keeps its historical result behavior by default: DuckDB `bigint`
+values are converted to JavaScript `number`. Applications that need exact,
+portable JSON can opt in for a source directly or for every source built by a
+resolver:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+const geoparquet = geoparquetResolver({ resultEncoding: "lossless-json" });
+
+// Equivalent direct-source option:
+const source = geoparquetSource(descriptor, {
+  runtime,
+  resultEncoding: "lossless-json",
+});
+```
+
+The opt-in applies consistently to `query()`, `queryAll()`, `stream()`, and
+`queryAggregate()`:
+
+| Effective DuckDB type | JSON-safe value |
+| --- | --- |
+| `BIGINT`, `UBIGINT`, `HUGEINT`, `UHUGEINT` | exact canonical decimal string |
+| `DECIMAL` / `NUMERIC` | exact fixed-scale decimal string |
+| `DATE`, `TIME`, `TIMESTAMP*` | deterministic ISO-style string at the declared precision |
+| `BLOB`, `BINARY`, `VARBINARY`, `BYTEA` | padded standard base64 string |
+| `LIST`, `ARRAY`, `STRUCT`, `MAP` | recursively normalized JSON arrays/objects (`MAP` is an array of `{ key, value }`) |
+| safe integers, finite floating point, booleans, text, null | native JSON scalar |
+
+Aggregate decoding uses DuckDB's **output** types, not its input column types:
+`count` is `BIGINT`, integer `sum` through `UBIGINT` is `HUGEINT`, decimal
+`sum` is `DECIMAL(38, scale)`, and grouped keys retain their source types.
+DuckDB's `sum(UHUGEINT)` exception is a `DOUBLE` and is decoded as that
+effective result type. Consequently, exact counts and exact widened sums are
+strings in lossless mode, even when their current values happen to fit in a
+JavaScript safe integer.
+
+The source casts exact root scalars to text in an outer projection over the
+already-compiled query. This prevents Arrow from rounding a value first and
+does not add another `read_parquet` scan. Nested Arrow values are decoded at a
+bounded, accessor-free boundary; ambiguous wrappers, unsafe numbers, cycles,
+or excessive depth/width throw `DuckDbLosslessDecodeError` instead of silently
+changing data. The bounded compiled-decoder cache is tied to both the effective
+`DESCRIBE` profile and the optional `SourceSchemaV2` fingerprint and is cleared
+when either identity changes. `Query.signal` is checked around profile, query,
+batch, and row decoding boundaries; aborting one caller stops its wait without
+cancelling a shared profile build needed by other sources.
+
+Lossless mode guarantees that `JSON.stringify(result)` does not encounter a
+`bigint`, typed array, `Map`, or `Date`. It does not change geometry output or
+the raw `source.protocol("geoparquet").sql(...)` escape hatch. Opaque query-plan
+execution does not currently carry the effective DuckDB field types needed for
+lossless decoding. A source configured for lossless results therefore rejects
+that internal path with `GEOPARQUET_LOSSLESS_SCHEMA_REQUIRED` before executing
+the resolved relation instead of silently returning legacy, precision-losing
+values.
+
 ## How the Query compiles to SQL
 
 | `Query` field | DuckDB SQL |
@@ -9937,8 +10108,10 @@ materialization.
 ## Regenerating the test fixtures
 
 The tiny committed fixtures under `test/fixtures/geoparquet/` are produced by
-`npm run geoparquet:fixtures` (which drives DuckDB-WASM's Node bindings). Only
-run it when the fixture schema changes.
+`npm run geoparquet:fixtures` (which drives DuckDB-WASM's Node bindings). They
+include the two spatial fixture styles plus exact wide integer, decimal,
+temporal, binary, and nested values. Only run the generator when a fixture
+schema changes.
 
 ---
 

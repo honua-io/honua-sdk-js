@@ -310,6 +310,33 @@ classification is conservatively non-retryable.
 | `plugin.lifecycle.cleanup` | `plugin` | `internal` | no | Plugin lifecycle cleanup failed |
 | `plugin.cancelled` | `plugin` | `cancellation` | no | Plugin registration was cancelled |
 | `plugin.internal` | `plugin` | `internal` | no | Plugin registry internal failure |
+| `agent.tool.unknown-tool` | `agent` | `validation` | no | Requested agent tool name is not registered |
+| `agent.tool.missing-runtime` | `agent` | `validation` | no | Agent tool kit requires a runtime, controller, or generated-app runtime |
+| `agent.tool.unqualified-selection` | `agent` | `validation` | no | Agent tool selection target is not source-qualified |
+| `agent.tool.missing-runtime-method` | `agent` | `capability` | no | Adapted runtime does not implement the requested agent tool |
+| `agent.tool.internal` | `agent` | `internal` | no | Agent tool executor internal failure |
+| `agent.safety.aborted` | `agent` | `cancellation` | no | Agent safety operation was aborted |
+| `agent.safety.invalid-input` | `agent` | `validation` | no | Agent safety input is invalid |
+| `agent.safety.policy-denied` | `agent` | `capability` | no | Agent plan step was denied by host policy |
+| `agent.safety.integrity-failed` | `agent` | `protocol` | no | Agent safety evidence integrity verification failed |
+| `agent.safety.approval-expired` | `agent` | `authentication` | no | Agent step approval has expired |
+| `agent.safety.context-mismatch` | `agent` | `validation` | no | Agent execution context does not match the authorized plan |
+| `agent.safety.signature-invalid` | `agent` | `validation` | no | Agent approval or receipt signature is invalid |
+| `agent.safety.execution-failed` | `agent` | `internal` | no | Agent plan step execution failed |
+| `agent.safety.audit-failed` | `agent` | `internal` | no | Agent execution audit record could not be appended |
+| `agent.safety.receipt-failed` | `agent` | `internal` | no | Agent execution receipt could not be issued or verified |
+| `app.unsupported-profile` | `app` | `capability` | no | Generated app profile is not supported |
+| `app.unsupported-widget` | `app` | `capability` | no | Generated app widget kind is not supported |
+| `app.missing-manifest` | `app` | `validation` | no | Generated app manifest or app package is missing |
+| `app.missing-manifest-artifact` | `app` | `validation` | no | Generated app manifest artifact is missing |
+| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a MapPackage |
+| `app.map-package-mismatch` | `app` | `validation` | no | Generated app MapPackage does not match its manifest |
+| `app.missing-widget` | `app` | `validation` | no | Generated app manifest is missing a required widget |
+| `app.missing-binding` | `app` | `validation` | no | Generated app runtime is missing a required binding |
+| `app.map-load-failed` | `app` | `internal` | no | Generated app map widget failed to load |
+| `app.data-load-failed` | `app` | `internal` | no | Generated app feature data failed to load |
+| `app.render-failed` | `app` | `internal` | no | Generated app render failed |
+| `app.disposed` | `app` | `validation` | no | Generated app runtime is disposed |
 <!-- error-code-registry:end -->
 
 ## Narrowing in `catch`
