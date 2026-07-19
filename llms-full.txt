@@ -3204,10 +3204,13 @@ npm install apache-arrow
 ```
 
 ```ts doc-test=compile
+import type { ColumnarBatchV1 } from "@honua/sdk-js/query-planner";
 import {
   fromApacheArrowRecordBatch,
   toApacheArrowRecordBatch,
 } from "@honua/sdk-js/query-planner";
+
+declare const batch: ColumnarBatchV1;
 
 const { recordBatch, metrics: arrowMetrics } = await toApacheArrowRecordBatch(batch);
 const { batch: restored, metrics: restoredMetrics } = fromApacheArrowRecordBatch(recordBatch);
