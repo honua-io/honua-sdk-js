@@ -2,6 +2,8 @@
 
 The `@honua/sdk-js/realtime` entrypoint defines the SDK-side contract for live operational layers. Apps subscribe once to a `RealtimeFeatureTransport` and consume normalized `RealtimeFeatureEvent` values through `RealtimeFeatureState`; they do not branch on SSE, WebSocket, or delta polling protocols in map, table, or detail code.
 
+The full versioned contract — including plan identity, explicit authority state, and cross-scope resume rejection — is ratified in [the snapshot/delta/cursor/resume/plan-identity contract decision](decisions/realtime-snapshot-delta-cursor-resume-plan-identity-contract.md) and exercised by [`test/fixtures/realtime/snapshot-delta-cursor-resume-contract.v1.json`](../test/fixtures/realtime/snapshot-delta-cursor-resume-contract.v1.json).
+
 ## Subscription Identity
 
 A `RealtimeSubscriptionRequest` identifies the logical live stream with `sourceId`, optional `layerId`, `where`, `fields`, `spatialFilter`, and optional caller-owned `requestId`. Use the same identity when reconnecting the same UI state. Non-identity values such as `metadata`, `signal`, and tracing fields must not change replay semantics.
