@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  decodeGeoParquetNativeGeometryColumn,
   GeoParquetNativeGeometryError,
+  decodeGeoParquetNativeGeometryColumn,
 } from "../src/geoparquet/native-geometry.js";
 
 const pt = (x: number, y: number) => ({ x, y });
@@ -64,7 +64,14 @@ describe("decodeGeoParquetNativeGeometryColumn — linestring / multipoint", () 
   it("decodes a LineString, including an empty (zero-vertex) line and null", () => {
     const values = [[pt(0, 0), pt(1, 1), pt(2, 0)], [], null];
     expect(decodeGeoParquetNativeGeometryColumn("linestring", "xy", values)).toEqual([
-      { type: "LineString", coordinates: [[0, 0], [1, 1], [2, 0]] },
+      {
+        type: "LineString",
+        coordinates: [
+          [0, 0],
+          [1, 1],
+          [2, 0],
+        ],
+      },
       { type: "LineString", coordinates: [] },
       null,
     ]);
@@ -73,14 +80,26 @@ describe("decodeGeoParquetNativeGeometryColumn — linestring / multipoint", () 
   it("decodes the physically-identical MultiPoint reuse path with MultiPoint GeoJSON typing", () => {
     const values = [[pt(0, 0), pt(5, 5)]];
     expect(decodeGeoParquetNativeGeometryColumn("multipoint", "xy", values)).toEqual([
-      { type: "MultiPoint", coordinates: [[0, 0], [5, 5]] },
+      {
+        type: "MultiPoint",
+        coordinates: [
+          [0, 0],
+          [5, 5],
+        ],
+      },
     ]);
   });
 
   it("decodes xyz linestrings", () => {
     const values = [[ptz(0, 0, 1), ptz(1, 1, 2)]];
     expect(decodeGeoParquetNativeGeometryColumn("linestring", "xyz", values)).toEqual([
-      { type: "LineString", coordinates: [[0, 0, 1], [1, 1, 2]] },
+      {
+        type: "LineString",
+        coordinates: [
+          [0, 0, 1],
+          [1, 1, 2],
+        ],
+      },
     ]);
   });
 
@@ -92,9 +111,9 @@ describe("decodeGeoParquetNativeGeometryColumn — linestring / multipoint", () 
 
   it("fails closed once the vertex bound is exceeded", () => {
     const line = Array.from({ length: 5 }, (_, i) => pt(i, i));
-    expect(() =>
-      decodeGeoParquetNativeGeometryColumn("linestring", "xy", [line], { maxVertices: 4 }),
-    ).toThrow(/GEOPARQUET_NATIVE_VERTEX_LIMIT_EXCEEDED/);
+    expect(() => decodeGeoParquetNativeGeometryColumn("linestring", "xy", [line], { maxVertices: 4 })).toThrow(
+      /GEOPARQUET_NATIVE_VERTEX_LIMIT_EXCEEDED/,
+    );
   });
 });
 
@@ -104,7 +123,17 @@ describe("decodeGeoParquetNativeGeometryColumn — polygon / multilinestring", (
   it("decodes a Polygon with a closed ring, an empty polygon, and null", () => {
     const values = [[ring], [], null];
     expect(decodeGeoParquetNativeGeometryColumn("polygon", "xy", values)).toEqual([
-      { type: "Polygon", coordinates: [[[0, 0], [0, 1], [1, 1], [0, 0]]] },
+      {
+        type: "Polygon",
+        coordinates: [
+          [
+            [0, 0],
+            [0, 1],
+            [1, 1],
+            [0, 0],
+          ],
+        ],
+      },
       { type: "Polygon", coordinates: [] },
       null,
     ]);
@@ -114,7 +143,19 @@ describe("decodeGeoParquetNativeGeometryColumn — polygon / multilinestring", (
     const line1 = [pt(0, 0), pt(1, 1)];
     const line2 = [pt(2, 2), pt(3, 3)];
     expect(decodeGeoParquetNativeGeometryColumn("multilinestring", "xy", [[line1, line2]])).toEqual([
-      { type: "MultiLineString", coordinates: [[[0, 0], [1, 1]], [[2, 2], [3, 3]]] },
+      {
+        type: "MultiLineString",
+        coordinates: [
+          [
+            [0, 0],
+            [1, 1],
+          ],
+          [
+            [2, 2],
+            [3, 3],
+          ],
+        ],
+      },
     ]);
   });
 
@@ -152,8 +193,22 @@ describe("decodeGeoParquetNativeGeometryColumn — multipolygon (flatten + regro
       {
         type: "MultiPolygon",
         coordinates: [
-          [[[0, 0], [0, 1], [1, 1], [0, 0]]],
-          [[[5, 5], [5, 6], [6, 6], [5, 5]]],
+          [
+            [
+              [0, 0],
+              [0, 1],
+              [1, 1],
+              [0, 0],
+            ],
+          ],
+          [
+            [
+              [5, 5],
+              [5, 6],
+              [6, 6],
+              [5, 5],
+            ],
+          ],
         ],
       },
       { type: "MultiPolygon", coordinates: [] },
@@ -164,7 +219,19 @@ describe("decodeGeoParquetNativeGeometryColumn — multipolygon (flatten + regro
   it("decodes xyz multipolygons", () => {
     const ringZ = [ptz(0, 0, 1), ptz(0, 1, 1), ptz(1, 1, 1), ptz(0, 0, 1)];
     expect(decodeGeoParquetNativeGeometryColumn("multipolygon", "xyz", [[[ringZ]]])).toEqual([
-      { type: "MultiPolygon", coordinates: [[[[0, 0, 1], [0, 1, 1], [1, 1, 1], [0, 0, 1]]]] },
+      {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [0, 0, 1],
+              [0, 1, 1],
+              [1, 1, 1],
+              [0, 0, 1],
+            ],
+          ],
+        ],
+      },
     ]);
   });
 
@@ -181,16 +248,16 @@ describe("decodeGeoParquetNativeGeometryColumn — multipolygon (flatten + regro
 
   it("fails closed once the flattened part bound is exceeded", () => {
     const parts = Array.from({ length: 5 }, () => [ring]);
-    expect(() =>
-      decodeGeoParquetNativeGeometryColumn("multipolygon", "xy", [parts], { maxParts: 4 }),
-    ).toThrow(/GEOPARQUET_NATIVE_PART_LIMIT_EXCEEDED/);
+    expect(() => decodeGeoParquetNativeGeometryColumn("multipolygon", "xy", [parts], { maxParts: 4 })).toThrow(
+      /GEOPARQUET_NATIVE_PART_LIMIT_EXCEEDED/,
+    );
   });
 
   it("bounds the total part count across every row, not just one row", () => {
     const parts = Array.from({ length: 3 }, () => [ring]);
-    expect(() =>
-      decodeGeoParquetNativeGeometryColumn("multipolygon", "xy", [parts, parts], { maxParts: 4 }),
-    ).toThrow(/GEOPARQUET_NATIVE_PART_LIMIT_EXCEEDED/);
+    expect(() => decodeGeoParquetNativeGeometryColumn("multipolygon", "xy", [parts, parts], { maxParts: 4 })).toThrow(
+      /GEOPARQUET_NATIVE_PART_LIMIT_EXCEEDED/,
+    );
   });
 });
 

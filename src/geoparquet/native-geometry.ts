@@ -419,11 +419,7 @@ function decodeMultiLineStringColumn(
   limits: GeoParquetNativeGeometryLimits,
 ): readonly (GeoParquetNativeGeoJsonGeometry | null)[] {
   const maxParts = limits.maxParts ?? DEFAULT_MAX_PARTS;
-  const { partsPerRow, flatParts } = flattenParts(
-    values,
-    (value, path) => readRingList(value, dims, path),
-    maxParts,
-  );
+  const { partsPerRow, flatParts } = flattenParts(values, (value, path) => readRingList(value, dims, path), maxParts);
   const decodedParts = runGeoArrow(
     { kind: "linestring", dimensions: dims, coordinateLayout: "separated", values: flatParts },
     limits,
@@ -452,11 +448,7 @@ function decodeMultiPolygonColumn(
   limits: GeoParquetNativeGeometryLimits,
 ): readonly (GeoParquetNativeGeoJsonGeometry | null)[] {
   const maxParts = limits.maxParts ?? DEFAULT_MAX_PARTS;
-  const { partsPerRow, flatParts } = flattenParts(
-    values,
-    (value, path) => readPartList(value, dims, path),
-    maxParts,
-  );
+  const { partsPerRow, flatParts } = flattenParts(values, (value, path) => readPartList(value, dims, path), maxParts);
   const decodedParts = runGeoArrow(
     { kind: "polygon", dimensions: dims, coordinateLayout: "separated", values: flatParts },
     limits,
