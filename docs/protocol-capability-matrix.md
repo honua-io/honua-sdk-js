@@ -105,7 +105,23 @@ Canonical transport shared across the SDKs and generated from the
 `query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `applyEdits`, and
 `stream`. In JS, gRPC-Web is selected on `HonuaClient` with
 `transport: "grpc-web"`; it is not exposed as a `Source.protocol("grpc")`
-adapter handle.
+adapter handle — `buildBuiltInSource` resolves a `protocol: "grpc"`
+descriptor onto the same `HonuaFeatureLayer` used by
+`geoservices-feature-service`, which transparently routes `queryFeatures`
+over gRPC-Web when the client's transport is configured that way.
+
+`connect({ endpoint, protocol: "grpc" })` discovers a canonical FeatureServer
+URL through the same REST service/layer metadata `geoservices-feature-service`
+discovery uses (the generated `FeatureService` proto has no separate
+descriptor RPC), deriving capabilities through the identical algorithm and
+additionally executing one bounded `QueryFeatures` RPC per layer over the
+gRPC-Web transport to verify the facade's read path agrees with the
+REST-declared schema before advertising `query` / `stream` — a disagreement
+throws `protocol-mismatch`; a transient probe failure narrows those two
+capabilities without failing discovery. `protocol: "grpc"` is never inferred
+by `protocol: "auto"` (the identical URL is ambiguous between REST and gRPC
+transport intent) and only resolves against FeatureServer semantics —
+MapServer / ImageServer have no gRPC query surface.
 
 ### GeoServices Feature Service
 First-class. Aggregations set `outStatistics`, `groupByFieldsForStatistics`,

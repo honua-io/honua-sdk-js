@@ -145,6 +145,8 @@ function createSdkPackage() {
   copyFile(path.join(DIST_SRC_ROOT, "connect-odata.d.ts"), path.join(packageRoot, "connect-odata.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-geoparquet.js"), path.join(packageRoot, "connect-geoparquet.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-geoparquet.d.ts"), path.join(packageRoot, "connect-geoparquet.d.ts"));
+  copyFile(path.join(DIST_SRC_ROOT, "connect-grpc.js"), path.join(packageRoot, "connect-grpc.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "connect-grpc.d.ts"), path.join(packageRoot, "connect-grpc.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-stac-static.js"), path.join(packageRoot, "connect-stac-static.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-stac-static.d.ts"), path.join(packageRoot, "connect-stac-static.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-ogc.js"), path.join(packageRoot, "connect-ogc.js"));
