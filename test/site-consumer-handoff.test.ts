@@ -259,7 +259,10 @@ describe("honua-site consumer handoff", () => {
       httpStatus: 308,
       presentation: "permanent-redirect",
     });
-    expect(handoff.legacyRoutes.filter((route) => route.resolution === "site-exception")).toHaveLength(3);
+    // #544 promotes the universal Service Explorer as the canonical replacement for the
+    // former `two-protocols` site-exception (matching that route's documented exceptionReason),
+    // leaving two site-owned exception routes (control-legend, control-search).
+    expect(handoff.legacyRoutes.filter((route) => route.resolution === "site-exception")).toHaveLength(2);
     expect(
       handoff.legacyRoutes
         .filter((route) => route.resolution !== "canonical-sample")
