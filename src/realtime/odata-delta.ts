@@ -174,7 +174,7 @@ export function createOdataDeltaTransport<TFeature = unknown>(
       const now = (): number => options.now?.() ?? Date.now();
       const controller = new AbortController();
       let closed = false;
-      let sequence = 0;
+      let sequence = request.resumeFrom?.sequence ?? 0;
       let resnapshotStreak = 0;
       let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -468,8 +468,8 @@ export function createOdataDeltaTransport<TFeature = unknown>(
           const cycle = await runCycle(link, "delta");
           if (closed) return;
           resnapshotStreak = 0;
-          sequence += 1;
           const changed = cycle.upserts.length > 0 || cycle.deletes.length > 0;
+          if (changed) sequence += 1;
           const delivered = emit(
             changed
               ? {

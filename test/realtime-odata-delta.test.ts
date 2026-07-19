@@ -213,10 +213,44 @@ describe("createOdataDeltaTransport", () => {
     await vi.advanceTimersByTimeAsync(10_000);
 
     expect(observer.events).toHaveLength(2);
-    expect(observer.events[1]).toMatchObject({ type: "status", status: "live", reason: "poll-unchanged" });
+    expect(observer.events[1]).toMatchObject({
+      type: "status",
+      status: "live",
+      sequence: 1,
+      reason: "poll-unchanged",
+    });
     expect(polls).toHaveLength(2);
     expect(polls[1]).toMatchObject({ changed: false, upsertCount: 0, deleteCount: 0, intervalMs: 10_000 });
     expect(polls[1]!.nextPollAt).toBe(polls[1]!.polledAt + 10_000);
+  });
+
+  it("does not advance the durable sequence across unchanged polls", async () => {
+    const { fetchImpl } = createMockFetch([
+      { body: { value: [{ Id: 1, Status: "open" }], "@odata.deltaLink": `${COLLECTION_URL}?$deltatoken=v1` } },
+      { body: { value: [], "@odata.deltaLink": `${COLLECTION_URL}?$deltatoken=v2` } },
+      {
+        body: {
+          value: [{ Id: 1, Status: "closed" }],
+          "@odata.deltaLink": `${COLLECTION_URL}?$deltatoken=v3`,
+        },
+      },
+    ]);
+    const transport = createOdataDeltaTransport<Incident>({
+      url: COLLECTION_URL,
+      pollIntervalMs: 5_000,
+      entityId,
+      fetchImpl,
+    });
+    const observer = createRecordingObserver<Incident>();
+    transport.subscribe({ sourceId: "incidents" }, observer);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(observer.events).toHaveLength(3);
+    expect(observer.events[0]).toMatchObject({ type: "snapshot", sequence: 1 });
+    expect(observer.events[1]).toMatchObject({ type: "status", sequence: 1, reason: "poll-unchanged" });
+    expect(observer.events[2]).toMatchObject({ type: "delta", sequence: 2 });
   });
 
   it("emits creates/updates as delta upserts on the next poll", async () => {
@@ -413,7 +447,7 @@ describe("createOdataDeltaTransport", () => {
     });
     const observer = createRecordingObserver<Incident>();
     transport.subscribe(
-      { sourceId: "incidents", resumeFrom: { deltaToken: `${COLLECTION_URL}?$deltatoken=v1` } },
+      { sourceId: "incidents", resumeFrom: { deltaToken: `${COLLECTION_URL}?$deltatoken=v1`, sequence: 41 } },
       observer,
     );
     await vi.advanceTimersByTimeAsync(0);
@@ -422,7 +456,7 @@ describe("createOdataDeltaTransport", () => {
     expect(calls[0]!.url).toContain("$deltatoken=v1");
     expect(calls[0]!.headers.Prefer).toBeUndefined();
     expect(observer.events).toHaveLength(1);
-    expect(observer.events[0]).toMatchObject({ type: "delta", sequence: 1 });
+    expect(observer.events[0]).toMatchObject({ type: "delta", sequence: 42 });
   });
 
   it("self-heals on an expired delta link (HTTP 410) with an explicit reconnecting status then a fresh snapshot", async () => {
