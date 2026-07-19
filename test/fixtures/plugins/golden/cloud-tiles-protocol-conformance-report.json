@@ -1,0 +1,90 @@
+{
+  "reportVersion": 1,
+  "plugin": {
+    "id": "com.example.cloud-tiles",
+    "version": "1.0.0",
+    "kind": "protocol"
+  },
+  "status": "passed",
+  "certification": {
+    "status": "certified",
+    "sha256": "sha256:058d29496f4a2132554b9f7a176b4296504b333d17c5d0d1cd8513c40bc3a363"
+  },
+  "scenarios": [
+    {
+      "scenario": "retries",
+      "status": "passed",
+      "observations": [
+        {
+          "metric": "hostAttempts",
+          "observed": 0,
+          "bound": 0,
+          "comparison": "<=",
+          "satisfied": true
+        },
+        {
+          "metric": "recovered",
+          "observed": 1,
+          "bound": 1,
+          "comparison": ">=",
+          "satisfied": true
+        }
+      ]
+    },
+    {
+      "scenario": "performance",
+      "status": "passed",
+      "observations": [
+        {
+          "metric": "serviceCalls",
+          "observed": 0,
+          "bound": 0,
+          "comparison": "<=",
+          "satisfied": true
+        },
+        {
+          "metric": "completed",
+          "observed": 1,
+          "bound": 1,
+          "comparison": ">=",
+          "satisfied": true
+        },
+        {
+          "metric": "deterministic",
+          "observed": 1,
+          "bound": 1,
+          "comparison": ">=",
+          "satisfied": true
+        }
+      ]
+    },
+    {
+      "scenario": "bundle-metadata",
+      "status": "passed",
+      "observations": [
+        {
+          "metric": "minifiedBytes",
+          "observed": 3241,
+          "bound": 3566,
+          "comparison": "<=",
+          "satisfied": true
+        },
+        {
+          "metric": "gzipBytes",
+          "observed": 1290,
+          "bound": 1419,
+          "comparison": "<=",
+          "satisfied": true
+        },
+        {
+          "metric": "metadataComplete",
+          "observed": 1,
+          "bound": 1,
+          "comparison": ">=",
+          "satisfied": true
+        }
+      ]
+    }
+  ],
+  "sha256": "sha256:6b0614a18de74e3fef5a23fbb7435a878e212e649b20809d330500db3e0deade"
+}

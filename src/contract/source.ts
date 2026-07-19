@@ -68,7 +68,8 @@ import {
 import { HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
-import { HonuaPmtilesArchive, stripPmtilesScheme } from "./pmtiles.js";
+import type { HonuaPmtilesArchive } from "./pmtiles.js";
+import { pmtilesProtocolModule } from "./pmtiles.js";
 import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
 import {
   type AdapterFor,
@@ -947,6 +948,12 @@ export function ogcTilesSource<T>(
  * `locator.url` may carry a leading `pmtiles://` scheme (the MapLibre form) or
  * be a bare archive URL; both resolve to the same archive.
  *
+ * This builds the escape-hatch adapter through {@link pmtilesProtocolModule}
+ * (issue #538) rather than constructing `HonuaPmtilesArchive` directly, so
+ * the built-in wiring runs the same public `ProtocolModule` seam a module
+ * registered through `HonuaPluginRegistry` uses
+ * (`pmtilesProtocolPlugin`, `@honua/sdk-js/plugin`).
+ *
  * @example
  * ```ts
  * const archive = dataset.source("basemap")!.protocol("pmtiles");
@@ -960,15 +967,25 @@ export function pmtilesSource<T>(
   policy: CapabilityPolicy,
 ): CapabilityAwareSource<T> {
   descriptor = normalizeCapabilityDescriptor(descriptor);
-  const url = stripPmtilesScheme(requirePmtilesLocator(descriptor));
-  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.pmtiles;
-  const archive = new HonuaPmtilesArchive(url);
+  const discovered = pmtilesProtocolModule().discover(descriptor);
+  if (discovered instanceof Promise) {
+    // PMTiles discovery is always synchronous (the reader opens lazily on the
+    // handle's own first `describe()` call); a module that started returning
+    // a promise would be a breaking change to this built-in's own contract.
+    throw new Error("pmtiles: built-in source construction requires synchronous protocol-module discovery");
+  }
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
-    pmtiles: archive,
+    pmtiles: discovered.adapter,
   };
 
-  return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
+  return makeSource<T>(
+    descriptor,
+    discovered.capabilities,
+    policy,
+    adapterRegistry,
+    unsupportedFeatureSurface<T>(descriptor),
+  );
 }
 
 // ── OGC API Maps ──────────────────────────────────────────────
@@ -3620,14 +3637,6 @@ function requireOgcRecordsLocator(descriptor: SourceDescriptor): { collectionId:
     throw new Error(`createDataset: source "${descriptor.id}" (ogc-records) requires locator.collectionId`);
   }
   return { collectionId };
-}
-
-function requirePmtilesLocator(descriptor: SourceDescriptor): string {
-  const { url } = descriptor.locator;
-  if (typeof url !== "string" || url === "") {
-    throw new Error(`createDataset: source "${descriptor.id}" (pmtiles) requires locator.url`);
-  }
-  return url;
 }
 
 function requireImageServiceLocator(descriptor: SourceDescriptor): { serviceId: string } {
