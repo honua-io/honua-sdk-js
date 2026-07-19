@@ -6,9 +6,9 @@
   "gate": "browser",
   "status": "passed",
   "sdkMode": "source",
-  "sourceRevision": "7df37d0115fb2068934cc069de6d447a7b378db4",
-  "sourceDigest": "2f25bfc01d2d7ddfcbf44400b481bf4f8c44f5033d47df5ecee562304b54932b",
-  "runRoot": "samples/evidence/maplibre-quickstart/runs/325a5cbc-1207-4a77-bf35-c1fa8f82ddeb",
+  "sourceRevision": "9ddefb667f83b183531aca407472340bdd8dc85e",
+  "sourceDigest": "236d7b255357eee909eb953ac77a7914f0096d376abf1d80d32ce6a1fc08efcd",
+  "runRoot": "samples/evidence/maplibre-quickstart/runs/30738230-cefe-4497-9e4f-ca30144d72c5",
   "command": {
     "argv": [
       "npm",
@@ -24,15 +24,15 @@
     "path": "scripts/sample-runner.mjs",
     "sha256": "54417c0740af78390f53161fb55dd07f5017275f3548266ccd41343c242652fc"
   },
-  "observedAt": "2026-07-19T19:11:08.629Z",
-  "expiresAt": "2026-07-26T19:11:08.629Z",
-  "durationMs": 9237.229022000001,
+  "observedAt": "2026-07-19T19:12:04.828Z",
+  "expiresAt": "2026-07-26T19:12:04.828Z",
+  "durationMs": 9117.205194,
   "artifacts": [
     {
       "kind": "playwright-gate-report",
-      "path": "samples/evidence/maplibre-quickstart/runs/325a5cbc-1207-4a77-bf35-c1fa8f82ddeb/artifacts/browser.json",
-      "bytes": 10638,
-      "sha256": "e3e7a62ab71a5cb215c324bc8659ea6f2e6069fe16f7b1c39a7c3c9242ef6958"
+      "path": "samples/evidence/maplibre-quickstart/runs/30738230-cefe-4497-9e4f-ca30144d72c5/artifacts/browser.json",
+      "bytes": 10637,
+      "sha256": "84ecdbf1d10c5105c296ec6eb49d4dc923c2aec4d431e2f2bea5ad6565f3eab5"
     }
   ]
 }
