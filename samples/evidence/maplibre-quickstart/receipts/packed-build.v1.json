@@ -6,9 +6,9 @@
   "gate": "packed-build",
   "status": "passed",
   "sdkMode": "packed",
-  "sourceRevision": "3e3ec4d523628c9b376753603c3995c7cf8e8e21",
-  "sourceDigest": "bf74489ecb6f95f97eeb9bd16f7cc290f3d730511030b8fc5498d204b1a0dedf",
-  "runRoot": "samples/evidence/maplibre-quickstart/runs/701e2083-f7ba-4ea6-94e7-17889de9bb8c",
+  "sourceRevision": "b8f062e2bc5b39760d3cb5f6cfcdf3b5492d2f29",
+  "sourceDigest": "c5cbabd454fcc8ebbf5bd0827e1dfe06cc2d25e6aaf84a082a0577081db0727f",
+  "runRoot": "samples/evidence/maplibre-quickstart/runs/82843b27-e81a-49cd-b281-158a2ec8a922",
   "command": {
     "argv": [
       "npm",
@@ -20,17 +20,17 @@
     "id": "honua-sdk-sample-runner",
     "version": 1,
     "path": "scripts/sample-runner.mjs",
-    "sha256": "54417c0740af78390f53161fb55dd07f5017275f3548266ccd41343c242652fc"
+    "sha256": "b349574c59658ab9e45a76c0e91afc48163d2c6b1b4fe464dd9e237d2399fcd8"
   },
-  "observedAt": "2026-07-19T00:07:41.186Z",
-  "expiresAt": "2026-07-26T00:07:41.186Z",
-  "durationMs": 934.6785280000004,
+  "observedAt": "2026-07-19T03:22:28.380Z",
+  "expiresAt": "2026-07-26T03:22:28.380Z",
+  "durationMs": 1946.5895270000037,
   "artifacts": [
     {
       "kind": "packed-build-report",
-      "path": "samples/evidence/maplibre-quickstart/runs/701e2083-f7ba-4ea6-94e7-17889de9bb8c/artifacts/packed-build.json",
+      "path": "samples/evidence/maplibre-quickstart/runs/82843b27-e81a-49cd-b281-158a2ec8a922/artifacts/packed-build.json",
       "bytes": 5907,
-      "sha256": "8acae6343d4a5b5d9b6143b01c6c6e0a7374e616bf604eb22e38ff18ebd36db0"
+      "sha256": "e840bbd6353aaa8e4cfb8204ee00d77593a7d0300eee31416afc20016a6662a6"
     }
   ]
 }

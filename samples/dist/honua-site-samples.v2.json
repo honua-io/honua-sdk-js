@@ -1165,7 +1165,7 @@
       "capabilities": [
         "attachments",
         "editing",
-        "geocoding",
+        "forward-geocode",
         "geometry",
         "linked-views",
         "planning",
@@ -1173,7 +1173,8 @@
         "query"
       ],
       "capabilityKeys": [
-        "editing.featureserver-edits"
+        "editing.featureserver-edits",
+        "geocoding.forward"
       ],
       "protocols": [
         "geoservices",
