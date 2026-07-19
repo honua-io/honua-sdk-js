@@ -1526,7 +1526,7 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-19 at commit `c42b1569`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-19 at commit `fb88951b`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -3582,18 +3582,35 @@ store and checkpoint database. Applications that require atomic exactly-once
 effects must persist their materialized state and checkpoint transactionally,
 or use event ids/versions to make replay idempotent.
 
+## Bounded, reconnecting transports (#557)
+
+`createResumableRealtimeTransport` (and the `createResumableServerSentEventsTransport` /
+`createResumableWebSocketTransport` convenience factories) wrap a raw
+`RealtimeFeatureTransport` — `sse.ts` or `websocket.ts` — with this gate, plus
+reconnect ownership, a heartbeat/liveness timeout, and redacted telemetry. See
+[`docs/realtime-subscriptions.md`](realtime-subscriptions.md#bounded-resumable-transports-557)
+for usage. That module is the transport adapter this document's "Scope and
+remaining work" section originally deferred: it owns reconnect/backoff and
+projects a detected gap through `requireResnapshot(...)` on the caller's
+behalf, so application code enqueuing events directly against
+`createResumableRealtimeSubscription` (as shown above) remains the
+lower-level, transport-neutral building block for callers that want to own
+reconnect themselves.
+
 ## Scope and remaining work
 
 This is the first production slice of issue
 [#393](https://github.com/honua-io/honua-sdk-js/issues/393), not completion of
 the full workstream. It does not claim:
 
-- automatic SSE, WebSocket, OData-delta, or protocol-feed reconnection;
+- OData-delta or protocol-feed reconnection (SSE and WebSocket reconnection
+  are covered by `resumable-transport.ts`, #557);
 - cursor-only protocol adaptation where no trustworthy ordering sequence is
   available;
 - server support for cursor retention or expiry negotiation;
 - renderer, cache, columnar-batch, or offline-store patch integration;
-- lag/retry transport telemetry or a shared transport conformance suite.
+- a shared cross-transport conformance suite against a live honua-server
+  stream.
 
 Adapters should declare unsupported resume behavior before subscription when
 the protocol can determine it. Expired server cursors must be projected as an
@@ -8005,7 +8022,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-19 at commit `c42b1569`._
+_Generated 2026-07-19 at commit `fb88951b`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -8020,7 +8037,7 @@ _Generated 2026-07-19 at commit `c42b1569`._
 | `/agent-safety` | 66.5 KiB | 73.2 KiB | 18.6 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.3 KiB | 84.5 KiB | 22.7 KiB | 25.3 KiB |
 | `/runtime` | 532.4 KiB | 550.7 KiB | 143.1 KiB | 147.5 KiB |
-| `/realtime` | 47.4 KiB | 52.2 KiB | 13.7 KiB | 15.0 KiB |
+| `/realtime` | 53.6 KiB | 59.0 KiB | 15.4 KiB | 16.9 KiB |
 | `/offline` | 38.1 KiB | 44.3 KiB | 11.3 KiB | 13.2 KiB |
 | `/query-planner` (worker runtime injected) | 581.1 KiB | 638.9 KiB | 118.2 KiB | 129.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 94.2 KiB | 100.0 KiB | 29.0 KiB | 30.8 KiB |
