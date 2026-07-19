@@ -168,6 +168,7 @@ export async function discoverGeoParquetSources(
     ...(additionalUrls.length > 0 ? { urls: Object.freeze([...additionalUrls]) } : {}),
     ...(geometry ? { geometryColumn: geometry.column, geometryEncoding: geometry.encoding } : {}),
     ...(geometry?.bboxColumn ? { bboxColumn: geometry.bboxColumn } : {}),
+    ...(geometry?.nativeDimensions ? { nativeDimensions: geometry.nativeDimensions } : {}),
   };
   const locator: SourceLocator = Object.freeze({
     url: endpoint,
