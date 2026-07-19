@@ -408,7 +408,7 @@ function normalizeJsonValue(value: unknown, depth: number, budget: JsonBudget, l
     consumeJson(budget, utf8Bytes(String(value)));
     return value;
   }
-  if (typeof value !== "object" || value === undefined) {
+  if (value === null || typeof value !== "object") {
     fail("invalid-input", `${label} contains a non-JSON value.`);
   }
   if (budget.ancestors.has(value)) fail("invalid-input", `${label} contains a cycle.`);

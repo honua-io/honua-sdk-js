@@ -321,13 +321,36 @@ function schemaFieldPaths(schema: ColumnarSchemaV1): ReadonlySet<string> {
 
 function requireRfc3339(value: unknown, label: string, usage: NormalizationUsage, limits: ResolvedLimits): string {
   const normalized = consumeString(value, label, usage, limits);
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(
+    normalized,
+  );
+  if (!match || !Number.isFinite(Date.parse(normalized))) {
+    invalid(`${label} must be an RFC 3339 instant`);
+  }
+  // Date.parse silently normalizes out-of-range calendar values (e.g. 2026-02-31
+  // -> 2026-03-03, 24:00:00 -> next day), so validate the components explicitly.
+  const [, y, mo, d, h, mi, s, , offH, offM] = match;
+  const year = Number(y);
+  const month = Number(mo);
+  const day = Number(d);
+  const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   if (
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(normalized) ||
-    !Number.isFinite(Date.parse(normalized))
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth[month - 1]! ||
+    Number(h) > 23 ||
+    Number(mi) > 59 ||
+    Number(s) > 59 ||
+    (offH !== undefined && (Number(offH) > 23 || Number(offM) > 59))
   ) {
     invalid(`${label} must be an RFC 3339 instant`);
   }
   return normalized;
+}
+
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }
 
 function normalizeBatchIdentity(
