@@ -450,6 +450,15 @@ function main() {
     { file: "llms-full.txt", content: buildFull() },
   ];
 
+  // Derived-artifact decoupling (honua-io/honua-sdk-js#677): llms.txt /
+  // llms-full.txt are generated projections regenerated on trunk. Building both
+  // targets above still proves they are producible without error; at PR time
+  // (relax signal set) we do not require them to be committed-fresh.
+  if (check && /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "")) {
+    process.stdout.write("llms.txt / llms-full.txt freshness relaxed for PR (regenerated on trunk; #677)\n");
+    return;
+  }
+
   let drift = false;
   for (const target of targets) {
     const absolute = path.join(ROOT, target.file);
