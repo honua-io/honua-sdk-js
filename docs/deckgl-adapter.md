@@ -18,6 +18,43 @@ offset, component width, and backing allocation metrics come from JavaScript
 intrinsics rather than overridable getters. Attribute offsets and strides must
 be component-aligned, and `normalized`, when present, must be boolean.
 
+## Direct GeoArrow Point path
+
+The normative columnar contract can bind a non-null interleaved GeoArrow Point
+batch with explicit `OGC:CRS84` longitude/latitude axis evidence directly to a
+scatterplot request. Position and feature-id arrays alias the batch's
+transferable buffers; no GeoJSON feature or coordinate object is created. In
+this excerpt, `renderBatch` is such a validated batch:
+
+```ts doc-test=skip reason="partial excerpt requires an application-owned non-null OGC:CRS84 batch"
+import {
+  bindGeoArrowPointBatchToDeckGl,
+  createDeckGlAdapter,
+  loadDeckGlPeers,
+} from "@honua/sdk-js/deckgl";
+
+const binding = bindGeoArrowPointBatchToDeckGl({
+  batch: renderBatch,
+  layerId: "incidents",
+  props: { radiusUnits: "meters" },
+});
+const adapter = createDeckGlAdapter({ peers: await loadDeckGlPeers() });
+const projection = adapter.project(binding.request);
+
+console.log(binding.metrics);
+// { rows, positionBytes, copiedBytes: 0, geoJsonFeaturesMaterialized: 0 }
+console.log(projection.metrics.copiedBytes); // 0
+```
+
+Contract v1 deliberately accepts only XY/XYZ, interleaved, non-null Point
+batches in explicit `OGC:CRS84` for this automatic path. Separated coordinates,
+M dimensions, null rows, missing CRS evidence, and projected or latitude-first
+CRSs need an explicit gather/filter/reprojection mapping; they fail with a
+structured `invalid-data` diagnostic instead of silently copying, dropping
+rows, swapping axes, or rendering nulls at `[0, 0]`. The general
+`bindColumnarBatchToDeckGl()` seam remains available for callers that explicitly
+provide their own bounded binary attributes and coordinate-system properties.
+
 ## Optional peer
 
 deck.gl is not part of the root SDK dependency graph:
@@ -98,8 +135,8 @@ fidelity, and absence of an implicit fallback. Unsupported or malformed paths
 throw a typed error rather than materializing feature objects or silently
 downgrading.
 
-Remaining #388 work includes normative Arrow/GeoArrow mappings after the
-columnar data-plane contract lands, indexed and aggregate layer families,
+Remaining #388 work includes additional GeoArrow geometry/layer mappings,
+indexed and aggregate layer families,
 realtime buffer patch/rebuild rules, direct MapLibre overlay and standalone Deck
 hosts, WebGPU boundaries, and the million-feature browser benchmark against
 [#387](https://github.com/honua-io/honua-sdk-js/issues/387).

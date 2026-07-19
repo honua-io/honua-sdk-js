@@ -1,0 +1,275 @@
+{
+  "version": 1,
+  "kind": "honua.realtime-contract-fixtures",
+  "context": {
+    "kind": "honua.realtime-resume-context",
+    "version": 1,
+    "sourceId": "incidents",
+    "queryFingerprint": "sha256:accepted-plan-v1",
+    "sourceVersion": "incidents-snapshot-v7",
+    "schemaVersion": "incident-schema-v3",
+    "authorizationScopeFingerprint": "sha256:dispatch-read-v2"
+  },
+  "compatibilityScenarios": [
+    {
+      "name": "source-changed",
+      "description": "A cursor bound to a different source must never resume; no cross-source resume is accepted.",
+      "field": "sourceId",
+      "value": "other-source",
+      "expectedCode": "source-changed"
+    },
+    {
+      "name": "query-changed",
+      "description": "A cursor bound to a different accepted query/plan fingerprint must never resume.",
+      "field": "queryFingerprint",
+      "value": "sha256:some-other-plan",
+      "expectedCode": "query-changed"
+    },
+    {
+      "name": "source-version-changed",
+      "description": "A cursor bound to a superseded source version must never resume without a fresh snapshot.",
+      "field": "sourceVersion",
+      "value": "incidents-snapshot-v8",
+      "expectedCode": "source-version-changed"
+    },
+    {
+      "name": "schema-version-changed",
+      "description": "A schema change invalidates resume; deltas encoded against the old schema cannot merge into the new one.",
+      "field": "schemaVersion",
+      "value": "incident-schema-v4",
+      "expectedCode": "schema-version-changed"
+    },
+    {
+      "name": "authorization-scope-changed",
+      "description": "A cursor bound to a different authorization scope must never resume across ACL boundaries.",
+      "field": "authorizationScopeFingerprint",
+      "value": "sha256:dispatch-read-v3",
+      "expectedCode": "authorization-scope-changed"
+    }
+  ],
+  "deliveryScenarios": [
+    {
+      "name": "duplicate-sequence",
+      "description": "A network replay redelivers an already-applied sequence verbatim; it is silently ignored, never treated as an error or a resnapshot trigger.",
+      "expectedFinalPhase": "live",
+      "steps": [
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "snapshot",
+            "eventId": "snapshot-5",
+            "sequence": 5,
+            "cursor": "cursor-5",
+            "features": [{ "id": 1, "sourceId": "incidents", "feature": { "status": "open" } }]
+          },
+          "expect": { "status": "applied" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "upsert",
+            "eventId": "delta-6",
+            "sequence": 6,
+            "cursor": "cursor-6",
+            "feature": { "id": 1, "sourceId": "incidents", "feature": { "status": "assigned" } }
+          },
+          "expect": { "status": "applied" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "upsert",
+            "eventId": "delta-6-replay",
+            "sequence": 6,
+            "cursor": "cursor-6",
+            "feature": { "id": 1, "sourceId": "incidents", "feature": { "status": "assigned" } }
+          },
+          "expect": { "status": "duplicate" }
+        }
+      ]
+    },
+    {
+      "name": "reordered-delta-arrives-late",
+      "description": "Network reordering delivers a lower, already-superseded sequence after a higher one has already applied; it is a duplicate, not a gap, and delivery keeps advancing normally.",
+      "expectedFinalPhase": "live",
+      "steps": [
+        {
+          "action": "enqueue",
+          "event": { "type": "snapshot", "eventId": "snapshot-5", "sequence": 5, "cursor": "cursor-5", "features": [] },
+          "expect": { "status": "applied" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "upsert",
+            "eventId": "delta-6",
+            "sequence": 6,
+            "cursor": "cursor-6",
+            "feature": { "id": 2, "sourceId": "incidents", "feature": { "status": "open" } }
+          },
+          "expect": { "status": "applied" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "upsert",
+            "eventId": "delta-4-late",
+            "sequence": 4,
+            "cursor": "cursor-4",
+            "feature": { "id": 3, "sourceId": "incidents", "feature": { "status": "open" } }
+          },
+          "expect": { "status": "duplicate" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "upsert",
+            "eventId": "delta-7",
+            "sequence": 7,
+            "cursor": "cursor-7",
+            "feature": { "id": 2, "sourceId": "incidents", "feature": { "status": "assigned" } }
+          },
+          "expect": { "status": "applied" }
+        }
+      ]
+    },
+    {
+      "name": "sequence-gap-requires-resnapshot",
+      "description": "A missing sequence (transport dropped a delta) stops delivery and demands a replacement snapshot; further deltas are refused until it arrives, and the recovery snapshot establishes a new baseline.",
+      "expectedFinalPhase": "live",
+      "steps": [
+        {
+          "action": "enqueue",
+          "event": { "type": "snapshot", "eventId": "snapshot-5", "sequence": 5, "cursor": "cursor-5", "features": [] },
+          "expect": { "status": "applied" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "upsert",
+            "eventId": "delta-6",
+            "sequence": 6,
+            "cursor": "cursor-6",
+            "feature": { "id": 4, "sourceId": "incidents", "feature": { "status": "open" } }
+          },
+          "expect": { "status": "applied" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "upsert",
+            "eventId": "delta-9",
+            "sequence": 9,
+            "cursor": "cursor-9",
+            "feature": { "id": 4, "sourceId": "incidents", "feature": { "status": "closed" } }
+          },
+          "expect": { "status": "resnapshot-required", "reason": "sequence-gap" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "upsert",
+            "eventId": "delta-10",
+            "sequence": 10,
+            "cursor": "cursor-10",
+            "feature": { "id": 4, "sourceId": "incidents", "feature": { "status": "closed" } }
+          },
+          "expect": { "status": "resnapshot-required", "reason": "sequence-gap" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "snapshot",
+            "eventId": "snapshot-20",
+            "sequence": 20,
+            "cursor": "cursor-20",
+            "features": [{ "id": 4, "sourceId": "incidents", "feature": { "status": "closed" } }]
+          },
+          "expect": { "status": "applied" }
+        }
+      ]
+    },
+    {
+      "name": "expired-cursor-requires-resnapshot",
+      "description": "The server (or an adapter) reports a cursor as expired via an out-of-band signal, not a malformed event. Delivery stops immediately, ordinary deltas are refused, and only a replacement snapshot recovers -- which is allowed to establish a lower sequence because it opens a deliberate new recovery epoch.",
+      "expectedFinalPhase": "live",
+      "steps": [
+        {
+          "action": "enqueue",
+          "event": { "type": "snapshot", "eventId": "snapshot-5", "sequence": 5, "cursor": "cursor-5", "features": [] },
+          "expect": { "status": "applied" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "upsert",
+            "eventId": "delta-6",
+            "sequence": 6,
+            "cursor": "cursor-6",
+            "feature": { "id": 5, "sourceId": "incidents", "feature": { "status": "open" } }
+          },
+          "expect": { "status": "applied" }
+        },
+        {
+          "action": "requireResnapshot",
+          "reason": "cursor-expired",
+          "detail": "honua-server reported the streaming cursor as expired.",
+          "expectPhaseAfter": "resnapshot-required",
+          "expectReasonAfter": "cursor-expired"
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "upsert",
+            "eventId": "delta-7-refused",
+            "sequence": 7,
+            "cursor": "cursor-7",
+            "feature": { "id": 5, "sourceId": "incidents", "feature": { "status": "assigned" } }
+          },
+          "expect": { "status": "resnapshot-required", "reason": "cursor-expired" }
+        },
+        {
+          "action": "enqueue",
+          "event": {
+            "type": "snapshot",
+            "eventId": "recovery-snapshot-1",
+            "sequence": 1,
+            "cursor": "recovery-cursor-1",
+            "features": [{ "id": 5, "sourceId": "incidents", "feature": { "status": "recovered" } }]
+          },
+          "expect": { "status": "applied" }
+        }
+      ]
+    }
+  ],
+  "deleteScenario": {
+    "name": "delete-writes-a-tombstone-and-clears-the-live-record",
+    "description": "A delete event removes the live record and writes a keyed tombstone so detail panels, selections, and popups can drop the feature even if the delete arrives during replay. A subsequent upsert of the same id clears its tombstone.",
+    "events": [
+      {
+        "type": "snapshot",
+        "eventId": "snapshot-5",
+        "sequence": 5,
+        "features": [
+          { "id": 1, "sourceId": "incidents", "feature": { "status": "open" } },
+          { "id": 2, "sourceId": "incidents", "feature": { "status": "monitoring" } }
+        ]
+      },
+      {
+        "type": "delta",
+        "eventId": "delta-6",
+        "sequence": 6,
+        "deletes": [{ "id": 2, "sourceId": "incidents" }]
+      },
+      {
+        "type": "upsert",
+        "eventId": "delta-7",
+        "sequence": 7,
+        "feature": { "id": 2, "sourceId": "incidents", "feature": { "status": "reopened" } }
+      }
+    ],
+    "expectedRecordKeys": ["incidents:1", "incidents:2"],
+    "expectedTombstoneKeysAfterDelete": ["incidents:2"],
+    "expectedTombstoneKeysAfterReopen": []
+  }
+}

@@ -227,6 +227,15 @@ function buildBuiltInSource<T>(
   policy: CapabilityPolicy,
 ): CapabilityAwareSource<T> | undefined {
   switch (descriptor.protocol) {
+    case "grpc":
+      // Honua gRPC is a transport-selectable fast path over the same
+      // canonical FeatureServer semantics, not a distinct adapter: the
+      // returned `HonuaFeatureLayer` transparently routes `queryFeatures`
+      // over gRPC-Web when `client.transport === "grpc-web"` (see
+      // `docs/protocol-capability-matrix.md`, "gRPC FeatureService"). The
+      // discovered descriptor's narrower `capabilities` (verified through a
+      // live gRPC parity probe in `connect-grpc.ts`) still gate execution.
+      return geoServicesFeatureSource<T>(descriptor, client, policy);
     case "geoservices-feature-service":
       return geoServicesFeatureSource<T>(descriptor, client, policy);
     case "geoservices-map-service":
@@ -297,7 +306,13 @@ export function geoServicesFeatureSource<T>(
   descriptor = normalizeCapabilityDescriptor(descriptor);
   const { serviceId, layerId } = requireFeatureServiceLocator(descriptor);
   const layer = new HonuaFeatureLayer<T>({ client, serviceId, layerId });
-  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"];
+  // Indexed by the descriptor's own protocol (not hardcoded to
+  // "geoservices-feature-service") so a `protocol: "grpc"` descriptor built
+  // without explicit capabilities falls back to the narrower gRPC default
+  // set rather than silently inheriting REST-only capabilities (`pbf`,
+  // `sql`, `attachments`, `queryRelated`) the gRPC FeatureService RPC
+  // surface does not support.
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES[descriptor.protocol];
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
     "geoservices-feature-service": layer,

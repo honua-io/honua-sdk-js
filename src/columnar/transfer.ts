@@ -2,12 +2,14 @@ import {
   COLUMNAR_BATCH_KIND,
   COLUMNAR_BATCH_VERSION,
   COLUMNAR_TRANSFER_KIND,
+  type ColumnarBatchIdentityV1,
   type ColumnarBatchLeaseState,
   type ColumnarBatchLimits,
   type ColumnarBatchMetrics,
   type ColumnarBatchV1,
   type ColumnarBufferV1,
   type ColumnarFieldV1,
+  type ColumnarOrderingKeyV1,
   type ColumnarSchemaV1,
   type ColumnarTransferMessageV1,
   type ColumnarTransferOptions,
@@ -317,6 +319,127 @@ function schemaFieldPaths(schema: ColumnarSchemaV1): ReadonlySet<string> {
   return paths;
 }
 
+function requireRfc3339(value: unknown, label: string, usage: NormalizationUsage, limits: ResolvedLimits): string {
+  const normalized = consumeString(value, label, usage, limits);
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(
+    normalized,
+  );
+  if (!match || !Number.isFinite(Date.parse(normalized))) {
+    invalid(`${label} must be an RFC 3339 instant`);
+  }
+  // Date.parse silently normalizes out-of-range calendar values (e.g. 2026-02-31
+  // -> 2026-03-03, 24:00:00 -> next day), so validate the components explicitly.
+  const [, y, mo, d, h, mi, s, , offH, offM] = match;
+  const year = Number(y);
+  const month = Number(mo);
+  const day = Number(d);
+  const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth[month - 1]! ||
+    Number(h) > 23 ||
+    Number(mi) > 59 ||
+    Number(s) > 59 ||
+    (offH !== undefined && (Number(offH) > 23 || Number(offM) > 59))
+  ) {
+    invalid(`${label} must be an RFC 3339 instant`);
+  }
+  return normalized;
+}
+
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+function normalizeBatchIdentity(
+  identity: ColumnarBatchIdentityV1 | undefined,
+  schema: ColumnarSchemaV1,
+  usage: NormalizationUsage,
+  limits: ResolvedLimits,
+): ColumnarBatchIdentityV1 | undefined {
+  if (identity === undefined) return undefined;
+  if (typeof identity !== "object" || identity === null) invalid("identity must be an object");
+  consumeCount(usage, "metadataEntries", 7, limits.maxMetadataEntries, "metadata-limit-exceeded", "identity");
+
+  const sourceId = requireIdentifier(identity.sourceId, "identity.sourceId", usage, limits);
+  const sourceVersion = requireIdentifier(identity.sourceVersion, "identity.sourceVersion", usage, limits);
+  const schemaVersion = requireIdentifier(identity.schemaVersion, "identity.schemaVersion", usage, limits);
+  if (schemaVersion !== schema.id) invalid("identity.schemaVersion must equal schema.id");
+  const planId = requireIdentifier(identity.planId, "identity.planId", usage, limits);
+  const authorizationScope = requireIdentifier(
+    identity.authorizationScope,
+    "identity.authorizationScope",
+    usage,
+    limits,
+  );
+
+  const ordering = identity.ordering;
+  if (typeof ordering !== "object" || ordering === null) invalid("identity.ordering must be an object");
+  if (typeof ordering.stable !== "boolean") invalid("identity.ordering.stable must be a boolean");
+  if (!Array.isArray(ordering.keys)) invalid("identity.ordering.keys must be an array");
+  const keyCount = ordering.keys.length;
+  consumeCount(
+    usage,
+    "metadataEntries",
+    keyCount * 3,
+    limits.maxMetadataEntries,
+    "metadata-limit-exceeded",
+    "identity ordering keys",
+  );
+  if (ordering.stable && keyCount === 0) invalid("a stable identity ordering requires at least one key");
+  const fieldPaths = schemaFieldPaths(schema);
+  const orderingKeys: ColumnarOrderingKeyV1[] = [];
+  for (let index = 0; index < keyCount; index += 1) {
+    const key = ordering.keys[index];
+    if (typeof key !== "object" || key === null) invalid(`identity.ordering.keys[${index}] must be an object`);
+    const field = requireIdentifier(key.field, `identity.ordering.keys[${index}].field`, usage, limits);
+    if (!fieldPaths.has(field)) invalid(`identity.ordering.keys[${index}].field does not exist in schema: ${field}`);
+    if (key.direction !== "ascending" && key.direction !== "descending") {
+      invalid(`identity.ordering.keys[${index}].direction is not supported`);
+    }
+    if (key.nulls !== "first" && key.nulls !== "last") {
+      invalid(`identity.ordering.keys[${index}].nulls is not supported`);
+    }
+    orderingKeys.push(Object.freeze({ field, direction: key.direction, nulls: key.nulls }));
+  }
+
+  const freshness = identity.freshness;
+  if (typeof freshness !== "object" || freshness === null) invalid("identity.freshness must be an object");
+  const observedAt = requireRfc3339(identity.freshness.observedAt, "identity.freshness.observedAt", usage, limits);
+  const staleAfter =
+    freshness.staleAfter === undefined
+      ? undefined
+      : requireRfc3339(freshness.staleAfter, "identity.freshness.staleAfter", usage, limits);
+  if (staleAfter !== undefined && Date.parse(staleAfter) < Date.parse(observedAt)) {
+    invalid("identity.freshness.staleAfter must not precede observedAt");
+  }
+  const validator =
+    freshness.validator === undefined
+      ? undefined
+      : requireIdentifier(freshness.validator, "identity.freshness.validator", usage, limits);
+  const generation =
+    freshness.generation === undefined
+      ? undefined
+      : requireIdentifier(freshness.generation, "identity.freshness.generation", usage, limits);
+
+  return Object.freeze({
+    sourceId,
+    sourceVersion,
+    schemaVersion,
+    planId,
+    authorizationScope,
+    ordering: Object.freeze({ stable: ordering.stable, keys: Object.freeze(orderingKeys) }),
+    freshness: Object.freeze({
+      observedAt,
+      ...(staleAfter === undefined ? {} : { staleAfter }),
+      ...(validator === undefined ? {} : { validator }),
+      ...(generation === undefined ? {} : { generation }),
+    }),
+  });
+}
+
 function assertBufferFields(buffers: readonly ColumnarBufferV1[], schema: ColumnarSchemaV1): void {
   const paths = schemaFieldPaths(schema);
   for (const [index, buffer] of buffers.entries()) {
@@ -380,6 +503,7 @@ function normalizeBatchInput(input: CreateColumnarBatchInput, limits: ResolvedLi
   const rawRowCount = input.rowCount;
   const rawSequence = input.sequence;
   const rawRowOffset = input.rowOffset;
+  const rawIdentity = input.identity;
   const rawBuffers = input.buffers;
   if (!Array.isArray(rawBuffers)) invalid("buffers must be an array");
   const usage = createUsage();
@@ -396,6 +520,7 @@ function normalizeBatchInput(input: CreateColumnarBatchInput, limits: ResolvedLi
   const sequence = requireSafeNonNegativeInteger(rawSequence, "sequence");
   const rowOffset = rawRowOffset === undefined ? undefined : requireSafeNonNegativeInteger(rawRowOffset, "rowOffset");
   assertRowRange(rowOffset, rowCount);
+  const identity = normalizeBatchIdentity(rawIdentity, schema, usage, limits);
   const ids = new Set<string>();
   const buffers: ColumnarBufferV1[] = [];
   for (let index = 0; index < bufferCount; index += 1) {
@@ -413,6 +538,7 @@ function normalizeBatchInput(input: CreateColumnarBatchInput, limits: ResolvedLi
     rowCount,
     sequence,
     ...(rowOffset === undefined ? {} : { rowOffset }),
+    ...(identity === undefined ? {} : { identity }),
     buffers: Object.freeze(buffers),
   });
   trustedBatches.add(batch);

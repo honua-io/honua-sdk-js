@@ -48,6 +48,7 @@ import {
   resolveConnectTarget,
 } from "./connect-geoservices.js";
 export type { GeoParquetSourceProfiler } from "./connect-geoparquet.js";
+import { discoverGrpcSources } from "./connect-grpc.js";
 import { discoverOdataSources } from "./connect-odata.js";
 import {
   discoverOgcMapsSources,
@@ -324,6 +325,7 @@ export interface HonuaConnection {
 
 /** Source-backed protocols with a reviewed top-level {@link connect} discovery adapter. */
 export const CONNECT_SOURCE_PROTOCOLS = [
+  "grpc",
   "ogc-features",
   "stac",
   "wfs",
@@ -473,27 +475,29 @@ export async function connectWithSourceSchemaProjection(
   const client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: target.clientBaseUrl });
   if (!snapshot) {
     snapshot =
-      target.protocol === "ogc-features"
-        ? await discoverOgcFeatures(client, identity, options)
-        : target.protocol === "stac"
-          ? await discoverStac(client, identity, options, stacPolicy!)
-          : target.protocol === "wfs"
-            ? await discoverWfs(client, identity, options)
-            : target.protocol === "odata"
-              ? await discoverOdata(client, identity, target, options, sourceSchemaProjection)
-              : target.protocol === "geoparquet"
-                ? await discoverGeoParquet(identity, options, sourceSchemaProjection)
-                : target.protocol === "ogc-records"
-                  ? await discoverOgcRecords(client, identity, target, options)
-                  : target.protocol === "ogc-tiles"
-                    ? await discoverOgcTiles(client, identity, target, options)
-                    : target.protocol === "ogc-maps"
-                      ? await discoverOgcMaps(client, identity, target, options)
-                      : target.protocol === "geoservices-image-service"
-                        ? await discoverGeoServicesImage(client, identity, target, options)
-                        : target.protocol === "wms" || target.protocol === "wmts"
-                          ? await discoverWmsWmtsSources(client, identity, target, options, sourceSchemaProjection)
-                          : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
+      target.protocol === "grpc"
+        ? await discoverGrpc(client, identity, target, options, sourceSchemaProjection)
+        : target.protocol === "ogc-features"
+          ? await discoverOgcFeatures(client, identity, options)
+          : target.protocol === "stac"
+            ? await discoverStac(client, identity, options, stacPolicy!)
+            : target.protocol === "wfs"
+              ? await discoverWfs(client, identity, options)
+              : target.protocol === "odata"
+                ? await discoverOdata(client, identity, target, options, sourceSchemaProjection)
+                : target.protocol === "geoparquet"
+                  ? await discoverGeoParquet(identity, options, sourceSchemaProjection)
+                  : target.protocol === "ogc-records"
+                    ? await discoverOgcRecords(client, identity, target, options)
+                    : target.protocol === "ogc-tiles"
+                      ? await discoverOgcTiles(client, identity, target, options)
+                      : target.protocol === "ogc-maps"
+                        ? await discoverOgcMaps(client, identity, target, options)
+                        : target.protocol === "geoservices-image-service"
+                          ? await discoverGeoServicesImage(client, identity, target, options)
+                          : target.protocol === "wms" || target.protocol === "wmts"
+                            ? await discoverWmsWmtsSources(client, identity, target, options, sourceSchemaProjection)
+                            : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
     if (
       options.cache &&
       (!sourceSchemaProjection ||
@@ -918,6 +922,25 @@ async function discoverGeoServices(
     identityKey: identity.key,
     endpoint: identity.endpoint,
     protocol: target.protocol,
+    retrievedAt: discovered.retrievedAt,
+    evidence: Object.freeze([]),
+    sources: discovered.sources,
+  });
+}
+
+async function discoverGrpc(
+  client: HonuaClient,
+  identity: DiscoveryCacheIdentity,
+  target: ConnectTarget,
+  options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
+): Promise<ConnectDiscoverySnapshot> {
+  const discovered = await discoverGrpcSources(client, target, options, sourceSchemaProjection);
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "grpc",
     retrievedAt: discovered.retrievedAt,
     evidence: Object.freeze([]),
     sources: discovered.sources,
@@ -1575,7 +1598,11 @@ function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boole
     protocol === "wms" ||
     protocol === "wmts" ||
     protocol === "geoservices-feature-service" ||
-    protocol === "geoservices-map-service"
+    protocol === "geoservices-map-service" ||
+    // gRPC FeatureServer discovery routes through the geoservices projection and emits a
+    // schemaV2 payload; it must be projection-applicable so cache writes and reads agree
+    // (otherwise the first gRPC schema discovery caches an entry every later read rejects).
+    protocol === "grpc"
   );
 }
 

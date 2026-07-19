@@ -124,7 +124,9 @@ describe("capability-to-sample matrix contract", () => {
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
-    expect(matrix.supportClaims).toHaveLength(25);
+    // 26 = 25 pre-existing support claims + "grpc-connect-discovery" (the
+    // Honua gRPC connect() discovery adapter registered in issue #554).
+    expect(matrix.supportClaims).toHaveLength(26);
     expect(matrix.packageEntrypoints).toHaveLength(52);
     // maplibre-quickstart is the one real, evidence-backed qualified sample
     // (the First Map golden journey); everything else must stay unqualified.
