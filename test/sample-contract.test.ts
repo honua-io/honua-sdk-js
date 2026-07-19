@@ -42,7 +42,7 @@ vi.setConfig({ testTimeout: 20_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
-const validationTime = { now: "2026-07-22T00:00:00.000Z" };
+const validationTime = { now: "2026-07-21T00:00:00.000Z" };
 const goldenJourneyIds = [
   "first-map",
   "service-explorer",

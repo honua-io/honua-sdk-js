@@ -27,6 +27,12 @@ export type {
 } from "./conformance.js";
 export { HonuaPluginRegistry, HonuaPluginRegistryError } from "./registry.js";
 export {
+  PMTILES_PROTOCOL_PLUGIN_ID,
+  pmtilesProtocolManifest,
+  pmtilesProtocolPlugin,
+} from "./pmtiles-protocol-plugin.js";
+export type { PmtilesProtocolExtension } from "./pmtiles-protocol-plugin.js";
+export {
   HONUA_PLUGIN_API_VERSION,
   HONUA_PLUGIN_CAPABILITIES,
   HONUA_PLUGIN_CAPABILITY_REQUIRED_GRANTS,
