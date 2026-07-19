@@ -4,7 +4,7 @@ import { discoverGeoServicesSources, resolveConnectTarget } from "../src/connect
 import { discoverGrpcSources } from "../src/connect-grpc.js";
 import { connect } from "../src/connect.js";
 import type { Capability } from "../src/contract/types.js";
-import { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "../src/core/client.js";
+import { HONUA_MINIMUM_SUPPORTED_SERVER_VERSION, HonuaClient } from "../src/core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "../src/core/errors.js";
 import type { HonuaLayerMetadata, HonuaQueryResponse, HonuaServiceMetadata } from "../src/core/types.js";
 
@@ -157,9 +157,7 @@ describe("Honua gRPC discovery (connect-grpc.ts)", () => {
     const evidenceCapabilities = source.evidence?.flatMap((record) =>
       "capabilities" in record ? [...record.capabilities] : [],
     );
-    expect(evidenceCapabilities).toEqual(
-      expect.arrayContaining(["query", "stream", "queryExtent", "queryObjectIds"]),
-    );
+    expect(evidenceCapabilities).toEqual(expect.arrayContaining(["query", "stream", "queryExtent", "queryObjectIds"]));
     // gRPC has no pbf/sql/attachments/queryRelated RPC surface: the discovered
     // evidence must never claim them even though this metadata is identical
     // to what a raw FeatureServer would return.
@@ -251,7 +249,10 @@ describe("Honua gRPC discovery (connect-grpc.ts)", () => {
   describe("raw-endpoint parity", () => {
     it("derives identical capability truth as raw GeoServices REST discovery, restricted to the gRPC capability surface", async () => {
       const restClient = new HonuaClient({ baseUrl: "https://example.test", fetchFn: singleLayerFetch() });
-      const restTarget = resolveConnectTarget("https://example.test/rest/services/parcels/FeatureServer/0", "geoservices-feature-service");
+      const restTarget = resolveConnectTarget(
+        "https://example.test/rest/services/parcels/FeatureServer/0",
+        "geoservices-feature-service",
+      );
       const restResult = await discoverGeoServicesSources(restClient, restTarget, {});
 
       const grpcClientInstance = grpcClient(singleLayerFetch());
@@ -260,10 +261,14 @@ describe("Honua gRPC discovery (connect-grpc.ts)", () => {
       const grpcResult = await discoverGrpcSources(grpcClientInstance, grpcTarget, {});
 
       const restCapabilities = new Set(
-        restResult.sources[0]!.evidence?.flatMap((record) => ("capabilities" in record ? [...record.capabilities] : [])),
+        restResult.sources[0]!.evidence?.flatMap((record) =>
+          "capabilities" in record ? [...record.capabilities] : [],
+        ),
       );
       const grpcCapabilities = new Set(
-        grpcResult.sources[0]!.evidence?.flatMap((record) => ("capabilities" in record ? [...record.capabilities] : [])),
+        grpcResult.sources[0]!.evidence?.flatMap((record) =>
+          "capabilities" in record ? [...record.capabilities] : [],
+        ),
       );
 
       // gRPC's capability truth must be a verified subset of REST's — never a
@@ -288,7 +293,7 @@ describe("Honua gRPC discovery (connect-grpc.ts)", () => {
   });
 });
 
-describe("connect() protocol: \"grpc\" wiring", () => {
+describe('connect() protocol: "grpc" wiring', () => {
   it("only resolves against a canonical FeatureServer URL, never through auto-detection", async () => {
     const fetchFn = vi.fn<typeof fetch>();
     await expect(
