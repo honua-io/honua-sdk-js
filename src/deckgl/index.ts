@@ -14,15 +14,27 @@ export {
   loadDeckGlPeers,
 } from "./adapter.js";
 export type { CreateDeckGlAdapterOptions } from "./adapter.js";
-export { bindColumnarBatchToDeckGl, bindGeoArrowPointBatchToDeckGl } from "./columnar.js";
+export {
+  bindColumnarBatchToDeckGl,
+  bindGeoArrowLineBatchToDeckGl,
+  bindGeoArrowPointBatchToDeckGl,
+  bindGeoArrowPolygonBatchToDeckGl,
+} from "./columnar.js";
 export type {
   ColumnarComponentType,
   ColumnarDeckGlAttributeBinding,
   ColumnarDeckGlIdentity,
   ColumnarDeckGlProjectionRequest,
+  ColumnarDeckGlStartIndicesBinding,
+  GeoArrowLineDeckGlBinding,
+  GeoArrowLineDeckGlBindingMetrics,
+  GeoArrowLineDeckGlProjectionRequest,
   GeoArrowPointDeckGlBinding,
   GeoArrowPointDeckGlBindingMetrics,
   GeoArrowPointDeckGlProjectionRequest,
+  GeoArrowPolygonDeckGlBinding,
+  GeoArrowPolygonDeckGlBindingMetrics,
+  GeoArrowPolygonDeckGlProjectionRequest,
 } from "./columnar.js";
 export { DECK_GL_ADAPTER_CONTRACT_VERSION, HonuaDeckGlAdapterError } from "./types.js";
 export type {
@@ -30,6 +42,7 @@ export type {
   DeckGlBinaryAttribute,
   DeckGlBinaryData,
   DeckGlCapability,
+  DeckGlDisposalHandle,
   DeckGlExecutionDiagnostic,
   DeckGlLayer,
   DeckGlLayerConstructor,
@@ -47,3 +60,17 @@ export type {
   HonuaDeckGlAdapterErrorCode,
   LoadDeckGlPeersOptions,
 } from "./types.js";
+export {
+  bindDeckGlPickToExploration,
+  deckGlPickedSelectionTarget,
+  selectedFeatureIdSet,
+} from "./selection-sync.js";
+export type { DeckGlSelectionExplorationBindingOptions } from "./selection-sync.js";
+export { bindDeckGlViewportToMap, readMapCameraState } from "./view-sync.js";
+export type {
+  BindDeckGlViewportToMapOptions,
+  DeckGlCameraState,
+  DeckGlMapCameraSource,
+  DeckGlOverlayViewTarget,
+} from "./view-sync.js";
+export { combineDeckGlDisposal } from "./lifecycle.js";

@@ -448,6 +448,14 @@ describe("deck.gl adapter", () => {
       supported: true,
       execution: "gpu-binary",
     });
+    expect(DECK_GL_CAPABILITIES.find(({ layer }) => layer === "feature-path")).toMatchObject({
+      supported: true,
+      execution: "gpu-binary",
+    });
+    expect(DECK_GL_CAPABILITIES.find(({ layer }) => layer === "feature-polygon")).toMatchObject({
+      supported: true,
+      execution: "gpu-binary",
+    });
     expect(DECK_GL_CAPABILITIES.find(({ layer }) => layer === "trips")).toMatchObject({
       supported: false,
       execution: "not-implemented",
@@ -481,5 +489,265 @@ describe("deck.gl adapter", () => {
       cause,
       detail: { package: "@deck.gl/layers" },
     });
+  });
+
+  it("loads PathLayer and SolidPolygonLayer from the module when present", async () => {
+    class InjectedPathLayer implements DeckGlLayer {
+      public readonly id: string | undefined;
+      public constructor(public readonly props: Readonly<Record<string, unknown>>) {
+        this.id = typeof props.id === "string" ? props.id : undefined;
+      }
+    }
+    class InjectedSolidPolygonLayer implements DeckGlLayer {
+      public readonly id: string | undefined;
+      public constructor(public readonly props: Readonly<Record<string, unknown>>) {
+        this.id = typeof props.id === "string" ? props.id : undefined;
+      }
+    }
+    const importModule = vi.fn(async () => ({
+      ScatterplotLayer: FakeScatterplotLayer,
+      PathLayer: InjectedPathLayer,
+      SolidPolygonLayer: InjectedSolidPolygonLayer,
+    }));
+
+    await expect(loadDeckGlPeers({ importModule })).resolves.toEqual({
+      ScatterplotLayer: FakeScatterplotLayer,
+      PathLayer: InjectedPathLayer,
+      SolidPolygonLayer: InjectedSolidPolygonLayer,
+    });
+  });
+});
+
+class FakePathLayer implements DeckGlLayer {
+  public readonly id: string | undefined;
+
+  public constructor(public readonly props: Readonly<Record<string, unknown>>) {
+    this.id = typeof props.id === "string" ? props.id : undefined;
+  }
+}
+
+class FakeSolidPolygonLayer implements DeckGlLayer {
+  public readonly id: string | undefined;
+
+  public constructor(public readonly props: Readonly<Record<string, unknown>>) {
+    this.id = typeof props.id === "string" ? props.id : undefined;
+  }
+}
+
+function pathRequest(
+  paths: ReadonlyArray<ReadonlyArray<readonly [number, number]>>,
+  featureIds?: readonly number[],
+): DeckGlProjectionRequest {
+  const flat = paths.flat();
+  const position = new Float64Array(flat.length * 2);
+  flat.forEach(([x, y], index) => {
+    position[index * 2] = x;
+    position[index * 2 + 1] = y;
+  });
+  const startIndices = new Uint32Array(paths.length + 1);
+  let cursor = 0;
+  paths.forEach((path, index) => {
+    startIndices[index] = cursor;
+    cursor += path.length;
+  });
+  startIndices[paths.length] = cursor;
+  return {
+    layer: "feature-path",
+    layerId: "routes",
+    data: {
+      length: flat.length,
+      attributes: { getPath: { value: position, size: 2 } },
+      startIndices,
+    },
+    identity: {
+      sourceId: "routes-live",
+      planId: "plan:sha256:routes",
+      featureIds: featureIds ?? new Uint32Array(Array.from({ length: paths.length }, (_, index) => index)),
+    },
+  };
+}
+
+function polygonRequest(
+  rings: ReadonlyArray<ReadonlyArray<readonly [number, number]>>,
+  featureIds?: readonly number[],
+): DeckGlProjectionRequest {
+  const flat = rings.flat();
+  const position = new Float64Array(flat.length * 2);
+  flat.forEach(([x, y], index) => {
+    position[index * 2] = x;
+    position[index * 2 + 1] = y;
+  });
+  const startIndices = new Uint32Array(rings.length + 1);
+  let cursor = 0;
+  rings.forEach((ring, index) => {
+    startIndices[index] = cursor;
+    cursor += ring.length;
+  });
+  startIndices[rings.length] = cursor;
+  return {
+    layer: "feature-polygon",
+    layerId: "parcels",
+    data: {
+      length: flat.length,
+      attributes: { getPolygon: { value: position, size: 2 } },
+      startIndices,
+    },
+    identity: {
+      sourceId: "parcels-live",
+      planId: "plan:sha256:parcels",
+      featureIds: featureIds ?? new Uint32Array(Array.from({ length: rings.length }, (_, index) => index)),
+    },
+  };
+}
+
+describe("deck.gl adapter: feature-path (PathLayer)", () => {
+  const square: readonly [number, number][] = [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+  ];
+  const triangle: readonly [number, number][] = [
+    [2, 2],
+    [3, 2],
+  ];
+
+  it("projects a binary path request with zero-copy getPath and startIndices, forcing _pathType open", () => {
+    const adapter = createDeckGlAdapter({
+      peers: { ScatterplotLayer: FakeScatterplotLayer, PathLayer: FakePathLayer },
+    });
+    const input = pathRequest([square, triangle]);
+    const projection = adapter.project(input);
+    const layer = projection.layer as FakePathLayer;
+    const data = layer.props.data as DeckGlProjectionRequest["data"];
+
+    expect(data.attributes.getPath.value).toBe(input.data.attributes.getPath.value);
+    // startIndices is bookkeeping (like identity.featureIds), snapshotted into a
+    // plain frozen array rather than forwarded by typed-array reference.
+    expect(data.startIndices).toEqual(Array.from(input.data.startIndices as ArrayLike<number>));
+    expect(layer.props).toMatchObject({ id: "routes", pickable: true, _pathType: "open" });
+    expect(projection.metrics).toMatchObject({ rows: 2, copiedBytes: 0 });
+    expect(projection.selectionForPick(1)).toEqual({
+      sourceId: "routes-live",
+      planId: "plan:sha256:routes",
+      featureId: 1,
+      rowIndex: 1,
+    });
+    expect(() => projection.selectionForPick(2)).toThrowError(expect.objectContaining({ code: "invalid-data" }));
+  });
+
+  it("requires PathLayer to be supplied to project a feature-path request", () => {
+    const adapter = createDeckGlAdapter({ peers: { ScatterplotLayer: FakeScatterplotLayer } });
+    expect(() => adapter.project(pathRequest([square]))).toThrowError(
+      expect.objectContaining({ code: "missing-peer", detail: expect.objectContaining({ peer: "PathLayer" }) }),
+    );
+  });
+
+  it("requires data.startIndices for feature-path and rejects it for scatterplot", () => {
+    const adapter = createDeckGlAdapter({
+      peers: { ScatterplotLayer: FakeScatterplotLayer, PathLayer: FakePathLayer },
+    });
+    const input = pathRequest([square]);
+    const { startIndices, ...dataWithoutStartIndices } = input.data as DeckGlProjectionRequest["data"] & {
+      startIndices: unknown;
+    };
+    expect(() => adapter.project({ ...input, data: dataWithoutStartIndices })).toThrowError(
+      expect.objectContaining({ code: "invalid-data" }),
+    );
+
+    expect(() => adapter.project({ ...request(), data: { ...request().data, startIndices: [0, 1] } })).toThrowError(
+      expect.objectContaining({ code: "invalid-data" }),
+    );
+  });
+
+  it("rejects malformed startIndices (non-zero start, decreasing, or wrong end)", () => {
+    const adapter = createDeckGlAdapter({
+      peers: { ScatterplotLayer: FakeScatterplotLayer, PathLayer: FakePathLayer },
+    });
+    const input = pathRequest([square, triangle]);
+
+    for (const bad of [new Uint32Array([1, 3, 5]), new Uint32Array([0, 3, 2]), new Uint32Array([0, 3, 99])]) {
+      expect(() => adapter.project({ ...input, data: { ...input.data, startIndices: bad } })).toThrowError(
+        expect.objectContaining({ code: "invalid-data" }),
+      );
+    }
+  });
+
+  it("requires identity.featureIds length to equal the path count, not the vertex count", () => {
+    const adapter = createDeckGlAdapter({
+      peers: { ScatterplotLayer: FakeScatterplotLayer, PathLayer: FakePathLayer },
+    });
+    const input = pathRequest([square, triangle]);
+    expect(() =>
+      adapter.project({ ...input, identity: { ...input.identity, featureIds: new Uint32Array(5) } }),
+    ).toThrowError(expect.objectContaining({ code: "invalid-data" }));
+  });
+
+  it("requires a getPath binary attribute", () => {
+    const adapter = createDeckGlAdapter({
+      peers: { ScatterplotLayer: FakeScatterplotLayer, PathLayer: FakePathLayer },
+    });
+    const input = pathRequest([square]);
+    expect(() =>
+      adapter.project({
+        ...input,
+        data: { length: input.data.length, attributes: {}, startIndices: input.data.startIndices },
+      }),
+    ).toThrowError(expect.objectContaining({ code: "invalid-data" }));
+  });
+
+  it("rejects a caller-supplied _pathType prop as reserved", () => {
+    const adapter = createDeckGlAdapter({
+      peers: { ScatterplotLayer: FakeScatterplotLayer, PathLayer: FakePathLayer },
+    });
+    const input = pathRequest([square]);
+    expect(() => adapter.project({ ...input, props: { _pathType: "loop" } })).toThrowError(
+      expect.objectContaining({ code: "invalid-data" }),
+    );
+  });
+});
+
+describe("deck.gl adapter: feature-polygon (SolidPolygonLayer)", () => {
+  const ring: readonly [number, number][] = [
+    [0, 0],
+    [4, 0],
+    [4, 4],
+    [0, 0],
+  ];
+
+  it("projects a binary polygon request with zero-copy getPolygon and startIndices, forcing _normalize false", () => {
+    const adapter = createDeckGlAdapter({
+      peers: { ScatterplotLayer: FakeScatterplotLayer, SolidPolygonLayer: FakeSolidPolygonLayer },
+    });
+    const input = polygonRequest([ring]);
+    const projection = adapter.project(input);
+    const layer = projection.layer as FakeSolidPolygonLayer;
+    const data = layer.props.data as DeckGlProjectionRequest["data"];
+
+    expect(data.attributes.getPolygon.value).toBe(input.data.attributes.getPolygon.value);
+    // startIndices is bookkeeping (like identity.featureIds), snapshotted into a
+    // plain frozen array rather than forwarded by typed-array reference.
+    expect(data.startIndices).toEqual(Array.from(input.data.startIndices as ArrayLike<number>));
+    expect(layer.props).toMatchObject({ id: "parcels", pickable: true, _normalize: false });
+    expect(projection.metrics).toMatchObject({ rows: 1, copiedBytes: 0 });
+  });
+
+  it("requires SolidPolygonLayer to be supplied to project a feature-polygon request", () => {
+    const adapter = createDeckGlAdapter({ peers: { ScatterplotLayer: FakeScatterplotLayer } });
+    expect(() => adapter.project(polygonRequest([ring]))).toThrowError(
+      expect.objectContaining({
+        code: "missing-peer",
+        detail: expect.objectContaining({ peer: "SolidPolygonLayer" }),
+      }),
+    );
+  });
+
+  it("rejects a caller-supplied _normalize prop as reserved", () => {
+    const adapter = createDeckGlAdapter({
+      peers: { ScatterplotLayer: FakeScatterplotLayer, SolidPolygonLayer: FakeSolidPolygonLayer },
+    });
+    const input = polygonRequest([ring]);
+    expect(() => adapter.project({ ...input, props: { _normalize: true } })).toThrowError(
+      expect.objectContaining({ code: "invalid-data" }),
+    );
   });
 });

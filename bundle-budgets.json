@@ -62,7 +62,8 @@
   "/honua was reset for metadata-only ImageServer, GeometryServer, and GPServer discovery (#553): bounded JSON admission, credential-safe redirect handling, explicit non-Source operation descriptors, and honest canonical-route support add 25,580 minified / 6,523 gzip bytes to the advanced facade while root and browser stay within their existing ceilings. The reviewed /honua entrypoint measures 714,778 minified / 189,789 gzip bytes; both ceilings are measured actual plus 10% headroom.",
   "'tree-shake:error-leaf' (#583) guards the unified error envelope's leaf cost: importing a single leaf error class ({ HonuaTimeoutError }) retains the compact runtime classification table and the envelope serializer but forbids the descriptive code registry (error-code-registry.js), measured 12,892 minified / 3,839 gzip bytes. 'tree-shake:error-registry' measures the explicit descriptive registry import at 10,858 minified / 2,388 gzip, proving the ~100-code human-readable summaries are bundled only when requested. Each ceiling is measured actual plus 10% headroom.",
   "The agent error envelope (#570) migrated agent-tools/agent-safety error classes onto the tagged SDK error envelope and expanded the descriptive error-code registry, so /honua, /contract, /agent-tools, /agent-safety, and the error-leaf/error-registry tree-shake guards were remeasured. Only the exceeded metrics were reset to measured actual plus ~10% headroom.",
-  "/query-planner and /deckgl were reset for the normative GeoArrow batch layouts and direct deck.gl path (#536): dependency-free GeoArrow 0.2 point/line/polygon/null/CRS/temporal/dictionary encode-decode, the optional apache-arrow bridge (loaded only via the caller-injected loadApacheArrow importer), and the zero-copy GeoArrow-to-deck.gl binding measure 594,731 minified / 120,885 gzip bytes on /query-planner and 48,522 minified / 14,108 gzip bytes on /deckgl. Both entrypoints remain experimental-tier and opt-in; apache-arrow and @deck.gl/layers stay optional peers kept out of the root/browser barrels. Each ceiling is measured actual plus 10% headroom."
+  "/query-planner and /deckgl were reset for the normative GeoArrow batch layouts and direct deck.gl path (#536): dependency-free GeoArrow 0.2 point/line/polygon/null/CRS/temporal/dictionary encode-decode, the optional apache-arrow bridge (loaded only via the caller-injected loadApacheArrow importer), and the zero-copy GeoArrow-to-deck.gl binding measure 594,731 minified / 120,885 gzip bytes on /query-planner and 48,522 minified / 14,108 gzip bytes on /deckgl. Both entrypoints remain experimental-tier and opt-in; apache-arrow and @deck.gl/layers stay optional peers kept out of the root/browser barrels. Each ceiling is measured actual plus 10% headroom.",
+  "/deckgl was reset for direct GeoArrow LineString/Polygon rendering and shared MapLibre-overlay map state (#561): the feature-path/feature-polygon zero-copy PathLayer/SolidPolygonLayer binary bindings (startIndices-addressed, optional PathLayer/SolidPolygonLayer peers), plus the focused renderer-state seam (camera sync, picked-selection-to-exploration linking, and combined disposal) measure 63,572 minified / 16,990 gzip bytes. The entrypoint remains experimental-tier and opt-in; @deck.gl/layers stays an optional peer kept out of the root/browser barrels, and root/non-deck ceilings are unchanged. The ceiling is measured actual plus 10% headroom."
  ],
  "entrypoints": {
   ".": {
@@ -166,8 +167,8 @@
    "gzip": 16478
   },
   "/deckgl": {
-   "min": 53375,
-   "gzip": 15519
+   "min": 69930,
+   "gzip": 18689
   },
   "browser-iife": {
    "min": 677675,
