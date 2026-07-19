@@ -121,18 +121,35 @@ store and checkpoint database. Applications that require atomic exactly-once
 effects must persist their materialized state and checkpoint transactionally,
 or use event ids/versions to make replay idempotent.
 
+## Bounded, reconnecting transports (#557)
+
+`createResumableRealtimeTransport` (and the `createResumableServerSentEventsTransport` /
+`createResumableWebSocketTransport` convenience factories) wrap a raw
+`RealtimeFeatureTransport` — `sse.ts` or `websocket.ts` — with this gate, plus
+reconnect ownership, a heartbeat/liveness timeout, and redacted telemetry. See
+[`docs/realtime-subscriptions.md`](realtime-subscriptions.md#bounded-resumable-transports-557)
+for usage. That module is the transport adapter this document's "Scope and
+remaining work" section originally deferred: it owns reconnect/backoff and
+projects a detected gap through `requireResnapshot(...)` on the caller's
+behalf, so application code enqueuing events directly against
+`createResumableRealtimeSubscription` (as shown above) remains the
+lower-level, transport-neutral building block for callers that want to own
+reconnect themselves.
+
 ## Scope and remaining work
 
 This is the first production slice of issue
 [#393](https://github.com/honua-io/honua-sdk-js/issues/393), not completion of
 the full workstream. It does not claim:
 
-- automatic SSE, WebSocket, OData-delta, or protocol-feed reconnection;
+- OData-delta or protocol-feed reconnection (SSE and WebSocket reconnection
+  are covered by `resumable-transport.ts`, #557);
 - cursor-only protocol adaptation where no trustworthy ordering sequence is
   available;
 - server support for cursor retention or expiry negotiation;
 - renderer, cache, columnar-batch, or offline-store patch integration;
-- lag/retry transport telemetry or a shared transport conformance suite.
+- a shared cross-transport conformance suite against a live honua-server
+  stream.
 
 Adapters should declare unsupported resume behavior before subscription when
 the protocol can determine it. Expired server cursors must be projected as an
