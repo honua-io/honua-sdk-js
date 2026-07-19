@@ -943,7 +943,11 @@ function capabilitiesFromMetadata(
   if ("relationships" in metadata && Array.isArray(metadata.relationships) && metadata.relationships.length > 0) {
     capabilities.add("queryRelated");
   }
-  if ("supportsAttachments" in metadata && metadata.supportsAttachments === true) capabilities.add("attachments");
+  const hasAttachments =
+    "hasAttachments" in metadata
+      ? metadata.hasAttachments === true
+      : "supportsAttachments" in metadata && metadata.supportsAttachments === true;
+  if (hasAttachments) capabilities.add("attachments");
   if (protocol === "geoservices-feature-service") {
     if (["create", "update", "delete", "editing"].some((value) => advertised.has(value))) {
       capabilities.add("applyEdits");

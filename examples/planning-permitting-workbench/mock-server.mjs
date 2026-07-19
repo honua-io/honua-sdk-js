@@ -151,7 +151,7 @@ function layerMetadata(readonly, metadataMode) {
     objectIdField: "OBJECTID",
     geometryType: "esriGeometryPoint",
     capabilities: readonly ? "Query" : "Query,Create,Update,Delete",
-    supportsAttachments: !readonly,
+    hasAttachments: !readonly,
     supportsStatistics: true,
     useStandardizedQueries: true,
     supportedQueryFormats: "JSON, geoJSON",
@@ -427,8 +427,12 @@ export async function startPlanningWorkbenchFixtureServer({ build = true, metada
       }
       res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
       res.end("Not found");
-    } catch (error) {
-      json(res, { error: { code: 500, message: error instanceof Error ? error.message : String(error) } }, 500);
+    } catch {
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
+      json(res, { error: { code: 500, message: "Fixture request failed." } }, 500);
     }
   });
 

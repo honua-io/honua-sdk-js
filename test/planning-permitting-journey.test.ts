@@ -149,6 +149,22 @@ describe("Planning and Permitting public SDK journey", () => {
     );
   });
 
+  it("does not reflect internal fixture errors to HTTP clients", async () => {
+    const server = await startPlanningWorkbenchFixtureServer({ build: false });
+    cleanups.push(() => server.close());
+    const marker = "private-fixture-parser-marker";
+    const response = await fetch(`${server.url}/rest/services/Maui/Planning/FeatureServer/0/applyEdits`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ adds: `[${marker}` }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({ error: { code: 500, message: "Fixture request failed." } });
+    expect(JSON.stringify(body)).not.toContain(marker);
+  });
+
   it("rejects credential-bearing fixture origins without reflecting the secret", async () => {
     const error = await createPlanningPermittingJourney({
       baseUrl: "http://sdk-user:fixture-secret@127.0.0.1:9",
