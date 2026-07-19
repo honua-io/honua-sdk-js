@@ -204,17 +204,24 @@ export function verifyEvidenceNeutralCheckout(expectedSourceDigest, root = proje
   const headDigest = revisionSourceDigest(head, root);
   invariant(headDigest === digest, "gate evidence index is not bound to the evidence-neutral HEAD tree");
   if (sourceRevision !== undefined) {
-    invariant(revisionSourceDigest(sourceRevision, root) === digest, "gate receipt source revision does not match its source digest");
-    let isAncestor = true;
-    try {
-      execFileSync("git", ["merge-base", "--is-ancestor", sourceRevision, head], {
-        cwd: root,
-        stdio: ["ignore", "ignore", "pipe"],
-      });
-    } catch {
-      isAncestor = false;
-    }
-    invariant(isAncestor, "gate receipt source revision is not an ancestor of checkout HEAD");
+    invariant(
+      revisionSourceDigest(sourceRevision, root) === digest,
+      "gate receipt source revision does not match its source digest",
+    );
+    // sourceRevision must still name a real commit object whose
+    // evidence-neutral tree is byte-identical (via the SHA-256 check just
+    // above) to the current clean checkout -- that continues to reject
+    // garbage/forged revisions and genuine content drift. It is
+    // deliberately NOT also required to be a git-graph ancestor of HEAD via
+    // `git merge-base --is-ancestor`: a GitHub squash-merge rewrites a
+    // sample PR's reseal commit into a brand-new trunk commit with the same
+    // resulting tree, so the original commit is content-identical but never
+    // becomes the squashed commit's ancestor. That topology constraint adds
+    // no integrity guarantee beyond the content match above (a commit
+    // fabricated to match this digest via SHA-256 preimage/collision is
+    // infeasible) and does not survive squashing, which orphaned every
+    // squash-merged sample PR's own evidence on the very next trunk push
+    // (#647, #651, #653 -- honua-io/honua-sdk-js#650).
   }
   return digest;
 }
