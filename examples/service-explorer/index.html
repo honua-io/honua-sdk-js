@@ -3,174 +3,171 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Universal GIS Service Explorer</title>
+    <title>Honua Service Explorer</title>
   </head>
   <body>
-    <main class="app-shell">
-      <aside class="sidebar" aria-label="Service discovery">
-        <header>
-          <p class="eyebrow">Universal GIS Service Explorer</p>
-          <h1>Cloud Honua Service Explorer</h1>
-        </header>
+    <main class="explorer-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Honua golden journey</p>
+          <h1>Inspect any spatial service without guessing</h1>
+          <p class="hero-copy">
+            Paste an endpoint, inspect protocol evidence, then execute only the operations the endpoint and SDK both
+            support.
+          </p>
+        </div>
+        <div class="truth-badge" aria-live="polite">
+          <span id="state-dot"></span>
+          <strong id="state-label">Idle</strong>
+          <small id="state-detail">Enter a service URL.</small>
+        </div>
+      </header>
 
-        <section class="panel">
+      <section class="connect-card panel" aria-labelledby="connect-title">
+        <div class="panel-heading">
+          <div>
+            <p class="step">01 · Connect</p>
+            <h2 id="connect-title">Service endpoint</h2>
+          </div>
+          <span id="request-scope">anonymous scope</span>
+        </div>
+        <form id="inspect-form" novalidate>
+          <label class="endpoint-field" for="endpoint-input">
+            <span>HTTP(S) endpoint</span>
+            <input id="endpoint-input" name="endpoint" type="url" maxlength="4096" required spellcheck="false" />
+          </label>
+          <label for="protocol-input">
+            <span>Protocol</span>
+            <select id="protocol-input" name="protocol">
+              <option value="auto">Auto (URL structure only)</option>
+              <option value="geoservices-feature-service">GeoServices FeatureServer</option>
+              <option value="geoservices-map-service">GeoServices MapServer</option>
+              <option value="ogc-features">OGC API Features</option>
+              <option value="ogc-tiles">OGC API Tiles</option>
+              <option value="ogc-maps">OGC API Maps</option>
+              <option value="wfs">WFS 2.0</option>
+              <option value="wms">WMS</option>
+              <option value="wmts">WMTS</option>
+              <option value="stac">STAC</option>
+              <option value="odata">OData v4</option>
+            </select>
+          </label>
+          <label for="source-input">
+            <span>Source ID (optional)</span>
+            <input id="source-input" name="source" type="text" maxlength="512" autocomplete="off" />
+          </label>
+          <div class="form-actions">
+            <button id="inspect-button" class="primary" type="submit">Inspect service</button>
+            <button id="cancel-button" type="button" disabled>Cancel</button>
+          </div>
+        </form>
+        <p id="input-message" class="inline-message" role="alert"></p>
+      </section>
+
+      <div class="inspection-grid">
+        <section class="panel evidence-panel" aria-labelledby="evidence-title">
           <div class="panel-heading">
-            <h2>Discovery</h2>
-            <span id="data-source">-</span>
+            <div>
+              <p class="step">02 · Inspect</p>
+              <h2 id="evidence-title">Detection and evidence</h2>
+            </div>
+            <span id="cache-status">not loaded</span>
           </div>
-          <label class="field-label" for="source-picker">Source</label>
-          <select id="source-picker"></select>
-          <div class="source-summary">
-            <strong id="source-kind">-</strong>
-            <span id="source-description">-</span>
-          </div>
-          <dl class="metric-list">
-            <div>
-              <dt>Service</dt>
-              <dd id="active-service">-</dd>
-            </div>
-            <div>
-              <dt>Layer</dt>
-              <dd id="active-layer">-</dd>
-            </div>
-            <div>
-              <dt>Query</dt>
-              <dd id="query-duration">-</dd>
-            </div>
-            <div>
-              <dt>Cache</dt>
-              <dd id="source-cache-policy">-</dd>
-            </div>
+          <dl class="fact-grid">
+            <div><dt>Requested</dt><dd id="requested-protocol">—</dd></div>
+            <div><dt>Resolved</dt><dd id="resolved-protocol">—</dd></div>
+            <div><dt>Confidence</dt><dd id="detection-confidence">—</dd></div>
+            <div><dt>Metadata cache</dt><dd id="metadata-cache">—</dd></div>
           </dl>
-          <h3>Services</h3>
-          <ul id="service-list" class="stack-list"></ul>
-          <h3>Layers</h3>
-          <ul id="layer-list" class="stack-list"></ul>
+          <h3>Sources</h3>
+          <div id="source-list" class="source-list"></div>
+          <h3>Schema and CRS</h3>
+          <div id="schema-summary" class="empty-state">Inspect an endpoint to see source metadata.</div>
         </section>
 
-        <section class="panel">
+        <section class="panel capability-panel" aria-labelledby="capability-title">
           <div class="panel-heading">
-            <h2>Metadata Cache</h2>
-            <span id="cache-status">-</span>
+            <div>
+              <p class="step">03 · Decide</p>
+              <h2 id="capability-title">Capability truth</h2>
+            </div>
+            <span>claimed · observed · effective</span>
           </div>
-          <dl class="metric-list compact">
-            <div>
-              <dt>Updated</dt>
-              <dd id="cache-updated">-</dd>
-            </div>
-            <div>
-              <dt>Source</dt>
-              <dd id="cache-source">-</dd>
-            </div>
-            <div>
-              <dt>TTL</dt>
-              <dd id="cache-revalidate">-</dd>
-            </div>
-          </dl>
-          <div class="button-row">
-            <button id="revalidate-cache-button" type="button">Revalidate</button>
-            <button id="mark-stale-button" type="button">Mark stale</button>
-          </div>
+          <div id="capability-list" class="capability-list" tabindex="0" aria-label="Scrollable capability evidence"></div>
         </section>
-      </aside>
+      </div>
 
-      <section class="map-area" aria-label="Linked map">
-        <div id="map"></div>
-        <div id="map-overlay" class="map-overlay" data-state="loading">
-          <strong id="overlay-title">Loading</strong>
-          <span id="overlay-detail">Preparing explorer.</span>
+      <section class="operation-grid" aria-label="Accepted operations">
+        <div class="panel operation-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="step">04 · Execute</p>
+              <h2>Bounded operation</h2>
+            </div>
+            <label class="limit-label" for="query-limit">Limit <input id="query-limit" type="number" min="1" max="100" value="25" /></label>
+          </div>
+          <div class="action-grid">
+            <div class="action-card">
+              <h3>Query features</h3>
+              <p id="query-reason">Inspect a source first.</p>
+              <code id="query-code">source.selection-required</code>
+              <button id="run-query-button" class="primary" type="button" disabled>Run accepted query</button>
+            </div>
+            <div class="action-card">
+              <h3>Render source</h3>
+              <p id="render-reason">Inspect a source first.</p>
+              <code id="render-code">source.selection-required</code>
+              <button id="prepare-render-button" type="button" disabled>Prepare exact render</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel plan-panel">
+          <div class="panel-heading">
+            <h2>Explain plan</h2>
+            <span id="plan-id">not accepted</span>
+          </div>
+          <dl class="fact-grid compact">
+            <div><dt>Pushdown</dt><dd id="plan-pushdown">—</dd></div>
+            <div><dt>Fidelity</dt><dd id="plan-fidelity">—</dd></div>
+            <div><dt>Cache</dt><dd id="plan-cache">—</dd></div>
+            <div><dt>Residual</dt><dd id="plan-residual">—</dd></div>
+            <div><dt>Rows</dt><dd id="result-count">—</dd></div>
+          </dl>
+          <ol id="plan-steps" class="plan-steps"></ol>
         </div>
       </section>
 
-      <aside class="workspace" aria-label="Linked workspace" tabindex="0">
-        <section class="panel controls-panel">
-          <div class="panel-heading">
-            <h2>Filters</h2>
-            <span><strong id="filter-count">0</strong> active</span>
-          </div>
-          <label class="field-label" for="attribute-filter">Attribute</label>
-          <div class="select-row">
-            <select id="attribute-filter"></select>
-            <button id="clear-filter-button" type="button">Clear</button>
-          </div>
-          <dl class="metric-grid">
-            <div>
-              <dt>Visible</dt>
-              <dd id="visible-count">0</dd>
-            </div>
-            <div>
-              <dt>Matched</dt>
-              <dd id="matched-count">0</dd>
-            </div>
-            <div>
-              <dt>Selection</dt>
-              <dd id="selection-count">0</dd>
-            </div>
-          </dl>
-          <p id="map-extent" class="extent-copy">No map extent</p>
-        </section>
-
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Chart Query</h2>
-            <span id="chart-field">status</span>
-          </div>
-          <div id="chart-buckets" class="chart-buckets"></div>
-        </section>
-
-        <section class="panel table-panel">
-          <div class="panel-heading">
-            <h2>Table</h2>
-            <span>linked projection</span>
-          </div>
-          <div class="table-wrap">
+      <section class="result-grid">
+        <div class="panel map-panel">
+          <div class="panel-heading"><h2>Map preview</h2><span id="map-status">waiting</span></div>
+          <div id="map" aria-label="Accepted query map preview"></div>
+        </div>
+        <div class="panel table-panel">
+          <div class="panel-heading"><h2>Bounded result</h2><span>safe text rendering</span></div>
+          <div class="table-scroll" tabindex="0" aria-label="Scrollable query result">
             <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Title</th>
-                  <th>Status</th>
-                  <th>Category</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="result-table-body"></tbody>
+              <thead id="result-head"></thead>
+              <tbody id="result-body"><tr><td>No query has run.</td></tr></tbody>
             </table>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="panel detail-panel">
+      <section class="result-grid">
+        <div class="panel code-panel">
           <div class="panel-heading">
-            <h2>Details</h2>
-            <span>shared selection</span>
+            <div><p class="step">05 · Reuse</p><h2>Equivalent TypeScript</h2></div>
+            <button id="copy-code-button" type="button" disabled>Copy code</button>
           </div>
-          <h3 id="detail-title">No selected feature</h3>
-          <p id="detail-subtitle">Select a map point or table row.</p>
-          <dl id="detail-attributes" class="attribute-list"></dl>
-        </section>
-
-        <section class="panel metadata-panel">
-          <div class="panel-heading">
-            <h2>Schema</h2>
-            <span id="schema-title">-</span>
-          </div>
-          <p id="layer-extent" class="extent-copy">-</p>
-          <ul id="schema-list" class="stack-list"></ul>
-          <div class="panel-heading subheading">
-            <h2>Capabilities</h2>
-          </div>
-          <ul id="capability-list" class="capability-list"></ul>
-        </section>
-
-        <section class="panel diagnostics-panel">
-          <div class="panel-heading">
-            <h2>Diagnostics</h2>
-            <span id="job-status">waiting</span>
-          </div>
-          <ul id="diagnostic-list" class="diagnostic-list"></ul>
-          <pre id="query-json" tabindex="0"></pre>
-        </section>
-      </aside>
+          <pre id="typescript-code" tabindex="0">// Accept an operation to generate code.</pre>
+          <p id="copy-status" class="inline-message" aria-live="polite"></p>
+        </div>
+        <div class="panel diagnostics-panel">
+          <div class="panel-heading"><h2>Diagnostics</h2><span id="diagnostic-count">0</span></div>
+          <ul id="diagnostic-list" tabindex="0" aria-label="Scrollable diagnostics"></ul>
+        </div>
+      </section>
     </main>
 
     <script type="module" src="/src/main.ts"></script>

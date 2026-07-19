@@ -1818,6 +1818,12 @@ function redactKnownSecrets(value: string, secrets: readonly string[]): string {
   return sanitized;
 }
 
+// Captured before any delegate/adapter code runs, so a later global override
+// of `Function.prototype.toString` cannot spoof the native-code marker that
+// `isNativeAccessor` relies on.
+const nativeFunctionToString = Function.prototype.toString;
+const NATIVE_FUNCTION_PATTERN = /^function \S*\(\) \{ \[native code\] \}$/;
+
 function credentialSafeError(error: unknown, secrets: readonly string[]): unknown {
   if (!(error instanceof Error)) {
     return containsCredentialMaterial(error, secrets, new Set(), 0) ? new Error("Honua operation failed.") : error;
@@ -1917,7 +1923,17 @@ function containsCredentialMaterial(
   try {
     for (const key of Reflect.ownKeys(value)) {
       const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !("value" in descriptor)) return true;
+      if (!descriptor || !("value" in descriptor)) {
+        // `Error.prototype.stack` is a lazily-materialized engine accessor (no
+        // "value" in its own descriptor) until first read. Its getter is never
+        // invoked here -- a delegate/adapter error could otherwise smuggle a
+        // secret through a `stack` getter that only returns it once read. A
+        // genuine, un-tampered engine accessor is safe to skip because it is
+        // never attacker-controlled; only that exact native shape is trusted,
+        // so a spoofed non-native "stack" getter still fails this scan closed.
+        if (descriptor && key === "stack" && value instanceof Error && isNativeAccessor(descriptor)) continue;
+        return true;
+      }
       if (containsCredentialMaterial(descriptor.value, secrets, seen, depth + 1)) {
         return true;
       }
@@ -1929,6 +1945,23 @@ function containsCredentialMaterial(
   } finally {
     seen.delete(value);
   }
+}
+
+/**
+ * True only for a genuine, un-tampered engine accessor pair matching V8's lazy
+ * `Error.prototype.stack` shape (both a native getter and a native setter).
+ * Uses the module-captured, pre-tamper `Function.prototype.toString` so a
+ * delegate/adapter cannot spoof the native-code marker by overriding it
+ * globally before this check runs.
+ */
+function isNativeAccessor(descriptor: PropertyDescriptor): boolean {
+  const { get, set } = descriptor;
+  return (
+    typeof get === "function" &&
+    typeof set === "function" &&
+    NATIVE_FUNCTION_PATTERN.test(nativeFunctionToString.call(get)) &&
+    NATIVE_FUNCTION_PATTERN.test(nativeFunctionToString.call(set))
+  );
 }
 
 function combineAbortSignals(owner: AbortSignal, ...callers: readonly (AbortSignal | undefined)[]): AbortSignal {

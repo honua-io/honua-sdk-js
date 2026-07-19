@@ -90,7 +90,6 @@
         "planning-permitting-workbench",
         "realtime-incident-dashboard",
         "runtime-parity-showcase",
-        "service-explorer",
         "shared-renderer-state",
         "spatial-analytics-workbench",
         "storytelling-25d-map",
@@ -137,7 +136,8 @@
       },
       "sampleIds": [
         "imagery-cog-quickstart",
-        "maplibre-quickstart"
+        "maplibre-quickstart",
+        "service-explorer"
       ]
     },
     {
@@ -1098,16 +1098,16 @@
       "track": "lab",
       "journeyId": "service-explorer",
       "supportTier": "supported",
-      "validationProfile": "browser-lab",
+      "validationProfile": "golden-browser",
       "gates": {
         "packedBuild": true,
         "browser": true,
         "accessibility": true,
         "console": true,
         "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
+        "screenshot": true,
+        "performance": true,
+        "liveEvidence": true
       },
       "commandPlan": {
         "validation": {
@@ -1115,6 +1115,9 @@
           "commands": [
             "npm run demo:service-explorer:typecheck",
             "npm run demo:service-explorer:build",
+            "npx vitest run test/service-explorer-truth-model.test.ts",
+            "npx vitest run test/service-explorer-operation-model.test.ts",
+            "npx vitest run test/service-explorer-live-evidence.test.ts",
             "npm run test:playwright:service-explorer"
           ]
         },
@@ -1126,11 +1129,13 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": []
+          "commands": [
+            "npm run demo:service-explorer:live-evidence"
+          ]
         }
       },
       "liveEvidence": {
-        "mode": "authenticated",
+        "mode": "public-live",
         "status": "planned"
       }
     },
