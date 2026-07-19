@@ -1,6 +1,9 @@
 /**
- * `@honua/sdk-js/realtime` — realtime transport adapters (Server-Sent Events today,
- * WebSocket/WebTransport adapters land alongside future server endpoints).
+ * `@honua/sdk-js/realtime` — realtime transport adapters. Raw Server-Sent
+ * Events (`sse.ts`) and WebSocket (`websocket.ts`) wire adapters pair with
+ * the bounded, resumable wrapper in `resumable-transport.ts` (issue #557),
+ * which adds the #556 delivery gate, reconnect/backoff, heartbeat timeout,
+ * and redacted telemetry on top of either one.
  *
  * @module
  */
@@ -74,6 +77,24 @@ export type {
   RedactedRealtimeResumePosition,
   RedactedResumePosition,
 } from "./contract.js";
+export { createRealtimeWebSocketTransport } from "./websocket.js";
+export type {
+  RealtimeWebSocket,
+  RealtimeWebSocketCloseEvent,
+  RealtimeWebSocketFactory,
+  RealtimeWebSocketTransportOptions,
+} from "./websocket.js";
+export {
+  computeReconnectDelayMs,
+  createResumableRealtimeTransport,
+  createResumableServerSentEventsTransport,
+  createResumableWebSocketTransport,
+} from "./resumable-transport.js";
+export type {
+  RealtimeReconnectPolicy,
+  RealtimeResumableTransportOptions,
+  RealtimeResumableTransportTelemetry,
+} from "./resumable-transport.js";
 export { filterRealtimeSelection, reconcileRealtimeSelection } from "./exploration.js";
 export {
   selectRealtimeDetail,
