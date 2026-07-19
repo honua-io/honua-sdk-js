@@ -141,7 +141,10 @@ test("every protocol operation is bound to one reviewed, evidenced surface", () 
 
 test("connect() coverage stays separate from Source capabilities and discovery claims cannot drift", () => {
   const unregistered = clone(manifest);
-  unregistered.connectProtocols = unregistered.connectProtocols.slice(1);
+  // Filter by value, not array position: `connectProtocols` leads with
+  // "grpc" (matching the shared canonical `Protocol` union's own ordering),
+  // so index 0 is not "ogc-features".
+  unregistered.connectProtocols = unregistered.connectProtocols.filter((protocol) => protocol !== "ogc-features");
   assert.match(
     validateSupportManifest(unregistered).join("\n"),
     /ogc-features-standalone claims connect\(\) discovery for unregistered protocol ogc-features/,

@@ -32,6 +32,7 @@
     "transport"
   ],
   "connectProtocols": [
+    "grpc",
     "ogc-features",
     "stac",
     "wfs",
@@ -426,6 +427,12 @@
       "id": "connect-fixtures",
       "kind": "fixture",
       "path": "test/connect.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "connect-grpc-fixtures",
+      "kind": "fixture",
+      "path": "test/connect-grpc.test.ts",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -1226,6 +1233,29 @@
     }
   ],
   "supportClaims": [
+    {
+      "id": "grpc-connect-discovery",
+      "label": "Honua gRPC FeatureServer discovery",
+      "protocol": "grpc",
+      "operations": [
+        "discovery",
+        "query",
+        "queryExtent",
+        "queryObjectIds",
+        "stream"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "native",
+      "status": "supported",
+      "backendNeeded": "A Honua Server FeatureService endpoint reachable over gRPC-Web",
+      "api": "connect(), HonuaClient.queryFeatures, Source",
+      "notes": "Discovers a canonical FeatureServer URL through the same REST service/layer metadata geoservices-feature-service discovery uses, deriving capabilities through the identical algorithm, then verifies query/stream through one bounded live QueryFeatures parity probe per layer over the gRPC-Web transport before advertising them; a schema disagreement between the probe and REST metadata fails discovery rather than silently trusting either side.",
+      "evidence": [
+        "connect-grpc-fixtures",
+        "contract-conformance",
+        "grpc-conformance"
+      ]
+    },
     {
       "id": "geoservices-feature-standalone",
       "label": "GeoServices FeatureServer query",

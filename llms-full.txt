@@ -1526,13 +1526,13 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-19 at commit `c42b1569`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-19 at commit `de586ce9`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 606.6 KiB | 161.2 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 612.4 KiB | 162.4 KiB |
 | Importing only `HonuaClient` (tree-shake guard) | 217.3 KiB | 55.5 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 42.2 KiB | 13.0 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 288.3 KiB | 76.4 KiB |
@@ -1555,8 +1555,8 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 606.6 KiB ≈
-1.59 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 612.4 KiB ≈
+1.60 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
 0.42 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.
@@ -5804,7 +5804,23 @@ Canonical transport shared across the SDKs and generated from the
 `query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `applyEdits`, and
 `stream`. In JS, gRPC-Web is selected on `HonuaClient` with
 `transport: "grpc-web"`; it is not exposed as a `Source.protocol("grpc")`
-adapter handle.
+adapter handle — `buildBuiltInSource` resolves a `protocol: "grpc"`
+descriptor onto the same `HonuaFeatureLayer` used by
+`geoservices-feature-service`, which transparently routes `queryFeatures`
+over gRPC-Web when the client's transport is configured that way.
+
+`connect({ endpoint, protocol: "grpc" })` discovers a canonical FeatureServer
+URL through the same REST service/layer metadata `geoservices-feature-service`
+discovery uses (the generated `FeatureService` proto has no separate
+descriptor RPC), deriving capabilities through the identical algorithm and
+additionally executing one bounded `QueryFeatures` RPC per layer over the
+gRPC-Web transport to verify the facade's read path agrees with the
+REST-declared schema before advertising `query` / `stream` — a disagreement
+throws `protocol-mismatch`; a transient probe failure narrows those two
+capabilities without failing discovery. `protocol: "grpc"` is never inferred
+by `protocol: "auto"` (the identical URL is ambiguous between REST and gRPC
+transport intent) and only resolves against FeatureServer semantics —
+MapServer / ImageServer have no gRPC query surface.
 
 ### GeoServices Feature Service
 First-class. Aggregations set `outStatistics`, `groupByFieldsForStatistics`,
@@ -6514,6 +6530,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 
 | Capability | Status | Environment | Execution | Backend needed | API | Evidence | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| Honua gRPC FeatureServer discovery | `supported` | `honua-facade` | `native` | A Honua Server FeatureService endpoint reachable over gRPC-Web | connect(), HonuaClient.queryFeatures, Source | [fixture: connect-grpc-fixtures](../test/connect-grpc.test.ts)<br>[fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[conformance: grpc-conformance](../test/conformance/feature-service.conformance.ts) | Discovers a canonical FeatureServer URL through the same REST service/layer metadata geoservices-feature-service discovery uses, deriving capabilities through the identical algorithm, then verifies query/stream through one bounded live QueryFeatures parity probe per layer over the gRPC-Web transport before advertising them; a schema disagreement between the probe and REST metadata fails discovery rather than silently trusting either side. |
 | GeoServices FeatureServer query | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.queryFeatures, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[live: first-map-live](../scripts/first-map-live-evidence.mjs) | Discovers and uses the raw FeatureServer query path; fixture-proven with scheduled anonymous live verification that needs no Honua account or server. |
 | GeoServices MapServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.mapService, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts)<br>[fixture: tile-layer-fixtures](../test/tile-layer-compat.test.ts)<br>[integration: map-service-integration](../test/integration/surfaces/map-server.integration.ts) | Discovers and uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles. |
 | GeoServices ImageServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[integration: image-service-integration](../test/integration/surfaces/image-server.integration.ts) | Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor. |
@@ -8005,16 +8022,16 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-19 at commit `c42b1569`._
+_Generated 2026-07-19 at commit `de586ce9`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 606.6 KiB | 661.1 KiB | 161.2 KiB | 168.9 KiB |
-| `/honua` | 773.3 KiB | 849.0 KiB | 206.6 KiB | 226.0 KiB |
+| `.` (root) | 612.4 KiB | 661.1 KiB | 162.4 KiB | 168.9 KiB |
+| `/honua` | 779.1 KiB | 849.0 KiB | 207.8 KiB | 226.0 KiB |
 | `/contract` | 288.3 KiB | 317.1 KiB | 76.4 KiB | 83.7 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 755.6 KiB | 829.5 KiB | 163.5 KiB | 179.5 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 761.3 KiB | 829.5 KiB | 164.7 KiB | 179.5 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.0 KiB | 257.5 KiB | 31.3 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 788.6 KiB | 865.8 KiB | 172.2 KiB | 189.2 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 794.4 KiB | 865.8 KiB | 173.4 KiB | 189.2 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 54.7 KiB | 62.6 KiB | 16.8 KiB | 19.3 KiB |
 | `/agent-tools` | 34.7 KiB | 38.2 KiB | 9.9 KiB | 10.9 KiB |
 | `/agent-safety` | 66.5 KiB | 73.2 KiB | 18.6 KiB | 20.5 KiB |
@@ -8037,14 +8054,14 @@ _Generated 2026-07-19 at commit `c42b1569`._
 | `/deckgl` (deck.gl external — lazy peer) | 47.7 KiB | 52.1 KiB | 13.9 KiB | 15.2 KiB |
 | `/react` (react/react-dom external) | 462.1 KiB | 506.7 KiB | 122.6 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 607.2 KiB | 661.8 KiB | 161.5 KiB | 176.3 KiB |
-| browser ESM (`./browser`) | 605.9 KiB | 660.4 KiB | 161.2 KiB | 176.0 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 613.0 KiB | 661.8 KiB | 162.7 KiB | 176.3 KiB |
+| browser ESM (`./browser`) | 611.7 KiB | 660.4 KiB | 162.4 KiB | 176.0 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 217.3 KiB | 229.7 KiB | 55.5 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 469.8 KiB | 515.1 KiB | 123.1 KiB | 135.1 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 475.5 KiB | 515.1 KiB | 124.3 KiB | 135.1 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.1 KiB | 15.5 KiB | 4.0 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.2 KiB | 14.6 KiB | 2.8 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 573.8 KiB | 627.9 KiB | 152.5 KiB | 167.0 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 579.5 KiB | 627.9 KiB | 153.7 KiB | 167.0 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 231.8 KiB | 245.9 KiB | 58.8 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 42.2 KiB | 44.7 KiB | 13.0 KiB | 14.0 KiB |

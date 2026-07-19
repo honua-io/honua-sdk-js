@@ -1368,9 +1368,13 @@ describe("connect", () => {
       name: "HonuaDiscoveryError",
       code: "ambiguous-protocol",
     });
+    // "grpc" only resolves against a canonical FeatureServer URL (it is not
+    // auto-detected, and this endpoint is not a GeoServices layout at all),
+    // so it fails the same "invalid-endpoint" way "wms" / "odata" do against
+    // a non-matching URL.
     await expect(connect({ ...base, protocol: "grpc" })).rejects.toMatchObject({
       name: "HonuaDiscoveryError",
-      code: "unsupported-protocol",
+      code: "invalid-endpoint",
     });
     expect(fetchFn).not.toHaveBeenCalled();
     expect(auth).not.toHaveBeenCalled();
