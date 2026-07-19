@@ -594,6 +594,7 @@ function createFakeSdkProject(options: { dist?: boolean } = {}): string {
   writeProjectFile(root, "bench/run.ts", "export const bench = true;\n");
   writeProjectFile(root, "scripts/build-browser-bundle.mjs", "export {};\n");
   writeProjectFile(root, "config/public-surface.json", "{}\n");
+  writeProjectFile(root, "examples/quickstart/app.ts", "export const example = true;\n");
   if (options.dist !== false) writeCompleteDist(root);
   return root;
 }
