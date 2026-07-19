@@ -713,9 +713,10 @@ describe("source schema v2 discovery adapters", () => {
     expect(profile("1.0.0").geometry?.metadataState).toBe("invalid");
     expect(profile("1.1.0").geometry).toMatchObject({
       metadataState: "valid",
-      encoding: "native",
-      runtimeSupported: false,
+      encoding: "geoarrow-point",
+      nativeDimensions: "xy",
     });
+    expect(profile("1.1.0").geometry?.runtimeSupported).toBeUndefined();
 
     const wkbProfile = (version: string) =>
       buildSourceProfile({
@@ -780,24 +781,32 @@ describe("source schema v2 discovery adapters", () => {
   });
 
   it.each([
-    ["point", "Point", "STRUCT(x DOUBLE, y DOUBLE)"],
-    ["linestring", "LineString", "STRUCT(x DOUBLE, y DOUBLE)[]"],
-    ["multipoint", "MultiPoint", "LIST(STRUCT(x DOUBLE, y DOUBLE))"],
-    ["polygon", "Polygon", "STRUCT<x DOUBLE, y DOUBLE>[][]"],
-    ["multilinestring", "MultiLineString", "LIST<LIST<STRUCT<x DOUBLE, y DOUBLE>>>"],
-    ["multipolygon", "MultiPolygon", "STRUCT(x DOUBLE, y DOUBLE)[][][]"],
-    ["point", "Point Z", "STRUCT(x DOUBLE, y DOUBLE, z DOUBLE)"],
-  ])("accepts the exact GeoParquet native layout for %s", (encoding, geometryType, columnType) => {
-    const profile = buildSourceProfile({
-      describe: [{ column_name: "geometry", column_type: columnType }],
-      geoJson: JSON.stringify({
-        version: "1.1.0",
-        primary_column: "geometry",
-        columns: { geometry: { encoding, geometry_types: [geometryType] } },
-      }),
-    });
-    expect(profile.geometry).toMatchObject({ metadataState: "valid", runtimeSupported: false });
-  });
+    ["point", "Point", "STRUCT(x DOUBLE, y DOUBLE)", "xy"],
+    ["linestring", "LineString", "STRUCT(x DOUBLE, y DOUBLE)[]", "xy"],
+    ["multipoint", "MultiPoint", "LIST(STRUCT(x DOUBLE, y DOUBLE))", "xy"],
+    ["polygon", "Polygon", "STRUCT<x DOUBLE, y DOUBLE>[][]", "xy"],
+    ["multilinestring", "MultiLineString", "LIST<LIST<STRUCT<x DOUBLE, y DOUBLE>>>", "xy"],
+    ["multipolygon", "MultiPolygon", "STRUCT(x DOUBLE, y DOUBLE)[][][]", "xy"],
+    ["point", "Point Z", "STRUCT(x DOUBLE, y DOUBLE, z DOUBLE)", "xyz"],
+  ] as const)(
+    "accepts the exact GeoParquet native layout for %s and marks it executable via the reviewed decoder",
+    (encoding, geometryType, columnType, dimensions) => {
+      const profile = buildSourceProfile({
+        describe: [{ column_name: "geometry", column_type: columnType }],
+        geoJson: JSON.stringify({
+          version: "1.1.0",
+          primary_column: "geometry",
+          columns: { geometry: { encoding, geometry_types: [geometryType] } },
+        }),
+      });
+      expect(profile.geometry).toMatchObject({
+        metadataState: "valid",
+        encoding: `geoarrow-${encoding}`,
+        nativeDimensions: dimensions,
+      });
+      expect(profile.geometry?.runtimeSupported).toBeUndefined();
+    },
+  );
 
   it.each([
     ["polygon", "Polygon", "STRUCT(x DOUBLE, y DOUBLE)[]"],

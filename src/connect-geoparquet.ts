@@ -12,8 +12,24 @@ import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
  */
 const GEOPARQUET_ADAPTER_SCOPE: readonly Capability[] = Object.freeze([...PROTOCOL_DEFAULT_CAPABILITIES.geoparquet]);
 
-/** Physical geometry encoding reported by a GeoParquet footer read. */
-export type GeoParquetGeometryEncoding = "wkb" | "native" | "geojson";
+/**
+ * Physical geometry encoding reported by a GeoParquet footer read. Mirrors
+ * `GeometryEncoding` (`core/geoparquet-sql.ts`) by value, not by import — see
+ * the {@link GeoParquetSourceProfile} doc comment for why this file keeps its
+ * own declarations. The `geoarrow-*` values are the GeoParquet **1.1** native
+ * single-geometry encodings (point/linestring/polygon/multi*); DuckDB stores
+ * them as nested struct/list columns with no spatial-predicate expression.
+ */
+export type GeoParquetGeometryEncoding =
+  | "wkb"
+  | "native"
+  | "geojson"
+  | "geoarrow-point"
+  | "geoarrow-linestring"
+  | "geoarrow-polygon"
+  | "geoarrow-multipoint"
+  | "geoarrow-multilinestring"
+  | "geoarrow-multipolygon";
 
 /** Detected geometry column plan from a GeoParquet footer read. */
 export interface GeoParquetGeometryPlan {
@@ -25,6 +41,11 @@ export interface GeoParquetGeometryPlan {
   readonly runtimeSupported?: boolean;
   /** Optional GeoParquet 1.1 bbox-covering struct column used for row-group pruning. */
   readonly bboxColumn?: string;
+  /**
+   * Coordinate dimensions physically stored by a `geoarrow-*` encoding.
+   * Meaningful only when {@link encoding} is one of the `geoarrow-*` values.
+   */
+  readonly nativeDimensions?: "xy" | "xyz";
   /**
    * Whether the containing GeoParquet document passed the supported 1.0/1.1
    * structural checks. This is metadata conformance evidence only; it does not

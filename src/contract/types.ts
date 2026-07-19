@@ -394,16 +394,33 @@ export interface SourceLocator {
     geometryColumn?: string;
     /**
      * Physical geometry encoding (`wkb` GeoParquet BLOB, `native` Parquet
-     * GEOMETRY/GEOGRAPHY, or `geojson` string). Read by the deterministic query
-     * planner (`@honua/sdk-js/query-planner`) to compile DuckDB SQL without a
-     * profiling round-trip. Defaults to `wkb`.
+     * GEOMETRY/GEOGRAPHY, `geojson` string, or a GeoParquet 1.1 native
+     * single-geometry `geoarrow-*` encoding — see `GeometryEncoding` in
+     * `core/geoparquet-sql.ts`, mirrored here by value to keep this contract
+     * module dependency-free of any protocol-specific compiler). Read by the
+     * deterministic query planner (`@honua/sdk-js/query-planner`) to compile
+     * DuckDB SQL without a profiling round-trip. Defaults to `wkb`.
      */
-    geometryEncoding?: "wkb" | "native" | "geojson";
+    geometryEncoding?:
+      | "wkb"
+      | "native"
+      | "geojson"
+      | "geoarrow-point"
+      | "geoarrow-linestring"
+      | "geoarrow-polygon"
+      | "geoarrow-multipoint"
+      | "geoarrow-multilinestring"
+      | "geoarrow-multipolygon";
     /**
      * Optional GeoParquet 1.1 bbox-covering struct column (e.g. `bbox`) used by
      * the query planner to push an envelope filter down to row-group pruning.
      */
     bboxColumn?: string;
+    /**
+     * Coordinate dimensions physically stored by a `geoarrow-*`
+     * `geometryEncoding`. Meaningful only for those encodings.
+     */
+    nativeDimensions?: "xy" | "xyz";
   };
 }
 

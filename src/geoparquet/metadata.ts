@@ -8,6 +8,7 @@
  */
 
 import type { GeometryColumnPlan, GeometryEncoding } from "../core/geoparquet-sql.js";
+import type { GeoParquetNativeGeometryKind } from "./native-geometry.js";
 
 export interface DescribeRow {
   readonly column_name: string;
@@ -109,6 +110,29 @@ const GEOPARQUET_1_1_COLUMN_MEMBERS = new Set([...GEOPARQUET_1_0_COLUMN_MEMBERS,
 const MAX_GEOPARQUET_METADATA_BYTES = 1024 * 1024;
 const MAX_GEOPARQUET_METADATA_DEPTH = 32;
 const MAX_GEOPARQUET_METADATA_NODES = 100_000;
+
+/** GeoParquet 1.1 `geo.columns[].encoding` values with a reviewed native decoder (`native-geometry.ts`). */
+const GEOARROW_KIND_BY_DECLARED_ENCODING: ReadonlyMap<string, GeoParquetNativeGeometryKind> = new Map([
+  ["point", "point"],
+  ["linestring", "linestring"],
+  ["polygon", "polygon"],
+  ["multipoint", "multipoint"],
+  ["multilinestring", "multilinestring"],
+  ["multipolygon", "multipolygon"],
+]);
+
+const GEOARROW_ENCODING_BY_KIND: Readonly<Record<GeoParquetNativeGeometryKind, GeometryEncoding>> = {
+  point: "geoarrow-point",
+  linestring: "geoarrow-linestring",
+  polygon: "geoarrow-polygon",
+  multipoint: "geoarrow-multipoint",
+  multilinestring: "geoarrow-multilinestring",
+  multipolygon: "geoarrow-multipolygon",
+};
+
+function geoArrowKindFromDeclaredEncoding(encoding: string | undefined): GeoParquetNativeGeometryKind | undefined {
+  return encoding === undefined ? undefined : GEOARROW_KIND_BY_DECLARED_ENCODING.get(encoding);
+}
 
 /**
  * Encoding is derived from the DuckDB DESCRIBE column type, not the GeoParquet
@@ -418,10 +442,43 @@ function geometryPlanFromGeoMetadata(
   const epoch = inspectEpoch(metadata);
   const detectedEncoding = encodingFromColumnType(row.column_type);
   const declaredNativeEncoding = metadataState === "valid" && metadata?.encoding !== "WKB";
-  const runtimeSupported = detectedEncoding !== undefined && (!declaredNativeEncoding || detectedEncoding === "native");
+  // A GeoParquet 1.1 native single-geometry encoding (`point`/`linestring`/
+  // `polygon`/`multipoint`/`multilinestring`/`multipolygon`) is never a
+  // DuckDB `GEOMETRY`/`GEOGRAPHY`/BLOB/JSON/VARCHAR column, so
+  // `encodingFromColumnType` returns `undefined` for it. Give it its own
+  // `geoarrow-*` identity (never collapsed onto DuckDB's own `native`
+  // GEOMETRY type) whenever the declared kind is one of those six and the
+  // whole-document metadata slice already proved the physical column shape
+  // matches (`validGeoMetadataProjectionSlice` → `geoParquetEncodingMatchesPhysicalType`).
+  const declaredGeoArrowKind =
+    detectedEncoding === undefined && declaredNativeEncoding
+      ? geoArrowKindFromDeclaredEncoding(metadata?.encoding)
+      : undefined;
+  const declaredGeoArrowPhysical =
+    declaredGeoArrowKind !== undefined ? parseNativeCoordinateType(row.column_type) : undefined;
+  const nativeDimensions: "xy" | "xyz" | undefined =
+    declaredGeoArrowKind === undefined
+      ? undefined
+      : declaredGeoArrowPhysical === undefined
+        ? undefined
+        : declaredGeoArrowPhysical.hasZ
+          ? "xyz"
+          : "xy";
+  const encoding: GeometryEncoding =
+    detectedEncoding ??
+    (declaredGeoArrowKind !== undefined
+      ? GEOARROW_ENCODING_BY_KIND[declaredGeoArrowKind]
+      : declaredNativeEncoding
+        ? "native"
+        : "wkb");
+  const runtimeSupported =
+    declaredGeoArrowKind !== undefined
+      ? nativeDimensions !== undefined
+      : detectedEncoding !== undefined && (!declaredNativeEncoding || detectedEncoding === "native");
   return {
     column: row.column_name,
-    encoding: detectedEncoding ?? (declaredNativeEncoding ? "native" : "wkb"),
+    encoding,
+    ...(nativeDimensions !== undefined ? { nativeDimensions } : {}),
     ...(runtimeSupported ? {} : { runtimeSupported: false }),
     ...(bboxColumn ? { bboxColumn } : {}),
     metadataState,
