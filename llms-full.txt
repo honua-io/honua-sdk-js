@@ -1526,16 +1526,16 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-19 at commit `d936fb25`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-19 at commit `8d4b4e25`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 612.5 KiB | 162.4 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 612.9 KiB | 162.5 KiB |
 | Importing only `HonuaClient` (tree-shake guard) | 217.3 KiB | 55.5 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 42.2 KiB | 13.0 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 288.3 KiB | 76.4 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 288.8 KiB | 76.6 KiB |
 | ArcGIS compatibility layer (drop-in migration surface) | 984.7 KiB | 245.5 KiB |
 | Geocoding client | 26.6 KiB | 7.6 KiB |
 | Routing client | 20.2 KiB | 6.2 KiB |
@@ -1555,7 +1555,7 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 612.5 KiB ≈
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 612.9 KiB ≈
 1.60 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
 0.42 MB over the wire with gzip. Esri's totals also grow with widgets;
@@ -3597,36 +3597,14 @@ behalf, so application code enqueuing events directly against
 lower-level, transport-neutral building block for callers that want to own
 reconnect themselves.
 
-## OData v4 delta-link pull adapter (#558)
-
-`createOdataDeltaTransport` (`src/realtime/odata-delta.ts`) is a pull-based
-`RealtimeFeatureTransport`, not a socket transport: it polls an OData v4
-entity set's `@odata.deltaLink` on a caller-configured interval instead of
-holding an open connection. It follows `@odata.nextLink` pages to establish
-an initial snapshot (sending `Prefer: odata.track-changes`), then polls the
-resulting delta link, normalizing `@removed` / `@odata.removed` entries into
-deletes and failing explicitly — rather than silently dropping or
-misreading them — on OData relationship (link) delta entries, which are out
-of scope. Every `@odata.nextLink` / `@odata.deltaLink` it follows, and any
-resumed `resumeFrom.deltaToken`, must resolve to the exact origin and
-collection path it was configured for; a foreign link is rejected instead of
-followed. An expired or rejected delta link (HTTP 410 by default, overridable
-via `isDeltaLinkExpiredResponse`) is recovered by re-running a full snapshot
-cycle — an explicit resnapshot, bounded by `maxConsecutiveResnapshots` so a
-server that keeps rejecting the token cannot loop forever. See
-[`docs/realtime-subscriptions.md`](realtime-subscriptions.md#odata-v4-delta-link-pull-adapter-558)
-for the honesty model behind its `capabilities.kind: "polling"` /
-`onPoll` telemetry, and why it does not compose with
-`resumable-transport.ts`'s reconnect wrapper.
-
 ## Scope and remaining work
 
 This is the first production slice of issue
 [#393](https://github.com/honua-io/honua-sdk-js/issues/393), not completion of
 the full workstream. It does not claim:
 
-- protocol-feed reconnection beyond SSE, WebSocket (`resumable-transport.ts`,
-  #557), and OData delta-link polling (`odata-delta.ts`, #558);
+- OData-delta or protocol-feed reconnection (SSE and WebSocket reconnection
+  are covered by `resumable-transport.ts`, #557);
 - cursor-only protocol adaptation where no trustworthy ordering sequence is
   available;
 - server support for cursor retention or expiry negotiation;
@@ -3882,6 +3860,48 @@ authorities the samples request, so the security boundary stays honest: the
 `auth` sample only ever receives the `reference.read` scope identifier, the
 `cache` sample only writes through scoped storage, and the `protocol` sample's
 network calls are restricted to its declared origin.
+
+## First-party protocol dogfooding (issue #538)
+
+The renderer kind proved the plugin seam is real for an out-of-tree module
+(OpenLayers, issue #566): third-party and first-party (`maplibreRenderer`)
+renderers both satisfy the same plain `RendererAdapter` contract
+(`src/kernel/renderer.ts`) without the kernel importing `HonuaPluginRegistry`
+at all. `protocol` did not yet have an equivalent story — every built-in
+protocol adapter was constructed by privileged code paths inside
+`src/contract/source.ts`.
+
+`ProtocolModule` (`src/contract/protocol-module.ts`) is the minimal
+discovery/capability/diagnostics/disposal seam for a `Source.protocol(...)`
+escape-hatch adapter, mirroring `RendererAdapter`. The first bounded built-in
+migrated onto it is PMTiles (tiles-only; no query-family capability, so
+`compile`/`execute` are honestly absent from this first slice):
+
+- `pmtilesProtocolModule()` (`src/contract/pmtiles.ts`) is the seam-shaped
+  factory. `pmtilesSource()` builds its `Source.protocol("pmtiles")` escape
+  hatch through this exact factory instead of constructing
+  `HonuaPmtilesArchive` directly.
+- `pmtilesProtocolPlugin()` (`@honua/sdk-js/plugin`,
+  `src/plugin/pmtiles-protocol-plugin.ts`) packages the identical factory as a
+  certifiable `HonuaPluginFactory<"protocol">`. Registering it through
+  `HonuaPluginRegistry` and calling `pmtilesSource()` both end up constructing
+  the archive adapter through the same `ProtocolModule`, proving the built-in
+  carries no special registry privilege
+  (`test/plugin-pmtiles-protocol-seam.test.ts`).
+- `test/fixtures/plugins/cloud-tiles/` is a structurally independent
+  out-of-tree protocol module (it shares no implementation with
+  `src/contract/pmtiles.ts`) that implements the same `ProtocolModule`
+  contract and certifies through the identical kit
+  (`test/plugin-cloud-tiles-certification.test.ts`), closing REQ-004: the
+  same conformance harness runs in-tree and against an independent module.
+
+Every other built-in protocol adapter (GeoServices, OGC API Features/Tiles/
+Maps/Records/Processes, WFS 2.0, WMS, WMTS, OData v4, STAC, GeoParquet, and
+the gRPC `FeatureService` transport, plus the deterministic query-compiler
+switch in `src/query-planner/planner.ts`) still bypasses this seam; migrating
+the query-compiler pipeline onto a versioned module contract is tracked as a
+separate follow-up so it can be reviewed at the same bounded scope as this
+first slice.
 
 ## Running the certification kit independently
 
@@ -8061,22 +8081,22 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-19 at commit `d936fb25`._
+_Generated 2026-07-19 at commit `8d4b4e25`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 612.5 KiB | 661.1 KiB | 162.4 KiB | 168.9 KiB |
-| `/honua` | 779.1 KiB | 849.0 KiB | 207.8 KiB | 226.0 KiB |
-| `/contract` | 288.3 KiB | 317.1 KiB | 76.4 KiB | 83.7 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 761.4 KiB | 829.5 KiB | 164.7 KiB | 179.5 KiB |
+| `.` (root) | 612.9 KiB | 661.1 KiB | 162.5 KiB | 168.9 KiB |
+| `/honua` | 779.6 KiB | 849.0 KiB | 207.9 KiB | 226.0 KiB |
+| `/contract` | 288.8 KiB | 317.1 KiB | 76.6 KiB | 83.7 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 761.9 KiB | 829.5 KiB | 164.9 KiB | 179.5 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.0 KiB | 257.5 KiB | 31.3 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 794.4 KiB | 865.8 KiB | 173.5 KiB | 189.2 KiB |
-| `/plugin` (registry + certification, no heavy peers) | 54.7 KiB | 62.6 KiB | 16.8 KiB | 19.3 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 794.9 KiB | 865.8 KiB | 173.6 KiB | 189.2 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 58.5 KiB | 62.6 KiB | 18.1 KiB | 19.3 KiB |
 | `/agent-tools` | 34.7 KiB | 38.2 KiB | 9.9 KiB | 10.9 KiB |
 | `/agent-safety` | 66.5 KiB | 73.2 KiB | 18.6 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.3 KiB | 84.5 KiB | 22.7 KiB | 25.3 KiB |
-| `/runtime` | 532.4 KiB | 550.7 KiB | 143.1 KiB | 147.5 KiB |
-| `/realtime` | 61.2 KiB | 67.3 KiB | 17.8 KiB | 19.5 KiB |
+| `/runtime` | 532.8 KiB | 550.7 KiB | 143.3 KiB | 147.5 KiB |
+| `/realtime` | 53.6 KiB | 59.0 KiB | 15.4 KiB | 16.9 KiB |
 | `/offline` | 38.1 KiB | 44.3 KiB | 11.3 KiB | 13.2 KiB |
 | `/query-planner` (worker runtime injected) | 581.1 KiB | 638.9 KiB | 118.2 KiB | 129.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 94.2 KiB | 100.0 KiB | 29.0 KiB | 30.8 KiB |
@@ -8091,16 +8111,16 @@ _Generated 2026-07-19 at commit `d936fb25`._
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 76.8 KiB | 81.6 KiB | 23.7 KiB | 25.3 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 47.7 KiB | 52.1 KiB | 13.9 KiB | 15.2 KiB |
-| `/react` (react/react-dom external) | 462.1 KiB | 506.7 KiB | 122.6 KiB | 134.6 KiB |
+| `/react` (react/react-dom external) | 462.6 KiB | 506.7 KiB | 122.8 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 613.0 KiB | 661.8 KiB | 162.7 KiB | 176.3 KiB |
-| browser ESM (`./browser`) | 611.7 KiB | 660.4 KiB | 162.4 KiB | 176.0 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 613.5 KiB | 661.8 KiB | 162.9 KiB | 176.3 KiB |
+| browser ESM (`./browser`) | 612.2 KiB | 660.4 KiB | 162.5 KiB | 176.0 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 217.3 KiB | 229.7 KiB | 55.5 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 475.6 KiB | 515.1 KiB | 124.3 KiB | 135.1 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 476.0 KiB | 515.1 KiB | 124.4 KiB | 135.1 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.1 KiB | 15.5 KiB | 4.0 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.2 KiB | 14.6 KiB | 2.8 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 579.6 KiB | 627.9 KiB | 153.7 KiB | 167.0 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 580.0 KiB | 627.9 KiB | 153.8 KiB | 167.0 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 231.8 KiB | 245.9 KiB | 58.8 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 42.2 KiB | 44.7 KiB | 13.0 KiB | 14.0 KiB |
