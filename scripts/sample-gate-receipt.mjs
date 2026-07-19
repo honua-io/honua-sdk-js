@@ -79,6 +79,18 @@ function invariant(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+// Derived-artifact decoupling (honua-io/honua-sdk-js#677): when this signal is
+// set (PR CI), the evidence-neutral source-digest BINDING is relaxed so gate
+// evidence committed by a prior trunk reseal is accepted without requiring the
+// PR author to reseal against their tree. Everything else -- receipt schema,
+// 7-day freshness, producer/artifact digests, gate semantics, run-root and
+// command bindings -- stays fully enforced. Defaults to strict (fail-closed):
+// trunk pushes and the regenerate-derived-artifacts workflow leave it unset, so
+// the reseal there remains strictly bound to the trunk source digest.
+function derivedArtifactsRelaxed() {
+  return /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "");
+}
+
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
@@ -1465,7 +1477,9 @@ export async function validateGateReceipt(receipt, options = {}) {
   invariant(now < expiresAt, "gate receipt is stale");
 
   const root = options.projectRoot ?? projectRoot;
-  if (options.verifyCheckout !== false) verifyEvidenceNeutralCheckout(receipt.sourceDigest, root, receipt.sourceRevision);
+  if (options.verifyCheckout !== false && !derivedArtifactsRelaxed()) {
+    verifyEvidenceNeutralCheckout(receipt.sourceDigest, root, receipt.sourceRevision);
+  }
   const producerBytes = await readCanonicalBoundedFile(root, receipt.producer.path, {
     label: "gate receipt producer",
     maxBytes: MAX_REPORT_BYTES,
@@ -1481,10 +1495,8 @@ export async function validateGateReceipt(receipt, options = {}) {
 
 export async function validateQualificationReceiptSet(options) {
   const root = options.projectRoot ?? projectRoot;
-  const sourceDigest =
-    options.verifyCheckout === false
-      ? options.sourceDigest
-      : verifyEvidenceNeutralCheckout(options.sourceDigest, root);
+  const relaxed = options.verifyCheckout === false || derivedArtifactsRelaxed();
+  const sourceDigest = relaxed ? options.sourceDigest : verifyEvidenceNeutralCheckout(options.sourceDigest, root);
   const required = requiredReceiptGates(options.profile);
   const directory = path.join(options.receiptRoot, options.sample.id, "receipts");
   let directoryMetadata;
@@ -1539,7 +1551,7 @@ export async function validateQualificationReceiptSet(options) {
       sourceDigest,
       now: options.now,
       projectRoot: root,
-      verifyCheckout: options.verifyCheckout,
+      verifyCheckout: relaxed ? false : options.verifyCheckout,
     });
     const commandKey = canonicalCommand(expectedCommand);
     const group = commandGroups.get(commandKey);
