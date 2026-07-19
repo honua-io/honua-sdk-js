@@ -225,11 +225,15 @@ describe("Honua gRPC discovery (connect-grpc.ts)", () => {
     expect(metadataRecord && "capabilities" in metadataRecord ? metadataRecord.capabilities : []).not.toContain(
       "stream",
     );
-    // queryObjectIds / queryExtent are trusted from metadata alone (no probe
-    // required), exactly as raw GeoServices REST discovery trusts them.
-    expect(metadataRecord && "capabilities" in metadataRecord ? metadataRecord.capabilities : []).toEqual(
-      expect.arrayContaining(["queryObjectIds", "queryExtent"]),
-    );
+    // queryObjectIds / queryExtent / queryAggregate all execute through the same
+    // grpc-web queryFeatures transport the probe just failed on, so they are gated
+    // too — advertising them after a probe failure would be dishonest (#663 follow-up
+    // tracks gRPC-aware pagination for the query path itself).
+    for (const gated of ["queryObjectIds", "queryExtent", "queryAggregate"]) {
+      expect(metadataRecord && "capabilities" in metadataRecord ? metadataRecord.capabilities : []).not.toContain(
+        gated,
+      );
+    }
   });
 
   it("rethrows abort without wrapping when the caller signal fires during the probe", async () => {
