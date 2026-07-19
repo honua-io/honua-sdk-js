@@ -12,11 +12,11 @@ name: Regenerate derived artifacts
 # it reseals sample evidence bound to the trunk source digest and fails loudly
 # if that binding cannot hold.
 #
-# Integrity note: every regenerated output is either excluded from the
-# evidence-neutral source digest (see EVIDENCE_NEUTRAL_EXCLUDED_ROOTS in
-# scripts/sample-gate-receipt.mjs) or is itself the sample evidence / dist
-# projection. Because none of them are inside the digest, resealing against the
-# merge commit stays valid on the regeneration commit this workflow creates.
+# Integrity note: migration generation can update runtime source. The read-only
+# job commits those generated inputs locally before resealing, so the evidence
+# binds to a real ancestor. It then transfers the local commit chain as a bundle
+# to the small write-enabled job, which validates every changed path before it
+# pushes the commits unchanged.
 
 on:
   push:
@@ -27,8 +27,7 @@ concurrency:
   group: derived-artifacts
   cancel-in-progress: false
 
-permissions:
-  contents: write
+permissions: read-all
 
 env:
   NODE_VERSION: "20.19.0"
@@ -38,12 +37,15 @@ jobs:
   regenerate:
     name: Regenerate + reseal on trunk
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.bundle.outputs.changed }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-          # Needed so the commit this job creates can push back to trunk.
-          persist-credentials: true
+          persist-credentials: false
 
       # Loop guard: if the tip commit is this workflow's own regeneration
       # commit, there is nothing to do. This is what makes the commit-back
@@ -108,13 +110,10 @@ jobs:
         if: steps.guard.outputs.skip == 'false'
         run: npm run demo:migration-workbench:artifacts:write
 
-      # Commit the regenerated NON-evidence artifacts FIRST. Most are excluded
-      # from the evidence-neutral digest, but the migration generator also
-      # rewrites examples/migration-workbench/src/generated/migrated-main.js,
-      # which is NOT excluded. Committing before the reseal keeps the working
-      # tree clean for the reseal's evidence-neutral checkout and makes the
-      # reseal bind to the tree that includes these regenerated inputs.
-      - name: Commit regenerated derived artifacts
+      # Create the non-evidence commit locally in this read-only job. The
+      # migration generator can update runtime source, so this commit must be a
+      # real ancestor of the evidence commit rather than being squashed later.
+      - name: Stage and commit regenerated inputs locally
         id: derived
         if: steps.guard.outputs.skip == 'false'
         shell: bash
@@ -122,7 +121,27 @@ jobs:
           set -euo pipefail
           git config user.name "Mike McDougall"
           git config user.email "mike@honua.io"
-          git add -A
+          git add -A -- \
+            api-report \
+            bench/cross-sdk/corpus.json \
+            docs/bundle-sizes.md \
+            docs/comparison.md \
+            docs/errors.md \
+            llms.txt \
+            llms-full.txt \
+            examples/migration-workbench/public/artifacts \
+            examples/migration-workbench/src/generated
+          if ! git diff --quiet; then
+            echo "A derived-artifact generator modified unexpected tracked content:"
+            git status --short
+            exit 1
+          fi
+          unexpected_untracked="$(git ls-files --others --exclude-standard)"
+          if [[ -n "$unexpected_untracked" ]]; then
+            echo "A derived-artifact generator created unexpected untracked content:"
+            printf '%s\n' "$unexpected_untracked"
+            exit 1
+          fi
           if git diff --cached --quiet; then
             echo "No derived-artifact changes to commit."
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -143,36 +162,130 @@ jobs:
         if: steps.guard.outputs.skip == 'false'
         run: npm run samples:generate
 
-      # Commit the resealed evidence + dist as a SEPARATE child commit. The
-      # evidence's sourceRevision is the prior commit (the derived commit, or the
-      # merge commit if nothing needed regenerating); keeping it a real ancestor
-      # in history -- rather than amending -- avoids leaving sourceRevision on a
-      # dangling object that GC could later remove.
-      - name: Commit and push resealed evidence
+      # Commit resealed evidence locally as a separate child commit. Its
+      # sourceRevision points at the preceding generated-input commit (or the
+      # original trunk commit when no generated input changed), so preserving
+      # this chain avoids a dangling evidence revision.
+      - name: Stage and commit resealed evidence locally
         if: steps.guard.outputs.skip == 'false'
         shell: bash
         run: |
           set -euo pipefail
-          git add -A
-          if git diff --cached --quiet && [ "${{ steps.derived.outputs.changed }}" != "true" ]; then
-            echo "Nothing to regenerate or reseal; exiting cleanly."
-            exit 0
+          git add -A -- \
+            samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json \
+            samples/dist \
+            samples/evidence/maplibre-quickstart
+          if ! git diff --quiet; then
+            echo "Evidence regeneration modified unexpected tracked content:"
+            git status --short
+            exit 1
+          fi
+          unexpected_untracked="$(git ls-files --others --exclude-standard)"
+          if [[ -n "$unexpected_untracked" ]]; then
+            echo "Evidence regeneration created unexpected untracked content:"
+            printf '%s\n' "$unexpected_untracked"
+            exit 1
           fi
           if ! git diff --cached --quiet; then
             git commit -m "$REGEN_MARKER (evidence) for $(git rev-parse --short HEAD)"
           fi
 
-          # Integrity self-check: the strict sample-publication contract must
-          # pass on the regeneration commits (evidence is now bound to the trunk
-          # digest). Excluded-path changes do not alter the non-excluded digest,
-          # so evidence sealed against the derived commit still verifies here.
-          npm run samples:verify
+      - name: Verify regenerated artifacts strictly
+        if: steps.guard.outputs.skip == 'false'
+        run: npm run samples:verify
 
-          # Land it. Rebase in case another trunk push raced us (serialized by
-          # the concurrency group, but a manual push could still interleave).
-          git push origin "HEAD:trunk" || {
-            git fetch origin trunk
-            git rebase origin/trunk
-            npm run samples:verify
-            git push origin "HEAD:trunk"
-          }
+      - name: Bundle local regeneration commits
+        id: bundle
+        if: steps.guard.outputs.skip == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]; then
+            echo "Nothing to regenerate or reseal."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git update-ref refs/heads/derived-artifacts-output HEAD
+          git bundle create derived-artifacts.bundle \
+            refs/heads/derived-artifacts-output "^$GITHUB_SHA"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload local regeneration commits
+        if: steps.bundle.outputs.changed == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: derived-artifacts-bundle
+          path: derived-artifacts.bundle
+          if-no-files-found: error
+
+  commit-and-validate:
+    name: Push artifacts + dispatch strict validation
+    needs: regenerate
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Download local regeneration commits
+        if: needs.regenerate.outputs.changed == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: derived-artifacts-bundle
+          path: .derived-artifacts-bundle
+
+      - name: Validate and push regeneration commits
+        if: needs.regenerate.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch .derived-artifacts-bundle/derived-artifacts.bundle \
+            refs/heads/derived-artifacts-output:refs/remotes/artifacts/generated
+          generated="$(git rev-parse refs/remotes/artifacts/generated)"
+          git merge-base --is-ancestor "$GITHUB_SHA" "$generated"
+          commit_count="$(git rev-list --count "$GITHUB_SHA..$generated")"
+          if (( commit_count < 1 || commit_count > 2 )); then
+            echo "Expected one or two regeneration commits, found $commit_count."
+            exit 1
+          fi
+          while IFS= read -r subject; do
+            if [[ "$subject" != "$REGEN_MARKER"* ]]; then
+              echo "Unexpected regeneration commit subject: $subject"
+              exit 1
+            fi
+          done < <(git log --format=%s "$GITHUB_SHA..$generated")
+          while IFS= read -r changed_path; do
+            case "$changed_path" in
+              api-report/* | \
+              bench/cross-sdk/corpus.json | \
+              docs/bundle-sizes.md | docs/comparison.md | docs/errors.md | \
+              llms.txt | llms-full.txt | \
+              examples/migration-workbench/public/artifacts/* | \
+              examples/migration-workbench/src/generated/* | \
+              samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
+              samples/dist/* | samples/evidence/maplibre-quickstart/*)
+                ;;
+              *)
+                echo "Regeneration bundle contains an unexpected path: $changed_path"
+                exit 1
+                ;;
+            esac
+          done < <(git diff --name-only "$GITHUB_SHA..$generated")
+          # Fail closed if trunk advanced while generation ran. The newer push
+          # starts its own serialized regeneration from the fresh trunk tip.
+          git push origin "$generated:refs/heads/trunk"
+
+      # GITHUB_TOKEN pushes do not trigger ordinary push workflows.
+      # workflow_dispatch is the supported exception, so validate the current
+      # trunk tip explicitly; release branches remain strict by construction.
+      - name: Dispatch strict CI and docs validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref trunk
+          gh workflow run docs-site.yml --repo "$GITHUB_REPOSITORY" --ref trunk

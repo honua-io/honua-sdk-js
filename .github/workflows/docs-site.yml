@@ -64,7 +64,7 @@ jobs:
     # commit that lands before regeneration must not fail these freshness gates,
     # so they run relaxed here.
     env:
-      HONUA_DERIVED_ARTIFACTS_RELAX: "1"
+      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ github.event_name == 'push' && github.ref == 'refs/heads/trunk' && '1' || '' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:

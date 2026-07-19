@@ -9,6 +9,7 @@ on:
     branches:
       - trunk
       - "release/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -21,6 +22,8 @@ jobs:
     name: PR Fast (under 2 minutes)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ github.base_ref == 'trunk' && '1' || '' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -78,10 +81,11 @@ jobs:
     # Derived-artifact decoupling (#677): the cross-SDK corpus' Honua
     # source-tree pin is regenerated on trunk by the
     # regenerate-derived-artifacts workflow, so ci.yml tolerates a lagging pin
-    # here (every other corpus binding stays enforced). The trunk workflow is
-    # the strict authority that re-binds the pin.
+    # only on trunk PRs and the initial trunk push (every other corpus binding
+    # stays enforced). Release branches and post-regeneration dispatches remain
+    # strict; the trunk workflow is the authority that re-binds the pin.
     env:
-      HONUA_DERIVED_ARTIFACTS_RELAX: "1"
+      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk') && '1' || '' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
@@ -114,12 +118,13 @@ jobs:
       # Derived-artifact decoupling (#677): every gate that binds committed
       # generated artifacts to the working tree (sample-publication contract,
       # llms/comparison/api freshness, migration-workbench artifacts) runs in
-      # relaxed mode here. Feature PRs no longer reseal/regenerate; the
-      # regenerate-derived-artifacts workflow re-establishes the strict binding
-      # on trunk post-merge. Functional gates (typecheck/build/test, kit
+      # relaxed mode only for trunk PRs and the initial trunk push. Release
+      # branches stay strict. Feature PRs no longer reseal/regenerate; the
+      # regenerate-derived-artifacts workflow re-establishes the binding and
+      # dispatches this workflow in strict mode on trunk post-merge. Functional gates (typecheck/build/test, kit
       # qualification from source and packed SDK, verify:bundle-budgets) are
       # unaffected and still fail a PR that genuinely breaks a sample.
-      HONUA_DERIVED_ARTIFACTS_RELAX: "1"
+      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk') && '1' || '' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
