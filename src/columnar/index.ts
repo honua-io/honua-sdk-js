@@ -2,17 +2,67 @@
  * Dependency-free columnar batch and worker-transfer contracts exported by
  * `@honua/sdk-js/query-planner` for large geospatial results.
  *
- * The Honua envelope can carry buffers and metadata from Arrow/GeoArrow
- * adapters without importing an Arrow implementation; it does not define a
- * standalone Arrow layout. Transfers expose exact backing-allocation and
- * payload-copy metrics, deduplicate shared backing buffers, enforce conservative default
- * ceilings, and use a one-owner lease with deterministic cancellation,
- * acknowledgement, error, and disposal behavior.
+ * The Honua envelope includes a normative dependency-free GeoArrow 0.2 mapping
+ * without importing an Arrow implementation. Transfers expose exact
+ * backing-allocation and payload-copy metrics, deduplicate shared backing
+ * buffers, enforce conservative default ceilings, and use a one-owner lease
+ * with deterministic cancellation, acknowledgement, error, and disposal
+ * behavior.
  *
  * @experimental
  */
 
 export { ColumnarBatchLease, createColumnarBatch, inspectColumnarBatch, leaseColumnarBatch } from "./transfer.js";
+export { fromApacheArrowRecordBatch, loadApacheArrow, toApacheArrowRecordBatch } from "./apache-arrow.js";
+export { createGeoArrowBatch, decodeGeoArrowBatch, inspectGeoArrowBatch } from "./geoarrow.js";
+export {
+  GEOARROW_SPEC_VERSION,
+  HONUA_GEOARROW_LAYOUT_VERSION,
+  HonuaGeoArrowError,
+} from "./geoarrow-types.js";
+export type {
+  ApacheArrowAdapterMetrics,
+  ApacheArrowAdapterOptions,
+  ApacheArrowDataLike,
+  ApacheArrowFieldLike,
+  ApacheArrowModuleImporter,
+  ApacheArrowModuleLike,
+  ApacheArrowRecordBatchLike,
+  ApacheArrowRecordBatchResult,
+  ApacheArrowTypeLike,
+  ApacheArrowVectorLike,
+  CreateGeoArrowBatchInput,
+  CreatedGeoArrowBatch,
+  DecodedGeoArrowBatch,
+  DecodedGeoArrowRow,
+  GeoArrowBatchInspection,
+  GeoArrowConversionLimits,
+  GeoArrowConversionMetrics,
+  GeoArrowCoordinateLayout,
+  GeoArrowCrs,
+  GeoArrowDictionaryBuffers,
+  GeoArrowDictionaryColumnInput,
+  GeoArrowDimensions,
+  GeoArrowEdges,
+  GeoArrowFeatureIdColumnInput,
+  GeoArrowGeometryBuffers,
+  GeoArrowGeometryColumnInput,
+  GeoArrowGeometryKind,
+  GeoArrowLineString,
+  GeoArrowLineStringColumnInput,
+  GeoArrowPoint,
+  GeoArrowPointColumnInput,
+  GeoArrowPolygon,
+  GeoArrowPolygonColumnInput,
+  GeoArrowPosition,
+  GeoArrowTemporalBuffers,
+  GeoArrowTemporalColumnInput,
+  GeoArrowTimestampUnit,
+  FromApacheArrowRecordBatchOptions,
+  GeoArrowBatchFromApacheResult,
+  HonuaGeoArrowErrorCode,
+  LoadApacheArrowOptions,
+} from "./geoarrow-types.js";
 export {
   COLUMNAR_WORKER_CANCEL_KIND,
   COLUMNAR_WORKER_ERROR_KIND,
@@ -60,12 +110,16 @@ export {
 } from "./types.js";
 export type {
   ColumnarBatchLeaseState,
+  ColumnarBatchIdentityV1,
   ColumnarBatchLimits,
   ColumnarBatchMetrics,
   ColumnarBatchV1,
   ColumnarBufferRole,
   ColumnarBufferV1,
   ColumnarFieldV1,
+  ColumnarFreshnessV1,
+  ColumnarOrderingKeyV1,
+  ColumnarOrderingV1,
   ColumnarSchemaV1,
   ColumnarTransferErrorCode,
   ColumnarTransferMessageV1,

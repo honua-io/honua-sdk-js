@@ -63,6 +63,50 @@ export interface ColumnarBufferV1 {
   readonly byteLength: number;
 }
 
+/** One deterministic sort key carried with a batch identity. */
+export interface ColumnarOrderingKeyV1 {
+  readonly field: string;
+  readonly direction: "ascending" | "descending";
+  readonly nulls: "first" | "last";
+}
+
+/**
+ * Ordering contract for pagination, cache reuse, renderer picking, and
+ * deterministic reconstruction after a worker transfer.
+ */
+export interface ColumnarOrderingV1 {
+  readonly stable: boolean;
+  readonly keys: readonly ColumnarOrderingKeyV1[];
+}
+
+/** Freshness validators captured when the producing source was observed. */
+export interface ColumnarFreshnessV1 {
+  /** RFC 3339 instant at which the source result was observed. */
+  readonly observedAt: string;
+  /** RFC 3339 instant after which the batch must be revalidated. */
+  readonly staleAfter?: string;
+  /** Opaque source validator, such as an HTTP ETag. */
+  readonly validator?: string;
+  /** Opaque monotonic source generation or revision. */
+  readonly generation?: string;
+}
+
+/**
+ * Identity required to safely reuse or render a columnar batch.
+ *
+ * `authorizationScope` is an opaque, non-secret scope fingerprint. Producers
+ * must never place a bearer token, API key, cookie, or credential in it.
+ */
+export interface ColumnarBatchIdentityV1 {
+  readonly sourceId: string;
+  readonly sourceVersion: string;
+  readonly schemaVersion: string;
+  readonly planId: string;
+  readonly authorizationScope: string;
+  readonly ordering: ColumnarOrderingV1;
+  readonly freshness: ColumnarFreshnessV1;
+}
+
 /** Input accepted by {@link createColumnarBatch}. */
 export interface CreateColumnarBatchInput {
   readonly id: string;
@@ -70,6 +114,8 @@ export interface CreateColumnarBatchInput {
   readonly rowCount: number;
   readonly sequence: number;
   readonly rowOffset?: number;
+  /** Cache/auth/order/freshness identity; required by normative adapters. */
+  readonly identity?: ColumnarBatchIdentityV1;
   readonly buffers: readonly ColumnarBufferV1[];
 }
 
