@@ -108,6 +108,29 @@ jobs:
         if: steps.guard.outputs.skip == 'false'
         run: npm run demo:migration-workbench:artifacts:write
 
+      # Commit the regenerated NON-evidence artifacts FIRST. Most are excluded
+      # from the evidence-neutral digest, but the migration generator also
+      # rewrites examples/migration-workbench/src/generated/migrated-main.js,
+      # which is NOT excluded. Committing before the reseal keeps the working
+      # tree clean for the reseal's evidence-neutral checkout and makes the
+      # reseal bind to the tree that includes these regenerated inputs.
+      - name: Commit regenerated derived artifacts
+        id: derived
+        if: steps.guard.outputs.skip == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Mike McDougall"
+          git config user.email "mike@honua.io"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No derived-artifact changes to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git commit -m "$REGEN_MARKER for $(git rev-parse --short HEAD)"
+
       # Reseal sample evidence against the current trunk source digest, then
       # project the dist artifacts from the fresh receipts. Runs STRICT (no
       # HONUA_DERIVED_ARTIFACTS_RELAX): captureGateSourceSnapshot verifies the
@@ -120,25 +143,29 @@ jobs:
         if: steps.guard.outputs.skip == 'false'
         run: npm run samples:generate
 
-      - name: Commit and push regenerated artifacts
+      # Commit the resealed evidence + dist as a SEPARATE child commit. The
+      # evidence's sourceRevision is the prior commit (the derived commit, or the
+      # merge commit if nothing needed regenerating); keeping it a real ancestor
+      # in history -- rather than amending -- avoids leaving sourceRevision on a
+      # dangling object that GC could later remove.
+      - name: Commit and push resealed evidence
         if: steps.guard.outputs.skip == 'false'
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "Mike McDougall"
-          git config user.email "mike@honua.io"
           git add -A
-          if git diff --cached --quiet; then
-            echo "No derived-artifact changes to commit."
+          if git diff --cached --quiet && [ "${{ steps.derived.outputs.changed }}" != "true" ]; then
+            echo "Nothing to regenerate or reseal; exiting cleanly."
             exit 0
           fi
-          sha="$(git rev-parse --short HEAD)"
-          git commit -m "$REGEN_MARKER for $sha"
+          if ! git diff --cached --quiet; then
+            git commit -m "$REGEN_MARKER (evidence) for $(git rev-parse --short HEAD)"
+          fi
 
-          # Integrity self-check: strict sample-publication contract must pass on
-          # the regeneration commit (evidence is now bound to the trunk digest).
-          # Excluded-path changes do not alter the non-excluded digest, so
-          # evidence sealed against the merge commit still verifies here.
+          # Integrity self-check: the strict sample-publication contract must
+          # pass on the regeneration commits (evidence is now bound to the trunk
+          # digest). Excluded-path changes do not alter the non-excluded digest,
+          # so evidence sealed against the derived commit still verifies here.
           npm run samples:verify
 
           # Land it. Rebase in case another trunk push raced us (serialized by
