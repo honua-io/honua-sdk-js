@@ -1526,7 +1526,7 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-19 at commit `ac0685c0`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-19 at commit `5c5b6b57`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -3597,14 +3597,36 @@ behalf, so application code enqueuing events directly against
 lower-level, transport-neutral building block for callers that want to own
 reconnect themselves.
 
+## OData v4 delta-link pull adapter (#558)
+
+`createOdataDeltaTransport` (`src/realtime/odata-delta.ts`) is a pull-based
+`RealtimeFeatureTransport`, not a socket transport: it polls an OData v4
+entity set's `@odata.deltaLink` on a caller-configured interval instead of
+holding an open connection. It follows `@odata.nextLink` pages to establish
+an initial snapshot (sending `Prefer: odata.track-changes`), then polls the
+resulting delta link, normalizing `@removed` / `@odata.removed` entries into
+deletes and failing explicitly — rather than silently dropping or
+misreading them — on OData relationship (link) delta entries, which are out
+of scope. Every `@odata.nextLink` / `@odata.deltaLink` it follows, and any
+resumed `resumeFrom.deltaToken`, must resolve to the exact origin and
+collection path it was configured for; a foreign link is rejected instead of
+followed. An expired or rejected delta link (HTTP 410 by default, overridable
+via `isDeltaLinkExpiredResponse`) is recovered by re-running a full snapshot
+cycle — an explicit resnapshot, bounded by `maxConsecutiveResnapshots` so a
+server that keeps rejecting the token cannot loop forever. See
+[`docs/realtime-subscriptions.md`](realtime-subscriptions.md#odata-v4-delta-link-pull-adapter-558)
+for the honesty model behind its `capabilities.kind: "polling"` /
+`onPoll` telemetry, and why it does not compose with
+`resumable-transport.ts`'s reconnect wrapper.
+
 ## Scope and remaining work
 
 This is the first production slice of issue
 [#393](https://github.com/honua-io/honua-sdk-js/issues/393), not completion of
 the full workstream. It does not claim:
 
-- OData-delta or protocol-feed reconnection (SSE and WebSocket reconnection
-  are covered by `resumable-transport.ts`, #557);
+- protocol-feed reconnection beyond SSE, WebSocket (`resumable-transport.ts`,
+  #557), and OData delta-link polling (`odata-delta.ts`, #558);
 - cursor-only protocol adaptation where no trustworthy ordering sequence is
   available;
 - server support for cursor retention or expiry negotiation;
@@ -8039,7 +8061,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-19 at commit `ac0685c0`._
+_Generated 2026-07-19 at commit `5c5b6b57`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -8054,7 +8076,7 @@ _Generated 2026-07-19 at commit `ac0685c0`._
 | `/agent-safety` | 66.5 KiB | 73.2 KiB | 18.6 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.3 KiB | 84.5 KiB | 22.7 KiB | 25.3 KiB |
 | `/runtime` | 532.4 KiB | 550.7 KiB | 143.1 KiB | 147.5 KiB |
-| `/realtime` | 53.6 KiB | 59.0 KiB | 15.4 KiB | 16.9 KiB |
+| `/realtime` | 61.2 KiB | 67.3 KiB | 17.8 KiB | 19.5 KiB |
 | `/offline` | 38.1 KiB | 44.3 KiB | 11.3 KiB | 13.2 KiB |
 | `/query-planner` (worker runtime injected) | 581.1 KiB | 638.9 KiB | 118.2 KiB | 129.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 94.2 KiB | 100.0 KiB | 29.0 KiB | 30.8 KiB |
