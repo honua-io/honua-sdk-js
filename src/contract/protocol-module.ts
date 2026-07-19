@@ -3,9 +3,10 @@
  *
  * `RendererAdapter` (`src/kernel/renderer.ts`) is the accepted, plain,
  * injectable seam every mounted renderer satisfies — first-party
- * (`maplibreRenderer`) and out-of-tree (an external OpenLayers plugin, issue
- * #566) alike — without the kernel importing the plugin SDK or maintaining a
- * privileged construction path. `ProtocolModule` is the equivalent minimal
+ * (`maplibreRenderer`) and an external, non-Web-Mercator renderer plugin
+ * (issue #566) alike — without the kernel importing the plugin SDK or
+ * maintaining a privileged construction path. `ProtocolModule` is the
+ * equivalent minimal
  * seam for a `Source.protocol(...)` escape-hatch adapter: discovery, the
  * capability set it advertises for a descriptor, diagnostics, and
  * disposal. `compile`/`execute` are intentionally absent from this first
