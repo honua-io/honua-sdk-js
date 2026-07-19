@@ -1,0 +1,151 @@
+name: Regenerate derived artifacts
+
+# Derived-artifact decoupling (honua-io/honua-sdk-js#677).
+#
+# Feature PRs no longer regenerate or reseal the shared generated-artifact set
+# (sample evidence, samples/dist, consumer fixtures, bench corpus,
+# docs/bundle-sizes.md, llms*.txt, docs/comparison.md, docs/errors.md,
+# api-report, migration-workbench artifacts). Those outputs are regenerated
+# HERE, once, after each relevant trunk merge, and committed back to trunk. PR
+# CI runs the corresponding gates in relaxed mode (HONUA_DERIVED_ARTIFACTS_RELAX)
+# and this workflow is the strict authority that re-establishes reproducibility:
+# it reseals sample evidence bound to the trunk source digest and fails loudly
+# if that binding cannot hold.
+#
+# Integrity note: every regenerated output is either excluded from the
+# evidence-neutral source digest (see EVIDENCE_NEUTRAL_EXCLUDED_ROOTS in
+# scripts/sample-gate-receipt.mjs) or is itself the sample evidence / dist
+# projection. Because none of them are inside the digest, resealing against the
+# merge commit stays valid on the regeneration commit this workflow creates.
+
+on:
+  push:
+    branches:
+      - trunk
+
+concurrency:
+  group: derived-artifacts
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "20.19.0"
+  REGEN_MARKER: "chore(evidence): regenerate derived artifacts"
+
+jobs:
+  regenerate:
+    name: Regenerate + reseal on trunk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          # Needed so the commit this job creates can push back to trunk.
+          persist-credentials: true
+
+      # Loop guard: if the tip commit is this workflow's own regeneration
+      # commit, there is nothing to do. This is what makes the commit-back
+      # safe against infinite self-triggering.
+      - name: Skip if tip is a regeneration commit
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          subject="$(git log -1 --format=%s)"
+          if [[ "$subject" == "$REGEN_MARKER"* ]]; then
+            echo "Tip commit is a regeneration commit; nothing to regenerate."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node.js
+        if: steps.guard.outputs.skip == 'false'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        if: steps.guard.outputs.skip == 'false'
+        run: npm ci
+
+      - name: Install Playwright browser
+        if: steps.guard.outputs.skip == 'false'
+        run: npx playwright install --with-deps chromium
+
+      - name: Build SDK
+        if: steps.guard.outputs.skip == 'false'
+        run: npm run build
+
+      # Regenerate source-derived artifacts. All of these paths are excluded
+      # from the evidence-neutral source digest, so producing them here does not
+      # perturb the reseal below. Order mirrors the historical manual recipe.
+      - name: Regenerate public API report and error codes
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          npm run report:api
+          npm run docs:error-codes
+
+      - name: Regenerate cross-SDK benchmark corpus source-tree pin
+        if: steps.guard.outputs.skip == 'false'
+        run: npm run bench:references:source-tree:write
+
+      - name: Regenerate bundle-size report
+        if: steps.guard.outputs.skip == 'false'
+        run: npm run report:bundle-sizes
+
+      - name: Regenerate llms.txt and comparison page
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          npm run docs:llms
+          npm run docs:comparison
+
+      - name: Regenerate migration-workbench artifacts
+        if: steps.guard.outputs.skip == 'false'
+        run: npm run demo:migration-workbench:artifacts:write
+
+      # Reseal sample evidence against the current trunk source digest, then
+      # project the dist artifacts from the fresh receipts. Runs STRICT (no
+      # HONUA_DERIVED_ARTIFACTS_RELAX): captureGateSourceSnapshot verifies the
+      # evidence-neutral checkout, so a binding that cannot hold fails the job.
+      - name: Reseal sample evidence
+        if: steps.guard.outputs.skip == 'false'
+        run: npm run samples:run -- evidence --sample maplibre-quickstart --allow-live
+
+      - name: Regenerate sample dist projections
+        if: steps.guard.outputs.skip == 'false'
+        run: npm run samples:generate
+
+      - name: Commit and push regenerated artifacts
+        if: steps.guard.outputs.skip == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Mike McDougall"
+          git config user.email "mike@honua.io"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No derived-artifact changes to commit."
+            exit 0
+          fi
+          sha="$(git rev-parse --short HEAD)"
+          git commit -m "$REGEN_MARKER for $sha"
+
+          # Integrity self-check: strict sample-publication contract must pass on
+          # the regeneration commit (evidence is now bound to the trunk digest).
+          # Excluded-path changes do not alter the non-excluded digest, so
+          # evidence sealed against the merge commit still verifies here.
+          npm run samples:verify
+
+          # Land it. Rebase in case another trunk push raced us (serialized by
+          # the concurrency group, but a manual push could still interleave).
+          git push origin "HEAD:trunk" || {
+            git fetch origin trunk
+            git rebase origin/trunk
+            npm run samples:verify
+            git push origin "HEAD:trunk"
+          }

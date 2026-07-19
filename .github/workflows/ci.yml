@@ -75,6 +75,13 @@ jobs:
   benchmark-lab:
     name: Deterministic Benchmark Lab
     runs-on: ubuntu-latest
+    # Derived-artifact decoupling (#677): the cross-SDK corpus' Honua
+    # source-tree pin is regenerated on trunk by the
+    # regenerate-derived-artifacts workflow, so ci.yml tolerates a lagging pin
+    # here (every other corpus binding stays enforced). The trunk workflow is
+    # the strict authority that re-binds the pin.
+    env:
+      HONUA_DERIVED_ARTIFACTS_RELAX: "1"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
@@ -104,6 +111,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HONUA_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      # Derived-artifact decoupling (#677): every gate that binds committed
+      # generated artifacts to the working tree (sample-publication contract,
+      # llms/comparison/api freshness, migration-workbench artifacts) runs in
+      # relaxed mode here. Feature PRs no longer reseal/regenerate; the
+      # regenerate-derived-artifacts workflow re-establishes the strict binding
+      # on trunk post-merge. Functional gates (typecheck/build/test, kit
+      # qualification from source and packed SDK, verify:bundle-budgets) are
+      # unaffected and still fail a PR that genuinely breaks a sample.
+      HONUA_DERIVED_ARTIFACTS_RELAX: "1"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -482,8 +498,8 @@ jobs:
       - name: Package release assets
         run: |
           set -euo pipefail
-          sample_dirs=$(node -e "const m=require('./dist/sample-bundles/sample-bundles.v1.json'); console.log(m.samples.map((s) => s.id).join(' '))")
-          tar -czf dist/sample-bundles/sample-bundles.tar.gz -C dist/sample-bundles $sample_dirs
+          sample_dirs=$(node -e "const m=require('./.artifacts/sample-bundles/sample-bundles.v1.json'); console.log(m.samples.map((s) => s.id).join(' '))")
+          tar -czf .artifacts/sample-bundles/sample-bundles.tar.gz -C .artifacts/sample-bundles $sample_dirs
 
       - name: Publish rolling GitHub Release
         env:
@@ -500,6 +516,6 @@ jobs:
               --title "Sample bundles (latest trunk build)" --notes "$notes"
           fi
           gh release upload sample-bundles-latest -R "$repo" \
-            dist/sample-bundles/sample-bundles.v1.json \
-            dist/sample-bundles/sample-bundles.tar.gz \
+            .artifacts/sample-bundles/sample-bundles.v1.json \
+            .artifacts/sample-bundles/sample-bundles.tar.gz \
             --clobber

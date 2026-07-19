@@ -414,7 +414,20 @@ export async function validateCrossSdkReferenceFiles(
         cwd: root,
         encoding: "utf8",
       }).trim();
-      if (actual !== reference.package.sourceTree.gitTree) fail(`${reference.id} source tree revision mismatch`);
+      // Derived-artifact decoupling (honua-io/honua-sdk-js#677): the corpus'
+      // Honua source-tree pin is a DERIVED value regenerated on trunk by
+      // bench:references:source-tree:write. Every other binding here (fixture
+      // digests, lockfile integrity, license content, restricted-terms review)
+      // stays enforced. At PR time (relax signal set) a pin that lags the
+      // working tree is tolerated because src/ itself is still gated by the
+      // functional benchmark run and the wider PR suite; the pin is re-bound
+      // strictly on trunk.
+      if (
+        actual !== reference.package.sourceTree.gitTree &&
+        !/^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "")
+      ) {
+        fail(`${reference.id} source tree revision mismatch`);
+      }
     }
   }
   const termsReview = record(
