@@ -13,6 +13,7 @@
  */
 
 export { ColumnarBatchLease, createColumnarBatch, inspectColumnarBatch, leaseColumnarBatch } from "./transfer.js";
+export { fromApacheArrowRecordBatch, loadApacheArrow, toApacheArrowRecordBatch } from "./apache-arrow.js";
 export { createGeoArrowBatch, decodeGeoArrowBatch, inspectGeoArrowBatch } from "./geoarrow.js";
 export {
   GEOARROW_SPEC_VERSION,
@@ -20,6 +21,16 @@ export {
   HonuaGeoArrowError,
 } from "./geoarrow-types.js";
 export type {
+  ApacheArrowAdapterMetrics,
+  ApacheArrowAdapterOptions,
+  ApacheArrowDataLike,
+  ApacheArrowFieldLike,
+  ApacheArrowModuleImporter,
+  ApacheArrowModuleLike,
+  ApacheArrowRecordBatchLike,
+  ApacheArrowRecordBatchResult,
+  ApacheArrowTypeLike,
+  ApacheArrowVectorLike,
   CreateGeoArrowBatchInput,
   CreatedGeoArrowBatch,
   DecodedGeoArrowBatch,
@@ -47,7 +58,10 @@ export type {
   GeoArrowTemporalBuffers,
   GeoArrowTemporalColumnInput,
   GeoArrowTimestampUnit,
+  FromApacheArrowRecordBatchOptions,
+  GeoArrowBatchFromApacheResult,
   HonuaGeoArrowErrorCode,
+  LoadApacheArrowOptions,
 } from "./geoarrow-types.js";
 export {
   COLUMNAR_WORKER_CANCEL_KIND,
