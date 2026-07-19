@@ -213,8 +213,15 @@ import {
 } from "@honua/app-platform/scene-workspace";
 import { HonuaMap, mountSourceToMapLibre } from "@honua/sdk/map";
 import { HONUA_OFFLINE_REGION_VERSION, planOfflineRegionAdmission } from "@honua/sdk/offline";
-import { createColumnarBatch, explainQuery, inspectColumnarBatch } from "@honua/sdk/query-planner";
-import { DECK_GL_ADAPTER_CONTRACT_VERSION } from "@honua/sdk/deckgl";
+import {
+  HONUA_GEOARROW_LAYOUT_VERSION,
+  createColumnarBatch,
+  createGeoArrowBatch,
+  decodeGeoArrowBatch,
+  explainQuery,
+  inspectColumnarBatch,
+} from "@honua/sdk/query-planner";
+import { DECK_GL_ADAPTER_CONTRACT_VERSION, bindGeoArrowPointBatchToDeckGl } from "@honua/sdk/deckgl";
 import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import {
@@ -693,6 +700,30 @@ if (typeof createColumnarBatch !== "function" || typeof inspectColumnarBatch !==
 }
 if (DECK_GL_ADAPTER_CONTRACT_VERSION !== "1.0")
   throw new Error("DECK_GL_ADAPTER_CONTRACT_VERSION export missing from @honua/sdk/deckgl");
+{
+  const schemaId = "geoarrow-split-smoke@1";
+  const { batch } = createGeoArrowBatch({
+    id: "geoarrow-split-smoke",
+    sequence: 0,
+    schemaId,
+    identity: {
+      sourceId: "split-smoke",
+      sourceVersion: "1",
+      schemaVersion: schemaId,
+      planId: "plan:split-smoke",
+      authorizationScope: "auth-scope:split-smoke",
+      ordering: { stable: true, keys: [{ field: "id", direction: "ascending", nulls: "last" }] },
+      freshness: { observedAt: "2026-07-15T12:00:00Z" },
+    },
+    geometry: { kind: "point", coordinateLayout: "interleaved", crs: "OGC:CRS84", values: [[-157.86, 21.31]] },
+    featureIds: { field: "id", values: new Uint32Array([1]) },
+  });
+  if (HONUA_GEOARROW_LAYOUT_VERSION !== "1.0" || decodeGeoArrowBatch(batch).rows.length !== 1)
+    throw new Error("normative GeoArrow exports missing from @honua/sdk/query-planner");
+  const binding = bindGeoArrowPointBatchToDeckGl({ batch, layerId: "split-smoke" });
+  if (binding.metrics.copiedBytes !== 0 || binding.request.data.attributes.getPosition.value.buffer !== batch.buffers[0].data)
+    throw new Error("@honua/sdk/deckgl direct GeoArrow path introduced a payload copy");
+}
 const styleSpecDiagnostics = await validateRuntimeStyleSpec({
   version: 8,
   sources: {},
