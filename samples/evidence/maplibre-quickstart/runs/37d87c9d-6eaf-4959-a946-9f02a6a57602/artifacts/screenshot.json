@@ -1,7 +1,7 @@
 {
   "format": "honua.sdk.sample-screenshot-gate.v3",
   "sampleId": "maplibre-quickstart",
-  "sourceRevision": "4f0b035c74084eebd7fed2458a5bee27fe737179",
+  "sourceRevision": "71c765bba9746b34a0e4d432cc5a1e31dfaf816b",
   "command": [
     "npm",
     "run",
@@ -47,15 +47,15 @@
         "width": 1280,
         "height": 720
       },
-      "path": "samples/evidence/maplibre-quickstart/runs/c43f1c3c-3503-49e5-a4e1-2242afd09070/artifacts/screenshot-desktop.png",
-      "bytes": 100672,
-      "sha256": "27f5d4cb405891180c48fb82502bb97ce6180385ec004a45218898b65656df82",
+      "path": "samples/evidence/maplibre-quickstart/runs/37d87c9d-6eaf-4959-a946-9f02a6a57602/artifacts/screenshot-desktop.png",
+      "bytes": 100305,
+      "sha256": "04baab5f5914072d964f30643698ed5d354f6125260effb49fdda779afc9f1d8",
       "reproducibility": {
         "captureCount": 2,
         "comparison": "byte-identical",
-        "repeatPath": "samples/evidence/maplibre-quickstart/runs/c43f1c3c-3503-49e5-a4e1-2242afd09070/artifacts/screenshot-desktop-repeat.png",
-        "repeatBytes": 100672,
-        "repeatSha256": "27f5d4cb405891180c48fb82502bb97ce6180385ec004a45218898b65656df82"
+        "repeatPath": "samples/evidence/maplibre-quickstart/runs/37d87c9d-6eaf-4959-a946-9f02a6a57602/artifacts/screenshot-desktop-repeat.png",
+        "repeatBytes": 100305,
+        "repeatSha256": "04baab5f5914072d964f30643698ed5d354f6125260effb49fdda779afc9f1d8"
       }
     },
     {
@@ -66,15 +66,15 @@
         "width": 390,
         "height": 844
       },
-      "path": "samples/evidence/maplibre-quickstart/runs/c43f1c3c-3503-49e5-a4e1-2242afd09070/artifacts/screenshot-mobile.png",
-      "bytes": 66775,
-      "sha256": "a689936be53ce9459d0776c2d94a9ef046ac699f52994a37ca0c3c33b386512b",
+      "path": "samples/evidence/maplibre-quickstart/runs/37d87c9d-6eaf-4959-a946-9f02a6a57602/artifacts/screenshot-mobile.png",
+      "bytes": 66270,
+      "sha256": "376f8517530515e9de21aca920afb6b6cb1c8d00bbf8ad9fafdc5d45deaaff8d",
       "reproducibility": {
         "captureCount": 2,
         "comparison": "byte-identical",
-        "repeatPath": "samples/evidence/maplibre-quickstart/runs/c43f1c3c-3503-49e5-a4e1-2242afd09070/artifacts/screenshot-mobile-repeat.png",
-        "repeatBytes": 66775,
-        "repeatSha256": "a689936be53ce9459d0776c2d94a9ef046ac699f52994a37ca0c3c33b386512b"
+        "repeatPath": "samples/evidence/maplibre-quickstart/runs/37d87c9d-6eaf-4959-a946-9f02a6a57602/artifacts/screenshot-mobile-repeat.png",
+        "repeatBytes": 66270,
+        "repeatSha256": "376f8517530515e9de21aca920afb6b6cb1c8d00bbf8ad9fafdc5d45deaaff8d"
       }
     }
   ]
