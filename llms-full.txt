@@ -1526,7 +1526,7 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-19 at commit `ac1d6421`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-19 at commit `6d2cbc85`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -3962,16 +3962,29 @@ distribution for reports, and the certification governance policy (who grants
 # deck.gl binary adapter (experimental)
 
 `@honua/sdk-js/deckgl` is a renderer-neutral boundary between Honua plan/source
-identity and deck.gl binary layer data. It is an experimental first slice of
+identity and deck.gl binary layer data. It is an experimental slice of
 [#388](https://github.com/honua-io/honua-sdk-js/issues/388), not the complete
 GPU analytics workstream.
 
-The adapter currently projects scatterplot data from caller-owned typed arrays.
-It does not convert to GeoJSON or create one object per feature. Array views are
-forwarded to deck.gl unchanged and `projection.metrics.copiedBytes` is always
-zero. Default ceilings reject more than 1,000,000 rows, 32 attributes, 64
-forwarded properties, or 256 MiB of unique backing allocations before a deck.gl
-layer is constructed.
+The adapter projects `scatterplot` (point), `feature-path` (line), and
+`feature-polygon` (hole-free polygon) data from caller-owned typed arrays. It
+does not convert to GeoJSON or create one object per feature. Geometry array
+views are forwarded to deck.gl unchanged and `projection.metrics.copiedBytes`
+is always zero. Default ceilings reject more than 1,000,000 rows/features, 32
+attributes, 64 forwarded properties, or 256 MiB of unique backing allocations
+before a deck.gl layer is constructed.
+
+`feature-path` and `feature-polygon` requests address vertices through a
+request-level `data.startIndices` boundary array (one boundary per feature
+plus a trailing boundary — the same shape deck.gl's own `PathLayer` and
+`SolidPolygonLayer` binary mode expect) rather than one row per vertex. The
+adapter forces `_pathType: "open"` on `PathLayer` and `_normalize: false` on
+`SolidPolygonLayer` so the peer does not re-normalize (and therefore re-copy)
+the geometry it was just handed; both props are reserved and cannot be
+overridden through `request.props`. `DeckGlPeers.PathLayer` and
+`DeckGlPeers.SolidPolygonLayer` are optional — only required to `project()` the
+layer kind that needs them — and report a structured `missing-peer` error when
+absent.
 
 The adapter reads foreign request, data, identity, attribute, and property
 descriptors once into a bounded frozen snapshot. Typed-array byte length,
@@ -3979,17 +3992,20 @@ offset, component width, and backing allocation metrics come from JavaScript
 intrinsics rather than overridable getters. Attribute offsets and strides must
 be component-aligned, and `normalized`, when present, must be boolean.
 
-## Direct GeoArrow Point path
+## Direct GeoArrow Point/LineString/Polygon paths
 
-The normative columnar contract can bind a non-null interleaved GeoArrow Point
-batch with explicit `OGC:CRS84` longitude/latitude axis evidence directly to a
-scatterplot request. Position and feature-id arrays alias the batch's
+The normative columnar contract can bind a non-null interleaved GeoArrow Point,
+LineString, or Polygon batch with explicit `OGC:CRS84` longitude/latitude axis
+evidence directly to a `scatterplot`, `feature-path`, or `feature-polygon`
+request. Geometry, offsets, and feature-id arrays alias the batch's
 transferable buffers; no GeoJSON feature or coordinate object is created. In
 this excerpt, `renderBatch` is such a validated batch:
 
 ```ts doc-test=skip reason="partial excerpt requires an application-owned non-null OGC:CRS84 batch"
 import {
+  bindGeoArrowLineBatchToDeckGl,
   bindGeoArrowPointBatchToDeckGl,
+  bindGeoArrowPolygonBatchToDeckGl,
   createDeckGlAdapter,
   loadDeckGlPeers,
 } from "@honua/sdk-js/deckgl";
@@ -4005,16 +4021,27 @@ const projection = adapter.project(binding.request);
 console.log(binding.metrics);
 // { rows, positionBytes, copiedBytes: 0, geoJsonFeaturesMaterialized: 0 }
 console.log(projection.metrics.copiedBytes); // 0
+
+// LineString batches bind to a PathLayer request the same way; `metrics.vertices`
+// reports the total addressed vertex count alongside `metrics.rows` (path count).
+const routeBinding = bindGeoArrowLineBatchToDeckGl({ batch: routeBatch, layerId: "routes" });
+
+// Polygon batches bind to a SolidPolygonLayer request. Contract v1 requires
+// exactly one ring per polygon (no holes); holed or empty polygons need an
+// explicit bounded gather/retriangulation and fail with `invalid-data`.
+const parcelBinding = bindGeoArrowPolygonBatchToDeckGl({ batch: parcelBatch, layerId: "parcels" });
 ```
 
-Contract v1 deliberately accepts only XY/XYZ, interleaved, non-null Point
-batches in explicit `OGC:CRS84` for this automatic path. Separated coordinates,
-M dimensions, null rows, missing CRS evidence, and projected or latitude-first
-CRSs need an explicit gather/filter/reprojection mapping; they fail with a
-structured `invalid-data` diagnostic instead of silently copying, dropping
-rows, swapping axes, or rendering nulls at `[0, 0]`. The general
+Contract v1 deliberately accepts only XY/XYZ, interleaved, non-null geometry in
+explicit `OGC:CRS84` for these automatic paths, and — for polygons — exactly
+one ring per feature. Separated coordinates, M dimensions, null rows, holes,
+empty polygons, missing CRS evidence, and projected or latitude-first CRSs need
+an explicit gather/filter/reprojection mapping; they fail with a structured
+`invalid-data` diagnostic instead of silently copying, dropping rows, dropping
+holes, swapping axes, or rendering nulls at `[0, 0]`. The general
 `bindColumnarBatchToDeckGl()` seam remains available for callers that explicitly
-provide their own bounded binary attributes and coordinate-system properties.
+provide their own bounded binary attributes, `startIndices` buffer, and
+coordinate-system properties.
 
 ## Optional peer
 
@@ -4086,20 +4113,66 @@ owned and reports `dispose-failed`; calling `mounted.dispose()` or
 foreign `addLayer` callback, so synchronous adapter disposal rolls the newly
 added layer back before `mount()` returns.
 
+## Shared map state (MapLibre overlay mode)
+
+`#561` adds a focused renderer-state seam so a deck.gl overlay can share
+camera and selection with a MapLibre basemap it draws over, without either
+side owning the other's core query semantics:
+
+- `bindDeckGlViewportToMap(map, overlay)` — one-directional camera sync. Every
+  MapLibre `"move"` event (pan/zoom/rotate/pitch) re-reads `map.getCenter()` /
+  `getZoom()` / `getPitch()` / `getBearing()` and pushes a deck.gl `viewState`
+  via `overlay.setProps({ viewState })`. `readMapCameraState(map)` reads the
+  camera once without binding — useful to seed a standalone `Deck`'s
+  `initialViewState`.
+- `bindDeckGlPickToExploration(view)` returns a handler for a deck.gl
+  `onClick`/`onHover` callback: call it with
+  `projection.selectionForPick(info.index)` (or `undefined` when nothing is
+  picked) to publish the pick into the same shared exploration selection slice
+  MapLibre feature-state bindings use (`src/interactions/exploration-bindings.ts`).
+  `selectedFeatureIdSet(selection, sourceId)` reads that shared slice back for
+  one source, so an app can derive a GPU "selected" highlight attribute without
+  any deck.gl-specific coupling in the exploration layer.
+- `combineDeckGlDisposal(...handles)` composes mount handles, view-sync
+  bindings, and any other `DeckGlDisposalHandle` into one idempotent lifecycle:
+  `dispose()` tears every handle down in reverse-bind order and never touches
+  a borrowed host beyond what each handle's own `dispose()` already does.
+
+```ts doc-test=skip reason="partial excerpt requires an application-owned MapLibre map and deck.gl overlay"
+import {
+  bindDeckGlPickToExploration,
+  bindDeckGlViewportToMap,
+  combineDeckGlDisposal,
+} from "@honua/sdk-js/deckgl";
+
+const viewSync = bindDeckGlViewportToMap(map, overlay);
+const onPick = bindDeckGlPickToExploration(explorationView);
+overlay.setProps({
+  onClick: (info) => onPick(info.index >= 0 ? projection.selectionForPick(info.index) : undefined),
+});
+
+const lifecycle = combineDeckGlDisposal(mounted, viewSync);
+// ...later:
+lifecycle.dispose();
+```
+
+Standalone mode (deck.gl owns its own viewport, no MapLibre map) simply does
+not use `bindDeckGlViewportToMap` — nothing in `createDeckGlAdapter()` or
+`DeckGlProjection` requires a map.
+
 ## Diagnostics and boundaries
 
 `DECK_GL_CAPABILITIES` is the capability truth for this contract version.
-Scatterplot is `gpu-binary`; feature path/polygon, vector tile, H3, Quadbin,
-heatmap, cluster, contour, and trips are explicitly `not-implemented`. The
-projection diagnostic reports the chosen strategy, input-array precision,
-fidelity, and absence of an implicit fallback. Unsupported or malformed paths
-throw a typed error rather than materializing feature objects or silently
-downgrading.
+Scatterplot, feature path, and feature polygon are `gpu-binary`; vector tile,
+H3, Quadbin, heatmap, cluster, contour, and trips are explicitly
+`not-implemented`. The projection diagnostic reports the chosen strategy,
+input-array precision, fidelity, and absence of an implicit fallback.
+Unsupported or malformed paths throw a typed error rather than materializing
+feature objects or silently downgrading.
 
-Remaining #388 work includes additional GeoArrow geometry/layer mappings,
-indexed and aggregate layer families,
-realtime buffer patch/rebuild rules, direct MapLibre overlay and standalone Deck
-hosts, WebGPU boundaries, and the million-feature browser benchmark against
+Remaining #388 work includes indexed and aggregate layer families (H3/Quadbin,
+heatmap, cluster, contour, trips), realtime buffer patch/rebuild rules, WebGPU
+boundaries, and the million-feature browser benchmark against
 [#387](https://github.com/honua-io/honua-sdk-js/issues/387).
 
 ---
@@ -8039,7 +8112,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-19 at commit `ac1d6421`._
+_Generated 2026-07-19 at commit `6d2cbc85`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -8068,7 +8141,7 @@ _Generated 2026-07-19 at commit `ac1d6421`._
 | `/map` | 176.4 KiB | 182.2 KiB | 49.6 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 76.8 KiB | 81.6 KiB | 23.7 KiB | 25.3 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 47.7 KiB | 52.1 KiB | 13.9 KiB | 15.2 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 62.1 KiB | 68.3 KiB | 16.6 KiB | 18.3 KiB |
 | `/react` (react/react-dom external) | 462.1 KiB | 506.7 KiB | 122.6 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 613.0 KiB | 661.8 KiB | 162.7 KiB | 176.3 KiB |
