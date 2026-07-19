@@ -83,17 +83,26 @@ authority are normative, versioned, and independent of transport:
    **No cursor or delta is ever accepted across a source, query, schema, or
    authorization-scope boundary.**
 5. **Plan identity binds `queryFingerprint` to the query planner, not a
-   caller string.** `realtimePlanFingerprint(plan)` wraps
-   `hashQueryPlan(plan)` — the same canonical, credential-free
-   `QueryExecutionPlan` content hash already used for plan cache identity
-   (`queryPlanCacheKey`). That hash already folds in `capabilityPolicy` and
+   caller string.** `realtimePlanFingerprint(plan)` reads the accepted
+   `QueryExecutionPlan`'s own trusted `fingerprint` field — the same
+   canonical, credential-free content hash already used for plan cache
+   identity (`queryPlanCacheKey`), satisfying `hashQueryPlan(plan) ===
+   plan.fingerprint` for every plan `explainQuery`/`parseQueryPlan`
+   produce. That fingerprint already folds in `capabilityPolicy` and
    `fallback`, so binding to it satisfies "bind to policy" per REQ-003
    without a second fingerprint field. `assertRealtimePlanIdentity(context,
    plan)` throws the existing `query-changed` /
    `realtime.checkpoint.invalid` taxonomy on mismatch — the identical
    failure mode a hand-written `queryFingerprint` mismatch already produced,
    now checkable against a real accepted plan instead of an opaque string a
-   caller could get wrong.
+   caller could get wrong. This reads the already-trusted field rather than
+   re-deriving it through `hashQueryPlan`: plan *integrity* (that the
+   fingerprint actually matches the plan's content) is the query planner's
+   trust boundary, verified once against every protocol compiler when the
+   plan is built or reloaded. Re-verifying it here would import DuckDB,
+   gRPC, GeoServices, OGC, OData, and WFS compilers — several hundred KB —
+   into `@honua/sdk-js/realtime` for a check that already happened; only
+   `QueryExecutionPlan`'s type is imported, never `planner.js`.
 6. **Authority is one explicit derived value, not an inference from reason
    codes.** `deriveRealtimeContractAuthority(resumableState, options)`
    projects `phase` (plus checkpoint age against a caller `staleAfterMs`)

@@ -12,10 +12,18 @@
  * 1. **Plan identity** — {@link RealtimeResumeContextV1.queryFingerprint} was
  *    previously any caller-supplied string. {@link realtimePlanFingerprint}
  *    and {@link assertRealtimePlanIdentity} bind it to the query planner's
- *    canonical, credential-free `QueryExecutionPlan` hash
- *    ({@link hashQueryPlan}), which already folds in `capabilityPolicy` and
- *    `fallback` — so plan identity also carries policy identity per REQ-003
- *    without a second fingerprint field.
+ *    canonical, credential-free `QueryExecutionPlan.fingerprint` — the same
+ *    content hash `hashQueryPlan`/`persistedPlanSnapshot` establish once,
+ *    with full protocol-compiler re-verification, when a plan is first
+ *    constructed (`explainQuery`) or reloaded (`parseQueryPlan`). That
+ *    fingerprint already folds in `capabilityPolicy` and `fallback`, so
+ *    binding to it also carries policy identity per REQ-003 without a
+ *    second fingerprint field. This module reads the already-trusted field
+ *    rather than importing `hashQueryPlan` itself: plan *integrity* is the
+ *    query planner's trust boundary, established once at construction time,
+ *    and re-deriving it here would pull every protocol compiler
+ *    (DuckDB/gRPC/GeoServices/OGC/OData/WFS — several hundred KB) into the
+ *    `@honua/sdk-js/realtime` bundle for a check that is already done.
  * 2. **Authority** — {@link deriveRealtimeContractAuthority} projects the
  *    resumable gate's `phase` into one explicit
  *    `replaying | live | stale | terminal` state plus an `authoritative`
@@ -29,7 +37,6 @@
  */
 
 import { canonicalStringify, sha256, toJsonValue } from "../query-planner/canonical.js";
-import { hashQueryPlan } from "../query-planner/planner.js";
 import type { QueryExecutionPlan } from "../query-planner/types.js";
 import {
   HonuaRealtimeResumeError,
@@ -40,31 +47,39 @@ import {
 
 /**
  * Canonical plan-identity fingerprint for
- * {@link RealtimeResumeContextV1.queryFingerprint}. Wraps
- * {@link hashQueryPlan}: the same accepted, credential-free
- * `QueryExecutionPlan` content hash used for plan cache identity, so a
- * realtime subscription and the query result it mirrors are bound to the
- * exact same accepted semantics (including `capabilityPolicy` and
- * `fallback`).
+ * {@link RealtimeResumeContextV1.queryFingerprint}: the accepted plan's own
+ * trusted `fingerprint` field (`hashQueryPlan(plan) === plan.fingerprint`
+ * for every plan produced by `explainQuery`/`parseQueryPlan`). Named and
+ * exported so call sites bind resume identity to the plan by construction
+ * instead of by convention, without importing the query planner's
+ * protocol-compiler graph into `@honua/sdk-js/realtime`. Only
+ * `QueryExecutionPlan["fingerprint"]` is type-imported; nothing from
+ * `query-planner/planner.js` is bundled here.
  */
-export function realtimePlanFingerprint(plan: QueryExecutionPlan): `sha256:${string}` {
-  return hashQueryPlan(plan);
+export function realtimePlanFingerprint(plan: Pick<QueryExecutionPlan, "fingerprint">): `sha256:${string}` {
+  return plan.fingerprint;
 }
 
 /**
  * Assert that a resume context's `queryFingerprint` matches the accepted
- * plan's canonical content hash. Throws a `"query-changed"`
+ * plan's fingerprint. Throws a `"query-changed"`
  * {@link HonuaRealtimeResumeError} — the same taxonomy
  * {@link evaluateRealtimeCheckpoint} uses for a checkpoint whose bound query
  * identity no longer matches — when they diverge, so a subscription can
- * never resume against a plan other than the one it was accepted for.
+ * never resume against a plan other than the one it was accepted for. This
+ * checks identity, not plan authenticity: trust that `plan.fingerprint`
+ * matches the plan's actual content is established once, by the query
+ * planner, when the plan is constructed or parsed.
  */
-export function assertRealtimePlanIdentity(context: RealtimeResumeContextV1, plan: QueryExecutionPlan): void {
+export function assertRealtimePlanIdentity(
+  context: RealtimeResumeContextV1,
+  plan: Pick<QueryExecutionPlan, "fingerprint">,
+): void {
   const expected = realtimePlanFingerprint(plan);
   if (context.queryFingerprint !== expected) {
     throw new HonuaRealtimeResumeError(
       "query-changed",
-      `Realtime resume context queryFingerprint does not match the accepted plan hash (expected "${expected}", received "${context.queryFingerprint}").`,
+      `Realtime resume context queryFingerprint does not match the accepted plan fingerprint (expected "${expected}", received "${context.queryFingerprint}").`,
     );
   }
 }
