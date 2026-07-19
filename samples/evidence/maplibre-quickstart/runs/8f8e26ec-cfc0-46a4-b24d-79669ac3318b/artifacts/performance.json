@@ -1,7 +1,7 @@
 {
   "format": "honua.sdk.sample-performance-gate.v1",
   "sampleId": "maplibre-quickstart",
-  "sourceRevision": "e0068b6c7e44f9c424e48fca737188570e4b25d6",
+  "sourceRevision": "76fa6c08806a7e20878a10229040713c60171670",
   "command": [
     "npm",
     "run",
@@ -19,24 +19,24 @@
       "operator": "<=",
       "value": 5000
     },
-    "value": 686,
+    "value": 502.59999999403954,
     "observations": {
       "navigation": {
         "entryType": "navigation",
-        "sampleReadyMs": 686,
-        "responseStartMs": 22.69999998807907,
-        "domContentLoadedMs": 265,
-        "loadEventMs": 293.8999999910593
+        "sampleReadyMs": 502.59999999403954,
+        "responseStartMs": 14,
+        "domContentLoadedMs": 173.09999999403954,
+        "loadEventMs": 195.79999999701977
       },
       "resources": {
         "count": 6,
         "transferBytes": 1718829,
         "decodedBodyBytes": 1717029,
-        "completedByMs": 476.3999999910593
+        "completedByMs": 328.3999999910593
       },
       "interaction": {
         "name": "evidence-drawer-keyboard-workflow",
-        "durationMs": 110.5
+        "durationMs": 92
       }
     }
   }
