@@ -204,17 +204,30 @@ export function verifyEvidenceNeutralCheckout(expectedSourceDigest, root = proje
   const headDigest = revisionSourceDigest(head, root);
   invariant(headDigest === digest, "gate evidence index is not bound to the evidence-neutral HEAD tree");
   if (sourceRevision !== undefined) {
-    invariant(revisionSourceDigest(sourceRevision, root) === digest, "gate receipt source revision does not match its source digest");
-    let isAncestor = true;
+    invariant(/^[a-f0-9]{40}$/.test(sourceRevision), "gate receipt source revision must be a full lowercase Git SHA");
+    // sourceRevision is provenance metadata, not the security boundary: the
+    // expectedSourceDigest check above already proves -- via a direct
+    // SHA-256 comparison against the CURRENT clean checkout, independent of
+    // any git object lookup -- that this receipt's evidence-neutral tree is
+    // byte-identical to what's on disk right now. When sourceRevision's own
+    // commit object is still resolvable, opportunistically cross-check that
+    // its tree matches too (a genuine mismatch here is a real tamper
+    // signal), but don't require it to exist or to be a git-graph ancestor
+    // of HEAD. A GitHub squash-merge rewrites a sample PR's reseal commit
+    // into a brand-new trunk commit: the original commit's tree is content-
+    // identical but it (a) never becomes the squashed commit's ancestor and
+    // (b) is frequently unreachable in a shallow, single-ref CI checkout
+    // once its source branch is deleted post-merge. Hard-failing on either
+    // case orphaned every squash-merged sample PR's own evidence on the very
+    // next trunk push (honua-io/honua-sdk-js#650).
     try {
-      execFileSync("git", ["merge-base", "--is-ancestor", sourceRevision, head], {
-        cwd: root,
-        stdio: ["ignore", "ignore", "pipe"],
-      });
-    } catch {
-      isAncestor = false;
+      invariant(
+        revisionSourceDigest(sourceRevision, root) === digest,
+        "gate receipt source revision does not match its source digest",
+      );
+    } catch (error) {
+      if (!/does not name an existing commit/.test(error instanceof Error ? error.message : String(error))) throw error;
     }
-    invariant(isAncestor, "gate receipt source revision is not an ancestor of checkout HEAD");
   }
   return digest;
 }
