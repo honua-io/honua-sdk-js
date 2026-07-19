@@ -8,24 +8,24 @@
     "operator": "<=",
     "value": 5000
   },
-  "value": 457.79999999701977,
+  "value": 399.29999999701977,
   "observations": {
     "navigation": {
       "entryType": "navigation",
-      "sampleReadyMs": 457.79999999701977,
-      "responseStartMs": 15,
-      "domContentLoadedMs": 165.40000000596046,
-      "loadEventMs": 184.5
+      "sampleReadyMs": 399.29999999701977,
+      "responseStartMs": 11.399999991059303,
+      "domContentLoadedMs": 126.29999999701977,
+      "loadEventMs": 142.8999999910593
     },
     "resources": {
       "count": 6,
       "transferBytes": 1724330,
       "decodedBodyBytes": 1722530,
-      "completedByMs": 305.79999999701977
+      "completedByMs": 248.29999999701977
     },
     "interaction": {
       "name": "evidence-drawer-keyboard-workflow",
-      "durationMs": 75.40000000596046
+      "durationMs": 80.40000000596046
     }
   }
 }
