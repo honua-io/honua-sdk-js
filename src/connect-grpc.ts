@@ -53,7 +53,16 @@ const GRPC_LAYER_SCOPE: readonly Capability[] = Object.freeze([...PROTOCOL_DEFAU
  * `applyEdits` are trusted from metadata alone, exactly as raw GeoServices
  * REST discovery trusts them without probing).
  */
-const GRPC_PROBE_GATED_CAPABILITIES: readonly Capability[] = Object.freeze(["query", "stream"]);
+// Every capability that executes through the grpc-web `client.queryFeatures` path must be
+// narrowed when the live probe fails, not just `query`/`stream`: `queryExtent`,
+// `queryObjectIds`, and `queryAggregate` hit the identical transport.
+const GRPC_PROBE_GATED_CAPABILITIES: readonly Capability[] = Object.freeze([
+  "query",
+  "stream",
+  "queryExtent",
+  "queryObjectIds",
+  "queryAggregate",
+]);
 
 /** Bounded row count for the parity probe — enough to populate schema metadata without pulling a working set. */
 const GRPC_PROBE_RESULT_RECORD_COUNT = 1;

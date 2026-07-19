@@ -1598,7 +1598,11 @@ function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boole
     protocol === "wms" ||
     protocol === "wmts" ||
     protocol === "geoservices-feature-service" ||
-    protocol === "geoservices-map-service"
+    protocol === "geoservices-map-service" ||
+    // gRPC FeatureServer discovery routes through the geoservices projection and emits a
+    // schemaV2 payload; it must be projection-applicable so cache writes and reads agree
+    // (otherwise the first gRPC schema discovery caches an entry every later read rejects).
+    protocol === "grpc"
   );
 }
 
