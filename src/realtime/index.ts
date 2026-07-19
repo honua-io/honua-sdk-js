@@ -58,6 +58,22 @@ export type {
   ResumableRealtimeState,
   ResumableRealtimeSubscription,
 } from "./resumable.js";
+export {
+  assertRealtimePlanIdentity,
+  deriveRealtimeContractAuthority,
+  realtimePlanFingerprint,
+  redactRealtimeCheckpoint,
+  serializeRealtimeCheckpoint,
+  serializeRedactedRealtimeCheckpoint,
+} from "./contract.js";
+export type {
+  DeriveRealtimeContractAuthorityOptions,
+  RealtimeContractAuthority,
+  RealtimeContractAuthorityState,
+  RedactedRealtimeCheckpointV1,
+  RedactedRealtimeResumePosition,
+  RedactedResumePosition,
+} from "./contract.js";
 export { filterRealtimeSelection, reconcileRealtimeSelection } from "./exploration.js";
 export {
   selectRealtimeDetail,
