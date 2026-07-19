@@ -605,6 +605,13 @@ export function bindGeoArrowLineBatchToDeckGl(input: GeoArrowLineDeckGlProjectio
       { crs: inspection.geometry.crs ?? null },
     );
   }
+  if (inspection.geometry.edges !== "planar") {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      "Direct deck.gl Path binding cannot preserve non-planar GeoArrow edge semantics; use an explicit bounded densification or conversion.",
+      { edges: inspection.geometry.edges, copiedBytes: 0 },
+    );
+  }
   const size = dimensions === "xy" ? 2 : 3;
   const geometryField = metadata["honua.geoarrow.geometry.field"];
   const schemaField = batch.schema.fields.find((field) => field.name === geometryField);
@@ -791,6 +798,13 @@ export function bindGeoArrowPolygonBatchToDeckGl(
       "invalid-data",
       'Direct deck.gl Polygon binding requires explicit longitude/latitude axis evidence via CRS "OGC:CRS84".',
       { crs: inspection.geometry.crs ?? null },
+    );
+  }
+  if (inspection.geometry.edges !== "planar") {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      "Direct deck.gl Polygon binding cannot preserve non-planar GeoArrow edge semantics; use an explicit bounded densification or conversion.",
+      { edges: inspection.geometry.edges, copiedBytes: 0 },
     );
   }
   const size = dimensions === "xy" ? 2 : 3;

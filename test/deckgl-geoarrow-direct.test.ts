@@ -344,6 +344,38 @@ describe("normative GeoArrow LineString -> deck.gl direct path", () => {
     }
   });
 
+  it.each(["spherical", "vincenty", "thomas", "andoyer", "karney"] as const)(
+    "rejects %s GeoArrow edges that a direct PathLayer cannot preserve",
+    (edges) => {
+      const schemaId = `non-planar-line:${edges}`;
+      const batch = createGeoArrowBatch({
+        id: schemaId,
+        sequence: 0,
+        schemaId,
+        identity: {
+          ...identity(schemaId),
+          ordering: { stable: true, keys: [{ field: "geometry", direction: "ascending", nulls: "last" }] },
+        },
+        geometry: {
+          kind: "linestring",
+          coordinateLayout: "interleaved",
+          crs: "OGC:CRS84",
+          edges,
+          values: [
+            [
+              [1, 2],
+              [3, 4],
+            ],
+          ],
+        },
+      }).batch;
+
+      expect(() => bindGeoArrowLineBatchToDeckGl({ batch, layerId: "non-planar" })).toThrowError(
+        expect.objectContaining({ code: "invalid-data", detail: { edges, copiedBytes: 0 } }),
+      );
+    },
+  );
+
   it("rejects forged normative storage and non-longitude/latitude CRS evidence", () => {
     const make = (crs?: string) => {
       const schemaId = `admission-line:${crs ?? "missing"}`;
@@ -553,6 +585,33 @@ describe("normative GeoArrow Polygon -> deck.gl direct path", () => {
       );
     }
   });
+
+  it.each(["spherical", "vincenty", "thomas", "andoyer", "karney"] as const)(
+    "rejects %s GeoArrow edges that a direct SolidPolygonLayer cannot preserve",
+    (edges) => {
+      const schemaId = `non-planar-polygon:${edges}`;
+      const batch = createGeoArrowBatch({
+        id: schemaId,
+        sequence: 0,
+        schemaId,
+        identity: {
+          ...identity(schemaId),
+          ordering: { stable: true, keys: [{ field: "geometry", direction: "ascending", nulls: "last" }] },
+        },
+        geometry: {
+          kind: "polygon",
+          coordinateLayout: "interleaved",
+          crs: "OGC:CRS84",
+          edges,
+          values: [[ring]],
+        },
+      }).batch;
+
+      expect(() => bindGeoArrowPolygonBatchToDeckGl({ batch, layerId: "non-planar" })).toThrowError(
+        expect.objectContaining({ code: "invalid-data", detail: { edges, copiedBytes: 0 } }),
+      );
+    },
+  );
 
   it("rejects forged normative storage and non-longitude/latitude CRS evidence", () => {
     const make = (crs?: string) => {
