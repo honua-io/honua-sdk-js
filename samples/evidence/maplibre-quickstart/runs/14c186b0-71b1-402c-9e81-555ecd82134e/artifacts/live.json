@@ -1,13 +1,13 @@
 {
   "format": "honua.sdk.sample-live-gate.v1",
   "sampleId": "maplibre-quickstart",
-  "sourceRevision": "cf39d95f00771e1dc1c743680628491d06e35c66",
+  "sourceRevision": "b0f00907f5852e9b4fe67c2e432721bbeec16060",
   "command": [
     "npm",
     "run",
     "evidence:first-map:live"
   ],
-  "evidencePath": "samples/evidence/maplibre-quickstart/runs/381f6b20-b589-48fc-ae5b-f29e9ce998f4/artifacts/live-evidence.json",
+  "evidencePath": "samples/evidence/maplibre-quickstart/runs/14c186b0-71b1-402c-9e81-555ecd82134e/artifacts/live-evidence.json",
   "evidence": {
     "format": "honua.sdk.sample-evidence.v1",
     "schemaVersion": 1,
@@ -15,12 +15,12 @@
     "lane": "live",
     "status": "executed",
     "reason": null,
-    "observedAt": "2026-07-19T16:53:11.351Z",
+    "observedAt": "2026-07-19T17:03:44.595Z",
     "authMode": "anonymous",
     "sdk": {
       "package": "@honua/sdk-js",
       "version": "0.1.0-beta.0",
-      "gitCommit": "cf39d95f00771e1dc1c743680628491d06e35c66"
+      "gitCommit": "b0f00907f5852e9b4fe67c2e432721bbeec16060"
     },
     "source": {
       "provider": "esri-living-atlas",
@@ -31,7 +31,7 @@
     },
     "provenance": {
       "sourceId": "geoservices-feature-service:0",
-      "observedAt": "2026-07-19T16:53:12.555Z",
+      "observedAt": "2026-07-19T17:03:45.923Z",
       "validAt": null,
       "state": "live",
       "attribution": "States 2020 Apportionment - U.S. House of Representatives Seats"
@@ -55,8 +55,8 @@
       ]
     },
     "timing": {
-      "totalMs": 743,
-      "firstSuccessfulInteractionMs": 743
+      "totalMs": 2022,
+      "firstSuccessfulInteractionMs": 2022
     },
     "degradation": {
       "state": "none",
@@ -70,7 +70,7 @@
       },
       {
         "kind": "live-screenshot",
-        "path": "samples/evidence/maplibre-quickstart/runs/381f6b20-b589-48fc-ae5b-f29e9ce998f4/artifacts/live-evidence.png",
+        "path": "samples/evidence/maplibre-quickstart/runs/14c186b0-71b1-402c-9e81-555ecd82134e/artifacts/live-evidence.png",
         "sha256": "dd5803e354d0f6d98049c9e79fd8ba0db765c14c2d56d523ebd512f91c1aec75"
       }
     ]
