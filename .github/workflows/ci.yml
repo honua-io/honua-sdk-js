@@ -482,8 +482,8 @@ jobs:
       - name: Package release assets
         run: |
           set -euo pipefail
-          sample_dirs=$(node -e "const m=require('./dist/sample-bundles/sample-bundles.v1.json'); console.log(m.samples.map((s) => s.id).join(' '))")
-          tar -czf dist/sample-bundles/sample-bundles.tar.gz -C dist/sample-bundles $sample_dirs
+          sample_dirs=$(node -e "const m=require('./.artifacts/sample-bundles/sample-bundles.v1.json'); console.log(m.samples.map((s) => s.id).join(' '))")
+          tar -czf .artifacts/sample-bundles/sample-bundles.tar.gz -C .artifacts/sample-bundles $sample_dirs
 
       - name: Publish rolling GitHub Release
         env:
@@ -500,6 +500,6 @@ jobs:
               --title "Sample bundles (latest trunk build)" --notes "$notes"
           fi
           gh release upload sample-bundles-latest -R "$repo" \
-            dist/sample-bundles/sample-bundles.v1.json \
-            dist/sample-bundles/sample-bundles.tar.gz \
+            .artifacts/sample-bundles/sample-bundles.v1.json \
+            .artifacts/sample-bundles/sample-bundles.tar.gz \
             --clobber
