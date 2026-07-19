@@ -18,6 +18,9 @@
  *
  * @module
  */
+import type { ProtocolModule, ProtocolModuleHandle } from "./protocol-module.js";
+import type { Capabilities, SourceDescriptor } from "./types.js";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "./types.js";
 
 /**
  * Canonical tile-payload kinds a PMTiles archive can store. `mvt` is a vector
@@ -270,4 +273,67 @@ export function stripPmtilesScheme(url: string): string {
  */
 export function toPmtilesSourceUrl(url: string): string {
   return url.startsWith("pmtiles://") ? url : `pmtiles://${url}`;
+}
+
+function requirePmtilesModuleLocator(descriptor: SourceDescriptor): string {
+  const { url } = descriptor.locator;
+  if (typeof url !== "string" || url === "") {
+    throw new Error(`createDataset: source "${descriptor.id}" (pmtiles) requires locator.url`);
+  }
+  return url;
+}
+
+/**
+ * The first-party PMTiles {@link ProtocolModule} (issue #538).
+ *
+ * `pmtilesSource()` (`src/contract/source.ts`) builds its
+ * `Source.protocol("pmtiles")` escape hatch through this exact factory
+ * instead of constructing {@link HonuaPmtilesArchive} directly, and
+ * `pmtilesProtocolPlugin` (`@honua/sdk-js/plugin`) packages the same factory
+ * as a `HonuaPluginFactory<"protocol">` for `HonuaPluginRegistry`. Both
+ * callers run the identical construction path, which is what proves the
+ * built-in adapter carries no special registry privilege.
+ *
+ * `discover()` is synchronous: PMTiles opens its reader lazily on the
+ * returned handle's own first `describe()` call, so no I/O happens before a
+ * caller actually asks for archive metadata (REQ-003, issue #538).
+ *
+ * @example
+ * ```ts
+ * const module = pmtilesProtocolModule();
+ * const handle = module.discover({
+ *   id: "basemap",
+ *   protocol: "pmtiles",
+ *   locator: { url: "https://example.com/basemap.pmtiles" },
+ * });
+ * if (!(handle instanceof Promise)) {
+ *   const info = await handle.adapter.describe();
+ *   console.log(info.bounds);
+ * }
+ * ```
+ */
+export function pmtilesProtocolModule(
+  deps: DescribePmtilesArchiveDeps = {},
+): ProtocolModule<"pmtiles", HonuaPmtilesArchive> {
+  return Object.freeze({
+    kind: "pmtiles" as const,
+    environments: Object.freeze(["browser", "node", "worker"] as const),
+    capabilities(descriptor: SourceDescriptor): Capabilities {
+      return descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.pmtiles;
+    },
+    discover(descriptor: SourceDescriptor): ProtocolModuleHandle<HonuaPmtilesArchive> {
+      const url = stripPmtilesScheme(requirePmtilesModuleLocator(descriptor));
+      const archive = new HonuaPmtilesArchive(url, deps);
+      return Object.freeze({
+        descriptor,
+        capabilities: descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.pmtiles,
+        adapter: archive,
+        diagnostics: Object.freeze([]),
+        dispose(): void {
+          // The archive holds no open handles between describe() calls;
+          // disposal is deterministic and synchronous with nothing to release.
+        },
+      });
+    },
+  });
 }

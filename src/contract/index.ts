@@ -457,7 +457,13 @@ export type {
   JobStatus,
 } from "./jobs.js";
 export { HonuaJobPollTimeoutError, isJobTerminal } from "./jobs.js";
-export { HonuaPmtilesArchive, describePmtilesArchive, stripPmtilesScheme, toPmtilesSourceUrl } from "./pmtiles.js";
+export {
+  HonuaPmtilesArchive,
+  describePmtilesArchive,
+  pmtilesProtocolModule,
+  stripPmtilesScheme,
+  toPmtilesSourceUrl,
+} from "./pmtiles.js";
 export type {
   DescribePmtilesArchiveDeps,
   PmtilesArchiveDescription,
@@ -469,6 +475,13 @@ export type {
   PmtilesTileKind,
   PmtilesVectorLayerInfo,
 } from "./pmtiles.js";
+export type {
+  ProtocolModule,
+  ProtocolModuleDiagnostic,
+  ProtocolModuleDiscoverOptions,
+  ProtocolModuleEnvironment,
+  ProtocolModuleHandle,
+} from "./protocol-module.js";
 
 export {
   TEMPORAL_CAPABILITY,
