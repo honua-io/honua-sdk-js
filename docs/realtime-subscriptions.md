@@ -191,8 +191,76 @@ Behavior:
   `redactRealtimeCheckpoint` projection of the current checkpoint — never a
   raw cursor, watermark, or delta-token.
 
+## OData v4 Delta-Link Pull Adapter (#558)
+
+`createOdataDeltaTransport` (`src/realtime/odata-delta.ts`) is the delta
+polling adapter the "Adapter Expectations" section below anticipated. OData
+delta links are a *pull* change feed, not a socket, so this adapter is
+deliberately honest about that instead of dressing polling up as a live
+stream:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { createOdataDeltaTransport, createRealtimeFeatureStore } from "@honua/sdk-js/realtime";
+
+interface Incident {
+  readonly Id: number;
+  readonly Status: string;
+}
+
+const transport = createOdataDeltaTransport<Incident>({
+  url: "https://honua.example/odata/Incidents",
+  pollIntervalMs: 15_000,
+  entityId: (entity) => entity.Id as number,
+  initialQuery: { filter: "Status ne 'closed'" },
+  onPoll: (telemetry) => reportPullFreshness(telemetry), // { polledAt, nextPollAt, intervalMs, changed, … }
+});
+
+const store = createRealtimeFeatureStore<Incident>();
+store.connect(transport, { sourceId: "incidents", mode: "snapshot-then-delta" });
+```
+
+Behavior:
+
+- **Honest, non-live capabilities (REQ-004).** `capabilities.kind` is
+  `"polling"`, never `"sse"`/`"websocket"`; `emitsHeartbeats` and
+  `emitsWatermarks` are both `false`. Every poll — changed or not — reports
+  `onPoll` telemetry (`polledAt`, `nextPollAt`, `intervalMs`, `changed`,
+  `upsertCount`, `deleteCount`) so a caller renders "checked N seconds ago,
+  next check in M" rather than a live badge. An unchanged poll emits a
+  `status: "live"` event with `reason: "poll-unchanged"` — accepted-baseline
+  freshness, not a claim of active streaming.
+- **Scoped links, foreign links rejected (REQ-002).** Every
+  `@odata.nextLink` / `@odata.deltaLink` this adapter follows, and any
+  resumed `resumeFrom.deltaToken`, must resolve to the exact origin and
+  collection path configured in `url`. A link that does not — including one
+  supplied through a stale or cross-subscription checkpoint — is rejected
+  with a terminal error instead of followed.
+- **Deletes normalized, relationship deltas fail explicitly (REQ-003).**
+  `@removed` / `@odata.removed` entries become delta deletes, deriving the id
+  from retained key properties or, failing that, a single-value `@id` key
+  predicate; a composite key with neither is a terminal, explicit failure.
+  OData relationship (link) delta entries — out of scope — fail the same way
+  rather than being silently dropped or misread as an entity upsert.
+- **Explicit resnapshot on expiry, not silent continuation.** An expired or
+  rejected delta link (HTTP 410 by default; override with
+  `isDeltaLinkExpiredResponse` for a server-specific convention) is recovered
+  by emitting a `status: "reconnecting"` event and re-running a full snapshot
+  cycle — an explicit resnapshot, not a guessed continuation. Bounded by
+  `maxConsecutiveResnapshots` (default 3) so a server that keeps rejecting
+  the token fails closed instead of looping forever.
+- **Bounded paging and rows (REQ-005).** `maxPagesPerCycle` (default 500) and
+  `maxSnapshotRows` (default 50,000) cap one snapshot or poll cycle; either
+  bound fails closed with an explicit error rather than truncating a
+  snapshot silently.
+- **No reconnect wrapper.** Unlike the SSE/WebSocket adapters, this transport
+  owns its whole poll loop itself — every cycle is an independent
+  request/response, not a connection to reconnect — so it does not compose
+  with `resumable-transport.ts`'s `createResumableRealtimeTransport`. It can
+  still feed `createResumableRealtimeSubscription` directly, or
+  `createRealtimeFeatureStore`, like any other `RealtimeFeatureTransport`.
+
 ## Adapter Expectations
 
-SSE adapters should emit `snapshot` or `delta` after open, `heartbeat` for server keepalives, `status: "reconnecting"` before retry, and `error` only when the stream cannot recover. WebSocket adapters should use the same event vocabulary for server messages and close codes. Delta polling adapters should emit `delta` batches, preserve server ordering, and pass cursor/timestamp/delta-token checkpoints through `checkpoint`.
+SSE adapters should emit `snapshot` or `delta` after open, `heartbeat` for server keepalives, `status: "reconnecting"` before retry, and `error` only when the stream cannot recover. WebSocket adapters should use the same event vocabulary for server messages and close codes. Delta polling adapters should emit `delta` batches, preserve server ordering, and pass cursor/timestamp/delta-token checkpoints through `checkpoint` — see `createOdataDeltaTransport` above for the concrete OData v4 implementation.
 
 Metadata and schemas can use platform metadata caching. Live feature state should be driven by checkpoint semantics rather than a long-lived feature-result cache.
