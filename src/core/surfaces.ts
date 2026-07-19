@@ -2738,11 +2738,12 @@ function grpcPageOffsetSignature(
 ): string {
   const idField = response.objectIdFieldName;
   if (idField) {
-    return features
-      .map((feature) => String((feature.attributes as Record<string, unknown> | undefined)?.[idField]))
-      .join(",");
+    const objectIds = features.map((feature) => (feature.attributes as Record<string, unknown> | undefined)?.[idField]);
+    if (objectIds.every((objectId) => objectId !== undefined && objectId !== null)) {
+      return JSON.stringify(objectIds);
+    }
   }
-  return JSON.stringify(features.map((feature) => feature.attributes));
+  return JSON.stringify(features);
 }
 
 function normalizeTotalLimit(limit: number | undefined): number | undefined {

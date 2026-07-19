@@ -293,6 +293,41 @@ describe("Honua native API surfaces", () => {
     expect(queryFeatures).toHaveBeenCalledTimes(2);
   });
 
+  it("queryFeaturesAll on grpc-web falls back to feature content when projected rows omit object ids", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      transport: "grpc-web",
+      fetchFn: async () => new Response("{}", { status: 200 }),
+    });
+
+    const queryFeatures = vi.spyOn(client, "queryFeatures").mockImplementation(async (request) => {
+      const offset = request.resultOffset ?? 0;
+      if (offset === 0) {
+        return {
+          objectIdFieldName: "OBJECTID",
+          features: [{ attributes: { NAME: "Alpha" } }, { attributes: { NAME: "Bravo" } }],
+        };
+      }
+      if (offset === 2) {
+        return {
+          objectIdFieldName: "OBJECTID",
+          features: [{ attributes: { NAME: "Charlie" } }, { attributes: { NAME: "Delta" } }],
+        };
+      }
+      return { objectIdFieldName: "OBJECTID", features: [] };
+    });
+
+    const layer = client.featureLayer("transport", 4);
+    const allFeatures = await layer.queryFeaturesAll({
+      where: "1=1",
+      outFields: ["NAME"],
+      pageSize: 2,
+    });
+
+    expect(allFeatures.map((feature) => feature.attributes.NAME)).toEqual(["Alpha", "Bravo", "Charlie", "Delta"]);
+    expect(queryFeatures).toHaveBeenCalledTimes(3);
+  });
+
   it("invokes map-service metadata, legend, export, identify, and find wrappers", async () => {
     const requestedUrls: string[] = [];
 
