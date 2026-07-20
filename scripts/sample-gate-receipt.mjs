@@ -83,8 +83,10 @@ function invariant(condition, message) {
 // set (PR CI), the evidence-neutral source-digest BINDING is relaxed so gate
 // evidence committed by a prior trunk reseal is accepted without requiring the
 // PR author to reseal against their tree. Everything else -- receipt schema,
-// 7-day freshness, producer/artifact digests, gate semantics, run-root and
-// command bindings -- stays fully enforced. Defaults to strict (fail-closed):
+// 7-day freshness, artifact digests, gate semantics, run-root and command
+// bindings -- stays fully enforced. The producer digest is also deferred
+// because a feature PR can legitimately change the producer before trunk has
+// resealed its receipts. Defaults to strict (fail-closed):
 // trunk pushes and the regenerate-derived-artifacts workflow leave it unset, so
 // the reseal there remains strictly bound to the trunk source digest.
 function derivedArtifactsRelaxed() {
@@ -1484,7 +1486,9 @@ export async function validateGateReceipt(receipt, options = {}) {
     label: "gate receipt producer",
     maxBytes: MAX_REPORT_BYTES,
   });
-  invariant(sha256(producerBytes) === receipt.producer.sha256, "gate receipt producer digest mismatch");
+  if (!derivedArtifactsRelaxed()) {
+    invariant(sha256(producerBytes) === receipt.producer.sha256, "gate receipt producer digest mismatch");
+  }
   const artifact = receipt.artifacts[0];
   const verified = await verifiedArtifact(artifact, root, receipt.sampleId, receipt.runRoot);
   invariant(verified.bytes === artifact.bytes, `gate receipt artifact byte count mismatch: ${artifact.path}`);

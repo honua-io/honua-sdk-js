@@ -7,14 +7,17 @@ import { loadCurrentPullRequestDisposition } from "./lib/github-pr-issue-disposi
 import { validatePullRequestDisposition } from "./lib/pr-issue-disposition.mjs";
 
 function usage() {
-  return "Usage: node scripts/check-pr-issue-disposition.mjs [--event <event.json>] [--metadata <metadata.json>]";
+  return (
+    "Usage: node scripts/check-pr-issue-disposition.mjs " +
+    "[--event <event.json> | --repository <owner/name> --pull-request <number>] [--metadata <metadata.json>]"
+  );
 }
 
 function parseArguments(argv) {
   const options = {};
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument !== "--event" && argument !== "--metadata") throw new Error(usage());
+    if (!["--event", "--metadata", "--repository", "--pull-request"].includes(argument)) throw new Error(usage());
     const value = argv[index + 1];
     if (!value || value.startsWith("--")) throw new Error(usage());
     options[argument.slice(2)] = value;
@@ -69,9 +72,20 @@ function writeSummary(input, result) {
 
 async function main() {
   const options = parseArguments(process.argv.slice(2));
-  const eventPath = options.event ?? process.env.GITHUB_EVENT_PATH;
-  if (!eventPath) throw new Error(`${usage()}\nGITHUB_EVENT_PATH is not set.`);
-  const eventInput = eventPullRequestInput(readJson(eventPath, "GitHub event"));
+  const directInputRequested = options.repository !== undefined || options["pull-request"] !== undefined;
+  if (directInputRequested && (options.event !== undefined || !options.repository || !options["pull-request"])) {
+    throw new Error(usage());
+  }
+  let eventInput;
+  if (directInputRequested) {
+    const pullRequestNumber = Number.parseInt(options["pull-request"], 10);
+    if (!Number.isSafeInteger(pullRequestNumber) || pullRequestNumber <= 0) throw new Error(usage());
+    eventInput = { repository: options.repository, pullRequestNumber };
+  } else {
+    const eventPath = options.event ?? process.env.GITHUB_EVENT_PATH;
+    if (!eventPath) throw new Error(`${usage()}\nGITHUB_EVENT_PATH is not set.`);
+    eventInput = eventPullRequestInput(readJson(eventPath, "GitHub event"));
+  }
   const input = options.metadata
     ? { ...eventInput, ...readJson(options.metadata, "Disposition metadata") }
     : await loadCurrentPullRequestDisposition({
