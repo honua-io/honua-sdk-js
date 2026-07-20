@@ -238,6 +238,48 @@ authorities the samples request, so the security boundary stays honest: the
 `cache` sample only writes through scoped storage, and the `protocol` sample's
 network calls are restricted to its declared origin.
 
+## First-party protocol dogfooding (issue #538)
+
+The renderer kind proved the plugin seam is real for an out-of-tree module
+(OpenLayers, issue #566): third-party and first-party (`maplibreRenderer`)
+renderers both satisfy the same plain `RendererAdapter` contract
+(`src/kernel/renderer.ts`) without the kernel importing `HonuaPluginRegistry`
+at all. `protocol` did not yet have an equivalent story — every built-in
+protocol adapter was constructed by privileged code paths inside
+`src/contract/source.ts`.
+
+`ProtocolModule` (`src/contract/protocol-module.ts`) is the minimal
+discovery/capability/diagnostics/disposal seam for a `Source.protocol(...)`
+escape-hatch adapter, mirroring `RendererAdapter`. The first bounded built-in
+migrated onto it is PMTiles (tiles-only; no query-family capability, so
+`compile`/`execute` are honestly absent from this first slice):
+
+- `pmtilesProtocolModule()` (`src/contract/pmtiles.ts`) is the seam-shaped
+  factory. `pmtilesSource()` builds its `Source.protocol("pmtiles")` escape
+  hatch through this exact factory instead of constructing
+  `HonuaPmtilesArchive` directly.
+- `pmtilesProtocolPlugin()` (`@honua/sdk-js/plugin`,
+  `src/plugin/pmtiles-protocol-plugin.ts`) packages the identical factory as a
+  certifiable `HonuaPluginFactory<"protocol">`. Registering it through
+  `HonuaPluginRegistry` and calling `pmtilesSource()` both end up constructing
+  the archive adapter through the same `ProtocolModule`, proving the built-in
+  carries no special registry privilege
+  (`test/plugin-pmtiles-protocol-seam.test.ts`).
+- `test/fixtures/plugins/cloud-tiles/` is a structurally independent
+  out-of-tree protocol module (it shares no implementation with
+  `src/contract/pmtiles.ts`) that implements the same `ProtocolModule`
+  contract and certifies through the identical kit
+  (`test/plugin-cloud-tiles-certification.test.ts`), closing REQ-004: the
+  same conformance harness runs in-tree and against an independent module.
+
+Every other built-in protocol adapter (GeoServices, OGC API Features/Tiles/
+Maps/Records/Processes, WFS 2.0, WMS, WMTS, OData v4, STAC, GeoParquet, and
+the gRPC `FeatureService` transport, plus the deterministic query-compiler
+switch in `src/query-planner/planner.ts`) still bypasses this seam; migrating
+the query-compiler pipeline onto a versioned module contract is tracked as a
+separate follow-up so it can be reviewed at the same bounded scope as this
+first slice.
+
 ## Running the certification kit independently
 
 The certification logic is also exposed as a runnable kit so a third party can
