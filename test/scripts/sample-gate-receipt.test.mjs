@@ -1289,7 +1289,7 @@ test("evidence-neutral source binding survives evidence-only changes and commits
   }
 });
 
-test("persisted source binding rejects missing, non-ancestor, and source-different revisions", async () => {
+test("persisted source binding rejects missing and source-different revisions, but accepts a content-identical non-ancestor (squash-merge) revision", async () => {
   const { repository, sourceRevision } = await integrityRepository();
   try {
     const digest = evidenceNeutralSourceDigest(repository);
@@ -1298,12 +1298,16 @@ test("persisted source binding rejects missing, non-ancestor, and source-differe
       /does not name an existing commit/,
     );
 
+    // A GitHub squash-merge rewrites a sample PR's reseal commit into a
+    // brand-new trunk commit carrying the same resulting tree: content-
+    // identical, but never a git-graph ancestor of the squashed commit
+    // (honua-io/honua-sdk-js#650). Simulate that with a sibling commit over
+    // the same tree and confirm it's accepted on content match alone -- the
+    // SHA-256 evidence-neutral digest equality is the security boundary,
+    // not git ancestry.
     const tree = git(repository, ["rev-parse", "HEAD^{tree}"]);
     const sibling = git(repository, ["commit-tree", tree, "-m", "unrelated same tree"]);
-    assert.throws(
-      () => verifyEvidenceNeutralCheckout(digest, repository, sibling),
-      /not an ancestor/,
-    );
+    assert.equal(verifyEvidenceNeutralCheckout(digest, repository, sibling), digest);
 
     await writeFile(path.join(repository, "samples/.keep"), "changed source\n");
     git(repository, ["add", "samples/.keep"]);

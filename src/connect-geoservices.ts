@@ -93,6 +93,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
           "*/rest/services/*/ImageServer",
         ],
         supportedProtocols: [
+          "grpc",
           "ogc-features",
           "stac",
           "wfs",
@@ -202,6 +203,28 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
     const url = new URL(endpoint);
     const ogcBasePath = url.pathname && url.pathname !== "/" ? url.pathname : "";
     return { endpoint, clientBaseUrl: url.origin, protocol: hint, ogcBasePath };
+  }
+  if (hint === "grpc") {
+    // Honua's gRPC FeatureService facade is a transport-selectable fast path
+    // over the same canonical FeatureServer semantics; `auto` never infers
+    // it (the identical URL is ambiguous between REST and gRPC transport
+    // intent), and MapServer / ImageServer have no gRPC query surface, so
+    // only an explicit "grpc" hint against a canonical FeatureServer URL
+    // resolves here.
+    if (!geoservices || geoservices.protocol !== "geoservices-feature-service") {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        'The endpoint is not a canonical FeatureServer URL required for Honua gRPC discovery ("protocol: \\"grpc\\"" only supports FeatureServer semantics).',
+        { endpoint, protocol: hint, resolvedProtocol: geoservices?.protocol },
+      );
+    }
+    return {
+      endpoint: geoservices.endpoint,
+      clientBaseUrl: geoservices.clientBaseUrl,
+      protocol: "grpc",
+      serviceId: geoservices.serviceId,
+      ...(geoservices.layerId !== undefined ? { layerId: geoservices.layerId } : {}),
+    };
   }
   if (
     hint === "geoservices-feature-service" ||
@@ -899,7 +922,13 @@ function serviceCapabilityEvidence(
   ]);
 }
 
-function capabilitiesFromMetadata(
+/**
+ * @internal Shared with the Honua gRPC discovery adapter (`connect-grpc.ts`)
+ * so a `protocol: "grpc"` descriptor's capability truth is derived through
+ * the exact same algorithm as raw GeoServices REST discovery — parity by
+ * construction rather than by a second hand-maintained implementation.
+ */
+export function capabilitiesFromMetadata(
   protocol: ConnectResolvedProtocol,
   metadata: HonuaLayerMetadata | HonuaServiceMetadata,
 ): Capability[] {
@@ -959,11 +988,13 @@ function capabilitiesFromMetadata(
   return [...capabilities];
 }
 
-function layerUrl(target: ConnectTarget, layerId: number): string {
+/** @internal Shared with `connect-grpc.ts`; see {@link capabilitiesFromMetadata}. */
+export function layerUrl(target: ConnectTarget, layerId: number): string {
   return `${target.endpoint.replace(/\/\d+$/, "")}/${layerId}`;
 }
 
-function provenanceFor(
+/** @internal Shared with `connect-grpc.ts`; see {@link capabilitiesFromMetadata}. */
+export function provenanceFor(
   source: string,
   retrievedAt: string,
   value: { readonly cache?: { readonly validator?: { readonly etag?: string; readonly lastModified?: string } } },
@@ -972,7 +1003,8 @@ function provenanceFor(
   return Object.freeze({ source, retrievedAt, ...(validator ? { validator } : {}) });
 }
 
-async function mapWithConcurrency<T, U>(
+/** @internal Shared with `connect-grpc.ts`; see {@link capabilitiesFromMetadata}. */
+export async function mapWithConcurrency<T, U>(
   values: readonly T[],
   concurrency: number,
   mapper: (value: T) => Promise<U>,

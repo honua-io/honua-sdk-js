@@ -64,6 +64,22 @@ manifest, which is likewise built fresh rather than committed). Committing
 contenthashed build output would churn that digest, and therefore every
 qualified receipt, on every trunk push.
 
+> **Derived-artifact decoupling (honua-io/honua-sdk-js#677).** Feature PRs do
+> **not** reseal sample evidence or regenerate any derived artifact. PR CI runs
+> the sample-publication contract and the llms/comparison/api/bench/migration
+> freshness gates in a relaxed mode (`HONUA_DERIVED_ARTIFACTS_RELAX`) that still
+> validates evidence schema, freshness, artifact digests, and catalog/dist
+> coherence, but does not require the evidence-neutral source digest to match
+> the PR's tree. After merge, the trunk-only
+> `.github/workflows/regenerate-derived-artifacts.yml` workflow rebuilds every
+> derived artifact, reseals evidence **strictly** bound to the trunk source
+> digest, and commits the result back to trunk. That workflow -- not the feature
+> PR -- is where reproducibility is enforced. The evidence-neutral digest also
+> now excludes clearly-derived, non-runtime paths (`.github`, the generated
+> report docs, `llms*.txt`, `api-report`, `bench/cross-sdk/corpus.json`, and
+> `examples/migration-workbench/public/artifacts`), so regenerating them cannot
+> re-stale a receipt.
+
 Instead, `.github/workflows/ci.yml`:
 
 - builds and schema/hash-verifies the manifest on every PR and trunk push

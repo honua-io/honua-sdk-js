@@ -13,6 +13,7 @@
  * @packageDocumentation
  */
 
+import { inspectGeoArrowBatch } from "../columnar/geoarrow.js";
 import type { ColumnarBatchV1, ColumnarBufferV1 } from "../columnar/types.js";
 import { COLUMNAR_BATCH_KIND, COLUMNAR_BATCH_VERSION } from "../columnar/types.js";
 import type {
@@ -93,6 +94,26 @@ export interface ColumnarDeckGlProjectionRequest {
   readonly identity: ColumnarDeckGlIdentity;
   /** Forwarded to the deck.gl constructor. `id`, `data`, and `pickable` are reserved. */
   readonly props?: Readonly<Record<string, unknown>>;
+}
+
+/** Normative GeoArrow Point batch request for the direct scatterplot path. */
+export interface GeoArrowPointDeckGlProjectionRequest {
+  readonly batch: ColumnarBatchV1;
+  readonly layerId: string;
+  readonly props?: Readonly<Record<string, unknown>>;
+}
+
+export interface GeoArrowPointDeckGlBindingMetrics {
+  readonly rows: number;
+  readonly positionBytes: number;
+  readonly copiedBytes: 0;
+  readonly geoJsonFeaturesMaterialized: 0;
+}
+
+/** Direct request plus measured proof that the SDK retained the GeoArrow buffer. */
+export interface GeoArrowPointDeckGlBinding {
+  readonly request: DeckGlProjectionRequest;
+  readonly metrics: GeoArrowPointDeckGlBindingMetrics;
 }
 
 function componentInfo(component: ColumnarComponentType): TypedArrayCtor {
@@ -264,6 +285,174 @@ export function bindColumnarBatchToDeckGl(request: ColumnarDeckGlProjectionReque
     data: Object.freeze({ length: rowCount, attributes: Object.freeze(attributes) }),
     identity,
     ...(request.props === undefined ? {} : { props: request.props }),
+  });
+}
+
+/**
+ * Bind a normative, non-null interleaved GeoArrow Point batch directly to a
+ * deck.gl ScatterplotLayer request. The geometry buffer becomes getPosition by
+ * identity; no GeoJSON feature or coordinate object is created.
+ *
+ * Separated coordinates, M dimensions, and nullable points require a bounded
+ * gather/filter operation and therefore fail explicitly in this zero-copy v1
+ * path instead of silently copying or rendering nulls at an invented location.
+ */
+export function bindGeoArrowPointBatchToDeckGl(
+  input: GeoArrowPointDeckGlProjectionRequest,
+): GeoArrowPointDeckGlBinding {
+  if (typeof input !== "object" || input === null) {
+    throw new HonuaDeckGlAdapterError("invalid-data", "GeoArrow deck.gl binding request must be an object.");
+  }
+  let inspection: ReturnType<typeof inspectGeoArrowBatch>;
+  try {
+    inspection = inspectGeoArrowBatch(input.batch);
+  } catch (cause) {
+    const code =
+      typeof cause === "object" && cause !== null && "code" in cause
+        ? String((cause as { code: unknown }).code)
+        : undefined;
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      "Direct deck.gl binding requires an exactly validated normative GeoArrow batch.",
+      { ...(code === undefined ? {} : { geoArrowCode: code }) },
+      { cause },
+    );
+  }
+  const batch = inspection.batch;
+  const metadata = batch.schema.metadata;
+  if (
+    metadata?.["honua.geoarrow.layout.version"] !== "1.0" ||
+    metadata["honua.geoarrow.spec.version"] !== "0.2" ||
+    metadata["honua.geoarrow.geometry.kind"] !== "point"
+  ) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      "Direct deck.gl binding requires a normative Honua GeoArrow 1.0 Point batch.",
+      { expectedLayout: "honua-geoarrow@1.0", expectedGeometry: "point" },
+    );
+  }
+  if (metadata["honua.geoarrow.geometry.coordinate-layout"] !== "interleaved") {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      "Direct deck.gl Point binding requires interleaved coordinates; separated coordinates need an explicit bounded conversion.",
+      { coordinateLayout: metadata["honua.geoarrow.geometry.coordinate-layout"], copiedBytes: 0 },
+    );
+  }
+  const dimensions = metadata["honua.geoarrow.geometry.dimensions"];
+  if (dimensions !== "xy" && dimensions !== "xyz") {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      "Direct deck.gl Point binding supports XY or XYZ coordinates; M dimensions need an explicit mapping.",
+      { dimensions },
+    );
+  }
+  if (inspection.geometry.crs !== "OGC:CRS84") {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      'Direct deck.gl Point binding requires explicit longitude/latitude axis evidence via CRS "OGC:CRS84".',
+      { crs: inspection.geometry.crs ?? null },
+    );
+  }
+  const size = dimensions === "xy" ? 2 : 3;
+  const geometryField = metadata["honua.geoarrow.geometry.field"];
+  const schemaField = batch.schema.fields.find((field) => field.name === geometryField);
+  if (
+    !schemaField ||
+    schemaField.nullable ||
+    schemaField.type.name !== "geoarrow.point" ||
+    schemaField.type.parameters?.dimensions !== dimensions ||
+    schemaField.type.parameters?.coordinateLayout !== "interleaved" ||
+    schemaField.metadata?.["ARROW:extension:name"] !== "geoarrow.point"
+  ) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      "GeoArrow Point schema does not match its direct rendering layout.",
+      {
+        geometryField,
+      },
+    );
+  }
+  const positionId = `${geometryField}.coordinates`;
+  const position = batch.buffers.find((buffer) => buffer.id === positionId);
+  if (
+    !position ||
+    position.field !== geometryField ||
+    position.role !== "geometry" ||
+    position.byteLength !== batch.rowCount * size * Float64Array.BYTES_PER_ELEMENT
+  ) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      "GeoArrow Point coordinate buffer is missing or has the wrong extent.",
+      {
+        bufferId: positionId,
+      },
+    );
+  }
+  if (inspection.geometry.validity !== undefined) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      "Nullable GeoArrow points need an explicit bounded filter before direct deck.gl rendering.",
+      { bufferId: `${geometryField}.validity`, copiedBytes: 0 },
+    );
+  }
+  const identity = batch.identity;
+  if (
+    !identity ||
+    identity.schemaVersion !== batch.schema.id ||
+    typeof identity.sourceId !== "string" ||
+    identity.sourceId.length === 0 ||
+    typeof identity.planId !== "string" ||
+    identity.planId.length === 0
+  ) {
+    throw new HonuaDeckGlAdapterError("invalid-data", "GeoArrow Point batch identity is missing or inconsistent.");
+  }
+  const featureIdField = metadata["honua.geoarrow.feature-id.field"];
+  const featureIdColumn =
+    featureIdField === undefined
+      ? undefined
+      : (() => {
+          const id = `${featureIdField}.values`;
+          const buffer = batch.buffers.find((candidate) => candidate.id === id);
+          if (
+            !buffer ||
+            buffer.role !== "values" ||
+            buffer.field !== featureIdField ||
+            buffer.byteLength !== batch.rowCount * Uint32Array.BYTES_PER_ELEMENT
+          ) {
+            throw new HonuaDeckGlAdapterError("invalid-data", "GeoArrow feature id buffer is missing or malformed.", {
+              bufferId: id,
+            });
+          }
+          return { bufferId: id, component: "uint32" as const };
+        })();
+
+  const request = bindColumnarBatchToDeckGl({
+    batch,
+    layerId: input.layerId,
+    attributes: [{ accessor: "getPosition", bufferId: positionId, component: "float64", size }],
+    identity: {
+      sourceId: identity.sourceId,
+      planId: identity.planId,
+      sourceVersion: identity.sourceVersion,
+      ...(featureIdColumn === undefined ? {} : { featureIdColumn }),
+    },
+    ...(input.props === undefined ? {} : { props: input.props }),
+  });
+  const positionView = request.data.attributes.getPosition.value;
+  if (positionView.buffer !== position.data) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      "Direct GeoArrow position binding unexpectedly copied its payload.",
+    );
+  }
+  return Object.freeze({
+    request,
+    metrics: Object.freeze({
+      rows: batch.rowCount,
+      positionBytes: position.byteLength,
+      copiedBytes: 0,
+      geoJsonFeaturesMaterialized: 0,
+    }),
   });
 }
 

@@ -68,7 +68,8 @@ import {
 import { HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
-import { HonuaPmtilesArchive, stripPmtilesScheme } from "./pmtiles.js";
+import type { HonuaPmtilesArchive } from "./pmtiles.js";
+import { pmtilesProtocolModule } from "./pmtiles.js";
 import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
 import {
   type AdapterFor,
@@ -226,6 +227,15 @@ function buildBuiltInSource<T>(
   policy: CapabilityPolicy,
 ): CapabilityAwareSource<T> | undefined {
   switch (descriptor.protocol) {
+    case "grpc":
+      // Honua gRPC is a transport-selectable fast path over the same
+      // canonical FeatureServer semantics, not a distinct adapter: the
+      // returned `HonuaFeatureLayer` transparently routes `queryFeatures`
+      // over gRPC-Web when `client.transport === "grpc-web"` (see
+      // `docs/protocol-capability-matrix.md`, "gRPC FeatureService"). The
+      // discovered descriptor's narrower `capabilities` (verified through a
+      // live gRPC parity probe in `connect-grpc.ts`) still gate execution.
+      return geoServicesFeatureSource<T>(descriptor, client, policy);
     case "geoservices-feature-service":
       return geoServicesFeatureSource<T>(descriptor, client, policy);
     case "geoservices-map-service":
@@ -296,7 +306,13 @@ export function geoServicesFeatureSource<T>(
   descriptor = normalizeCapabilityDescriptor(descriptor);
   const { serviceId, layerId } = requireFeatureServiceLocator(descriptor);
   const layer = new HonuaFeatureLayer<T>({ client, serviceId, layerId });
-  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"];
+  // Indexed by the descriptor's own protocol (not hardcoded to
+  // "geoservices-feature-service") so a `protocol: "grpc"` descriptor built
+  // without explicit capabilities falls back to the narrower gRPC default
+  // set rather than silently inheriting REST-only capabilities (`pbf`,
+  // `sql`, `attachments`, `queryRelated`) the gRPC FeatureService RPC
+  // surface does not support.
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES[descriptor.protocol];
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
     "geoservices-feature-service": layer,
@@ -947,6 +963,12 @@ export function ogcTilesSource<T>(
  * `locator.url` may carry a leading `pmtiles://` scheme (the MapLibre form) or
  * be a bare archive URL; both resolve to the same archive.
  *
+ * This builds the escape-hatch adapter through {@link pmtilesProtocolModule}
+ * (issue #538) rather than constructing `HonuaPmtilesArchive` directly, so
+ * the built-in wiring runs the same public `ProtocolModule` seam a module
+ * registered through `HonuaPluginRegistry` uses
+ * (`pmtilesProtocolPlugin`, `@honua/sdk-js/plugin`).
+ *
  * @example
  * ```ts
  * const archive = dataset.source("basemap")!.protocol("pmtiles");
@@ -960,15 +982,25 @@ export function pmtilesSource<T>(
   policy: CapabilityPolicy,
 ): CapabilityAwareSource<T> {
   descriptor = normalizeCapabilityDescriptor(descriptor);
-  const url = stripPmtilesScheme(requirePmtilesLocator(descriptor));
-  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.pmtiles;
-  const archive = new HonuaPmtilesArchive(url);
+  const discovered = pmtilesProtocolModule().discover(descriptor);
+  if (discovered instanceof Promise) {
+    // PMTiles discovery is always synchronous (the reader opens lazily on the
+    // handle's own first `describe()` call); a module that started returning
+    // a promise would be a breaking change to this built-in's own contract.
+    throw new Error("pmtiles: built-in source construction requires synchronous protocol-module discovery");
+  }
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
-    pmtiles: archive,
+    pmtiles: discovered.adapter,
   };
 
-  return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
+  return makeSource<T>(
+    descriptor,
+    discovered.capabilities,
+    policy,
+    adapterRegistry,
+    unsupportedFeatureSurface<T>(descriptor),
+  );
 }
 
 // ── OGC API Maps ──────────────────────────────────────────────
@@ -3620,14 +3652,6 @@ function requireOgcRecordsLocator(descriptor: SourceDescriptor): { collectionId:
     throw new Error(`createDataset: source "${descriptor.id}" (ogc-records) requires locator.collectionId`);
   }
   return { collectionId };
-}
-
-function requirePmtilesLocator(descriptor: SourceDescriptor): string {
-  const { url } = descriptor.locator;
-  if (typeof url !== "string" || url === "") {
-    throw new Error(`createDataset: source "${descriptor.id}" (pmtiles) requires locator.url`);
-  }
-  return url;
 }
 
 function requireImageServiceLocator(descriptor: SourceDescriptor): { serviceId: string } {

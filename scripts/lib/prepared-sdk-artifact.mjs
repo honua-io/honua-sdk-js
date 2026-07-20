@@ -6,7 +6,18 @@ export const PREPARED_SDK_ARTIFACT_FORMAT = "honua.prepared-sdk-artifact.v1";
 export const PREPARED_SDK_RUN_ID_ENV = "HONUA_PREPARED_SDK_RUN_ID";
 export const PREPARED_SDK_MANIFEST_PATH = path.join(".tmp", "prepared-sdk-artifact", "manifest.json");
 
-const BUILD_INPUT_ROOTS = ["src", "test", "bench", "scripts", "config"];
+// Every root that tsc's compiled program can actually reach and emit into
+// dist/ MUST be represented here. tsconfig.json's "include" only lists
+// src/test/bench, but rootDir "." means any file transitively reachable via
+// a relative import from those trees is added to the program and emitted
+// (TypeScript's "exclude" only filters the initial glob scan, not files
+// pulled in through explicit imports). Several test specs import fixtures
+// under test/fixtures and modules under examples/, so both roots influence
+// dist even though neither is in tsconfig's "include". Omitting them here
+// let two checkouts with byte-identical src/test/bench but different
+// examples/ or test/fixtures content report the SAME inputs digest while
+// producing genuinely different dist trees (see honua-io/honua-sdk-js#652).
+const BUILD_INPUT_ROOTS = ["src", "test", "bench", "scripts", "config", "examples"];
 const BUILD_INPUT_FILES = [
   "package.json",
   "package-lock.json",
@@ -347,8 +358,45 @@ function collectFile(projectRoot, relativePath, files) {
   files.push(normalizedPath);
 }
 
+// Generated/vendor directories that can appear on disk under a build-input
+// root (e.g. examples/*/node_modules installed by ensure-kepler-demo-deps.mjs,
+// or a stray dist/coverage output) but are never part of the tracked source
+// tsc compiles from. These must stay excluded so the inputs digest reflects
+// only tracked, tsc-relevant source and doesn't fluctuate with local install
+// or build-artifact state. test/fixtures is intentionally NOT excluded here:
+// tsconfig.json excludes it from tsc's own top-level glob scan (some fixtures
+// are deliberately non-compiling), but files within it that ARE imported by
+// in-program test specs still get compiled and emitted into dist, so its
+// content must be part of the digest (see honua-io/honua-sdk-js#652).
+const EXCLUDED_BUILD_INPUT_SEGMENTS = new Set([
+  "node_modules",
+  "dist",
+  ".vite",
+  ".cache",
+  "coverage",
+  "test-results",
+  ".tmp",
+]);
+
+// examples/migration-workbench runs the migration codemod against its own
+// bundled "before" app and publishes the result as tracked demo output
+// (scripts/lib/migration-workbench-artifacts.mjs). Those output paths are
+// regenerated OUTPUT, not authored source that influences tsc's compiled
+// program (nothing under src/test/bench imports them), so — exactly like
+// EVIDENCE_NEUTRAL_EXCLUDED_ROOTS below for samples/evidence — they must
+// stay out of the inputs digest. Otherwise regenerating them would change
+// "examples", which would change the inputs digest embedded as their own
+// buildInputsSha256 field, requiring another regeneration ad infinitum.
+const GENERATED_BUILD_OUTPUT_ROOTS = [
+  "examples/migration-workbench/public/artifacts",
+  "examples/migration-workbench/src/generated",
+];
+
 function isExcludedBuildInput(relativePath) {
-  return relativePath === "test/fixtures" || relativePath.startsWith("test/fixtures/");
+  if (relativePath.split("/").some((segment) => EXCLUDED_BUILD_INPUT_SEGMENTS.has(segment))) return true;
+  return GENERATED_BUILD_OUTPUT_ROOTS.some(
+    (root) => relativePath === root || relativePath.startsWith(`${root}/`),
+  );
 }
 
 function updateLengthFramed(hash, bytes) {

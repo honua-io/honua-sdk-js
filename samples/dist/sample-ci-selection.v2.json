@@ -904,8 +904,7 @@
           "execution": "automatic",
           "commands": [
             "npm run demo:planning-workbench:typecheck",
-            "npm run demo:planning-workbench:build",
-            "npm run test:playwright:planning-workbench"
+            "npm run demo:planning-workbench:build"
           ]
         },
         "fixtureEvidence": {
@@ -916,13 +915,11 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": [
-            "npm run evidence:planning:live"
-          ]
+          "commands": []
         }
       },
       "liveEvidence": {
-        "mode": "public-live",
+        "mode": "demo-live",
         "status": "planned"
       }
     },

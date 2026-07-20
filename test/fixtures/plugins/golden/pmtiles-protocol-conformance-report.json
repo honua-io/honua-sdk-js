@@ -1,0 +1,90 @@
+{
+  "reportVersion": 1,
+  "plugin": {
+    "id": "io.honua.protocols.pmtiles",
+    "version": "1.0.0",
+    "kind": "protocol"
+  },
+  "status": "passed",
+  "certification": {
+    "status": "certified",
+    "sha256": "sha256:2fc0f2426fb9ac895ed5659525f654e7750f90339eea25cb3cbea36518c7d928"
+  },
+  "scenarios": [
+    {
+      "scenario": "retries",
+      "status": "passed",
+      "observations": [
+        {
+          "metric": "hostAttempts",
+          "observed": 0,
+          "bound": 0,
+          "comparison": "<=",
+          "satisfied": true
+        },
+        {
+          "metric": "recovered",
+          "observed": 1,
+          "bound": 1,
+          "comparison": ">=",
+          "satisfied": true
+        }
+      ]
+    },
+    {
+      "scenario": "performance",
+      "status": "passed",
+      "observations": [
+        {
+          "metric": "serviceCalls",
+          "observed": 0,
+          "bound": 0,
+          "comparison": "<=",
+          "satisfied": true
+        },
+        {
+          "metric": "completed",
+          "observed": 1,
+          "bound": 1,
+          "comparison": ">=",
+          "satisfied": true
+        },
+        {
+          "metric": "deterministic",
+          "observed": 1,
+          "bound": 1,
+          "comparison": ">=",
+          "satisfied": true
+        }
+      ]
+    },
+    {
+      "scenario": "bundle-metadata",
+      "status": "passed",
+      "observations": [
+        {
+          "metric": "minifiedBytes",
+          "observed": 24310,
+          "bound": 26741,
+          "comparison": "<=",
+          "satisfied": true
+        },
+        {
+          "metric": "gzipBytes",
+          "observed": 9544,
+          "bound": 10499,
+          "comparison": "<=",
+          "satisfied": true
+        },
+        {
+          "metric": "metadataComplete",
+          "observed": 1,
+          "bound": 1,
+          "comparison": ">=",
+          "satisfied": true
+        }
+      ]
+    }
+  ],
+  "sha256": "sha256:c58f2298cda1695bc40141f5ec58e8d9bea477c625f8a13a6fb78f426d871c96"
+}

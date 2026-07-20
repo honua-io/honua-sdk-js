@@ -517,6 +517,14 @@ function main() {
     process.stdout.write(`wrote ${path.relative(ROOT, OUTPUT_FILE)} (${content.length} bytes)\n`);
     return;
   }
+  // Derived-artifact decoupling (honua-io/honua-sdk-js#677): docs/comparison.md
+  // is a generated projection regenerated on trunk. Building the page above
+  // still proves it is producible without error; at PR time (relax signal set)
+  // we do not require it to be committed-fresh.
+  if (/^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "")) {
+    process.stdout.write("docs/comparison.md freshness relaxed for PR (regenerated on trunk; #677)\n");
+    return;
+  }
   // Normalize CRLF so a core.autocrlf checkout on Windows still compares clean.
   const existing = (fs.existsSync(OUTPUT_FILE) ? fs.readFileSync(OUTPUT_FILE, "utf8") : "").replace(/\r\n/g, "\n");
   if (existing !== content) {

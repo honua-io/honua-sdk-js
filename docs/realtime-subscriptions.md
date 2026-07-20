@@ -2,6 +2,8 @@
 
 The `@honua/sdk-js/realtime` entrypoint defines the SDK-side contract for live operational layers. Apps subscribe once to a `RealtimeFeatureTransport` and consume normalized `RealtimeFeatureEvent` values through `RealtimeFeatureState`; they do not branch on SSE, WebSocket, or delta polling protocols in map, table, or detail code.
 
+The full versioned contract — including plan identity, explicit authority state, and cross-scope resume rejection — is ratified in [the snapshot/delta/cursor/resume/plan-identity contract decision](decisions/realtime-snapshot-delta-cursor-resume-plan-identity-contract.md) and exercised by [`test/fixtures/realtime/snapshot-delta-cursor-resume-contract.v1.json`](../test/fixtures/realtime/snapshot-delta-cursor-resume-contract.v1.json).
+
 ## Subscription Identity
 
 A `RealtimeSubscriptionRequest` identifies the logical live stream with `sourceId`, optional `layerId`, `where`, `fields`, `spatialFilter`, and optional caller-owned `requestId`. Use the same identity when reconnecting the same UI state. Non-identity values such as `metadata`, `signal`, and tracing fields must not change replay semantics.
@@ -114,6 +116,80 @@ store.connect(transport, { sourceId: "incidents", layerId: "0", mode: "snapshot-
 ```
 
 The preset decodes honua-server feature-change envelopes (`{ op: "insert" | "update" | "delete", featureId, feature, ... }`, batched under `changes` or inlined) into SDK `delta` events, carrying `serviceId` through as the event `sourceId`. Status, heartbeat, and error envelopes that already use the SDK vocabulary pass through unchanged. The default `sourceId=` / `layerId=` encoder remains the transport default; the preset is opt-in.
+
+## Bounded, Resumable Transports (#557)
+
+`sse.ts` and `websocket.ts` are raw wire adapters: they open exactly one
+connection per `subscribe()` call, decode the default JSON event vocabulary
+(or a custom `encodeRequest`/`decodeEvent` pair, as with the honua-server
+preset), and never reconnect on their own. `createResumableRealtimeTransport`
+wraps either one (or a custom `RealtimeFeatureTransport`) with the
+[resumable delivery gate](decisions/realtime-snapshot-delta-cursor-resume-plan-identity-contract.md),
+reconnect ownership, a heartbeat timeout, and redacted telemetry — closing
+the "automatic SSE/WebSocket reconnection" gap called out in
+[the resume doc](realtime-resume.md#scope-and-remaining-work).
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  createResumableServerSentEventsTransport,
+  createRealtimeFeatureStore,
+} from "@honua/sdk-js/realtime";
+
+const transport = createResumableServerSentEventsTransport(
+  { url: "https://honua.example/api/v1/streaming/features" },
+  {
+    context: {
+      kind: "honua.realtime-resume-context",
+      version: 1,
+      sourceId: "incidents",
+      queryFingerprint: acceptedPlan.fingerprint,
+      sourceVersion: "incident-snapshot-v7",
+      schemaVersion: "incident-schema-v3",
+      authorizationScopeFingerprint: aclFingerprint,
+    },
+    checkpointStore: durableCheckpointStore,
+    heartbeatTimeoutMs: 30_000,
+    reconnect: { maxAttempts: 8, baseDelayMs: 250, maxDelayMs: 30_000 },
+    onTelemetry: (telemetry) => reportRealtimeTelemetry(telemetry),
+  },
+);
+
+const store = createRealtimeFeatureStore();
+store.connect(transport, { sourceId: "incidents", mode: "snapshot-then-delta" });
+```
+
+`createResumableWebSocketTransport` is the same shape over `websocket.ts`.
+The wrapped transport still satisfies `RealtimeFeatureTransport`, so it
+composes with `createRealtimeFeatureStore.connect(...)` exactly like a raw
+adapter — the store never has to know reconnect is happening underneath it.
+
+Behavior:
+
+- **Resume only with a valid scoped cursor (REQ-003).** Every reconnect asks
+  the delivery gate whether its current checkpoint is still authoritative
+  (`phase !== "resnapshot-required"`); only then does the next connection
+  attempt carry `resumeFrom`. A detected gap — a transport-reported
+  `transport-gap`/`cursor-expired`/`resume-unsupported` failure, a
+  gate-detected sequence gap, buffer overflow, or a heartbeat timeout —
+  always reconnects with a fresh snapshot request instead.
+- **Bounded queue, explicit overflow.** `maxPendingEvents` (delegated to the
+  gate) bounds in-flight delivery; exceeding it forces a fresh-snapshot
+  reconnect rather than silently dropping an event.
+- **Reconnect is bounded and fails closed.** `reconnect.maxAttempts`
+  (default 8) caps consecutive reconnect attempts with exponential backoff
+  and jitter (`computeReconnectDelayMs`); exhausting them surfaces a
+  terminal `HonuaRealtimeResumeError` instead of retrying forever. An
+  unrecognized (non-SDK) or non-retryable transport failure fails closed
+  immediately, on the first attempt, with no guessed retry.
+- **Idempotent disposal.** The returned handle's `close()`, an external
+  `AbortSignal`, and an unrecoverable failure all route through the same
+  one-time teardown: timers, the active connection, and the delivery gate
+  all stop exactly once.
+- **Redacted telemetry.** `onTelemetry` receives
+  `deriveRealtimeContractAuthority`'s explicit `replaying`/`live`/`stale`/
+  `terminal` state, reconnect/duplicate/gap/overflow counters, and a
+  `redactRealtimeCheckpoint` projection of the current checkpoint — never a
+  raw cursor, watermark, or delta-token.
 
 ## Adapter Expectations
 
