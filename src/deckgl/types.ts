@@ -28,9 +28,23 @@ export interface DeckGlBinaryAttribute {
 }
 
 export interface DeckGlBinaryData {
+  /**
+   * For `scatterplot`: the feature/row count. For `feature-path` and
+   * `feature-polygon`: the total addressed vertex count across every path or
+   * ring, matching the deck.gl binary geometry contract (path/polygon feature
+   * count is `startIndices.length - 1`).
+   */
   readonly length: number;
   /** deck.gl binary accessor names, for example `getPosition` and `getFillColor`. */
   readonly attributes: Readonly<Record<string, DeckGlBinaryAttribute>>;
+  /**
+   * Required for `feature-path` (`getPath`) and `feature-polygon`
+   * (`getPolygon`); forbidden otherwise. One vertex-index boundary per
+   * feature plus a trailing boundary, i.e. length `featureCount + 1`,
+   * `startIndices[0] === 0`, non-decreasing, and
+   * `startIndices[featureCount] === length`.
+   */
+  readonly startIndices?: ArrayLike<number>;
 }
 
 export interface DeckGlSelectionIdentity {
@@ -93,6 +107,10 @@ export interface DeckGlLayerConstructor {
 
 export interface DeckGlPeers {
   readonly ScatterplotLayer: DeckGlLayerConstructor;
+  /** Required only to `project()` a `"feature-path"` request. */
+  readonly PathLayer?: DeckGlLayerConstructor;
+  /** Required only to `project()` a `"feature-polygon"` request. */
+  readonly SolidPolygonLayer?: DeckGlLayerConstructor;
 }
 
 export type DeckGlModuleImporter = (specifier: string) => Promise<unknown>;
@@ -106,7 +124,18 @@ export interface DeckGlLayerHost {
   removeLayer(layer: DeckGlLayer): void;
 }
 
-export interface DeckGlMountedProjection {
+/**
+ * Common shape for every disposable Honua deck.gl binding — mounted
+ * projections, camera/view-state sync, and combined lifecycles all expose
+ * this. `dispose()` is idempotent after success; `disposed` stays `false`
+ * while a failed disposal remains retryable.
+ */
+export interface DeckGlDisposalHandle {
+  readonly disposed: boolean;
+  dispose(): void;
+}
+
+export interface DeckGlMountedProjection extends DeckGlDisposalHandle {
   readonly layer: DeckGlLayer;
   /** False while removal has failed and remains retryable. */
   readonly disposed: boolean;
