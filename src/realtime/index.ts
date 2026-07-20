@@ -3,7 +3,11 @@
  * Events (`sse.ts`) and WebSocket (`websocket.ts`) wire adapters pair with
  * the bounded, resumable wrapper in `resumable-transport.ts` (issue #557),
  * which adds the #556 delivery gate, reconnect/backoff, heartbeat timeout,
- * and redacted telemetry on top of either one.
+ * and redacted telemetry on top of either one. `odata-delta.ts` (issue #558)
+ * adds a pull-based OData v4 delta-link adapter with its own bounded poll
+ * loop and honest, non-live freshness reporting — it satisfies the same
+ * `RealtimeFeatureTransport` surface but is not a socket transport, so it
+ * does not compose with `resumable-transport.ts`'s reconnect wrapper.
  *
  * @module
  */
@@ -84,6 +88,13 @@ export type {
   RealtimeWebSocketFactory,
   RealtimeWebSocketTransportOptions,
 } from "./websocket.js";
+export { createOdataDeltaTransport } from "./odata-delta.js";
+export type {
+  OdataDeltaEntity,
+  OdataDeltaInitialQuery,
+  OdataDeltaPollTelemetry,
+  OdataDeltaTransportOptions,
+} from "./odata-delta.js";
 export {
   computeReconnectDelayMs,
   createResumableRealtimeTransport,
