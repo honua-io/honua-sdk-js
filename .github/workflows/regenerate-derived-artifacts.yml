@@ -172,9 +172,16 @@ jobs:
         run: |
           set -euo pipefail
           git add -A -- \
+            samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json \
             samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json \
-            samples/dist \
             samples/evidence/maplibre-quickstart
+          # The v2 consumer fixture and samples/dist projection are one atomic
+          # generated contract: samples:generate rewrites the fixture digest to
+          # bind the projection bytes. samples/dist is deliberately tracked even
+          # though the repository's global dist/ ignore rule matches it.
+          # Force-add only this allowlisted projection directory; the unstaged-
+          # change guard below still rejects modifications anywhere else.
+          git add -f -A -- samples/dist
           if ! git diff --quiet; then
             echo "Evidence regeneration modified unexpected tracked content:"
             git status --short
@@ -266,6 +273,7 @@ jobs:
               llms.txt | llms-full.txt | \
               examples/migration-workbench/public/artifacts/* | \
               examples/migration-workbench/src/generated/* | \
+              samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
               samples/dist/* | samples/evidence/maplibre-quickstart/*)
                 ;;
