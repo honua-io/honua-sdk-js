@@ -14,6 +14,7 @@ import type { ParsedArgs } from "../args.js";
 import { ArgError, getBoolean, getString, parseBbox } from "../args.js";
 import { createClient } from "../client.js";
 import type { CommandContext } from "../command.js";
+import { downloadCredentialedResource } from "../download.js";
 import { printLine, renderDetail, renderJson } from "../output.js";
 
 export async function mapCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
@@ -67,11 +68,7 @@ async function mapExport(parsed: ParsedArgs, ctx: CommandContext): Promise<void>
   }
 
   if (outPath) {
-    const res = await fetch(result.href, ctx.apiKey ? { headers: { "X-API-Key": ctx.apiKey } } : undefined);
-    if (!res.ok) {
-      throw new Error(`Failed to download exported image (${res.status} ${res.statusText}) from ${result.href}`);
-    }
-    const bytes = Buffer.from(await res.arrayBuffer());
+    const bytes = await downloadCredentialedResource(result.href, { baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
     fs.writeFileSync(outPath, bytes);
     printLine(
       renderDetail(
@@ -120,11 +117,7 @@ export async function tilesCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
 
   const outPath = getString(parsed, "output");
   if (outPath) {
-    const res = await fetch(url, ctx.apiKey ? { headers: { "X-API-Key": ctx.apiKey } } : undefined);
-    if (!res.ok) {
-      throw new Error(`Failed to download tile (${res.status} ${res.statusText}) from ${url}`);
-    }
-    const bytes = Buffer.from(await res.arrayBuffer());
+    const bytes = await downloadCredentialedResource(url, { baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
     fs.writeFileSync(outPath, bytes);
     printLine(
       renderDetail({ service, tile: `${z}/${x}/${y}`, saved: outPath, bytes: bytes.length }, { title: "Tile saved" }),
