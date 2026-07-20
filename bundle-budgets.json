@@ -64,7 +64,8 @@
   "The agent error envelope (#570) migrated agent-tools/agent-safety error classes onto the tagged SDK error envelope and expanded the descriptive error-code registry, so /honua, /contract, /agent-tools, /agent-safety, and the error-leaf/error-registry tree-shake guards were remeasured. Only the exceeded metrics were reset to measured actual plus ~10% headroom.",
   "/realtime's gzip ceiling was reset for the snapshot/delta/cursor/resume/plan-identity contract (#556): plan-identity binding, explicit replaying/live/stale/terminal authority derivation, and deterministic/redacted checkpoint serialization measure 48,586 minified / 13,992 gzip bytes. Plan identity reads QueryExecutionPlan['fingerprint'] directly rather than importing hashQueryPlan, so the query planner's protocol-compiler graph stays out of this entrypoint; only the exceeded gzip metric is reset to measured actual plus ~10% headroom.",
   "/query-planner and /deckgl were reset for the normative GeoArrow batch layouts and direct deck.gl path (#536): dependency-free GeoArrow 0.2 point/line/polygon/null/CRS/temporal/dictionary encode-decode, the optional apache-arrow bridge (loaded only via the caller-injected loadApacheArrow importer), and the zero-copy GeoArrow-to-deck.gl binding measure 594,731 minified / 120,885 gzip bytes on /query-planner and 48,522 minified / 14,108 gzip bytes on /deckgl. Both entrypoints remain experimental-tier and opt-in; apache-arrow and @deck.gl/layers stay optional peers kept out of the root/browser barrels. Each ceiling is measured actual plus 10% headroom.",
-  "/realtime was reset for bounded SSE and WebSocket resume transports (#557): the raw WebSocket wire adapter (websocket.ts) plus the reconnect-owning wrapper (resumable-transport.ts — exponential-backoff-and-jitter reconnect, heartbeat timeout, resume-vs-resnapshot selection driven by the delivery gate's own phase, and redacted telemetry) measure 54,897 minified / 15,726 gzip bytes. Both ceilings are measured actual plus ~10% headroom."
+  "/realtime was reset for bounded SSE and WebSocket resume transports (#557): the raw WebSocket wire adapter (websocket.ts) plus the reconnect-owning wrapper (resumable-transport.ts — exponential-backoff-and-jitter reconnect, heartbeat timeout, resume-vs-resnapshot selection driven by the delivery gate's own phase, and redacted telemetry) measure 54,897 minified / 15,726 gzip bytes. Both ceilings are measured actual plus ~10% headroom.",
+  "/realtime was reset for the OData v4 delta-link pull adapter (#558): createOdataDeltaTransport's bounded @odata.nextLink/@odata.deltaLink paging, scoped-link rejection, @removed/relationship-delta normalization, and explicit expired-link resnapshot recovery measure 62,626 minified / 18,181 gzip bytes. Both ceilings are measured actual plus ~10% headroom."
  ],
  "entrypoints": {
   ".": {
@@ -112,8 +113,8 @@
    "gzip": 151071
   },
   "/realtime": {
-   "min": 60387,
-   "gzip": 17299
+   "min": 68889,
+   "gzip": 20000
   },
   "/offline": {
    "min": 45404,
