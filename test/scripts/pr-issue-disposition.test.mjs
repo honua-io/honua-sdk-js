@@ -150,10 +150,9 @@ function expectFailure(code, action) {
 
 describe("pull request issue disposition policy", () => {
   it("keeps the required workflow pinned, least-privilege, and bound to trusted base code", () => {
-    const workflow = fs.readFileSync(
-      path.join(root, ".github/workflows/pr-issue-disposition.yml"),
-      "utf8",
-    );
+    const workflow = fs
+      .readFileSync(path.join(root, ".github/workflows/pr-issue-disposition.yml"), "utf8")
+      .replaceAll("\r\n", "\n");
     assert.match(workflow, /^  pull_request:\n/mu);
     assert.match(workflow, /^  workflow_dispatch:\n/mu);
     assert.doesNotMatch(workflow, /pull_request_target/u);
@@ -173,10 +172,9 @@ describe("pull request issue disposition policy", () => {
   });
 
   it("routes regeneration through an exact, strictly checked automation PR", () => {
-    const workflow = fs.readFileSync(
-      path.join(root, ".github/workflows/regenerate-derived-artifacts.yml"),
-      "utf8",
-    );
+    const workflow = fs
+      .readFileSync(path.join(root, ".github/workflows/regenerate-derived-artifacts.yml"), "utf8")
+      .replaceAll("\r\n", "\n");
     assert.match(workflow, /^  workflow_dispatch:$/mu);
     assert.match(
       workflow,
@@ -189,11 +187,22 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /current_trunk="\$\(git rev-parse refs\/remotes\/origin\/trunk\)"/u);
     assert.match(workflow, /gh pr merge "\$PR_NUMBER"[\s\S]*--merge[\s\S]*--match-head-commit "\$GENERATED"/u);
     assert.match(workflow, /gh workflow run regenerate-derived-artifacts\.yml --repo "\$GITHUB_REPOSITORY" --ref trunk/u);
+    const migrationGeneration = workflow.indexOf("name: Regenerate migration-workbench artifacts");
+    const llmsGeneration = workflow.indexOf("name: Regenerate llms.txt and comparison page");
+    const comparisonCommand = workflow.indexOf("npm run docs:comparison", llmsGeneration);
+    const llmsCommand = workflow.indexOf("npm run docs:llms", llmsGeneration);
+    const llmsVerification = workflow.indexOf("name: Verify llms.txt freshness before publication");
+    assert.ok(migrationGeneration >= 0 && llmsGeneration > migrationGeneration);
+    assert.ok(comparisonCommand > llmsGeneration && llmsCommand > comparisonCommand);
+    assert.ok(llmsVerification > llmsGeneration);
+    assert.match(workflow, /name: Verify llms\.txt freshness before publication[\s\S]*run: npm run verify:llms/u);
     assert.doesNotMatch(workflow, /git push origin "\$generated:refs\/heads\/trunk"/u);
   });
 
   it("emits Release Please checks only from pinned code on a trusted trunk push", () => {
-    const workflow = fs.readFileSync(path.join(root, ".github/workflows/release-please.yml"), "utf8");
+    const workflow = fs
+      .readFileSync(path.join(root, ".github/workflows/release-please.yml"), "utf8")
+      .replaceAll("\r\n", "\n");
     const usesLines = workflow.split("\n").filter((line) => /^\s*(?:-\s*)?uses:/u.test(line));
     const actionUses = [...workflow.matchAll(/^\s*(?:-\s*)?uses:\s+([^\s#]+)(?:\s+#.*)?$/gmu)].map(
       (match) => match[1],
