@@ -62,6 +62,7 @@ import {
   compileQuery,
   describeSql,
   geoMetadataSql,
+  isGeoArrowNativeEncoding,
   quoteIdentifier,
   rowEstimateSql,
 } from "../core/geoparquet-sql.js";
@@ -75,19 +76,27 @@ import {
   duckDbLosslessTransportKind,
 } from "./lossless-decoder.js";
 import { type DescribeRow, type SourceProfile, type SourceProfileField, buildSourceProfile } from "./metadata.js";
+import {
+  type GeoParquetNativeGeoJsonGeometry,
+  type GeoParquetNativeGeometryKind,
+  decodeGeoParquetNativeGeometryColumn,
+} from "./native-geometry.js";
 export * from "./driver.js";
 export * from "./lossless-decoder.js";
 export * from "./metadata.js";
+export * from "./native-geometry.js";
 export {
   bboxFromSpatialFilter,
   compileAggregate,
   compileQuery,
   type CompiledSql,
   type CompileOptions,
+  type GeoArrowNativeGeometryEncoding,
   type GeometryColumnPlan,
   type GeometryEncoding,
   geometryExpr,
   integerLiteral,
+  isGeoArrowNativeEncoding,
   numberLiteral,
   parquetSourceExpr,
   quoteIdentifier,
@@ -452,16 +461,30 @@ function normalizeScalar(value: unknown): unknown {
   return typeof value === "bigint" ? Number(value) : value;
 }
 
-function rowToFeature<T>(row: DuckRow, wantGeometry: boolean): HonuaTypedFeature<T> {
+/**
+ * `nativeGeometry` is `undefined` for every encoding except `geoarrow-*`
+ * (legacy WKB/native/GeoJSON columns keep decoding the GeoJSON text under
+ * `GEOPARQUET_ALIAS` exactly as before); when defined it is the row's
+ * already-decoded GeoParquet 1.1 native geometry (`null` for a null row).
+ */
+function rowToFeature<T>(
+  row: DuckRow,
+  wantGeometry: boolean,
+  nativeGeometry?: GeoParquetNativeGeoJsonGeometry | null,
+): HonuaTypedFeature<T> {
   const attributes: Record<string, unknown> = {};
   let geometry: Record<string, unknown> | null = null;
   for (const [key, value] of Object.entries(row)) {
     if (key === GEOPARQUET_ALIAS) {
-      if (wantGeometry && typeof value === "string") {
-        try {
-          geometry = JSON.parse(value) as Record<string, unknown>;
-        } catch {
-          geometry = null;
+      if (wantGeometry) {
+        if (nativeGeometry !== undefined) {
+          geometry = nativeGeometry as unknown as Record<string, unknown> | null;
+        } else if (typeof value === "string") {
+          try {
+            geometry = JSON.parse(value) as Record<string, unknown>;
+          } catch {
+            geometry = null;
+          }
         }
       }
       continue;
@@ -469,6 +492,30 @@ function rowToFeature<T>(row: DuckRow, wantGeometry: boolean): HonuaTypedFeature
     attributes[key] = normalizeScalar(value);
   }
   return { attributes: attributes as T, geometry: wantGeometry ? geometry : undefined };
+}
+
+function nativeGeometryKind(encoding: GeometryColumnPlan["encoding"]): GeoParquetNativeGeometryKind {
+  return encoding.slice("geoarrow-".length) as GeoParquetNativeGeometryKind;
+}
+
+/**
+ * Batch-decode a GeoParquet 1.1 native geometry column with one reviewed
+ * `src/columnar/geoarrow.ts` round trip per query response (rather than one
+ * per row) — `undefined` when the geometry plan is absent, projection was
+ * skipped, or the encoding is not `geoarrow-*` (WKB/native/GeoJSON stay on
+ * the existing `ST_AsGeoJSON` text path, unchanged).
+ */
+function decodeNativeGeometryColumn(
+  values: readonly unknown[],
+  geometry: GeometryColumnPlan | undefined,
+  wantGeometry: boolean,
+): readonly (GeoParquetNativeGeoJsonGeometry | null)[] | undefined {
+  if (!wantGeometry || !geometry || !isGeoArrowNativeEncoding(geometry.encoding)) return undefined;
+  return decodeGeoParquetNativeGeometryColumn(
+    nativeGeometryKind(geometry.encoding),
+    geometry.nativeDimensions ?? "xy",
+    values,
+  );
 }
 
 function throwIfQueryAborted(signal: AbortSignal | undefined): void {
@@ -518,10 +565,11 @@ function requireLosslessFields(profile: SourceProfile): readonly SourceProfileFi
 function projectedLosslessFields(
   fields: readonly SourceProfileField[],
   columns: readonly string[],
-  geometryColumn: string | undefined,
+  geometry: GeometryColumnPlan | undefined,
   request: Query | undefined,
   wantGeometry: boolean,
 ): readonly SourceProfileField[] {
+  const geometryColumn = geometry?.column;
   const byName = new Map<string, SourceProfileField>();
   for (const [index, field] of fields.entries()) {
     if (byName.has(field.name)) {
@@ -538,7 +586,22 @@ function projectedLosslessFields(
     if (!field) losslessProjectionFailure(`$.outFields[${index}]`);
     return field;
   });
-  if (wantGeometry) output.push({ name: GEOPARQUET_ALIAS, type: "VARCHAR", nullable: true });
+  if (wantGeometry) {
+    // `geoarrow-*` columns are a raw nested struct/list value under this
+    // alias (see `core/geoparquet-sql.ts`'s `projection()`), not GeoJSON
+    // text — declare the alias with the geometry column's own physical
+    // DuckDB type so the generic lossless value decoder (which already
+    // supports arbitrary STRUCT/LIST nesting) round-trips it instead of
+    // rejecting a non-string value against a hardcoded `VARCHAR`. Every
+    // other encoding keeps the historical `VARCHAR` GeoJSON-text alias.
+    const nativeField =
+      geometry && isGeoArrowNativeEncoding(geometry.encoding) ? byName.get(geometry.column) : undefined;
+    output.push(
+      nativeField
+        ? { ...nativeField, name: GEOPARQUET_ALIAS }
+        : { name: GEOPARQUET_ALIAS, type: "VARCHAR", nullable: true },
+    );
+  }
   return output;
 }
 
@@ -550,7 +613,7 @@ function featureOutputFields(
   return projectedLosslessFields(
     requireLosslessFields(profile),
     profile.columns,
-    profile.geometry?.column,
+    profile.geometry,
     request,
     wantGeometry,
   );
@@ -562,12 +625,12 @@ function featureOutputFields(
  */
 function resolvedFeatureOutputFields(
   effectiveSchema: readonly SourceProfileField[],
-  geometryColumn: string | undefined,
+  geometry: GeometryColumnPlan | undefined,
   request: Query | undefined,
   wantGeometry: boolean,
 ): readonly SourceProfileField[] {
-  const columns = effectiveSchema.map((field) => field.name).filter((name) => name !== geometryColumn);
-  return projectedLosslessFields(effectiveSchema, columns, geometryColumn, request, wantGeometry);
+  const columns = effectiveSchema.map((field) => field.name).filter((name) => name !== geometry?.column);
+  return projectedLosslessFields(effectiveSchema, columns, geometry, request, wantGeometry);
 }
 
 const RESOLVED_SCHEMA_REQUIRED_PATH = "$.resolvedQuery" as const;
@@ -645,23 +708,33 @@ function losslessTransportSql(sql: string, fields: readonly SourceProfileField[]
   return `SELECT ${projections.join(", ")} FROM (${sql}) AS "__honua_lossless"`;
 }
 
+/**
+ * Builds one lossless feature from an already-decoded row (see
+ * {@link losslessFeaturesFromRows} — decoding is batched up front so a
+ * `geoarrow-*` geometry column can be native-decoded once per query response
+ * rather than once per row). `nativeGeometry` mirrors {@link rowToFeature}.
+ */
 function rowToLosslessFeature<T>(
-  row: DuckRow,
-  decoder: DuckDbLosslessRowDecoder,
+  decoded: { readonly [key: string]: DuckDbLosslessJsonValue },
+  fields: readonly SourceProfileField[],
   wantGeometry: boolean,
+  nativeGeometry?: GeoParquetNativeGeoJsonGeometry | null,
 ): HonuaTypedFeature<T> {
-  const decoded = decoder.decode(row);
   const attributes: { [key: string]: DuckDbLosslessJsonValue } = {};
   let geometry: Record<string, unknown> | null = null;
-  for (const field of decoder.fields) {
+  for (const field of fields) {
     const value = decoded[field.name]!;
     if (field.name === GEOPARQUET_ALIAS) {
-      if (wantGeometry && typeof value === "string") {
-        try {
-          const parsed = JSON.parse(value) as unknown;
-          geometry = isJsonRecord(parsed) ? parsed : null;
-        } catch {
-          geometry = null;
+      if (wantGeometry) {
+        if (nativeGeometry !== undefined) {
+          geometry = nativeGeometry as unknown as Record<string, unknown> | null;
+        } else if (typeof value === "string") {
+          try {
+            const parsed = JSON.parse(value) as unknown;
+            geometry = isJsonRecord(parsed) ? parsed : null;
+          } catch {
+            geometry = null;
+          }
         }
       }
       continue;
@@ -674,6 +747,38 @@ function rowToLosslessFeature<T>(
     });
   }
   return { attributes: attributes as T, geometry: wantGeometry ? geometry : undefined };
+}
+
+/** Decode every row once, batch-decode a `geoarrow-*` geometry column once, then build features. */
+function losslessFeaturesFromRows<T>(
+  rows: readonly DuckRow[],
+  decoder: DuckDbLosslessRowDecoder,
+  wantGeometry: boolean,
+  geometry: GeometryColumnPlan | undefined,
+): HonuaTypedFeature<T>[] {
+  const decodedRows = rows.map((row) => decoder.decode(row));
+  const nativeGeometries = decodeNativeGeometryColumn(
+    decodedRows.map((decoded) => decoded[GEOPARQUET_ALIAS]),
+    geometry,
+    wantGeometry,
+  );
+  return decodedRows.map((decoded, index) =>
+    rowToLosslessFeature<T>(decoded, decoder.fields, wantGeometry, nativeGeometries?.[index]),
+  );
+}
+
+/** Batch-decode a `geoarrow-*` geometry column once, then build legacy (non-lossless) features. */
+function featuresFromRows<T>(
+  rows: readonly DuckRow[],
+  wantGeometry: boolean,
+  geometry: GeometryColumnPlan | undefined,
+): HonuaTypedFeature<T>[] {
+  const nativeGeometries = decodeNativeGeometryColumn(
+    rows.map((row) => row[GEOPARQUET_ALIAS]),
+    geometry,
+    wantGeometry,
+  );
+  return rows.map((row, index) => rowToFeature<T>(row, wantGeometry, nativeGeometries?.[index]));
 }
 
 const DUCK_TYPE_TO_ESRI: ReadonlyArray<[RegExp, EsriFieldType]> = [
@@ -958,7 +1063,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
       const wantGeometry = input.query.returnGeometry !== false && input.geometry !== undefined;
       const effectiveFields = lossless ? requireEffectiveSchema(input.effectiveSchema) : undefined;
       const losslessFields = effectiveFields
-        ? resolvedFeatureOutputFields(effectiveFields, input.geometry?.column, input.query, wantGeometry)
+        ? resolvedFeatureOutputFields(effectiveFields, input.geometry, input.query, wantGeometry)
         : undefined;
       const decoder =
         losslessFields && effectiveFields
@@ -967,11 +1072,9 @@ export function geoparquetSource<T = Record<string, unknown>>(
       const compiled = compileQuery(input.query, opts);
       const sql = losslessFields ? losslessTransportSql(compiled.sql, losslessFields) : compiled.sql;
       const rows = await runtime.query(sql, { signal: input.query.signal });
-      const features = rows.map((row) =>
-        decoder
-          ? rowToLosslessFeature<TResolved>(row, decoder, wantGeometry)
-          : rowToFeature<TResolved>(row, wantGeometry),
-      );
+      const features = decoder
+        ? losslessFeaturesFromRows<TResolved>(rows, decoder, wantGeometry, input.geometry)
+        : featuresFromRows<TResolved>(rows, wantGeometry, input.geometry);
       const degraded = degradedFor(compiled.bboxApproximated, input.sourceId);
       if (input.operation === "queryAll") {
         return {
@@ -1006,11 +1109,10 @@ export function geoparquetSource<T = Record<string, unknown>>(
     const decoder = losslessFields ? losslessDecoder(profiledDecoderIdentity(profile), losslessFields) : undefined;
     const sql = losslessFields ? losslessTransportSql(compiled.sql, losslessFields) : compiled.sql;
     const rows = await queryRows(sql, request?.signal);
-    const features: HonuaTypedFeature<T>[] = [];
-    for (const row of rows) {
-      throwIfQueryAborted(request?.signal);
-      features.push(decoder ? rowToLosslessFeature<T>(row, decoder, wantGeometry) : rowToFeature<T>(row, wantGeometry));
-    }
+    throwIfQueryAborted(request?.signal);
+    const features = decoder
+      ? losslessFeaturesFromRows<T>(rows, decoder, wantGeometry, opts.geometry)
+      : featuresFromRows<T>(rows, wantGeometry, opts.geometry);
     throwIfQueryAborted(request?.signal);
     const limit = request?.pagination?.limit;
     const exceededTransferLimit = typeof limit === "number" && features.length >= limit;
@@ -1109,13 +1211,9 @@ export function geoparquetSource<T = Record<string, unknown>>(
       try {
         for await (const rows of runtime.stream(sql, { signal: request?.signal })) {
           throwIfQueryAborted(request?.signal);
-          const features: HonuaTypedFeature<T>[] = [];
-          for (const row of rows) {
-            throwIfQueryAborted(request?.signal);
-            features.push(
-              decoder ? rowToLosslessFeature<T>(row, decoder, wantGeometry) : rowToFeature<T>(row, wantGeometry),
-            );
-          }
+          const features = decoder
+            ? losslessFeaturesFromRows<T>(rows, decoder, wantGeometry, opts.geometry)
+            : featuresFromRows<T>(rows, wantGeometry, opts.geometry);
           throwIfQueryAborted(request?.signal);
           const degraded = degradedFor(compiled.bboxApproximated);
           yield {
