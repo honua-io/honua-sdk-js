@@ -79,6 +79,18 @@ function invariant(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+// Derived-artifact decoupling (honua-io/honua-sdk-js#677): when this signal is
+// set (PR CI), the evidence-neutral source-digest BINDING is relaxed so gate
+// evidence committed by a prior trunk reseal is accepted without requiring the
+// PR author to reseal against their tree. Everything else -- receipt schema,
+// 7-day freshness, producer/artifact digests, gate semantics, run-root and
+// command bindings -- stays fully enforced. Defaults to strict (fail-closed):
+// trunk pushes and the regenerate-derived-artifacts workflow leave it unset, so
+// the reseal there remains strictly bound to the trunk source digest.
+function derivedArtifactsRelaxed() {
+  return /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "");
+}
+
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
@@ -101,10 +113,45 @@ function gitOutput(args, root) {
 //    Their integrity is instead enforced by generatedOutputDrift's direct
 //    byte comparison against a fresh generation, and each entry's own
 //    receipt-bound sourceRevision/sourceDigest fields.
+//
+//  The remaining entries are DERIVED build outputs and NON-runtime CI config.
+//  They are excluded on the same principle: including them would make the
+//  evidence digest a function of artifacts that are themselves regenerated
+//  from source on trunk (honua-io/honua-sdk-js#677), which serialized every
+//  feature PR behind a full reseal. Excluding them is integrity-preserving
+//  because NONE of them affect SDK or sample RUNTIME behaviour:
+//   - .github: CI/workflow configuration. Not SDK/sample source; no sample or
+//     test reads it at runtime. (Including it is why a one-line ci.yml fix used
+//     to force a full kit re-qualification -- honua-io/honua-sdk-js#674.)
+//   - docs/bundle-sizes.md, docs/comparison.md, docs/errors.md: report docs
+//     regenerated deterministically from source. NOTE: docs/ is deliberately
+//     NOT excluded wholesale -- docs/examples/* holds runnable sample source
+//     that MUST stay bound to the digest; only these generated report files go.
+//   - llms.txt, llms-full.txt: generated documentation projections.
+//   - api-report: a derived public-surface snapshot; the real surface is still
+//     validated at PR time (verify:root-surface / verify:public-surface).
+//   - bench/cross-sdk/corpus.json: a derived source-tree pin regenerated from
+//     the very src/ tree that IS still inside the digest.
+//   - examples/migration-workbench/public/artifacts: deterministically
+//     generated migration artifacts (regenerated from src + committed fixtures
+//     that remain in the digest).
+//  Because every excluded path is either non-runtime config or is
+//  deterministically derived from source that remains inside the digest,
+//  excluded content cannot let gate evidence drift away from the real SDK and
+//  sample behaviour it attests to.
 const EVIDENCE_NEUTRAL_EXCLUDED_ROOTS = Object.freeze([
   "samples/evidence",
   "samples/dist",
   "samples/contract/v2/consumer-fixtures",
+  ".github",
+  "docs/bundle-sizes.md",
+  "docs/comparison.md",
+  "docs/errors.md",
+  "llms.txt",
+  "llms-full.txt",
+  "api-report",
+  "bench/cross-sdk/corpus.json",
+  "examples/migration-workbench/public/artifacts",
 ]);
 
 function evidenceNeutralExcludePathspecs() {
@@ -1430,7 +1477,9 @@ export async function validateGateReceipt(receipt, options = {}) {
   invariant(now < expiresAt, "gate receipt is stale");
 
   const root = options.projectRoot ?? projectRoot;
-  if (options.verifyCheckout !== false) verifyEvidenceNeutralCheckout(receipt.sourceDigest, root, receipt.sourceRevision);
+  if (options.verifyCheckout !== false && !derivedArtifactsRelaxed()) {
+    verifyEvidenceNeutralCheckout(receipt.sourceDigest, root, receipt.sourceRevision);
+  }
   const producerBytes = await readCanonicalBoundedFile(root, receipt.producer.path, {
     label: "gate receipt producer",
     maxBytes: MAX_REPORT_BYTES,
@@ -1446,10 +1495,8 @@ export async function validateGateReceipt(receipt, options = {}) {
 
 export async function validateQualificationReceiptSet(options) {
   const root = options.projectRoot ?? projectRoot;
-  const sourceDigest =
-    options.verifyCheckout === false
-      ? options.sourceDigest
-      : verifyEvidenceNeutralCheckout(options.sourceDigest, root);
+  const relaxed = options.verifyCheckout === false || derivedArtifactsRelaxed();
+  const sourceDigest = relaxed ? options.sourceDigest : verifyEvidenceNeutralCheckout(options.sourceDigest, root);
   const required = requiredReceiptGates(options.profile);
   const directory = path.join(options.receiptRoot, options.sample.id, "receipts");
   let directoryMetadata;
@@ -1504,7 +1551,7 @@ export async function validateQualificationReceiptSet(options) {
       sourceDigest,
       now: options.now,
       projectRoot: root,
-      verifyCheckout: options.verifyCheckout,
+      verifyCheckout: relaxed ? false : options.verifyCheckout,
     });
     const commandKey = canonicalCommand(expectedCommand);
     const group = commandGroups.get(commandKey);
