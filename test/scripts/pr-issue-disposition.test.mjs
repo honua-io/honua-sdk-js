@@ -178,11 +178,28 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /^  workflow_dispatch:$/mu);
     assert.match(
       workflow,
-      /^  commit-and-validate:\n    name: Publish artifacts PR \+ dispatch strict validation[\s\S]*?^      pull-requests: write$/mu,
+      /^  commit-and-validate:\n    name: Publish artifacts PR \+ gate strict validation[\s\S]*?^      pull-requests: write$/mu,
     );
     assert.match(workflow, /branch="automation\/derived-artifacts-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/u);
     assert.match(workflow, /gh pr create/u);
-    assert.match(workflow, /gh workflow run ci\.yml[\s\S]*gh workflow run pr-issue-disposition\.yml/u);
+    const prCreation = workflow.indexOf("gh pr create");
+    const strictDispatch = workflow.indexOf("name: Dispatch strict checks for regeneration PR");
+    const nativeApproval = workflow.indexOf("name: Approve native checks for regeneration PR");
+    const requiredCheckWait = workflow.indexOf('gh pr checks "$PR_NUMBER"');
+    assert.ok(
+      prCreation >= 0 &&
+        strictDispatch > prCreation &&
+        nativeApproval > strictDispatch &&
+        requiredCheckWait > nativeApproval,
+    );
+    assert.match(workflow, /gh workflow run ci\.yml[\s\S]*--ref "\$BRANCH"/u);
+    assert.match(workflow, /gh workflow run pr-issue-disposition\.yml[\s\S]*pull_request_number="\$PR_NUMBER"/u);
+    assert.match(workflow, /gh run view "\$run_id"[\s\S]*--json headSha/u);
+    assert.match(workflow, /gh run watch "\$run_id"[\s\S]*--exit-status/u);
+    assert.match(workflow, /gh run list[\s\S]*--event pull_request/u);
+    assert.match(workflow, /\.headSha == \$generated/u);
+    assert.match(workflow, /actions\/runs\/\$run_id\/approve/u);
+    assert.match(workflow, /\["SDK CI","PR issue disposition","Schema sync gate","Security"\]/u);
     assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --watch --fail-fast/u);
     assert.match(workflow, /current_trunk="\$\(git rev-parse refs\/remotes\/origin\/trunk\)"/u);
     assert.match(workflow, /gh pr merge "\$PR_NUMBER"[\s\S]*--merge[\s\S]*--match-head-commit "\$GENERATED"/u);
