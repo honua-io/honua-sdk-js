@@ -74,10 +74,7 @@ describe("downloadCredentialedResource", () => {
     });
 
     expect([...bytes]).toEqual([4, 2]);
-    expect(calls.map((call) => call.url)).toEqual([
-      "https://maps.test/export/img.png",
-      "https://cdn.test/export.png",
-    ]);
+    expect(calls.map((call) => call.url)).toEqual(["https://maps.test/export/img.png", "https://cdn.test/export.png"]);
     expect(calls.map((call) => call.apiKey)).toEqual(["secret", undefined]);
   });
 
@@ -167,10 +164,10 @@ describe("downloadCredentialedResource", () => {
       if (url === "https://maps.test/export/result.png") {
         return new Response(new Uint8Array([3, 1, 4]), { status: 200 });
       }
-      return new Response(
-        JSON.stringify({ href: "https://maps.test/export/result.png", width: 800, height: 600 }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ href: "https://maps.test/export/result.png", width: 800, height: 600 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
     });
 
     try {
