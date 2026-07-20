@@ -25,6 +25,7 @@ import {
   validateEvidenceEnvelope,
   validateFixtureBuildHarnessSource,
   validateFixtureBuildHarnesses,
+  validateGeneratedOutputDrift,
   validateGoldenJourneyVisualEvidence,
   validateLiveEvidenceProducer,
   validateSiteProjection,
@@ -443,6 +444,8 @@ describe("sample publication contract", () => {
       fixturePath,
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
+    expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
+    expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
   });
 
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {

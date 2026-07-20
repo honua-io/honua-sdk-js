@@ -6088,6 +6088,13 @@ export function generatedOutputDrift(expectedOutputs, currentOutputs) {
     .map(([relativePath]) => relativePath);
 }
 
+export function validateGeneratedOutputDrift(drift, options = {}) {
+  invariant(
+    options.relaxed === true || drift.length === 0,
+    `${drift.join(", ")} has drifted; run npm run samples:generate`,
+  );
+}
+
 function gitSha() {
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], { cwd: PROJECT_ROOT, encoding: "utf8" }).trim();
@@ -6365,7 +6372,7 @@ async function runContract(command, options = {}) {
       currentOutputs.set(relativePath, await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"));
     }
     const drift = generatedOutputDrift(outputs, currentOutputs);
-    invariant(drift.length === 0, `${drift.join(", ")} has drifted; run npm run samples:generate`);
+    validateGeneratedOutputDrift(drift, { relaxed: options.relaxGeneratedOutputs });
   }
   process.stdout.write(
     `${command === "write" ? "Generated" : "Verified"} ${catalog.samples.length} SDK and docs examples, seven reserved journey IDs, and ${catalog.siteMappings.length} honua.io routes (${catalog.format})\n`,
@@ -6384,15 +6391,17 @@ async function main(argv) {
     // Derived-artifact decoupling (honua-io/honua-sdk-js#677): at PR time the
     // committed evidence has not been resealed against the PR's source tree, so
     // `check` runs in a relaxed mode that still validates every receipt's
-    // schema, freshness, artifact digests, gate semantics, catalog coherence,
-    // and generated-output drift, but does NOT require the evidence-neutral
-    // source digest to match the working tree. Reproducibility is re-established
-    // strictly on trunk, where the regenerate-derived-artifacts workflow reseals
-    // evidence bound to the trunk source digest. `write` always stays strict.
+    // schema, freshness, artifact digests, gate semantics, and catalog
+    // coherence, but defers source binding and committed projection drift until
+    // the post-merge workflow atomically regenerates both. Reproducibility is
+    // re-established strictly on trunk, where the regenerate-derived-artifacts
+    // workflow reseals evidence bound to the trunk source digest. `write`
+    // always stays strict.
     const relaxCheckout = command === "check" && derivedArtifactsRelaxed();
     await runContract(command, {
       qualificationBootstrapSampleId,
       verifyCheckout: relaxCheckout ? false : undefined,
+      relaxGeneratedOutputs: relaxCheckout,
     });
     return;
   }

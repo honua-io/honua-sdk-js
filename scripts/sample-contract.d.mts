@@ -397,6 +397,10 @@ export function generatedOutputDrift(
   expectedOutputs: Map<string, string>,
   currentOutputs: Map<string, string>,
 ): string[];
+export function validateGeneratedOutputDrift(
+  drift: string[],
+  options?: { relaxed?: boolean },
+): void;
 export function extractSampleConfiguration(
   sourcePath: string,
   exemptions?: Array<{ name: string }>,
