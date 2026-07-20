@@ -330,34 +330,24 @@ jobs:
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
 
       # Native pull_request CI deliberately relaxes shared derived-artifact
-      # freshness for feature work. Dispatch separate strict runs against the
-      # exact generated head and retain their IDs so merge waits for both.
-      - name: Dispatch strict checks for regeneration PR
+      # freshness for feature work. Dispatch separate strict CI against the
+      # exact generated head and retain its ID so merge must wait for it.
+      - name: Dispatch strict CI for regeneration PR
         id: strict
         if: needs.regenerate.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.publish.outputs.branch }}
-          PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
         run: |
           set -euo pipefail
           ci_run_url="$(gh workflow run ci.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref "$BRANCH")"
-          disposition_run_url="$(gh workflow run pr-issue-disposition.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref "$BRANCH" \
-            -f pull_request_number="$PR_NUMBER")"
           if [[ ! "$ci_run_url" =~ /actions/runs/([0-9]+)$ ]]; then
             echo "Could not identify strict CI run from: $ci_run_url"
             exit 1
           fi
           echo "ci_run_id=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
-          if [[ ! "$disposition_run_url" =~ /actions/runs/([0-9]+)$ ]]; then
-            echo "Could not identify strict disposition run from: $disposition_run_url"
-            exit 1
-          fi
-          echo "disposition_run_id=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
 
       # GitHub holds pull_request workflows created by GITHUB_TOKEN for approval.
       # Approve only the expected workflows attached to the exact generated head;
@@ -408,23 +398,20 @@ jobs:
           GENERATED: ${{ steps.publish.outputs.generated }}
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
           STRICT_CI_RUN_ID: ${{ steps.strict.outputs.ci_run_id }}
-          STRICT_DISPOSITION_RUN_ID: ${{ steps.strict.outputs.disposition_run_id }}
         run: |
           set -euo pipefail
-          for run_id in "$STRICT_CI_RUN_ID" "$STRICT_DISPOSITION_RUN_ID"; do
-            run_head="$(gh run view "$run_id" \
-              --repo "$GITHUB_REPOSITORY" \
-              --json headSha \
-              --jq .headSha)"
-            if [[ "$run_head" != "$GENERATED" ]]; then
-              echo "Strict validation run $run_id targets $run_head instead of $GENERATED."
-              exit 1
-            fi
-            gh run watch "$run_id" \
-              --repo "$GITHUB_REPOSITORY" \
-              --exit-status \
-              --interval 10
-          done
+          run_head="$(gh run view "$STRICT_CI_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json headSha \
+            --jq .headSha)"
+          if [[ "$run_head" != "$GENERATED" ]]; then
+            echo "Strict CI run $STRICT_CI_RUN_ID targets $run_head instead of $GENERATED."
+            exit 1
+          fi
+          gh run watch "$STRICT_CI_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --exit-status \
+            --interval 10
           for attempt in {1..30}; do
             required="$(gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --json name,bucket 2>/dev/null || true)"
             if [[ -z "$required" ]]; then

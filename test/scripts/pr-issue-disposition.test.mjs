@@ -183,7 +183,7 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /branch="automation\/derived-artifacts-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/u);
     assert.match(workflow, /gh pr create/u);
     const prCreation = workflow.indexOf("gh pr create");
-    const strictDispatch = workflow.indexOf("name: Dispatch strict checks for regeneration PR");
+    const strictDispatch = workflow.indexOf("name: Dispatch strict CI for regeneration PR");
     const nativeApproval = workflow.indexOf("name: Approve native checks for regeneration PR");
     const requiredCheckWait = workflow.indexOf('gh pr checks "$PR_NUMBER"');
     assert.ok(
@@ -193,9 +193,9 @@ describe("pull request issue disposition policy", () => {
         requiredCheckWait > nativeApproval,
     );
     assert.match(workflow, /gh workflow run ci\.yml[\s\S]*--ref "\$BRANCH"/u);
-    assert.match(workflow, /gh workflow run pr-issue-disposition\.yml[\s\S]*pull_request_number="\$PR_NUMBER"/u);
-    assert.match(workflow, /gh run view "\$run_id"[\s\S]*--json headSha/u);
-    assert.match(workflow, /gh run watch "\$run_id"[\s\S]*--exit-status/u);
+    assert.doesNotMatch(workflow, /gh workflow run pr-issue-disposition\.yml/u);
+    assert.match(workflow, /gh run view "\$STRICT_CI_RUN_ID"[\s\S]*--json headSha/u);
+    assert.match(workflow, /gh run watch "\$STRICT_CI_RUN_ID"[\s\S]*--exit-status/u);
     assert.match(workflow, /gh run list[\s\S]*--event pull_request/u);
     assert.match(workflow, /\.headSha == \$generated/u);
     assert.match(workflow, /actions\/runs\/\$run_id\/approve/u);
