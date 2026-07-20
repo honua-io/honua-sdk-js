@@ -121,15 +121,22 @@ jobs:
         if: steps.guard.outputs.skip == 'false'
         run: npm run report:bundle-sizes
 
-      - name: Regenerate llms.txt and comparison page
-        if: steps.guard.outputs.skip == 'false'
-        run: |
-          npm run docs:llms
-          npm run docs:comparison
-
       - name: Regenerate migration-workbench artifacts
         if: steps.guard.outputs.skip == 'false'
         run: npm run demo:migration-workbench:artifacts:write
+
+      # The migration generator updates allowlisted example source consumed by
+      # llms-full.txt. The comparison page is also embedded in llms-full.txt, so
+      # generate every input before producing the final documentation projection.
+      - name: Regenerate llms.txt and comparison page
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          npm run docs:comparison
+          npm run docs:llms
+
+      - name: Verify llms.txt freshness before publication
+        if: steps.guard.outputs.skip == 'false'
+        run: npm run verify:llms
 
       # Create the non-evidence commit locally in this read-only job. The
       # migration generator can update runtime source, so this commit must be a
