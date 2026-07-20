@@ -147,9 +147,14 @@ describe("cross-SDK reference corpus", () => {
     const original = await readFile("bench/cross-sdk/corpus.json", "utf8");
     const termsBefore = await readFile("bench/cross-sdk/terms-review.json", "utf8");
     const current = inspectCrossSdkSourceTree();
-    const stale = staleTree(current, original);
-    const staleCorpus = original.replace(JSON.stringify(current), JSON.stringify(stale));
-    expect(staleCorpus).not.toBe(original);
+    const expectedValue = JSON.parse(original) as Record<string, unknown>;
+    honuaSourceTree(expectedValue).gitTree = current;
+    const expected = `${JSON.stringify(expectedValue, null, 2)}\n`;
+    const staleValue = structuredClone(expectedValue);
+    const stale = staleTree(current, expected);
+    honuaSourceTree(staleValue).gitTree = stale;
+    const staleCorpus = `${JSON.stringify(staleValue, null, 2)}\n`;
+    expect(staleCorpus).not.toBe(expected);
     const temporaryCorpus = temporaryCorpusPath("refresh-source-tree");
     const network = vi.fn(() => {
       throw new Error("network access is forbidden");
@@ -165,7 +170,7 @@ describe("cross-SDK reference corpus", () => {
         previousGitTree: stale,
         gitTree: current,
       });
-      expect(await readFile(temporaryCorpus, "utf8")).toBe(original);
+      expect(await readFile(temporaryCorpus, "utf8")).toBe(expected);
       await expect(refreshCrossSdkSourceTree(temporaryCorpus)).resolves.toEqual({
         schemaVersion: 1,
         outcome: "unchanged",
