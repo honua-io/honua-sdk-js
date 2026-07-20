@@ -111,11 +111,11 @@ test("release projection updates without a committed generated manifest", () => 
 
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, "release-please-config.json"), "utf8"));
   const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, "samples/catalog.v2.json"), "utf8"));
-  const evidenceFiles = config.packages["."]["extra-files"].filter(
+  const sdkVersionFiles = config.packages["."]["extra-files"].filter(
     (entry) => entry.type === "json" && entry.jsonpath === "$.sdk.version",
   );
   assert.deepEqual(
-    evidenceFiles.map((entry) => entry.path).sort(),
+    sdkVersionFiles.map((entry) => entry.path).sort(),
     [
       "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
       "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
@@ -124,10 +124,11 @@ test("release projection updates without a committed generated manifest", () => 
       "samples/contract/v1/fixtures/sample-evidence.live.json",
       "samples/contract/v1/fixtures/sample-evidence.skipped.json",
       "samples/evidence/maplibre-quickstart/live.v1.json",
+      "support/projections/sdk-support.v1.json",
     ],
   );
 
-  const managedEvidencePaths = new Set(evidenceFiles.map((entry) => entry.path));
+  const managedEvidencePaths = new Set(sdkVersionFiles.map((entry) => entry.path));
   const catalogEvidencePaths = catalog.samples.flatMap((sample) =>
     sample.evidence?.live?.evidencePath ? [sample.evidence.live.evidencePath] : [],
   );
@@ -144,6 +145,18 @@ test("release projection updates without a committed generated manifest", () => 
     path: "bench/cross-sdk/corpus.json",
     jsonpath: "$.references[0].package.version",
   });
+
+  const supportVersionFiles = config.packages["."]["extra-files"].filter((entry) =>
+    ["README.md", "support/projections/sdk-support.v1.json"].includes(entry.path),
+  );
+  assert.deepEqual(supportVersionFiles, [
+    { type: "generic", path: "README.md" },
+    {
+      type: "json",
+      path: "support/projections/sdk-support.v1.json",
+      jsonpath: "$.sdk.version",
+    },
+  ]);
 
   const currentPackage = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
   const benchmarkCorpus = JSON.parse(fs.readFileSync(path.join(ROOT, "bench/cross-sdk/corpus.json"), "utf8"));

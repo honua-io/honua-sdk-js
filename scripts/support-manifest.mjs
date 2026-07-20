@@ -423,7 +423,7 @@ function lifecycleCounts(manifest) {
 
 export function renderReadmeReleaseSection(manifest, packageJson) {
   const counts = lifecycleCounts(manifest);
-  return `**Release status: ${manifest.sdk.releaseStatus}** (\`${packageJson.version}\`). The ${counts.supported}-entrypoint stable tier is frozen and guarded
+  return `**Release status: ${manifest.sdk.releaseStatus}** (\`${packageJson.version}\`). The ${counts.supported}-entrypoint stable tier is frozen and guarded <!-- x-release-please-version -->
 by an API-surface gate; ${counts.experimental} experimental subpaths may change before 1.0, and
 ${counts.deprecated} deprecated compatibility subpaths have explicit removal versions. See
 [\`config/support-manifest.v1.json\`](./config/support-manifest.v1.json) for the versioned support truth,
