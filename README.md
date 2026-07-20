@@ -79,7 +79,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.1.0-beta.0`). The 22-entrypoint stable tier is frozen and guarded
+**Release status: beta** (`0.1.0-beta.0`). The 22-entrypoint stable tier is frozen and guarded <!-- x-release-please-version -->
 by an API-surface gate; 12 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,

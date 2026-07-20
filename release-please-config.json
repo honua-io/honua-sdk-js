@@ -54,6 +54,15 @@
           "type": "json",
           "path": "bench/cross-sdk/corpus.json",
           "jsonpath": "$.references[0].package.version"
+        },
+        {
+          "type": "generic",
+          "path": "README.md"
+        },
+        {
+          "type": "json",
+          "path": "support/projections/sdk-support.v1.json",
+          "jsonpath": "$.sdk.version"
         }
       ],
       "changelog-sections": [

@@ -266,6 +266,7 @@ test("README release display is derived from package.json", () => {
   const outputs = generateOutputs({ manifest, packageJson: fixturePackage });
   const fixtureReadme = outputs.get("README.md");
   assert.match(fixtureReadme, /\*\*Release status: beta\*\* \(`9\.8\.7-rc\.3`\)/);
+  assert.match(fixtureReadme, /guarded <!-- x-release-please-version -->/);
   assert.doesNotMatch(fixtureReadme, /\(`0\.1\.0-beta(?:\.0)?`\)/);
 });
 
