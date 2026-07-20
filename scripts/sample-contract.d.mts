@@ -298,6 +298,7 @@ export function validateCatalog(
     sourceRevision?: string;
     receiptRoot?: string;
     verifyCheckout?: boolean;
+    relaxDerivedArtifacts?: boolean;
     qualificationBootstrapSampleId?: string;
   },
 ): Promise<void>;
@@ -397,6 +398,10 @@ export function generatedOutputDrift(
   expectedOutputs: Map<string, string>,
   currentOutputs: Map<string, string>,
 ): string[];
+export function validateGeneratedOutputDrift(
+  drift: string[],
+  options?: { relaxed?: boolean },
+): void;
 export function extractSampleConfiguration(
   sourcePath: string,
   exemptions?: Array<{ name: string }>,
@@ -430,6 +435,7 @@ export function validateEvidenceEnvelope<T>(
 export function validateLiveEvidenceProducer(
   evidence: Record<string, unknown>,
   sample: Record<string, unknown>,
+  options?: { relaxed?: boolean },
 ): Promise<void>;
 export function buildBrowserArtifactManifest(options: {
   artifacts: Array<{ path: string; entrypoint: string; mediaType?: string }>;

@@ -16,6 +16,7 @@ import {
   canonicalizePlaywrightEvidenceReport,
   ChildSupervisor,
   commandForSpawn,
+  commandsForAction,
   commitGateReceiptTransaction,
   forwardedLiveCredentials,
   groupEvidenceGates,
@@ -263,6 +264,21 @@ test("runner argument and manifest boundaries reject substitution and traversal"
     validateSelection(drifted, { packageScripts, checkPaths: false, expectedSelection: expected }),
     /membership or gates drifted|stale or modified/,
   );
+
+  const generatedDrift = selection();
+  generatedDrift.samples[0].track = "lab";
+  await assert.rejects(
+    validateSelection(generatedDrift, { packageScripts, checkPaths: false, expectedSelection: expected }),
+    /stale or modified/,
+  );
+  await assert.doesNotReject(
+    validateSelection(generatedDrift, {
+      packageScripts,
+      checkPaths: false,
+      expectedSelection: expected,
+      deferGeneratedProjectionFreshness: true,
+    }),
+  );
 });
 test("npm evidence commands suppress lifecycle hooks without changing their reviewed argv", () => {
   const executable = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -276,6 +292,17 @@ test("npm evidence commands suppress lifecycle hooks without changing their revi
     "safe-sample",
   ]);
   assert.deepEqual(commandForSpawn([process.execPath, "script.mjs"]), [process.execPath, "script.mjs"]);
+});
+
+test("kit-bound browser tests remain runnable when catalog validation omits Playwright", () => {
+  const sample = selection().samples[0];
+  sample.commandPlan.validation.commands = sample.commandPlan.validation.commands.filter(
+    (command) => !command.includes("test:playwright"),
+  );
+  assert.deepEqual(commandsForAction(sample, "test", { playwrightScript: "test:playwright:safe" }), [
+    ["npm", "run", "test:playwright:safe"],
+  ]);
+  assert.deepEqual(commandsForAction(sample, "test"), []);
 });
 
 test("kit configs are regular files bound to the selected sample and Playwright root", async () => {

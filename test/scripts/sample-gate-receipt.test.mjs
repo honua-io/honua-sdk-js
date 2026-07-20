@@ -962,7 +962,19 @@ test("receipt freshness, command, producer, artifact digest, and byte bindings f
 
   const wrongProducer = structuredClone(receipt);
   wrongProducer.producer.sha256 = "0".repeat(64);
-  await assert.rejects(validateGateReceipt(wrongProducer, { projectRoot: process.cwd(), verifyCheckout: false }), /producer digest/);
+  const priorRelaxedValue = process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+  try {
+    delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+    await assert.rejects(
+      validateGateReceipt(wrongProducer, { projectRoot: process.cwd(), verifyCheckout: false }),
+      /producer digest/,
+    );
+    process.env.HONUA_DERIVED_ARTIFACTS_RELAX = "1";
+    await assert.doesNotReject(validateGateReceipt(wrongProducer, { projectRoot: process.cwd(), verifyCheckout: false }));
+  } finally {
+    if (priorRelaxedValue === undefined) delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+    else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = priorRelaxedValue;
+  }
 
   const wrongDigest = structuredClone(receipt);
   wrongDigest.artifacts[0].sha256 = "0".repeat(64);

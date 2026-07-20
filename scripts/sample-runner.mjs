@@ -77,6 +77,10 @@ const EVIDENCE_LOCK_OWNER_FORMAT = "honua.sdk.sample-evidence-lock-owner.v1";
 const UUID_V4 = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const evidenceLockStates = new WeakMap();
 
+function derivedArtifactsRelaxed() {
+  return /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "");
+}
+
 function fail(message) {
   throw new Error(message);
 }
@@ -248,7 +252,13 @@ export async function validateSelection(selection, options = {}) {
     const expectedIds = selection.samples.filter((sample) => sample.validationProfile === profile.id).map((sample) => sample.id);
     if (!sameJson(profile.sampleIds, expectedIds)) fail(`${profile.id}: profile sampleIds do not exactly match samples`);
   }
-  if (options.expectedSelection && !sameJson(selection, options.expectedSelection)) fail("generated sample selection is stale or modified");
+  if (
+    options.expectedSelection &&
+    !sameJson(selection, options.expectedSelection) &&
+    options.deferGeneratedProjectionFreshness !== true
+  ) {
+    fail("generated sample selection is stale or modified");
+  }
   return selection;
 }
 
@@ -385,10 +395,14 @@ export function selectSamples(selection, options, kitIds) {
   return [...selection.samples];
 }
 
-function commandsForAction(sample, action) {
+export function commandsForAction(sample, action, kitSample) {
   const commands = sample.commandPlan.validation.commands.map(parseSampleCommand);
   if (action === "verify") return commands;
-  return commands.filter((argv) => classifySampleCommand(argv) === action);
+  const selected = commands.filter((argv) => classifySampleCommand(argv) === action);
+  if (action === "test" && selected.length === 0 && kitSample) {
+    return [["npm", "run", kitSample.playwrightScript]];
+  }
+  return selected;
 }
 
 export { expectedGateCommand };
@@ -566,12 +580,19 @@ async function readInputs(options) {
     catalog.samples.some((sample) => sample.id === options.sampleId && sample.track === "golden")
       ? options.sampleId
       : undefined;
-  await contract.validateCatalog(catalog, packageJson, { qualificationBootstrapSampleId });
+  const relaxDerivedArtifacts = derivedArtifactsRelaxed();
+  await contract.validateCatalog(catalog, packageJson, {
+    qualificationBootstrapSampleId,
+    relaxDerivedArtifacts,
+  });
   const expectedSelection = contract.generateCiSelection(catalog);
   await validateSelection(selection, {
     packageScripts: packageJson.scripts,
     projectRoot: PROJECT_ROOT,
     expectedSelection,
+    // The committed selection is regenerated and strictly revalidated on trunk.
+    // PR CI still validates its complete structure and executable command plan.
+    deferGeneratedProjectionFreshness: relaxDerivedArtifacts,
   });
   const validatedKit = await validateKit(kit, selection, packageJson.scripts, { projectRoot: PROJECT_ROOT });
   return { selection, catalog, packageJson, kit: validatedKit };
@@ -773,7 +794,7 @@ async function executeAction(sample, action, context) {
     });
     return;
   }
-  const commands = commandsForAction(sample, action);
+  const commands = commandsForAction(sample, action, context.kitSample);
   if (commands.length === 0 && action !== "verify") fail(`${sample.id} declares no ${action} command`);
   let packedTypechecked = false;
   for (const argv of commands) {
@@ -3142,7 +3163,7 @@ export async function main(argv = process.argv.slice(2)) {
             )
           : options.action === "dev"
             ? [["npx", "--no-install", "vite", "--config", inputs.kit.get(sample.id)?.viteConfig ?? `${sample.sourcePath}/vite.config.ts`]]
-            : commandsForAction(sample, options.action),
+            : commandsForAction(sample, options.action, inputs.kit.get(sample.id)),
     }));
     process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
     return;
