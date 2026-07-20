@@ -672,7 +672,10 @@ test("reviewed live producers honor the explicit per-run output contract", async
     });
     assert.equal(result.status, 0, result.stderr);
     const evidence = JSON.parse(await readFile(output, "utf8"));
+    const packageJson = JSON.parse(await readFile("package.json", "utf8"));
     assert.equal(evidence.sampleId, "ai-spatial-app-builder");
+    assert.equal(evidence.sdk.package, packageJson.name);
+    assert.equal(evidence.sdk.version, packageJson.version);
     assert.equal(evidence.sdk.gitCommit, sourceRevision);
     assert.equal(evidence.status, "skipped");
   } finally {
@@ -685,6 +688,34 @@ test("reviewed live producers honor the explicit per-run output contract", async
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
     }
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("spatial analytics live evidence derives SDK identity from package.json", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "honua-spatial-live-contract-"));
+  const output = path.join(root, "live-evidence.json");
+  const sourceRevision = "2".repeat(40);
+  try {
+    const result = spawnSync(process.execPath, ["examples/spatial-analytics-workbench/live-evidence.mjs"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        HONUA_SAMPLE_LIVE_OUTPUT: output,
+        HONUA_SAMPLE_LIVE_SAMPLE_ID: "spatial-analytics-workbench",
+        HONUA_SAMPLE_SOURCE_REVISION: sourceRevision,
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const evidence = JSON.parse(await readFile(output, "utf8"));
+    const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+    assert.equal(evidence.sampleId, "spatial-analytics-workbench");
+    assert.equal(evidence.status, "skipped");
+    assert.equal(evidence.sdk.package, packageJson.name);
+    assert.equal(evidence.sdk.version, packageJson.version);
+    assert.equal(evidence.sdk.gitCommit, sourceRevision);
+  } finally {
     await rm(root, { recursive: true, force: true });
   }
 });

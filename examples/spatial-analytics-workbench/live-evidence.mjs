@@ -13,6 +13,7 @@ const producerPath = "examples/spatial-analytics-workbench/live-evidence.mjs";
 const producerSha256 = createHash("sha256")
   .update(fs.readFileSync(fileURLToPath(import.meta.url)))
   .digest("hex");
+const packageJson = JSON.parse(fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 const outputContract = liveEvidenceOutputContract(
   "spatial-analytics-workbench",
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../test-results/spatial-analytics-live-evidence.json"),
@@ -93,8 +94,8 @@ if (protocol === "ogc-features") {
     observedAt,
     authMode: "anonymous",
     sdk: {
-      package: "@honua/sdk-js",
-      version: "0.1.0-beta.0",
+      package: packageJson.name,
+      version: packageJson.version,
       gitCommit: outputContract.sourceRevision ?? process.env.GITHUB_SHA ?? null,
     },
     source: {
@@ -140,8 +141,8 @@ function skipped(reason, timestamp) {
     observedAt: timestamp,
     authMode: "anonymous",
     sdk: {
-      package: "@honua/sdk-js",
-      version: "0.1.0-beta.0",
+      package: packageJson.name,
+      version: packageJson.version,
       gitCommit: outputContract.sourceRevision ?? process.env.GITHUB_SHA ?? null,
     },
     source: {
