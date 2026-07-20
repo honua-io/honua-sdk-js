@@ -125,6 +125,7 @@ describe("cross-SDK reference corpus", () => {
       throw new Error("network access is forbidden");
     });
     vi.stubGlobal("fetch", network);
+    vi.stubEnv("HONUA_DERIVED_ARTIFACTS_RELAX", "");
     await writeFile(temporaryCorpus, `${JSON.stringify(value, null, 2)}\n`, "utf8");
     try {
       await expect(validateCrossSdkReferenceFiles(temporaryCorpus)).rejects.toThrow(
@@ -137,6 +138,7 @@ describe("cross-SDK reference corpus", () => {
       expect(network).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
       await unlink(temporaryCorpus);
     }
   });

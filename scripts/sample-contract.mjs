@@ -26,6 +26,15 @@ import {
 } from "./sample-gate-receipt.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+// Derived-artifact decoupling (honua-io/honua-sdk-js#677): when set, PR-time
+// gates relax reproducibility bindings that are re-established on trunk by the
+// regenerate-derived-artifacts workflow. Defaults to strict (fail-closed) so
+// the trunk workflow and local runs stay fully bound unless CI opts in.
+function derivedArtifactsRelaxed() {
+  return /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "");
+}
+
 const require = createRequire(import.meta.url);
 const Ajv2020 = require("ajv/dist/2020").default;
 const addFormats = require("ajv-formats").default;
@@ -3702,6 +3711,7 @@ export async function collectQualificationEvidence(catalog, options = {}) {
       expectedCommand: expectedGateCommand,
       receiptRoot,
       projectRoot: PROJECT_ROOT,
+      verifyCheckout: options.verifyCheckout,
     });
     const receipts = [];
     for (const gate of requiredReceiptGates(profile)) {
@@ -3748,7 +3758,7 @@ function selectedQualificationSample(sample) {
   };
 }
 
-async function readGoldenVisualReceipt(sampleId, inventoryReceipt) {
+async function readGoldenVisualReceipt(sampleId, inventoryReceipt, options = {}) {
   const expectedReceiptPath = `${QUALIFICATION_EVIDENCE_ROOT}/${sampleId}/receipts/${inventoryReceipt.gate}.v1.json`;
   invariant(
     inventoryReceipt.path === expectedReceiptPath,
@@ -3769,6 +3779,7 @@ async function readGoldenVisualReceipt(sampleId, inventoryReceipt) {
     sourceRevision: inventoryReceipt.sourceRevision,
     sourceDigest: inventoryReceipt.sourceDigest,
     projectRoot: PROJECT_ROOT,
+    verifyCheckout: options.verifyCheckout,
   });
   invariant(
     receipt.sdkMode === inventoryReceipt.sdkMode &&
@@ -3885,7 +3896,7 @@ function goldenVisualPolicy() {
   };
 }
 
-export async function generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence) {
+export async function generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence, options = {}) {
   validateQualificationEvidenceInput(qualificationEvidence, catalog);
   const profileById = new Map(catalog.qualityProfiles.map((profile) => [profile.id, profile]));
   const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
@@ -3915,6 +3926,7 @@ export async function generateGoldenJourneyVisualEvidence(catalog, qualification
       expectedCommand: expectedGateCommand,
       receiptRoot: path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT),
       projectRoot: PROJECT_ROOT,
+      verifyCheckout: options.verifyCheckout,
     });
 
     const inventoryByGate = new Map(evidence.receipts.map((receipt) => [receipt.gate, receipt]));
@@ -3925,7 +3937,12 @@ export async function generateGoldenJourneyVisualEvidence(catalog, qualification
     );
     const receiptRecords = new Map();
     for (const gate of GOLDEN_VISUAL_GATE_ORDER) {
-      receiptRecords.set(gate, await readGoldenVisualReceipt(sample.id, inventoryByGate.get(gate)));
+      receiptRecords.set(
+        gate,
+        await readGoldenVisualReceipt(sample.id, inventoryByGate.get(gate), {
+          verifyCheckout: options.verifyCheckout,
+        }),
+      );
     }
 
     const sourceRevisions = new Set(
@@ -4101,6 +4118,7 @@ export async function validateGoldenJourneyVisualEvidence(
   visualEvidence,
   catalog,
   qualificationEvidence,
+  options = {},
 ) {
   validateSensitiveMetadata(visualEvidence, "golden journey visual evidence");
   await validateJsonSchema(visualEvidence, GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH);
@@ -4119,7 +4137,7 @@ export async function validateGoldenJourneyVisualEvidence(
     "golden journey visual evidence is orphaned, missing, or overstated",
   );
   validateGoldenVisualEvidenceEntries(visualEvidence);
-  const expected = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
+  const expected = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence, options);
   invariant(
     JSON.stringify(visualEvidence) === JSON.stringify(expected),
     "golden journey visual evidence does not match validated catalog and receipt truth",
@@ -4683,7 +4701,7 @@ function supportClaimCandidateEvidence(claim, samples) {
     .sort((left, right) => left.sampleId.localeCompare(right.sampleId));
 }
 
-async function validateEvidenceReceiptReference(binding, reference, now) {
+async function validateEvidenceReceiptReference(binding, reference, now, options = {}) {
   const observedAt = parseDateTime(reference.observedAt, `${binding.id} ${reference.gate} observedAt`);
   const expiresAt = parseDateTime(reference.expiresAt, `${binding.id} ${reference.gate} expiresAt`);
   invariant(observedAt <= now + 5 * 60 * 1000, `${binding.id}: qualification evidence is future-dated`);
@@ -4742,10 +4760,11 @@ async function validateEvidenceReceiptReference(binding, reference, now) {
     sourceDigest: binding.source.evidenceNeutralSha256,
     now: new Date(now).toISOString(),
     projectRoot: PROJECT_ROOT,
+    verifyCheckout: options.verifyCheckout,
   });
 }
 
-async function validateEvidenceBindingFiles(binding, now) {
+async function validateEvidenceBindingFiles(binding, now, options = {}) {
   const sourceMetadata = await lstat(path.join(PROJECT_ROOT, binding.source.path)).catch((error) => {
     if (error?.code === "ENOENT") throw new Error(`${binding.id}: capability matrix source is orphaned`);
     throw error;
@@ -4755,7 +4774,7 @@ async function validateEvidenceBindingFiles(binding, now) {
     `${binding.id}: capability matrix source must be non-symlink repository content`,
   );
   for (const reference of [...binding.source.receipts, binding.packed]) {
-    await validateEvidenceReceiptReference(binding, reference, now);
+    await validateEvidenceReceiptReference(binding, reference, now, options);
   }
 }
 
@@ -4934,7 +4953,7 @@ export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
 
   const validationNow = Date.now();
   for (const binding of matrix.evidenceBindings) {
-    await validateEvidenceBindingFiles(binding, validationNow);
+    await validateEvidenceBindingFiles(binding, validationNow, { verifyCheckout: inputs.verifyCheckout });
   }
   if (inputs.catalog && inputs.packageJson && inputs.supportTruth && inputs.qualificationEvidence) {
     const expected = generateCapabilitySampleMatrix(
@@ -5652,8 +5671,11 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
       packageJson,
       supportTruth,
       qualificationEvidence,
+      verifyCheckout: inputs.verifyCheckout,
     });
-    await validateGoldenJourneyVisualEvidence(visualEvidence, catalog, qualificationEvidence);
+    await validateGoldenJourneyVisualEvidence(visualEvidence, catalog, qualificationEvidence, {
+      verifyCheckout: inputs.verifyCheckout,
+    });
     const expected = generateSiteConsumerHandoff(projection, matrix, visualEvidence);
     invariant(
       JSON.stringify(handoff) === JSON.stringify(expected),
@@ -6022,14 +6044,18 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
   // Publication is intentionally anchored to the canonical evidence root. Tests inject
   // adversaries through the lower-level collectors/generators so generated artifacts can
   // never trust a caller-supplied receipt inventory or alternate receipt directory.
-  const qualificationEvidence = await collectQualificationEvidence(catalog);
+  const qualificationEvidence = await collectQualificationEvidence(catalog, {
+    verifyCheckout: options.verifyCheckout,
+  });
   const capabilityMatrix = generateCapabilitySampleMatrix(
     catalog,
     packageJson,
     supportTruth,
     qualificationEvidence,
   );
-  const visualEvidence = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
+  const visualEvidence = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence, {
+    verifyCheckout: options.verifyCheckout,
+  });
   const handoff = generateSiteConsumerHandoff(projection, capabilityMatrix, visualEvidence);
   const consumerFixtureV3 = generateSiteConsumerFixtureV3(handoff);
   await validateSiteConsumerHandoff(handoff, {
@@ -6040,6 +6066,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     packageJson,
     supportTruth,
     qualificationEvidence,
+    verifyCheckout: options.verifyCheckout,
   });
   await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff);
   return new Map([
@@ -6326,7 +6353,7 @@ async function runContract(command, options = {}) {
   }
   await validateSiteProjection(generateSiteProjection(catalog, packageJson));
   await validateCiSelection(generateCiSelection(catalog));
-  const outputs = await generatedOutputs(catalog, packageJson);
+  const outputs = await generatedOutputs(catalog, packageJson, { verifyCheckout: options.verifyCheckout });
   if (command === "write") {
     for (const [relativePath, expected] of outputs) {
       await mkdir(path.dirname(path.join(PROJECT_ROOT, relativePath)), { recursive: true });
@@ -6354,7 +6381,19 @@ async function main(argv) {
     } else {
       invariant(args.length === 0, `${command} does not accept arguments`);
     }
-    await runContract(command, { qualificationBootstrapSampleId });
+    // Derived-artifact decoupling (honua-io/honua-sdk-js#677): at PR time the
+    // committed evidence has not been resealed against the PR's source tree, so
+    // `check` runs in a relaxed mode that still validates every receipt's
+    // schema, freshness, artifact digests, gate semantics, catalog coherence,
+    // and generated-output drift, but does NOT require the evidence-neutral
+    // source digest to match the working tree. Reproducibility is re-established
+    // strictly on trunk, where the regenerate-derived-artifacts workflow reseals
+    // evidence bound to the trunk source digest. `write` always stays strict.
+    const relaxCheckout = command === "check" && derivedArtifactsRelaxed();
+    await runContract(command, {
+      qualificationBootstrapSampleId,
+      verifyCheckout: relaxCheckout ? false : undefined,
+    });
     return;
   }
   if (command === "migrate-v1") {
