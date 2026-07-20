@@ -978,7 +978,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="arcgis-source-app"></a>[`arcgis-source-app`](../../examples/arcgis-source-app/README.md) | fixture | - | internal | active | internal-fixture | fixture | not-required | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
 | <a id="automatic-source-workflow"></a>[`automatic-source-workflow`](../../docs/examples/automatic-source-workflow/README.md) | fixture | - | internal | active | browser-fixture | fixture | not-required | Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures. |
 | <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
-| <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | rework | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
+| <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | replace | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
 | <a id="geocoding-quickstart"></a>[`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | - | supported | rework | browser-recipe | hybrid | legacy-unsafe | Runs forward, reverse, and suggestion workflows with map feedback. |
 | <a id="geoprocessing-job-runner"></a>[`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
 | <a id="imagery-cog-quickstart"></a>[`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | recipe | imagery-terrain | supported | active | golden-browser | hybrid | approved | Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles. |
@@ -990,7 +990,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="node-backend-quickstart"></a>[`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | - | supported | active | headless-recipe | hybrid | approved | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |
 | <a id="overture-geoparquet"></a>[`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | lab | - | experimental | active | browser-lab | hybrid | not-required | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
-| <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | rework | browser-lab | fixture | not-required | Combines parcels, hazards, sketching, editing, and export in a task-oriented application. |
+| <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | active | browser-lab | fixture | not-required | Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services. |
 | <a id="pmtiles-static"></a>[`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Loads a static PMTiles archive without a Honua server. |
 | <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey. |
 | <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
@@ -1256,26 +1256,26 @@ Labels: `fixture` · `experimental` · `degraded`
 - honua.io journey: `linked-large-data-analysis`
 - Degradation: The current shell still uses the 0.1.x app-workspace compatibility shim; #399 owns its supported-import migration.
 
-### 6. Edit with recovery and capability checks
+### 6. Plan, analyze, and edit with recovery
 
-Apply optimistic edits, attachments, and conflict recovery without hiding unsupported mutations.
+Search a parcel, run bounded geometry analysis, and apply metadata-backed edits and attachments without hiding unsupported mutations.
 
 Labels: `fixture` · `degraded`
 
 - Guide: [docs/shared-client-contract.md](../shared-client-contract.md)
-- Runnable example: [edit-workflow-demo](../../examples/edit-workflow-demo)
-- Executable entry: [examples/edit-workflow-demo/src/main.ts](../../examples/edit-workflow-demo/src/main.ts)
-- Example notes: [examples/edit-workflow-demo/README.md](../../examples/edit-workflow-demo/README.md)
-- Compile check: `npm run demo:edit-workflow:typecheck`
-- Sample contract: `recipe` · `supported` · `rework`
+- Runnable example: [planning-permitting-workbench](../../examples/planning-permitting-workbench)
+- Executable entry: [examples/planning-permitting-workbench/src/journey.ts](../../examples/planning-permitting-workbench/src/journey.ts)
+- Example notes: [examples/planning-permitting-workbench/README.md](../../examples/planning-permitting-workbench/README.md)
+- Compile check: `npm run demo:planning-workbench:typecheck`
+- Sample contract: `lab` · `supported` · `active`
 - Data and auth: `fixture` · `none`
-- Provenance: Committed deterministic edit fixture.
-- Freshness: Deterministic fixture replay time.
-- Catalog degradation: Editing is read-only when the service does not advertise mutation capability.
-- Live sample: [demo-editing.html](https://honua.io/demo-editing.html)
-- Supported API imports: `@honua/sdk-js/contract` (`createEditSession`); `@honua/sdk-js/honua` (`HonuaCapabilityNotSupportedError`)
-- honua.io journey: `realtime-operations`
-- Degradation: The current shell still uses the 0.1.x app-workspace compatibility shim, and mutations become read-only when capability or auth is absent.
+- Provenance: Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.
+- Freshness: Fixture version and generated-at values are committed with the repository; no live freshness claim is made.
+- Catalog degradation: Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.
+- Live sample: [demo-editing.html](https://honua.io/demo-editing.html) · [demo-planning-permitting.html](https://honua.io/demo-planning-permitting.html)
+- Supported API imports: `@honua/sdk-js/contract` (`createEditSession`); `@honua/sdk-js/geocoding` (`HonuaGeocodingClient`); `@honua/sdk-js/geometry` (`area`, `booleanIntersects`, `intersect`); `@honua/sdk-js/honua` (`createHonua`, `envelope`)
+- honua.io journey: `query-map-style`
+- Degradation: Metadata or capability discovery failure disables analysis, export, and mutation; deterministic fixture output is never presented as live or regulatory evidence.
 
 ### 7. Operate through realtime and offline transitions
 
@@ -3597,14 +3597,36 @@ behalf, so application code enqueuing events directly against
 lower-level, transport-neutral building block for callers that want to own
 reconnect themselves.
 
+## OData v4 delta-link pull adapter (#558)
+
+`createOdataDeltaTransport` (`src/realtime/odata-delta.ts`) is a pull-based
+`RealtimeFeatureTransport`, not a socket transport: it polls an OData v4
+entity set's `@odata.deltaLink` on a caller-configured interval instead of
+holding an open connection. It follows `@odata.nextLink` pages to establish
+an initial snapshot (sending `Prefer: odata.track-changes`), then polls the
+resulting delta link, normalizing `@removed` / `@odata.removed` entries into
+deletes and failing explicitly — rather than silently dropping or
+misreading them — on OData relationship (link) delta entries, which are out
+of scope. Every `@odata.nextLink` / `@odata.deltaLink` it follows, and any
+resumed `resumeFrom.deltaToken`, must resolve to the exact origin and
+collection path it was configured for; a foreign link is rejected instead of
+followed. An expired or rejected delta link (HTTP 410 by default, overridable
+via `isDeltaLinkExpiredResponse`) is recovered by re-running a full snapshot
+cycle — an explicit resnapshot, bounded by `maxConsecutiveResnapshots` so a
+server that keeps rejecting the token cannot loop forever. See
+[`docs/realtime-subscriptions.md`](realtime-subscriptions.md#odata-v4-delta-link-pull-adapter-558)
+for the honesty model behind its `capabilities.kind: "polling"` /
+`onPoll` telemetry, and why it does not compose with
+`resumable-transport.ts`'s reconnect wrapper.
+
 ## Scope and remaining work
 
 This is the first production slice of issue
 [#393](https://github.com/honua-io/honua-sdk-js/issues/393), not completion of
 the full workstream. It does not claim:
 
-- OData-delta or protocol-feed reconnection (SSE and WebSocket reconnection
-  are covered by `resumable-transport.ts`, #557);
+- protocol-feed reconnection beyond SSE, WebSocket (`resumable-transport.ts`,
+  #557), and OData delta-link polling (`odata-delta.ts`, #558);
 - cursor-only protocol adaptation where no trustworthy ordering sequence is
   available;
 - server support for cursor retention or expiry negotiation;
@@ -4004,16 +4026,29 @@ distribution for reports, and the certification governance policy (who grants
 # deck.gl binary adapter (experimental)
 
 `@honua/sdk-js/deckgl` is a renderer-neutral boundary between Honua plan/source
-identity and deck.gl binary layer data. It is an experimental first slice of
+identity and deck.gl binary layer data. It is an experimental slice of
 [#388](https://github.com/honua-io/honua-sdk-js/issues/388), not the complete
 GPU analytics workstream.
 
-The adapter currently projects scatterplot data from caller-owned typed arrays.
-It does not convert to GeoJSON or create one object per feature. Array views are
-forwarded to deck.gl unchanged and `projection.metrics.copiedBytes` is always
-zero. Default ceilings reject more than 1,000,000 rows, 32 attributes, 64
-forwarded properties, or 256 MiB of unique backing allocations before a deck.gl
-layer is constructed.
+The adapter projects `scatterplot` (point), `feature-path` (line), and
+`feature-polygon` (hole-free polygon) data from caller-owned typed arrays. It
+does not convert to GeoJSON or create one object per feature. Geometry array
+views are forwarded to deck.gl unchanged and `projection.metrics.copiedBytes`
+is always zero. Default ceilings reject more than 1,000,000 rows/features, 32
+attributes, 64 forwarded properties, or 256 MiB of unique backing allocations
+before a deck.gl layer is constructed.
+
+`feature-path` and `feature-polygon` requests address vertices through a
+request-level `data.startIndices` boundary array (one boundary per feature
+plus a trailing boundary — the same shape deck.gl's own `PathLayer` and
+`SolidPolygonLayer` binary mode expect) rather than one row per vertex. The
+adapter forces `_pathType: "open"` on `PathLayer` and `_normalize: false` on
+`SolidPolygonLayer` so the peer does not re-normalize (and therefore re-copy)
+the geometry it was just handed; both props are reserved and cannot be
+overridden through `request.props`. `DeckGlPeers.PathLayer` and
+`DeckGlPeers.SolidPolygonLayer` are optional — only required to `project()` the
+layer kind that needs them — and report a structured `missing-peer` error when
+absent.
 
 The adapter reads foreign request, data, identity, attribute, and property
 descriptors once into a bounded frozen snapshot. Typed-array byte length,
@@ -4021,17 +4056,20 @@ offset, component width, and backing allocation metrics come from JavaScript
 intrinsics rather than overridable getters. Attribute offsets and strides must
 be component-aligned, and `normalized`, when present, must be boolean.
 
-## Direct GeoArrow Point path
+## Direct GeoArrow Point/LineString/Polygon paths
 
-The normative columnar contract can bind a non-null interleaved GeoArrow Point
-batch with explicit `OGC:CRS84` longitude/latitude axis evidence directly to a
-scatterplot request. Position and feature-id arrays alias the batch's
+The normative columnar contract can bind a non-null interleaved GeoArrow Point,
+LineString, or Polygon batch with explicit `OGC:CRS84` longitude/latitude axis
+evidence directly to a `scatterplot`, `feature-path`, or `feature-polygon`
+request. Geometry, offsets, and feature-id arrays alias the batch's
 transferable buffers; no GeoJSON feature or coordinate object is created. In
 this excerpt, `renderBatch` is such a validated batch:
 
 ```ts doc-test=skip reason="partial excerpt requires an application-owned non-null OGC:CRS84 batch"
 import {
+  bindGeoArrowLineBatchToDeckGl,
   bindGeoArrowPointBatchToDeckGl,
+  bindGeoArrowPolygonBatchToDeckGl,
   createDeckGlAdapter,
   loadDeckGlPeers,
 } from "@honua/sdk-js/deckgl";
@@ -4047,16 +4085,27 @@ const projection = adapter.project(binding.request);
 console.log(binding.metrics);
 // { rows, positionBytes, copiedBytes: 0, geoJsonFeaturesMaterialized: 0 }
 console.log(projection.metrics.copiedBytes); // 0
+
+// LineString batches bind to a PathLayer request the same way; `metrics.vertices`
+// reports the total addressed vertex count alongside `metrics.rows` (path count).
+const routeBinding = bindGeoArrowLineBatchToDeckGl({ batch: routeBatch, layerId: "routes" });
+
+// Polygon batches bind to a SolidPolygonLayer request. Contract v1 requires
+// exactly one ring per polygon (no holes); holed or empty polygons need an
+// explicit bounded gather/retriangulation and fail with `invalid-data`.
+const parcelBinding = bindGeoArrowPolygonBatchToDeckGl({ batch: parcelBatch, layerId: "parcels" });
 ```
 
-Contract v1 deliberately accepts only XY/XYZ, interleaved, non-null Point
-batches in explicit `OGC:CRS84` for this automatic path. Separated coordinates,
-M dimensions, null rows, missing CRS evidence, and projected or latitude-first
-CRSs need an explicit gather/filter/reprojection mapping; they fail with a
-structured `invalid-data` diagnostic instead of silently copying, dropping
-rows, swapping axes, or rendering nulls at `[0, 0]`. The general
+Contract v1 deliberately accepts only XY/XYZ, interleaved, non-null geometry in
+explicit `OGC:CRS84` for these automatic paths, and — for polygons — exactly
+one ring per feature. Separated coordinates, M dimensions, null rows, holes,
+empty polygons, missing CRS evidence, and projected or latitude-first CRSs need
+an explicit gather/filter/reprojection mapping; they fail with a structured
+`invalid-data` diagnostic instead of silently copying, dropping rows, dropping
+holes, swapping axes, or rendering nulls at `[0, 0]`. The general
 `bindColumnarBatchToDeckGl()` seam remains available for callers that explicitly
-provide their own bounded binary attributes and coordinate-system properties.
+provide their own bounded binary attributes, `startIndices` buffer, and
+coordinate-system properties.
 
 ## Optional peer
 
@@ -4128,20 +4177,66 @@ owned and reports `dispose-failed`; calling `mounted.dispose()` or
 foreign `addLayer` callback, so synchronous adapter disposal rolls the newly
 added layer back before `mount()` returns.
 
+## Shared map state (MapLibre overlay mode)
+
+`#561` adds a focused renderer-state seam so a deck.gl overlay can share
+camera and selection with a MapLibre basemap it draws over, without either
+side owning the other's core query semantics:
+
+- `bindDeckGlViewportToMap(map, overlay)` — one-directional camera sync. Every
+  MapLibre `"move"` event (pan/zoom/rotate/pitch) re-reads `map.getCenter()` /
+  `getZoom()` / `getPitch()` / `getBearing()` and pushes a deck.gl `viewState`
+  via `overlay.setProps({ viewState })`. `readMapCameraState(map)` reads the
+  camera once without binding — useful to seed a standalone `Deck`'s
+  `initialViewState`.
+- `bindDeckGlPickToExploration(view)` returns a handler for a deck.gl
+  `onClick`/`onHover` callback: call it with
+  `projection.selectionForPick(info.index)` (or `undefined` when nothing is
+  picked) to publish the pick into the same shared exploration selection slice
+  MapLibre feature-state bindings use (`src/interactions/exploration-bindings.ts`).
+  `selectedFeatureIdSet(selection, sourceId)` reads that shared slice back for
+  one source, so an app can derive a GPU "selected" highlight attribute without
+  any deck.gl-specific coupling in the exploration layer.
+- `combineDeckGlDisposal(...handles)` composes mount handles, view-sync
+  bindings, and any other `DeckGlDisposalHandle` into one idempotent lifecycle:
+  `dispose()` tears every handle down in reverse-bind order and never touches
+  a borrowed host beyond what each handle's own `dispose()` already does.
+
+```ts doc-test=skip reason="partial excerpt requires an application-owned MapLibre map and deck.gl overlay"
+import {
+  bindDeckGlPickToExploration,
+  bindDeckGlViewportToMap,
+  combineDeckGlDisposal,
+} from "@honua/sdk-js/deckgl";
+
+const viewSync = bindDeckGlViewportToMap(map, overlay);
+const onPick = bindDeckGlPickToExploration(explorationView);
+overlay.setProps({
+  onClick: (info) => onPick(info.index >= 0 ? projection.selectionForPick(info.index) : undefined),
+});
+
+const lifecycle = combineDeckGlDisposal(mounted, viewSync);
+// ...later:
+lifecycle.dispose();
+```
+
+Standalone mode (deck.gl owns its own viewport, no MapLibre map) simply does
+not use `bindDeckGlViewportToMap` — nothing in `createDeckGlAdapter()` or
+`DeckGlProjection` requires a map.
+
 ## Diagnostics and boundaries
 
 `DECK_GL_CAPABILITIES` is the capability truth for this contract version.
-Scatterplot is `gpu-binary`; feature path/polygon, vector tile, H3, Quadbin,
-heatmap, cluster, contour, and trips are explicitly `not-implemented`. The
-projection diagnostic reports the chosen strategy, input-array precision,
-fidelity, and absence of an implicit fallback. Unsupported or malformed paths
-throw a typed error rather than materializing feature objects or silently
-downgrading.
+Scatterplot, feature path, and feature polygon are `gpu-binary`; vector tile,
+H3, Quadbin, heatmap, cluster, contour, and trips are explicitly
+`not-implemented`. The projection diagnostic reports the chosen strategy,
+input-array precision, fidelity, and absence of an implicit fallback.
+Unsupported or malformed paths throw a typed error rather than materializing
+feature objects or silently downgrading.
 
-Remaining #388 work includes additional GeoArrow geometry/layer mappings,
-indexed and aggregate layer families,
-realtime buffer patch/rebuild rules, direct MapLibre overlay and standalone Deck
-hosts, WebGPU boundaries, and the million-feature browser benchmark against
+Remaining #388 work includes indexed and aggregate layer families (H3/Quadbin,
+heatmap, cluster, contour, trips), realtime buffer patch/rebuild rules, WebGPU
+boundaries, and the million-feature browser benchmark against
 [#387](https://github.com/honua-io/honua-sdk-js/issues/387).
 
 ---
@@ -8081,47 +8176,47 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-19 at commit `8d4b4e25`._
+_Generated 2026-07-20 at commit `bf2c66d0`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 612.9 KiB | 661.1 KiB | 162.5 KiB | 168.9 KiB |
-| `/honua` | 779.6 KiB | 849.0 KiB | 207.9 KiB | 226.0 KiB |
-| `/contract` | 288.8 KiB | 317.1 KiB | 76.6 KiB | 83.7 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 761.9 KiB | 829.5 KiB | 164.9 KiB | 179.5 KiB |
+| `.` (root) | 615.1 KiB | 661.1 KiB | 163.2 KiB | 168.9 KiB |
+| `/honua` | 781.8 KiB | 849.0 KiB | 208.6 KiB | 226.0 KiB |
+| `/contract` | 289.3 KiB | 317.1 KiB | 76.8 KiB | 83.7 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 762.5 KiB | 829.5 KiB | 165.2 KiB | 179.5 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.0 KiB | 257.5 KiB | 31.3 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 794.9 KiB | 865.8 KiB | 173.6 KiB | 189.2 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 795.5 KiB | 865.8 KiB | 173.9 KiB | 189.2 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 58.5 KiB | 62.6 KiB | 18.1 KiB | 19.3 KiB |
 | `/agent-tools` | 34.7 KiB | 38.2 KiB | 9.9 KiB | 10.9 KiB |
 | `/agent-safety` | 66.5 KiB | 73.2 KiB | 18.6 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.3 KiB | 84.5 KiB | 22.7 KiB | 25.3 KiB |
-| `/runtime` | 532.8 KiB | 550.7 KiB | 143.3 KiB | 147.5 KiB |
-| `/realtime` | 53.6 KiB | 59.0 KiB | 15.4 KiB | 16.9 KiB |
+| `/runtime` | 533.4 KiB | 550.7 KiB | 143.6 KiB | 147.5 KiB |
+| `/realtime` | 61.3 KiB | 67.3 KiB | 17.8 KiB | 19.5 KiB |
 | `/offline` | 38.1 KiB | 44.3 KiB | 11.3 KiB | 13.2 KiB |
-| `/query-planner` (worker runtime injected) | 581.1 KiB | 638.9 KiB | 118.2 KiB | 129.9 KiB |
+| `/query-planner` (worker runtime injected) | 582.7 KiB | 638.9 KiB | 118.6 KiB | 129.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 94.2 KiB | 100.0 KiB | 29.0 KiB | 30.8 KiB |
-| `/esri-compat` | 984.7 KiB | 1026.2 KiB | 245.5 KiB | 253.6 KiB |
+| `/esri-compat` | 985.3 KiB | 1026.2 KiB | 245.7 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.6 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
 | `/routing` | 20.2 KiB | 24.6 KiB | 6.2 KiB | 7.6 KiB |
 | `/auth` | 25.6 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
-| `/style` | 60.6 KiB | 69.0 KiB | 14.9 KiB | 17.2 KiB |
-| `/map` | 176.4 KiB | 182.2 KiB | 49.6 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 76.8 KiB | 81.6 KiB | 23.7 KiB | 25.3 KiB |
+| `/style` | 61.1 KiB | 69.0 KiB | 15.2 KiB | 17.2 KiB |
+| `/map` | 177.0 KiB | 182.2 KiB | 50.0 KiB | 50.7 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 125.3 KiB | 137.8 KiB | 37.2 KiB | 40.9 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 47.7 KiB | 52.1 KiB | 13.9 KiB | 15.2 KiB |
-| `/react` (react/react-dom external) | 462.6 KiB | 506.7 KiB | 122.8 KiB | 134.6 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 62.5 KiB | 68.3 KiB | 16.7 KiB | 18.3 KiB |
+| `/react` (react/react-dom external) | 463.1 KiB | 506.7 KiB | 123.0 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 613.5 KiB | 661.8 KiB | 162.9 KiB | 176.3 KiB |
-| browser ESM (`./browser`) | 612.2 KiB | 660.4 KiB | 162.5 KiB | 176.0 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 217.3 KiB | 229.7 KiB | 55.5 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 476.0 KiB | 515.1 KiB | 124.4 KiB | 135.1 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 615.7 KiB | 661.8 KiB | 163.5 KiB | 176.3 KiB |
+| browser ESM (`./browser`) | 614.4 KiB | 660.4 KiB | 163.2 KiB | 176.0 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 217.8 KiB | 229.7 KiB | 55.8 KiB | 57.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 476.7 KiB | 515.1 KiB | 124.7 KiB | 135.1 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.1 KiB | 15.5 KiB | 4.0 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.2 KiB | 14.6 KiB | 2.8 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 580.0 KiB | 627.9 KiB | 153.8 KiB | 167.0 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 231.8 KiB | 245.9 KiB | 58.8 KiB | 61.4 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 582.2 KiB | 627.9 KiB | 154.5 KiB | 167.0 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 232.4 KiB | 245.9 KiB | 59.0 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 42.2 KiB | 44.7 KiB | 13.0 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
