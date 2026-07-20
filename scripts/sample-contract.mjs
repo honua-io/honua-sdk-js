@@ -2968,7 +2968,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         );
         invariant(sample.evidence.live.targetMode, `${sample.id}: non-executed live evidence requires targetMode`);
       }
-      await validateLiveEvidenceProducer(evidence, sample);
+      await validateLiveEvidenceProducer(evidence, sample, { relaxed: options.relaxDerivedArtifacts });
     } else {
       invariant(!sample.evidence.live.evidencePath, `${sample.id}: ${sample.evidence.live.status} cannot carry evidencePath`);
       invariant(!sample.evidence.live.expiresAt, `${sample.id}: ${sample.evidence.live.status} cannot carry expiresAt`);
@@ -3133,7 +3133,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   invariant(catalog.siteMappings.length === 21, "the compatibility route fixture must map all 21 existing honua.io samples");
 }
 
-export async function validateLiveEvidenceProducer(evidence, sample) {
+export async function validateLiveEvidenceProducer(evidence, sample, options = {}) {
   const producers = (evidence.artifacts ?? []).filter((artifact) => artifact.kind === "producer-generator");
   if (evidence.status !== "executed" && producers.length === 0) return;
   const claimLabel = evidence.status === "executed" ? "executed live evidence" : "non-executed live producer claim";
@@ -3154,10 +3154,12 @@ export async function validateLiveEvidenceProducer(evidence, sample) {
     `${sample.id}: producer generator path for ${command} must be ${binding.generatorPath}`,
   );
   const generatorBytes = await readFile(path.join(PROJECT_ROOT, producer.path));
-  invariant(
-    sha256(generatorBytes) === producer.sha256,
-    `${sample.id}: producer generator digest drift`,
-  );
+  if (options.relaxed !== true) {
+    invariant(
+      sha256(generatorBytes) === producer.sha256,
+      `${sample.id}: producer generator digest drift`,
+    );
+  }
   if (binding.sampleId) {
     invariant(sample.id === binding.sampleId, `${sample.id}: producer generator does not support this sample`);
   }
@@ -6101,6 +6103,13 @@ export function generatedOutputDrift(expectedOutputs, currentOutputs) {
     .map(([relativePath]) => relativePath);
 }
 
+export function validateGeneratedOutputDrift(drift, options = {}) {
+  invariant(
+    options.relaxed === true || drift.length === 0,
+    `${drift.join(", ")} has drifted; run npm run samples:generate`,
+  );
+}
+
 function gitSha() {
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], { cwd: PROJECT_ROOT, encoding: "utf8" }).trim();
@@ -6378,7 +6387,7 @@ async function runContract(command, options = {}) {
       currentOutputs.set(relativePath, await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"));
     }
     const drift = generatedOutputDrift(outputs, currentOutputs);
-    invariant(drift.length === 0, `${drift.join(", ")} has drifted; run npm run samples:generate`);
+    validateGeneratedOutputDrift(drift, { relaxed: options.relaxGeneratedOutputs });
   }
   process.stdout.write(
     `${command === "write" ? "Generated" : "Verified"} ${catalog.samples.length} SDK and docs examples, seven reserved journey IDs, and ${catalog.siteMappings.length} honua.io routes (${catalog.format})\n`,
@@ -6397,15 +6406,18 @@ async function main(argv) {
     // Derived-artifact decoupling (honua-io/honua-sdk-js#677): at PR time the
     // committed evidence has not been resealed against the PR's source tree, so
     // `check` runs in a relaxed mode that still validates every receipt's
-    // schema, freshness, artifact digests, gate semantics, catalog coherence,
-    // and generated-output drift, but does NOT require the evidence-neutral
-    // source digest to match the working tree. Reproducibility is re-established
-    // strictly on trunk, where the regenerate-derived-artifacts workflow reseals
-    // evidence bound to the trunk source digest. `write` always stays strict.
+    // schema, freshness, artifact digests, gate semantics, and catalog
+    // coherence, but defers source binding and committed projection drift until
+    // the post-merge workflow atomically regenerates both. Reproducibility is
+    // re-established strictly on trunk, where the regenerate-derived-artifacts
+    // workflow reseals evidence bound to the trunk source digest. `write`
+    // always stays strict.
     const relaxCheckout = command === "check" && derivedArtifactsRelaxed();
     await runContract(command, {
       qualificationBootstrapSampleId,
+      relaxDerivedArtifacts: relaxCheckout,
       verifyCheckout: relaxCheckout ? false : undefined,
+      relaxGeneratedOutputs: relaxCheckout,
     });
     return;
   }
