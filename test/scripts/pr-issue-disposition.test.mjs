@@ -79,6 +79,17 @@ function issue(number, overrides = {}) {
   return { number, repository, state: "open", isPullRequest: false, ...overrides };
 }
 
+function graphqlIssuePayload(number, { state = "OPEN", type = "Issue" } = {}) {
+  return {
+    data: {
+      repository: {
+        nameWithOwner: repository,
+        issueOrPullRequest: { __typename: type, number, state },
+      },
+    },
+  };
+}
+
 function releasePleaseRestPull(overrides = {}) {
   return {
     number: releasePleaseFixture.pullRequestNumber,
@@ -541,18 +552,14 @@ describe("trusted Release Please disposition publication", () => {
 });
 
 describe("pull request issue disposition CLI", () => {
-  it("loads current GraphQL and REST metadata and fails a reordered snapshot closed", async () => {
+  it("loads current GraphQL metadata and fails a reordered snapshot closed", async () => {
     const livePayload = graphqlPayload();
     const requests = [];
     const request = async (url, options = {}) => {
       requests.push({ url, options });
-      if (url.endsWith("/graphql")) return livePayload;
-      if (url.endsWith("/issues/550")) {
-        return {
-          number: 550,
-          state: "open",
-          repository_url: "https://api.github.com/repos/honua-io/honua-sdk-js",
-        };
+      if (url.endsWith("/graphql")) {
+        const body = JSON.parse(options.body);
+        return body.query.includes("issueOrPullRequest") ? graphqlIssuePayload(550) : livePayload;
       }
       throw new Error(`Unexpected request: ${url}`);
     };
@@ -564,17 +571,17 @@ describe("pull request issue disposition CLI", () => {
     assert.equal(current.body, "Refs #550 (S2; S3 remains)");
     assert.deepEqual(current.closingIssueNumbers, []);
     assert.deepEqual(current.issues, [issue(550)]);
-    assert.equal(requests.filter(({ url }) => url.endsWith("/graphql")).length, 2);
-    assert.equal(requests.filter(({ url }) => url.endsWith("/issues/550")).length, 1);
+    assert.equal(requests.filter(({ url }) => url.endsWith("/graphql")).length, 3);
+    assert.equal(
+      requests.filter(({ options }) => JSON.parse(options.body).query.includes("issueOrPullRequest")).length,
+      1,
+    );
 
     let graphqlCalls = 0;
-    const reorderedRequest = async (url) => {
-      if (url.endsWith("/issues/550")) {
-        return {
-          number: 550,
-          state: "open",
-          repository_url: "https://api.github.com/repos/honua-io/honua-sdk-js",
-        };
+    const reorderedRequest = async (_url, options = {}) => {
+      const body = JSON.parse(options.body);
+      if (body.query.includes("issueOrPullRequest")) {
+        return graphqlIssuePayload(550);
       }
       graphqlCalls += 1;
       return graphqlCalls === 1

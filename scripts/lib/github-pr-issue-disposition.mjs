@@ -26,18 +26,19 @@ const GITHUB_GRAPHQL_QUERY = `query($owner: String!, $name: String!, $number: In
   }
 }`;
 
+const GITHUB_GRAPHQL_ISSUE_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    nameWithOwner
+    issueOrPullRequest(number: $number) {
+      __typename
+      ... on Issue { number state }
+      ... on PullRequest { number state }
+    }
+  }
+}`;
+
 function normalizedRepository(value) {
   return String(value ?? "").toLowerCase();
-}
-
-function repositoryFromApiUrl(value) {
-  try {
-    const parts = new URL(value).pathname.split("/").filter(Boolean);
-    if (parts.length !== 3 || parts[0] !== "repos") return null;
-    return `${decodeURIComponent(parts[1])}/${decodeURIComponent(parts[2])}`;
-  } catch {
-    return null;
-  }
 }
 
 function snapshotKey(input) {
@@ -147,20 +148,33 @@ async function queryPullRequest(input, request) {
 }
 
 async function loadIssue(input, issueNumber, request) {
+  const [owner, name] = input.repository.split("/");
   const apiRoot = process.env.GITHUB_API_URL ?? "https://api.github.com";
-  const issue = await request(`${apiRoot}/repos/${input.repository}/issues/${issueNumber}`);
-  const repository = repositoryFromApiUrl(issue?.repository_url);
-  if (!repository) {
-    throw new Error(`Issue #${issueNumber} returned malformed repository metadata.`);
+  const graphqlUrl = process.env.GITHUB_GRAPHQL_URL ?? `${apiRoot}/graphql`;
+  const payload = await request(graphqlUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: GITHUB_GRAPHQL_ISSUE_QUERY,
+      variables: { owner, name, number: issueNumber },
+    }),
+  });
+  if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
+    throw new Error(`GitHub GraphQL returned an error while reading issue #${issueNumber}.`);
   }
-  if (issue?.number !== issueNumber) {
-    throw new Error(`Issue #${issueNumber} redirected to unexpected issue #${issue?.number}.`);
+  const repository = payload?.data?.repository;
+  const issue = repository?.issueOrPullRequest;
+  if (normalizedRepository(repository?.nameWithOwner) !== normalizedRepository(input.repository)) {
+    throw new Error(`Issue #${issueNumber} returned unexpected repository metadata.`);
+  }
+  if (issue?.number !== issueNumber || !["Issue", "PullRequest"].includes(issue?.__typename)) {
+    throw new Error(`GitHub did not return issue or pull request #${issueNumber}.`);
   }
   return {
-    number: issue?.number,
-    repository,
-    state: issue?.state,
-    isPullRequest: Boolean(issue?.pull_request),
+    number: issue.number,
+    repository: repository.nameWithOwner,
+    state: String(issue?.state ?? "").toLowerCase(),
+    isPullRequest: issue.__typename === "PullRequest",
   };
 }
 
