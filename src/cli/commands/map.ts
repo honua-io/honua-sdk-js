@@ -14,6 +14,7 @@ import type { ParsedArgs } from "../args.js";
 import { ArgError, getBoolean, getString, parseBbox } from "../args.js";
 import { createClient } from "../client.js";
 import type { CommandContext } from "../command.js";
+import { resolveConnection } from "../config.js";
 import { downloadCredentialedResource } from "../download.js";
 import { printLine, renderDetail, renderJson } from "../output.js";
 
@@ -48,7 +49,8 @@ async function mapExport(parsed: ParsedArgs, ctx: CommandContext): Promise<void>
   const format = getString(parsed, "format") ?? "png";
   const outPath = getString(parsed, "output");
 
-  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const client = createClient(connection);
   const result = await client.exportMap({
     serviceId: service,
     bbox,
@@ -68,7 +70,7 @@ async function mapExport(parsed: ParsedArgs, ctx: CommandContext): Promise<void>
   }
 
   if (outPath) {
-    const bytes = await downloadCredentialedResource(result.href, { baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+    const bytes = await downloadCredentialedResource(result.href, connection);
     fs.writeFileSync(outPath, bytes);
     printLine(
       renderDetail(
@@ -111,13 +113,14 @@ export async function tilesCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   const [z, x, y] = parts;
   const format = (getString(parsed, "format") ?? "png") as "png" | "jpg" | "jpeg" | "tif" | "tiff";
 
-  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const client = createClient(connection);
   // Esri tile addressing is level/row/col == z/y/x.
   const url = client.imageService(service).tileUrl(z, y, x, format);
 
   const outPath = getString(parsed, "output");
   if (outPath) {
-    const bytes = await downloadCredentialedResource(url, { baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+    const bytes = await downloadCredentialedResource(url, connection);
     fs.writeFileSync(outPath, bytes);
     printLine(
       renderDetail({ service, tile: `${z}/${x}/${y}`, saved: outPath, bytes: bytes.length }, { title: "Tile saved" }),

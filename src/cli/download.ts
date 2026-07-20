@@ -12,8 +12,8 @@
  * This helper mirrors `HonuaClient.fetchWithSafeRedirects` /
  * `HonuaGeocodingClient.fetchWithSafeRedirects`: it (a) only attaches the API
  * key when the resolved URL origin equals the configured server origin, and
- * (b) issues `redirect: "manual"` and refuses cross-origin / opaque redirects
- * so the credential is never leaked off-origin.
+ * (b) issues `redirect: "manual"` so every hop recomputes that decision.
+ * Cross-origin download hops remain usable, but never receive the credential.
  *
  * @packageDocumentation
  */
@@ -35,11 +35,10 @@ function originOf(url: string | undefined): string | undefined {
 
 /**
  * Download `url` and return the response body as bytes. The API key is only
- * sent when `url` is same-origin with `baseUrl`; redirects are followed
- * manually and only while they stay on the base origin.
+ * sent when the current hop is same-origin with `baseUrl`; redirects are
+ * followed manually and the credential decision is recomputed for every hop.
  *
- * @throws if a redirect leaves the base origin, the redirect chain is too
- *   long, or the final response is not `ok`.
+ * @throws if the redirect chain is too long or the final response is not `ok`.
  */
 export async function downloadCredentialedResource(
   url: string,
@@ -59,9 +58,19 @@ export async function downloadCredentialedResource(
     const res = await fetch(currentUrl, init);
 
     if (res.type === "opaqueredirect") {
-      throw new Error(
-        `Refusing to follow an opaque cross-origin redirect from ${currentUrl}; the API key would be leaked to the redirect target.`,
-      );
+      // A browser-style opaque redirect hides Location, so it cannot be
+      // advanced manually. Retry that hop with automatic redirects and no
+      // headers at all: the destination remains usable without risking the
+      // custom API key. Node/undici normally exposes Location and uses the
+      // ordinary manual path below.
+      await res.body?.cancel().catch(() => undefined);
+      const uncredentialed = await fetch(currentUrl, { redirect: "follow" });
+      if (!uncredentialed.ok) {
+        throw new Error(
+          `Failed to download resource (${uncredentialed.status} ${uncredentialed.statusText}) from ${currentUrl}`,
+        );
+      }
+      return Buffer.from(await uncredentialed.arrayBuffer());
     }
 
     if (!REDIRECT_STATUSES.has(res.status)) {
@@ -85,10 +94,7 @@ export async function downloadCredentialedResource(
     } catch {
       throw new Error(`Redirect response has an invalid Location header: ${location}`);
     }
-    if (baseOrigin === undefined || target.origin !== baseOrigin) {
-      throw new Error(`Refusing to follow a cross-origin redirect to ${target.origin}; the API key would be leaked.`);
-    }
-    currentUrl = target.toString();
     await res.body?.cancel().catch(() => undefined);
+    currentUrl = target.toString();
   }
 }
