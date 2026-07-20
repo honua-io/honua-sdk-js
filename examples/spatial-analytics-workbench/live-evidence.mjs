@@ -3,9 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { capabilities, createDataset } from "../../dist/src/contract/index.js";
-import { HonuaClient } from "../../dist/src/honua.js";
-import { executeQueryPlan, explainQuery } from "../../dist/src/query-planner/index.js";
 import { liveEvidenceOutputContract } from "../../scripts/lib/live-evidence-output.mjs";
 import { validateEvidenceEnvelope } from "../../scripts/sample-contract.mjs";
 
@@ -37,6 +34,11 @@ if (protocol === "ogc-features") {
     observedAt,
   );
 } else {
+  const [{ capabilities, createDataset }, { HonuaClient }, { executeQueryPlan, explainQuery }] = await Promise.all([
+    import("../../dist/src/contract/index.js"),
+    import("../../dist/src/honua.js"),
+    import("../../dist/src/query-planner/index.js"),
+  ]);
   const safeUrl = publicUrl(baseUrl);
   const descriptor = {
     id: `live:${serviceId}:layer:${layerId}`,
