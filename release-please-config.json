@@ -63,6 +63,11 @@
           "type": "json",
           "path": "support/projections/sdk-support.v1.json",
           "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "config/sdk-coverage.v1.json",
+          "jsonpath": "$.sdk.version"
         }
       ],
       "changelog-sections": [

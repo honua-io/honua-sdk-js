@@ -277,7 +277,7 @@
     "support:generate": "node scripts/support-manifest.mjs write",
     "support:check": "node --test test/scripts/support-manifest.test.mjs && vitest run test/support-manifest-contract.test.ts && node scripts/support-manifest.mjs check",
     "sdk-coverage:generate": "node scripts/sdk-coverage.mjs write",
-    "sdk-coverage:check": "node scripts/sdk-coverage.mjs check",
+    "sdk-coverage:check": "node --test test/scripts/sdk-coverage.test.mjs && node scripts/sdk-coverage.mjs check",
     "verify:root-surface": "npm run prepare:test-sdk --silent && node scripts/root-surface.mjs --check && tsc -p test/root-surface/tsconfig.json --noEmit",
     "verify:root-surface:prepared": "npm run prepare:test-sdk:already --silent && node scripts/root-surface.mjs --check && tsc -p test/root-surface/tsconfig.json --noEmit",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat && npm pack ./dist/packages/honua-migrate",
