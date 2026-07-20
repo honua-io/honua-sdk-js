@@ -29,6 +29,21 @@
           "type": "json",
           "path": "samples/contract/v1/fixtures/sample-evidence.skipped.json",
           "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
+          "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
+          "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
+          "jsonpath": "$.sdk.version"
         }
       ],
       "changelog-sections": [
