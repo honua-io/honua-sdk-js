@@ -6,8 +6,9 @@ name: Regenerate derived artifacts
 # (sample evidence, samples/dist, consumer fixtures, bench corpus,
 # docs/bundle-sizes.md, llms*.txt, docs/comparison.md, docs/errors.md,
 # api-report, migration-workbench artifacts). Those outputs are regenerated
-# HERE, once, after each relevant trunk merge, and committed back to trunk. PR
-# CI runs the corresponding gates in relaxed mode (HONUA_DERIVED_ARTIFACTS_RELAX)
+# HERE, once, after each relevant trunk merge, and returned through a protected
+# automation PR. Feature PR CI runs the corresponding gates in relaxed mode
+# (HONUA_DERIVED_ARTIFACTS_RELAX)
 # and this workflow is the strict authority that re-establishes reproducibility:
 # it reseals sample evidence bound to the trunk source digest and fails loudly
 # if that binding cannot hold.
@@ -16,12 +17,15 @@ name: Regenerate derived artifacts
 # job commits those generated inputs locally before resealing, so the evidence
 # binds to a real ancestor. It then transfers the local commit chain as a bundle
 # to the small write-enabled job, which validates every changed path before it
-# pushes the commits unchanged.
+# publishes the commits unchanged, dispatches strict validation against their
+# exact head, and auto-merges them with a merge commit so evidence revisions
+# remain reachable.
 
 on:
   push:
     branches:
       - trunk
+  workflow_dispatch:
 
 concurrency:
   group: derived-artifacts
@@ -47,9 +51,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # Loop guard: if the tip commit is this workflow's own regeneration
-      # commit, there is nothing to do. This is what makes the commit-back
-      # safe against infinite self-triggering.
+      # Loop guard: a historical direct regeneration commit, or a clean merge
+      # of this workflow's own one- or two-commit PR chain, needs no further
+      # work. If trunk advanced after that chain was cut, the merge commit's
+      # first parent differs from the chain base and regeneration runs again
+      # against the combined tree instead of accepting stale evidence.
       - name: Skip if tip is a regeneration commit
         id: guard
         shell: bash
@@ -59,9 +65,24 @@ jobs:
           if [[ "$subject" == "$REGEN_MARKER"* ]]; then
             echo "Tip commit is a regeneration commit; nothing to regenerate."
             echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          if generated="$(git rev-parse --verify -q HEAD^2)" && [[ "$(git log -1 --format=%s "$generated")" == "$REGEN_MARKER"* ]]; then
+            chain_base="$generated"
+            commit_count=0
+            while [[ "$(git log -1 --format=%s "$chain_base")" == "$REGEN_MARKER"* ]]; do
+              chain_base="$(git rev-parse "$chain_base^")"
+              commit_count=$((commit_count + 1))
+            done
+            first_parent="$(git rev-parse HEAD^1)"
+            if (( commit_count >= 1 && commit_count <= 2 )) && [[ "$chain_base" == "$first_parent" ]]; then
+              echo "Tip cleanly merges the current regeneration chain; nothing to regenerate."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Regeneration PR was based on an older trunk tip; resealing the combined tree."
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         if: steps.guard.outputs.skip == 'false'
@@ -226,12 +247,14 @@ jobs:
           if-no-files-found: error
 
   commit-and-validate:
-    name: Push artifacts + dispatch strict validation
+    name: Publish artifacts PR + dispatch strict validation
     needs: regenerate
     runs-on: ubuntu-latest
     permissions:
       actions: write
+      checks: read
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -245,9 +268,12 @@ jobs:
           name: derived-artifacts-bundle
           path: .derived-artifacts-bundle
 
-      - name: Validate and push regeneration commits
+      - name: Validate and publish regeneration commits
+        id: publish
         if: needs.regenerate.outputs.changed == 'true'
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           git fetch .derived-artifacts-bundle/derived-artifacts.bundle \
@@ -283,14 +309,80 @@ jobs:
                 ;;
             esac
           done < <(git diff --name-only "$GITHUB_SHA..$generated")
-          # Fail closed if trunk advanced while generation ran. The newer push
-          # starts its own serialized regeneration from the fresh trunk tip.
-          git push origin "$generated:refs/heads/trunk"
+          branch="automation/derived-artifacts-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git push origin "$generated:refs/heads/$branch"
+          pr_url="$(gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base trunk \
+            --head "$branch" \
+            --title "chore(evidence): regenerate derived artifacts" \
+            --body "Automated, strictly verified derived-artifact reseal for trunk commit \`$GITHUB_SHA\`.")"
+          pr_number="${pr_url##*/}"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "generated=$generated" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
 
-      # GITHUB_TOKEN pushes do not trigger ordinary push workflows.
-      # workflow_dispatch is the supported exception, so validate the current
-      # trunk tip explicitly; release branches remain strict by construction.
-      - name: Dispatch strict CI and docs validation
+      # A PR created with GITHUB_TOKEN does not emit pull_request workflows.
+      # Dispatch the required checks explicitly against the exact generated
+      # head. workflow_dispatch keeps derived-artifact relaxation disabled.
+      - name: Dispatch required checks for regeneration PR
+        if: needs.regenerate.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.publish.outputs.branch }}
+          PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+          gh workflow run pr-issue-disposition.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$BRANCH" \
+            -f pull_request_number="$PR_NUMBER"
+
+      - name: Merge validated regeneration PR
+        if: needs.regenerate.outputs.changed == 'true'
+        timeout-minutes: 35
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GENERATED: ${{ steps.publish.outputs.generated }}
+          PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            required="$(gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --json name,bucket 2>/dev/null || true)"
+            if [[ -z "$required" ]]; then
+              required='[]'
+            fi
+            if [[ "$(jq 'length' <<<"$required")" -ge 3 ]]; then
+              break
+            fi
+            if (( attempt == 30 )); then
+              echo "Required checks did not attach to regeneration PR #$PR_NUMBER."
+              exit 1
+            fi
+            sleep 10
+          done
+          gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --watch --fail-fast --interval 10
+          git fetch origin trunk
+          current_trunk="$(git rev-parse refs/remotes/origin/trunk)"
+          if [[ "$current_trunk" != "$GITHUB_SHA" ]]; then
+            gh pr close "$PR_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --delete-branch
+            exit 0
+          fi
+          gh pr merge "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --merge \
+            --delete-branch \
+            --match-head-commit "$GENERATED"
+          # Merges performed with GITHUB_TOKEN do not emit a push workflow.
+          # Explicitly re-enter this workflow: the topology-aware guard skips
+          # a clean regeneration merge and dispatches strict trunk validation.
+          gh workflow run regenerate-derived-artifacts.yml --repo "$GITHUB_REPOSITORY" --ref trunk
+
+      - name: Dispatch strict trunk CI and docs validation
+        if: needs.regenerate.outputs.changed != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
