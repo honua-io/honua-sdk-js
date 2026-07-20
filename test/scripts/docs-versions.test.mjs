@@ -110,6 +110,7 @@ test("release projection updates without a committed generated manifest", () => 
   assert.doesNotThrow(() => JSON.parse(serializeDocsVersions(bumped)));
 
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, "release-please-config.json"), "utf8"));
+  const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, "samples/catalog.v2.json"), "utf8"));
   const evidenceFiles = config.packages["."]["extra-files"].filter(
     (entry) => entry.type === "json" && entry.jsonpath === "$.sdk.version",
   );
@@ -122,8 +123,32 @@ test("release projection updates without a committed generated manifest", () => 
       "samples/contract/v1/fixtures/sample-evidence.fixture.json",
       "samples/contract/v1/fixtures/sample-evidence.live.json",
       "samples/contract/v1/fixtures/sample-evidence.skipped.json",
+      "samples/evidence/maplibre-quickstart/live.v1.json",
     ],
   );
+
+  const managedEvidencePaths = new Set(evidenceFiles.map((entry) => entry.path));
+  const catalogEvidencePaths = catalog.samples.flatMap((sample) =>
+    sample.evidence?.live?.evidencePath ? [sample.evidence.live.evidencePath] : [],
+  );
+  assert.ok(catalogEvidencePaths.length > 0);
+  for (const evidencePath of catalogEvidencePaths) {
+    assert.ok(managedEvidencePaths.has(evidencePath), `${evidencePath} must be release-managed`);
+  }
+
+  const benchmarkVersionFile = config.packages["."]["extra-files"].find(
+    (entry) => entry.path === "bench/cross-sdk/corpus.json",
+  );
+  assert.deepEqual(benchmarkVersionFile, {
+    type: "json",
+    path: "bench/cross-sdk/corpus.json",
+    jsonpath: "$.references[0].package.version",
+  });
+
+  const currentPackage = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+  const benchmarkCorpus = JSON.parse(fs.readFileSync(path.join(ROOT, "bench/cross-sdk/corpus.json"), "utf8"));
+  assert.equal(benchmarkCorpus.references[0].id, "honua-sdk-js");
+  assert.equal(benchmarkCorpus.references[0].package.version, currentPackage.version);
 });
 
 test("authoritative tag validation rejects a fabricated release", () => {
