@@ -6,10 +6,10 @@
     "fixture": "examples/arcgis-source-app",
     "scenario": "examples/arcgis-source-app/src/workbench-scenario.js",
     "sourceSnapshot": {
-      "fixtureTreeSha256": "7e79a2243b70da6efd3b90a206f834e8fc63eb8200905d0f5564586c2b70f87b",
+      "fixtureTreeSha256": "d247e07a104d4a5f2a65d92d074d7b723b9131ec7a6ccda1a7b59b03596bcbb5",
       "expectedBehaviorPath": "examples/migration-workbench/fixtures/expected-behavior.v1.json",
-      "expectedBehaviorSha256": "bdd9eba31748936a4a7be7bc476ba4fed6a740f8f38f0362ce1aac7ee7bb8ef1",
-      "combinedSha256": "632eff429543e5c2e354a705e233e4a99657ab9718feaa61bba3429b8d12c031"
+      "expectedBehaviorSha256": "c2e738d6a0e5698557fdafce0946d26eadaad3a66f16a9a261f03b23a568b73b",
+      "combinedSha256": "d05c5d6eff739a59669851f3aff8add1996b038053fbefeb69f68148834a6be3"
     },
     "authorship": "Original Honua-authored repository fixture",
     "licenseScope": "Apache-2.0 repository license; no third-party sample source is reproduced in these artifacts",
@@ -20,9 +20,9 @@
     "transformationEngine": {
       "path": "dist/src/migration/cli.js",
       "preparedArtifactFormat": "honua.prepared-sdk-artifact.v1",
-      "buildInputsSha256": "ca0d6a20c771b983812b64173382336ffdf1961a341092fc423e4eac6e0c6d78",
+      "buildInputsSha256": "6a00f012749464196f0723955113ed7e8ce5276338d3b644ee50ad6a1353e9ed",
       "buildInputFileCount": 1770,
-      "distSrcSha256": "79a9a3b01f24f4f965af9f01b19a93468ae05b0712788b6f2ac7b49b0aa0240b",
+      "distSrcSha256": "2a692cb43b8d759f00616a0c9050d5c611cf8bc1b734dec762a0a7c9c7b49f70",
       "distSrcFileCount": 1527,
       "digestScope": "Complete prepared SDK build inputs plus verified canonical dist/src transformation entries; adopted outputs outside dist/src are excluded."
     },
@@ -40,16 +40,16 @@
       "protocolNoncePurpose": "parent/runner response correlation, not same-process code authentication",
       "memoryBound": "128 MiB V8 old-space cap plus bounded JSON traversal and subprocess buffers",
       "executionHarness": {
-        "combinedSha256": "6b7fd66cbc8ae691776af5ce1c7a729377bbb54c70a15fab61b3889d45c9a172",
+        "combinedSha256": "5361eacf884da5d37b8a620820686dd8a1245b5bf88d92a07496e1d0fd7fd0d9",
         "runner": {
           "repositoryPath": "scripts/lib/migration-workbench-execution-runner.mjs",
-          "byteLength": 7033,
-          "sha256": "72a5aa5dbfe4232ddcaee9c39ec1fcf03db8ac0aa574560bc6362e0da6dc3f1b"
+          "byteLength": 7199,
+          "sha256": "ef2b81dafd622b015ea0184e8053ea7a07d22b94db4a1b9b4bcbee2e6ef42a60"
         },
         "networkGuard": {
           "repositoryPath": "scripts/lib/migration-workbench-network-guard.mjs",
-          "byteLength": 8737,
-          "sha256": "71973eea8325bfdc7216c8daab1e0463abea9e57c2a3685c4301e447e2652e86"
+          "byteLength": 8996,
+          "sha256": "cbe1132af1a62597b5ea75fdb26ff9a633c3c7c0aca6612af1a15cf2498b21e4"
         }
       },
       "guardedNetworkApiAttemptsObserved": 0,
@@ -123,13 +123,13 @@
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/migration-report.v1.json",
       "mediaType": "application/json",
       "bytes": 61201,
-      "sha256": "30b8c561487a74b4e4b6f9e01e2b50319d1ad1e1866bdbd56bcbc8109233cb77"
+      "sha256": "560cb2f8513606dafae40a106f3c1e4bad7699258571ee2afbbd4316599189ea"
     },
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/migration.v1.patch",
       "mediaType": "text/x-diff",
-      "bytes": 3864,
-      "sha256": "5af0f80709512a3bd9f600716a14ab4b9194dc103369294c3db0c944c04e3a9b"
+      "bytes": 4048,
+      "sha256": "ff7eddcdbf02d2de053399df7368e90ecb10f0e5db2e6493aab7745b6051e2ef"
     },
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/widget-readiness.v1.json",
@@ -140,8 +140,8 @@
     {
       "repositoryPath": "examples/migration-workbench/src/generated/migrated-main.js",
       "mediaType": "text/javascript",
-      "bytes": 5159,
-      "sha256": "ea75ce5a0c267391b846f8825ad54e941a5b6ec31c9fa8cf05f3469712a636a4"
+      "bytes": 5323,
+      "sha256": "60e337d06c215d24da8ebd2b42cc19e6b1901ec7e3946e5167196dad478c082e"
     }
   ]
 }
