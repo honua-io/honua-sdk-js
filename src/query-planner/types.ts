@@ -9,6 +9,7 @@ import type {
   SourceDescriptor,
 } from "../contract/types.js";
 import { type HonuaErrorOptions, HonuaSdkError } from "../core/error-envelope.js";
+import type { GeometryEncoding } from "../core/geoparquet-sql.js";
 import type { EsriGeometryType, EsriSpatialRel } from "../core/types.js";
 import type { GeoParquetResourceHandleV1, GeoParquetResourceResolver } from "./resource.js";
 
@@ -72,8 +73,15 @@ export interface QueryIrSourceIdentity {
   readonly capabilities: readonly Capability[];
 }
 
-/** Physical geometry encoding of a GeoParquet column, per the DuckDB SQL compiler. */
-export type DuckDbGeometryEncoding = "wkb" | "native" | "geojson";
+/**
+ * Physical geometry encoding of a GeoParquet column, per the DuckDB SQL
+ * compiler. Re-exports {@link GeometryEncoding} (`core/geoparquet-sql.ts`) so
+ * the planner's compiled-query artifacts and the live `Source` never drift on
+ * which encodings exist — including the GeoParquet 1.1 `geoarrow-*` native
+ * single-geometry encodings, which have no DuckDB spatial-predicate
+ * expression (`geometryExpr` throws for them; see that module).
+ */
+export type DuckDbGeometryEncoding = GeometryEncoding;
 
 /**
  * Deterministic GeoParquet addressing carried on the IR so the DuckDB SQL
@@ -90,6 +98,8 @@ export interface QueryIrGeoparquetIdentity {
   readonly geometryEncoding?: DuckDbGeometryEncoding;
   /** Optional GeoParquet 1.1 bbox-covering struct column for row-group pruning. */
   readonly bboxColumn?: string;
+  /** Coordinate dimensions for a `geoarrow-*` `geometryEncoding` (GeoParquet 1.1 native). */
+  readonly nativeDimensions?: "xy" | "xyz";
 }
 
 /**
@@ -111,6 +121,8 @@ export interface QueryIrGeoparquetResourceIdentity {
   readonly geometryColumn?: string;
   readonly geometryEncoding?: DuckDbGeometryEncoding;
   readonly bboxColumn?: string;
+  /** Coordinate dimensions for a `geoarrow-*` `geometryEncoding` (GeoParquet 1.1 native). */
+  readonly nativeDimensions?: "xy" | "xyz";
   /**
    * Validated, versioned effective DuckDB output schema bound to this plan so
    * opaque `resultEncoding: "lossless-json"` execution can decode exactly,

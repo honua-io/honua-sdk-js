@@ -103,6 +103,29 @@ describe("connect() — GeoParquet / static-file discovery", () => {
     expect(connection.inspection.sources[0]?.metadata?.crs).toBeUndefined();
   });
 
+  it("preserves discovered GeoParquet 1.1 native coordinate dimensions on the locator", async () => {
+    const profiler = fakeProfiler({
+      columns: ["id"],
+      geometry: {
+        column: "geometry",
+        encoding: "geoarrow-point",
+        nativeDimensions: "xyz",
+      },
+    });
+    const connection = await connect({
+      endpoint: GEOPARQUET_ENDPOINT,
+      protocol: "geoparquet",
+      authorizationScopeFingerprint: "anonymous",
+      geoparquet: { profiler },
+    });
+
+    expect(connection.inspection.sources[0]?.descriptor.locator.geoparquet).toMatchObject({
+      geometryColumn: "geometry",
+      geometryEncoding: "geoarrow-point",
+      nativeDimensions: "xyz",
+    });
+  });
+
   it("unions additional files and forwards an explicit geometry-column override", async () => {
     const profiler = fakeProfiler();
     const connection = await connect({

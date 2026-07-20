@@ -25,6 +25,7 @@ import { type GeoParquetResourceHandleV1, parseGeoParquetResourceHandle } from "
 import {
   type CanonicalQuery,
   type DuckDbCompiledQueryV2,
+  type DuckDbGeometryEncoding,
   type ExplainGeoParquetQueryOptions,
   type ExplainQueryOptions,
   type GeoParquetRemoteQueryPlanStepV2,
@@ -326,6 +327,7 @@ export function migrateGeoParquetQueryPlanV1(
         ...(legacyGeoParquet.geometryColumn ? { geometryColumn: legacyGeoParquet.geometryColumn } : {}),
         ...(legacyGeoParquet.geometryEncoding ? { geometryEncoding: legacyGeoParquet.geometryEncoding } : {}),
         ...(legacyGeoParquet.bboxColumn ? { bboxColumn: legacyGeoParquet.bboxColumn } : {}),
+        ...(legacyGeoParquet.nativeDimensions ? { nativeDimensions: legacyGeoParquet.nativeDimensions } : {}),
       },
     },
     capabilities: capabilities(parsed.ir.source.capabilities),
@@ -520,15 +522,8 @@ function rebuildQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
   if (typeof url !== "string" || (source.protocol === "geoparquet" && url.length === 0)) {
     throw invalidPersistedPlan();
   }
-  const geometryEncoding = geoparquet?.geometryEncoding;
-  if (
-    geometryEncoding !== undefined &&
-    geometryEncoding !== "wkb" &&
-    geometryEncoding !== "native" &&
-    geometryEncoding !== "geojson"
-  ) {
-    throw invalidPersistedPlan();
-  }
+  const geometryEncoding = parsePersistedGeoParquetGeometryEncoding(geoparquet?.geometryEncoding);
+  const nativeDimensions = parsePersistedNativeDimensions(geoparquet?.nativeDimensions);
   const locator: SourceDescriptor["locator"] = {
     url,
     ...(source.serviceId !== undefined ? { serviceId: parseOptionalPlanMetadata(source.serviceId) } : {}),
@@ -546,6 +541,7 @@ function rebuildQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
               : {}),
             ...(geometryEncoding ? { geometryEncoding } : {}),
             ...(geoparquet.bboxColumn ? { bboxColumn: parseOptionalPlanMetadata(geoparquet.bboxColumn) } : {}),
+            ...(nativeDimensions ? { nativeDimensions } : {}),
           },
         }
       : {}),
@@ -628,15 +624,8 @@ function rebuildGeoParquetQueryPlanV2(plan: QueryExecutionPlanV2): QueryExecutio
   const sourceVersion = parseOptionalPlanMetadata(source.sourceVersion);
   const geometryColumn = parseOptionalPlanMetadata(source.geoparquet.geometryColumn);
   const bboxColumn = parseOptionalPlanMetadata(source.geoparquet.bboxColumn);
-  const geometryEncoding = source.geoparquet.geometryEncoding;
-  if (
-    geometryEncoding !== undefined &&
-    geometryEncoding !== "wkb" &&
-    geometryEncoding !== "native" &&
-    geometryEncoding !== "geojson"
-  ) {
-    throw invalidPersistedPlan();
-  }
+  const geometryEncoding = parsePersistedGeoParquetGeometryEncoding(source.geoparquet.geometryEncoding);
+  const nativeDimensions = parsePersistedNativeDimensions(source.geoparquet.nativeDimensions);
   if (plan.capabilityPolicy !== "strict" && plan.capabilityPolicy !== "degraded") throw invalidPersistedPlan();
 
   const descriptor: SourceDescriptor = {
@@ -648,6 +637,7 @@ function rebuildGeoParquetQueryPlanV2(plan: QueryExecutionPlanV2): QueryExecutio
         ...(geometryColumn ? { geometryColumn } : {}),
         ...(geometryEncoding ? { geometryEncoding } : {}),
         ...(bboxColumn ? { bboxColumn } : {}),
+        ...(nativeDimensions ? { nativeDimensions } : {}),
       },
     },
     capabilities: capabilities(sourceCapabilities),
@@ -677,6 +667,30 @@ function rebuildGeoParquetQueryPlanV2(plan: QueryExecutionPlanV2): QueryExecutio
     discovery: persistedDiscoveryContext(plan.provenance.discovery),
     executionMode: plan.validity.executionMode,
   });
+}
+
+function parsePersistedGeoParquetGeometryEncoding(value: unknown): DuckDbGeometryEncoding | undefined {
+  if (value === undefined) return undefined;
+  switch (value) {
+    case "wkb":
+    case "native":
+    case "geojson":
+    case "geoarrow-point":
+    case "geoarrow-linestring":
+    case "geoarrow-polygon":
+    case "geoarrow-multipoint":
+    case "geoarrow-multilinestring":
+    case "geoarrow-multipolygon":
+      return value as DuckDbGeometryEncoding;
+    default:
+      throw invalidPersistedPlan();
+  }
+}
+
+function parsePersistedNativeDimensions(value: unknown): "xy" | "xyz" | undefined {
+  if (value === undefined) return undefined;
+  if (value !== "xy" && value !== "xyz") throw invalidPersistedPlan();
+  return value;
 }
 
 function persistedCacheOptions(cache: QueryExecutionPlan["cache"]): NonNullable<ExplainQueryOptions["cache"]> {

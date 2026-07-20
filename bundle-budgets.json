@@ -65,7 +65,8 @@
   "/query-planner and /deckgl were reset for the normative GeoArrow batch layouts and direct deck.gl path (#536): dependency-free GeoArrow 0.2 point/line/polygon/null/CRS/temporal/dictionary encode-decode, the optional apache-arrow bridge (loaded only via the caller-injected loadApacheArrow importer), and the zero-copy GeoArrow-to-deck.gl binding measure 594,731 minified / 120,885 gzip bytes on /query-planner and 48,522 minified / 14,108 gzip bytes on /deckgl. Both entrypoints remain experimental-tier and opt-in; apache-arrow and @deck.gl/layers stay optional peers kept out of the root/browser barrels. Each ceiling is measured actual plus 10% headroom.",
   "/realtime's gzip ceiling was reset for the snapshot/delta/cursor/resume/plan-identity contract (#556): plan-identity binding, explicit replaying/live/stale/terminal authority derivation, and deterministic/redacted checkpoint serialization measure 48,586 minified / 13,992 gzip bytes. Plan identity reads QueryExecutionPlan['fingerprint'] directly rather than importing hashQueryPlan, so the query planner's protocol-compiler graph stays out of this entrypoint; only the exceeded gzip metric is reset to measured actual plus ~10% headroom.",
   "/realtime was reset for bounded SSE and WebSocket resume transports (#557): the raw WebSocket wire adapter (websocket.ts) plus the reconnect-owning wrapper (resumable-transport.ts — exponential-backoff-and-jitter reconnect, heartbeat timeout, resume-vs-resnapshot selection driven by the delivery gate's own phase, and redacted telemetry) measure 54,897 minified / 15,726 gzip bytes. Both ceilings are measured actual plus ~10% headroom.",
-  "/deckgl was reset for direct GeoArrow LineString/Polygon rendering and shared MapLibre-overlay map state (#561): the feature-path/feature-polygon zero-copy PathLayer/SolidPolygonLayer binary bindings (startIndices-addressed, optional PathLayer/SolidPolygonLayer peers), plus the focused renderer-state seam (camera sync, picked-selection-to-exploration linking, and combined disposal) measure 63,572 minified / 16,990 gzip bytes. The entrypoint remains experimental-tier and opt-in; @deck.gl/layers stays an optional peer kept out of the root/browser barrels, and root/non-deck ceilings are unchanged. The ceiling is measured actual plus 10% headroom."
+  "/deckgl was reset for direct GeoArrow LineString/Polygon rendering and shared MapLibre-overlay map state (#561): the feature-path/feature-polygon zero-copy PathLayer/SolidPolygonLayer binary bindings (startIndices-addressed, optional PathLayer/SolidPolygonLayer peers), plus the focused renderer-state seam (camera sync, picked-selection-to-exploration linking, and combined disposal) measure 63,572 minified / 16,990 gzip bytes. The entrypoint remains experimental-tier and opt-in; @deck.gl/layers stays an optional peer kept out of the root/browser barrels, and root/non-deck ceilings are unchanged. The ceiling is measured actual plus 10% headroom.",
+  "/geoparquet was reset for GeoParquet 1.1 native point/linestring/polygon/multipoint/multilinestring/multipolygon geometry decoding (#581): the entrypoint now reuses src/columnar/geoarrow.ts's bounded encode/decode pipeline (offset/vertex/ring validation, ring-closure, dimension ordering) instead of a second implementation, measuring 128,288 minified / 38,049 gzip bytes. The ceiling is measured actual plus ~10% headroom."
  ],
  "entrypoints": {
   ".": {
@@ -161,8 +162,8 @@
    "gzip": 51896
   },
   "/geoparquet": {
-   "min": 83558,
-   "gzip": 25940
+   "min": 141117,
+   "gzip": 41854
   },
   "/cog": {
    "min": 57455,
