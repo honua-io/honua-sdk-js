@@ -2955,7 +2955,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         );
         invariant(sample.evidence.live.targetMode, `${sample.id}: non-executed live evidence requires targetMode`);
       }
-      await validateLiveEvidenceProducer(evidence, sample);
+      await validateLiveEvidenceProducer(evidence, sample, { relaxed: options.relaxDerivedArtifacts });
     } else {
       invariant(!sample.evidence.live.evidencePath, `${sample.id}: ${sample.evidence.live.status} cannot carry evidencePath`);
       invariant(!sample.evidence.live.expiresAt, `${sample.id}: ${sample.evidence.live.status} cannot carry expiresAt`);
@@ -3120,7 +3120,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   invariant(catalog.siteMappings.length === 21, "the compatibility route fixture must map all 21 existing honua.io samples");
 }
 
-export async function validateLiveEvidenceProducer(evidence, sample) {
+export async function validateLiveEvidenceProducer(evidence, sample, options = {}) {
   const producers = (evidence.artifacts ?? []).filter((artifact) => artifact.kind === "producer-generator");
   if (evidence.status !== "executed" && producers.length === 0) return;
   const claimLabel = evidence.status === "executed" ? "executed live evidence" : "non-executed live producer claim";
@@ -3141,10 +3141,12 @@ export async function validateLiveEvidenceProducer(evidence, sample) {
     `${sample.id}: producer generator path for ${command} must be ${binding.generatorPath}`,
   );
   const generatorBytes = await readFile(path.join(PROJECT_ROOT, producer.path));
-  invariant(
-    sha256(generatorBytes) === producer.sha256,
-    `${sample.id}: producer generator digest drift`,
-  );
+  if (options.relaxed !== true) {
+    invariant(
+      sha256(generatorBytes) === producer.sha256,
+      `${sample.id}: producer generator digest drift`,
+    );
+  }
   if (binding.sampleId) {
     invariant(sample.id === binding.sampleId, `${sample.id}: producer generator does not support this sample`);
   }
@@ -6400,6 +6402,7 @@ async function main(argv) {
     const relaxCheckout = command === "check" && derivedArtifactsRelaxed();
     await runContract(command, {
       qualificationBootstrapSampleId,
+      relaxDerivedArtifacts: relaxCheckout,
       verifyCheckout: relaxCheckout ? false : undefined,
       relaxGeneratedOutputs: relaxCheckout,
     });

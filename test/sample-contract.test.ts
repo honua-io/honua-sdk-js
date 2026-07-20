@@ -1520,6 +1520,9 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     await expect(validateLiveEvidenceProducer(staleSkippedProducer, skippedSample)).rejects.toThrow(
       "producer generator digest drift",
     );
+    await expect(
+      validateLiveEvidenceProducer(staleSkippedProducer, skippedSample, { relaxed: true }),
+    ).resolves.toBeUndefined();
 
     const misplacedSkippedProducer = structuredClone(skippedEvidence);
     misplacedSkippedProducer.artifacts[0].path = "package.json";

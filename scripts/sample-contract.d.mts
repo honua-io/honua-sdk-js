@@ -298,6 +298,7 @@ export function validateCatalog(
     sourceRevision?: string;
     receiptRoot?: string;
     verifyCheckout?: boolean;
+    relaxDerivedArtifacts?: boolean;
     qualificationBootstrapSampleId?: string;
   },
 ): Promise<void>;
@@ -434,6 +435,7 @@ export function validateEvidenceEnvelope<T>(
 export function validateLiveEvidenceProducer(
   evidence: Record<string, unknown>,
   sample: Record<string, unknown>,
+  options?: { relaxed?: boolean },
 ): Promise<void>;
 export function buildBrowserArtifactManifest(options: {
   artifacts: Array<{ path: string; entrypoint: string; mediaType?: string }>;
