@@ -44,6 +44,16 @@
           "type": "json",
           "path": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
           "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "samples/evidence/maplibre-quickstart/live.v1.json",
+          "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "bench/cross-sdk/corpus.json",
+          "jsonpath": "$.references[0].package.version"
         }
       ],
       "changelog-sections": [
