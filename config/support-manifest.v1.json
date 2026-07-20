@@ -39,6 +39,7 @@
     { "id": "contract-conformance", "kind": "fixture", "path": "test/contract/conformance.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "honua-surface-fixtures", "kind": "fixture", "path": "test/honua-surface.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "connect-fixtures", "kind": "fixture", "path": "test/connect.test.ts", "freshnessPolicy": "release-gated" },
+    { "id": "connect-grpc-fixtures", "kind": "fixture", "path": "test/connect-grpc.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "geoservices-discovery-fixtures", "kind": "fixture", "path": "test/geoservices-discovery.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "core-client-fixtures", "kind": "fixture", "path": "test/core-client.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "tile-layer-fixtures", "kind": "fixture", "path": "test/tile-layer-compat.test.ts", "freshnessPolicy": "release-gated" },
@@ -80,6 +81,7 @@
     { "id": "maplibre-automatic-browser", "kind": "integration", "path": "test/playwright/automatic-source-workflow.spec.mjs", "freshnessPolicy": "release-gated" }
   ],
   "connectProtocols": [
+    "grpc",
     "ogc-features",
     "stac",
     "wfs",
@@ -270,6 +272,7 @@
     { "id": "maplibre-geojson", "label": "MapLibre GeoJSON", "defaultOperationStatus": "unsupported", "operationClaims": [] }
   ],
   "supportClaims": [
+    { "id": "grpc-connect-discovery", "label": "Honua gRPC FeatureServer discovery", "protocol": "grpc", "operations": ["discovery", "query", "queryExtent", "queryObjectIds", "stream"], "environment": "honua-facade", "executionMode": "native", "status": "supported", "backendNeeded": "A Honua Server FeatureService endpoint reachable over gRPC-Web", "api": "connect(), HonuaClient.queryFeatures, Source", "notes": "Discovers a canonical FeatureServer URL through the same REST service/layer metadata geoservices-feature-service discovery uses, deriving capabilities through the identical algorithm, then verifies query/stream through one bounded live QueryFeatures parity probe per layer over the gRPC-Web transport before advertising them; a schema disagreement between the probe and REST metadata fails discovery rather than silently trusting either side.", "evidence": ["connect-grpc-fixtures", "contract-conformance", "grpc-conformance"] },
     { "id": "geoservices-feature-standalone", "label": "GeoServices FeatureServer query", "protocol": "geoservices-feature-service", "operations": ["discovery", "query", "queryExtent", "queryObjectIds", "stream"], "environment": "standalone", "executionMode": "native", "status": "supported", "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint", "api": "connect(), HonuaClient.queryFeatures, Source", "notes": "Discovers and uses the raw FeatureServer query path; fixture-proven with scheduled anonymous live verification that needs no Honua account or server.", "evidence": ["connect-fixtures", "contract-conformance", "geoservices-conformance", "first-map-live"] },
     { "id": "geoservices-map-standalone", "label": "GeoServices MapServer reads", "protocol": "geoservices-map-service", "operations": ["discovery", "query", "render", "tiles"], "environment": "standalone", "executionMode": "native", "status": "supported", "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint", "api": "connect(), HonuaClient.mapService, Source", "notes": "Discovers and uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles.", "evidence": ["connect-fixtures", "honua-surface-fixtures", "tile-layer-fixtures", "map-service-integration"] },
     { "id": "geoservices-image-standalone", "label": "GeoServices ImageServer reads", "protocol": "geoservices-image-service", "operations": ["discovery", "query", "render", "tiles", "image"], "environment": "standalone", "executionMode": "native", "status": "supported", "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint", "api": "connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol()", "notes": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor.", "evidence": ["geoservices-discovery-fixtures", "geoservices-conformance", "image-service-integration"] },

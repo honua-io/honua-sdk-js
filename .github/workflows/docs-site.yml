@@ -57,6 +57,14 @@ jobs:
   build:
     name: Build site
     runs-on: ubuntu-latest
+    # Derived-artifact decoupling (#677): llms.txt, docs/comparison.md, and the
+    # sample gallery projection are regenerated on trunk by the
+    # regenerate-derived-artifacts workflow. Its commit re-triggers this job on
+    # the paths below, so the site is (re)built from fresh artifacts. The merge
+    # commit that lands before regeneration must not fail these freshness gates,
+    # so they run relaxed here.
+    env:
+      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ github.event_name == 'push' && github.ref == 'refs/heads/trunk' && '1' || '' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:

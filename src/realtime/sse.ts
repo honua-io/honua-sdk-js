@@ -1,5 +1,3 @@
-import { isHonuaSdkError } from "../core/error-envelope.js";
-import { HonuaRealtimeResumeError } from "./resumable.js";
 import type {
   RealtimeFeatureEvent,
   RealtimeFeatureObserver,
@@ -7,6 +5,7 @@ import type {
   RealtimeSubscriptionHandle,
   RealtimeSubscriptionRequest,
 } from "./types.js";
+import { decodeDefaultRealtimeEnvelope, normalizeRealtimeErrorEvent, realtimeFailure } from "./wire.js";
 
 export interface RealtimeServerSentEventSource {
   readonly readyState?: number;
@@ -159,49 +158,7 @@ export function encodeDefaultRealtimeRequest(url: URL, request: RealtimeSubscrip
 }
 
 export function decodeRealtimeServerSentEvent<TFeature = unknown>(payload: unknown): RealtimeFeatureEvent<TFeature> {
-  if (!isRecord(payload)) {
-    throw new HonuaRealtimeResumeError("invalid-event", "Realtime SSE payload must be a JSON object.");
-  }
-  if (typeof payload.type === "string") {
-    return normalizeRealtimeErrorEvent(payload as unknown as RealtimeFeatureEvent<TFeature>);
-  }
-  if (isRecord(payload.event) && typeof payload.event.type === "string") {
-    return normalizeRealtimeErrorEvent(payload.event as unknown as RealtimeFeatureEvent<TFeature>);
-  }
-  if (typeof payload.kind === "string") {
-    return normalizeRealtimeErrorEvent({ ...payload, type: payload.kind } as unknown as RealtimeFeatureEvent<TFeature>);
-  }
-  throw new HonuaRealtimeResumeError("invalid-event", "Realtime SSE payload is missing an event type.");
-}
-
-function normalizeRealtimeErrorEvent<TFeature>(event: RealtimeFeatureEvent<TFeature>): RealtimeFeatureEvent<TFeature> {
-  // Never trust a structural tag received over the wire. A server could spoof
-  // the common envelope while retaining unsanitized context and no `toJSON`.
-  // Only a locally constructed realtime error is already inside the boundary.
-  if (event.type !== "error") return event;
-  const code = event.terminal ? "invalid-event" : "transport-gap";
-  if (event.error instanceof HonuaRealtimeResumeError && isHonuaSdkError(event.error) && event.error.code === code)
-    return event;
-  return {
-    ...event,
-    error: realtimeFailure(
-      code,
-      event.terminal
-        ? "Realtime stream reported a terminal protocol failure."
-        : "Realtime stream reported a reconnectable transport failure.",
-      event.error,
-    ),
-  };
-}
-
-function realtimeFailure(
-  code: "consumer-failed" | "delivery-failed" | "invalid-event" | "transport-gap",
-  message: string,
-  cause: unknown,
-): HonuaRealtimeResumeError {
-  return cause instanceof HonuaRealtimeResumeError && isHonuaSdkError(cause) && cause.code === code
-    ? cause
-    : new HonuaRealtimeResumeError(code, message, { cause });
+  return decodeDefaultRealtimeEnvelope<TFeature>(payload);
 }
 
 function createEventSource<TFeature>(
@@ -230,8 +187,4 @@ function resolveEventSourceUrl(input: string, url: URL): string {
 
 function isEventSourceClosed(source: RealtimeServerSentEventSource): boolean {
   return source.readyState === 2;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
