@@ -305,6 +305,16 @@ test("runner argument and manifest boundaries reject substitution and traversal"
     /stale or modified/,
   );
   await assert.rejects(
+    validateSelection(generatedDrift, {
+      packageScripts,
+      checkPaths: false,
+      expectedSelection: expected,
+      deferGeneratedProjectionFreshness: true,
+      scopeGeneratedProjectionFreshnessToSampleId: "safe-sample",
+    }),
+    /stale or modified/,
+  );
+  await assert.rejects(
     validateSelection(selection(), {
       packageScripts,
       checkPaths: false,

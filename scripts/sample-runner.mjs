@@ -261,7 +261,10 @@ export async function validateSelection(selection, options = {}) {
       scopedSample !== undefined &&
       expectedScopedSample !== undefined &&
       sameJson(scopedSample, expectedScopedSample);
-    if (options.deferGeneratedProjectionFreshness !== true && !scopedSampleMatches) {
+    if (
+      (typeof scopedSampleId === "string" && !scopedSampleMatches) ||
+      (typeof scopedSampleId !== "string" && options.deferGeneratedProjectionFreshness !== true)
+    ) {
       fail("generated sample selection is stale or modified");
     }
   }
