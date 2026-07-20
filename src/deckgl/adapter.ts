@@ -4,6 +4,7 @@ import {
   type DeckGlBinaryAttribute,
   type DeckGlCapability,
   type DeckGlLayer,
+  type DeckGlLayerConstructor,
   type DeckGlLayerHost,
   type DeckGlMountedProjection,
   type DeckGlPeers,
@@ -41,19 +42,19 @@ export const DECK_GL_CAPABILITIES: readonly DeckGlCapability[] = Object.freeze([
     execution: "gpu-binary",
     reason: "Zero-copy deck.gl binary attributes are supported.",
   }),
-  ...(
-    [
-      "feature-path",
-      "feature-polygon",
-      "vector-tile",
-      "h3",
-      "quadbin",
-      "heatmap",
-      "cluster",
-      "contour",
-      "trips",
-    ] as const
-  ).map(
+  Object.freeze({
+    layer: "feature-path",
+    supported: true,
+    execution: "gpu-binary",
+    reason: "Zero-copy deck.gl binary path attributes (`getPath` + `startIndices`) are supported.",
+  }),
+  Object.freeze({
+    layer: "feature-polygon",
+    supported: true,
+    execution: "gpu-binary",
+    reason: "Zero-copy deck.gl binary polygon attributes (`getPolygon` + `startIndices`) are supported.",
+  }),
+  ...(["vector-tile", "h3", "quadbin", "heatmap", "cluster", "contour", "trips"] as const).map(
     (layer): DeckGlCapability =>
       Object.freeze({
         layer,
@@ -63,6 +64,70 @@ export const DECK_GL_CAPABILITIES: readonly DeckGlCapability[] = Object.freeze([
       }),
   ),
 ]);
+
+/** Layer kinds with a `DeckGlProjectionRequest -> deck.gl peer layer` mapping in contract v1.0. */
+type SupportedDeckGlLayerKind = "scatterplot" | "feature-path" | "feature-polygon";
+
+function isSupportedLayerKind(value: unknown): value is SupportedDeckGlLayerKind {
+  return value === "scatterplot" || value === "feature-path" || value === "feature-polygon";
+}
+
+/** `getPath`/`getPolygon` binary geometry layers address vertices via a request-level `startIndices` boundary array rather than a per-row attribute. */
+function usesStartIndices(layer: SupportedDeckGlLayerKind): boolean {
+  return layer === "feature-path" || layer === "feature-polygon";
+}
+
+function requiredGeometryAccessor(layer: SupportedDeckGlLayerKind): string {
+  switch (layer) {
+    case "scatterplot":
+      return "getPosition";
+    case "feature-path":
+      return "getPath";
+    case "feature-polygon":
+      return "getPolygon";
+  }
+}
+
+/** Props the adapter itself sets; forbidden in caller-supplied `request.props`. */
+function reservedPropKeysFor(layer: SupportedDeckGlLayerKind): readonly string[] {
+  switch (layer) {
+    case "scatterplot":
+      return ["id", "data", "pickable"];
+    case "feature-path":
+      return ["id", "data", "pickable", "_pathType"];
+    case "feature-polygon":
+      return ["id", "data", "pickable", "_normalize"];
+  }
+}
+
+/** Forced props needed to keep the binary path zero-copy in the deck.gl peer (skip its own normalize/pack step). */
+function forcedPropsFor(layer: SupportedDeckGlLayerKind): Readonly<Record<string, unknown>> {
+  switch (layer) {
+    case "scatterplot":
+      return {};
+    case "feature-path":
+      return { _pathType: "open" };
+    case "feature-polygon":
+      return { _normalize: false };
+  }
+}
+
+function peerConstructorFor(peers: DeckGlPeers, layer: SupportedDeckGlLayerKind): DeckGlLayerConstructor {
+  const [ctor, name] =
+    layer === "scatterplot"
+      ? ([peers.ScatterplotLayer, "ScatterplotLayer"] as const)
+      : layer === "feature-path"
+        ? ([peers.PathLayer, "PathLayer"] as const)
+        : ([peers.SolidPolygonLayer, "SolidPolygonLayer"] as const);
+  if (typeof ctor !== "function") {
+    throw new HonuaDeckGlAdapterError(
+      "missing-peer",
+      `Projecting a "${layer}" layer requires DeckGlPeers.${name} to be a constructor. Install "@deck.gl/layers" or inject it.`,
+      { layer, peer: name },
+    );
+  }
+  return ctor;
+}
 
 const defaultImportModule = (specifier: string): Promise<unknown> => import(specifier);
 
@@ -88,7 +153,22 @@ export async function loadDeckGlPeers(options: LoadDeckGlPeersOptions = {}): Pro
       { package: "@deck.gl/layers", export: "ScatterplotLayer" },
     );
   }
-  return Object.freeze({ ScatterplotLayer: ScatterplotLayer as DeckGlPeers["ScatterplotLayer"] });
+  // PathLayer/SolidPolygonLayer are only required to project "feature-path"/
+  // "feature-polygon" requests; a caller that never projects those layer
+  // kinds should not be forced to satisfy them here. `project()` reports a
+  // structured "missing-peer" error lazily if the request needs one that is
+  // absent.
+  const PathLayer = isRecord(module) ? readOnce(module, "PathLayer", "@deck.gl/layers.PathLayer") : undefined;
+  const SolidPolygonLayer = isRecord(module)
+    ? readOnce(module, "SolidPolygonLayer", "@deck.gl/layers.SolidPolygonLayer")
+    : undefined;
+  return Object.freeze({
+    ScatterplotLayer: ScatterplotLayer as DeckGlPeers["ScatterplotLayer"],
+    ...(typeof PathLayer === "function" ? { PathLayer: PathLayer as DeckGlLayerConstructor } : {}),
+    ...(typeof SolidPolygonLayer === "function"
+      ? { SolidPolygonLayer: SolidPolygonLayer as DeckGlLayerConstructor }
+      : {}),
+  });
 }
 
 export interface CreateDeckGlAdapterOptions {
@@ -138,8 +218,13 @@ export function createDeckGlAdapter(options: CreateDeckGlAdapterOptions): DeckGl
 interface ProjectionSnapshot {
   readonly layer: unknown;
   readonly layerId: unknown;
+  /** `data.length`: feature count for scatterplot, total vertex count for feature-path/feature-polygon. */
   readonly rowCount: unknown;
   readonly attributes: Readonly<Record<string, AttributeSnapshot>>;
+  /** Present only for feature-path/feature-polygon; length is `featureCount + 1`. */
+  readonly startIndices: readonly unknown[] | undefined;
+  /** Feature/pick count: equals `rowCount` for scatterplot, `startIndices.length - 1` otherwise. */
+  readonly featureCount: number;
   readonly sourceId: unknown;
   readonly planId: unknown;
   readonly sourceVersion: unknown;
@@ -158,9 +243,12 @@ interface AttributeSnapshot {
 type ValidatedAttribute = DeckGlBinaryAttribute;
 
 interface ValidatedProjection {
+  readonly layer: SupportedDeckGlLayerKind;
   readonly layerId: string;
   readonly rowCount: number;
   readonly attributes: Readonly<Record<string, ValidatedAttribute>>;
+  readonly startIndices: readonly number[] | undefined;
+  readonly featureCount: number;
   readonly sourceId: string;
   readonly planId: string;
   readonly sourceVersion: string | undefined;
@@ -186,6 +274,43 @@ function normalizeProjectionRequest(
   }
   const rowCount = foreignRowCount as number;
   if (rowCount > limits.maxRows) throw limitError("rows", rowCount, limits.maxRows);
+
+  const foreignStartIndicesRaw = readOnce(data, "startIndices", "request.data.startIndices");
+  let startIndices: readonly unknown[] | undefined;
+  let featureCount: number;
+  if (isSupportedLayerKind(layer) && usesStartIndices(layer)) {
+    if (foreignStartIndicesRaw === undefined) {
+      throw new HonuaDeckGlAdapterError(
+        "invalid-data",
+        `Layer "${layer}" requires data.startIndices (one vertex boundary per feature, plus a trailing boundary).`,
+        { layer },
+      );
+    }
+    const foreignStartIndices = requireRecord(foreignStartIndicesRaw, "request.data.startIndices");
+    const startIndicesLength = readOnce(foreignStartIndices, "length", "request.data.startIndices.length");
+    if (!Number.isSafeInteger(startIndicesLength) || (startIndicesLength as number) < 1) {
+      throw new HonuaDeckGlAdapterError(
+        "invalid-data",
+        "data.startIndices.length must be a safe integer of at least 1.",
+      );
+    }
+    const resolvedFeatureCount = (startIndicesLength as number) - 1;
+    if (resolvedFeatureCount > limits.maxRows) throw limitError("rows", resolvedFeatureCount, limits.maxRows);
+    const values: unknown[] = new Array(startIndicesLength as number);
+    for (let index = 0; index < (startIndicesLength as number); index += 1) {
+      values[index] = readOnce(foreignStartIndices, String(index), `request.data.startIndices[${index}]`);
+    }
+    startIndices = Object.freeze(values);
+    featureCount = resolvedFeatureCount;
+  } else {
+    if (foreignStartIndicesRaw !== undefined) {
+      throw new HonuaDeckGlAdapterError("invalid-data", `Layer "${String(layer)}" does not accept data.startIndices.`, {
+        layer,
+      });
+    }
+    featureCount = rowCount;
+  }
+
   const foreignAttributes = requireRecord(
     readOnce(data, "attributes", "request.data.attributes"),
     "request.data.attributes",
@@ -215,23 +340,29 @@ function normalizeProjectionRequest(
     "request.identity.featureIds",
   );
   const featureIdLength = readOnce(foreignFeatureIds, "length", "request.identity.featureIds.length");
-  if (featureIdLength !== rowCount) {
-    throw new HonuaDeckGlAdapterError("invalid-data", "identity.featureIds length must equal data.length.", {
-      rows: rowCount,
-      featureIds: featureIdLength,
-    });
+  if (featureIdLength !== featureCount) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      startIndices === undefined
+        ? "identity.featureIds length must equal data.length."
+        : "identity.featureIds length must equal data.startIndices.length - 1.",
+      { features: featureCount, featureIds: featureIdLength },
+    );
   }
-  const featureIds: unknown[] = new Array(rowCount);
-  for (let index = 0; index < rowCount; index += 1) {
+  const featureIds: unknown[] = new Array(featureCount);
+  for (let index = 0; index < featureCount; index += 1) {
     featureIds[index] = readOnce(foreignFeatureIds, String(index), `request.identity.featureIds[${index}]`);
   }
 
-  const props = normalizeProps(foreignProps, limits.maxProps);
+  const reservedKeys = isSupportedLayerKind(layer) ? reservedPropKeysFor(layer) : (["id", "data", "pickable"] as const);
+  const props = normalizeProps(foreignProps, limits.maxProps, reservedKeys);
   return Object.freeze({
     layer,
     layerId,
     rowCount,
     attributes: Object.freeze(attributes),
+    startIndices,
+    featureCount,
     sourceId,
     planId,
     sourceVersion,
@@ -251,9 +382,12 @@ function createProjection(
   const binaryData = Object.freeze({
     length: validated.rowCount,
     attributes: validated.attributes,
+    ...(validated.startIndices === undefined ? {} : { startIndices: validated.startIndices }),
   });
-  const layer = new peers.ScatterplotLayer({
+  const Ctor = peerConstructorFor(peers, validated.layer);
+  const layer = new Ctor({
     ...validated.props,
+    ...forcedPropsFor(validated.layer),
     id: validated.layerId,
     data: binaryData,
     pickable: true,
@@ -271,11 +405,11 @@ function createProjection(
       message: "Typed-array views are forwarded to deck.gl without SDK payload copies.",
     }),
     selectionForPick(index: number): DeckGlPickedSelection {
-      if (!Number.isSafeInteger(index) || index < 0 || index >= validated.rowCount) {
+      if (!Number.isSafeInteger(index) || index < 0 || index >= validated.featureCount) {
         throw new HonuaDeckGlAdapterError(
           "invalid-data",
-          `Pick index ${index} is outside [0, ${validated.rowCount}).`,
-          { index, rows: validated.rowCount },
+          `Pick index ${index} is outside [0, ${validated.featureCount}).`,
+          { index, rows: validated.featureCount },
         );
       }
       return Object.freeze({
@@ -347,13 +481,14 @@ function createProjection(
 }
 
 function validateProjectionSnapshot(snapshot: ProjectionSnapshot, limits: DeckGlProjectionLimits): ValidatedProjection {
-  if (snapshot.layer !== "scatterplot") {
+  if (!isSupportedLayerKind(snapshot.layer)) {
     throw new HonuaDeckGlAdapterError(
       "unsupported-layer",
       `Layer "${String(snapshot.layer)}" is not supported by contract v1.0.`,
-      { layer: snapshot.layer, supported: ["scatterplot"] },
+      { layer: snapshot.layer, supported: ["scatterplot", "feature-path", "feature-polygon"] },
     );
   }
+  const layer = snapshot.layer;
   const layerId = requireNonEmptyString(snapshot.layerId, "layerId");
   const sourceId = requireNonEmptyString(snapshot.sourceId, "identity.sourceId");
   const planId = requireNonEmptyString(snapshot.planId, "identity.planId");
@@ -361,15 +496,51 @@ function validateProjectionSnapshot(snapshot: ProjectionSnapshot, limits: DeckGl
     throw new HonuaDeckGlAdapterError("invalid-data", "identity.sourceVersion must be a string when provided.");
   }
   const rowCount = snapshot.rowCount as number;
+  const featureCount = snapshot.featureCount;
   const attributeEntries = Object.entries(snapshot.attributes);
   if (attributeEntries.length === 0) {
     throw new HonuaDeckGlAdapterError("invalid-data", "At least one binary attribute is required.");
   }
-  if (!("getPosition" in snapshot.attributes)) {
+  const requiredAccessor = requiredGeometryAccessor(layer);
+  if (!(requiredAccessor in snapshot.attributes)) {
     throw new HonuaDeckGlAdapterError(
       "invalid-data",
-      'Scatterplot projection requires a "getPosition" binary attribute.',
+      `${layer === "scatterplot" ? "Scatterplot" : layer === "feature-path" ? "Path" : "Polygon"} projection requires a "${requiredAccessor}" binary attribute.`,
+      { layer, requiredAccessor },
     );
+  }
+
+  let startIndices: readonly number[] | undefined;
+  if (usesStartIndices(layer)) {
+    const rawStartIndices = snapshot.startIndices as readonly unknown[];
+    const resolved: number[] = new Array(rawStartIndices.length);
+    for (let index = 0; index < rawStartIndices.length; index += 1) {
+      const value = rawStartIndices[index];
+      if (!Number.isSafeInteger(value) || (value as number) < 0) {
+        throw new HonuaDeckGlAdapterError(
+          "invalid-data",
+          `data.startIndices[${index}] must be a non-negative safe integer.`,
+          { index },
+        );
+      }
+      if (index > 0 && (value as number) < resolved[index - 1]!) {
+        throw new HonuaDeckGlAdapterError("invalid-data", `data.startIndices[${index}] must be non-decreasing.`, {
+          index,
+        });
+      }
+      resolved[index] = value as number;
+    }
+    if (resolved[0] !== 0) {
+      throw new HonuaDeckGlAdapterError("invalid-data", "data.startIndices[0] must be 0.", { first: resolved[0] });
+    }
+    if (resolved[resolved.length - 1] !== rowCount) {
+      throw new HonuaDeckGlAdapterError(
+        "invalid-data",
+        "data.startIndices must end at data.length (the total addressed vertex count).",
+        { last: resolved[resolved.length - 1], length: rowCount },
+      );
+    }
+    startIndices = Object.freeze(resolved);
   }
 
   const attributes: Record<string, ValidatedAttribute> = Object.create(null) as Record<string, ValidatedAttribute>;
@@ -426,7 +597,7 @@ function validateProjectionSnapshot(snapshot: ProjectionSnapshot, limits: DeckGl
     ) {
       throw new HonuaDeckGlAdapterError(
         "invalid-data",
-        `Attribute "${name}" cannot address ${rowCount} rows within its view.`,
+        `Attribute "${name}" cannot address ${rowCount} ${usesStartIndices(layer) ? "vertices" : "rows"} within its view.`,
       );
     }
     logicalViewBytes += facts.byteLength;
@@ -454,16 +625,19 @@ function validateProjectionSnapshot(snapshot: ProjectionSnapshot, limits: DeckGl
     }
   });
   return Object.freeze({
+    layer,
     layerId,
     rowCount,
     attributes: Object.freeze(attributes),
+    startIndices,
+    featureCount,
     sourceId,
     planId,
     sourceVersion: snapshot.sourceVersion as string | undefined,
     featureIds: snapshot.featureIds as readonly (string | number | bigint)[],
     props: snapshot.props,
     metrics: Object.freeze({
-      rows: rowCount,
+      rows: featureCount,
       attributes: attributeEntries.length,
       logicalViewBytes,
       uniqueBackingBytes,
@@ -472,14 +646,18 @@ function validateProjectionSnapshot(snapshot: ProjectionSnapshot, limits: DeckGl
   });
 }
 
-function normalizeProps(foreignProps: unknown, maxProps: number): Readonly<Record<string, unknown>> {
+function normalizeProps(
+  foreignProps: unknown,
+  maxProps: number,
+  reservedKeys: readonly string[],
+): Readonly<Record<string, unknown>> {
   if (foreignProps === undefined) return Object.freeze({});
   const propsRecord = requireRecord(foreignProps, "request.props");
   const keys = ownEnumerableKeys(propsRecord, maxProps, "props");
   const props: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const key of keys) {
     validateDescriptorKey(key, "prop");
-    if (key === "id" || key === "data" || key === "pickable") {
+    if (reservedKeys.includes(key)) {
       throw new HonuaDeckGlAdapterError("invalid-data", `props.${key} is reserved by the Honua adapter.`, {
         property: key,
       });
@@ -637,7 +815,22 @@ function validatePeers(peers: DeckGlPeers): DeckGlPeers {
   if (typeof ScatterplotLayer !== "function") {
     throw new HonuaDeckGlAdapterError("missing-peer", "DeckGlPeers.ScatterplotLayer must be a constructor.");
   }
-  return Object.freeze({ ScatterplotLayer });
+  const PathLayer = peers?.PathLayer;
+  if (PathLayer !== undefined && typeof PathLayer !== "function") {
+    throw new HonuaDeckGlAdapterError("missing-peer", "DeckGlPeers.PathLayer must be a constructor when provided.");
+  }
+  const SolidPolygonLayer = peers?.SolidPolygonLayer;
+  if (SolidPolygonLayer !== undefined && typeof SolidPolygonLayer !== "function") {
+    throw new HonuaDeckGlAdapterError(
+      "missing-peer",
+      "DeckGlPeers.SolidPolygonLayer must be a constructor when provided.",
+    );
+  }
+  return Object.freeze({
+    ScatterplotLayer,
+    ...(PathLayer === undefined ? {} : { PathLayer }),
+    ...(SolidPolygonLayer === undefined ? {} : { SolidPolygonLayer }),
+  });
 }
 
 function normalizeLimits(input: Partial<DeckGlProjectionLimits> | undefined): DeckGlProjectionLimits {
