@@ -279,6 +279,40 @@ test("runner argument and manifest boundaries reject substitution and traversal"
       deferGeneratedProjectionFreshness: true,
     }),
   );
+
+  const unrelatedExpected = selection();
+  unrelatedExpected.samples.push({
+    ...structuredClone(unrelatedExpected.samples[0]),
+    id: "other-sample",
+    sourcePath: "examples/other-sample",
+  });
+  unrelatedExpected.profiles[0].sampleIds.push("other-sample");
+  await assert.doesNotReject(
+    validateSelection(selection(), {
+      packageScripts,
+      checkPaths: false,
+      expectedSelection: unrelatedExpected,
+      scopeGeneratedProjectionFreshnessToSampleId: "safe-sample",
+    }),
+  );
+  await assert.rejects(
+    validateSelection(generatedDrift, {
+      packageScripts,
+      checkPaths: false,
+      expectedSelection: expected,
+      scopeGeneratedProjectionFreshnessToSampleId: "safe-sample",
+    }),
+    /stale or modified/,
+  );
+  await assert.rejects(
+    validateSelection(selection(), {
+      packageScripts,
+      checkPaths: false,
+      expectedSelection: unrelatedExpected,
+      scopeGeneratedProjectionFreshnessToSampleId: "missing-sample",
+    }),
+    /stale or modified/,
+  );
 });
 test("npm evidence commands suppress lifecycle hooks without changing their reviewed argv", () => {
   const executable = process.platform === "win32" ? "npm.cmd" : "npm";
