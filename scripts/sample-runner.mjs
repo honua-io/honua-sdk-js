@@ -252,12 +252,21 @@ export async function validateSelection(selection, options = {}) {
     const expectedIds = selection.samples.filter((sample) => sample.validationProfile === profile.id).map((sample) => sample.id);
     if (!sameJson(profile.sampleIds, expectedIds)) fail(`${profile.id}: profile sampleIds do not exactly match samples`);
   }
-  if (
-    options.expectedSelection &&
-    !sameJson(selection, options.expectedSelection) &&
-    options.deferGeneratedProjectionFreshness !== true
-  ) {
-    fail("generated sample selection is stale or modified");
+  if (options.expectedSelection && !sameJson(selection, options.expectedSelection)) {
+    const scopedSampleId = options.scopeGeneratedProjectionFreshnessToSampleId;
+    const scopedSample = selection.samples.find((sample) => sample.id === scopedSampleId);
+    const expectedScopedSample = options.expectedSelection.samples.find((sample) => sample.id === scopedSampleId);
+    const scopedSampleMatches =
+      typeof scopedSampleId === "string" &&
+      scopedSample !== undefined &&
+      expectedScopedSample !== undefined &&
+      sameJson(scopedSample, expectedScopedSample);
+    if (
+      (typeof scopedSampleId === "string" && !scopedSampleMatches) ||
+      (typeof scopedSampleId !== "string" && options.deferGeneratedProjectionFreshness !== true)
+    ) {
+      fail("generated sample selection is stale or modified");
+    }
   }
   return selection;
 }
@@ -593,6 +602,9 @@ async function readInputs(options) {
     // The committed selection is regenerated and strictly revalidated on trunk.
     // PR CI still validates its complete structure and executable command plan.
     deferGeneratedProjectionFreshness: relaxDerivedArtifacts,
+    // Evidence capture can precede global projection regeneration, but only an
+    // exact current entry for the selected sample is safe to execute.
+    scopeGeneratedProjectionFreshnessToSampleId: options.action === "evidence" ? options.sampleId : undefined,
   });
   const validatedKit = await validateKit(kit, selection, packageJson.scripts, { projectRoot: PROJECT_ROOT });
   return { selection, catalog, packageJson, kit: validatedKit };
