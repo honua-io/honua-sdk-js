@@ -117,6 +117,7 @@ test("release projection updates without a committed generated manifest", () => 
   assert.deepEqual(
     sdkVersionFiles.map((entry) => entry.path).sort(),
     [
+      "config/sdk-coverage.v1.json",
       "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
       "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
       "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
@@ -157,6 +158,15 @@ test("release projection updates without a committed generated manifest", () => 
       jsonpath: "$.sdk.version",
     },
   ]);
+
+  const coverageVersionFile = config.packages["."]["extra-files"].find(
+    (entry) => entry.path === "config/sdk-coverage.v1.json",
+  );
+  assert.deepEqual(coverageVersionFile, {
+    type: "json",
+    path: "config/sdk-coverage.v1.json",
+    jsonpath: "$.sdk.version",
+  });
 
   const currentPackage = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
   const benchmarkCorpus = JSON.parse(fs.readFileSync(path.join(ROOT, "bench/cross-sdk/corpus.json"), "utf8"));

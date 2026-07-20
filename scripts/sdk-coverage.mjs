@@ -32,6 +32,7 @@ import { loadSupportManifest } from "./support-manifest.mjs";
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CROSSWALK_PATH = "config/sdk-coverage-crosswalk.v1.json";
 const COVERAGE_PATH = "config/sdk-coverage.v1.json";
+const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, relativePath), "utf8"));
@@ -39,6 +40,15 @@ function readJson(relativePath) {
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function resolveIntroductionVersion(crosswalk, key) {
+  const version = crosswalk.introductionVersions?.[key];
+  invariant(
+    typeof version === "string" && SEMVER_PATTERN.test(version),
+    `sdk-coverage-crosswalk.introductionVersions is missing a valid semver for ${key}`,
+  );
+  return version;
 }
 
 /**
@@ -156,14 +166,16 @@ function deriveAutoContributions(manifest, crosswalk) {
   return perKey;
 }
 
-export async function buildSdkCoverage({ projectRoot = PROJECT_ROOT } = {}) {
-  const crosswalk = readJson(CROSSWALK_PATH);
+export async function buildSdkCoverage({
+  projectRoot = PROJECT_ROOT,
+  packageJson = readJson("package.json"),
+  crosswalk = readJson(CROSSWALK_PATH),
+} = {}) {
   invariant(
     crosswalk.format === "honua.sdk.sdk-coverage-crosswalk.v1" && crosswalk.schemaVersion === 1,
     `${CROSSWALK_PATH} must use honua.sdk.sdk-coverage-crosswalk.v1 schema version 1`,
   );
   const manifest = loadSupportManifest(projectRoot);
-  const packageJson = readJson("package.json");
   const { keys: canonicalKeys, source: keyListSource } = await loadCapabilityKeyList();
 
   const perKey = deriveAutoContributions(manifest, crosswalk);
@@ -180,7 +192,7 @@ export async function buildSdkCoverage({ projectRoot = PROJECT_ROOT } = {}) {
     const entry = {
       key,
       status,
-      sinceVersion: packageJson.version,
+      sinceVersion: resolveIntroductionVersion(crosswalk, key),
       entrypoints: entrypoints.sort(),
       evidence: evidence.sort(),
       source: "support-manifest",
@@ -198,7 +210,7 @@ export async function buildSdkCoverage({ projectRoot = PROJECT_ROOT } = {}) {
     const entry = {
       key,
       status: extra.status,
-      sinceVersion: packageJson.version,
+      sinceVersion: resolveIntroductionVersion(crosswalk, key),
       entrypoints: [...extra.entrypoints].sort(),
       evidence: [...extra.evidence].sort(),
       source: "sdk-coverage-crosswalk",
@@ -212,7 +224,11 @@ export async function buildSdkCoverage({ projectRoot = PROJECT_ROOT } = {}) {
   }
 
   entries.sort((a, b) => a.key.localeCompare(b.key));
-  invariant(new Set(entries.map((entry) => entry.key)).size === entries.length, "duplicate capability key in derived coverage");
+  const entryKeys = new Set(entries.map((entry) => entry.key));
+  invariant(entryKeys.size === entries.length, "duplicate capability key in derived coverage");
+  for (const key of Object.keys(crosswalk.introductionVersions ?? {})) {
+    invariant(entryKeys.has(key), `sdk-coverage-crosswalk.introductionVersions contains unused capability key: ${key}`);
+  }
 
   return {
     doc: {
