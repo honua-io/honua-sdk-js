@@ -464,15 +464,20 @@ describe("sample publication contract", () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
     const currentOutputs = await generatedOutputs(catalog, packageJson);
-    const bumpedPackage = { ...packageJson, version: "0.1.1-beta.0" };
+    const versionMatch = /^(\d+)\.(\d+)\.(\d+)([-+].+)?$/.exec(packageJson.version);
+    if (!versionMatch) {
+      throw new Error(`Expected a semantic package version, received ${packageJson.version}`);
+    }
+    const bumpedVersion = `${versionMatch[1]}.${versionMatch[2]}.${Number(versionMatch[3]) + 1}${versionMatch[4] ?? ""}`;
+    const bumpedPackage = { ...packageJson, version: bumpedVersion };
 
     await expect(validateCatalog(catalog, bumpedPackage, validationTime)).rejects.toThrow(
-      "live evidence SDK version 0.1.0-beta.0 does not match 0.1.1-beta.0",
+      `live evidence SDK version ${packageJson.version} does not match ${bumpedVersion}`,
     );
     const bumpedOutputs = await generatedOutputs(catalog, bumpedPackage);
     const bumpedProjection = JSON.parse(bumpedOutputs.get("samples/dist/honua-site-samples.v2.json")!);
-    expect(bumpedProjection.catalog.version).toBe("0.1.1-beta.0");
-    expect(bumpedProjection.samples[0].sdk.version).toBe("0.1.1-beta.0");
+    expect(bumpedProjection.catalog.version).toBe(bumpedVersion);
+    expect(bumpedProjection.samples[0].sdk.version).toBe(bumpedVersion);
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
       "samples/dist/capability-sample-matrix.v1.json",
