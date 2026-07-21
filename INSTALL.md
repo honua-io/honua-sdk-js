@@ -66,6 +66,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/source-capabilities` | SourceSchemaV2-bound static evidence/CRS validation plus lightweight claimed/observed/effective evaluation, current-source cache checks, bounded strict transport, and dynamic policy/peer/authorization gates; serialized caller data remains potentially sensitive ([guide](./docs/source-capabilities.md)). |
 | `@honua/sdk-js/source-capability-discovery` | Focused GeoServices/OData/WMS/WMTS `connectWithSourceCapabilities()` integration with canonical descriptor replay binding and fresh policy/environment/peer/authorization evaluation. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
+| `@honua/sdk-js/pmtiles-protocol-plugin.js` | The first-party PMTiles `ProtocolModule` packaged as a certifiable `HonuaPluginFactory<"protocol">` — the manifest-advertised plugin entrypoint, resolvable as a package export. |
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
 | `@honua/sdk-js/diagnostics` | Dependency-free diagnostic-bundle validation, sanitization, integrity pinning, and bounded read-only replay used by `honua doctor`. |
