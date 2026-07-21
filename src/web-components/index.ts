@@ -19,6 +19,14 @@
  * distance/area drawing on the map's pointer events, computed with
  * `@honua/geometry` ops) — needs no external drawing provider.
  *
+ * `<honua-legend>` and `<honua-layer-list>` are also each contested by the
+ * `controls` kit's own framework-free implementation. This kit's classes are
+ * both tags' canonical/default registrant: importing `./web-components` —
+ * alone, or alongside `@honua/sdk-js/controls` in either order — always
+ * registers these tags with the classes exported here (issue #679; see
+ * `./catalog.js` for the full ownership record and `./registry.js` for the
+ * catalog-id-addressable registration APIs re-exported below).
+ *
  * @experimental This entrypoint is not yet covered by the SDK's semver contract
  *   — the surface may change in any minor release prior to `1.0.0`.
  * @module
@@ -33,6 +41,34 @@ export {
   layersFromMapPackage,
   legendFromMapPackage,
 } from "./controller.js";
+
+export {
+  HONUA_COMPONENT_CATALOG,
+  describeDeprecatedComponentImport,
+  getCanonicalComponentCatalogEntry,
+  getComponentCatalogEntriesForTag,
+  getComponentCatalogEntry,
+  listComponentCatalogEntries,
+  listDeprecatedComponentImports,
+} from "../controls/catalog.js";
+export type {
+  HonuaComponentCatalogEntry,
+  HonuaComponentSource,
+  HonuaComponentSupportTier,
+  HonuaDeprecatedComponentDiagnostic,
+} from "../controls/catalog.js";
+export {
+  HonuaComponentCatalogError,
+  createComponentRegistry,
+  registerAllComponents,
+  registerComponent,
+  registerComponents,
+} from "../controls/registry.js";
+export type {
+  HonuaComponentCatalogId,
+  HonuaComponentRegistrationOptions,
+  HonuaComponentRegistry,
+} from "../controls/registry.js";
 
 export {
   HonuaActionPanelElement,
@@ -50,6 +86,7 @@ export {
   HonuaPrintExportElement,
   HonuaSearchElement,
   HonuaSketchControlElement,
+  defineHonuaWebComponent,
   defineHonuaWebComponents,
 } from "./elements.js";
 

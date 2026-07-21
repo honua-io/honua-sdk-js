@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { defineHonuaControls } from "../../src/controls/basemap-switcher.js";
 import { HonuaLegendDeriveError, deriveLegendEntries } from "../../src/controls/legend-derive.js";
-import { HonuaLegendElement } from "../../src/controls/legend.js";
+import { HonuaLegendElement, defineHonuaLegend } from "../../src/controls/legend.js";
 import type { HonuaLegendEntry, HonuaLegendSection } from "../../src/controls/types.js";
 
 interface MockLayerSpec {
@@ -246,7 +246,7 @@ describe("deriveLegendEntries", () => {
 });
 
 describe("HonuaLegendElement", () => {
-  test("is registered for browser registries via defineHonuaControls", () => {
+  test("is NOT auto-registered by the blanket defineHonuaControls (contested tag, issue #679)", () => {
     const defined: Record<string, CustomElementConstructor> = {};
     const registry = {
       get: (name: string) => defined[name],
@@ -254,10 +254,26 @@ describe("HonuaLegendElement", () => {
         defined[name] = ctor;
       },
     } as unknown as CustomElementRegistry;
+    // honua-legend also has a canonical (default) implementation in the
+    // web-components kit; the blanket controls registration must not claim
+    // it, so the winner never depends on import order.
     defineHonuaControls(registry);
+    expect(defined["honua-legend"]).toBeUndefined();
+  });
+
+  test("is registered via the opt-in defineHonuaLegend", () => {
+    const defined: Record<string, CustomElementConstructor> = {};
+    const registry = {
+      get: (name: string) => defined[name],
+      define: (name: string, ctor: CustomElementConstructor) => {
+        defined[name] = ctor;
+      },
+    } as unknown as CustomElementRegistry;
+    defineHonuaLegend(registry);
     expect(defined["honua-legend"]).toBe(HonuaLegendElement);
     // Idempotent: re-defining must not throw.
-    defineHonuaControls(registry);
+    defineHonuaLegend(registry);
+    expect(defined["honua-legend"]).toBe(HonuaLegendElement);
   });
 
   test("a flat entries array renders as one untitled section with list semantics and aria-hidden swatches", () => {

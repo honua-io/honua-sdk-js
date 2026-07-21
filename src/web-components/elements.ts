@@ -1758,24 +1758,54 @@ export class HonuaActionPanelElement<T = Record<string, unknown>> extends HonuaE
   }
 }
 
+/**
+ * Every tag this kit owns, keyed for both the blanket
+ * {@link defineHonuaWebComponents} registration and per-tag
+ * {@link defineHonuaWebComponent} lookups (and, transitively, the catalog id
+ * → constructor resolution `../controls/registry.js` uses for cross-kit
+ * registration). Order here is the kit's auto-registration order.
+ */
+const WEB_COMPONENT_ELEMENTS: ReadonlyMap<string, CustomElementConstructor> = new Map<string, CustomElementConstructor>(
+  [
+    ["honua-map", HonuaMapElement],
+    ["honua-layer-list", HonuaLayerListElement],
+    ["honua-legend", HonuaLegendElement],
+    ["honua-feature-table", HonuaFeatureTableElement],
+    ["honua-search", HonuaSearchElement],
+    ["honua-editor", HonuaEditorElement],
+    ["honua-chart", HonuaChartElement],
+    ["honua-basemap-control", HonuaBasemapControlElement],
+    ["honua-bookmarks", HonuaBookmarksElement],
+    ["honua-locate-control", HonuaLocateControlElement],
+    ["honua-measure-control", HonuaMeasureControlElement],
+    ["honua-measurement", HonuaMeasurementElement],
+    ["honua-sketch-control", HonuaSketchControlElement],
+    ["honua-print-export", HonuaPrintExportElement],
+    ["honua-map-status", HonuaMapStatusElement],
+    ["honua-action-panel", HonuaActionPanelElement],
+  ],
+);
+
+/** Registers every custom element this kit owns. Skips tags already defined. */
 export function defineHonuaWebComponents(registry = globalDom.customElements): void {
   if (!registry) return;
-  defineIfMissing(registry, "honua-map", HonuaMapElement);
-  defineIfMissing(registry, "honua-layer-list", HonuaLayerListElement);
-  defineIfMissing(registry, "honua-legend", HonuaLegendElement);
-  defineIfMissing(registry, "honua-feature-table", HonuaFeatureTableElement);
-  defineIfMissing(registry, "honua-search", HonuaSearchElement);
-  defineIfMissing(registry, "honua-editor", HonuaEditorElement);
-  defineIfMissing(registry, "honua-chart", HonuaChartElement);
-  defineIfMissing(registry, "honua-basemap-control", HonuaBasemapControlElement);
-  defineIfMissing(registry, "honua-bookmarks", HonuaBookmarksElement);
-  defineIfMissing(registry, "honua-locate-control", HonuaLocateControlElement);
-  defineIfMissing(registry, "honua-measure-control", HonuaMeasureControlElement);
-  defineIfMissing(registry, "honua-measurement", HonuaMeasurementElement);
-  defineIfMissing(registry, "honua-sketch-control", HonuaSketchControlElement);
-  defineIfMissing(registry, "honua-print-export", HonuaPrintExportElement);
-  defineIfMissing(registry, "honua-map-status", HonuaMapStatusElement);
-  defineIfMissing(registry, "honua-action-panel", HonuaActionPanelElement);
+  for (const [tagName, ctor] of WEB_COMPONENT_ELEMENTS) {
+    defineIfMissing(registry, tagName, ctor);
+  }
+}
+
+/**
+ * Registers a single web-components tag by name (e.g. `"honua-feature-table"`).
+ * Unknown tags are a no-op. Skips the registration when the tag is already
+ * defined. This is the primitive the catalog-driven `registerComponent` /
+ * `registerComponents` APIs in `../controls/registry.js` call for
+ * `web-components`-sourced catalog entries, so a consumer can register one
+ * tag from this kit without the blanket {@link defineHonuaWebComponents} call.
+ */
+export function defineHonuaWebComponent(tagName: string, registry = globalDom.customElements): void {
+  if (!registry) return;
+  const ctor = WEB_COMPONENT_ELEMENTS.get(tagName);
+  if (ctor) defineIfMissing(registry, tagName, ctor);
 }
 
 function defineIfMissing(registry: CustomElementRegistry, tagName: string, ctor: CustomElementConstructor): void {

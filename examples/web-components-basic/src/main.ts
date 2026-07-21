@@ -1,9 +1,14 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
-// Side-effect import registers <honua-basemap-switcher> and <honua-legend>.
-// It runs before the web-components import below, so the controls-entry
-// legend (map-driven, derive mode) owns the honua-legend tag in this demo.
+// Side-effect import registers <honua-basemap-switcher> and
+// <honua-swipe-control>. <honua-legend> also has a controller-driven
+// implementation in the web-components kit below, and that implementation is
+// the tag's canonical/default registrant (@honua/sdk-js/controls' `catalog.ts`,
+// issue #679) — so claiming this demo's map-driven, derive-mode legend
+// instead is the explicit, ordered `./register-controls-legend.js` import
+// just below, not an import-order accident.
 import "@honua/sdk-js/controls";
+import "./register-controls-legend.js";
 import type {
   HonuaBasemapDefinition,
   HonuaBasemapSwitcherChangeDetail,

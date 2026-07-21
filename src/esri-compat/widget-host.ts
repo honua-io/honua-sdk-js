@@ -28,8 +28,9 @@
  *   the kit — mounting quietly no-ops and the shims stay state-model-only,
  *   exactly their pre-delegation behavior.
  * - The delegation tag must be owned by the kit's own element class; a
- *   foreign registrant (e.g. the controls kit's `honua-legend`, which has a
- *   different `entries` API) also falls back to the headless behavior.
+ *   foreign registrant (e.g. an app that explicitly opted into the controls
+ *   kit's `honua-legend` via `defineHonuaLegend()`, which has a different
+ *   `entries` API) also falls back to the headless behavior.
  *
  * @module
  */
@@ -149,10 +150,11 @@ export class HonuaWidgetHost {
           return false;
         }
         // The tag must be owned by the kit's own class. Another registrant
-        // can win the tag (e.g. the controls kit registers its own
-        // `honua-legend` with a different `entries` API when imported first);
-        // mounting that element and assigning the web-components properties
-        // would render nothing, so fall back to the headless shim behavior.
+        // can still win the tag (e.g. an app that explicitly registers the
+        // controls kit's own `honua-legend`, which has a different `entries`
+        // API); mounting that element and assigning the web-components
+        // properties would render nothing, so fall back to the headless shim
+        // behavior.
         const expected = expectedKitConstructor(kit, this.#tagName);
         const registered = globalDom.customElements?.get(this.#tagName);
         return expected !== undefined && registered === expected;
