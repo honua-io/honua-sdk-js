@@ -6,7 +6,7 @@ browser (no server needed) to review every primitive in both themes.
 
 ## Consume it
 
-```ts
+```ts doc-test=skip reason="CSS side-effect import resolves only inside a sample app's Vite build"
 // In a sample's entry module (Vite inlines the imports at build time):
 import "../../_kit/design/index.css";
 ```
