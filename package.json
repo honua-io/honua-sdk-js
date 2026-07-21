@@ -788,17 +788,16 @@
   },
   "sideEffects": [
     "./dist/src/web-components/index.js",
-    "./dist/src/web-components/elements.js",
     "./dist/src/_deprecated/web-components.js",
     "./src/web-components/index.ts",
-    "./src/web-components/elements.ts",
     "./src/_deprecated/web-components.ts",
     "./dist/src/controls/index.js",
     "./dist/src/controls/basemap-switcher.js",
     "./dist/src/_deprecated/controls.js",
     "./src/controls/index.ts",
     "./src/controls/basemap-switcher.ts",
-    "./src/_deprecated/controls.ts"
+    "./src/_deprecated/controls.ts",
+    "./examples/web-components-basic/src/register-controls-legend.ts"
   ],
   "engines": {
     "node": ">=20.0.0"
