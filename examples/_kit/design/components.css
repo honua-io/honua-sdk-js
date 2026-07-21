@@ -588,8 +588,26 @@
   box-shadow: none;
 }
 
-.hn-app .maplibregl-popup-tip {
+/* MapLibre draws the tip with a different border side per anchor; recolor
+ * every direction so no anchor leaves a default-white triangle in dark mode. */
+.hn-app .maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.hn-app .maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.hn-app .maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
   border-top-color: var(--hn-surface-raised);
+}
+
+.hn-app .maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.hn-app .maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.hn-app .maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: var(--hn-surface-raised);
+}
+
+.hn-app .maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--hn-surface-raised);
+}
+
+.hn-app .maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--hn-surface-raised);
 }
 
 .hn-tooltip {
