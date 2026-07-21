@@ -1332,6 +1332,9 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
 
     const metadataOnly = await promoteIncident();
     const evidencePath = "test-results/metadata-only-golden-evidence.json";
+    const metadataOnlyExpiresAt = new Date(
+      new Date(validationTime.now).getTime() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const executedEvidence = await readJson("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
     executedEvidence.status = "executed";
     executedEvidence.reason = null;
@@ -1350,7 +1353,7 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       status: "executed",
       commands: ["npm run bench:live"],
       evidencePath,
-      expiresAt: "2026-07-26T02:18:02.730Z",
+      expiresAt: metadataOnlyExpiresAt,
     };
     try {
       await mkdir("test-results", { recursive: true });
