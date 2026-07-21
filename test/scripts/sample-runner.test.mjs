@@ -324,6 +324,66 @@ test("runner argument and manifest boundaries reject substitution and traversal"
     /stale or modified/,
   );
 });
+
+test("qualification bootstrap accepts every simultaneously-stale golden sample, not just the invocation target", () => {
+  // A lone --sample keeps the single-target bootstrap unchanged: no
+  // qualificationBootstrapAlso is present at all.
+  const single = parseRunnerArgs(["evidence", "--sample", "safe-sample"]);
+  assert.equal(single.qualificationBootstrapAlso, undefined);
+
+  // Naming other golden samples that are simultaneously being requalified
+  // against the same source breaks the circularity described in issue #735:
+  // the single-target bootstrap alone can never validate two mutually-stale
+  // golden samples in one pass.
+  const multi = parseRunnerArgs([
+    "evidence",
+    "--sample",
+    "safe-sample",
+    "--qualification-bootstrap-also",
+    "sample-a,sample-b",
+  ]);
+  assert.deepEqual(multi.qualificationBootstrapAlso, ["sample-a", "sample-b"]);
+
+  assert.throws(
+    () => parseRunnerArgs(["build", "--sample", "safe-sample", "--qualification-bootstrap-also", "sample-a"]),
+    /only valid for a full evidence run/,
+  );
+  assert.throws(
+    () =>
+      parseRunnerArgs([
+        "evidence",
+        "--sample",
+        "safe-sample",
+        "--gate",
+        "browser",
+        "--qualification-bootstrap-also",
+        "sample-a",
+      ]),
+    /only valid for a full evidence run/,
+  );
+  assert.throws(
+    () => parseRunnerArgs(["evidence", "--sample", "safe-sample", "--qualification-bootstrap-also", "../escape"]),
+    /--qualification-bootstrap-also is invalid/,
+  );
+  assert.throws(
+    () => parseRunnerArgs(["evidence", "--sample", "safe-sample", "--qualification-bootstrap-also", "sample-a,sample-a"]),
+    /duplicate sample id/,
+  );
+  assert.throws(
+    () =>
+      parseRunnerArgs([
+        "evidence",
+        "--sample",
+        "safe-sample",
+        "--qualification-bootstrap-also",
+        "sample-a",
+        "--qualification-bootstrap-also",
+        "sample-b",
+      ]),
+    /duplicate option/,
+  );
+});
+
 test("npm evidence commands suppress lifecycle hooks without changing their reviewed argv", () => {
   const executable = process.platform === "win32" ? "npm.cmd" : "npm";
   assert.deepEqual(commandForSpawn(["npm", "run", "bench:live", "--", "--sample", "safe-sample"]), [
