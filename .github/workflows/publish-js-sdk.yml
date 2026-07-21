@@ -33,7 +33,35 @@ permissions:
   contents: read
 
 jobs:
+  # Derived artifacts regenerate on a schedule, not per merge (#746), so force
+  # a refresh before the strict samples:verify below. Fast no-op when trunk's
+  # tip is already a regeneration merge.
+  ensure-fresh-evidence:
+    name: Ensure derived artifacts are fresh
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch and await derived-artifact regeneration
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run_url="$(gh workflow run regenerate-derived-artifacts.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref trunk)"
+          if [[ ! "$run_url" =~ /actions/runs/([0-9]+)$ ]]; then
+            echo "Could not identify regeneration run from: $run_url"
+            exit 1
+          fi
+          gh run watch "${BASH_REMATCH[1]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --exit-status \
+            --interval 15
+
   publish-js-packages:
+    needs: ensure-fresh-evidence
     runs-on: ubuntu-latest
     permissions:
       contents: read

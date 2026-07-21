@@ -21,10 +21,15 @@ name: Regenerate derived artifacts
 # exact head, approves only that head's native ruleset checks, and auto-merges
 # them with a merge commit so evidence revisions remain reachable.
 
+# Cadence (#746): regeneration runs on a 6-hour schedule and on demand instead
+# of after every trunk merge. Release-time consumers (first-map-release-smoke,
+# publish-js-sdk) dispatch this workflow and wait for it before strictly
+# verifying evidence, so releases never observe the bounded staleness window.
+# The loop guard below makes a dispatch a fast no-op when trunk's tip is
+# already a regeneration merge.
 on:
-  push:
-    branches:
-      - trunk
+  schedule:
+    - cron: "23 1,7,13,19 * * *"
   workflow_dispatch:
 
 concurrency:
