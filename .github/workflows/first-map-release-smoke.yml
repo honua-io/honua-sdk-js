@@ -25,7 +25,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium firefox webkit
-      - run: npm run test:playwright:quickstart
+      # Headless Firefox has no compositor and therefore no WebGL, so the
+      # release matrix's Firefox project runs headed (playwright.first-map.config.mjs)
+      # under a virtual display; xvfb-run gives it a real X server to render
+      # into. Chromium and WebKit stay headless and are unaffected. See #687.
+      - run: xvfb-run --auto-servernum --server-args='-screen 0 1280x800x24' -- npm run test:playwright:quickstart
       - run: npm run demo:quickstart:parity
       - run: npm run demo:quickstart:copyability
       - run: npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode source
