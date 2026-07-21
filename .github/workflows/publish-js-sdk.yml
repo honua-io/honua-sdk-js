@@ -46,6 +46,11 @@ jobs:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
       RELEASE_VERSION: ${{ github.event.inputs.release_version || '' }}
       ALLOW_BRANCH_PUBLISH: ${{ github.event.inputs.allow_branch_publish == 'true' }}
+      # Version tags are created before the post-release evidence reseal can
+      # run. Match release-branch CI by relaxing only derived-artifact
+      # freshness; all package, test, security, and publish-surface gates stay
+      # enforced below.
+      HONUA_DERIVED_ARTIFACTS_RELAX: "1"
 
     steps:
       - name: Checkout

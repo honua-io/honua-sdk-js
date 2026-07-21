@@ -134,6 +134,7 @@ describe("prepared SDK artifact contract", () => {
     expect(publish).toContain("npm run build:split-packages:prepared");
     expect(publish).toContain("npm run verify:browser:prepared");
     expect(publish).toContain("npm run demo:examples:build:prepared");
+    expect(publish).toContain('HONUA_DERIVED_ARTIFACTS_RELAX: "1"');
     expect(publish).not.toMatch(/npm run (?:build:split-packages|verify:browser|demo:examples:build)(?:\s|$)/);
   });
 });
