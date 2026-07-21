@@ -1,4 +1,5 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../_kit/design/index.css";
 
 import maplibregl from "maplibre-gl";
 
@@ -36,6 +37,11 @@ declare global {
     __HONUA_QUICKSTART_MAP__?: maplibregl.Map;
   }
 }
+
+type ThemePreference = "auto" | "light" | "dark";
+
+const THEME_SEQUENCE: readonly ThemePreference[] = ["auto", "light", "dark"];
+const FIXTURE_BASEMAP_LAYER_ID = "background";
 
 const FIRST_MAP_SOURCE_ID = "first-map-features";
 const FIRST_MAP_LAYER_ID = "first-map-feature";
@@ -203,7 +209,7 @@ function renderFeatureList(
     const action = row.insertCell();
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "feature-inspect-button";
+    button.className = "hn-btn hn-btn--sm feature-inspect-button";
     button.dataset.featureId = summary.id;
     button.dataset.selected = summary.id === selectedId ? "true" : "false";
     button.setAttribute("aria-pressed", summary.id === selectedId ? "true" : "false");
@@ -243,24 +249,28 @@ function renderSelection(summary: FirstMapFeatureSummary | undefined): void {
 
 function createPopupContent(summary: FirstMapFeatureSummary): HTMLElement {
   const article = document.createElement("div");
-  article.className = "popup-card";
+  article.className = "hn-popup";
   article.setAttribute("role", "region");
   article.setAttribute("aria-label", `${summary.title} feature details`);
   const kicker = document.createElement("p");
-  kicker.className = "popup-kicker";
+  kicker.className = "hn-register popup-kicker";
   kicker.textContent = summary.geometryKind;
   const heading = document.createElement("h3");
+  heading.className = "hn-popup-title";
   heading.textContent = summary.title;
   const subtitle = document.createElement("p");
+  subtitle.className = "hn-muted popup-subtitle";
   subtitle.textContent = summary.subtitle;
   const grid = document.createElement("div");
   grid.className = "popup-grid";
   for (const [field, value] of Object.entries(summary.attributes).slice(0, 5)) {
     const row = document.createElement("div");
-    row.className = "popup-row";
+    row.className = "hn-popup-row";
     const key = document.createElement("span");
+    key.className = "hn-popup-key";
     key.textContent = field;
-    const detail = document.createElement("strong");
+    const detail = document.createElement("span");
+    detail.className = "hn-popup-value";
     detail.textContent = value === null ? "null" : String(value);
     row.append(key, detail);
     grid.append(row);
@@ -383,6 +393,19 @@ function fitToFeatures(map: maplibregl.Map, summaries: readonly FirstMapFeatureS
   );
 }
 
+/**
+ * Cartography: the deterministic fixture basemap is a single background layer,
+ * so the app (which owns presentation) re-keys it to the active theme's
+ * `--hn-basemap-land` token — land reads as the app surface shifted one step,
+ * in light and dark alike. Live styles are left untouched.
+ */
+function harmonizeFixtureBasemap(map: maplibregl.Map | undefined, basemapStyle: string): void {
+  if (!map || basemapStyle !== FIXTURE_BASEMAP_STYLE) return;
+  const land = getComputedStyle(document.documentElement).getPropertyValue("--hn-basemap-land").trim();
+  if (!land || !map.getLayer(FIXTURE_BASEMAP_LAYER_ID)) return;
+  map.setPaintProperty(FIXTURE_BASEMAP_LAYER_ID, "background-color", land);
+}
+
 async function copyVisibleCode(): Promise<void> {
   const code = getElement<HTMLElement>("#workflow-code").textContent ?? "";
   const status = getElement<HTMLElement>("#copy-code-status");
@@ -429,6 +452,32 @@ async function bootstrap(): Promise<void> {
   window.addEventListener("beforeunload", () => void disposeCurrent(), { once: true });
   getElement<HTMLButtonElement>("#copy-code-button").addEventListener("click", () => void copyVisibleCode());
 
+  const themeToggle = getElement<HTMLButtonElement>("#theme-toggle");
+  let themePreference: ThemePreference = "auto";
+  const applyThemePreference = (): void => {
+    if (themePreference === "auto") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = themePreference;
+    themeToggle.textContent = `Theme: ${themePreference}`;
+    harmonizeFixtureBasemap(window.__HONUA_QUICKSTART_MAP__, basemapStyle);
+  };
+  themeToggle.addEventListener("click", () => {
+    const nextIndex = (THEME_SEQUENCE.indexOf(themePreference) + 1) % THEME_SEQUENCE.length;
+    themePreference = THEME_SEQUENCE[nextIndex] ?? "auto";
+    applyThemePreference();
+  });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () =>
+    harmonizeFixtureBasemap(window.__HONUA_QUICKSTART_MAP__, basemapStyle),
+  );
+
+  const drawerToggle = getElement<HTMLButtonElement>("#drawer-toggle");
+  const drawerContent = getElement<HTMLElement>("#drawer-content");
+  drawerToggle.addEventListener("click", () => {
+    const expanded = drawerToggle.getAttribute("aria-expanded") === "true";
+    drawerToggle.setAttribute("aria-expanded", String(!expanded));
+    drawerToggle.textContent = expanded ? "Expand" : "Collapse";
+    drawerContent.hidden = expanded;
+  });
+
   async function run(launch: FirstMapLaunch): Promise<void> {
     await disposeCurrent();
     resetJourney();
@@ -474,6 +523,7 @@ async function bootstrap(): Promise<void> {
       fadeDuration: 0,
     });
     window.__HONUA_QUICKSTART_MAP__ = map;
+    map.on("style.load", () => harmonizeFixtureBasemap(map, basemapStyle));
     let mapRemoved = false;
     const removeMap = () => {
       if (mapRemoved) return;
