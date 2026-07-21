@@ -5,12 +5,12 @@
   "lane": "live",
   "status": "executed",
   "reason": null,
-  "observedAt": "2026-07-20T23:35:26.443Z",
+  "observedAt": "2026-07-21T00:37:51.454Z",
   "authMode": "anonymous",
   "sdk": {
     "package": "@honua/sdk-js",
     "version": "0.1.0-beta.0",
-    "gitCommit": "7fbbc5318e14b47915319c12ef5ff806eee6947c"
+    "gitCommit": "f4bf2dcc41a31237d675c1f6c421f72be5137bb3"
   },
   "source": {
     "provider": "esri-living-atlas",
@@ -21,7 +21,7 @@
   },
   "provenance": {
     "sourceId": "geoservices-feature-service:0",
-    "observedAt": "2026-07-20T23:35:27.578Z",
+    "observedAt": "2026-07-21T00:37:52.547Z",
     "validAt": null,
     "state": "live",
     "attribution": "States 2020 Apportionment - U.S. House of Representatives Seats"
@@ -45,8 +45,8 @@
     ]
   },
   "timing": {
-    "totalMs": 1275,
-    "firstSuccessfulInteractionMs": 1275
+    "totalMs": 646,
+    "firstSuccessfulInteractionMs": 646
   },
   "degradation": {
     "state": "none",
@@ -60,8 +60,8 @@
     },
     {
       "kind": "live-screenshot",
-      "path": "samples/evidence/maplibre-quickstart/runs/aee048e4-3655-43d8-b789-413cd066bd88/artifacts/live-evidence.png",
-      "sha256": "c8fa02d63a9950298b7b099211dacb389250ac31e315827c8de673a8541b08ff"
+      "path": "samples/evidence/maplibre-quickstart/runs/4063c5aa-5a28-48fa-90c3-910c6fa7a16c/artifacts/live-evidence.png",
+      "sha256": "310dd781dba8b8df468d5e10c91a0fba86ebcb3798ea0acbace1734511f76d28"
     }
   ]
 }

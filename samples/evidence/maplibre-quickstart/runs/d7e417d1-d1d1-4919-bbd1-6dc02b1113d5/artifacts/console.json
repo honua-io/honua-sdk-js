@@ -1,8 +1,8 @@
 {
   "format": "honua.sdk.sample-playwright-gate.v1",
   "sampleId": "maplibre-quickstart",
-  "sourceRevision": "7fbbc5318e14b47915319c12ef5ff806eee6947c",
-  "gate": "browser",
+  "sourceRevision": "f4bf2dcc41a31237d675c1f6c421f72be5137bb3",
+  "gate": "console",
   "command": [
     "npm",
     "run",
@@ -85,7 +85,7 @@
                     "workerIndex": 0,
                     "parallelIndex": 0,
                     "status": "passed",
-                    "duration": 7423,
+                    "duration": 7370,
                     "errors": [],
                     "stdout": [
                       {
@@ -107,16 +107,19 @@
                         "buffer": "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"
                       },
                       {
-                        "buffer": "G1szMm3inJMgYnVpbHQgaW4gNzUybXMbWzM5bQo="
+                        "buffer": "G1szMm3inJMgYnVpbHQgaW4gNzY0bXMbWzM5bQo="
                       }
                     ],
                     "stderr": [
                       {
-                        "buffer": "G1szM20bWzMzbVtJTkVGRkVDVElWRV9EWU5BTUlDX0lNUE9SVF0gG1swbW5vZGVfbW9kdWxlcy9tYXBsaWJyZS1nbC9kaXN0L21hcGxpYnJlLWdsLmpzIGlzIGR5bmFtaWNhbGx5IGltcG9ydGVkIGJ5IHNyYy9ydW50aW1lL3BtdGlsZXMtcHJvdG9jb2wudHMgYnV0IGFsc28gc3RhdGljYWxseSBpbXBvcnRlZCBieSBleGFtcGxlcy9tYXBsaWJyZS1xdWlja3N0YXJ0L3NyYy9tYWluLnRzLCBkeW5hbWljIGltcG9ydCB3aWxsIG5vdCBtb3ZlIG1vZHVsZSBpbnRvIGFub3RoZXIgY2h1bmsuChtbMzltChtbMzNtW3BsdWdpbiBidWlsdGluOnZpdGUtcmVwb3J0ZXJdIBtbMzNtG1sxbQooISkgU29tZSBjaHVua3MgYXJlIGxhcmdlciB0aGFuIDUwMCBrQiBhZnRlciBtaW5pZmljYXRpb24uIENvbnNpZGVyOgotIFVzaW5nIGR5bmFtaWMgaW1wb3J0KCkgdG8gY29kZS1zcGxpdCB0aGUgYXBwbGljYXRpb24KLSBVc2UgYnVpbGQucm9sbGRvd25PcHRpb25zLm91dHB1dC5jb2RlU3BsaXR0aW5nIHRvIGltcHJvdmUgY2h1bmtpbmc6IGh0dHBzOi8vcm9sbGRvd24ucnMvcmVmZXJlbmNlL091dHB1dE9wdGlvbnMuY29kZVNwbGl0dGluZwotIEFkanVzdCBjaHVuayBzaXplIGxpbWl0IGZvciB0aGlzIHdhcm5pbmcgdmlhIGJ1aWxkLmNodW5rU2l6ZVdhcm5pbmdMaW1pdC4bWzBtG1szM20bWzM5bQo="
+                        "buffer": "G1szM20bWzMzbVtJTkVGRkVDVElWRV9EWU5BTUlDX0lNUE9SVF0gG1swbW5vZGVfbW9kdWxlcy9tYXBsaWJyZS1nbC9kaXN0L21hcGxpYnJlLWdsLmpzIGlzIGR5bmFtaWNhbGx5IGltcG9ydGVkIGJ5IHNyYy9ydW50aW1lL3BtdGlsZXMtcHJvdG9jb2wudHMgYnV0IGFsc28gc3RhdGljYWxseSBpbXBvcnRlZCBieSBleGFtcGxlcy9tYXBsaWJyZS1xdWlja3N0YXJ0L3NyYy9tYWluLnRzLCBkeW5hbWljIGltcG9ydCB3aWxsIG5vdCBtb3ZlIG1vZHVsZSBpbnRvIGFub3RoZXIgY2h1bmsuChtbMzltCg=="
+                      },
+                      {
+                        "buffer": "G1szM21bcGx1Z2luIGJ1aWx0aW46dml0ZS1yZXBvcnRlcl0gG1szM20bWzFtCighKSBTb21lIGNodW5rcyBhcmUgbGFyZ2VyIHRoYW4gNTAwIGtCIGFmdGVyIG1pbmlmaWNhdGlvbi4gQ29uc2lkZXI6Ci0gVXNpbmcgZHluYW1pYyBpbXBvcnQoKSB0byBjb2RlLXNwbGl0IHRoZSBhcHBsaWNhdGlvbgotIFVzZSBidWlsZC5yb2xsZG93bk9wdGlvbnMub3V0cHV0LmNvZGVTcGxpdHRpbmcgdG8gaW1wcm92ZSBjaHVua2luZzogaHR0cHM6Ly9yb2xsZG93bi5ycy9yZWZlcmVuY2UvT3V0cHV0T3B0aW9ucy5jb2RlU3BsaXR0aW5nCi0gQWRqdXN0IGNodW5rIHNpemUgbGltaXQgZm9yIHRoaXMgd2FybmluZyB2aWEgYnVpbGQuY2h1bmtTaXplV2FybmluZ0xpbWl0LhtbMG0bWzMzbRtbMzltCg=="
                       }
                     ],
                     "retry": 0,
-                    "startTime": "2026-07-20T23:35:14.377Z",
+                    "startTime": "2026-07-21T00:37:38.487Z",
                     "annotations": [],
                     "attachments": [
                       {
@@ -127,7 +130,7 @@
                       {
                         "name": "honua-gate:accessibility",
                         "contentType": "application/json",
-                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJtYXBsaWJyZS1xdWlja3N0YXJ0IiwiZ2F0ZSI6ImFjY2Vzc2liaWxpdHkiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsiZW5naW5lIjp7Im5hbWUiOiJheGUtY29yZSIsInZlcnNpb24iOiI0LjEyLjEifSwidmlvbGF0aW9ucyI6W10sInBhc3NlcyI6NTMsImtleWJvYXJkIjp7InNlbGVjdG9yIjoiW2RhdGEtdGVzdGlkPVwiaG9udWEtc2FtcGxlLWV2aWRlbmNlXCJdID4gc3VtbWFyeSIsInRhYkNvdW50Ijo2LCJ0YWJSZWFjaGVkVGFyZ2V0Ijp0cnVlLCJhY3RpdmF0ZWQiOnRydWUsImR1cmF0aW9uTXMiOjcyLjM5OTk5OTk5OTk5NDE4fX19"
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJtYXBsaWJyZS1xdWlja3N0YXJ0IiwiZ2F0ZSI6ImFjY2Vzc2liaWxpdHkiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsiZW5naW5lIjp7Im5hbWUiOiJheGUtY29yZSIsInZlcnNpb24iOiI0LjEyLjEifSwidmlvbGF0aW9ucyI6W10sInBhc3NlcyI6NTMsImtleWJvYXJkIjp7InNlbGVjdG9yIjoiW2RhdGEtdGVzdGlkPVwiaG9udWEtc2FtcGxlLWV2aWRlbmNlXCJdID4gc3VtbWFyeSIsInRhYkNvdW50Ijo2LCJ0YWJSZWFjaGVkVGFyZ2V0Ijp0cnVlLCJhY3RpdmF0ZWQiOnRydWUsImR1cmF0aW9uTXMiOjU5LjIwMDAwMDAwMDAxMTY0fX19"
                       },
                       {
                         "name": "honua-gate:responsive",
@@ -160,8 +163,8 @@
     ],
     "errors": [],
     "stats": {
-      "startTime": "2026-07-20T23:35:12.512Z",
-      "duration": 10128.318,
+      "startTime": "2026-07-21T00:37:36.716Z",
+      "duration": 11187.198,
       "expected": 1,
       "skipped": 0,
       "unexpected": 0,
