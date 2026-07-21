@@ -48,14 +48,35 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run_url="$(gh workflow run regenerate-derived-artifacts.yml \
+          before_id="$(gh run list \
             --repo "$GITHUB_REPOSITORY" \
-            --ref trunk)"
-          if [[ ! "$run_url" =~ /actions/runs/([0-9]+)$ ]]; then
-            echo "Could not identify regeneration run from: $run_url"
+            --workflow regenerate-derived-artifacts.yml \
+            --limit 1 --json databaseId --jq '.[0].databaseId // 0')"
+          gh workflow run regenerate-derived-artifacts.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref trunk
+          # gh workflow run does not reliably expose the created run's id, so
+          # poll for the first run newer than the pre-dispatch newest one.
+          # Watching a concurrent schedule/dispatch run instead of ours is
+          # fine: the concurrency group serializes them and every run reseals
+          # the then-current trunk tip.
+          run_id=""
+          for attempt in {1..30}; do
+            sleep 10
+            run_id="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow regenerate-derived-artifacts.yml \
+              --limit 10 --json databaseId \
+              --jq "[.[].databaseId | select(. > ${before_id})] | min // empty")"
+            if [[ -n "$run_id" ]]; then
+              break
+            fi
+          done
+          if [[ -z "$run_id" ]]; then
+            echo "Dispatched regeneration run never appeared in the run list."
             exit 1
           fi
-          gh run watch "${BASH_REMATCH[1]}" \
+          gh run watch "$run_id" \
             --repo "$GITHUB_REPOSITORY" \
             --exit-status \
             --interval 15

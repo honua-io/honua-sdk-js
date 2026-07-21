@@ -55,29 +55,40 @@ jobs:
               release_version="${release_version#v}"
             done
 
-            # The version commit and the strict reseal workflow start from the
-            # same trunk push. Publish only after that workflow has validated
-            # and merged its generated-only follow-up.
+            # The strict reseal no longer runs on every trunk push (#746), so
+            # dispatch one for the release commit's tree and publish only after
+            # it has validated and merged its generated-only follow-up. The
+            # dispatched run checks out trunk, whose tip is this release commit
+            # or a descendant; the ancestry check below rejects anything else.
+            local before_id
+            before_id="$(gh run list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --workflow regenerate-derived-artifacts.yml \
+              --limit 1 --json databaseId --jq '.[0].databaseId // 0')"
+            gh workflow run regenerate-derived-artifacts.yml \
+              --repo "${GITHUB_REPOSITORY}" \
+              --ref trunk
+            # gh workflow run does not reliably expose the created run's id, so
+            # poll for the first run newer than the pre-dispatch newest one.
+            # Watching a concurrent schedule/dispatch run instead of ours is
+            # fine: the concurrency group serializes them and every run reseals
+            # the then-current trunk tip.
             local reseal_run_id=""
-            for attempt in {1..60}; do
-              local runs
-              runs="$(gh run list \
+            for attempt in {1..30}; do
+              sleep 10
+              reseal_run_id="$(gh run list \
                 --repo "${GITHUB_REPOSITORY}" \
                 --workflow regenerate-derived-artifacts.yml \
-                --commit "${GITHUB_SHA}" \
-                --event push \
-                --limit 10 \
-                --json databaseId,headSha)"
-              reseal_run_id="$(jq -r --arg sha "${GITHUB_SHA}" '[.[] | select(.headSha == $sha)][0].databaseId // empty' <<<"${runs}")"
+                --limit 10 --json databaseId \
+                --jq "[.[].databaseId | select(. > ${before_id})] | min // empty")"
               if [[ -n "${reseal_run_id}" ]]; then
                 break
               fi
-              if (( attempt == 60 )); then
-                echo "Could not find the post-release reseal run for ${GITHUB_SHA}."
-                exit 1
-              fi
-              sleep 10
             done
+            if [[ -z "${reseal_run_id}" ]]; then
+              echo "Dispatched reseal run for ${GITHUB_SHA} never appeared in the run list."
+              exit 1
+            fi
             gh run watch "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status --interval 10
 
             local trunk_sha
