@@ -24,7 +24,7 @@
  *
  * @module
  */
-import type { Capabilities, SourceDescriptor } from "./types.js";
+import type { Capabilities, Protocol, SourceDescriptor } from "./types.js";
 
 /** Runtime environments a protocol module can execute in. Mirrors `RendererEnvironment`. */
 export type ProtocolModuleEnvironment = "browser" | "node" | "worker";
@@ -46,9 +46,14 @@ export interface ProtocolModuleDiscoverOptions {
  * returned by `Source.protocol(name)` (for example a `HonuaPmtilesArchive`),
  * so migrating a built-in onto this seam never changes what callers observe
  * through the existing escape hatch.
+ *
+ * `TProtocol` mirrors the descriptor kind a `ProtocolModule<TKind>` accepts
+ * (built-in `Protocol` by default, or `TKind | Protocol` when parameterized
+ * by `discover()` below) so a handle for a custom-kind descriptor carries
+ * that kind through rather than widening to `string`.
  */
-export interface ProtocolModuleHandle<TAdapter = unknown> {
-  readonly descriptor: SourceDescriptor;
+export interface ProtocolModuleHandle<TAdapter = unknown, TProtocol extends string = Protocol> {
+  readonly descriptor: SourceDescriptor<TProtocol>;
   readonly capabilities: Capabilities;
   readonly adapter: TAdapter;
   readonly diagnostics: readonly ProtocolModuleDiagnostic[];
@@ -63,15 +68,24 @@ export interface ProtocolModuleHandle<TAdapter = unknown> {
  * (as PMTiles does — the archive itself is opened lazily on first
  * `describe()`), or asynchronously for a module whose discovery is
  * inherently a network round trip.
+ *
+ * `capabilities()`/`discover()` accept `SourceDescriptor<TKind | Protocol>`
+ * — the built-in `Protocol` union plus this module's own `TKind` — so a
+ * third-party module with a custom protocol id (e.g. the cloud-tiles fixture's
+ * `"cloud-tiles"`, `test/fixtures/plugins/cloud-tiles/protocol-module.ts`)
+ * can pass a descriptor typed to its own kind without an `as` cast, matching
+ * how `pmtilesProtocolModule()` (`src/contract/pmtiles.ts`) already accepts
+ * `SourceDescriptor<"pmtiles" | Protocol>`, i.e. `SourceDescriptor` (issue
+ * #671).
  */
 export interface ProtocolModule<TKind extends string = string, TAdapter = unknown> {
   readonly kind: TKind;
   readonly environments: readonly ProtocolModuleEnvironment[];
   readonly peer?: unknown;
   /** Pure and synchronous: never performs I/O. */
-  capabilities(descriptor: SourceDescriptor): Capabilities;
+  capabilities(descriptor: SourceDescriptor<TKind | Protocol>): Capabilities;
   discover(
-    descriptor: SourceDescriptor,
+    descriptor: SourceDescriptor<TKind | Protocol>,
     options?: ProtocolModuleDiscoverOptions,
-  ): ProtocolModuleHandle<TAdapter> | Promise<ProtocolModuleHandle<TAdapter>>;
+  ): ProtocolModuleHandle<TAdapter, TKind | Protocol> | Promise<ProtocolModuleHandle<TAdapter, TKind | Protocol>>;
 }

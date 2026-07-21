@@ -108,6 +108,10 @@
       "types": "./dist/src/plugin/index.d.ts",
       "default": "./dist/src/plugin/index.js"
     },
+    "./pmtiles-protocol-plugin.js": {
+      "types": "./dist/src/plugin/pmtiles-protocol-plugin.d.ts",
+      "default": "./dist/src/plugin/pmtiles-protocol-plugin.js"
+    },
     "./deckgl": {
       "types": "./dist/src/deckgl/index.d.ts",
       "default": "./dist/src/deckgl/index.js"
