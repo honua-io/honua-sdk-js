@@ -306,7 +306,9 @@
 }
 
 .fact-grid dt {
-  color: var(--hn-ink-muted);
+  /* --hn-ink-muted is only ~4.5:1 on the sunken well — below AA once any
+     compositing (entry animation, subpixel AA) shaves the ratio. */
+  color: var(--hn-ink-secondary);
   font-family: var(--hn-font-mono);
   font-size: var(--hn-text-register);
   font-weight: 600;
@@ -574,10 +576,11 @@
   overflow-wrap: anywhere;
 }
 
-/* Zero-count codemod categories stay listed, quietly. */
+/* Zero-count codemod categories stay listed, quietly — but the sunken table
+   stripes leave --hn-ink-muted under the AA floor, so quiet means secondary. */
 .table-scroll tbody tr[data-zero="true"] th,
 .table-scroll tbody tr[data-zero="true"] td {
-  color: var(--hn-ink-muted);
+  color: var(--hn-ink-secondary);
 }
 
 .table-scroll tbody tr[data-zero="false"] th code {
@@ -657,7 +660,8 @@
 }
 
 .diff-line[data-diff="meta"] {
-  color: var(--hn-ink-muted);
+  /* On the sunken diff well --hn-ink-muted sits at the AA floor; use secondary. */
+  color: var(--hn-ink-secondary);
 }
 
 /* -- Layout helpers ------------------------------------------------------------------ */
@@ -672,7 +676,10 @@
   min-width: 0;
 }
 
-/* -- Entry motion: one quiet rise on load; tokens zero out under reduced motion. -- */
+/* -- Entry motion: one quiet rise on load; tokens zero out under reduced motion.
+   Transform-only: animating opacity composites text against its well and can
+   drop borderline-AA colors below 4.5:1 at the instant an accessibility scan
+   samples the page. -- */
 @media (prefers-reduced-motion: no-preference) {
   .masthead-inner,
   .report-index,
@@ -687,7 +694,6 @@
 
 @keyframes workbench-rise {
   from {
-    opacity: 0;
     transform: translateY(8px);
   }
 }
