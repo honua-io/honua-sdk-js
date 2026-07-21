@@ -34,7 +34,7 @@ jobs:
           MCP_RELEASE_CREATED: ${{ steps.release.outputs['mcp--release_created'] }}
           MCP_TAG_NAME: ${{ steps.release.outputs['mcp--tag_name'] }}
         run: |
-          dispatch_publish() {
+          dispatch_tag_publish() {
             local workflow="$1"
             local tag="$2"
             if [[ -z "${tag}" ]]; then
@@ -44,11 +44,87 @@ jobs:
             gh workflow run "${workflow}" --repo "${GITHUB_REPOSITORY}" --ref "${tag}" -f dry_run=false
           }
 
+          dispatch_resealed_js_publish() {
+            local tag="$1"
+            if [[ "${tag}" != js-sdk-* ]]; then
+              echo "Release Please exposed an invalid JS SDK tag: ${tag}"
+              exit 1
+            fi
+            local release_version="${tag#js-sdk-}"
+            while [[ "${release_version}" == v* ]]; do
+              release_version="${release_version#v}"
+            done
+
+            # The version commit and the strict reseal workflow start from the
+            # same trunk push. Publish only after that workflow has validated
+            # and merged its generated-only follow-up.
+            local reseal_run_id=""
+            for attempt in {1..60}; do
+              local runs
+              runs="$(gh run list \
+                --repo "${GITHUB_REPOSITORY}" \
+                --workflow regenerate-derived-artifacts.yml \
+                --commit "${GITHUB_SHA}" \
+                --event push \
+                --limit 10 \
+                --json databaseId,headSha)"
+              reseal_run_id="$(jq -r --arg sha "${GITHUB_SHA}" '[.[] | select(.headSha == $sha)][0].databaseId // empty' <<<"${runs}")"
+              if [[ -n "${reseal_run_id}" ]]; then
+                break
+              fi
+              if (( attempt == 60 )); then
+                echo "Could not find the post-release reseal run for ${GITHUB_SHA}."
+                exit 1
+              fi
+              sleep 10
+            done
+            gh run watch "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status --interval 10
+
+            local trunk_sha
+            trunk_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/trunk" --jq .object.sha)"
+            local comparison
+            comparison="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...${trunk_sha}")"
+            local comparison_status
+            comparison_status="$(jq -r .status <<<"${comparison}")"
+            local merge_base
+            merge_base="$(jq -r .merge_base_commit.sha <<<"${comparison}")"
+            if [[ "${merge_base}" != "${GITHUB_SHA}" || ( "${comparison_status}" != "ahead" && "${comparison_status}" != "identical" ) ]]; then
+              echo "Trunk ${trunk_sha} is not a generated-only descendant of release commit ${GITHUB_SHA}."
+              exit 1
+            fi
+            while IFS= read -r changed_path; do
+              case "${changed_path}" in
+                api-report/* | \
+                bench/cross-sdk/corpus.json | \
+                docs/bundle-sizes.md | docs/comparison.md | docs/errors.md | \
+                llms.txt | llms-full.txt | \
+                examples/migration-workbench/public/artifacts/* | \
+                examples/migration-workbench/src/generated/* | \
+                samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json | \
+                samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
+                samples/dist/* | samples/evidence/maplibre-quickstart/*)
+                  ;;
+                *)
+                  echo "Post-release trunk contains a non-generated path: ${changed_path}"
+                  exit 1
+                  ;;
+              esac
+            done < <(jq -r '.files[].filename' <<<"${comparison}")
+
+            gh workflow run publish-js-sdk.yml \
+              --repo "${GITHUB_REPOSITORY}" \
+              --ref trunk \
+              -f dry_run=false \
+              -f release_version="${release_version}" \
+              -f allow_branch_publish=true \
+              -f source_revision="${trunk_sha}"
+          }
+
           if [[ "${JS_SDK_RELEASE_CREATED}" == "true" ]]; then
-            dispatch_publish publish-js-sdk.yml "${JS_SDK_TAG_NAME}"
+            dispatch_resealed_js_publish "${JS_SDK_TAG_NAME}"
           fi
           if [[ "${MCP_RELEASE_CREATED}" == "true" ]]; then
-            dispatch_publish publish-mcp-server.yml "${MCP_TAG_NAME}"
+            dispatch_tag_publish publish-mcp-server.yml "${MCP_TAG_NAME}"
           fi
 
   release-please-disposition:

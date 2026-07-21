@@ -18,6 +18,11 @@ on:
         required: false
         default: false
         type: boolean
+      source_revision:
+        description: "Exact commit required for a guarded branch recovery publish"
+        required: false
+        default: ""
+        type: string
   push:
     tags:
       - "js-sdk-*"
@@ -46,11 +51,7 @@ jobs:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
       RELEASE_VERSION: ${{ github.event.inputs.release_version || '' }}
       ALLOW_BRANCH_PUBLISH: ${{ github.event.inputs.allow_branch_publish == 'true' }}
-      # Version tags are created before the post-release evidence reseal can
-      # run. Match release-branch CI by relaxing only derived-artifact
-      # freshness; all package, test, security, and publish-surface gates stay
-      # enforced below.
-      HONUA_DERIVED_ARTIFACTS_RELAX: "1"
+      EXPECTED_SOURCE_REVISION: ${{ github.event.inputs.source_revision || '' }}
 
     steps:
       - name: Checkout
@@ -114,6 +115,11 @@ jobs:
         run: |
           package_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
 
+          if [[ -n "${EXPECTED_SOURCE_REVISION}" && "${GITHUB_SHA}" != "${EXPECTED_SOURCE_REVISION}" ]]; then
+            echo "source_revision (${EXPECTED_SOURCE_REVISION}) does not match workflow source (${GITHUB_SHA})."
+            exit 1
+          fi
+
           if [[ -n "${RELEASE_VERSION}" && "${RELEASE_VERSION}" != "${package_version}" ]]; then
             echo "release_version (${RELEASE_VERSION}) does not match package.json version (${package_version})."
             exit 1
@@ -128,10 +134,10 @@ jobs:
               echo "Tag version ($tag_version) does not match package.json version ($package_version)."
               exit 1
             fi
-          elif [[ "${ALLOW_BRANCH_PUBLISH}" == "true" && -n "${RELEASE_VERSION}" ]]; then
+          elif [[ "${ALLOW_BRANCH_PUBLISH}" == "true" && -n "${RELEASE_VERSION}" && -n "${EXPECTED_SOURCE_REVISION}" ]]; then
             echo "Running guarded branch recovery publish for ${package_version} from ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
           else
-            echo "Non-dry-run publish must run from a js-sdk-* tag, or set allow_branch_publish with release_version for recovery. Current ref: ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
+            echo "Non-dry-run publish must run from a js-sdk-* tag, or set allow_branch_publish with release_version and source_revision for recovery. Current ref: ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
             exit 1
           fi
 

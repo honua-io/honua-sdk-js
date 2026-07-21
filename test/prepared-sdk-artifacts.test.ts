@@ -128,13 +128,23 @@ describe("prepared SDK artifact contract", () => {
     expect(jsSdkJob).not.toMatch(/run: npm run (?:test:coverage|test:playwright|demo:examples:build)\s*$/m);
 
     const publish = fs.readFileSync(path.join(getProjectRoot(), ".github", "workflows", "publish-js-sdk.yml"), "utf8");
+    const releasePlease = fs.readFileSync(
+      path.join(getProjectRoot(), ".github", "workflows", "release-please.yml"),
+      "utf8",
+    );
     const docsSite = fs.readFileSync(path.join(getProjectRoot(), ".github", "workflows", "docs-site.yml"), "utf8");
     expect(publish).toMatch(fullHistoryCheckout);
     expect(docsSite).toMatch(fullHistoryCheckout);
     expect(publish).toContain("npm run build:split-packages:prepared");
     expect(publish).toContain("npm run verify:browser:prepared");
     expect(publish).toContain("npm run demo:examples:build:prepared");
-    expect(publish).toContain('HONUA_DERIVED_ARTIFACTS_RELAX: "1"');
+    expect(publish).not.toContain("HONUA_DERIVED_ARTIFACTS_RELAX");
+    expect(publish).toContain("EXPECTED_SOURCE_REVISION");
+    expect(publish).toContain("allow_branch_publish with release_version and source_revision");
+    expect(releasePlease).toContain("gh run watch \"${reseal_run_id}\"");
+    expect(releasePlease).toContain("Post-release trunk contains a non-generated path");
+    expect(releasePlease).toContain('-f source_revision="${trunk_sha}"');
+    expect(releasePlease).not.toContain('dispatch_tag_publish publish-js-sdk.yml');
     expect(publish).not.toMatch(/npm run (?:build:split-packages|verify:browser|demo:examples:build)(?:\s|$)/);
   });
 });
