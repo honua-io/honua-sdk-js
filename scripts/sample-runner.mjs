@@ -149,6 +149,7 @@ export function parseRunnerArgs(argv) {
     kitOnly: false,
     dryRun: false,
     json: false,
+    qualificationBootstrapAlso: undefined,
   };
   let sdkModeSeen = false;
   for (let index = 1; index < argv.length; index += 1) {
@@ -160,9 +161,16 @@ export function parseRunnerArgs(argv) {
       options[key] = true;
       continue;
     }
-    if (!["--sample", "--track", "--sdk-mode", "--gate"].includes(flag)) fail(`unknown option: ${flag}`);
+    if (!["--sample", "--track", "--sdk-mode", "--gate", "--qualification-bootstrap-also"].includes(flag)) {
+      fail(`unknown option: ${flag}`);
+    }
     const value = parseFlagValue(argv, index, flag);
     index += 1;
+    if (flag === "--qualification-bootstrap-also") {
+      if (options.qualificationBootstrapAlso !== undefined) fail(`duplicate option: ${flag}`);
+      options.qualificationBootstrapAlso = value.split(",").map((id) => id.trim());
+      continue;
+    }
     const key = flag === "--sample" ? "sampleId" : flag === "--track" ? "track" : flag === "--gate" ? "gate" : "sdkMode";
     if (key === "sdkMode") {
       if (sdkModeSeen) fail(`duplicate option: ${flag}`);
@@ -180,6 +188,17 @@ export function parseRunnerArgs(argv) {
   if (options.allowLive && action !== "evidence") fail("--allow-live is only valid for evidence");
   if (["dev", "evidence"].includes(action) && !options.sampleId) fail(`${action} requires --sample`);
   if (options.kitOnly && ["dev", "evidence"].includes(action)) fail(`--kit is not supported by ${action}`);
+  if (options.qualificationBootstrapAlso) {
+    if (action !== "evidence" || options.gate !== undefined) {
+      fail("--qualification-bootstrap-also is only valid for a full evidence run (no --gate)");
+    }
+    if (options.qualificationBootstrapAlso.some((id) => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id))) {
+      fail("--qualification-bootstrap-also is invalid");
+    }
+    if (new Set(options.qualificationBootstrapAlso).size !== options.qualificationBootstrapAlso.length) {
+      fail("--qualification-bootstrap-also contains a duplicate sample id");
+    }
+  }
   return options;
 }
 
@@ -583,15 +602,38 @@ async function readInputs(options) {
     readFile(PACKAGE_PATH, "utf8").then(JSON.parse),
     import("./sample-contract.mjs"),
   ]);
-  const qualificationBootstrapSampleId =
+  const autoQualificationBootstrapSampleId =
     options.action === "evidence" &&
     options.gate === undefined &&
     catalog.samples.some((sample) => sample.id === options.sampleId && sample.track === "golden")
       ? options.sampleId
       : undefined;
+  if (options.qualificationBootstrapAlso && autoQualificationBootstrapSampleId === undefined) {
+    // `--sample` must itself derive a qualification bootstrap exemption (a
+    // full evidence run targeting a golden-track sample) before it can name
+    // other golden samples to exempt too. Without this, an evidence run for
+    // an unrelated, non-golden `--sample` could pass `--qualification-
+    // bootstrap-also` to exempt golden samples' receipt freshness without
+    // this run ever producing replacement receipts for them — a freshness-
+    // gate bypass (honua-io/honua-sdk-js#735).
+    fail(
+      `--qualification-bootstrap-also requires --sample to itself be a golden qualification bootstrap target ` +
+        `(a full evidence run for a golden-track sample); ${options.sampleId} is not, so this run cannot exempt ` +
+        "other golden samples' receipt freshness",
+    );
+  }
+  // `--qualification-bootstrap-also` names every other golden sample that is
+  // simultaneously being requalified against this exact source, alongside the
+  // single sample this invocation targets. Without it, only the one target is
+  // exempted, which is circular whenever more than one golden sample needs
+  // fresh receipts at once (honua-io/honua-sdk-js#735; see PR #653).
+  const qualificationBootstrapSampleIds = [
+    ...(autoQualificationBootstrapSampleId ? [autoQualificationBootstrapSampleId] : []),
+    ...(options.qualificationBootstrapAlso ?? []),
+  ];
   const relaxDerivedArtifacts = derivedArtifactsRelaxed();
   await contract.validateCatalog(catalog, packageJson, {
-    qualificationBootstrapSampleId,
+    qualificationBootstrapSampleId: qualificationBootstrapSampleIds.length > 0 ? qualificationBootstrapSampleIds : undefined,
     relaxDerivedArtifacts,
   });
   const expectedSelection = contract.generateCiSelection(catalog);

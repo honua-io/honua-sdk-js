@@ -1385,6 +1385,155 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     }
   });
 
+  it("bootstraps more than one golden sample against the same source without circular evidence dependencies", async () => {
+    // Regression coverage for honua-io/honua-sdk-js#735: the qualification
+    // bootstrap used to accept only one exempted sample id, so promoting (or
+    // resealing) a second golden sample while another already exists was
+    // circular — validating the catalog for either one required the other to
+    // already carry a fresh, digest-matching receipt set, which neither could
+    // produce first. See PR #653's "Scope note: golden-track promotion
+    // deferred" for the originally-encountered failure mode.
+    const packageJson = await readJson("package.json");
+    const expiresAt = new Date(new Date(validationTime.now).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const incidentEvidencePath = "test-results/qualification-bootstrap-incident-evidence.json";
+    const spatialEvidencePath = "test-results/qualification-bootstrap-spatial-evidence.json";
+
+    const promoteIncident = (catalog: any) => {
+      catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations").status =
+        "qualified";
+      const sample = catalog.samples.find(
+        (candidate: { id: string }) => candidate.id === "realtime-incident-dashboard",
+      );
+      sample.track = "golden";
+      sample.validationProfile = "golden-browser";
+      sample.evidence.live = {
+        mode: "demo-live",
+        status: "executed",
+        commands: ["npm run bench:live"],
+        evidencePath: incidentEvidencePath,
+        expiresAt,
+      };
+      return sample;
+    };
+
+    const promoteSpatialAnalytics = (catalog: any) => {
+      catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "cloud-native-analysis").status =
+        "qualified";
+      const sample = catalog.samples.find(
+        (candidate: { id: string }) => candidate.id === "spatial-analytics-workbench",
+      );
+      sample.track = "golden";
+      sample.validationProfile = "golden-browser";
+      sample.supportTier = "supported";
+      sample.lifecycle = { state: "active", reason: "Qualification bootstrap regression fixture." };
+      sample.evidence.live = {
+        mode: "demo-live",
+        status: "executed",
+        commands: ["npm run demo:spatial-analytics:live-evidence"],
+        evidencePath: spatialEvidencePath,
+        expiresAt,
+      };
+      return sample;
+    };
+
+    const buildCatalog = async () => {
+      const catalog = await readJson("samples/catalog.v2.json");
+      promoteIncident(catalog);
+      promoteSpatialAnalytics(catalog);
+      return catalog;
+    };
+
+    try {
+      await mkdir("test-results", { recursive: true });
+
+      const incidentEvidence = await readJson("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
+      incidentEvidence.status = "executed";
+      incidentEvidence.reason = null;
+      incidentEvidence.provenance = {
+        sourceId: "honua-demo:incident-realtime",
+        observedAt: incidentEvidence.observedAt,
+        validAt: null,
+        state: "live",
+        attribution: "Honua demo synthetic incident data",
+      };
+      incidentEvidence.semantics.outcome = "connected";
+      incidentEvidence.timing.totalMs = 1;
+      incidentEvidence.degradation = { state: "none", reasons: [] };
+      await writeFile(incidentEvidencePath, `${JSON.stringify(incidentEvidence, null, 2)}\n`);
+
+      const spatialEvidence = await readJson("examples/spatial-analytics-workbench/evidence/live-skipped.v1.json");
+      spatialEvidence.status = "executed";
+      spatialEvidence.reason = null;
+      spatialEvidence.sdk.gitCommit = "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b";
+      spatialEvidence.observedAt = validationTime.now;
+      spatialEvidence.provenance = {
+        sourceId: "honua-demo:spatial-analytics",
+        observedAt: spatialEvidence.observedAt,
+        validAt: null,
+        state: "live",
+        attribution: "Honua demo synthetic spatial analytics data",
+      };
+      spatialEvidence.semantics.outcome = "connected";
+      spatialEvidence.timing.totalMs = 1;
+      spatialEvidence.degradation = { state: "none", reasons: [] };
+      spatialEvidence.artifacts = [
+        {
+          kind: "producer-generator",
+          path: "examples/spatial-analytics-workbench/live-evidence.mjs",
+          sha256: "0".repeat(64),
+        },
+      ];
+      await writeFile(spatialEvidencePath, `${JSON.stringify(spatialEvidence, null, 2)}\n`);
+
+      const catalogOptions = { ...validationTime, verifyCheckout: false, relaxDerivedArtifacts: true };
+
+      // Neither newly-promoted golden sample has a qualification receipt set
+      // yet, and neither is exempted: both failures are named together in one
+      // actionable error (REQ-003) instead of surfacing only the first one
+      // encountered and sending an operator chasing the other one next.
+      await expect(validateCatalog(await buildCatalog(), packageJson, catalogOptions)).rejects.toThrow(
+        "qualification bootstrap circularity: golden sample qualification receipts for " +
+          "[realtime-incident-dashboard, spatial-analytics-workbench]",
+      );
+
+      // The single-target bootstrap can only ever exempt one sample: naming
+      // just spatial-analytics-workbench still blocks on
+      // realtime-incident-dashboard, which the current source cannot resolve
+      // (the exact circularity issue #735 reports), and the error is explicit
+      // about which sample still needs to be included.
+      await expect(
+        validateCatalog(await buildCatalog(), packageJson, {
+          ...catalogOptions,
+          qualificationBootstrapSampleId: "spatial-analytics-workbench",
+        }),
+      ).rejects.toThrow(
+        "qualification bootstrap circularity: golden sample qualification receipts for [realtime-incident-dashboard]",
+      );
+      await expect(
+        validateCatalog(await buildCatalog(), packageJson, {
+          ...catalogOptions,
+          qualificationBootstrapSampleId: "realtime-incident-dashboard",
+        }),
+      ).rejects.toThrow(
+        "qualification bootstrap circularity: golden sample qualification receipts for [spatial-analytics-workbench]",
+      );
+
+      // Naming every golden sample that needs fresh receipts against this
+      // exact source in one qualification bootstrap pass breaks the cycle
+      // (REQ-001): both a string-array and, for a single id, a bare string
+      // (REQ-002's backward-compatible byte-stable form) are accepted.
+      await expect(
+        validateCatalog(await buildCatalog(), packageJson, {
+          ...catalogOptions,
+          qualificationBootstrapSampleId: ["realtime-incident-dashboard", "spatial-analytics-workbench"],
+        }),
+      ).resolves.toBeUndefined();
+    } finally {
+      await rm(incidentEvidencePath, { force: true });
+      await rm(spatialEvidencePath, { force: true });
+    }
+  });
+
   it("uses one credential-safe evidence envelope for fixture, live, and unavailable lanes", async () => {
     for (const name of ["fixture", "live", "skipped"]) {
       const evidence = await readJson(`samples/contract/v1/fixtures/sample-evidence.${name}.json`);

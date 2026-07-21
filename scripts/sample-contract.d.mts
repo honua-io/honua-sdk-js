@@ -294,12 +294,16 @@ export function validateCatalog(
   packageJson: Record<string, unknown>,
   options?: {
     now?: string;
-    qualificationBootstrapSampleId?: string;
+    // A single golden sample id, or an array of them, to exempt from
+    // requiring an already-fresh qualification receipt set for this call.
+    // Supports promoting or resealing more than one golden sample against
+    // the same source without the single-target bootstrap becoming
+    // circular (honua-io/honua-sdk-js#735).
+    qualificationBootstrapSampleId?: string | string[];
     sourceRevision?: string;
     receiptRoot?: string;
     verifyCheckout?: boolean;
     relaxDerivedArtifacts?: boolean;
-    qualificationBootstrapSampleId?: string;
   },
 ): Promise<void>;
 export function effectiveCatalog(

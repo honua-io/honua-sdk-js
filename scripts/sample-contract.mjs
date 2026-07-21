@@ -381,6 +381,20 @@ function invariant(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+// Accepts either a single sample id or an array of them, so a qualification
+// pass can bootstrap-exempt every golden sample that simultaneously needs
+// fresh receipts against the current source (see `validateCatalog`'s golden
+// sample loop). A lone string keeps existing single-sample callers unchanged.
+function normalizeQualificationBootstrapSampleIds(value) {
+  const ids = new Set();
+  const values = value === undefined ? [] : Array.isArray(value) ? value : [value];
+  for (const id of values) {
+    invariant(typeof id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id), "qualification bootstrap sample id is invalid");
+    ids.add(id);
+  }
+  return ids;
+}
+
 function sortedUnique(values, label) {
   invariant(Array.isArray(values) && values.length > 0, `${label} must be a non-empty array`);
   const sorted = [...values].sort();
@@ -2696,11 +2710,7 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
 }
 
 export async function validateCatalog(catalog, packageJson, options = {}) {
-  invariant(
-    options.qualificationBootstrapSampleId === undefined ||
-      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(options.qualificationBootstrapSampleId),
-    "qualification bootstrap sample id is invalid",
-  );
+  const qualificationBootstrapSampleIds = normalizeQualificationBootstrapSampleIds(options.qualificationBootstrapSampleId);
   validateSensitiveMetadata(catalog, "catalog");
   await validateJsonSchema(catalog, CATALOG_SCHEMA_PATH);
   await validateFixtureBuildHarnesses();
@@ -3040,16 +3050,24 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
 
   const goldenSamples = catalog.samples.filter((sample) => sample.track === "golden");
   const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
-  invariant(
-    options.qualificationBootstrapSampleId === undefined ||
-      goldenSamples.some((sample) => sample.id === options.qualificationBootstrapSampleId),
-    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
-  );
-  let qualificationBootstrapConsumed = false;
+  for (const bootstrapId of qualificationBootstrapSampleIds) {
+    invariant(
+      goldenSamples.some((sample) => sample.id === bootstrapId),
+      `${bootstrapId}: qualification bootstrap requires a qualified golden sample`,
+    );
+  }
+  const qualificationBootstrapConsumed = new Set();
   invariant(
     goldenSamples.length === qualifiedJourneys.length,
     "golden sample count must match the qualified journey count",
   );
+  // Receipt-freshness failures are collected rather than thrown immediately so
+  // that promoting (or resealing) more than one golden sample against the same
+  // source surfaces every simultaneously-stale sample in one actionable error
+  // instead of failing on the first one, sending an operator back and forth
+  // between single-sample bootstrap attempts that can never both succeed (see
+  // PR #653 and issue #735).
+  const receiptFailures = [];
   for (const sample of goldenSamples) {
     const profile = qualityProfiles.get(sample.validationProfile);
     invariant(sample.supportTier === "supported", `${sample.id}: golden samples must be supported`);
@@ -3070,24 +3088,49 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
       },
     };
-    if (options.qualificationBootstrapSampleId === sample.id) {
-      qualificationBootstrapConsumed = true;
+    if (qualificationBootstrapSampleIds.has(sample.id)) {
+      qualificationBootstrapConsumed.add(sample.id);
       continue;
     }
-    await validateQualificationReceiptSet({
-      sample: selectedSample,
-      profile,
-      expectedCommand: expectedGateCommand,
-      receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, "samples/evidence")),
-      now: new Date(currentTime).toISOString(),
-      projectRoot: PROJECT_ROOT,
-      verifyCheckout: options.verifyCheckout,
-    });
+    try {
+      await validateQualificationReceiptSet({
+        sample: selectedSample,
+        profile,
+        expectedCommand: expectedGateCommand,
+        receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, "samples/evidence")),
+        now: new Date(currentTime).toISOString(),
+        projectRoot: PROJECT_ROOT,
+        verifyCheckout: options.verifyCheckout,
+      });
+    } catch (error) {
+      receiptFailures.push({ sampleId: sample.id, error });
+    }
   }
-  invariant(
-    options.qualificationBootstrapSampleId === undefined || qualificationBootstrapConsumed,
-    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
-  );
+  for (const bootstrapId of qualificationBootstrapSampleIds) {
+    invariant(
+      qualificationBootstrapConsumed.has(bootstrapId),
+      `${bootstrapId}: qualification bootstrap requires a qualified golden sample`,
+    );
+  }
+  if (receiptFailures.length === 1 && qualificationBootstrapSampleIds.size === 0) {
+    // No qualification bootstrap is active: preserve the exact historical
+    // single-sample error for byte-stable behavior (issue #735 REQ-002).
+    throw receiptFailures[0].error;
+  }
+  if (receiptFailures.length > 0) {
+    const staleSampleIds = receiptFailures.map((failure) => failure.sampleId).sort();
+    const exemptedSampleIds = [...qualificationBootstrapSampleIds].sort();
+    const underlying = receiptFailures
+      .map((failure) => `${failure.sampleId}: ${failure.error instanceof Error ? failure.error.message : String(failure.error)}`)
+      .join("; ");
+    throw new Error(
+      `qualification bootstrap circularity: golden sample qualification receipts for [${staleSampleIds.join(", ")}] do not ` +
+        `match the current source at the same time as the qualification bootstrap exemption [${exemptedSampleIds.join(", ") || "none"}]. ` +
+        "Every golden sample that needs fresh receipts against this exact source must be named in one qualification bootstrap " +
+        "pass together, or resealed one at a time before promoting another sample, to break the cycle. " +
+        `Underlying failures: ${underlying}`,
+    );
+  }
 
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
