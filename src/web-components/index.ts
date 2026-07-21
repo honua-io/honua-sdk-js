@@ -32,7 +32,16 @@
  * @module
  */
 
-import "./elements.js";
+import { defineHonuaWebComponents } from "./elements.js";
+
+// The blanket auto-registration side effect lives here, not in `./elements.js`
+// (issue #679 PR review): `./elements.js` must stay side-effect-free on
+// import so `../controls/registry.js` can dynamically `import()` it to
+// register one tag without also claiming every tag the kit owns. This is
+// every existing `@honua/sdk-js/web-components` consumer's actual entry
+// point, so the observable behavior — importing this module registers all 16
+// tags when a `customElements` registry is present — is unchanged.
+defineHonuaWebComponents();
 
 export {
   HonuaInMemoryWebComponentController,

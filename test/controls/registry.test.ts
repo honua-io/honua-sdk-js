@@ -153,7 +153,39 @@ describe("registerComponent / registerComponents", () => {
     const registry = createComponentRegistry();
     await registerComponent("web-components.chart", { registry });
     expect(registry.get("honua-chart")).toBeDefined();
-    expect(registry.get("honua-map")).toBeUndefined();
+    // Every other tag the web-components kit owns — the lazy `elements.js`
+    // import must not have run the kit's blanket auto-registration as a side
+    // effect of registering just this one (issue #679 PR review: `elements.js`
+    // must stay side-effect-free on import so this stays true).
+    const otherTags = [...new Set(HONUA_COMPONENT_CATALOG.map((entry) => entry.tag))].filter(
+      (tag) => tag !== "honua-chart",
+    );
+    for (const tag of otherTags) {
+      expect(registry.get(tag), `expected "${tag}" to remain unregistered`).toBeUndefined();
+    }
+  });
+
+  test("registering a single web-components id does not claim either contested tag", async () => {
+    const registry = createComponentRegistry();
+    await registerComponent("web-components.feature-table", { registry });
+    expect(registry.get("honua-legend")).toBeUndefined();
+    expect(registry.get("honua-layer-list")).toBeUndefined();
+  });
+
+  test("importing the web-components element module directly registers nothing (side-effect-free)", async () => {
+    const elements = await import("../../src/web-components/elements.js");
+    const registry = createComponentRegistry();
+    // Merely importing the module (already happened, above, and by every
+    // other test file in this process) must never have populated the global
+    // registry or any fresh isolated registry on its own; only calling
+    // `defineHonuaWebComponents` / `defineHonuaWebComponent` does.
+    for (const tag of new Set(
+      HONUA_COMPONENT_CATALOG.filter((entry) => entry.source === "web-components").map((entry) => entry.tag),
+    )) {
+      expect(registry.get(tag)).toBeUndefined();
+    }
+    expect(typeof elements.defineHonuaWebComponents).toBe("function");
+    expect(typeof elements.defineHonuaWebComponent).toBe("function");
   });
 
   test("registers the non-canonical (opt-in) controls implementation of a contested tag when named explicitly", async () => {

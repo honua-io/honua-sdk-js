@@ -16,6 +16,21 @@
  * `controls`-only bundle. That dependency is only paid the first time a
  * caller actually registers a `web-components`-sourced tag.
  *
+ * Critically, `web-components/elements.js` is itself side-effect-free on
+ * import — it defines the element classes, the tag→constructor lookup, and
+ * `defineHonuaWebComponent(tag)` / `defineHonuaWebComponents()`, but does not
+ * call either. (The blanket auto-registration existing
+ * `@honua/sdk-js/web-components` consumers rely on lives in
+ * `web-components/index.js`, which calls `defineHonuaWebComponents()`
+ * explicitly.) Without that separation, this module's dynamic import would
+ * evaluate `elements.js` and its auto-run would claim every tag the kit
+ * owns — including contested tags — as a side effect of registering just
+ * one, which a Rollup/Vite production build can also reorder *earlier* than
+ * intended when the dynamic import target is merged into the same chunk as a
+ * sibling static import of `@honua/sdk-js/web-components` (issue #679 PR
+ * review; this combination was the root cause of a real ordering bug in the
+ * `web-components-basic` sample before this module existed).
+ *
  * Because both the synchronous and dynamic paths funnel through the exact
  * same catalog + `defineIfMissing`-style guards the two kits already use,
  * calling these functions is deterministic and idempotent regardless of how
@@ -69,6 +84,8 @@ async function registerWebComponentsEntry(
   entry: HonuaComponentCatalogEntry,
   registry: HonuaComponentRegistry | undefined,
 ): Promise<void> {
+  // `elements.js` is side-effect-free (see the module doc above); this only
+  // ever defines `entry.tag`, never the other 15 tags the kit owns.
   const webComponents = await import("../web-components/elements.js");
   webComponents.defineHonuaWebComponent(entry.tag, registry as CustomElementRegistry | undefined);
 }
