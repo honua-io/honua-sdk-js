@@ -8,13 +8,49 @@
   "reason": null,
   "observedAt": "2026-01-01T00:01:00.000Z",
   "authMode": "anonymous",
-  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "1111111111111111111111111111111111111111" },
-  "source": { "provider": "honua-demo", "identity": "demo-incidents", "endpoint": "https://demo.honua.io/ogc/features", "deploymentVersion": "demo-v1", "dataVersion": "incident-seed-v1" },
-  "provenance": { "sourceId": "honua-demo:demo-incidents", "observedAt": "2026-01-01T00:01:00.000Z", "validAt": "2026-01-01T00:00:59.000Z", "state": "live", "attribution": "Honua demo synthetic incident data" },
-  "semantics": { "operation": "snapshot-and-deltas", "outcome": "snapshot-reconciled", "itemCount": 12, "assertions": ["no-duplicate-deltas", "reconnect-preserved-cursor"] },
-  "timing": { "totalMs": 850, "firstSuccessfulInteractionMs": 410 },
-  "degradation": { "state": "none", "reasons": [] },
-  "realtime": { "snapshotAt": "2026-01-01T00:00:59.000Z", "cursor": "redacted-stable-cursor", "lagMs": 1000, "observationWindowMs": 60000, "reconnectOutcome": "resumed" },
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.1-beta.0",
+    "gitCommit": "1111111111111111111111111111111111111111"
+  },
+  "source": {
+    "provider": "honua-demo",
+    "identity": "demo-incidents",
+    "endpoint": "https://demo.honua.io/ogc/features",
+    "deploymentVersion": "demo-v1",
+    "dataVersion": "incident-seed-v1"
+  },
+  "provenance": {
+    "sourceId": "honua-demo:demo-incidents",
+    "observedAt": "2026-01-01T00:01:00.000Z",
+    "validAt": "2026-01-01T00:00:59.000Z",
+    "state": "live",
+    "attribution": "Honua demo synthetic incident data"
+  },
+  "semantics": {
+    "operation": "snapshot-and-deltas",
+    "outcome": "snapshot-reconciled",
+    "itemCount": 12,
+    "assertions": [
+      "no-duplicate-deltas",
+      "reconnect-preserved-cursor"
+    ]
+  },
+  "timing": {
+    "totalMs": 850,
+    "firstSuccessfulInteractionMs": 410
+  },
+  "degradation": {
+    "state": "none",
+    "reasons": []
+  },
+  "realtime": {
+    "snapshotAt": "2026-01-01T00:00:59.000Z",
+    "cursor": "redacted-stable-cursor",
+    "lagMs": 1000,
+    "observationWindowMs": 60000,
+    "reconnectOutcome": "resumed"
+  },
   "artifacts": [
     {
       "kind": "producer-generator",
