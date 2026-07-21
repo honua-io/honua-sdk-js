@@ -460,10 +460,17 @@ export interface SourceAnalyticsCapabilities {
  * Canonical descriptor for one protocol-backed data source. Carries
  * everything required to construct a `Source`, negotiate capabilities, and
  * project the source onto a server `SourceBinding`.
+ *
+ * Generic over `TProtocol` (defaulting to the built-in {@link Protocol}
+ * union) so a third-party `ProtocolModule<TKind>`
+ * (`src/contract/protocol-module.ts`, issue #671) can type a descriptor
+ * carrying its own custom protocol id — e.g. `SourceDescriptor<"cloud-tiles">`
+ * — without widening every built-in call site that still expects
+ * `descriptor.protocol` to be a `Protocol`.
  */
-export interface SourceDescriptor {
+export interface SourceDescriptor<TProtocol extends string = Protocol> {
   id: SourceId;
-  protocol: Protocol;
+  protocol: TProtocol;
   locator: SourceLocator;
   capabilities: Capabilities;
   schema?: SourceSchema;
