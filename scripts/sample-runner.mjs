@@ -608,6 +608,20 @@ async function readInputs(options) {
     catalog.samples.some((sample) => sample.id === options.sampleId && sample.track === "golden")
       ? options.sampleId
       : undefined;
+  if (options.qualificationBootstrapAlso && autoQualificationBootstrapSampleId === undefined) {
+    // `--sample` must itself derive a qualification bootstrap exemption (a
+    // full evidence run targeting a golden-track sample) before it can name
+    // other golden samples to exempt too. Without this, an evidence run for
+    // an unrelated, non-golden `--sample` could pass `--qualification-
+    // bootstrap-also` to exempt golden samples' receipt freshness without
+    // this run ever producing replacement receipts for them — a freshness-
+    // gate bypass (honua-io/honua-sdk-js#735).
+    fail(
+      `--qualification-bootstrap-also requires --sample to itself be a golden qualification bootstrap target ` +
+        `(a full evidence run for a golden-track sample); ${options.sampleId} is not, so this run cannot exempt ` +
+        "other golden samples' receipt freshness",
+    );
+  }
   // `--qualification-bootstrap-also` names every other golden sample that is
   // simultaneously being requalified against this exact source, alongside the
   // single sample this invocation targets. Without it, only the one target is

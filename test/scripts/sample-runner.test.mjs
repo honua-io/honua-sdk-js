@@ -384,6 +384,52 @@ test("qualification bootstrap accepts every simultaneously-stale golden sample, 
   );
 });
 
+test("qualification bootstrap also is rejected unless --sample itself derives a golden bootstrap exemption", () => {
+  // `--sample` is not a golden-track catalog sample, so it derives no
+  // qualification bootstrap of its own: `--qualification-bootstrap-also`
+  // would otherwise let an unrelated, non-bootstrap evidence run exempt
+  // golden samples' receipt freshness without producing any replacement
+  // receipts for them (a freshness-gate bypass fixed for #735).
+  const rejected = spawnSync(
+    process.execPath,
+    [
+      "scripts/sample-runner.mjs",
+      "evidence",
+      "--sample",
+      "realtime-incident-dashboard",
+      "--dry-run",
+      "--qualification-bootstrap-also",
+      "maplibre-quickstart",
+    ],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+  assert.notEqual(rejected.status, 0);
+  assert.match(
+    rejected.stderr,
+    /--qualification-bootstrap-also requires --sample to itself be a golden qualification bootstrap target/,
+  );
+  assert.match(rejected.stderr, /realtime-incident-dashboard is not/);
+
+  // A `--sample` that is itself a golden bootstrap target (a full evidence
+  // run for a golden-track sample, no --gate) is accepted by this guard: any
+  // later failure must come from catalog/receipt validation, never from the
+  // guard added here.
+  const accepted = spawnSync(
+    process.execPath,
+    [
+      "scripts/sample-runner.mjs",
+      "evidence",
+      "--sample",
+      "maplibre-quickstart",
+      "--dry-run",
+      "--qualification-bootstrap-also",
+      "realtime-incident-dashboard",
+    ],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+  assert.doesNotMatch(accepted.stderr, /--qualification-bootstrap-also requires --sample to itself be/);
+});
+
 test("npm evidence commands suppress lifecycle hooks without changing their reviewed argv", () => {
   const executable = process.platform === "win32" ? "npm.cmd" : "npm";
   assert.deepEqual(commandForSpawn(["npm", "run", "bench:live", "--", "--sample", "safe-sample"]), [
