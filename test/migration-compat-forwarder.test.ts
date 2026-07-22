@@ -40,10 +40,26 @@ describe("legacy JavaScript migration forwarders", () => {
   it("keeps all SDK migration npm scripts on the compatibility runner", () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8")) as {
       dependencies?: Record<string, string>;
+      files?: string[];
       scripts?: Record<string, string>;
     };
+    const lock = JSON.parse(fs.readFileSync(path.join(projectRoot, "package-lock.json"), "utf8")) as {
+      packages?: Record<
+        string,
+        { dependencies?: Record<string, string>; version?: string; bin?: Record<string, string> }
+      >;
+    };
 
-    expect(manifest.dependencies?.["@honua/honua-migrate"]).toBeDefined();
+    expect(manifest.dependencies?.["@honua/honua-migrate"]).toBe("0.1.3-beta.0");
+    expect(manifest.files).toContain("scripts/run-legacy-migration-cli.mjs");
+    expect(manifest.scripts?.["verify:migration-forwarder-tarball"]).toContain(
+      "verify-migration-forwarder-tarball.mjs",
+    );
+    expect(lock.packages?.[""]?.dependencies?.["@honua/honua-migrate"]).toBe("0.1.3-beta.0");
+    expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.version).toBe("0.1.3-beta.0");
+    expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.bin).toEqual({
+      "honua-js-migrate": "dist/migration/cli.js",
+    });
     for (const script of ["scan:arcgis", "scan:arcgis:widgets", "migrate:arcgis"]) {
       expect(manifest.scripts?.[script]).toContain("run-legacy-migration-cli.mjs");
     }

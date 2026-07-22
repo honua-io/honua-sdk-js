@@ -284,6 +284,7 @@
     "sdk-coverage:check": "node --test test/scripts/sdk-coverage.test.mjs && node scripts/sdk-coverage.mjs check",
     "verify:root-surface": "npm run prepare:test-sdk --silent && node scripts/root-surface.mjs --check && tsc -p test/root-surface/tsconfig.json --noEmit",
     "verify:root-surface:prepared": "npm run prepare:test-sdk:already --silent && node scripts/root-surface.mjs --check && tsc -p test/root-surface/tsconfig.json --noEmit",
+    "verify:migration-forwarder-tarball": "node scripts/verify-migration-forwarder-tarball.mjs",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat",
     "typecheck": "tsc --noEmit",
     "docs:api": "node scripts/docs-api.mjs",
@@ -586,7 +587,7 @@
     "eval:coding-agents:self-test": "npm run build --silent && node scripts/eval-coding-agents.mjs --variant known-bad --expect-fail"
   },
   "dependencies": {
-    "@honua/honua-migrate": "^0.1.2-beta.0",
+    "@honua/honua-migrate": "0.1.3-beta.0",
     "@maplibre/maplibre-gl-style-spec": "^24.7.0"
   },
   "devDependencies": {
@@ -645,6 +646,7 @@
   "files": [
     "dist/src",
     "dist/browser",
+    "scripts/run-legacy-migration-cli.mjs",
     "config/public-surface.json",
     "config/support-manifest.v1.json",
     "config/support-manifest.schema.json",
