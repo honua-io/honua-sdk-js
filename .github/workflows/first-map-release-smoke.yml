@@ -67,7 +67,14 @@ jobs:
     env:
       HONUA_FIRST_MAP_RELEASE_MATRIX: "true"
     steps:
+      # Full history: strict sample verification resolves the receipt's
+      # sourceRevision (a regeneration-chain commit, never the trunk tip), so a
+      # depth-1 clone fails with "source revision does not name an existing
+      # commit". publish-js-sdk.yml checks out with full history for the same
+      # reason.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
