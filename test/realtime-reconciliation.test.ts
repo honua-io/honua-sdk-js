@@ -221,6 +221,13 @@ describe("createRealtimeReconciler (REQ-004 bounded patch queue / rebuild policy
     expect(result.reset).toBe(false);
     expect(result.pendingPatchCount).toBe(0);
     expect(reconciler.pendingPatchCount).toBe(0);
+    // A rebuild consumer re-materializes wholesale from `changes`, so a
+    // non-reset rebuild must carry the full accepted store as creates.
+    expect(result.changes.map((change) => [change.kind, change.id])).toEqual([
+      ["create", "f1"],
+      ["create", "f2"],
+      ["create", "f3"],
+    ]);
   });
 
   it("switches to rebuild once the cumulative pending-patch queue crosses rebuildThreshold", () => {
@@ -239,6 +246,15 @@ describe("createRealtimeReconciler (REQ-004 bounded patch queue / rebuild policy
     expect(results[3].rebuildReason).toBe("queue-threshold-exceeded");
     expect(results[3].pendingPatchCount).toBe(0);
     expect(results[4].pendingPatchCount).toBe(1);
+    // The threshold rebuild carries the whole store (f0..f3), not just the
+    // 4th event's single upsert — see the non-reset-rebuild contract on
+    // RealtimeReconciliationResult.changes.
+    expect(results[3].changes.map((change) => [change.kind, change.id])).toEqual([
+      ["create", "f0"],
+      ["create", "f1"],
+      ["create", "f2"],
+      ["create", "f3"],
+    ]);
   });
 
   it("treats a reset trigger as an immediate rebuild and clears the pending queue", () => {
@@ -331,6 +347,39 @@ describe("createRealtimeReconciledCache (REQ-002 cache identity consistency)", (
     expect(cache.snapshot().features).toEqual([{ status: "1-updated" }, { status: "2" }]);
     apply(deleteEvent("b", 4));
     expect(cache.snapshot().features).toEqual([{ status: "1-updated" }]);
+  });
+
+  it("retains live features untouched by the triggering event across a non-reset rebuild", () => {
+    const reconciler = createRealtimeReconciler<Widget>({ maxChangesPerEvent: 2, rebuildThreshold: 100 });
+    const cache = createRealtimeReconciledCache<Widget>();
+    let state = emptyRealtimeFeatureState<Widget>();
+    const apply = (event: RealtimeFeatureEvent<Widget>) => {
+      const next = reduceRealtimeFeatureState(state, event);
+      cache.apply(reconciler.reconcile(state, next, { kind: "event", event }));
+      state = next;
+    };
+    apply(upsertEvent("a", "live", 1));
+    apply(upsertEvent("b", "live", 2));
+    // Oversized delta (3 changes > maxChangesPerEvent 2) forces a non-reset
+    // rebuild; a and b were not part of the event but must survive it.
+    apply({
+      type: "delta",
+      upserts: [
+        { id: "c", feature: { status: "new" } },
+        { id: "d", feature: { status: "new" } },
+      ],
+      deletes: [{ id: "b" }],
+      sequence: 3,
+    });
+    expect(new Set(cache.snapshot().features.map((feature) => feature.status))).toEqual(new Set(["live", "new"]));
+    expect(cache.snapshot().features).toHaveLength(Object.keys(state.records).length);
+    expect(Object.keys(state.records).sort()).toEqual(
+      [
+        realtimeFeatureKey(undefined, "a"),
+        realtimeFeatureKey(undefined, "c"),
+        realtimeFeatureKey(undefined, "d"),
+      ].sort(),
+    );
   });
 
   it("disposal: a disposed cache receives no further patches", () => {

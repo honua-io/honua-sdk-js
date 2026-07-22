@@ -265,6 +265,13 @@ export type RealtimeReconciliationRebuildReason = "reset" | "event-exceeds-patch
 export interface RealtimeReconciliationResult<TFeature = unknown> {
   readonly mode: RealtimeReconciliationMode;
   readonly rebuildReason?: RealtimeReconciliationRebuildReason;
+  /**
+   * For `"patch"`, the transition's incremental changes. For `"rebuild"`,
+   * always the full accepted store as `"create"` changes (plus the triggering
+   * event's `"delete"` changes on a non-reset rebuild), so a derived cache can
+   * re-materialize wholesale from the result alone without dropping live
+   * features that were not part of the triggering event.
+   */
   readonly changes: readonly RealtimeReconciliationChange<TFeature>[];
   readonly version: RealtimeReconciliationVersion;
   readonly reset: boolean;
@@ -347,7 +354,7 @@ export function createRealtimeReconciler<TFeature = unknown>(
         return freezeResult({
           mode: "rebuild",
           rebuildReason: "event-exceeds-patch-bound",
-          changes: diff.changes,
+          changes: nonResetRebuildChanges(next, diff.changes),
           version,
           reset: false,
           pendingPatchCount: 0,
@@ -355,12 +362,11 @@ export function createRealtimeReconciler<TFeature = unknown>(
       }
       pending += diff.changes.length;
       if (pending > rebuildThreshold) {
-        const changes = diff.changes;
         pending = 0;
         return freezeResult({
           mode: "rebuild",
           rebuildReason: "queue-threshold-exceeded",
-          changes,
+          changes: nonResetRebuildChanges(next, diff.changes),
           version,
           reset: false,
           pendingPatchCount: 0,
@@ -379,6 +385,19 @@ export function createRealtimeReconciler<TFeature = unknown>(
       pending = 0;
     },
   };
+}
+
+// A rebuild consumer (createRealtimeReconciledCache.apply, a mounted source's
+// re-materialization path) treats `changes` as the complete replacement state,
+// so a non-reset rebuild must carry the full accepted store — the triggering
+// event's diff alone would drop every live feature outside that one event. The
+// event's deletes ride along so identity-keyed state (selection, filter
+// membership) can still invalidate exactly what this transition removed.
+function nonResetRebuildChanges<TFeature>(
+  next: RealtimeFeatureState<TFeature>,
+  eventChanges: readonly RealtimeReconciliationChange<TFeature>[],
+): readonly RealtimeReconciliationChange<TFeature>[] {
+  return Object.freeze([...recordsAsCreateChanges(next), ...eventChanges.filter((change) => change.kind === "delete")]);
 }
 
 function freezeResult<TFeature>(

@@ -113,7 +113,10 @@ export function attachRealtimeReconciliationToMapLibre(
 
   const applyChange = (change: RealtimeReconciliationChange<unknown>): void => {
     if (change.kind === "delete") {
-      map.removeFeatureState?.(target(change.id));
+      // Scope the removal to the one key this adapter owns: a keyless
+      // removeFeatureState clears the feature's entire state, wiping
+      // hover/selection/custom UI state other code set on the same source.
+      map.removeFeatureState?.(target(change.id), statusStateKey);
       return;
     }
     map.setFeatureState?.(target(change.id), { [statusStateKey]: change.kind });

@@ -25,9 +25,20 @@ class FakeMapLibreMap implements RealtimeReconciliationMapLibreMap {
     this.featureState.set(key, { ...this.featureState.get(key), ...state });
   }
 
-  removeFeatureState(target: { source: string; id: string | number; sourceLayer?: string }): void {
-    this.removedKeys.push(this.key(target.id, target.sourceLayer));
-    this.featureState.delete(this.key(target.id, target.sourceLayer));
+  // Mirrors MapLibre semantics: with a state key, only that key is cleared;
+  // without one, the feature's entire state is dropped.
+  removeFeatureState(target: { source: string; id: string | number; sourceLayer?: string }, stateKey?: string): void {
+    const key = this.key(target.id, target.sourceLayer);
+    this.removedKeys.push(stateKey === undefined ? key : `${key}[${stateKey}]`);
+    if (stateKey === undefined) {
+      this.featureState.delete(key);
+      return;
+    }
+    const state = this.featureState.get(key);
+    if (!state) return;
+    const { [stateKey]: _removed, ...rest } = state;
+    if (Object.keys(rest).length === 0) this.featureState.delete(key);
+    else this.featureState.set(key, rest);
   }
 }
 
@@ -55,13 +66,23 @@ describe("attachRealtimeReconciliationToMapLibre (REQ-005 renderer adapter)", ()
     expect(rebuild).not.toHaveBeenCalled();
   });
 
-  it("applies delete changes as removeFeatureState in patch mode", () => {
+  it("applies delete changes as a removeFeatureState scoped to the status key in patch mode", () => {
     const map = new FakeMapLibreMap();
     const adapter = attachRealtimeReconciliationToMapLibre(map, { sourceId: "parcels", rebuild: vi.fn() });
     adapter.apply(patchResult([{ kind: "create", key: "k1", id: "f1" }]));
     adapter.apply(patchResult([{ kind: "delete", key: "k1", id: "f1" }]));
-    expect(map.removedKeys).toEqual([":f1"]);
+    expect(map.removedKeys).toEqual([":f1[realtimeStatus]"]);
     expect(map.featureState.has(":f1")).toBe(false);
+  });
+
+  it("delete removes only the adapter-owned status key, preserving unrelated feature state", () => {
+    const map = new FakeMapLibreMap();
+    const adapter = attachRealtimeReconciliationToMapLibre(map, { sourceId: "parcels", rebuild: vi.fn() });
+    adapter.apply(patchResult([{ kind: "create", key: "k1", id: "f1" }]));
+    // Hover/selection state set by other code on the same source and feature.
+    map.setFeatureState({ source: "parcels", id: "f1" }, { hover: true });
+    adapter.apply(patchResult([{ kind: "delete", key: "k1", id: "f1" }]));
+    expect(map.featureState.get(":f1")).toEqual({ hover: true });
   });
 
   it("honors a custom statusStateKey and sourceLayer target", () => {
@@ -134,7 +155,7 @@ describe("attachRealtimeReconciliationToMapLibre (REQ-005 renderer adapter)", ()
     apply({ type: "upsert", feature: { id: "f1", feature: { status: "closed" } }, sequence: 2 });
     apply({ type: "delete", id: "f1", sequence: 3 });
 
-    expect(map.removedKeys).toEqual([":f1"]);
+    expect(map.removedKeys).toEqual([":f1[realtimeStatus]"]);
     expect(map.featureState.has(":f1")).toBe(false);
     expect(rebuild).not.toHaveBeenCalled();
   });
