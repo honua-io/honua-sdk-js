@@ -392,6 +392,18 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Realtime delivery reached a terminal failure",
   ),
+  "realtime.reconciliation.disposed": classification(
+    "realtime",
+    "validation",
+    false,
+    "Realtime reconciliation controller, cache, or adapter is disposed",
+  ),
+  "realtime.reconciliation.invalid-option": classification(
+    "realtime",
+    "validation",
+    false,
+    "Realtime reconciliation option is invalid",
+  ),
   "offline.region.validation": classification(
     "offline",
     "validation",
