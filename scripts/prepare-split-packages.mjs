@@ -537,6 +537,10 @@ function createReactPackage() {
     "map",
     "query-planner",
     "react",
+    // map/realtime-reconciliation-adapter.js (issue #559) imports the
+    // renderer-neutral reconciliation core, so the map stack's closure now
+    // includes realtime.
+    "realtime",
     "runtime",
     "studio",
     "style",
