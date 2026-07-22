@@ -370,7 +370,7 @@ honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o m
 
 Authentication resolves from `--api-key`, `HONUA_API_KEY`, or a saved
 `honua login`. Run `honua --help` for the full command surface. This is the
-recommended replacement for `curl` in docs and demos.
+recommended command surface for docs and demos.
 
 For support-safe interoperability evidence, `honua doctor` emits a local,
 schema-validated diagnostic bundle with explicit classification/consent,
