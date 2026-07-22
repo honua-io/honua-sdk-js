@@ -100,6 +100,7 @@ try {
   assert.equal(installedMigrate.repository?.directory, "packages/javascript");
   assert.equal(installedMigrate.homepage, "https://github.com/honua-io/honua-migrate#readme");
   assert.equal(installedMigrate.bugs?.url, "https://github.com/honua-io/honua-migrate/issues");
+  assert.equal(installedMigrate.engines?.node, ">=20.19.0");
   assert.ok(fs.existsSync(path.join(installedSdkRoot, "scripts", "run-legacy-migration-cli.mjs")));
 
   const lock = readJson(path.join(consumerRoot, "package-lock.json"));

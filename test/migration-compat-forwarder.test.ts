@@ -46,7 +46,12 @@ describe("legacy JavaScript migration forwarders", () => {
     const lock = JSON.parse(fs.readFileSync(path.join(projectRoot, "package-lock.json"), "utf8")) as {
       packages?: Record<
         string,
-        { dependencies?: Record<string, string>; version?: string; bin?: Record<string, string> }
+        {
+          dependencies?: Record<string, string>;
+          version?: string;
+          bin?: Record<string, string>;
+          engines?: { node?: string };
+        }
       >;
     };
 
@@ -60,6 +65,9 @@ describe("legacy JavaScript migration forwarders", () => {
     expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.bin).toEqual({
       "honua-js-migrate": "dist/migration/cli.js",
     });
+    expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.engines?.node).toBe(">=20.19.0");
+    expect(lock.packages?.["node_modules/@honua/sdk"]?.version).toBe("0.1.2-beta.0");
+    expect(lock.packages?.["node_modules/@honua/sdk-esri-compat"]?.version).toBe("0.1.2-beta.0");
     for (const script of ["scan:arcgis", "scan:arcgis:widgets", "migrate:arcgis"]) {
       expect(manifest.scripts?.[script]).toContain("run-legacy-migration-cli.mjs");
     }
