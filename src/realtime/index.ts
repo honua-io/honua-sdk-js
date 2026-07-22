@@ -108,6 +108,35 @@ export type {
 } from "./resumable-transport.js";
 export { filterRealtimeSelection, reconcileRealtimeSelection } from "./exploration.js";
 export {
+  HonuaRealtimeReconciliationError,
+  createRealtimeReconciledCache,
+  createRealtimeReconciler,
+  diffRealtimeFeatureState,
+  realtimeReconciliationVersion,
+  reconcileRealtimeKeyedState,
+  reconcileRealtimeViewport,
+} from "./reconciliation.js";
+export type {
+  RealtimeKeyedStateReconciliation,
+  RealtimeReconciledCache,
+  RealtimeReconciledCacheSnapshot,
+  RealtimeReconciler,
+  RealtimeReconcilerOptions,
+  RealtimeReconciliationChange,
+  RealtimeReconciliationChangeKind,
+  RealtimeReconciliationDiff,
+  RealtimeReconciliationErrorCode,
+  RealtimeReconciliationInvalidation,
+  RealtimeReconciliationInvalidationReason,
+  RealtimeReconciliationMode,
+  RealtimeReconciliationRebuildReason,
+  RealtimeReconciliationResetReasonCode,
+  RealtimeReconciliationResult,
+  RealtimeReconciliationTrigger,
+  RealtimeReconciliationVersion,
+  RealtimeViewportReconciliation,
+} from "./reconciliation.js";
+export {
   selectRealtimeDetail,
   selectRealtimeFeatureRecordMap,
   selectRealtimeFeatureRecords,
