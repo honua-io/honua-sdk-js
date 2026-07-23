@@ -6442,7 +6442,14 @@ async function main(argv) {
   if (["check", "write"].includes(command)) {
     let qualificationBootstrapSampleId;
     if (command === "write" && args.length === 2 && args[0] === "--qualification-bootstrap") {
-      qualificationBootstrapSampleId = args[1];
+      // Comma-separated, mirroring scripts/sample-runner.mjs's
+      // --qualification-bootstrap-also (honua-io/honua-sdk-js#735, PR #653):
+      // regenerating derived artifacts while more than one golden sample is
+      // simultaneously being requalified against the same source needs every
+      // such sample named here too, or validateCatalog's golden-sample loop
+      // reports the same qualification-bootstrap circularity `write` would
+      // otherwise be unable to resolve for any but a single sample.
+      qualificationBootstrapSampleId = args[1].split(",").map((id) => id.trim());
     } else {
       invariant(args.length === 0, `${command} does not accept arguments`);
     }
