@@ -1,4 +1,14 @@
 {
+  "format": "honua.sdk.sample-screenshot-gate.v3",
+  "sampleId": "imagery-cog-quickstart",
+  "sourceRevision": "05ff1e7e76760b763174298116cda156d65742f0",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:imagery-cog",
+    "--",
+    "--reporter=json"
+  ],
   "reproducibilityPolicy": {
     "captureCount": 2,
     "comparison": "byte-identical",
@@ -37,13 +47,13 @@
         "width": 1280,
         "height": 720
       },
-      "path": "samples/evidence/imagery-cog-quickstart/runs/7ab22344-ff56-4a30-b65c-243690cb9fe2/artifacts/screenshot-desktop.png",
+      "path": "samples/evidence/imagery-cog-quickstart/runs/ba5f99fc-1390-4a91-aac1-3fab4bfc7894/artifacts/screenshot-desktop.png",
       "bytes": 415500,
       "sha256": "45ae99dfe598755303519ec15a1474237f883180dd13b8bb876262ec718abd94",
       "reproducibility": {
         "captureCount": 2,
         "comparison": "byte-identical",
-        "repeatPath": "samples/evidence/imagery-cog-quickstart/runs/7ab22344-ff56-4a30-b65c-243690cb9fe2/artifacts/screenshot-desktop-repeat.png",
+        "repeatPath": "samples/evidence/imagery-cog-quickstart/runs/ba5f99fc-1390-4a91-aac1-3fab4bfc7894/artifacts/screenshot-desktop-repeat.png",
         "repeatBytes": 415500,
         "repeatSha256": "45ae99dfe598755303519ec15a1474237f883180dd13b8bb876262ec718abd94"
       }
@@ -56,13 +66,13 @@
         "width": 390,
         "height": 844
       },
-      "path": "samples/evidence/imagery-cog-quickstart/runs/7ab22344-ff56-4a30-b65c-243690cb9fe2/artifacts/screenshot-mobile.png",
+      "path": "samples/evidence/imagery-cog-quickstart/runs/ba5f99fc-1390-4a91-aac1-3fab4bfc7894/artifacts/screenshot-mobile.png",
       "bytes": 178034,
       "sha256": "683b87a6396c1cbbfd69978fe1466be8312e9dd5412d3b28cc35f86c33fa2b88",
       "reproducibility": {
         "captureCount": 2,
         "comparison": "byte-identical",
-        "repeatPath": "samples/evidence/imagery-cog-quickstart/runs/7ab22344-ff56-4a30-b65c-243690cb9fe2/artifacts/screenshot-mobile-repeat.png",
+        "repeatPath": "samples/evidence/imagery-cog-quickstart/runs/ba5f99fc-1390-4a91-aac1-3fab4bfc7894/artifacts/screenshot-mobile-repeat.png",
         "repeatBytes": 178034,
         "repeatSha256": "683b87a6396c1cbbfd69978fe1466be8312e9dd5412d3b28cc35f86c33fa2b88"
       }
