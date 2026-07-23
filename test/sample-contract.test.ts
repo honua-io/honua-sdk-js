@@ -151,12 +151,12 @@ describe("sample publication contract", () => {
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(1);
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(2);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      1,
+      2,
     );
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
-      6,
+      5,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
@@ -298,14 +298,18 @@ describe("sample publication contract", () => {
         },
       },
     });
-    // maplibre-quickstart is the one real, evidence-backed golden journey;
-    // check its stable identity fields rather than the full volatile object
-    // (timestamps, run IDs, screenshot hashes all legitimately change every
-    // capture).
-    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(1);
+    // maplibre-quickstart and service-explorer are the two real,
+    // evidence-backed golden journeys; check their stable identity fields
+    // rather than the full volatile object (timestamps, run IDs, screenshot
+    // hashes all legitimately change every capture).
+    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(2);
     expect(visualEvidence.qualifiedGoldenJourneys[0]).toMatchObject({
       journeyId: "first-map",
       sampleId: "maplibre-quickstart",
+    });
+    expect(visualEvidence.qualifiedGoldenJourneys[1]).toMatchObject({
+      journeyId: "service-explorer",
+      sampleId: "service-explorer",
     });
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
@@ -412,6 +416,18 @@ describe("sample publication contract", () => {
     const staleCatalog = structuredClone(catalog);
     staleCatalog.goldenJourneys[0].status = "qualified";
     staleCatalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").track = "golden";
+    // Demote service-explorer back to planned/lab in this clone: the real
+    // catalog now carries two qualified golden journeys, but this sub-case
+    // isolates a stale freshness window on a single qualified journey rather
+    // than juggling both.
+    staleCatalog.goldenJourneys.find(
+      (journey: { id: string }) => journey.id === "service-explorer",
+    ).status = "planned";
+    staleCatalog.samples.find((sample: { id: string }) => sample.id === "service-explorer").track = "lab";
+    // Qualification evidence must exactly cover staleCatalog's (single)
+    // qualified sample, so recompute it against staleCatalog rather than
+    // reusing the real catalog's two-sample evidence set.
+    const staleQualificationEvidence = await collectQualificationEvidence(staleCatalog);
     // Replace (not push): canonical already carries the one real first-map
     // entry, and this sub-case isolates a stale freshness window on the
     // catalog's single qualified journey rather than an extra/duplicate one.
@@ -424,9 +440,9 @@ describe("sample publication contract", () => {
         "2026-07-08T00:00:00.000Z",
       ),
     ];
-    await expect(validateGoldenJourneyVisualEvidence(stale, staleCatalog, qualificationEvidence)).rejects.toThrow(
-      "stale or has an invalid freshness window",
-    );
+    await expect(
+      validateGoldenJourneyVisualEvidence(stale, staleCatalog, staleQualificationEvidence),
+    ).rejects.toThrow("stale or has an invalid freshness window");
 
     const staleLive = structuredClone(canonical);
     staleLive.qualifiedGoldenJourneys = [
@@ -434,7 +450,9 @@ describe("sample publication contract", () => {
     ];
     staleLive.qualifiedGoldenJourneys[0].liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
     staleLive.qualifiedGoldenJourneys[0].liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
-    await expect(validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence)).rejects.toThrow(
+    await expect(
+      validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, staleQualificationEvidence),
+    ).rejects.toThrow(
       "stale or has an invalid freshness window",
     );
 
