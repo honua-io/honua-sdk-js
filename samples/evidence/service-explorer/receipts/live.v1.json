@@ -1,0 +1,36 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "service-explorer",
+  "gate": "live",
+  "status": "passed",
+  "sdkMode": "source",
+  "sourceRevision": "7eaa73d54468a186d78e9f059f8ed775d033ae39",
+  "sourceDigest": "d13695febb5964ef311b805d4b6520ef91a99282ab22c6393da2f96f28f3fcb3",
+  "runRoot": "samples/evidence/service-explorer/runs/153fd26f-1740-4ea2-ad11-2845236ca760",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "demo:service-explorer:live-evidence"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "a1bc94a5e38fb21a450e17e2ffd2e8b5e3e486637d5f7aa6b0194bb0322b1293"
+  },
+  "observedAt": "2026-07-23T23:53:37.013Z",
+  "expiresAt": "2026-07-30T23:53:37.013Z",
+  "durationMs": 58797.417834,
+  "artifacts": [
+    {
+      "kind": "live-evidence-report",
+      "path": "samples/evidence/service-explorer/runs/153fd26f-1740-4ea2-ad11-2845236ca760/artifacts/live.json",
+      "bytes": 2332,
+      "sha256": "7c0eceed70ff2660770c8d6e81e0e209a51b6d2c6df090befe51a0ab1ac92857"
+    }
+  ]
+}
