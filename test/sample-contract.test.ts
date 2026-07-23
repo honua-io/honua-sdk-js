@@ -442,9 +442,7 @@ describe("sample publication contract", () => {
     );
     staleLive.qualifiedGoldenJourneys[0].liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
     staleLive.qualifiedGoldenJourneys[0].liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
-    await expect(
-      validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence),
-    ).rejects.toThrow(
+    await expect(validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence)).rejects.toThrow(
       "stale or has an invalid freshness window",
     );
 
