@@ -141,18 +141,22 @@ describe("honua-site consumer handoff", () => {
     expect(
       inputs.handoff.cards.every((card) => card.track === "golden" || card.track === "recipe" || card.track === "lab"),
     ).toBe(true);
-    // maplibre-quickstart is the one real, evidence-backed qualified card;
-    // every OTHER card must still carry no invented evidence.
+    // maplibre-quickstart and imagery-cog-quickstart are the two real,
+    // evidence-backed qualified cards; every OTHER card must still carry no
+    // invented evidence.
+    const qualifiedCardIds = new Set(["maplibre-quickstart", "imagery-cog-quickstart"]);
     expect(
       inputs.handoff.cards
-        .filter((card) => card.id !== "maplibre-quickstart")
+        .filter((card) => !qualifiedCardIds.has(card.id))
         .every((card) => card.evidenceBindingId === null && card.visualEvidence === null),
     ).toBe(true);
-    const quickstartCard = inputs.handoff.cards.find((card) => card.id === "maplibre-quickstart");
-    expect(quickstartCard?.evidenceBindingId).not.toBeNull();
-    expect(quickstartCard?.visualEvidence).not.toBeNull();
+    for (const id of qualifiedCardIds) {
+      const card = inputs.handoff.cards.find((candidate) => candidate.id === id);
+      expect(card?.evidenceBindingId).not.toBeNull();
+      expect(card?.visualEvidence).not.toBeNull();
+    }
     expect(inputs.handoff.counts.qualifiedMatrixCells).toEqual({
-      goldenJourneys: 1,
+      goldenJourneys: 2,
       protocolOperations: 1,
       supportClaims: 0,
       packageEntrypoints: 1,

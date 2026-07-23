@@ -59,7 +59,7 @@
     { "id": "service-explorer", "title": "Universal Service Explorer", "status": "planned", "candidateSampleId": "service-explorer" },
     { "id": "planning-permitting", "title": "Planning and Permitting", "status": "planned", "candidateSampleId": "planning-permitting-workbench" },
     { "id": "incident-operations", "title": "Realtime Incident Operations", "status": "planned", "candidateSampleId": "realtime-incident-dashboard" },
-    { "id": "imagery-terrain", "title": "Imagery and Terrain", "status": "planned", "candidateSampleId": "imagery-cog-quickstart" },
+    { "id": "imagery-terrain", "title": "Imagery and Terrain", "status": "qualified", "candidateSampleId": "imagery-cog-quickstart" },
     { "id": "cloud-native-analysis", "title": "Cloud-Native Spatial Analysis", "status": "planned", "candidateSampleId": "spatial-analytics-workbench" },
     { "id": "arcgis-migration", "title": "ArcGIS Migration Workbench", "status": "planned", "candidateSampleId": "migration-workbench" }
   ],
@@ -208,7 +208,7 @@
       }
     },
     "imagery-cog-quickstart": {
-      "track": "recipe",
+      "track": "golden",
       "title": "Imagery and Terrain journey",
       "summary": "Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles.",
       "journeyId": "imagery-terrain",
@@ -217,7 +217,7 @@
       "validationProfile": "golden-browser",
       "lifecycle": {
         "state": "active",
-        "reason": "The fixture-first browser workflow, opt-in /cog renderer, pinned live semantic probe, and legacy WMS/Terrain routes now converge on one runnable journey; golden receipt qualification remains intentionally planned."
+        "reason": "Qualified Imagery and Terrain journey with current packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and pinned public STAC/COG live receipts."
       },
       "configuration": {
         "status": "approved"
@@ -230,8 +230,10 @@
       },
       "live": {
         "mode": "public-live",
-        "status": "planned",
-        "commands": ["npm run evidence:cog:live"]
+        "status": "executed",
+        "commands": ["npm run evidence:cog:live"],
+        "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
+        "expiresAt": "2026-08-23T21:58:55.396Z"
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
       "validation": [

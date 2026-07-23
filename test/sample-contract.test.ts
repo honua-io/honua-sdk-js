@@ -456,8 +456,21 @@ describe("sample publication contract", () => {
     incidentJourney.status = "qualified";
     incidentCatalog.samples.find((sample: { id: string }) => sample.id === "realtime-incident-dashboard").track =
       "golden";
+    // Insert (not push) at the reserved goldenJourneys array position for
+    // incident-operations (index 3, between first-map and imagery-terrain):
+    // the orphaned/missing/overstated check compares qualifiedGoldenJourneys
+    // against the catalog's own qualified-journey order, so an append would
+    // trip that check instead of exercising the realtime invariant below.
     const staticIncident = structuredClone(canonical);
-    staticIncident.qualifiedGoldenJourneys.push(
+    const incidentJourneyIndex = incidentCatalog.goldenJourneys.findIndex(
+      (journey: { id: string }) => journey.id === "incident-operations",
+    );
+    const qualifiedBeforeIncident = incidentCatalog.goldenJourneys
+      .slice(0, incidentJourneyIndex)
+      .filter((journey: { status: string }) => journey.status === "qualified").length;
+    staticIncident.qualifiedGoldenJourneys.splice(
+      qualifiedBeforeIncident,
+      0,
       visualEvidenceAdversary("incident-operations", "realtime-incident-dashboard", observedAt, expiresAt),
     );
     await expect(
