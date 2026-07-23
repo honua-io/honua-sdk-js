@@ -57,24 +57,6 @@ function runFailure(label, command, args, options = {}) {
   return `${result.stdout ?? ""}${result.stderr ?? ""}`;
 }
 
-function packInstalledDependency(packageRoot, index) {
-  const dependency = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
-  const stagingRoot = path.join(tempRoot, "dependency-pack", String(index));
-  const stagingPackage = path.join(stagingRoot, "package");
-  const safeName = dependency.name.replaceAll("@", "").replaceAll("/", "-");
-  const tarballPath = path.join(packRoot, `${safeName}-${dependency.version}.tgz`);
-  fs.mkdirSync(stagingRoot, { recursive: true });
-  fs.cpSync(packageRoot, stagingPackage, { recursive: true, dereference: true });
-  run(`pack installed dependency ${dependency.name}`, "tar", [
-    "-czf",
-    tarballPath,
-    "-C",
-    stagingRoot,
-    "package",
-  ]);
-  return tarballPath;
-}
-
 function linkPeerFixtures(installedPackageJson) {
   let linked = 0;
   for (const name of Object.keys(installedPackageJson.peerDependencies ?? {})) {
@@ -92,23 +74,17 @@ function linkPeerFixtures(installedPackageJson) {
 try {
   fs.mkdirSync(consumerRoot, { recursive: true });
   fs.mkdirSync(packRoot, { recursive: true });
-  const offlineNpmEnv = {
+  const consumerNpmEnv = {
     ...process.env,
     npm_config_cache: path.join(tempRoot, "npm-cache"),
-    npm_config_offline: "true",
     npm_config_update_notifier: "false",
   };
 
-  const productionDependencyRoots = Object.entries(packageLock.packages ?? {})
-    .filter(
-      ([relative, metadata]) => relative.startsWith("node_modules/") && metadata.dev !== true,
-    )
-    .map(([relative]) => path.join(projectRoot, relative));
   const packedOutput = run(
     "npm pack",
     "npm",
     ["pack", "--json", "--ignore-scripts", "--pack-destination", packRoot, projectRoot],
-    { env: offlineNpmEnv, timeout: 120_000 },
+    { env: consumerNpmEnv, timeout: 120_000 },
   );
   const packed = JSON.parse(packedOutput);
   const tarballName = packed.find((artifact) => artifact.name === packageJson.name)?.filename;
@@ -116,7 +92,6 @@ try {
     throw new Error("npm pack did not report a tarball filename");
   }
   const tarballPath = path.join(packRoot, tarballName);
-  const dependencyTarballs = productionDependencyRoots.map(packInstalledDependency);
 
   fs.writeFileSync(
     path.join(consumerRoot, "package.json"),
@@ -126,24 +101,30 @@ try {
       2,
     )}\n`,
   );
+  // The SDK's runtime dependency tree now includes registry packages whose
+  // nested duplicate versions (for example rbush@3's quickselect@2 next to
+  // maplibre-gl-style-spec's quickselect@3) cannot be expressed as a flat set
+  // of same-named tarball arguments, so the pre-publish offline install proof
+  // is no longer representable. With @honua/honua-migrate published, the real
+  // consumer scenario is a registry install of the packed tarball: npm must
+  // resolve every declared dependency from the registry with no help from
+  // this repository's node_modules.
   run(
-    "offline packed-tarball install",
+    "packed-tarball registry install",
     "npm",
     [
       "install",
-      "--offline",
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
       "--package-lock=false",
       "--legacy-peer-deps",
       tarballPath,
-      ...dependencyTarballs,
     ],
     {
       cwd: consumerRoot,
       timeout: 600_000,
-      env: offlineNpmEnv,
+      env: consumerNpmEnv,
     },
   );
 
@@ -330,7 +311,7 @@ if (events.join(",") !== "initialize,dispose") throw new Error(\`installed plugi
   );
 
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} geocoding=runtime rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal offlineInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} geocoding=runtime rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal registryInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(
