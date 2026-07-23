@@ -348,7 +348,14 @@ function parseArguments(argv) {
 }
 
 async function main() {
-  const { output, strict } = parseArguments(process.argv.slice(2));
+  const { output: cliOutput, strict } = parseArguments(process.argv.slice(2));
+  // scripts/sample-runner.mjs's orchestrated "live" evidence gate binds every
+  // producer's output to a run-scoped path via HONUA_SAMPLE_LIVE_OUTPUT (see
+  // scripts/first-map-live-evidence.mjs for the sibling convention). Prefer it
+  // over the CLI --output default so this producer is captured through the
+  // reviewed sample-evidence pipeline; standalone/CI invocations without the
+  // env var keep writing to the CLI-resolved path unchanged.
+  const output = process.env.HONUA_SAMPLE_LIVE_OUTPUT ?? cliOutput;
   let evidence;
   try {
     evidence = await runCogLiveEvidence({ strict });
