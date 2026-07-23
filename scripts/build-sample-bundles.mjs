@@ -72,78 +72,193 @@ export const INCLUDED_SAMPLES = [
   { id: "temporal-playback", buildScript: "demo:temporal-playback:build" },
   { id: "migration-workbench", buildScript: "demo:migration-workbench:build" },
   { id: "nl-map-control", buildScript: "demo:nl-map-control:build" },
+  // overture-geoparquet (#656): `demo:overture:build` already orchestrates the
+  // pinned-extension prepare step (`prepare-duckdb-extension.mjs`, cache-hit
+  // when warm, network-fetched + SHA-256/byte-length/WebAssembly-magic
+  // validated against `PARQUET_EXTENSION_PROVENANCE` otherwise) ahead of the
+  // Vite build, so no bespoke orchestration is needed here — reusing the
+  // existing npm script chain is the same pattern the "Acquire pinned
+  // Overture extension" CI step already exercises. The emitted bundle is
+  // substantially larger than every other included sample (it self-hosts the
+  // duckdb-wasm main module, worker, and the ~3 MB pinned Parquet extension
+  // under `duckdb/`); see docs/sample-bundles.md for the size callout.
+  { id: "overture-geoparquet", buildScript: "demo:overture:build" },
 ];
 
 export const INCLUDED_SAMPLE_IDS = INCLUDED_SAMPLES.map((sample) => sample.id);
 
 /**
- * Every other samples/catalog.v2.json entry considered for this pass and why
- * it was left out. None of these are excluded because the tooling can't
- * build them offline in principle — most already build fixture-safe today —
- * they are excluded because embedding them in a public gallery iframe raises
- * a question (a live backend preference, a required companion server, a
- * heavier prepare step, or an owning contract) this issue does not settle.
+ * Machine-readable exclusion reason categories (#656 REQ-004). Kept in sync
+ * with `samples/contract/v2/schemas/sample-bundles.schema.json`'s
+ * `excludedSample.category` enum — `test/scripts/build-sample-bundles.test.mjs`
+ * asserts the two never drift apart.
+ */
+export const EXCLUDED_SAMPLE_CATEGORIES = [
+  "needs-prepare-step",
+  "requires-api-key",
+  "requires-live-backend",
+  "requires-companion-server",
+  "replay-mode-undecided",
+  "agent-shaped",
+  "non-browser-app",
+  "non-runtime-sample",
+  "lifecycle-not-active",
+  "audit-pending",
+];
+
+/**
+ * Hand-classified catalog entries considered for this pass and left out,
+ * with the structured reason category this issue does not settle a product
+ * answer for (#656 REQ-003/REQ-004). None of these are excluded because the
+ * tooling can't build them offline in principle — most already build
+ * fixture-safe today — they are excluded because embedding them in a public
+ * gallery iframe raises a question (a live backend preference, a required
+ * companion server, an agent-shaped product surface, or an owning contract)
+ * this issue does not settle.
+ *
+ * Every other catalog entry (every `lifecycle.state !== "active"` sample) is
+ * excluded categorically and mechanically by `deriveExcludedSamples` below —
+ * it does not need a hand-written entry here.
  */
 export const EXCLUDED_SAMPLES = [
   {
     id: "ai-spatial-app-builder",
+    category: "agent-shaped",
     reason:
       "Agent-safety workbench flagship; its deterministic default needs no model/network/credential, but it has no map renderer and a complex approval-evidence UI better scoped in a follow-up.",
   },
   {
-    id: "mcp-gis-assistant",
-    reason: "MCP assistant interaction-pattern demo; agent-shaped, no map renderer — deferred.",
-  },
-  {
-    id: "realtime-incident-dashboard",
-    reason:
-      "Realtime flagship that prefers a deployed live stream before falling back to replay; a gallery-safe replay-only embedding mode is undecided — deferred.",
-  },
-  {
-    id: "overture-geoparquet",
-    reason:
-      "Large-data DuckDB-WASM flagship; needs a pinned-extension prepare step (`npm run demo:overture:prepare`) this build script does not orchestrate, plus a much heavier bundle — deferred.",
-  },
-  {
-    id: "react-quickstart",
-    reason: "Hybrid data mode with api-key auth; needs a backend credential a static gallery bundle cannot embed.",
-  },
-  {
-    id: "imagery-cog-quickstart",
-    reason:
-      "Hybrid data mode with host-mediated auth and a configured-live COG leg — deferred pending a browser-public config review.",
-  },
-  {
-    id: "oauth-signin",
-    reason:
-      "Requires its own running mock OAuth identity provider (mock-server.mjs) at runtime; no map renderer; not a static-embeddable bundle.",
-  },
-  {
-    id: "node-backend-quickstart",
-    reason: "Server-side Node app; no Vite config, no browser renderer.",
-  },
-  {
     id: "arcgis-source-app",
+    category: "non-runtime-sample",
     reason:
       "Migration-codemod end-to-end test input (a pre-migration ArcGIS app), not a Honua-runtime browser sample; no Vite config.",
   },
   {
     id: "automatic-source-workflow",
+    category: "non-runtime-sample",
     reason: "Documentation snippet under docs/examples/ (plain script/CDN pattern), not a Vite-built package.",
   },
   {
+    id: "imagery-cog-quickstart",
+    category: "requires-live-backend",
+    reason:
+      "Hybrid data mode with host-mediated auth and a configured-live COG leg — deferred pending a browser-public config review.",
+  },
+  {
+    id: "node-backend-quickstart",
+    category: "non-browser-app",
+    reason: "Server-side Node app; no Vite config, no browser renderer.",
+  },
+  {
+    id: "oauth-signin",
+    category: "requires-companion-server",
+    reason:
+      "Requires its own running mock OAuth identity provider (mock-server.mjs) at runtime; no map renderer; not a static-embeddable bundle.",
+  },
+  {
+    id: "planning-permitting-workbench",
+    category: "audit-pending",
+    reason:
+      'Active, Vite-buildable, fixture-mode candidate with no declared config surface -- structurally similar to the already-included fixture samples. It was previously miscategorized in this file\'s "every remaining catalog entry has a non-active lifecycle" catch-all comment, which was inaccurate for this id; the REQ-001 audit (support tier, browser-secret policy, fixture determinism, runtime dependencies) has not actually been completed for it. Promotion is a follow-up decision, not resolved by this pass.',
+  },
+  {
+    id: "react-quickstart",
+    category: "requires-api-key",
+    reason: "Hybrid data mode with api-key auth; needs a backend credential a static gallery bundle cannot embed.",
+  },
+  {
+    id: "realtime-incident-dashboard",
+    category: "replay-mode-undecided",
+    reason:
+      "Realtime flagship that prefers a deployed live stream before falling back to replay; a gallery-safe replay-only embedding mode is undecided — deferred.",
+  },
+  {
+    id: "service-explorer",
+    category: "audit-pending",
+    reason:
+      'Active, Vite-buildable, hybrid-mode candidate whose sole declared config (HONUA_SERVICE_EXPLORER_LIVE_ENABLED) toggles a live producer path. It was previously miscategorized in this file\'s "every remaining catalog entry has a non-active lifecycle" catch-all comment, which was inaccurate for this id; the REQ-001 audit (confirming its default resolves to a fixture-safe, secret-free config) has not actually been completed for it. Promotion is a follow-up decision, not resolved by this pass.',
+  },
+  {
     id: "shared-renderer-state",
+    category: "non-runtime-sample",
     reason: "Documentation snippet under docs/examples/ (plain script/CDN pattern), not a Vite-built package.",
   },
-  // Every remaining catalog entry (app-bootstrap-basic, cesium-route-playback,
-  // edit-workflow-demo, geocoding-quickstart, geoprocessing-job-runner,
-  // kepler-analytics, planning-permitting-workbench, runtime-parity-showcase,
-  // service-explorer, spatial-analytics-workbench, storytelling-25d-map,
-  // terrain-rgb-elevation, unified-ops-workspace, web-components-basic) has a
-  // non-"active" samples/catalog.v2.json `lifecycle.state`
-  // (rework/retire/merge/replace) and is excluded categorically until it is
-  // promoted back to active.
 ];
+
+/**
+ * Combines the hand-classified `EXCLUDED_SAMPLES` above with every remaining
+ * `samples/catalog.v2.json` entry that isn't bundled (#656 REQ-004): every
+ * catalog id not in `INCLUDED_SAMPLE_IDS` and not hand-classified above must
+ * have `lifecycle.state !== "active"` and is projected as `category:
+ * "lifecycle-not-active"` with a reason generated straight from the
+ * catalog's own `lifecycle.reason` (and `targetRelease` / `replacement` when
+ * present) -- no hand-maintained duplicate to drift from the catalog.
+ *
+ * This function is the drift check: it throws if
+ *  - a hand-classified id doesn't exist in the catalog;
+ *  - a hand-classified id is also in `INCLUDED_SAMPLES`;
+ *  - a hand-classified `"lifecycle-not-active"` entry's catalog lifecycle is
+ *    actually `"active"` (its category is now wrong -- reclassify it);
+ *  - a hand-classified entry using any *other* category has a catalog
+ *    lifecycle that is *not* `"active"` (those categories assert the sample
+ *    is otherwise buildable and only blocked by the stated product
+ *    question -- use `"lifecycle-not-active"` instead once that stops being
+ *    true);
+ *  - an *active* catalog sample has no `INCLUDED_SAMPLES` or
+ *    `EXCLUDED_SAMPLES` entry at all (a newly-added or newly-promoted active
+ *    sample needs an explicit human decision, not a guessed category).
+ */
+export function deriveExcludedSamples(catalog, { explicit = EXCLUDED_SAMPLES, includedIds: includedIdsOption } = {}) {
+  invariant(catalog && Array.isArray(catalog.samples), "catalog.samples is required");
+  const includedIds = includedIdsOption ?? new Set(INCLUDED_SAMPLE_IDS);
+  const byId = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+  const derived = [];
+  const seen = new Set();
+
+  for (const entry of explicit) {
+    invariant(!seen.has(entry.id), `${entry.id}: duplicate id in EXCLUDED_SAMPLES`);
+    invariant(!includedIds.has(entry.id), `${entry.id}: listed in both INCLUDED_SAMPLES and EXCLUDED_SAMPLES`);
+    invariant(
+      EXCLUDED_SAMPLE_CATEGORIES.includes(entry.category),
+      `${entry.id}: unknown exclusion category "${entry.category}"`,
+    );
+    const catalogEntry = byId.get(entry.id);
+    invariant(catalogEntry, `${entry.id}: not found in samples/catalog.v2.json`);
+    if (entry.category === "lifecycle-not-active") {
+      invariant(
+        catalogEntry.lifecycle.state !== "active",
+        `${entry.id}: category "lifecycle-not-active" but catalog lifecycle.state is "active" -- reclassify it`,
+      );
+    } else {
+      invariant(
+        catalogEntry.lifecycle.state === "active",
+        `${entry.id}: category "${entry.category}" implies an active catalog entry but lifecycle.state is "${catalogEntry.lifecycle.state}" -- use category "lifecycle-not-active" instead`,
+      );
+    }
+    derived.push(entry);
+    seen.add(entry.id);
+  }
+
+  for (const sample of catalog.samples) {
+    if (includedIds.has(sample.id) || seen.has(sample.id)) continue;
+    invariant(
+      sample.lifecycle.state !== "active",
+      `${sample.id}: active catalog sample has no INCLUDED_SAMPLES or EXCLUDED_SAMPLES entry in scripts/build-sample-bundles.mjs -- add one with an explicit category`,
+    );
+    const targetRelease = sample.lifecycle.targetRelease ? ` (target ${sample.lifecycle.targetRelease})` : "";
+    const replacement = sample.lifecycle.replacement
+      ? ` Replacement: ${sample.lifecycle.replacement.kind} "${sample.lifecycle.replacement.id}".`
+      : "";
+    derived.push({
+      id: sample.id,
+      category: "lifecycle-not-active",
+      reason: `Catalog lifecycle.state is "${sample.lifecycle.state}"${targetRelease}: ${sample.lifecycle.reason}${replacement}`,
+    });
+    seen.add(sample.id);
+  }
+
+  return derived.sort((left, right) => left.id.localeCompare(right.id));
+}
 
 const MEDIA_TYPES = new Map([
   [".html", "text/html"],
@@ -288,6 +403,8 @@ export async function buildSampleBundleManifest({ gitCommit = gitSha() } = {}) {
     );
   }
 
+  const excluded = deriveExcludedSamples(catalog);
+
   return {
     format: "honua.sdk.sample-bundles.v1",
     schemaVersion: 1,
@@ -296,6 +413,7 @@ export async function buildSampleBundleManifest({ gitCommit = gitSha() } = {}) {
       lockfileSha256: sha256(packageLock),
     },
     samples,
+    excluded,
   };
 }
 
@@ -303,7 +421,7 @@ async function loadSchema() {
   return JSON.parse(await readFile(SCHEMA_PATH, "utf8"));
 }
 
-export async function validateSampleBundleManifest(manifest) {
+export async function validateSampleBundleManifest(manifest, { catalog } = {}) {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   addFormats(ajv);
   const validate = ajv.compile(await loadSchema());
@@ -322,12 +440,31 @@ export async function validateSampleBundleManifest(manifest) {
     }
     invariant(paths.has(sample.entrypoint), `${sample.id}: entrypoint ${sample.entrypoint} is not one of its files`);
   }
+  const excludedSeen = new Set();
+  for (const excludedSample of manifest.excluded) {
+    invariant(!seen.has(excludedSample.id), `${excludedSample.id}: listed in both samples and excluded`);
+    invariant(!excludedSeen.has(excludedSample.id), `duplicate excluded sample id in manifest: ${excludedSample.id}`);
+    excludedSeen.add(excludedSample.id);
+  }
+  if (catalog) {
+    invariant(
+      manifest.samples.length + manifest.excluded.length === catalog.samples.length,
+      `manifest accounts for ${manifest.samples.length + manifest.excluded.length} of ${catalog.samples.length} catalog samples`,
+    );
+    for (const catalogSample of catalog.samples) {
+      invariant(
+        seen.has(catalogSample.id) || excludedSeen.has(catalogSample.id),
+        `${catalogSample.id}: catalog sample is neither bundled nor excluded in the manifest`,
+      );
+    }
+  }
   return manifest;
 }
 
 async function verifyOnDisk() {
   const manifest = JSON.parse(await readFile(MANIFEST_PATH, "utf8"));
-  await validateSampleBundleManifest(manifest);
+  const catalog = await readJson("samples/catalog.v2.json");
+  await validateSampleBundleManifest(manifest, { catalog });
   for (const sample of manifest.samples) {
     const bundleDir = path.join(OUTPUT_ROOT, sample.id);
     for (const file of sample.files) {
@@ -348,8 +485,9 @@ async function verifyOnDisk() {
 async function main(argv) {
   const [command = "build"] = argv;
   if (command === "build") {
+    const catalog = await readJson("samples/catalog.v2.json");
     const manifest = await buildSampleBundleManifest();
-    await validateSampleBundleManifest(manifest);
+    await validateSampleBundleManifest(manifest, { catalog });
     await writeFile(MANIFEST_PATH, stableJson(manifest), "utf8");
     const totalFiles = manifest.samples.reduce((total, sample) => total + sample.files.length, 0);
     const totalBytes = manifest.samples.reduce(
@@ -361,7 +499,7 @@ async function main(argv) {
       process.stdout.write(`  ${sample.id}: ${sample.files.length} files, ${(bytes / 1024).toFixed(1)} KiB\n`);
     }
     process.stdout.write(
-      `Wrote ${path.relative(PROJECT_ROOT, MANIFEST_PATH)} (${manifest.samples.length} samples, ${totalFiles} files, ${(totalBytes / 1024).toFixed(1)} KiB)\n`,
+      `Wrote ${path.relative(PROJECT_ROOT, MANIFEST_PATH)} (${manifest.samples.length} samples, ${totalFiles} files, ${(totalBytes / 1024).toFixed(1)} KiB; ${manifest.excluded.length} excluded)\n`,
     );
     return;
   }
