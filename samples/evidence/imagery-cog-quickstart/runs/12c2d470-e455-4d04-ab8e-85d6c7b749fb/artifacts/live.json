@@ -1,13 +1,13 @@
 {
   "format": "honua.sdk.sample-live-gate.v1",
   "sampleId": "imagery-cog-quickstart",
-  "sourceRevision": "5cab936466777177ce57d5bec338b36d9965e660",
+  "sourceRevision": "f1e42cfcb23b611fb4f7b5e47e93695aa5e4b1fc",
   "command": [
     "npm",
     "run",
     "evidence:cog:live"
   ],
-  "evidencePath": "samples/evidence/imagery-cog-quickstart/runs/c00051a0-9d62-4921-87c1-df5b3b8f0c30/artifacts/live-evidence.json",
+  "evidencePath": "samples/evidence/imagery-cog-quickstart/runs/12c2d470-e455-4d04-ab8e-85d6c7b749fb/artifacts/live-evidence.json",
   "evidence": {
     "format": "honua.sdk.sample-evidence.v1",
     "schemaVersion": 1,
@@ -15,12 +15,12 @@
     "lane": "live",
     "status": "executed",
     "reason": null,
-    "observedAt": "2026-07-23T21:58:55.396Z",
+    "observedAt": "2026-07-23T22:02:18.060Z",
     "authMode": "anonymous",
     "sdk": {
       "package": "@honua/sdk-js",
       "version": "0.1.2-beta.0",
-      "gitCommit": "5cab936466777177ce57d5bec338b36d9965e660"
+      "gitCommit": "f1e42cfcb23b611fb4f7b5e47e93695aa5e4b1fc"
     },
     "source": {
       "provider": "Element 84 Earth Search",
@@ -31,7 +31,7 @@
     },
     "provenance": {
       "sourceId": "sentinel-2-l2a/S2B_21WWV_20260706_0_L2A/visual",
-      "observedAt": "2026-07-23T21:58:55.396Z",
+      "observedAt": "2026-07-23T22:02:18.060Z",
       "validAt": "2026-07-06T16:02:45.822000Z",
       "state": "live",
       "attribution": "ESA; Sinergise; AWS; Element 84"
@@ -49,8 +49,8 @@
       ]
     },
     "timing": {
-      "totalMs": 3587.0534009999997,
-      "firstSuccessfulInteractionMs": 3587.0534009999997
+      "totalMs": 3240.444241,
+      "firstSuccessfulInteractionMs": 3240.444241
     },
     "degradation": {
       "state": "none",
@@ -318,8 +318,8 @@
       },
       "freshness": {
         "acquisitionAt": "2026-07-06T16:02:45.822000Z",
-        "probedAt": "2026-07-23T21:58:55.396Z",
-        "validUntil": "2026-07-31T21:58:55.396Z",
+        "probedAt": "2026-07-23T22:02:18.060Z",
+        "validUntil": "2026-07-31T22:02:18.060Z",
         "cadenceDays": 7
       }
     }
