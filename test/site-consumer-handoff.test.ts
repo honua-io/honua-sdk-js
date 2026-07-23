@@ -98,22 +98,31 @@ describe("honua-site consumer handoff", () => {
       },
       counts: {
         cards: 30,
-        qualifiedJourneys: 1,
+        qualifiedJourneys: 2,
         canonicalRoutes: 30,
         legacyRoutes: 20,
         gaps: inputs.matrix.gaps.length,
       },
     });
-    // maplibre-quickstart is the one real, evidence-backed golden journey;
-    // check stable identity fields rather than the full volatile object
-    // (timestamps, run IDs, and screenshot hashes legitimately change every
-    // capture).
-    expect(inputs.handoff.qualifiedJourneys).toHaveLength(1);
-    expect(inputs.handoff.qualifiedJourneys[0]).toMatchObject({
-      journeyId: "first-map",
-      sampleId: "maplibre-quickstart",
-      canonicalPath: "samples/maplibre-quickstart.html",
-    });
+    // maplibre-quickstart and imagery-cog-quickstart are the two real,
+    // evidence-backed golden journeys; check stable identity fields rather
+    // than the full volatile object (timestamps, run IDs, and screenshot
+    // hashes legitimately change every capture).
+    expect(inputs.handoff.qualifiedJourneys).toHaveLength(2);
+    expect(
+      [...inputs.handoff.qualifiedJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
+    ).toMatchObject([
+      {
+        journeyId: "first-map",
+        sampleId: "maplibre-quickstart",
+        canonicalPath: "samples/maplibre-quickstart.html",
+      },
+      {
+        journeyId: "imagery-terrain",
+        sampleId: "imagery-cog-quickstart",
+        canonicalPath: "samples/imagery-cog-quickstart.html",
+      },
+    ]);
     expect(inputs.handoff.policy).toMatchObject({
       canonicalRoutes: { statusPages: ["fixture", "retire", "replace"] },
       limits: {

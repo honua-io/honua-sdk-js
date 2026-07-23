@@ -35,11 +35,13 @@ import type { GoldenJourneyVisualEvidence } from "../scripts/sample-contract.mjs
 
 // validateCatalog and the golden-journey visual-evidence helpers below read
 // the real samples/evidence tree (receipts, screenshots, live evidence) for
-// the now genuinely qualified First Map journey. That real I/O regularly
-// exceeds vitest's 5s default under full-suite contention; the default
-// empty-evidence case was effectively instant, so this was never exercised
-// before. Raise this file's timeout rather than the global default.
-vi.setConfig({ testTimeout: 20_000 });
+// the now genuinely qualified First Map and Imagery and Terrain journeys.
+// That real I/O regularly exceeds vitest's 5s default under full-suite
+// contention; the default empty-evidence case was effectively instant, so
+// this was never exercised before. Raise this file's timeout rather than the
+// global default; two qualified journeys' worth of receipts (up from one)
+// need more headroom than the original single-journey budget.
+vi.setConfig({ testTimeout: 40_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
@@ -298,15 +300,17 @@ describe("sample publication contract", () => {
         },
       },
     });
-    // maplibre-quickstart is the one real, evidence-backed golden journey;
-    // check its stable identity fields rather than the full volatile object
-    // (timestamps, run IDs, screenshot hashes all legitimately change every
-    // capture).
-    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(1);
-    expect(visualEvidence.qualifiedGoldenJourneys[0]).toMatchObject({
-      journeyId: "first-map",
-      sampleId: "maplibre-quickstart",
-    });
+    // maplibre-quickstart and imagery-cog-quickstart are the two real,
+    // evidence-backed golden journeys; check their stable identity fields
+    // rather than the full volatile object (timestamps, run IDs, screenshot
+    // hashes all legitimately change every capture).
+    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(2);
+    expect(
+      [...visualEvidence.qualifiedGoldenJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
+    ).toMatchObject([
+      { journeyId: "first-map", sampleId: "maplibre-quickstart" },
+      { journeyId: "imagery-terrain", sampleId: "imagery-cog-quickstart" },
+    ]);
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
     expect(JSON.stringify(projection)).not.toContain("VITE_");
@@ -412,28 +416,35 @@ describe("sample publication contract", () => {
     const staleCatalog = structuredClone(catalog);
     staleCatalog.goldenJourneys[0].status = "qualified";
     staleCatalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").track = "golden";
-    // Replace (not push): canonical already carries the one real first-map
-    // entry, and this sub-case isolates a stale freshness window on the
-    // catalog's single qualified journey rather than an extra/duplicate one.
+    // Replace (not push) only the first-map entry: canonical now carries both
+    // real qualified journeys (first-map and imagery-terrain), and this
+    // sub-case isolates a stale freshness window on one journey without
+    // orphaning the other (which would trip the "missing" check instead).
     const stale = structuredClone(canonical);
-    stale.qualifiedGoldenJourneys = [
-      visualEvidenceAdversary(
-        "first-map",
-        "maplibre-quickstart",
-        "2026-07-01T00:00:00.000Z",
-        "2026-07-08T00:00:00.000Z",
-      ),
-    ];
+    stale.qualifiedGoldenJourneys = stale.qualifiedGoldenJourneys.map((entry) =>
+      entry.journeyId === "first-map"
+        ? visualEvidenceAdversary(
+            "first-map",
+            "maplibre-quickstart",
+            "2026-07-01T00:00:00.000Z",
+            "2026-07-08T00:00:00.000Z",
+          )
+        : entry,
+    );
     await expect(validateGoldenJourneyVisualEvidence(stale, staleCatalog, qualificationEvidence)).rejects.toThrow(
       "stale or has an invalid freshness window",
     );
 
     const staleLive = structuredClone(canonical);
-    staleLive.qualifiedGoldenJourneys = [
-      visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt),
-    ];
-    staleLive.qualifiedGoldenJourneys[0].liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
-    staleLive.qualifiedGoldenJourneys[0].liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
+    staleLive.qualifiedGoldenJourneys = staleLive.qualifiedGoldenJourneys.map((entry) =>
+      entry.journeyId === "first-map"
+        ? visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt)
+        : entry,
+    );
+    const staleLiveEntry = staleLive.qualifiedGoldenJourneys.find((entry) => entry.journeyId === "first-map");
+    if (!staleLiveEntry) throw new Error("expected a first-map entry in staleLive.qualifiedGoldenJourneys");
+    staleLiveEntry.liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
+    staleLiveEntry.liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
     await expect(validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence)).rejects.toThrow(
       "stale or has an invalid freshness window",
     );
