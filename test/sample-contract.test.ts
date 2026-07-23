@@ -35,11 +35,13 @@ import type { GoldenJourneyVisualEvidence } from "../scripts/sample-contract.mjs
 
 // validateCatalog and the golden-journey visual-evidence helpers below read
 // the real samples/evidence tree (receipts, screenshots, live evidence) for
-// the now genuinely qualified First Map journey. That real I/O regularly
-// exceeds vitest's 5s default under full-suite contention; the default
-// empty-evidence case was effectively instant, so this was never exercised
-// before. Raise this file's timeout rather than the global default.
-vi.setConfig({ testTimeout: 20_000 });
+// the now genuinely qualified First Map and Universal Service Explorer
+// journeys. That real I/O regularly exceeds vitest's 5s default under
+// full-suite contention -- and roughly doubled once a second golden sample's
+// evidence joined the walk -- while the default empty-evidence case was
+// effectively instant, so this was never exercised before. Raise this file's
+// timeout rather than the global default.
+vi.setConfig({ testTimeout: 40_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);

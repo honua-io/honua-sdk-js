@@ -11,11 +11,13 @@ import {
 import type { QualificationEvidenceInventory } from "../scripts/sample-contract.mjs";
 
 // canonicalInputs() (below) calls collectQualificationEvidence against the
-// real samples/evidence tree for the now genuinely qualified First Map
-// journey. That real I/O regularly exceeds vitest's 5s default under
-// full-suite contention; it was effectively instant against the previously
-// always-empty evidence set, so this was never exercised before.
-vi.setConfig({ testTimeout: 20_000 });
+// real samples/evidence tree for the now genuinely qualified First Map and
+// Universal Service Explorer journeys. That real I/O regularly exceeds
+// vitest's 5s default under full-suite contention -- and roughly doubled
+// once a second golden sample's evidence joined the walk -- while it was
+// effectively instant against the previously always-empty evidence set, so
+// this was never exercised before.
+vi.setConfig({ testTimeout: 40_000 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(file, "utf8"));
 
