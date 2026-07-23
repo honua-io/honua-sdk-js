@@ -137,6 +137,78 @@ renderer configuration, licensing constraints, and host/service conditions are
 not equivalent. A chart, README, website, or sales claim must not rank vendors
 from this report or combine it with separately collected competitor numbers.
 
+### deck.gl scale, capability/fallback, and lifecycle evidence (#562)
+
+`schemaVersion: 2` extends the browser corpus with the evidence the bounded
+deck.gl adapter (#388/#561) needs before promotion beyond `experimental`, and
+publishes it in a machine-readable shape for the #547 analytics golden
+journey to consume:
+
+- **Scale tiers.** `deckgl.scale-render-100k` (always on) and
+  `deckgl.scale-render-1m` (opt-in — see below) run the same binary
+  scatterplot journey as `deckgl.binary-render-interact` at 100,000 and
+  1,000,000 rows (`bench/browser/scale.html` / `scale-main.ts`, row count via
+  `?rows=`). Instead of one combined `firstVisibleMs`, each scenario's
+  `stagesSummary` separates **conversion** (SDK typed-array + `adapter.project`
+  cost), **transfer** (`projection.mount` hand-off), **GPU upload + first
+  frame**, **steady-state frame rate** (forced `deck.redraw()` over N frames),
+  **picking**, and **disposal**. `bench/browser/fixture.ts` builds every
+  scale tier's point grid from `index` alone (never `Math.random()`), so a
+  given row count is byte-identical across runs.
+- **Capability/fallback matrix.** `deckgl.capability-supported` and
+  `deckgl.capability-fallback` (`bench/browser/capability.html` /
+  `capability-main.ts`) classify the current browser/device with the pure,
+  unit-tested policy in
+  [`browser/capability-policy.mjs`](./browser/capability-policy.mjs) into one
+  of three tiers — `supported`, `fallback-maplibre`, or `unsupported` — and
+  only attempt a deck.gl mount when `supported`. The fallback scenario
+  deterministically simulates a no-WebGL device by overriding
+  `HTMLCanvasElement.getContext` before any page script runs (portable across
+  Chromium/Firefox/WebKit, not a Chromium-only launch flag). The report's
+  top-level `capabilityMatrix` field carries the reviewed policy plus the
+  facts/decision from both runs.
+- **Repeated mount/unmount leak evidence.** `deckgl.lifecycle-repeated-mount-unmount`
+  (`bench/browser/lifecycle.html` / `lifecycle-main.ts`) cycles
+  create-project-mount-dispose 25 times (5 warm-up) against one long-lived
+  `Deck`, sampling `performance.memory.usedJSHeapSize` and the live layer
+  count after each cycle. `budgets.json`'s `lifecycle.repeatedMountUnmount.maxHeapGrowthBytes`
+  bounds heap growth across the post-warm-up cycles; when the memory API is
+  unavailable (non-Chromium) the report records `not-measured` rather than a
+  silent pass.
+- **WebGL context-loss recovery.** `deckgl.context-loss-recovery` uses the
+  standard `WEBGL_lose_context` extension to force a deterministic context
+  loss, exercising `bindDeckGlContextLossRecovery` (`src/deckgl/lifecycle.ts`)
+  — the SDK's only new surface for this issue: a thin
+  `webglcontextlost`/`webglcontextrestored` binding, not a recovery
+  implementation. The harness's own recovery strategy rebuilds on a **fresh
+  canvas** rather than reusing the lost one in place: a real run reproducibly
+  showed deck.gl/luma.gl reusing stale GPU resource state (`"object does not
+  belong to this context"`, `"no valid shader program in use"`) when a second
+  `Deck` is bound to the same canvas after a synthetic restore — the same
+  canvas-swap mitigation real deck.gl apps use. `budgets.json`'s
+  `lifecycle.contextLossRecovery.maxRecoveryMs` bounds the swap-and-remount
+  latency.
+
+The 1M-row scale tier is feasible in CI (bounded per-stage timeouts,
+deterministic fixture, same headless swiftshader path as every other
+scenario) but adds real wall-clock cost — a local run showed 100k already
+takes several seconds to first frame and roughly 1 fps steady-state under
+swiftshader's software rasterizer, so 1M is meaningfully slower. It is
+therefore opt-in rather than part of the routine `npm run bench:browser` PR
+gate:
+
+```sh
+HONUA_BROWSER_BENCH_SCALE=full npm run bench:browser   # or:
+npm run bench:browser:full-scale
+```
+
+`report.corpus.includesOptInScaleTiers` and `.activeScaleTierIds` record
+whether a given report includes it. The 1M tier's budgets in
+[`browser/budgets.json`](./browser/budgets.json) are extrapolated from a real
+100k measurement, not yet independently measured, and are documented as such
+in the file's own `$comment` — tighten them once a reviewed 1M baseline
+exists.
+
 ## Million-feature columnar rendering budget
 
 [`columnar-bench.ts`](./columnar-bench.ts) validates the #387 large-data

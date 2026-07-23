@@ -2,9 +2,18 @@
   "$comment": [
     "These are regression-safety budgets for deterministic headless browser journeys, not product SLAs.",
     "They intentionally detect hangs, missing output, interaction breakage, and extreme instability.",
-    "They must never be used to claim performance superiority over another SDK."
+    "They must never be used to claim performance superiority over another SDK.",
+    "schemaVersion 2 (issue #562) adds staged scale-tier metrics, a 100k/1M row scale corpus, and repeated",
+    "mount/unmount + context-loss recovery leak budgets. The 1M tier is opt-in (HONUA_BROWSER_BENCH_SCALE=full).",
+    "The 100k budgets below are calibrated from a real local Chromium+swiftshader run (see bench/README.md);",
+    "swiftshader is a CPU software rasterizer, so its fill-rate-bound circle redraw is far slower than a real",
+    "GPU (observed ~1 fps steady-state at 100k points) — do not read these as real-device performance. The 1M",
+    "budgets are extrapolated from that 100k baseline, not yet independently measured, and should be tightened",
+    "once a reviewed 1M run exists.",
+    "stage metrics ending in Ms are upper bounds (smaller is better); steadyFrameRateFps is a lower bound",
+    "(direction: at-least) since a smaller frames-per-second value is the regression."
   ],
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "variability": {
     "warningCoefficientOfVariation": 0.35,
     "failureCoefficientOfVariation": 0.75
@@ -17,6 +26,40 @@
     "deckgl.binary-render-interact": {
       "firstVisibleMs": { "warning": 5000, "failure": 15000 },
       "interactionLatencyMs": { "warning": 750, "failure": 2000 }
+    },
+    "deckgl.scale-render-100k": {
+      "firstVisibleMs": { "warning": 10000, "failure": 25000 },
+      "interactionLatencyMs": { "warning": 2500, "failure": 7000 },
+      "stages": {
+        "conversionMs": { "warning": 300, "failure": 1500 },
+        "transferMs": { "warning": 100, "failure": 500 },
+        "gpuUploadMs": { "warning": 6000, "failure": 18000 },
+        "steadyFrameRateFps": { "direction": "at-least", "warning": 0.4, "failure": 0.1 },
+        "pickingMs": { "warning": 2500, "failure": 7000 },
+        "disposalMs": { "warning": 500, "failure": 3000 }
+      }
+    },
+    "deckgl.scale-render-1m": {
+      "firstVisibleMs": { "warning": 30000, "failure": 90000 },
+      "interactionLatencyMs": { "warning": 15000, "failure": 40000 },
+      "stages": {
+        "conversionMs": { "warning": 1500, "failure": 6000 },
+        "transferMs": { "warning": 300, "failure": 1500 },
+        "gpuUploadMs": { "warning": 40000, "failure": 100000 },
+        "steadyFrameRateFps": { "direction": "at-least", "warning": 0.1, "failure": 0.02 },
+        "pickingMs": { "warning": 15000, "failure": 40000 },
+        "disposalMs": { "warning": 2000, "failure": 10000 }
+      }
+    }
+  },
+  "lifecycle": {
+    "repeatedMountUnmount": {
+      "cycles": 25,
+      "warmupCycles": 5,
+      "maxHeapGrowthBytes": { "warning": 8000000, "failure": 40000000 }
+    },
+    "contextLossRecovery": {
+      "maxRecoveryMs": { "warning": 4000, "failure": 12000 }
     }
   }
 }
