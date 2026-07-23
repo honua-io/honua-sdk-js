@@ -189,25 +189,32 @@ journey to consume:
   `lifecycle.contextLossRecovery.maxRecoveryMs` bounds the swap-and-remount
   latency.
 
-The 1M-row scale tier is feasible in CI (bounded per-stage timeouts,
-deterministic fixture, same headless swiftshader path as every other
-scenario) but adds real wall-clock cost — a local run showed 100k already
-takes several seconds to first frame and roughly 1 fps steady-state under
-swiftshader's software rasterizer, so 1M is meaningfully slower. It is
-therefore opt-in rather than part of the routine `npm run bench:browser` PR
-gate:
+Both scale tiers (`deckgl.scale-render-100k` and `deckgl.scale-render-1m`) are
+opt-in, not part of the routine `npm run bench:browser` PR gate — the default
+deterministic lane runs only the 10k `deckgl.binary-render-interact`
+scenario, the capability scenarios, and the lifecycle scenarios:
 
 ```sh
 HONUA_BROWSER_BENCH_SCALE=full npm run bench:browser   # or:
 npm run bench:browser:full-scale
 ```
 
-`report.corpus.includesOptInScaleTiers` and `.activeScaleTierIds` record
-whether a given report includes it. The 1M tier's budgets in
-[`browser/budgets.json`](./browser/budgets.json) are extrapolated from a real
-100k measurement, not yet independently measured, and are documented as such
-in the file's own `$comment` — tighten them once a reviewed 1M baseline
-exists.
+They started as 1M-only opt-in with locally calibrated 100k budgets, but a
+real CI run of `deckgl.scale-render-100k` measured render 2677.80 ms /
+interaction 695 ms / gpuUpload 990 ms / steadyFps 1.3 on CI's own software
+GL — well past the local Chromium+swiftshader baseline those budgets were
+calibrated from. A same-box local measurement is not a portable CI number:
+CI's runner class, load, and swiftshader build can all differ from a
+contributor's machine, and 100k's fill-rate-bound circle redraw is exactly
+the kind of workload where that gap is largest. Both tiers are now opt-in for
+that reason, and every number in `deckgl.scale-render-100k` and
+`deckgl.scale-render-1m` in [`browser/budgets.json`](./browser/budgets.json)
+is documented in the file's own `$comment` as **uncalibrated for CI** — a
+placeholder, not a gate anyone should expect to pass out of the box — pending
+a dedicated evidence job that runs `HONUA_BROWSER_BENCH_SCALE=full` on CI's
+actual runner class and replaces them with reviewed numbers. `report.corpus`
+`.includesOptInScaleTiers` and `.activeScaleTierIds` record whether a given
+report included them.
 
 ## Million-feature columnar rendering budget
 
