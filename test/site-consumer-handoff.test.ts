@@ -21,11 +21,13 @@ import type {
 } from "../scripts/sample-contract.mjs";
 
 // canonicalInputs() reads the real samples/evidence tree (receipts,
-// screenshots, live evidence) for the now genuinely qualified First Map
-// journey. That real I/O regularly exceeds vitest's 5s default under
-// full-suite contention; it was effectively instant against the previously
-// always-empty evidence set, so this was never exercised before.
-vi.setConfig({ testTimeout: 20_000 });
+// screenshots, live evidence) for the now genuinely qualified First Map and
+// Imagery and Terrain journeys. That real I/O regularly exceeds vitest's 5s
+// default under full-suite contention; it was effectively instant against
+// the previously always-empty evidence set, so this was never exercised
+// before. Two qualified journeys' worth of receipts (up from one) need more
+// headroom than the original single-journey budget.
+vi.setConfig({ testTimeout: 60_000 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(file, "utf8"));
 const sha256 = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
