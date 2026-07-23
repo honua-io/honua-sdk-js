@@ -160,49 +160,65 @@ const EVIDENCE_NEUTRAL_EXCLUDED_ROOTS = Object.freeze([
 // above remove regenerated OUTPUT and non-runtime CI config from an
 // otherwise whole-tree digest. That still leaves the digest a function of
 // content that can never influence what the maplibre-quickstart sample
-// renders or how it behaves -- docs/ prose, mcp/, bench/ narrative, test/
-// suites for unrelated SDK areas, and so on -- so an unrelated merge (a
-// typo fix in docs/, an mcp/ feature) still invalidated sample evidence and
-// forced a reseal (#746 context). This allowlist is the positive half of
-// the digest: only these roots can ever be included, and the exclusions
-// above are then subtracted from that included set (e.g. samples/evidence
-// stays out even though samples/ is included). Every root here is either
-// SDK runtime source a sample imports (src/), a sample's own source
-// (examples/, docs/examples/ -- see sample-runner.mjs's sourcePath check),
-// a dependency manifest that changes what gets installed
-// (package.json/package-lock.json), the harness/config that produces and
-// verifies sample evidence itself (samples/, config/, and the specific
-// scripts/ files the sample tooling loads -- see the imports of
-// sample-contract.mjs, sample-runner.mjs, and this file), or the browser
-// evidence-capture inputs sample-runner.mjs binds a receipt to: PLAYWRIGHT_EVIDENCE_ROOT
-// ("test/playwright", holding every sample's playwrightFile plus shared
-// helpers like sample-gate-assertions.mjs) and the root Playwright config
-// each sample's npm script loads implicitly or via an explicit
-// playwrightConfig override (playwright.config.mjs is the default every
-// `playwright test <file>` invocation resolves; playwright.first-map.config.mjs
-// is maplibre-quickstart's explicit override and carries the release-matrix
-// Firefox/xvfb projects from #736). Without these, weakening a spec or the
-// browser matrix config would still verify against a previously sealed
-// receipt -- exactly the drift class this digest exists to catch. Widen
-// this list deliberately: anything omitted here can change without ever
-// invalidating evidence, so it must be genuinely incapable of affecting
-// sample behavior or how its evidence is captured/verified.
+// renders or how it behaves -- docs/ prose (outside docs/examples/), mcp/,
+// conformance/, eval/, and so on -- so an unrelated merge (a typo fix in
+// docs/, an mcp/ feature) still invalidated sample evidence and forced a
+// reseal (#746 context). This allowlist is the positive half of the digest:
+// only these roots can ever be included, and the exclusions above are then
+// subtracted from that included set (e.g. samples/evidence stays out even
+// though samples/ is included). Every root here falls into one of four
+// categories:
+//  1. A sample's own source (examples/, docs/examples/ -- see
+//     sample-runner.mjs's sourcePath check) or the SDK runtime it imports
+//     from source mode (src/).
+//  2. The harness/config that produces and verifies sample evidence itself
+//     (samples/, config/, and the root Playwright configs each sample's npm
+//     script loads implicitly or via an explicit playwrightConfig override --
+//     playwright.config.mjs is the default every `playwright test <file>`
+//     invocation resolves, playwright.first-map.config.mjs is
+//     maplibre-quickstart's explicit override carrying the release-matrix
+//     Firefox/xvfb projects from #736 -- and test/playwright/, holding every
+//     sample's playwrightFile plus shared helpers like
+//     sample-gate-assertions.mjs).
+//  3. Every input scripts/lib/prepared-sdk-artifact.mjs itself treats as an
+//     SDK build input (BUILD_INPUT_ROOTS / BUILD_INPUT_FILES there): src,
+//     test, bench, scripts, config, examples, package.json, package-lock.json,
+//     tsconfig.json, vitest.config.ts, .nvmrc, LICENSE. Packed-mode sample
+//     evidence (`sample-runner.mjs`'s preparePackedSdk) calls
+//     verifyPreparedSdkArtifact, which npm-packs the *actual* dist/ tsc
+//     compiled from src/test/bench (tsconfig's rootDir "." pulls in anything
+//     transitively reachable, not just its "include" globs -- see that
+//     file's own comment and honua-io/honua-sdk-js#652) and embeds real file
+//     hashes in the packed-build gate report. If any of these could change
+//     without moving the digest, a later `samples:verify` would keep
+//     accepting a previously sealed receipt's stored hashes even though a
+//     rebuild at the new tree could produce different packed bytes -- so
+//     test/ and bench/ (whole roots, not just the fixtures/corpus
+//     prepared-sdk-artifact.mjs's own comment calls out) must stay in scope
+//     here even though most individual test/bench changes are unrelated to
+//     any one sample's rendered behavior.
+//  4. A dependency manifest that changes what gets installed
+//     (package.json/package-lock.json -- already covered by (3) too).
+// Every root omitted here must be genuinely incapable of affecting sample
+// behavior OR how its evidence is captured/verified/packed -- widen this
+// list deliberately.
 const EVIDENCE_NEUTRAL_INCLUDED_ROOTS = Object.freeze([
   "examples",
   "docs/examples",
   "src",
   "samples",
-  "test/playwright",
+  "test",
+  "bench",
+  "scripts",
+  "config",
   "package.json",
   "package-lock.json",
-  "config",
+  "tsconfig.json",
+  "vitest.config.ts",
+  ".nvmrc",
+  "LICENSE",
   "playwright.config.mjs",
   "playwright.first-map.config.mjs",
-  "scripts/sample-contract.mjs",
-  "scripts/sample-gate-receipt.mjs",
-  "scripts/sample-runner.mjs",
-  "scripts/build-sample-bundles.mjs",
-  "scripts/lib",
 ]);
 
 function evidenceNeutralIncludePathspecs() {
@@ -310,7 +326,7 @@ export function verifyEvidenceNeutralCheckout(expectedSourceDigest, root = proje
   );
   invariant(
     status === "",
-    `gate evidence requires a clean source checkout of the evidence-neutral roots (examples/, docs/examples/, src/, samples/ minus generated output, test/playwright/, package.json, package-lock.json, config/, playwright.config.mjs, playwright.first-map.config.mjs, and the sample harness scripts); found ${status.split("\n")[0]}`,
+    `gate evidence requires a clean source checkout of the evidence-neutral roots (examples/, docs/examples/, src/, samples/ minus generated output, test/, bench/, scripts/, config/, package.json, package-lock.json, tsconfig.json, vitest.config.ts, .nvmrc, LICENSE, playwright.config.mjs, and playwright.first-map.config.mjs); found ${status.split("\n")[0]}`,
   );
   const digest = evidenceNeutralSourceDigest(root);
   if (expectedSourceDigest !== undefined) {
