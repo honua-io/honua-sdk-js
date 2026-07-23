@@ -1,0 +1,171 @@
+{
+  "format": "honua.sdk.sample-playwright-gate.v1",
+  "sampleId": "imagery-cog-quickstart",
+  "sourceRevision": "86dd17573750eda68909bd9ebe5c692e2bc7b710",
+  "gate": "browser",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:imagery-cog",
+    "--",
+    "--reporter=json"
+  ],
+  "playwright": {
+    "config": {
+      "configFile": "playwright.config.mjs",
+      "rootDir": "test/playwright",
+      "forbidOnly": false,
+      "fullyParallel": false,
+      "globalSetup": null,
+      "globalTeardown": null,
+      "globalTimeout": 0,
+      "grep": {},
+      "grepInvert": null,
+      "maxFailures": 0,
+      "metadata": {
+        "actualWorkers": 1
+      },
+      "preserveOutput": "always",
+      "projects": [
+        {
+          "repeatEach": 1,
+          "retries": 0,
+          "metadata": {
+            "actualWorkers": 1
+          },
+          "id": "chromium",
+          "name": "chromium",
+          "testDir": "test/playwright",
+          "testIgnore": [],
+          "testMatch": [
+            "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+          ],
+          "timeout": 30000
+        }
+      ],
+      "quiet": false,
+      "reporter": [
+        [
+          "json"
+        ]
+      ],
+      "reportSlowTests": {
+        "max": 5,
+        "threshold": 300000
+      },
+      "runAgents": "none",
+      "shard": null,
+      "tags": [],
+      "updateSnapshots": "missing",
+      "updateSourceMethod": "patch",
+      "version": "1.58.2",
+      "workers": 1,
+      "webServer": null
+    },
+    "suites": [
+      {
+        "title": "imagery-cog-quickstart.spec.mjs",
+        "file": "imagery-cog-quickstart.spec.mjs",
+        "column": 0,
+        "line": 0,
+        "specs": [
+          {
+            "title": "imagery and terrain journey completes supported and degraded MapLibre workflows",
+            "ok": true,
+            "tags": [],
+            "tests": [
+              {
+                "timeout": 90000,
+                "annotations": [],
+                "expectedStatus": "passed",
+                "projectId": "chromium",
+                "projectName": "chromium",
+                "results": [
+                  {
+                    "workerIndex": 0,
+                    "parallelIndex": 0,
+                    "status": "passed",
+                    "duration": 42546,
+                    "errors": [],
+                    "stdout": [
+                      {
+                        "buffer": "G1szNm12aXRlIHY4LjAuMTYgG1szMm1idWlsZGluZyBjbGllbnQgZW52aXJvbm1lbnQgZm9yIHByb2R1Y3Rpb24uLi4bWzM2bRtbMzltCg=="
+                      },
+                      {
+                        "buffer": "G1sySw10cmFuc2Zvcm1pbmcuLi4="
+                      },
+                      {
+                        "buffer": "G1szMm3inJMbWzM5bSA0MDMgbW9kdWxlcyB0cmFuc2Zvcm1lZC4K"
+                      },
+                      {
+                        "buffer": "cmVuZGVyaW5nIGNodW5rcy4uLgo="
+                      },
+                      {
+                        "buffer": "Y29tcHV0aW5nIGd6aXAgc2l6ZS4uLgo="
+                      },
+                      {
+                        "buffer": "G1sybWV4YW1wbGVzL2ltYWdlcnktY29nLXF1aWNrc3RhcnQvZGlzdC8bWzBtG1szMm1pbmRleC5odG1sICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgICA5LjA2IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDIuNjYga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzVtaW5kZXgtYWxrSlRzMlUuY3NzICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgIDgxLjU0IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgMTMuMzEga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtcmF3LUEtdkpSUHBhLmpzICAgICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgICAwLjExIGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDAuMTIga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZGVmbGF0ZS1DQnAxM1FPYy5qcyAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgICAwLjE3IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDAuMTYga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtcGFja2JpdHMtRENpbVVRMVQuanMgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgICAwLjM0IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDAuMjUga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtd2ViaW1hZ2UtQ0NOemVYTlcuanMgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgICAwLjk0IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDAuNTIga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtYmFzZWRlY29kZXItQnVHN2ZlMHEuanMgICAgICAgICAgG1szOW0bWzJtG1sxbSAgICAxLjI5IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDAuNzAga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtbHp3LUQyRnNsVDRMLmpzICAgICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgICAxLjQ0IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDAuODIga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZml4dHVyZS1jb2ctZGVjb2Rlci1CTlJrVG43OS5qcyAgG1szOW0bWzJtG1sxbSAgICAyLjgzIGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDEuNDYga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZ2VvdGlmZi1jb2ctZGVjb2Rlci1DeG9FTzB0aS5qcyAgG1szOW0bWzJtG1sxbSAgICA0LjI2IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDIuMDYga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZ2xvYmFscy1DbWRQVFdhOS5qcyAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgICA2LjkxIGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDIuNDMga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZXNtLWVVSEFCNXlfLmpzICAgICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgICA4LjI1IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDIuNjcga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZmVhdHVyZV9zZXJ2aWNlX3BiLURrOUxOWkZULmpzICAgG1szOW0bWzJtG1sxbSAgICA5LjIwIGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDMuOTMga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtanBlZy1DdGhfYm44NC5qcyAgICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgIDEwLjgyIGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDQuMDQga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZ3JwYy1hZGFwdGVyLUJmU3FCTXM1LmpzICAgICAgICAgG1szOW0bWzJtG1sxbSAgIDExLjM3IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDMuNTgga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZXNtLUI2SnhRVmZxLmpzICAgICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgIDE4LjU1IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDcuMjcga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtb2RhdGEtd3JpdGUtY29kZWMtZHBIRTMzUkouanMgICAgG1szOW0bWzJtG1sxbSAgIDE4LjcwIGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgIDUuNjkga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZ2VvdGlmZi1DRTJFNjY1ZS5qcyAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgIDM0LjY2IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgMTEuMjgga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtcGFrby5lc20tQjNxRF84OXYuanMgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgIDQ2LjY5IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgMTQuNzYga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZmlsZS1DV3l5NXBUcC5qcyAgICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgIDY0LjY5IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgMTYuNzUga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtZXNtLUJBdHcxSkttLmpzICAgICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgIDY5LjQ3IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgMTkuNTcga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtenN0ZC1pNEp3dWJueC5qcyAgICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgIDgxLjAyIGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgMzIuNjkga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtbGVyYy1CMjBCNmhUci5qcyAgICAgICAgICAgICAgICAgG1szOW0bWzJtG1sxbSAgIDk2Ljk4IGtCG1swbRtbMG0bWzJtIOKUgiBnemlwOiAgMzcuOTIga0IbWzBtChtbMm1leGFtcGxlcy9pbWFnZXJ5LWNvZy1xdWlja3N0YXJ0L2Rpc3QvG1swbRtbMm1hc3NldHMvG1swbRtbMzZtaW5kZXgtTVc1bmo4MTYuanMgICAgICAgICAgICAgICAgG1szOW0bWzMzbRtbMW0xLDU4MC4xNCBrQhtbMG0bWzM5bRtbMm0g4pSCIGd6aXA6IDQxNy4xOSBrQhtbMG0KCg=="
+                      },
+                      {
+                        "buffer": "G1szMm3inJMgYnVpbHQgaW4gMS4wM3MbWzM5bQo="
+                      }
+                    ],
+                    "stderr": [
+                      {
+                        "buffer": "G1szM21bcGx1Z2luIGJ1aWx0aW46dml0ZS1yZXBvcnRlcl0gG1szM20bWzFtCighKSBTb21lIGNodW5rcyBhcmUgbGFyZ2VyIHRoYW4gNTAwIGtCIGFmdGVyIG1pbmlmaWNhdGlvbi4gQ29uc2lkZXI6Ci0gVXNpbmcgZHluYW1pYyBpbXBvcnQoKSB0byBjb2RlLXNwbGl0IHRoZSBhcHBsaWNhdGlvbgotIFVzZSBidWlsZC5yb2xsZG93bk9wdGlvbnMub3V0cHV0LmNvZGVTcGxpdHRpbmcgdG8gaW1wcm92ZSBjaHVua2luZzogaHR0cHM6Ly9yb2xsZG93bi5ycy9yZWZlcmVuY2UvT3V0cHV0T3B0aW9ucy5jb2RlU3BsaXR0aW5nCi0gQWRqdXN0IGNodW5rIHNpemUgbGltaXQgZm9yIHRoaXMgd2FybmluZyB2aWEgYnVpbGQuY2h1bmtTaXplV2FybmluZ0xpbWl0LhtbMG0bWzMzbRtbMzltCg=="
+                      }
+                    ],
+                    "retry": 0,
+                    "startTime": "2026-07-23T21:51:55.901Z",
+                    "annotations": [],
+                    "attachments": [
+                      {
+                        "name": "honua-gate:browser",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJpbWFnZXJ5LWNvZy1xdWlja3N0YXJ0IiwiZ2F0ZSI6ImJyb3dzZXIiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsicnVudGltZVJlYWR5Ijp0cnVlLCJwcm9qZWN0TmFtZSI6ImNocm9taXVtIiwiYnJvd3Nlck5hbWUiOiJjaHJvbWl1bSJ9fQ=="
+                      },
+                      {
+                        "name": "honua-gate:accessibility",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJpbWFnZXJ5LWNvZy1xdWlja3N0YXJ0IiwiZ2F0ZSI6ImFjY2Vzc2liaWxpdHkiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsiZW5naW5lIjp7Im5hbWUiOiJheGUtY29yZSIsInZlcnNpb24iOiI0LjEyLjEifSwidmlvbGF0aW9ucyI6W10sInBhc3NlcyI6NDUsImtleWJvYXJkIjp7InNlbGVjdG9yIjoiW2RhdGEtdGVzdGlkPVwiaG9udWEtc2FtcGxlLWV2aWRlbmNlXCJdID4gc3VtbWFyeSIsInRhYkNvdW50IjoxLCJ0YWJSZWFjaGVkVGFyZ2V0Ijp0cnVlLCJhY3RpdmF0ZWQiOnRydWUsImR1cmF0aW9uTXMiOjMzLjIwMDAwMDAwMjk4MDIzfX19"
+                      },
+                      {
+                        "name": "honua-gate:responsive",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJpbWFnZXJ5LWNvZy1xdWlja3N0YXJ0IiwiZ2F0ZSI6InJlc3BvbnNpdmUiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsidmlld3BvcnRzIjpbeyJ3aWR0aCI6MTI4MCwiaGVpZ2h0Ijo3MjAsImRvY3VtZW50V2lkdGgiOjEyODAsIm5vSG9yaXpvbnRhbE92ZXJmbG93Ijp0cnVlLCJ3b3JrZmxvd3MiOlt7InNlbGVjdG9yIjoiI3N0YWMtc2VhcmNoLWZvcm0iLCJ2aXNpYmxlIjp0cnVlfSx7InNlbGVjdG9yIjoiI21hcCIsInZpc2libGUiOnRydWV9LHsic2VsZWN0b3IiOiIjYXNzZXQtaW5zcGVjdGlvbiIsInZpc2libGUiOnRydWV9LHsic2VsZWN0b3IiOiIjZGlyZWN0LWNvZy1yZW5kZXIiLCJ2aXNpYmxlIjp0cnVlfSx7InNlbGVjdG9yIjoiI2VsZXZhdGlvbi1wcm9maWxlIiwidmlzaWJsZSI6dHJ1ZX1dfSx7IndpZHRoIjozOTAsImhlaWdodCI6ODQ0LCJkb2N1bWVudFdpZHRoIjozOTAsIm5vSG9yaXpvbnRhbE92ZXJmbG93Ijp0cnVlLCJ3b3JrZmxvd3MiOlt7InNlbGVjdG9yIjoiI3N0YWMtc2VhcmNoLWZvcm0iLCJ2aXNpYmxlIjp0cnVlfSx7InNlbGVjdG9yIjoiI21hcCIsInZpc2libGUiOnRydWV9LHsic2VsZWN0b3IiOiIjYXNzZXQtaW5zcGVjdGlvbiIsInZpc2libGUiOnRydWV9LHsic2VsZWN0b3IiOiIjZGlyZWN0LWNvZy1yZW5kZXIiLCJ2aXNpYmxlIjp0cnVlfSx7InNlbGVjdG9yIjoiI2VsZXZhdGlvbi1wcm9maWxlIiwidmlzaWJsZSI6dHJ1ZX1dfV0sIndvcmtmbG93U2VsZWN0b3JzIjpbIiNzdGFjLXNlYXJjaC1mb3JtIiwiI21hcCIsIiNhc3NldC1pbnNwZWN0aW9uIiwiI2RpcmVjdC1jb2ctcmVuZGVyIiwiI2VsZXZhdGlvbi1wcm9maWxlIl19fQ=="
+                      },
+                      {
+                        "name": "honua-gate:fixture",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJpbWFnZXJ5LWNvZy1xdWlja3N0YXJ0IiwiZ2F0ZSI6ImZpeHR1cmUiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsicHJvdmlkZXIiOiJzdGFydEltYWdlcnlDb2dGaXh0dXJlU2VydmVyIiwidHJhbnNwb3J0IjoibG9vcGJhY2staHR0cCIsImNsb3NlZCI6dHJ1ZX19"
+                      },
+                      {
+                        "name": "honua-gate:console",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJpbWFnZXJ5LWNvZy1xdWlja3N0YXJ0IiwiZ2F0ZSI6ImNvbnNvbGUiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsicGFnZUVycm9ycyI6W10sImNvbnNvbGVFcnJvcnMiOltdLCJwYWdlQ2xvc2VkIjp0cnVlLCJjb250ZXh0Q2xvc2VkIjp0cnVlLCJmaW5hbGl6YXRpb25Cb3VuZGFyeSI6Im93bmVkLXBhZ2UtYW5kLWNvbnRleHQtY2xvc2UiLCJmaW5hbGl6ZWRBZnRlclRlYXJkb3duIjp0cnVlfX0="
+                      }
+                    ]
+                  }
+                ],
+                "status": "expected"
+              }
+            ],
+            "id": "06a683482525b89a659a-b4380d1b5eb87b62379d",
+            "file": "imagery-cog-quickstart.spec.mjs",
+            "line": 24,
+            "column": 1
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "stats": {
+      "startTime": "2026-07-23T21:51:53.734Z",
+      "duration": 44904.417,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  }
+}

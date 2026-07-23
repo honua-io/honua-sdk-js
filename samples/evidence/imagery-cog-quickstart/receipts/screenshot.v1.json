@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "imagery-cog-quickstart",
+  "gate": "screenshot",
+  "status": "passed",
+  "sdkMode": "source",
+  "sourceRevision": "86dd17573750eda68909bd9ebe5c692e2bc7b710",
+  "sourceDigest": "5676a5d0ef2f27ca72827526c08bb637712fe335526071693bbdd62c7293b00b",
+  "runRoot": "samples/evidence/imagery-cog-quickstart/runs/a42b17c2-249f-4e04-812e-ef7a3adcbd8b",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "test:playwright:imagery-cog",
+      "--",
+      "--reporter=json"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "a1bc94a5e38fb21a450e17e2ffd2e8b5e3e486637d5f7aa6b0194bb0322b1293"
+  },
+  "observedAt": "2026-07-23T21:52:40.000Z",
+  "expiresAt": "2026-07-30T21:52:40.000Z",
+  "durationMs": 47037.122866,
+  "artifacts": [
+    {
+      "kind": "screenshot-report",
+      "path": "samples/evidence/imagery-cog-quickstart/runs/a42b17c2-249f-4e04-812e-ef7a3adcbd8b/artifacts/screenshot.json",
+      "bytes": 2550,
+      "sha256": "2f2317064cd40f00df2c8f03bda654494508e5894ada9bc7c6a6c94142156e60"
+    }
+  ]
+}

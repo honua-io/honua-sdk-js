@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "imagery-cog-quickstart",
+  "gate": "fixture",
+  "status": "passed",
+  "sdkMode": "source",
+  "sourceRevision": "86dd17573750eda68909bd9ebe5c692e2bc7b710",
+  "sourceDigest": "5676a5d0ef2f27ca72827526c08bb637712fe335526071693bbdd62c7293b00b",
+  "runRoot": "samples/evidence/imagery-cog-quickstart/runs/e177dc7f-55f0-4e99-b23a-73980ab9985b",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "demo:imagery-cog:mock",
+      "--",
+      "--evidence-once"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "a1bc94a5e38fb21a450e17e2ffd2e8b5e3e486637d5f7aa6b0194bb0322b1293"
+  },
+  "observedAt": "2026-07-23T21:52:42.779Z",
+  "expiresAt": "2026-07-30T21:52:42.779Z",
+  "durationMs": 2191.785748000002,
+  "artifacts": [
+    {
+      "kind": "fixture-probe-report",
+      "path": "samples/evidence/imagery-cog-quickstart/runs/e177dc7f-55f0-4e99-b23a-73980ab9985b/artifacts/fixture.json",
+      "bytes": 717,
+      "sha256": "db87924f96ec2296c0550e2806e8ee4493c9e3827b4ac8f036eaefaa777dc577"
+    }
+  ]
+}
