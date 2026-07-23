@@ -1,7 +1,7 @@
 {
   "format": "honua.sdk.sample-performance-gate.v1",
   "sampleId": "imagery-cog-quickstart",
-  "sourceRevision": "36459ee4d430db8e1b8c81d55478973751005fa2",
+  "sourceRevision": "ae9bc621d20e6dafb3e04e25a1173c221ab75a90",
   "command": [
     "npm",
     "run",
@@ -19,24 +19,24 @@
       "operator": "<=",
       "value": 5000
     },
-    "value": 2454,
+    "value": 1975.2000000029802,
     "observations": {
       "navigation": {
         "entryType": "navigation",
-        "sampleReadyMs": 2454,
-        "responseStartMs": 25.900000005960464,
-        "domContentLoadedMs": 321.1000000089407,
-        "loadEventMs": 362
+        "sampleReadyMs": 1975.2000000029802,
+        "responseStartMs": 24.200000002980232,
+        "domContentLoadedMs": 264.20000000298023,
+        "loadEventMs": 298.20000000298023
       },
       "resources": {
         "count": 41,
         "transferBytes": 1893637,
         "decodedBodyBytes": 1881337,
-        "completedByMs": 1784.800000011921
+        "completedByMs": 1344.9000000059605
       },
       "interaction": {
         "name": "evidence-drawer-keyboard-workflow",
-        "durationMs": 44.5
+        "durationMs": 92.29999999701977
       }
     }
   }
