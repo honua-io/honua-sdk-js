@@ -261,11 +261,18 @@ export async function runCogLiveEvidence(options = {}) {
       },
       timing: { totalMs, firstSuccessfulInteractionMs: totalMs },
       degradation: { state: "none", reasons: [] },
-      artifacts: [
-        { kind: "producer-generator", path: PRODUCER_PATH, sha256: sha256(producerBytes) },
-        { kind: "public-cog-contract", path: CONTRACT_PATH, sha256: sha256(contractBytes) },
-      ],
+      // Only the producer-generator script is listed as a formal `artifacts`
+      // entry: scripts/sample-runner.mjs's live-gate report binds every
+      // non-producer-generator artifact to that specific run's own
+      // samples/evidence/<sample>/runs/<runId>/ tree (see writeGateReport),
+      // which a static, shared, repo-committed fixture like the pinned STAC/
+      // COG contract can never satisfy. Its provenance is instead recorded
+      // (contractPath/contractSha256) alongside the other cog.* fields below,
+      // matching the same fields skippedEvidence() already records.
+      artifacts: [{ kind: "producer-generator", path: PRODUCER_PATH, sha256: sha256(producerBytes) }],
       cog: {
+        contractPath: CONTRACT_PATH,
+        contractSha256: sha256(contractBytes),
         prefix,
         classification: {
           candidateId: candidate.id,
@@ -315,11 +322,11 @@ export async function runCogLiveEvidence(options = {}) {
       semantics: { operation: "stac-direct-cog-inspect-read", outcome: null, itemCount: null, assertions: [] },
       timing: { totalMs, firstSuccessfulInteractionMs: null },
       degradation: { state: "unexpected", reasons: [failureCode] },
-      artifacts: [
-        { kind: "producer-generator", path: PRODUCER_PATH, sha256: sha256(producerBytes) },
-        { kind: "public-cog-contract", path: CONTRACT_PATH, sha256: sha256(contractBytes) },
-      ],
+      // See the matching comment on the success-path artifacts array above.
+      artifacts: [{ kind: "producer-generator", path: PRODUCER_PATH, sha256: sha256(producerBytes) }],
       cog: {
+        contractPath: CONTRACT_PATH,
+        contractSha256: sha256(contractBytes),
         failure: { code: failureCode, message: failureMessage },
         freshness: {
           acquisitionAt: contract.stac.acquisitionAt,
