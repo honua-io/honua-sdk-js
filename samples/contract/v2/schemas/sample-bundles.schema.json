@@ -4,7 +4,7 @@
   "title": "Honua SDK sample browser bundle publication manifest v1",
   "description": "Per-sample static browser bundle inventory published for the samples gallery to embed (honua-io/honua-sdk-js#642, completing honua-io/honua-sdk-js#401 REQ-003's publication leg).",
   "type": "object",
-  "required": ["format", "schemaVersion", "build", "samples"],
+  "required": ["format", "schemaVersion", "build", "samples", "excluded"],
   "properties": {
     "format": { "const": "honua.sdk.sample-bundles.v1" },
     "schemaVersion": { "const": 1 },
@@ -21,6 +21,11 @@
       "type": "array",
       "minItems": 1,
       "items": { "$ref": "#/$defs/sample" }
+    },
+    "excluded": {
+      "type": "array",
+      "description": "Every samples/catalog.v2.json entry not in `samples`, with a machine-readable exclusion reason (honua-io/honua-sdk-js#656 REQ-004).",
+      "items": { "$ref": "#/$defs/excludedSample" }
     }
   },
   "additionalProperties": false,
@@ -51,6 +56,30 @@
           "minItems": 1,
           "items": { "$ref": "#/$defs/file" }
         }
+      },
+      "additionalProperties": false
+    },
+    "excludedSample": {
+      "type": "object",
+      "required": ["id", "category", "reason"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "category": {
+          "type": "string",
+          "enum": [
+            "needs-prepare-step",
+            "requires-api-key",
+            "requires-live-backend",
+            "requires-companion-server",
+            "replay-mode-undecided",
+            "agent-shaped",
+            "non-browser-app",
+            "non-runtime-sample",
+            "lifecycle-not-active",
+            "audit-pending"
+          ]
+        },
+        "reason": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     },
