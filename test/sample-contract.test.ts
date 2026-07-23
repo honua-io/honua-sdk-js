@@ -153,12 +153,12 @@ describe("sample publication contract", () => {
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(1);
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(2);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      1,
+      2,
     );
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
-      6,
+      5,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
@@ -484,6 +484,10 @@ describe("sample publication contract", () => {
     );
   });
 
+  // This test calls generatedOutputs() twice (current + bumped-version
+  // catalogs), roughly doubling the file's already-doubled two-journey I/O
+  // budget; give it its own headroom rather than inflating every other test
+  // in this file to match.
   it("derives release versions without catalog edits and still detects semantic drift", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
@@ -532,7 +536,7 @@ describe("sample publication contract", () => {
     ]);
     expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
     expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
-  });
+  }, 80_000);
 
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {
     const packageJson = await readJson("package.json");
