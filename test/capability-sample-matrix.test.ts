@@ -67,9 +67,27 @@ function qualificationReceipts(
   }));
 }
 
+// Demote every other real golden journey to isolate first-map-only
+// qualification scenarios: the real catalog now qualifies both First Map and
+// Universal Service Explorer, but these fixtures build their own synthetic,
+// single-sample qualification evidence and must not require the real
+// service-explorer receipts to also be exactly covered.
+function demoteOtherGoldenJourneys(catalog: Record<string, unknown>, keepJourneyId: string) {
+  for (const journey of catalog.goldenJourneys as Array<{ id: string; status: string }>) {
+    if (journey.id !== keepJourneyId) journey.status = "planned";
+  }
+  const keepJourney = (catalog.goldenJourneys as Array<{ id: string; candidateSampleId: string }>).find(
+    (candidate) => candidate.id === keepJourneyId,
+  );
+  for (const sample of catalog.samples as Array<{ id: string; track: string }>) {
+    if (sample.track === "golden" && sample.id !== keepJourney?.candidateSampleId) sample.track = "lab";
+  }
+}
+
 async function promotedFirstMap(window?: { observedAt: string; expiresAt: string }) {
   const inputs = await canonicalInputs();
   const catalog = structuredClone(inputs.catalog);
+  demoteOtherGoldenJourneys(catalog, "first-map");
   const journey = catalog.goldenJourneys.find((candidate: { id: string }) => candidate.id === "first-map");
   const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === journey.candidateSampleId);
   journey.status = "qualified";
@@ -130,16 +148,18 @@ describe("capability-to-sample matrix contract", () => {
     // 53 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
     // manifest-advertised PMTiles plugin entrypoint published in issue #671).
     expect(matrix.packageEntrypoints).toHaveLength(53);
-    // maplibre-quickstart is the one real, evidence-backed qualified sample
-    // (the First Map golden journey); everything else must stay unqualified.
-    expect(matrix.evidenceBindings).toHaveLength(1);
+    // maplibre-quickstart and service-explorer are the two real,
+    // evidence-backed qualified samples (First Map and Universal Service
+    // Explorer); everything else must stay unqualified.
+    expect(matrix.evidenceBindings).toHaveLength(2);
     expect(matrix.evidenceBindings[0]).toMatchObject({ sampleId: "maplibre-quickstart" });
-    expect(matrix.inputs.qualificationEvidence).toMatchObject({ receiptCount: 9 });
+    expect(matrix.evidenceBindings[1]).toMatchObject({ sampleId: "service-explorer" });
+    expect(matrix.inputs.qualificationEvidence).toMatchObject({ receiptCount: 18 });
     expect(Object.values(matrix.inputs).every((input) => /^[a-f0-9]{64}$/.test(String(input.sha256)))).toBe(true);
     expect(JSON.stringify(matrix)).not.toContain("generatedAt");
     expect(
       matrix.samples.filter((sample) => sample.qualification.state === "qualified").map((sample) => sample.id),
-    ).toEqual(["maplibre-quickstart"]);
+    ).toEqual(["maplibre-quickstart", "service-explorer"]);
 
     expect(matrix.goldenJourneys.find((journey) => journey.id === "first-map")?.coverage.state).toBe("qualified");
     expect(matrix.goldenJourneys.find((journey) => journey.id === "cloud-native-analysis")?.coverage.state).toBe(
@@ -165,6 +185,7 @@ describe("capability-to-sample matrix contract", () => {
   it("requires receipt-backed catalog promotion and keeps ambiguous protocol joins non-qualified", async () => {
     const inputs = await canonicalInputs();
     const catalog = structuredClone(inputs.catalog);
+    demoteOtherGoldenJourneys(catalog, "first-map");
     const journey = catalog.goldenJourneys.find((candidate: { id: string }) => candidate.id === "first-map");
     const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === journey.candidateSampleId);
     journey.status = "qualified";
@@ -328,11 +349,12 @@ describe("capability-to-sample matrix contract", () => {
       for (let index = 0; index < 128; index += 1) {
         await mkdir(path.join(receiptRoot, `unexpected-${index.toString().padStart(3, "0")}`));
       }
-      // The catalog currently has exactly one catalog-qualified journey
-      // (first-map/maplibre-quickstart), so the root bound is 1: the walk
-      // must stop at the second unexpected entry rather than reading all 128.
+      // The catalog currently has exactly two catalog-qualified journeys
+      // (first-map/maplibre-quickstart and service-explorer/service-explorer),
+      // so the root bound is 2: the walk must stop at the third unexpected
+      // entry rather than reading all 128.
       await expect(collectQualificationEvidence(inputs.catalog, { receiptRoot })).rejects.toThrow(
-        "qualification evidence root has orphan or missing entries; found more than 1 entries",
+        "qualification evidence root has orphan or missing entries; found more than 2 entries",
       );
     } finally {
       await rm(receiptRoot, { recursive: true, force: true });
