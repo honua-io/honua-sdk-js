@@ -1298,7 +1298,7 @@ describe("Incident Operations realtime scenarios", () => {
     expect(staleGeneration.status).toBe(410);
   });
 
-  it("emits duplicate/stale/reconnect/step events and keeps event vs observation time distinct", async () => {
+  it("emits duplicate/reordered/stale-cursor/reconnect events and keeps event vs observation time distinct", async () => {
     const harness = await start({ sampleId: "incident-operations" });
     const stream = await openSse(`${harness.origin}/api/v1/streaming/features`);
     const initial = await stream.next();
@@ -1314,8 +1314,10 @@ describe("Incident Operations realtime scenarios", () => {
     };
     await action("duplicate-event");
     expect((await stream.next()).eventId).toBe(initial.eventId);
-    await action("stale-cursor");
+    await action("reorder-event");
     expect((await stream.next()).sequence).toBe(0);
+    await action("stale-cursor");
+    expect(await stream.next()).toMatchObject({ type: "error", code: "cursor-expired", terminal: false });
     await action("reconnect");
     expect((await stream.next()).status).toBe("reconnecting");
     await action("resume");

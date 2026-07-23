@@ -7,8 +7,8 @@ viewports, required workflow selectors, and SDK entrypoints that qualification
 evidence must exercise.
 
 The kit-managed pilots are `imagery-cog-quickstart`, `maplibre-quickstart`,
-`migration-workbench`, `planning-permitting-workbench`, and
-`service-explorer`.
+`migration-workbench`, `planning-permitting-workbench`,
+`realtime-incident-dashboard`, and `service-explorer`.
 
 ## Run the pilots
 

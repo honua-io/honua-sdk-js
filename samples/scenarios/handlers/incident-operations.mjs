@@ -101,11 +101,11 @@ function statusEvent(run, status, extras = {}) {
 }
 
 function heartbeatEvent(run) {
-  const sequence = nextSequence(run);
+  run.state.heartbeatIndex += 1;
   return {
     type: "heartbeat",
-    eventId: `heartbeat-${run.id}-${sequence}`,
-    cursor: cursor(run, sequence),
+    eventId: `heartbeat-${run.id}-${run.state.heartbeatIndex}`,
+    cursor: cursor(run, run.state.sequence),
     receivedAt: run.clock.now(),
   };
 }
@@ -219,7 +219,16 @@ function boundedString(value, name, maximum = 128) {
 
 function validateActionBody(action, body) {
   if (
-    ["step", "refresh", "reconnect", "resume", "duplicate-event", "stale-cursor", "concurrent-edit"].includes(action)
+    [
+      "step",
+      "refresh",
+      "reconnect",
+      "resume",
+      "duplicate-event",
+      "reorder-event",
+      "stale-cursor",
+      "concurrent-edit",
+    ].includes(action)
   ) {
     exactKeys(body, [], `${action} body`);
     return;
@@ -453,6 +462,7 @@ export function createIncidentOperationsHandler(pack) {
         steps: clone(events.steps),
         stepIndex: 0,
         sequence: 0,
+        heartbeatIndex: 0,
         cursorGeneration: run.ids.next("cursor"),
         throttleRemaining: 1,
         idempotency: new Map(),
@@ -620,17 +630,27 @@ export function createIncidentOperationsHandler(pack) {
         if (run.state.lastDataEvent) broadcast(run, clone(run.state.lastDataEvent));
         return { status: 200, body: { duplicated: Boolean(run.state.lastDataEvent) } };
       }
-      if (action === "stale-cursor") {
+      if (action === "reorder-event") {
         const incident = run.state.features.get(SAFE_EDIT_ID);
         const event = {
           type: "upsert",
-          eventId: `stale-cursor-${run.id}`,
+          eventId: `reordered-${run.id}`,
           cursor: `${run.id}:0:${run.state.cursorGeneration}`,
           sequence: 0,
           receivedAt: run.clock.now(),
           feature: patch(run, incident),
         };
         broadcast(run, event);
+        return { status: 200, body: { reordered: true } };
+      }
+      if (action === "stale-cursor") {
+        broadcast(run, {
+          type: "error",
+          code: "cursor-expired",
+          error: { message: "Realtime cursor expired." },
+          terminal: false,
+          receivedAt: run.clock.now(),
+        });
         return { status: 200, body: { staleCursorInjected: true } };
       }
       if (action === "edit") {
