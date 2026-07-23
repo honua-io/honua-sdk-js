@@ -156,12 +156,80 @@ const EVIDENCE_NEUTRAL_EXCLUDED_ROOTS = Object.freeze([
   "examples/migration-workbench/public/artifacts",
 ]);
 
+// Digest narrowing (honua-io/honua-sdk-js#746 REQ-003): the excluded roots
+// above remove regenerated OUTPUT and non-runtime CI config from an
+// otherwise whole-tree digest. That still leaves the digest a function of
+// content that can never influence what the maplibre-quickstart sample
+// renders or how it behaves -- docs/ prose, mcp/, bench/ narrative, test/
+// suites for unrelated SDK areas, and so on -- so an unrelated merge (a
+// typo fix in docs/, an mcp/ feature) still invalidated sample evidence and
+// forced a reseal (#746 context). This allowlist is the positive half of
+// the digest: only these roots can ever be included, and the exclusions
+// above are then subtracted from that included set (e.g. samples/evidence
+// stays out even though samples/ is included). Every root here is either
+// SDK runtime source a sample imports (src/), a sample's own source
+// (examples/, docs/examples/ -- see sample-runner.mjs's sourcePath check),
+// a dependency manifest that changes what gets installed
+// (package.json/package-lock.json), the harness/config that produces and
+// verifies sample evidence itself (samples/, config/, and the specific
+// scripts/ files the sample tooling loads -- see the imports of
+// sample-contract.mjs, sample-runner.mjs, and this file), or the browser
+// evidence-capture inputs sample-runner.mjs binds a receipt to: PLAYWRIGHT_EVIDENCE_ROOT
+// ("test/playwright", holding every sample's playwrightFile plus shared
+// helpers like sample-gate-assertions.mjs) and the root Playwright config
+// each sample's npm script loads implicitly or via an explicit
+// playwrightConfig override (playwright.config.mjs is the default every
+// `playwright test <file>` invocation resolves; playwright.first-map.config.mjs
+// is maplibre-quickstart's explicit override and carries the release-matrix
+// Firefox/xvfb projects from #736). Without these, weakening a spec or the
+// browser matrix config would still verify against a previously sealed
+// receipt -- exactly the drift class this digest exists to catch. Widen
+// this list deliberately: anything omitted here can change without ever
+// invalidating evidence, so it must be genuinely incapable of affecting
+// sample behavior or how its evidence is captured/verified.
+const EVIDENCE_NEUTRAL_INCLUDED_ROOTS = Object.freeze([
+  "examples",
+  "docs/examples",
+  "src",
+  "samples",
+  "test/playwright",
+  "package.json",
+  "package-lock.json",
+  "config",
+  "playwright.config.mjs",
+  "playwright.first-map.config.mjs",
+  "scripts/sample-contract.mjs",
+  "scripts/sample-gate-receipt.mjs",
+  "scripts/sample-runner.mjs",
+  "scripts/build-sample-bundles.mjs",
+  "scripts/lib",
+]);
+
+function evidenceNeutralIncludePathspecs() {
+  return [...EVIDENCE_NEUTRAL_INCLUDED_ROOTS];
+}
+
 function evidenceNeutralExcludePathspecs() {
   return EVIDENCE_NEUTRAL_EXCLUDED_ROOTS.map((root) => `:(exclude)${root}`);
 }
 
+function evidenceNeutralPathspecs() {
+  return [...evidenceNeutralIncludePathspecs(), ...evidenceNeutralExcludePathspecs()];
+}
+
+function isEvidenceNeutralIncluded(file) {
+  return EVIDENCE_NEUTRAL_INCLUDED_ROOTS.some((root) => file === root || file.startsWith(`${root}/`));
+}
+
 function isEvidenceNeutralExcluded(file) {
   return EVIDENCE_NEUTRAL_EXCLUDED_ROOTS.some((root) => file === root || file.startsWith(`${root}/`));
+}
+
+// A file is inside the evidence-neutral source digest iff it matches the
+// allowlist above AND is not one of the regenerated-output/CI-config roots
+// subtracted from it.
+function isEvidenceNeutral(file) {
+  return isEvidenceNeutralIncluded(file) && !isEvidenceNeutralExcluded(file);
 }
 
 function canonicalTreeListing(buffer, format, excludeEvidence = false) {
@@ -173,7 +241,7 @@ function canonicalTreeListing(buffer, format, excludeEvidence = false) {
     const metadata = record.slice(0, tab).split(" ");
     const file = record.slice(tab + 1);
     invariant(file.length > 0 && !file.includes("\0"), `invalid Git ${format} tree path`);
-    if (excludeEvidence && isEvidenceNeutralExcluded(file)) continue;
+    if (excludeEvidence && !isEvidenceNeutral(file)) continue;
     if (format === "index") {
       invariant(metadata.length === 3 && metadata[2] === "0", "source index contains an unresolved stage");
       entries.push(`${metadata[0]}\0${metadata[1]}\0${file}\0`);
@@ -187,7 +255,7 @@ function canonicalTreeListing(buffer, format, excludeEvidence = false) {
 }
 
 function indexSourceListing(root) {
-  const index = execFileSync("git", ["ls-files", "-s", "-z", "--", ".", ...evidenceNeutralExcludePathspecs()], {
+  const index = execFileSync("git", ["ls-files", "-s", "-z", "--", ...evidenceNeutralPathspecs()], {
     cwd: root,
     encoding: null,
     stdio: ["ignore", "pipe", "pipe"],
@@ -216,7 +284,7 @@ function revisionSourceDigest(revision, root) {
 }
 
 function rejectHiddenIndexInputs(root) {
-  const output = execFileSync("git", ["ls-files", "-v", "-z", "--", ".", ...evidenceNeutralExcludePathspecs()], {
+  const output = execFileSync("git", ["ls-files", "-v", "-z", "--", ...evidenceNeutralPathspecs()], {
     cwd: root,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -237,12 +305,12 @@ export function evidenceNeutralSourceDigest(root = projectRoot) {
 export function verifyEvidenceNeutralCheckout(expectedSourceDigest, root = projectRoot, sourceRevision) {
   rejectHiddenIndexInputs(root);
   const status = gitOutput(
-    ["status", "--porcelain=v1", "--untracked-files=all", "--", ".", ...evidenceNeutralExcludePathspecs()],
+    ["status", "--porcelain=v1", "--untracked-files=all", "--", ...evidenceNeutralPathspecs()],
     root,
   );
   invariant(
     status === "",
-    `gate evidence requires a clean source checkout outside samples/evidence, samples/dist, and samples/contract/v2/consumer-fixtures; found ${status.split("\n")[0]}`,
+    `gate evidence requires a clean source checkout of the evidence-neutral roots (examples/, docs/examples/, src/, samples/ minus generated output, test/playwright/, package.json, package-lock.json, config/, playwright.config.mjs, playwright.first-map.config.mjs, and the sample harness scripts); found ${status.split("\n")[0]}`,
   );
   const digest = evidenceNeutralSourceDigest(root);
   if (expectedSourceDigest !== undefined) {

@@ -1241,7 +1241,10 @@ test("qualification requires one run per expected command while allowing separat
 });
 
 test("clean-checkout binding rejects a dirty relevant tree", async () => {
-  const dirty = path.resolve("sample-runner-dirty-probe.tmp");
+  // Must live under an evidence-neutral allowlisted root (#746 REQ-003) --
+  // an untracked file outside it (e.g. the repo root) no longer dirties the
+  // narrowed digest.
+  const dirty = path.resolve("samples/sample-runner-dirty-probe.tmp");
   await writeFile(dirty, "dirty\n");
   try {
     assert.throws(() => verifyEvidenceNeutralCheckout(undefined, process.cwd()), /clean source checkout/);
@@ -1282,6 +1285,84 @@ function snapshotOptions(repository, sourceRevision, runId = snapshotRunId) {
     runRoot: `${outputRoot}/runs/${runId}`,
   };
 }
+
+test("evidence-neutral digest ignores changes outside the sample-relevant allowlist (#746 REQ-003)", async () => {
+  const { repository } = await integrityRepository();
+  try {
+    const digest = evidenceNeutralSourceDigest(repository);
+
+    // docs/ prose (outside docs/examples/), mcp/, and an unrelated test/
+    // suite cannot affect maplibre-quickstart sample behavior, so they must
+    // not be part of the digest at all.
+    await mkdir(path.join(repository, "docs"), { recursive: true });
+    await writeFile(path.join(repository, "docs/unrelated.md"), "# irrelevant prose\n");
+    await mkdir(path.join(repository, "mcp"), { recursive: true });
+    await writeFile(path.join(repository, "mcp/notes.md"), "unrelated mcp content\n");
+    await mkdir(path.join(repository, "test/unrelated"), { recursive: true });
+    await writeFile(path.join(repository, "test/unrelated/spec.mjs"), "// unrelated test\n");
+    git(repository, ["add", "docs", "mcp", "test"]);
+    git(repository, ["commit", "--quiet", "-m", "unrelated content"]);
+
+    assert.equal(evidenceNeutralSourceDigest(repository), digest);
+    assert.equal(verifyEvidenceNeutralCheckout(digest, repository), digest);
+  } finally {
+    await rm(repository, { recursive: true, force: true });
+  }
+});
+
+test("evidence-neutral digest still tracks the sample-relevant allowlist (#746 REQ-003)", async () => {
+  const { repository } = await integrityRepository();
+  try {
+    const digest = evidenceNeutralSourceDigest(repository);
+
+    // src/ (SDK runtime a sample imports) is inside the allowlist.
+    await mkdir(path.join(repository, "src"), { recursive: true });
+    await writeFile(path.join(repository, "src/index.ts"), "export const marker = 1;\n");
+    git(repository, ["add", "src"]);
+    git(repository, ["commit", "--quiet", "-m", "src change"]);
+    const srcDigest = evidenceNeutralSourceDigest(repository);
+    assert.notEqual(srcDigest, digest);
+
+    // config/ (capability crosswalk / support manifest consumed by
+    // samples:verify) is inside the allowlist too.
+    await mkdir(path.join(repository, "config"), { recursive: true });
+    await writeFile(path.join(repository, "config/capability-crosswalk.v1.json"), "{}\n");
+    git(repository, ["add", "config"]);
+    git(repository, ["commit", "--quiet", "-m", "config change"]);
+    const configDigest = evidenceNeutralSourceDigest(repository);
+    assert.notEqual(configDigest, srcDigest);
+
+    // test/playwright/ (a sample's playwrightFile, or a shared helper like
+    // sample-gate-assertions.mjs) is inside the allowlist -- a weakened
+    // assertion must invalidate previously sealed evidence.
+    await mkdir(path.join(repository, "test/playwright"), { recursive: true });
+    await writeFile(
+      path.join(repository, "test/playwright/quickstart-map.spec.mjs"),
+      "// spec content\n",
+    );
+    git(repository, ["add", "test"]);
+    git(repository, ["commit", "--quiet", "-m", "playwright spec change"]);
+    const playwrightSpecDigest = evidenceNeutralSourceDigest(repository);
+    assert.notEqual(playwrightSpecDigest, configDigest);
+
+    // The root Playwright configs (the implicit default and
+    // maplibre-quickstart's explicit release-matrix override, #736) are
+    // inside the allowlist -- dropping a browser-matrix project must
+    // invalidate previously sealed evidence too.
+    await writeFile(path.join(repository, "playwright.config.mjs"), "export default {};\n");
+    git(repository, ["add", "playwright.config.mjs"]);
+    git(repository, ["commit", "--quiet", "-m", "playwright config change"]);
+    const playwrightConfigDigest = evidenceNeutralSourceDigest(repository);
+    assert.notEqual(playwrightConfigDigest, playwrightSpecDigest);
+
+    await writeFile(path.join(repository, "playwright.first-map.config.mjs"), "export default {};\n");
+    git(repository, ["add", "playwright.first-map.config.mjs"]);
+    git(repository, ["commit", "--quiet", "-m", "first-map playwright config change"]);
+    assert.notEqual(evidenceNeutralSourceDigest(repository), playwrightConfigDigest);
+  } finally {
+    await rm(repository, { recursive: true, force: true });
+  }
+});
 
 test("evidence-neutral source binding survives evidence-only changes and commits", async () => {
   const { repository, sourceRevision } = await integrityRepository();

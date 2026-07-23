@@ -21,14 +21,54 @@ name: Regenerate derived artifacts
 # exact head, approves only that head's native ruleset checks, and auto-merges
 # them with a merge commit so evidence revisions remain reachable.
 
-# Cadence (#746): regeneration runs on a 6-hour schedule and on demand instead
-# of after every trunk merge. Release-time consumers (first-map-release-smoke,
-# publish-js-sdk, and release-please's resealed JS publish path) dispatch this
-# workflow and wait for it before strictly verifying evidence, so releases
-# never observe the bounded staleness window.
-# The loop guard below makes a dispatch a fast no-op when trunk's tip is
-# already a regeneration merge.
+# Cadence (#746 REQ-001): regeneration no longer runs after every trunk merge --
+# a 6-hour schedule and workflow_dispatch are the baseline triggers. Release-time
+# consumers (first-map-release-smoke, publish-js-sdk, and release-please's
+# resealed JS publish path) dispatch this workflow and wait for it before
+# strictly verifying evidence, so releases never observe the bounded staleness
+# window. The loop guard below makes a dispatch a fast no-op when trunk's tip
+# is already a regeneration merge.
+#
+# Digest-narrowed push trigger (#746 REQ-003): the `paths:` filter below
+# mirrors EVIDENCE_NEUTRAL_INCLUDED_ROOTS / EVIDENCE_NEUTRAL_EXCLUDED_ROOTS in
+# scripts/sample-gate-receipt.mjs exactly -- including test/playwright/ (every
+# sample's playwrightFile plus shared Playwright helpers) and the root
+# playwright.config.mjs / playwright.first-map.config.mjs the sample harness
+# loads implicitly or via a playwrightConfig override -- so only content that
+# can actually invalidate the sample source digest re-triggers a regeneration
+# on push. A merge that only touches docs/ prose, mcp/, bench/ narrative, or
+# an unrelated test/ suite does not match and leaves existing evidence valid,
+# so it no longer costs a reseal at all. The negated samples/evidence,
+# samples/dist, and samples/contract/v2/consumer-fixtures patterns keep this
+# workflow's own automation-PR merge (which touches only those generated
+# paths) from re-triggering itself on push; the loop guard is the backstop
+# for any case that still gets through (e.g. a merge that also carries source
+# changes). Keep this list and EVIDENCE_NEUTRAL_INCLUDED_ROOTS in lockstep --
+# a path missing from one is either a digest gap (evidence can go stale
+# without anyone noticing) or a redundant trigger.
 on:
+  push:
+    branches:
+      - trunk
+    paths:
+      - "examples/**"
+      - "docs/examples/**"
+      - "src/**"
+      - "samples/**"
+      - "!samples/evidence/**"
+      - "!samples/dist/**"
+      - "!samples/contract/v2/consumer-fixtures/**"
+      - "test/playwright/**"
+      - "package.json"
+      - "package-lock.json"
+      - "config/**"
+      - "playwright.config.mjs"
+      - "playwright.first-map.config.mjs"
+      - "scripts/sample-contract.mjs"
+      - "scripts/sample-gate-receipt.mjs"
+      - "scripts/sample-runner.mjs"
+      - "scripts/build-sample-bundles.mjs"
+      - "scripts/lib/**"
   schedule:
     - cron: "23 1,7,13,19 * * *"
   workflow_dispatch:

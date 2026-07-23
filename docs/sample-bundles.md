@@ -57,8 +57,8 @@ manifest's hash checks.
 
 Built bundles and the manifest are **not** committed to the tree (`dist/` is
 gitignored, and this repository binds golden-journey qualification receipts
-to a source digest over every *other* tracked file -- see
-`scripts/sample-gate-receipt.mjs`'s `evidenceNeutralSourceDigest`, and the
+to a source digest over the tracked files that can affect sample behavior --
+see `scripts/sample-gate-receipt.mjs`'s `evidenceNeutralSourceDigest`, and the
 existing `dist/browser/honua-sdk.browser-artifacts.v1.json` SDK CDN-bundle
 manifest, which is likewise built fresh rather than committed). Committing
 contenthashed build output would churn that digest, and therefore every
@@ -75,10 +75,31 @@ qualified receipt, on every trunk push.
 > derived artifact, reseals evidence **strictly** bound to the trunk source
 > digest, and commits the result back to trunk. That workflow -- not the feature
 > PR -- is where reproducibility is enforced. The evidence-neutral digest also
-> now excludes clearly-derived, non-runtime paths (`.github`, the generated
+> excludes clearly-derived, non-runtime paths (`.github`, the generated
 > report docs, `llms*.txt`, `api-report`, `bench/cross-sdk/corpus.json`, and
 > `examples/migration-workbench/public/artifacts`), so regenerating them cannot
 > re-stale a receipt.
+
+> **Digest narrowing (honua-io/honua-sdk-js#746 REQ-003).** The digest is now
+> an allowlist, not "everything except the exclusions above": only
+> `examples/`, `docs/examples/`, `src/`, `samples/` (minus the exclusions
+> above), `test/playwright/` (every sample's `playwrightFile` plus shared
+> Playwright helpers like `sample-gate-assertions.mjs`), `package.json`,
+> `package-lock.json`, `config/`, `playwright.config.mjs` and
+> `playwright.first-map.config.mjs` (the root Playwright configs every sample
+> loads implicitly or via an explicit `playwrightConfig` override -- the
+> latter carries maplibre-quickstart's release-matrix Firefox/xvfb projects
+> from #736), and the specific `scripts/` files the sample harness loads
+> (`sample-contract.mjs`, `sample-gate-receipt.mjs`, `sample-runner.mjs`,
+> `build-sample-bundles.mjs`, `scripts/lib/`) are inside it. A merge that only
+> touches `docs/` prose, `mcp/`, `bench/` narrative, or unrelated `test/`
+> suites no longer changes the digest at all, so
+> `regenerate-derived-artifacts.yml`'s `paths:`-filtered trunk-push trigger
+> (mirroring this same allowlist) skips it and existing evidence stays valid
+> without a reseal. A change to a sample's Playwright spec or to either root
+> Playwright config still changes the digest, so a weakened assertion or a
+> dropped browser-matrix project cannot verify against a previously sealed
+> receipt.
 
 Instead, `.github/workflows/ci.yml`:
 
