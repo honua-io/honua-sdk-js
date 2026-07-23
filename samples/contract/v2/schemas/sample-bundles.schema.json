@@ -4,7 +4,7 @@
   "title": "Honua SDK sample browser bundle publication manifest v1",
   "description": "Per-sample static browser bundle inventory published for the samples gallery to embed (honua-io/honua-sdk-js#642, completing honua-io/honua-sdk-js#401 REQ-003's publication leg).",
   "type": "object",
-  "required": ["format", "schemaVersion", "build", "samples", "excluded"],
+  "required": ["format", "schemaVersion", "build", "samples"],
   "properties": {
     "format": { "const": "honua.sdk.sample-bundles.v1" },
     "schemaVersion": { "const": 1 },
