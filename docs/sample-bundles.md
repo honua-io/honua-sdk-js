@@ -57,8 +57,8 @@ manifest's hash checks.
 
 Built bundles and the manifest are **not** committed to the tree (`dist/` is
 gitignored, and this repository binds golden-journey qualification receipts
-to a source digest over every *other* tracked file -- see
-`scripts/sample-gate-receipt.mjs`'s `evidenceNeutralSourceDigest`, and the
+to a source digest over the tracked files that can affect sample behavior --
+see `scripts/sample-gate-receipt.mjs`'s `evidenceNeutralSourceDigest`, and the
 existing `dist/browser/honua-sdk.browser-artifacts.v1.json` SDK CDN-bundle
 manifest, which is likewise built fresh rather than committed). Committing
 contenthashed build output would churn that digest, and therefore every
@@ -75,10 +75,40 @@ qualified receipt, on every trunk push.
 > derived artifact, reseals evidence **strictly** bound to the trunk source
 > digest, and commits the result back to trunk. That workflow -- not the feature
 > PR -- is where reproducibility is enforced. The evidence-neutral digest also
-> now excludes clearly-derived, non-runtime paths (`.github`, the generated
+> excludes clearly-derived, non-runtime paths (`.github`, the generated
 > report docs, `llms*.txt`, `api-report`, `bench/cross-sdk/corpus.json`, and
 > `examples/migration-workbench/public/artifacts`), so regenerating them cannot
 > re-stale a receipt.
+
+> **Digest narrowing (honua-io/honua-sdk-js#746 REQ-003).** The digest is now
+> an allowlist, not "everything except the exclusions above": only
+> `examples/`, `docs/examples/`, `src/`, `samples/` (minus the exclusions
+> above), `test/`, `bench/` (minus `bench/cross-sdk/corpus.json`, itself an
+> excluded generated report), `scripts/`, `config/`, `package.json`,
+> `package-lock.json`, `tsconfig.json`, `vitest.config.ts`, `.nvmrc`,
+> `LICENSE`, and `playwright.config.mjs` / `playwright.first-map.config.mjs`
+> (the root Playwright configs every sample loads implicitly or via an
+> explicit `playwrightConfig` override -- the latter carries
+> maplibre-quickstart's release-matrix Firefox/xvfb projects from #736) are
+> inside it. `test/`, `bench/`, `scripts/`, and the four root files above are
+> not sample-specific by themselves -- they are exactly the SDK build inputs
+> `scripts/lib/prepared-sdk-artifact.mjs`'s `BUILD_INPUT_ROOTS` /
+> `BUILD_INPUT_FILES` track, because packed-mode sample evidence
+> (`sample-runner.mjs`'s `preparePackedSdk`) `npm pack`s and hashes the real
+> `dist/` tsc compiles from `src`+`test`+`bench` (tsconfig's `rootDir: "."`
+> pulls in anything transitively reachable, not just its `include` globs --
+> see honua-io/honua-sdk-js#652) and embeds those hashes in the packed-build
+> gate report; leaving any of them out of the digest would let a change there
+> keep verifying against a previously sealed receipt's stored hashes even
+> though a rebuild could produce different packed bytes. A merge that only
+> touches `docs/` prose (outside `docs/examples/`), `mcp/`, `conformance/`,
+> or `eval/` still leaves the digest untouched, so
+> `regenerate-derived-artifacts.yml`'s `paths:`-filtered trunk-push trigger
+> (mirroring this same allowlist) skips it and existing evidence stays valid
+> without a reseal. A change to a sample's Playwright spec, either root
+> Playwright config, or any SDK build input above still changes the digest,
+> so a weakened assertion, a dropped browser-matrix project, or a build
+> config change cannot verify against a previously sealed receipt.
 
 Instead, `.github/workflows/ci.yml`:
 
