@@ -282,6 +282,19 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     },
   ],
   [
+    "evidence:migration-workbench:live",
+    {
+      definition:
+        "npm run prepare:test-sdk --silent && node scripts/migration-workbench-live-evidence.mjs --output samples/evidence/migration-workbench/live.v1.json",
+      generatorPath: "scripts/migration-workbench-live-evidence.mjs",
+      sampleId: "migration-workbench",
+      operation: "migration-workbench-deterministic-cli-replay",
+      dependencies: {
+        "prepare:test-sdk": "node scripts/prepare-sdk-test-artifacts.mjs --prepare",
+      },
+    },
+  ],
+  [
     "evidence:overture:live",
     {
       definition: "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",
@@ -2707,6 +2720,60 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
   };
   await validateJsonSchema(migratedCatalog, CATALOG_SCHEMA_PATH);
   return migratedCatalog;
+}
+
+// Resealing a golden sample refreshes its receipts and published live
+// evidence (samples/evidence/<id>/live.v1.json) with a new observedAt, but
+// samples/catalog.v2.json's live.expiresAt is not derived from that file --
+// it is copied verbatim from this migration overlay's sampleOverrides[id]
+// .live.expiresAt, a literal set once at qualification time. Reseal alone
+// therefore leaves the catalog's expiry frozen while receipts keep renewing,
+// so the catalog-level expiry eventually lapses out from under evidence that
+// is otherwise perfectly fresh (honua-io/honua-sdk-js#788). This mutates the
+// overlay in place, recomputing expiresAt for each named sample's evidence-
+// bound live lane as observedAt (read fresh from the lane's own evidencePath)
+// plus the applicable policy window (executedMaxDays for "executed",
+// nonExecutedMaxDays for "skipped"), matching the same policy validateCatalog
+// enforces. Callers must rerun migrate-v1 (to project the refreshed overlay
+// into samples/catalog.v2.json) and write (to regenerate the dist
+// projections) after calling this.
+export async function refreshOverlayLiveExpiry(migration, sampleIds, options = {}) {
+  const ids = Array.isArray(sampleIds) ? sampleIds : [sampleIds];
+  invariant(ids.length > 0, "refresh-live-expiry requires at least one sample id");
+  const nowMs = options.now === undefined ? Date.now() : parseDateTime(options.now, "refresh-live-expiry now");
+  const evidenceExpiry = migration.configuration?.evidenceExpiry;
+  invariant(
+    Number.isInteger(evidenceExpiry?.executedMaxDays) && Number.isInteger(evidenceExpiry?.nonExecutedMaxDays),
+    "migration configuration.evidenceExpiry policy is required",
+  );
+  const refreshed = [];
+  for (const sampleId of ids) {
+    const override = migration.sampleOverrides[sampleId];
+    invariant(override, `refresh-live-expiry: unknown sample override ${sampleId}`);
+    const live = override.live;
+    invariant(live && typeof live === "object", `${sampleId}: migration override has no live lane to refresh`);
+    invariant(
+      live.status === "executed" || live.status === "skipped",
+      `${sampleId}: live lane status "${live.status}" is not evidence-bound; only executed or skipped lanes carry a refreshable expiresAt`,
+    );
+    invariant(typeof live.evidencePath === "string" && live.evidencePath, `${sampleId}: live lane has no evidencePath to refresh from`);
+    assertRelativePath(live.evidencePath, `${sampleId}.live.evidencePath`);
+    const evidence = await readJson(live.evidencePath);
+    invariant(evidence.sampleId === sampleId, `${sampleId}: live evidence sampleId drift`);
+    invariant(evidence.lane === "live", `${sampleId}: live evidence lane drift`);
+    invariant(
+      evidence.status === live.status,
+      `${sampleId}: live evidence status "${evidence.status}" does not match overlay status "${live.status}"`,
+    );
+    const observedAtMs = parseDateTime(evidence.observedAt, `${sampleId}.evidence.observedAt`);
+    invariant(observedAtMs <= nowMs, `${sampleId}: live evidence observedAt is in the future`);
+    const maxDays = live.status === "executed" ? evidenceExpiry.executedMaxDays : evidenceExpiry.nonExecutedMaxDays;
+    const expiresAt = new Date(observedAtMs + maxDays * 24 * 60 * 60 * 1000).toISOString();
+    const previousExpiresAt = live.expiresAt;
+    live.expiresAt = expiresAt;
+    refreshed.push({ sampleId, observedAt: evidence.observedAt, previousExpiresAt, expiresAt });
+  }
+  return refreshed;
 }
 
 export async function validateCatalog(catalog, packageJson, options = {}) {
@@ -6497,6 +6564,22 @@ async function main(argv) {
     });
     return;
   }
+  if (command === "refresh-live-expiry") {
+    invariant(
+      args.length === 2 && args[0] === "--sample",
+      "refresh-live-expiry requires --sample <comma-separated-ids>",
+    );
+    const sampleIds = args[1].split(",").map((id) => id.trim());
+    const migration = await readJson(V1_MIGRATION_PATH);
+    const refreshed = await refreshOverlayLiveExpiry(migration, sampleIds);
+    await writeFile(path.join(PROJECT_ROOT, V1_MIGRATION_PATH), stableJson(migration), "utf8");
+    for (const entry of refreshed) {
+      process.stdout.write(
+        `${entry.sampleId}: live.expiresAt ${entry.previousExpiresAt ?? "(none)"} -> ${entry.expiresAt} (observedAt ${entry.observedAt})\n`,
+      );
+    }
+    return;
+  }
   if (command === "migrate-v1") {
     let qualificationBootstrapSampleId;
     if (args.length === 2 && args[0] === "--qualification-bootstrap") {
@@ -6514,6 +6597,24 @@ async function main(argv) {
     });
     await writeFile(path.join(PROJECT_ROOT, CATALOG_PATH), stableJson(catalog), "utf8");
     process.stdout.write(`Migrated ${catalog.samples.length} executable examples to ${CATALOG_PATH}\n`);
+    return;
+  }
+  if (command === "write-ci-selection") {
+    // generateCiSelection is a pure projection of the catalog (no
+    // qualification-evidence dependency, unlike the rest of `write`'s
+    // outputs), so this can run safely between migrate-v1 and a reseal pass
+    // that has not produced fresh receipts yet: a reseal's own readInputs
+    // scopes its staleness check on samples/dist/sample-ci-selection.v2.json
+    // to the one --sample it targets, and that file embeds each sample's
+    // catalog-projected evidence.live.expiresAt, so refresh-live-expiry +
+    // migrate-v1 changing that literal leaves this file stale for exactly
+    // the samples a following reseal pass needs it fresh for.
+    invariant(args.length === 0, "write-ci-selection does not accept arguments");
+    const catalog = await readJson(CATALOG_PATH);
+    const selection = generateCiSelection(catalog);
+    await validateCiSelection(selection);
+    await writeFile(path.join(PROJECT_ROOT, CI_SELECTION_PATH), stableJson(selection), "utf8");
+    process.stdout.write(`Projected ${selection.samples.length} samples to ${CI_SELECTION_PATH}\n`);
     return;
   }
   if (command === "artifacts") {

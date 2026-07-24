@@ -13,15 +13,15 @@
     "schemaPath": "samples/contract/v2/schemas/site-consumer-handoff.schema.json",
     "format": "honua.site.sdk-sample-consumer-handoff.v1",
     "schemaVersion": 1,
-    "bytes": 338361,
-    "sha256": "b77a7b62ef3f1b3110d460ebe9865ef88b19100cfc9053c0ae3e6dcb916ad4b2"
+    "bytes": 360984,
+    "sha256": "02a71f80c431410ffb70348ef495219604fa522aa8c035be2cad7bf7147d1e30"
   },
   "assertions": {
     "cardCount": 30,
-    "qualifiedJourneyCount": 3,
+    "qualifiedJourneyCount": 4,
     "canonicalRouteCount": 30,
     "legacyRouteCount": 20,
-    "gapCount": 417,
+    "gapCount": 414,
     "everyQualifiedTrackHandedOff": true,
     "honestZeroQualificationAllowed": true,
     "allLegacyRoutesResolved": true,

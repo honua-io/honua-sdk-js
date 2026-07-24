@@ -471,7 +471,7 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   );
   assert.deepEqual(
     [...qualifiedGoldenCandidateSampleIds].sort(),
-    ["imagery-cog-quickstart", "maplibre-quickstart", "service-explorer"],
+    ["imagery-cog-quickstart", "maplibre-quickstart", "migration-workbench", "service-explorer"],
   );
   const firstMapCard = byId.get("maplibre-quickstart");
   assert.equal(firstMapCard.qualification.state, "receipt-qualified-golden");
@@ -479,6 +479,15 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const serviceExplorerCard = byId.get("service-explorer");
   assert.equal(serviceExplorerCard.qualification.state, "receipt-qualified-golden");
   assert.equal(serviceExplorerCard.qualification.label, "Receipt-qualified golden journey");
+  // migration-workbench is the real, receipt-qualified ArcGIS Migration
+  // Workbench golden journey (#549); its live evidence comes from the
+  // deterministic-CLI demo-live producer rather than a public-live proof.
+  const migrationCard = byId.get("migration-workbench");
+  assert.equal(migrationCard.sample.lifecycle.state, "active");
+  assert.equal(migrationCard.qualification.state, "receipt-qualified-golden");
+  assert.equal(migrationCard.qualification.label, "Receipt-qualified golden journey");
+  assert.equal(migrationCard.sample.evidence.live.mode, "demo-live");
+  assert.equal(migrationCard.sample.evidence.live.status, "executed");
   assert.ok(
     cards
       .filter((card) => !qualifiedGoldenCandidateSampleIds.has(card.sample.id))
@@ -496,6 +505,7 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   ]);
   assert.deepEqual(serviceExplorerCard.qualification.requiredGates, firstMapCard.qualification.requiredGates);
   assert.deepEqual(imageryCard.qualification.requiredGates, firstMapCard.qualification.requiredGates);
+  assert.deepEqual(migrationCard.qualification.requiredGates, firstMapCard.qualification.requiredGates);
 });
 
 test("sorts public capability and protocol facets deterministically", async () => {

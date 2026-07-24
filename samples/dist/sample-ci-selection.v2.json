@@ -45,7 +45,7 @@
     {
       "id": "arcgis-migration",
       "title": "ArcGIS Migration Workbench",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "migration-workbench"
     }
   ],
@@ -84,7 +84,6 @@
         "cesium-route-playback",
         "kepler-analytics",
         "mcp-gis-assistant",
-        "migration-workbench",
         "nl-map-control",
         "overture-geoparquet",
         "planning-permitting-workbench",
@@ -137,6 +136,7 @@
       "sampleIds": [
         "imagery-cog-quickstart",
         "maplibre-quickstart",
+        "migration-workbench",
         "service-explorer"
       ]
     },
@@ -549,7 +549,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-08-23T21:58:55.396Z"
+        "expiresAt": "2026-08-24T14:22:21.685Z"
       }
     },
     {
@@ -635,7 +635,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-07-24T15:44:54.411Z"
+        "expiresAt": "2026-08-24T14:21:25.439Z"
       }
     },
     {
@@ -681,19 +681,19 @@
     {
       "id": "migration-workbench",
       "sourcePath": "examples/migration-workbench",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "arcgis-migration",
       "supportTier": "supported",
-      "validationProfile": "browser-lab",
+      "validationProfile": "golden-browser",
       "gates": {
         "packedBuild": true,
         "browser": true,
         "accessibility": true,
         "console": true,
         "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
+        "screenshot": true,
+        "performance": true,
+        "liveEvidence": true
       },
       "commandPlan": {
         "validation": {
@@ -712,12 +712,16 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": []
+          "commands": [
+            "npm run evidence:migration-workbench:live"
+          ]
         }
       },
       "liveEvidence": {
-        "mode": "unavailable",
-        "status": "not-applicable"
+        "mode": "demo-live",
+        "status": "executed",
+        "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
+        "expiresAt": "2026-08-24T14:22:42.219Z"
       }
     },
     {
@@ -1143,7 +1147,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-08-21T20:22:41.000Z"
+        "expiresAt": "2026-08-24T14:23:23.254Z"
       }
     },
     {

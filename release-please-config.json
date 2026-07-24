@@ -57,6 +57,11 @@
         },
         {
           "type": "json",
+          "path": "samples/evidence/migration-workbench/live.v1.json",
+          "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
           "path": "samples/evidence/service-explorer/live.v1.json",
           "jsonpath": "$.sdk.version"
         },

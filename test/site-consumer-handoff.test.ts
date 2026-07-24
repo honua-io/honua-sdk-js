@@ -22,12 +22,12 @@ import type {
 
 // canonicalInputs() reads the real samples/evidence tree (receipts,
 // screenshots, live evidence) for the now genuinely qualified First Map,
-// Imagery and Terrain, and Universal Service Explorer journeys. That real
-// I/O regularly exceeds vitest's 5s default under full-suite contention; it
-// was effectively instant against the previously always-empty evidence set,
-// so this was never exercised before. Three qualified journeys' worth of
-// receipts (up from one) need more headroom than the original
-// single-journey budget.
+// Imagery and Terrain, Universal Service Explorer, and ArcGIS Migration
+// Workbench journeys. That real I/O regularly exceeds vitest's 5s default
+// under full-suite contention; it was effectively instant against the
+// previously always-empty evidence set, so this was never exercised before.
+// Four qualified journeys' worth of receipts (up from one) need more
+// headroom than the original single-journey budget.
 vi.setConfig({ testTimeout: 60_000 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(file, "utf8"));
@@ -81,95 +81,117 @@ function allObjectKeys(value: unknown): string[] {
 }
 
 describe("honua-site consumer handoff", () => {
-  it("deterministically joins all three validated authorities without inventing qualification", async () => {
-    const inputs = await canonicalInputs();
-    const committedHandoff = await checkoutBoundHandoff(inputs.handoff);
+  // This is the first test in the file to call canonicalInputs(), so it also
+  // pays the cold-cache cost of the initial real samples/evidence read (both
+  // golden samples' packed tarballs and screenshots) that later tests reuse
+  // a warm fs cache for; give it headroom above this file's already-doubled
+  // 40s default.
+  it(
+    "deterministically joins all three validated authorities without inventing qualification",
+    { timeout: 90_000 },
+    async () => {
+      const inputs = await canonicalInputs();
+      const committedHandoff = await checkoutBoundHandoff(inputs.handoff);
 
-    await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
-    await expect(validateSiteConsumerHandoff(committedHandoff)).resolves.toBeUndefined();
-    await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
-    expect(generateSiteConsumerHandoff(inputs.projection, inputs.matrix, inputs.visualEvidence)).toEqual(
-      inputs.handoff,
-    );
-    expect(inputs.handoff).toMatchObject({
-      format: "honua.site.sdk-sample-consumer-handoff.v1",
-      schemaVersion: 1,
-      ownership: {
-        executableSourceOwner: "honua-io/honua-sdk-js",
-        presentationOwner: "honua-io/honua-site",
-        sourceImplementationDuplicated: false,
-      },
-      counts: {
-        cards: 30,
-        qualifiedJourneys: 3,
-        canonicalRoutes: 30,
-        legacyRoutes: 20,
-        gaps: inputs.matrix.gaps.length,
-      },
-    });
-    // maplibre-quickstart, imagery-cog-quickstart, and service-explorer are
-    // the three real, evidence-backed golden journeys; check stable identity
-    // fields rather than the full volatile object (timestamps, run IDs, and
-    // screenshot hashes legitimately change every capture).
-    expect(inputs.handoff.qualifiedJourneys).toHaveLength(3);
-    expect(
-      [...inputs.handoff.qualifiedJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
-    ).toMatchObject([
-      {
-        journeyId: "first-map",
-        sampleId: "maplibre-quickstart",
-        canonicalPath: "samples/maplibre-quickstart.html",
-      },
-      {
-        journeyId: "imagery-terrain",
-        sampleId: "imagery-cog-quickstart",
-        canonicalPath: "samples/imagery-cog-quickstart.html",
-      },
-      {
-        journeyId: "service-explorer",
-        sampleId: "service-explorer",
-        canonicalPath: "samples/service-explorer.html",
-      },
-    ]);
-    expect(inputs.handoff.policy).toMatchObject({
-      canonicalRoutes: { statusPages: ["fixture", "retire", "replace"] },
-      limits: {
-        maxArtifactBytes: 16 * 1024 * 1024,
-        maxCards: 512,
-        maxRoutes: 1024,
-        maxGaps: 8192,
-        maxFacetValues: 2048,
-        maxFilterValueCharacters: 512,
-        maxJsonNodes: 250_000,
-        maxJsonDepth: 64,
-        maxStringCharacters: 32 * 1024,
-        maxAggregateStringCharacters: 16 * 1024 * 1024,
-      },
-    });
-    expect(
-      inputs.handoff.cards.every((card) => card.track === "golden" || card.track === "recipe" || card.track === "lab"),
-    ).toBe(true);
-    // maplibre-quickstart, imagery-cog-quickstart, and service-explorer are
-    // the three real, evidence-backed qualified cards; every OTHER card must
-    // still carry no invented evidence.
-    const qualifiedCardIds = new Set(["maplibre-quickstart", "imagery-cog-quickstart", "service-explorer"]);
-    expect(
-      inputs.handoff.cards
-        .filter((card) => !qualifiedCardIds.has(card.id))
-        .every((card) => card.evidenceBindingId === null && card.visualEvidence === null),
-    ).toBe(true);
-    for (const id of qualifiedCardIds) {
-      const card = inputs.handoff.cards.find((candidate) => candidate.id === id);
-      expect(card?.evidenceBindingId).not.toBeNull();
-      expect(card?.visualEvidence).not.toBeNull();
-    }
-    expect(inputs.handoff.counts.qualifiedMatrixCells).toEqual({
-      goldenJourneys: 3,
-      protocolOperations: 5,
-      supportClaims: 0,
-      packageEntrypoints: 1,
-    });
-  });
+      await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerHandoff(committedHandoff)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
+      expect(generateSiteConsumerHandoff(inputs.projection, inputs.matrix, inputs.visualEvidence)).toEqual(
+        inputs.handoff,
+      );
+      expect(inputs.handoff).toMatchObject({
+        format: "honua.site.sdk-sample-consumer-handoff.v1",
+        schemaVersion: 1,
+        ownership: {
+          executableSourceOwner: "honua-io/honua-sdk-js",
+          presentationOwner: "honua-io/honua-site",
+          sourceImplementationDuplicated: false,
+        },
+        counts: {
+          cards: 30,
+          qualifiedJourneys: 4,
+          canonicalRoutes: 30,
+          legacyRoutes: 20,
+          gaps: inputs.matrix.gaps.length,
+        },
+      });
+      // maplibre-quickstart, imagery-cog-quickstart, migration-workbench,
+      // and service-explorer are the four real, evidence-backed golden
+      // journeys; check stable identity fields rather than the full
+      // volatile object (timestamps, run IDs, and screenshot hashes
+      // legitimately change every capture).
+      expect(inputs.handoff.qualifiedJourneys).toHaveLength(4);
+      expect(
+        [...inputs.handoff.qualifiedJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
+      ).toMatchObject([
+        {
+          journeyId: "arcgis-migration",
+          sampleId: "migration-workbench",
+          canonicalPath: "samples/migration-workbench.html",
+        },
+        {
+          journeyId: "first-map",
+          sampleId: "maplibre-quickstart",
+          canonicalPath: "samples/maplibre-quickstart.html",
+        },
+        {
+          journeyId: "imagery-terrain",
+          sampleId: "imagery-cog-quickstart",
+          canonicalPath: "samples/imagery-cog-quickstart.html",
+        },
+        {
+          journeyId: "service-explorer",
+          sampleId: "service-explorer",
+          canonicalPath: "samples/service-explorer.html",
+        },
+      ]);
+      expect(inputs.handoff.policy).toMatchObject({
+        canonicalRoutes: { statusPages: ["fixture", "retire", "replace"] },
+        limits: {
+          maxArtifactBytes: 16 * 1024 * 1024,
+          maxCards: 512,
+          maxRoutes: 1024,
+          maxGaps: 8192,
+          maxFacetValues: 2048,
+          maxFilterValueCharacters: 512,
+          maxJsonNodes: 250_000,
+          maxJsonDepth: 64,
+          maxStringCharacters: 32 * 1024,
+          maxAggregateStringCharacters: 16 * 1024 * 1024,
+        },
+      });
+      expect(
+        inputs.handoff.cards.every(
+          (card) => card.track === "golden" || card.track === "recipe" || card.track === "lab",
+        ),
+      ).toBe(true);
+      // maplibre-quickstart, imagery-cog-quickstart, migration-workbench,
+      // and service-explorer are the four real, evidence-backed qualified
+      // cards; every OTHER card must still carry no invented evidence.
+      const qualifiedCardIds = new Set([
+        "maplibre-quickstart",
+        "imagery-cog-quickstart",
+        "migration-workbench",
+        "service-explorer",
+      ]);
+      expect(
+        inputs.handoff.cards
+          .filter((card) => !qualifiedCardIds.has(card.id))
+          .every((card) => card.evidenceBindingId === null && card.visualEvidence === null),
+      ).toBe(true);
+      for (const id of qualifiedCardIds) {
+        const card = inputs.handoff.cards.find((candidate) => candidate.id === id);
+        expect(card?.evidenceBindingId).not.toBeNull();
+        expect(card?.visualEvidence).not.toBeNull();
+      }
+      expect(inputs.handoff.counts.qualifiedMatrixCells).toEqual({
+        goldenJourneys: 4,
+        protocolOperations: 5,
+        supportClaims: 1,
+        packageEntrypoints: 2,
+      });
+    },
+  );
 
   it("content-binds the committed handoff, upstream artifacts, schemas, and consumer fixture", async () => {
     const inputs = await canonicalInputs();

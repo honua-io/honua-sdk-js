@@ -20,6 +20,7 @@ import {
   isRunnableRootExampleDirectory,
   migrateCatalogV1ToV2,
   parseJsonDocument,
+  refreshOverlayLiveExpiry,
   validateCatalog,
   validateCiSelection,
   validateEvidenceEnvelope,
@@ -35,13 +36,13 @@ import type { GoldenJourneyVisualEvidence } from "../scripts/sample-contract.mjs
 
 // validateCatalog and the golden-journey visual-evidence helpers below read
 // the real samples/evidence tree (receipts, screenshots, live evidence) for
-// the now genuinely qualified First Map, Imagery and Terrain, and Universal
-// Service Explorer journeys. That real I/O regularly exceeds vitest's 5s
-// default under full-suite contention; the default empty-evidence case was
-// effectively instant, so this was never exercised before. Raise this file's
-// timeout rather than the global default; three qualified journeys' worth of
-// receipts (up from one) need more headroom than the original
-// single-journey budget.
+// the now genuinely qualified First Map, Imagery and Terrain, Universal
+// Service Explorer, and ArcGIS Migration Workbench journeys. That real I/O
+// regularly exceeds vitest's 5s default under full-suite contention; the
+// default empty-evidence case was effectively instant, so this was never
+// exercised before. Raise this file's timeout rather than the global
+// default; four qualified journeys' worth of receipts (up from one) need
+// more headroom than the original single-journey budget.
 vi.setConfig({ testTimeout: 40_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
@@ -154,12 +155,12 @@ describe("sample publication contract", () => {
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(3);
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(4);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      3,
+      4,
     );
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
-      4,
+      3,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
@@ -206,7 +207,7 @@ describe("sample publication contract", () => {
     const migrated = await migrateCatalogV1ToV2(v1, migration);
     expect(migrated).toEqual(canonical);
     expect(migrated.samples.find((sample) => sample.id === "migration-workbench")).toMatchObject({
-      track: "lab",
+      track: "golden",
       journeyId: "arcgis-migration",
       supportTier: "supported",
       lifecycle: { state: "active" },
@@ -221,7 +222,11 @@ describe("sample publication contract", () => {
           status: "executed",
           commands: ["npm run demo:migration-workbench:mock"],
         },
-        live: { mode: "unavailable", status: "not-applicable", commands: [] },
+        live: {
+          mode: "demo-live",
+          status: "executed",
+          commands: ["npm run evidence:migration-workbench:live"],
+        },
       },
     });
 
@@ -229,6 +234,74 @@ describe("sample publication contract", () => {
     await expect(migrateCatalogV1ToV2(v1, migration)).rejects.toThrow(
       "migration overrides must cover every v1 sample exactly",
     );
+  });
+
+  it("moves a resealed golden sample's overlay live-evidence expiry to observedAt plus the policy window", async () => {
+    // Resealing renews samples/evidence/<id>/live.v1.json's observedAt, but
+    // samples/catalog.v2.json's live.expiresAt is projected from this
+    // migration overlay's sampleOverrides[id].live.expiresAt literal, which
+    // reseal alone never touches -- the class of bug behind
+    // honua-io/honua-sdk-js#788 (receipts renew forever while the catalog's
+    // own expiry claim silently drifts toward, and eventually past, "now").
+    // refreshOverlayLiveExpiry is the fix: it re-derives that literal from
+    // the sample's own fresh evidence every time it is called, so a stale
+    // catalog expiry sitting alongside fresh receipts cannot arise as long
+    // as every reseal calls it.
+    // Read the real migration overlay for its reviewed policy config and
+    // schema shape, but build an isolated sampleOverrides fixture for the
+    // sample under test rather than asserting against whatever the current
+    // repo's real maplibre-quickstart override happens to hold: the repo's
+    // evidence provenance (which reseal last touched which golden sample,
+    // and when) is allowed to vary -- e.g. a merge that reseals some golden
+    // samples and not others -- and this invariant must hold under any such
+    // combination, not just the one this test happened to be written
+    // against. A deliberately unrelated, far-past placeholder expiresAt
+    // guarantees "before" can never coincidentally equal "after" (which is
+    // always freshly derived from the real evidence's own observedAt), no
+    // matter what the real overlay's current value is.
+    const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+    const evidence = await readJson("samples/evidence/maplibre-quickstart/live.v1.json");
+    const stalePlaceholderExpiresAt = "2000-01-01T00:00:00.000Z";
+    const staleOverlay = structuredClone(migration);
+    staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt = stalePlaceholderExpiresAt;
+
+    const refreshed = await refreshOverlayLiveExpiry(staleOverlay, ["maplibre-quickstart"]);
+
+    expect(refreshed).toEqual([
+      {
+        sampleId: "maplibre-quickstart",
+        observedAt: evidence.observedAt,
+        previousExpiresAt: stalePlaceholderExpiresAt,
+        expiresAt: staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt,
+      },
+    ]);
+    const refreshedExpiresAt = staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt;
+    // The refreshed literal is no longer identical to the stale placeholder (it moved)...
+    expect(refreshedExpiresAt).not.toBe(stalePlaceholderExpiresAt);
+    // ...and is now derived exactly from this fresh evidence's own
+    // observedAt plus the executed-lane policy window, so it can never again
+    // disagree with what reseal actually observed.
+    const observedAtMs = Date.parse(evidence.observedAt);
+    const expectedExpiresAtMs =
+      observedAtMs + migration.configuration.evidenceExpiry.executedMaxDays * 24 * 60 * 60 * 1000;
+    expect(Date.parse(refreshedExpiresAt)).toBe(expectedExpiresAtMs);
+    // The stale-expiry-alongside-fresh-evidence shape validateCatalog would
+    // have rejected (or worse, silently accepted right up until it lapsed)
+    // is exactly what this proves is no longer reachable through this
+    // helper: the refreshed value is always derived from the real
+    // observation, never from whenever the catalog literal happened to be
+    // hand-set. Compare against observedAt (not Date.now()) so this holds
+    // regardless of how fresh the checked-in fixture evidence itself is.
+    expect(Date.parse(refreshedExpiresAt) - observedAtMs).toBe(
+      migration.configuration.evidenceExpiry.executedMaxDays * 24 * 60 * 60 * 1000,
+    );
+
+    await expect(refreshOverlayLiveExpiry(structuredClone(migration), ["not-a-real-sample"])).rejects.toThrow(
+      "unknown sample override",
+    );
+    const nonLiveOverlay = structuredClone(migration);
+    nonLiveOverlay.sampleOverrides["oauth-signin"].live.status = "planned";
+    await expect(refreshOverlayLiveExpiry(nonLiveOverlay, ["oauth-signin"])).rejects.toThrow("is not evidence-bound");
   });
 
   it("rejects duplicate JSON properties before permissive parsing can hide them", () => {
@@ -254,7 +327,7 @@ describe("sample publication contract", () => {
     expect(compareReleases("0.2.0", "0.2.0-beta.0")).toBeGreaterThan(0);
   });
 
-  // Reads real qualification evidence for all three golden journeys
+  // Reads real qualification evidence for all four golden journeys
   // (collectQualificationEvidence) plus generates golden-journey visual
   // evidence from it; give this test its own headroom rather than
   // inflating the whole file's budget.
@@ -305,14 +378,16 @@ describe("sample publication contract", () => {
         },
       },
     });
-    // maplibre-quickstart, imagery-cog-quickstart, and service-explorer are
-    // the three real, evidence-backed golden journeys; check their stable
-    // identity fields rather than the full volatile object (timestamps, run
-    // IDs, screenshot hashes all legitimately change every capture).
-    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(3);
+    // maplibre-quickstart, imagery-cog-quickstart, migration-workbench, and
+    // service-explorer are the four real, evidence-backed golden journeys;
+    // check their stable identity fields rather than the full volatile
+    // object (timestamps, run IDs, screenshot hashes all legitimately
+    // change every capture).
+    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(4);
     expect(
       [...visualEvidence.qualifiedGoldenJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
     ).toMatchObject([
+      { journeyId: "arcgis-migration", sampleId: "migration-workbench" },
       { journeyId: "first-map", sampleId: "maplibre-quickstart" },
       { journeyId: "imagery-terrain", sampleId: "imagery-cog-quickstart" },
       { journeyId: "service-explorer", sampleId: "service-explorer" },
@@ -404,7 +479,7 @@ describe("sample publication contract", () => {
     await expect(validateCiSelection(flattenedCi)).rejects.toThrow("JSON Schema validation failed");
   }, 80_000);
 
-  // Also reads real qualification evidence for all three golden journeys;
+  // Also reads real qualification evidence for all four golden journeys;
   // give it its own headroom for the same reason as the test above.
   it("rejects overstated, stale, cross-runtime, and non-realtime visual evidence", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
@@ -425,11 +500,12 @@ describe("sample publication contract", () => {
     staleCatalog.goldenJourneys[0].status = "qualified";
     staleCatalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").track = "golden";
     // Replace (not push) only the first-map entry: canonical now carries all
-    // three real qualified journeys (first-map, imagery-terrain, and
-    // service-explorer), and the orphaned/overstated coverage check requires
-    // visualEvidence to exactly match the catalog's qualified set, so this
-    // sub-case isolates a stale freshness window on one journey without
-    // orphaning or dropping the other two's genuine evidence.
+    // four real qualified journeys (first-map, imagery-terrain,
+    // arcgis-migration, and service-explorer), and the orphaned/overstated
+    // coverage check requires visualEvidence to exactly match the catalog's
+    // qualified set, so this sub-case isolates a stale freshness window on
+    // one journey without orphaning or dropping the other three's genuine
+    // evidence.
     const stale = structuredClone(canonical);
     stale.qualifiedGoldenJourneys = stale.qualifiedGoldenJourneys.map((entry) =>
       entry.journeyId === "first-map"
@@ -495,7 +571,7 @@ describe("sample publication contract", () => {
   }, 80_000);
 
   // This test calls generatedOutputs() twice (current + bumped-version
-  // catalogs), roughly doubling the file's already-doubled two-journey I/O
+  // catalogs), roughly doubling the file's already-doubled four-journey I/O
   // budget; give it its own headroom rather than inflating every other test
   // in this file to match.
   it("derives release versions without catalog edits and still detects semantic drift", async () => {
@@ -546,7 +622,7 @@ describe("sample publication contract", () => {
     ]);
     expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
     expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
-  }, 80_000);
+  }, 100_000);
 
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {
     const packageJson = await readJson("package.json");
@@ -1728,7 +1804,13 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       commands: ["npm run evidence:first-map:live"],
       evidencePath: "samples/evidence/maplibre-quickstart/live.v1.json",
     });
-    expect(sample.evidence.live.expiresAt).toMatch(/^2026-07-24T/);
+    // refresh-live-expiry (honua-io/honua-sdk-js#788) recomputes this from
+    // the live lane's own fresh evidence every reseal, so it legitimately
+    // moves on every reseal rather than pinning to one qualification day;
+    // assert it is a well-formed, currently-unexpired RFC 3339 date-time
+    // instead of a fixed literal.
+    expect(new Date(sample.evidence.live.expiresAt).toISOString()).toBe(sample.evidence.live.expiresAt);
+    expect(Date.parse(sample.evidence.live.expiresAt)).toBeGreaterThan(Date.now());
     const evidence = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
     evidence.sampleId = sample.id;
     delete evidence.realtime;
