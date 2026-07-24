@@ -7,7 +7,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   BROWSER_CORPUS_SOURCE_FILES,
+  CODE_UNDER_TEST_SOURCE_FILES,
   browserCorpusFingerprint,
+  codeUnderTestFingerprint,
   evaluateOperationalScenarios,
   evaluateScenarios,
   runRepeatedScenario,
@@ -86,6 +88,51 @@ describe("browser benchmark budget evaluator", () => {
       expect(before.files).toContain("samples/scenarios/determinism.mjs");
       expect(before.files).toContain("samples/scenarios/fixture-validation.mjs");
       expect(after.sha256).not.toBe(before.sha256);
+    } finally {
+      fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the deck.gl adapter (code under test) out of the corpus hash, per PR #770 review", async () => {
+    // report.corpus.sha256 must identify the benchmark's own scenario/data
+    // definitions, never the SDK implementation those scenarios exercise —
+    // otherwise an ordinary adapter-only change looks like a different
+    // benchmark corpus instead of the SDK regression it actually is.
+    expect(BROWSER_CORPUS_SOURCE_FILES.some((file) => file.startsWith("src/"))).toBe(false);
+    for (const file of CODE_UNDER_TEST_SOURCE_FILES) {
+      expect(BROWSER_CORPUS_SOURCE_FILES).not.toContain(file);
+    }
+
+    const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-browser-code-under-test-"));
+    const sourceRoot = path.join(temporaryRoot, "repo");
+    try {
+      for (const relativePath of [...BROWSER_CORPUS_SOURCE_FILES, ...CODE_UNDER_TEST_SOURCE_FILES]) {
+        const destination = path.join(sourceRoot, relativePath);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.copyFileSync(path.join(repoRoot, relativePath), destination);
+      }
+      const fixtureRoot = path.join(repoRoot, "samples/fixtures/first-map/v1");
+
+      const corpusBefore = await browserCorpusFingerprint({ repoRoot: sourceRoot, fixtureRoot });
+      const codeBefore = await codeUnderTestFingerprint({ repoRoot: sourceRoot });
+      expect(codeBefore.files).toEqual([...CODE_UNDER_TEST_SOURCE_FILES]);
+      expect(corpusBefore.files.some((file) => file.startsWith("src/"))).toBe(false);
+
+      // Editing an adapter file (code under test) must change codeUnderTest's
+      // hash but leave the corpus hash untouched.
+      fs.appendFileSync(path.join(sourceRoot, "src/deckgl/adapter.ts"), "\n// benchmark test edit\n");
+      const corpusAfterCodeEdit = await browserCorpusFingerprint({ repoRoot: sourceRoot, fixtureRoot });
+      const codeAfterCodeEdit = await codeUnderTestFingerprint({ repoRoot: sourceRoot });
+      expect(corpusAfterCodeEdit.sha256).toBe(corpusBefore.sha256);
+      expect(codeAfterCodeEdit.sha256).not.toBe(codeBefore.sha256);
+
+      // Editing a scenario producer (the corpus itself) must change the
+      // corpus hash but leave codeUnderTest's hash untouched.
+      fs.appendFileSync(path.join(sourceRoot, "bench/browser/main.ts"), "\n// benchmark test edit\n");
+      const corpusAfterScenarioEdit = await browserCorpusFingerprint({ repoRoot: sourceRoot, fixtureRoot });
+      const codeAfterScenarioEdit = await codeUnderTestFingerprint({ repoRoot: sourceRoot });
+      expect(corpusAfterScenarioEdit.sha256).not.toBe(corpusAfterCodeEdit.sha256);
+      expect(codeAfterScenarioEdit.sha256).toBe(codeAfterCodeEdit.sha256);
     } finally {
       fs.rmSync(temporaryRoot, { recursive: true, force: true });
     }

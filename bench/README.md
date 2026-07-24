@@ -131,6 +131,17 @@ committed [`browser/budgets.json`](./browser/budgets.json) bounds hangs, extreme
 latency, variance, and broken rendering/interaction invariants. CI uploads the
 complete directory as `sdk-browser-benchmark`.
 
+`report.corpus.sha256` identifies only the benchmark's own scenario/data
+definitions (`BROWSER_CORPUS_SOURCE_FILES` + the versioned fixture pack) — it
+deliberately does **not** include the deck.gl adapter (or any other SDK
+implementation) under test, so an ordinary adapter-only code change never
+looks like a different benchmark corpus. That implementation's provenance is
+still reported, just kept separate: `report.gitCommit` is the authoritative
+whole-tree identity, and `report.codeUnderTest.{files,sha256}`
+(`CODE_UNDER_TEST_SOURCE_FILES` / `codeUnderTestFingerprint` in
+[`browser/run.mjs`](./browser/run.mjs)) is a convenience subset scoped to the
+`src/deckgl/*.ts` files the deck.gl scenarios actually exercise.
+
 These measurements are only a same-Honua regression gate. They are not an Esri,
 Mapbox, CARTO, MapLibre, or deck.gl comparison: the applications, data paths,
 renderer configuration, licensing constraints, and host/service conditions are

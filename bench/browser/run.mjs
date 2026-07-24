@@ -43,9 +43,13 @@ const LEAK_TIMEOUT_MS = 60_000;
 const CONTEXT_LOSS_TIMEOUT_MS = 20_000;
 
 // Reviewed scenario producers only. SDK implementation sources and third-party
-// packages are intentionally identified by gitCommit and the environment block
-// instead: changing the implementation under test must not silently define a
-// new benchmark corpus.
+// packages are intentionally identified by gitCommit, the environment block,
+// and the separate `codeUnderTestFingerprint` below instead: changing the
+// implementation under test must not silently define a new benchmark corpus.
+// (This inventory previously included src/deckgl/*.ts directly, which made
+// report.corpus.sha256 change on ordinary adapter-only edits and defeated the
+// corpus-identity/implementation-identity separation gitCommit already gives
+// — see codeUnderTestFingerprint for where that provenance now lives.)
 export const BROWSER_CORPUS_SOURCE_FILES = Object.freeze([
   "bench/browser/capability-main.ts",
   "bench/browser/capability-policy.mjs",
@@ -58,10 +62,6 @@ export const BROWSER_CORPUS_SOURCE_FILES = Object.freeze([
   "bench/browser/run.mjs",
   "bench/browser/scale-main.ts",
   "bench/browser/scale.html",
-  "src/deckgl/adapter.ts",
-  "src/deckgl/index.ts",
-  "src/deckgl/lifecycle.ts",
-  "src/deckgl/types.ts",
   "examples/maplibre-quickstart/index.html",
   "examples/maplibre-quickstart/mock-server.mjs",
   "examples/maplibre-quickstart/src/first-map-config.ts",
@@ -96,6 +96,17 @@ function gitCommit() {
   }
 }
 
+async function sha256OfEntries(entries) {
+  const hash = createHash("sha256");
+  for (const entry of entries) {
+    hash.update(entry.logicalPath);
+    hash.update("\0");
+    hash.update(await readFile(entry.absolutePath));
+    hash.update("\0");
+  }
+  return hash.digest("hex");
+}
+
 export async function browserCorpusFingerprint({
   repoRoot = REPO_ROOT,
   fixtureRoot = path.join(repoRoot, "samples/fixtures/first-map/v1"),
@@ -125,14 +136,29 @@ export async function browserCorpusFingerprint({
       absolutePath: path.join(fixtureRoot, file),
     })),
   ];
-  const hash = createHash("sha256");
-  for (const entry of entries) {
-    hash.update(entry.logicalPath);
-    hash.update("\0");
-    hash.update(await readFile(entry.absolutePath));
-    hash.update("\0");
-  }
-  return { files: entries.map((entry) => entry.logicalPath), sha256: hash.digest("hex") };
+  return { files: entries.map((entry) => entry.logicalPath), sha256: await sha256OfEntries(entries) };
+}
+
+// Code under test (issue #562 review): the deck.gl adapter files these
+// browser scenarios exercise. Deliberately hashed SEPARATELY from
+// BROWSER_CORPUS_SOURCE_FILES/report.corpus.sha256 — the corpus hash
+// identifies the test data/scenario definitions, not the implementation
+// being measured, so an ordinary adapter-only code change must not appear as
+// a different benchmark corpus. Its provenance is still reported, just under
+// report.codeUnderTest instead of folded into corpus.sha256.
+export const CODE_UNDER_TEST_SOURCE_FILES = Object.freeze([
+  "src/deckgl/adapter.ts",
+  "src/deckgl/index.ts",
+  "src/deckgl/lifecycle.ts",
+  "src/deckgl/types.ts",
+]);
+
+export async function codeUnderTestFingerprint({ repoRoot = REPO_ROOT } = {}) {
+  const entries = CODE_UNDER_TEST_SOURCE_FILES.map((logicalPath) => ({
+    logicalPath,
+    absolutePath: path.join(repoRoot, logicalPath),
+  }));
+  return { files: entries.map((entry) => entry.logicalPath), sha256: await sha256OfEntries(entries) };
 }
 
 function parseArgs(argv) {
@@ -768,6 +794,7 @@ async function main() {
   const budgets = JSON.parse(budgetsBytes.toString("utf8"));
   if (budgets.schemaVersion !== 2) throw new Error("Unsupported browser benchmark budget schema");
   const fingerprint = await browserCorpusFingerprint();
+  const codeUnderTest = await codeUnderTestFingerprint();
   const activeScaleTiers = SCALE_TIERS.filter((tier) => !tier.optIn || INCLUDE_OPT_IN_SCALE_TIERS);
 
   // The fixture server owns the build so its local basemap/service env is
@@ -793,64 +820,65 @@ async function main() {
   });
 
   try {
-    const [userAgent, timingScenarios, operationalResults] = await Promise.all([
-      browser.newPage().then(async (page) => {
-        try {
-          return await page.evaluate(() => navigator.userAgent);
-        } finally {
-          await page.close();
-        }
-      }),
-      (async () => [
+    const userAgent = await browser.newPage().then(async (page) => {
+      try {
+        return await page.evaluate(() => navigator.userAgent);
+      } finally {
+        await page.close();
+      }
+    });
+
+    // Timed scenarios first, run to completion, before anything else touches
+    // this Chromium/SwiftShader process (issue #562 review: the operational
+    // probes below run their own pages/GPU work in the same process, and
+    // running them concurrently with timing collection would let their
+    // CPU/GPU/memory pressure inflate or flake firstVisibleMs, interaction
+    // latency, and scale-stage medians for reasons that have nothing to do
+    // with an SDK regression).
+    const timingScenarios = [
+      await runRepeatedScenario(
+        "maplibre.flagship-render-interact",
+        (screenshotPath) => runMapLibreSample(browser, quickstart.url, screenshotPath),
+        outputDirectory,
+      ),
+      await runRepeatedScenario(
+        "deckgl.binary-render-interact",
+        (screenshotPath) => runDeckGlSample(browser, deckUrl, screenshotPath),
+        outputDirectory,
+      ),
+    ];
+    for (const tier of activeScaleTiers) {
+      timingScenarios.push(
         await runRepeatedScenario(
-          "maplibre.flagship-render-interact",
-          (screenshotPath) => runMapLibreSample(browser, quickstart.url, screenshotPath),
+          tier.id,
+          (screenshotPath) => runDeckGlScaleSample(browser, deckUrl, tier, screenshotPath),
           outputDirectory,
         ),
-        await runRepeatedScenario(
-          "deckgl.binary-render-interact",
-          (screenshotPath) => runDeckGlSample(browser, deckUrl, screenshotPath),
-          outputDirectory,
-        ),
-        ...(await (async () => {
-          const results = [];
-          for (const tier of activeScaleTiers) {
-            results.push(
-              await runRepeatedScenario(
-                tier.id,
-                (screenshotPath) => runDeckGlScaleSample(browser, deckUrl, tier, screenshotPath),
-                outputDirectory,
-              ),
-            );
-          }
-          return results;
-        })()),
-      ])(),
-      (async () => {
-        const capabilitySupported = {
-          id: "deckgl.capability-supported",
-          ...(await runCapabilityScenario(browser, deckUrl, { disableWebGl: false })),
-        };
-        const capabilityFallback = {
-          id: "deckgl.capability-fallback",
-          ...(await runCapabilityScenario(browser, deckUrl, { disableWebGl: true })),
-        };
-        const leak = {
-          id: "deckgl.lifecycle-repeated-mount-unmount",
-          ...(await runLifecycleLeakScenario(browser, deckUrl, {
-            cycles: LEAK_CYCLES,
-            warmupCycles: LEAK_WARMUP_CYCLES,
-            timeoutMs: LEAK_TIMEOUT_MS,
-          })),
-        };
-        const contextLoss = {
-          id: "deckgl.context-loss-recovery",
-          ...(await runContextLossScenario(browser, deckUrl, { timeoutMs: CONTEXT_LOSS_TIMEOUT_MS })),
-        };
-        return { capabilitySupported, capabilityFallback, leak, contextLoss };
-      })(),
-    ]);
-    const { capabilitySupported, capabilityFallback, leak, contextLoss } = operationalResults;
+      );
+    }
+
+    // Operational probes run only after every timed sample above has
+    // completed — never concurrently with them.
+    const capabilitySupported = {
+      id: "deckgl.capability-supported",
+      ...(await runCapabilityScenario(browser, deckUrl, { disableWebGl: false })),
+    };
+    const capabilityFallback = {
+      id: "deckgl.capability-fallback",
+      ...(await runCapabilityScenario(browser, deckUrl, { disableWebGl: true })),
+    };
+    const leak = {
+      id: "deckgl.lifecycle-repeated-mount-unmount",
+      ...(await runLifecycleLeakScenario(browser, deckUrl, {
+        cycles: LEAK_CYCLES,
+        warmupCycles: LEAK_WARMUP_CYCLES,
+        timeoutMs: LEAK_TIMEOUT_MS,
+      })),
+    };
+    const contextLoss = {
+      id: "deckgl.context-loss-recovery",
+      ...(await runContextLossScenario(browser, deckUrl, { timeoutMs: CONTEXT_LOSS_TIMEOUT_MS })),
+    };
     const operationalScenarioList = [capabilitySupported, capabilityFallback, leak, contextLoss];
     const timingEvaluation = evaluateScenarios(timingScenarios, budgets);
     const operationalEvaluation = evaluateOperationalScenarios(operationalScenarioList, budgets);
@@ -882,6 +910,16 @@ async function main() {
         measurementRuns: MEASUREMENT_RUNS,
         includesOptInScaleTiers: INCLUDE_OPT_IN_SCALE_TIERS,
         activeScaleTierIds: activeScaleTiers.map((tier) => tier.id),
+      },
+      // Deliberately separate from `corpus` (issue #562 review): this
+      // identifies the deck.gl adapter source under test, so its hash
+      // changing on an ordinary implementation edit is expected and must
+      // not be read as a different benchmark corpus. `gitCommit` above is
+      // still the authoritative whole-tree identity; this is a convenience
+      // subset scoped to the files these scenarios actually exercise.
+      codeUnderTest: {
+        files: codeUnderTest.files,
+        sha256: codeUnderTest.sha256,
       },
       environment: {
         implementation: "honua-sdk-js",

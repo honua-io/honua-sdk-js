@@ -61,10 +61,15 @@ export interface BrowserEvaluationResult {
 }
 
 export const BROWSER_CORPUS_SOURCE_FILES: readonly string[];
+/** Code under test (issue #562 review), hashed separately from the corpus — see `codeUnderTestFingerprint`. */
+export const CODE_UNDER_TEST_SOURCE_FILES: readonly string[];
 export function summarize(values: readonly number[]): BrowserMetricSummary;
 export function browserCorpusFingerprint(options?: {
   repoRoot?: string;
   fixtureRoot?: string;
+}): Promise<{ files: string[]; sha256: string }>;
+export function codeUnderTestFingerprint(options?: {
+  repoRoot?: string;
 }): Promise<{ files: string[]; sha256: string }>;
 export function evaluateScenarios(
   scenarios: readonly BrowserScenarioEvaluationInput[],
