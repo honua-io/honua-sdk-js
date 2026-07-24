@@ -1,0 +1,12 @@
+{
+  "family": "form",
+  "schemaVersion": "1.0",
+  "format": "studio_form_package.v1",
+  "bindings": [{ "key": "target", "kind": "content", "ref": "content.inspections" }],
+  "validation": { "status": "not-validated" },
+  "provenance": [{ "kind": "prompt", "ref": "prompt-form-1", "rel": "generated-by" }],
+  "body": {
+    "title": "Field inspection",
+    "fields": [{ "name": "severity", "label": "Severity", "type": "select", "required": true }]
+  }
+}

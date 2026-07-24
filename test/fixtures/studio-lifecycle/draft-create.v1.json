@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/studio/package-drafts",
+    "body": {
+      "packageKey": "parcels-query",
+      "workspaceId": "workspace-ops",
+      "envelope": {
+        "family": "query",
+        "schemaVersion": "1.0",
+        "format": "studio_query_package.v1",
+        "bindings": [
+          {
+            "key": "source",
+            "kind": "content",
+            "ref": "content.parcels",
+            "crs": "EPSG:4326",
+            "srid": 4326,
+            "requiredPermissions": ["metadata.read"]
+          }
+        ],
+        "dependencies": [{ "kind": "content-item", "ref": "content.parcels", "versionId": "v1", "required": true }],
+        "validation": { "status": "not-validated" },
+        "publicationIntent": { "route": "/studio/parcels", "visibility": "organization" },
+        "provenance": [{ "kind": "prompt", "ref": "prompt-1", "rel": "generated-by" }],
+        "body": { "where": "1=1" }
+      }
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "success": true,
+      "data": {
+        "draftId": "draft-parcels-1",
+        "itemId": "item-parcels-1",
+        "family": "query",
+        "packageKey": "parcels-query",
+        "workspaceId": "workspace-ops",
+        "ownerId": "actor-1",
+        "generation": 1,
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z",
+        "envelope": {
+          "family": "query",
+          "schemaVersion": "1.0",
+          "format": "studio_query_package.v1",
+          "bindings": [
+            {
+              "key": "source",
+              "kind": "content",
+              "ref": "content.parcels",
+              "crs": "EPSG:4326",
+              "srid": 4326,
+              "requiredPermissions": ["metadata.read"]
+            }
+          ],
+          "dependencies": [{ "kind": "content-item", "ref": "content.parcels", "versionId": "v1", "required": true }],
+          "validation": { "status": "not-validated" },
+          "publicationIntent": { "route": "/studio/parcels", "visibility": "organization" },
+          "provenance": [{ "kind": "prompt", "ref": "prompt-1", "rel": "generated-by" }],
+          "body": { "where": "1=1" }
+        }
+      },
+      "timestamp": "2026-07-01T00:00:00Z"
+    }
+  }
+}
