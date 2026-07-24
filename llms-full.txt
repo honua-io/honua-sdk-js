@@ -393,7 +393,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 32 executable examples: 3 qualified golden samples, 11 recipes, 16 labs, and 2 fixtures. Seven journey IDs are reserved; 4 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 32 executable examples: 4 qualified golden samples, 11 recipes, 15 labs, and 2 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at
@@ -972,7 +972,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
 | `imagery-terrain` | qualified | [`imagery-cog-quickstart`](#imagery-cog-quickstart) |
 | `cloud-native-analysis` | planned | [`spatial-analytics-workbench`](#spatial-analytics-workbench) |
-| `arcgis-migration` | planned | [`migration-workbench`](#migration-workbench) |
+| `arcgis-migration` | qualified | [`migration-workbench`](#migration-workbench) |
 
 ## Executable samples
 
@@ -990,7 +990,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="kepler-analytics"></a>[`kepler-analytics`](../../examples/kepler-analytics/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Replays operations data through kepler.gl with linked filters and KPI evidence. |
 | <a id="maplibre-quickstart"></a>[`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | golden | first-map | supported | active | golden-browser | hybrid | approved | Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result. |
 | <a id="mcp-gis-assistant"></a>[`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | lab | - | experimental | rework | browser-lab | fixture | not-required | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
-| <a id="migration-workbench"></a>[`migration-workbench`](../../docs/migration-honua-maplibre.md) | lab | arcgis-migration | supported | active | browser-lab | fixture | not-required | Scans and transforms ArcGIS application source with auditable compatibility results. |
+| <a id="migration-workbench"></a>[`migration-workbench`](../../docs/migration-honua-maplibre.md) | golden | arcgis-migration | supported | active | golden-browser | fixture | not-required | Scans and transforms ArcGIS application source with auditable compatibility results. |
 | <a id="nl-map-control"></a>[`nl-map-control`](../../examples/nl-map-control/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
 | <a id="node-backend-quickstart"></a>[`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | - | supported | active | headless-recipe | hybrid | approved | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |
@@ -1334,7 +1334,7 @@ Labels: `fixture` · `public-live` · `degraded`
 - Executable entry: [examples/migration-workbench/src/main.ts](../../examples/migration-workbench/src/main.ts)
 - Example notes: [docs/migration-honua-maplibre.md](../migration-honua-maplibre.md)
 - Compile check: `npm run demo:migration-workbench:typecheck`
-- Sample contract: `lab` · `supported` · `active`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `fixture` · `none`
 - Provenance: Committed ArcGIS source fixtures and migration reports.
 - Freshness: Versioned with the migration corpus.
@@ -12208,12 +12208,13 @@ called out under [Manual gaps](#manual-gaps).
 ## Canonical migration workbench
 
 [`examples/migration-workbench`](../examples/migration-workbench/README.md)
-is the supported, active browser lab for the complete migration journey. The
-repository build invokes the real `honua-migrate` CLI against the Honua-authored
-`arcgis-source-app` fixture and commits a deterministic report, patch, widget
-guidance, MapLibre assessment, generated compat target, and SHA-256 manifest.
-The browser only projects and revalidates those artifacts; it does not contain
-a second transform, accept uploads, read credentials, or perform cloud import.
+is the qualified `arcgis-migration` golden journey for the complete migration
+experience. The repository build invokes the real `honua-migrate` CLI against
+the Honua-authored `arcgis-source-app` fixture and commits a deterministic
+report, patch, widget guidance, MapLibre assessment, generated compat target,
+and SHA-256 manifest. The browser only projects and revalidates those
+artifacts; it does not contain a second transform, accept uploads, read
+credentials, or perform cloud import.
 
 Use the artifact and browser gates directly, or exercise the same reviewed
 journey through the sample kit in source and packed SDK modes:
@@ -12225,10 +12226,11 @@ npm run samples:run -- verify --sample migration-workbench --sdk-mode source
 npm run samples:run -- verify --sample migration-workbench --sdk-mode packed
 ```
 
-The catalog exposes this as the planned `arcgis-migration` golden candidate.
-It remains a lab—not a qualified golden card—until current screenshot,
-performance, semantic, and required live receipts satisfy the golden profile;
-gallery qualification is tracked by #550.
+The catalog carries current packed-build, browser, accessibility, console,
+responsive, screenshot, performance, fixture, and live receipts for this
+journey (#549); its live-evidence lane proves liveness by re-running the real
+`honua-migrate` CLI right now, since the workbench itself never makes a
+non-loopback network request. Gallery projection is tracked by #550.
 
 ## How it differs from the other targets
 
