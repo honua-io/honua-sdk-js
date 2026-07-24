@@ -6599,6 +6599,24 @@ async function main(argv) {
     process.stdout.write(`Migrated ${catalog.samples.length} executable examples to ${CATALOG_PATH}\n`);
     return;
   }
+  if (command === "write-ci-selection") {
+    // generateCiSelection is a pure projection of the catalog (no
+    // qualification-evidence dependency, unlike the rest of `write`'s
+    // outputs), so this can run safely between migrate-v1 and a reseal pass
+    // that has not produced fresh receipts yet: a reseal's own readInputs
+    // scopes its staleness check on samples/dist/sample-ci-selection.v2.json
+    // to the one --sample it targets, and that file embeds each sample's
+    // catalog-projected evidence.live.expiresAt, so refresh-live-expiry +
+    // migrate-v1 changing that literal leaves this file stale for exactly
+    // the samples a following reseal pass needs it fresh for.
+    invariant(args.length === 0, "write-ci-selection does not accept arguments");
+    const catalog = await readJson(CATALOG_PATH);
+    const selection = generateCiSelection(catalog);
+    await validateCiSelection(selection);
+    await writeFile(path.join(PROJECT_ROOT, CI_SELECTION_PATH), stableJson(selection), "utf8");
+    process.stdout.write(`Projected ${selection.samples.length} samples to ${CI_SELECTION_PATH}\n`);
+    return;
+  }
   if (command === "artifacts") {
     let output = "dist/browser/honua-sdk.browser-artifacts.v1.json";
     let gitCommit = gitSha();
