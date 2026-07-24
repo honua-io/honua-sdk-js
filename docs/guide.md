@@ -182,7 +182,7 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 
 - Honua-first core: `@honua/sdk-js/honua`
 - Esri compat bridge: `@honua/sdk-js/esri-compat`
-- Migration tooling: `@honua/sdk-js/migration`
+- Migration tooling: `@honua/honua-migrate` (`@honua/sdk-js/migration` is a deprecated forwarder)
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
@@ -498,7 +498,10 @@ Generate publish-ready split packages under `dist/packages/`:
 
 - `@honua/sdk` -> `dist/packages/honua-sdk`
 - `@honua/sdk-esri-compat` -> `dist/packages/honua-sdk-esri-compat`
-- `@honua/honua-migrate` -> `dist/packages/honua-migrate`
+
+`@honua/honua-migrate` is built and published from the
+[`honua-migrate`](https://github.com/honua-io/honua-migrate) repository. See
+the [transition policy](./migration-tool-transition.md).
 
 ```bash
 npm run build:split-packages
@@ -965,76 +968,80 @@ connection.remove();
 
 ## Migration CLI
 
+Install `@honua/honua-migrate` and use `honua-js-migrate`. The SDK-local npm
+scripts remain temporary compatibility forwarders; see the
+[transition policy](./migration-tool-transition.md).
+
 ```bash
 # Scan only
-node dist/src/migration/cli.js scan ./src --report scan-report.json
+npx honua-js-migrate scan ./src --report scan-report.json
 
 # Widget-usage inventory + ArcGIS 6.0 readiness report (classic widgets are removed
 # at 6.0, as early as Q1 2027). Detects ESM imports, AMD require([...]) arrays, and
 # dynamic $arcgis.import(...) specifiers; per-widget dispositions come from the
 # generated docs/widget-survival-guide.md (source: src/migration/widget-dispositions.ts).
-node dist/src/migration/cli.js widgets ./src                     # human table
-node dist/src/migration/cli.js widgets ./src --json              # machine-readable
-node dist/src/migration/cli.js widgets ./src --markdown          # shareable report
-node dist/src/migration/cli.js widgets ./src --gate 80           # exit 2 if automated share < 80%
-node dist/src/migration/cli.js widgets ./src --report widget-readiness.json
+npx honua-js-migrate widgets ./src                     # human table
+npx honua-js-migrate widgets ./src --json              # machine-readable
+npx honua-js-migrate widgets ./src --markdown          # shareable report
+npx honua-js-migrate widgets ./src --gate 80           # exit 2 if automated share < 80%
+npx honua-js-migrate widgets ./src --report widget-readiness.json
 
 # Safe codemod (dry run)
-node dist/src/migration/cli.js codemod ./src --report migration-report.json
+npx honua-js-migrate codemod ./src --report migration-report.json
 
 # Safe codemod (write changes)
-node dist/src/migration/cli.js codemod ./src --write --report migration-report.json
+npx honua-js-migrate codemod ./src --write --report migration-report.json
 
 # Safe codemod (explicit honua target alias)
-node dist/src/migration/cli.js codemod ./src --target honua --write --report migration-report.json
+npx honua-js-migrate codemod ./src --target honua --write --report migration-report.json
 
 # Safe codemod (write changes targeting esri-leaflet for supported subset)
-node dist/src/migration/cli.js codemod ./src --target esri-leaflet --write --report migration-report.json
+npx honua-js-migrate codemod ./src --target esri-leaflet --write --report migration-report.json
 
 # Safe codemod (write + inline TODO annotations for manual sites)
-node dist/src/migration/cli.js codemod ./src --write --annotate-todos --report migration-report.json
+npx honua-js-migrate codemod ./src --write --annotate-todos --report migration-report.json
 
 # Emit parity matrix JSON (for docs/CI dashboards)
-node dist/src/migration/cli.js matrix --report parity-matrix.json
+npx honua-js-migrate matrix --report parity-matrix.json
 
 # Emit runtime parity matrix JSON (for JS API capability tracking)
-node dist/src/migration/cli.js runtime-matrix --report runtime-parity-matrix.json
+npx honua-js-migrate runtime-matrix --report runtime-parity-matrix.json
 
 # Generate readiness metrics for bundled complex real-sample fixtures
-node dist/src/migration/cli.js fixtures --report reports/real-sample-metrics.json
+npx honua-js-migrate fixtures --report reports/real-sample-metrics.json
 
 # Inspect the fixture-only Esri sample migration corpus helpers from tests/docs
 # See docs/esri-sample-corpus.md and test/fixtures/esri-sample-corpus/manifest.json
 
 # Enforce strict readiness gates for bundled real-sample fixtures
-node dist/src/migration/cli.js fixtures --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/real-sample-metrics.json
+npx honua-js-migrate fixtures --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/real-sample-metrics.json
 
 # Enforce strict readiness gates for the demo target fixture only
-node dist/src/migration/cli.js fixtures --target honua --fixtures esri-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json
+npx honua-js-migrate fixtures --target honua --fixtures esri-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json
 
 # Limit fixture metrics to a subset and esri-leaflet target mode
-node dist/src/migration/cli.js fixtures --target esri-leaflet --fixtures esri-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json
+npx honua-js-migrate fixtures --target esri-leaflet --fixtures esri-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json
 
 # Gate in CI (non-zero exit if migration constraints fail)
-node dist/src/migration/cli.js codemod ./src --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0.2 --max-manual-intervention-ratio 0.3
+npx honua-js-migrate codemod ./src --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0.2 --max-manual-intervention-ratio 0.3
 
 # Compare source vs target service fidelity for one layer
-node dist/src/migration/cli.js reconcile --source-base-url https://source.example --source-service-id parcels --target-base-url https://target.example --target-service-id parcels --layer-id 0 --sample-size 200 --report reconcile-report.json
+npx honua-js-migrate reconcile --source-base-url https://source.example --source-service-id parcels --target-base-url https://target.example --target-service-id parcels --layer-id 0 --sample-size 200 --report reconcile-report.json
 
 # Content inventory scan from ArcGIS Online/Portal
-node dist/src/migration/cli.js content scan --portal https://org.maps.arcgis.com --report ./content/scan.json
+npx honua-js-migrate content scan --portal https://org.maps.arcgis.com --report ./content/scan.json
 
 # Content export (WebMaps + hosted layers)
-node dist/src/migration/cli.js content export --portal https://org.maps.arcgis.com --output-dir ./export --report ./content/export.json
+npx honua-js-migrate content export --portal https://org.maps.arcgis.com --output-dir ./export --acknowledge-mutations --report ./content/export.json
 
 # Content import into Honua admin endpoint
-node dist/src/migration/cli.js content import --source ./export --target https://honua.example.com --admin-api-key $HONUA_ADMIN_API_KEY --report ./content/import.json
+npx honua-js-migrate content import --source ./export --target https://honua.example.com --admin-api-key $HONUA_ADMIN_API_KEY --acknowledge-mutations --report ./content/import.json
 
 # Content reconcile using export + import reports
-node dist/src/migration/cli.js content reconcile --source ./export --report ./content/reconcile.json
+npx honua-js-migrate content reconcile --source ./export --report ./content/reconcile.json
 
 # Convert a WebMap JSON export into Honua style config and rewrite portal URLs
-node dist/src/migration/cli.js content-webmap --input ./export/webmap.json --output ./export/webmap.honua.json --source-url-prefix https://org.maps.arcgis.com --target-url-prefix https://honua.example.com --report ./export/webmap.report.json
+npx honua-js-migrate content-webmap --input ./export/webmap.json --output ./export/webmap.honua.json --source-url-prefix https://org.maps.arcgis.com --target-url-prefix https://honua.example.com --report ./export/webmap.report.json
 ```
 
 ## Migration Admin Scanner

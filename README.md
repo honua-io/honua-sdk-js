@@ -196,11 +196,13 @@ published from this repository for consumers who only want a subset:
 | [`@honua/geometry`](https://www.npmjs.com/package/@honua/geometry) | Curated turf/proj4 geometry ops + reprojection ([`docs/geometry.md`](./docs/geometry.md)) |
 | [`@honua/sdk`](https://www.npmjs.com/package/@honua/sdk) | Core client + contract only (split build) |
 | [`@honua/sdk-esri-compat`](https://www.npmjs.com/package/@honua/sdk-esri-compat) | ArcGIS JS compatibility layer (split build) |
-| [`@honua/honua-migrate`](https://www.npmjs.com/package/@honua/honua-migrate) | Migration codemod + scanner (split build) |
+| [`@honua/honua-migrate`](https://www.npmjs.com/package/@honua/honua-migrate) | Migration codemod + scanner, owned by the [`honua-migrate`](https://github.com/honua-io/honua-migrate) repository |
 | [`@honua/app-platform`](https://www.npmjs.com/package/@honua/app-platform) | Application-platform surfaces extracted from the SDK (own pre-1.0 cadence) |
 
-The split builds exist for packaging workflows and subset consumers; details in
-[`docs/split-packages.md`](./docs/split-packages.md).
+The SDK split builds exist for packaging workflows and subset consumers;
+details in [`docs/split-packages.md`](./docs/split-packages.md). Existing
+`@honua/sdk-js/migration` imports follow the
+[migration-tool transition policy](./docs/migration-tool-transition.md).
 
 ### Build-less / CDN usage
 
@@ -368,7 +370,7 @@ honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o m
 
 Authentication resolves from `--api-key`, `HONUA_API_KEY`, or a saved
 `honua login`. Run `honua --help` for the full command surface. This is the
-recommended replacement for `curl` in docs and demos.
+recommended command surface for docs and demos.
 
 For support-safe interoperability evidence, `honua doctor` emits a local,
 schema-validated diagnostic bundle with explicit classification/consent,
