@@ -1851,6 +1851,48 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     );
   });
 
+  // PR #786 review: cog.contractPath/contractSha256 previously recorded the
+  // pinned STAC/COG contract's digest without the validator ever opening the
+  // file to check it, so a swapped or tampered contract would still pass.
+  it("rejects a tampered or missing pinned COG contract behind its recorded digest", async () => {
+    const catalog = await readJson("samples/catalog.v2.json");
+    const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === "imagery-cog-quickstart");
+    const evidence = await readJson(sample.evidence.live.evidencePath);
+    expect(evidence.cog.contractPath).toBe("test/fixtures/cog/public-earth-search-sentinel-2.json");
+    expect(evidence.cog.contractSha256).toBe(
+      createHash("sha256")
+        .update(await readFile(evidence.cog.contractPath))
+        .digest("hex"),
+    );
+    await expect(validateLiveEvidenceProducer(evidence, sample)).resolves.toBeUndefined();
+
+    const digestDrift = structuredClone(evidence);
+    digestDrift.cog.contractSha256 = "0".repeat(64);
+    await expect(validateLiveEvidenceProducer(digestDrift, sample)).rejects.toThrow("pinned COG contract digest drift");
+    // The same drift is a no-op at PR time, before the trunk reseal that
+    // would bind it, mirroring the adjacent producer-generator digest check.
+    await expect(validateLiveEvidenceProducer(digestDrift, sample, { relaxed: true })).resolves.toBeUndefined();
+
+    const swappedContent = structuredClone(evidence);
+    swappedContent.cog.contractPath = "package.json";
+    swappedContent.cog.contractSha256 = createHash("sha256")
+      .update(await readFile("package.json"))
+      .digest("hex");
+    await expect(validateLiveEvidenceProducer(swappedContent, sample)).resolves.toBeUndefined();
+
+    const missingContract = structuredClone(evidence);
+    missingContract.cog.contractPath = "test/fixtures/cog/does-not-exist.json";
+    await expect(validateLiveEvidenceProducer(missingContract, sample)).rejects.toThrow(
+      "pinned COG contract test/fixtures/cog/does-not-exist.json is missing",
+    );
+
+    const escapingContract = structuredClone(evidence);
+    escapingContract.cog.contractPath = "../outside.json";
+    await expect(validateLiveEvidenceProducer(escapingContract, sample)).rejects.toThrow(
+      "cog.contractPath must stay inside the repository",
+    );
+  });
+
   it("binds browser artifacts to build inputs, peers, SHA-256, and SRI", async () => {
     const manifest = await buildBrowserArtifactManifest({
       artifacts: [{ path: "test/fixtures/sample-contract/browser.js", entrypoint: "fixture" }],
