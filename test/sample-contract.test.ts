@@ -247,14 +247,23 @@ describe("sample publication contract", () => {
     // the sample's own fresh evidence every time it is called, so a stale
     // catalog expiry sitting alongside fresh receipts cannot arise as long
     // as every reseal calls it.
+    // Read the real migration overlay for its reviewed policy config and
+    // schema shape, but build an isolated sampleOverrides fixture for the
+    // sample under test rather than asserting against whatever the current
+    // repo's real maplibre-quickstart override happens to hold: the repo's
+    // evidence provenance (which reseal last touched which golden sample,
+    // and when) is allowed to vary -- e.g. a merge that reseals some golden
+    // samples and not others -- and this invariant must hold under any such
+    // combination, not just the one this test happened to be written
+    // against. A deliberately unrelated, far-past placeholder expiresAt
+    // guarantees "before" can never coincidentally equal "after" (which is
+    // always freshly derived from the real evidence's own observedAt), no
+    // matter what the real overlay's current value is.
     const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
     const evidence = await readJson("samples/evidence/maplibre-quickstart/live.v1.json");
+    const stalePlaceholderExpiresAt = "2000-01-01T00:00:00.000Z";
     const staleOverlay = structuredClone(migration);
-    const originalExpiresAt = staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt;
-    // Simulate exactly the bug: real fresh evidence (a genuine reseal
-    // already ran) paired with a catalog expiry literal that was never
-    // refreshed and has now lapsed relative to that fresh observation.
-    staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt = evidence.observedAt;
+    staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt = stalePlaceholderExpiresAt;
 
     const refreshed = await refreshOverlayLiveExpiry(staleOverlay, ["maplibre-quickstart"]);
 
@@ -262,14 +271,13 @@ describe("sample publication contract", () => {
       {
         sampleId: "maplibre-quickstart",
         observedAt: evidence.observedAt,
-        previousExpiresAt: evidence.observedAt,
+        previousExpiresAt: stalePlaceholderExpiresAt,
         expiresAt: staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt,
       },
     ]);
     const refreshedExpiresAt = staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt;
-    // The refreshed literal is no longer identical to the stale one (it moved)...
-    expect(refreshedExpiresAt).not.toBe(originalExpiresAt);
-    expect(refreshedExpiresAt).not.toBe(evidence.observedAt);
+    // The refreshed literal is no longer identical to the stale placeholder (it moved)...
+    expect(refreshedExpiresAt).not.toBe(stalePlaceholderExpiresAt);
     // ...and is now derived exactly from this fresh evidence's own
     // observedAt plus the executed-lane policy window, so it can never again
     // disagree with what reseal actually observed.
@@ -280,11 +288,12 @@ describe("sample publication contract", () => {
     // The stale-expiry-alongside-fresh-evidence shape validateCatalog would
     // have rejected (or worse, silently accepted right up until it lapsed)
     // is exactly what this proves is no longer reachable through this
-    // helper: the refreshed value always exceeds "now" by the full policy
-    // window measured from the real observation, never from whenever the
-    // catalog literal happened to be hand-set.
-    expect(Date.parse(refreshedExpiresAt) - Date.now()).toBeGreaterThan(
-      (migration.configuration.evidenceExpiry.executedMaxDays - 1) * 24 * 60 * 60 * 1000,
+    // helper: the refreshed value is always derived from the real
+    // observation, never from whenever the catalog literal happened to be
+    // hand-set. Compare against observedAt (not Date.now()) so this holds
+    // regardless of how fresh the checked-in fixture evidence itself is.
+    expect(Date.parse(refreshedExpiresAt) - observedAtMs).toBe(
+      migration.configuration.evidenceExpiry.executedMaxDays * 24 * 60 * 60 * 1000,
     );
 
     await expect(refreshOverlayLiveExpiry(structuredClone(migration), ["not-a-real-sample"])).rejects.toThrow(
