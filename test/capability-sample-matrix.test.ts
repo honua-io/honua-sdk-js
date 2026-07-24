@@ -182,9 +182,7 @@ describe("capability-to-sample matrix contract", () => {
     ).toEqual(["imagery-cog-quickstart", "maplibre-quickstart", "migration-workbench", "service-explorer"]);
 
     expect(matrix.goldenJourneys.find((journey) => journey.id === "first-map")?.coverage.state).toBe("qualified");
-    expect(matrix.goldenJourneys.find((journey) => journey.id === "imagery-terrain")?.coverage.state).toBe(
-      "qualified",
-    );
+    expect(matrix.goldenJourneys.find((journey) => journey.id === "imagery-terrain")?.coverage.state).toBe("qualified");
     expect(matrix.goldenJourneys.find((journey) => journey.id === "arcgis-migration")?.coverage.state).toBe(
       "qualified",
     );
