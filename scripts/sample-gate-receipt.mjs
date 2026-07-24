@@ -1208,9 +1208,17 @@ async function validateLiveEvidence(evidence, evidencePath, receipt, root) {
     "live evidence sample or lane binding mismatch",
   );
   invariant(evidence.sdk.gitCommit === receipt.sourceRevision, "live evidence source revision mismatch");
+  // demo-live samples (e.g. migration-workbench, honua-io/honua-sdk-js#549)
+  // prove liveness against a real, deterministic local process -- never a
+  // network endpoint, per their own no-non-loopback-request requirement --
+  // so their catalog-declared source.endpoint is null. public-live and
+  // authenticated samples still observe a real remote endpoint and must
+  // keep proving it over HTTPS.
+  const requiresHttpsEndpoint = sample.evidence.live.mode !== "demo-live";
   invariant(
-    typeof evidence.source.endpoint === "string" &&
-      evidence.source.endpoint.startsWith("https://") &&
+    (requiresHttpsEndpoint
+      ? typeof evidence.source.endpoint === "string" && evidence.source.endpoint.startsWith("https://")
+      : evidence.source.endpoint === null) &&
       evidence.provenance?.state === "live" &&
       evidence.semantics?.outcome &&
       Number.isInteger(evidence.semantics.itemCount) &&
@@ -1346,7 +1354,7 @@ async function validatePackedBuildReport(report, receipt, root) {
       typeof bundled.fileName === "string" &&
         path.posix.normalize(bundled.fileName) === bundled.fileName &&
         !bundled.fileName.startsWith("../") &&
-        ["asset", "chunk"].includes(bundled.kind) &&
+        ["asset", "chunk", "public"].includes(bundled.kind) &&
         bundled.hashSubject === "final-written-bundle-file" &&
         /^[a-f0-9]{64}$/.test(bundled.sha256) &&
         Number.isInteger(bundled.bytes) &&

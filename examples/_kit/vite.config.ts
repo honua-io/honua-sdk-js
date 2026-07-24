@@ -214,23 +214,52 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
           if (!outputRoot || !emittedBundle)
             throw new Error("sample bundle closed without a resolved output inventory");
           const finalOutputRoot = outputRoot;
-          const bundleEvidence = emittedBundle.map((entry) => {
-            const absolute = path.resolve(finalOutputRoot, entry.fileName);
+          const hashEntry = (fileName: string, kind: "asset" | "chunk" | "public") => {
+            const absolute = path.resolve(finalOutputRoot, fileName);
             if (!absolute.startsWith(`${finalOutputRoot}${path.sep}`)) {
-              throw new Error(`sample bundle entry escaped the output root: ${entry.fileName}`);
+              throw new Error(`sample bundle entry escaped the output root: ${fileName}`);
             }
             const metadata = fs.lstatSync(absolute);
             if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 32 * 1024 * 1024) {
-              throw new Error(`sample bundle entry is not a bounded regular file: ${entry.fileName}`);
+              throw new Error(`sample bundle entry is not a bounded regular file: ${fileName}`);
             }
             const bytes = fs.readFileSync(absolute);
             return {
-              ...entry,
+              fileName,
+              kind,
               hashSubject: "final-written-bundle-file",
               bytes: bytes.byteLength,
               sha256: createHash("sha256").update(bytes).digest("hex"),
             };
-          });
+          };
+          const bundleEvidence = emittedBundle.map((entry) => hashEntry(entry.fileName, entry.kind));
+          // Vite copies publicDir straight to outDir outside Rollup's bundle
+          // graph, so generateBundle's emittedBundle never sees those files
+          // (e.g. examples/migration-workbench/public/artifacts/v1's
+          // committed migration CLI output). Walk the final output for any
+          // regular file the bundle didn't already account for and declare
+          // it too -- honua-sdk-js#549 -- so this evidence honestly covers
+          // every file the packed-build gate later finds on disk instead of
+          // silently under-declaring static passthrough output.
+          const declared = new Set(bundleEvidence.map((entry) => entry.fileName));
+          const reservedFileNames = new Set(["index.html", "honua-sample-sdk-resolution.json"]);
+          const visit = (relativeDirectory: string) => {
+            const absoluteDirectory = path.join(finalOutputRoot, ...relativeDirectory.split("/").filter(Boolean));
+            for (const dirent of fs.readdirSync(absoluteDirectory, { withFileTypes: true })) {
+              const relativePath = relativeDirectory ? `${relativeDirectory}/${dirent.name}` : dirent.name;
+              if (dirent.isSymbolicLink()) {
+                throw new Error(`sample dist output contains a symlink: ${relativePath}`);
+              }
+              if (dirent.isDirectory()) {
+                visit(relativePath);
+                continue;
+              }
+              if (!dirent.isFile() || declared.has(relativePath) || reservedFileNames.has(relativePath)) continue;
+              bundleEvidence.push(hashEntry(relativePath, "public"));
+              declared.add(relativePath);
+            }
+          };
+          visit("");
           fs.writeFileSync(
             path.join(finalOutputRoot, "honua-sample-sdk-resolution.json"),
             `${JSON.stringify(
