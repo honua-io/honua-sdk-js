@@ -275,7 +275,7 @@
             "npm run demo:ai-spatial-builder:live-evidence"
           ],
           "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-07-24T18:00:00.000Z"
+          "expiresAt": "2026-08-15T18:00:00.000Z"
         }
       },
       "expectedDegradation": "Missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy.",
@@ -418,7 +418,6 @@
         "map",
         "strategy-selection"
       ],
-      "capabilityKeys": [],
       "protocols": [
         "geoservices",
         "pmtiles",
@@ -456,7 +455,8 @@
       "validationProfile": "browser-fixture",
       "validation": [
         "npx playwright test test/playwright/automatic-source-workflow.spec.mjs"
-      ]
+      ],
+      "capabilityKeys": []
     },
     {
       "id": "cesium-route-playback",
@@ -476,11 +476,6 @@
         "route-playback",
         "terrain",
         "three-dimensional"
-      ],
-      "capabilityKeys": [
-        "raster.terrain-rgb",
-        "routing.solve",
-        "serve.3d-tiles-scene"
       ],
       "protocols": [
         "geoservices"
@@ -519,6 +514,11 @@
       "validation": [
         "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
         "npx vitest run test/cesium-route-playback.test.ts"
+      ],
+      "capabilityKeys": [
+        "raster.terrain-rgb",
+        "routing.solve",
+        "serve.3d-tiles-scene"
       ]
     },
     {
@@ -2093,9 +2093,6 @@
         "selection",
         "temporal"
       ],
-      "capabilityKeys": [
-        "temporal.filtering"
-      ],
       "protocols": [
         "honua"
       ],
@@ -2131,6 +2128,9 @@
       "validationProfile": "browser-lab",
       "validation": [
         "npx playwright test test/playwright/shared-renderer-state.spec.mjs"
+      ],
+      "capabilityKeys": [
+        "temporal.filtering"
       ]
     },
     {
@@ -2356,7 +2356,7 @@
             "npm run demo:spatial-analytics:live-evidence"
           ],
           "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-07-24T08:00:00.000Z"
+          "expiresAt": "2026-08-01T08:00:00.000Z"
         }
       },
       "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on.",
