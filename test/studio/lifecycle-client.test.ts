@@ -131,6 +131,70 @@ describe("HonuaStudioLifecycleClient", () => {
     expect(error.message).toContain("generation 1 is stale");
   });
 
+  it("detects an HonuaHttpError-shaped rejection structurally, even with a foreign prototype (split-package dual-module hazard)", async () => {
+    // Simulates HonuaStudioLifecycleClient running inside the generated
+    // `@honua/app-platform/studio` split package while wired to a
+    // `HonuaClient` built from a *different* copy of `@honua/sdk-js`'s
+    // `core/errors.js` module (the caller's `@honua/sdk` peer). The
+    // rejection below carries every own property a real `HonuaHttpError`
+    // instance carries but is deliberately NOT an instance of this
+    // package's `HonuaHttpError` class — `error instanceof HonuaHttpError`
+    // would return `false` for it, which is exactly the dual-package hazard
+    // detection must not depend on.
+    class ForeignHonuaHttpError extends Error {
+      public readonly kind = "honua.sdk.error.v1";
+      public readonly sdkCode = "core.http.rejected";
+      public readonly domain = "core";
+      public readonly category = "protocol";
+      public readonly retryable = false;
+      public readonly context = Object.freeze({});
+      public readonly statusCode = 409;
+      public readonly body = {
+        type: "https://honua.io/problems/studio",
+        title: "Draft generation conflict",
+        status: 409,
+        detail: 'Draft "draft-parcels-1" generation 1 is stale; the current generation is 2.',
+        code: "studio.draft.generation-conflict",
+      };
+
+      public constructor() {
+        super('HTTP 409: Draft "draft-parcels-1" generation 1 is stale; the current generation is 2.');
+        this.name = "HonuaHttpError";
+      }
+    }
+
+    const fakeClient = {
+      pipelineFetch: async () => {
+        throw new ForeignHonuaHttpError();
+      },
+    } as unknown as HonuaClient;
+    const client = createHonuaStudioLifecycleClient({ client: fakeClient });
+
+    const failure = await client.drafts
+      .replace("draft-parcels-1", {
+        packageKey: "parcels-query",
+        generation: 1,
+        envelope: { family: "query", schemaVersion: "1.0", format: "studio_query_package.v1", body: {} },
+      })
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+
+    // Sanity: this really is the cross-realm failure mode under test — the
+    // thrown value does not carry this package's own HonuaStudioError shape
+    // until `toStudioError` converts it below.
+    expect(failure).not.toBeInstanceOf(ForeignHonuaHttpError);
+
+    expect(isHonuaStudioError(failure)).toBe(true);
+    expect(isHonuaStudioGenerationConflict(failure)).toBe(true);
+    const error = failure as HonuaStudioError;
+    expect(error.statusCode).toBe(409);
+    expect(error.code).toBe("generation-conflict");
+    expect(error.problem?.code).toBe("studio.draft.generation-conflict");
+    expect(error.message).toContain("generation 1 is stale");
+  });
+
   it("deletes a draft and resolves void from the no-payload ApiResponse envelope", async () => {
     const contract = fixture("draft-delete.v1.json");
     const { client, requests } = clientFor(contract);

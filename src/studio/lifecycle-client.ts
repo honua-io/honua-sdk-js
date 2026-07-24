@@ -41,7 +41,7 @@
  */
 
 import type { HonuaClient } from "../core/client.js";
-import { HonuaHttpError } from "../core/errors.js";
+import { isHonuaError } from "../core/errors.js";
 import type { QueryMethod } from "../core/types.js";
 import { HonuaStudioError, type HonuaStudioProblemDetails, classifyStudioProblemStatus } from "./lifecycle-errors.js";
 import type {
@@ -405,9 +405,48 @@ function unwrapApiResponse<T>(body: unknown): T {
   return body as T;
 }
 
-/** Convert a thrown {@link HonuaHttpError} into a typed {@link HonuaStudioError}; pass through anything else. */
+/** The structural shape every `HonuaHttpError` (`src/core/errors.js`) carries. */
+interface HonuaHttpErrorLike {
+  readonly statusCode: number;
+  readonly body: unknown;
+  readonly message: string;
+}
+
+/**
+ * True when `error` has the exact shape a `HonuaHttpError` carries —
+ * deliberately **not** `error instanceof HonuaHttpError`.
+ *
+ * This module ships as part of the generated `@honua/app-platform/studio`
+ * split package (see `src/studio/index.ts`'s module doc and
+ * `scripts/prepare-split-packages.mjs`, which copies `core/` — including
+ * `core/errors.js` — into every split package rather than importing it from
+ * the `@honua/sdk` peer). A caller that wires this client to a `HonuaClient`
+ * constructed from that peer's own copy of `@honua/sdk-js` therefore has
+ * *two* separate `HonuaHttpError` classes in play — one per package copy of
+ * the identical source file. `error instanceof HonuaHttpError` silently
+ * returns `false` across that boundary even though `error` is exactly a
+ * `HonuaHttpError`, a classic dual-package hazard.
+ *
+ * Detection instead follows the SDK's own established cross-realm error
+ * guard, {@link isHonuaError} (`isHonuaSdkError`, `src/core/error-envelope.js`
+ * — "Cross-realm type guard backed by the public tag and registered code"):
+ * match on the frozen `sdkCode` tag every `HonuaHttpError` carries
+ * (`"core.http.transient"` / `"core.http.rejected"` — byte-identical string
+ * constants in every copy of the module, unlike the class's identity) plus a
+ * direct, non-`instanceof` read of the HTTP-specific `statusCode` own
+ * property. `HonuaStudioError` is built from these primitive values alone, so
+ * its construction never depends on receiving a specific class instance
+ * either.
+ */
+function isHonuaHttpErrorLike(error: unknown): error is HonuaHttpErrorLike {
+  if (!isHonuaError(error)) return false;
+  if (error.sdkCode !== "core.http.transient" && error.sdkCode !== "core.http.rejected") return false;
+  return typeof (error as unknown as { statusCode?: unknown }).statusCode === "number";
+}
+
+/** Convert a thrown `HonuaHttpError`-shaped rejection into a typed {@link HonuaStudioError}; pass through anything else. */
 function toStudioError(error: unknown): unknown {
-  if (!(error instanceof HonuaHttpError)) return error;
+  if (!isHonuaHttpErrorLike(error)) return error;
   const problem = toProblemDetails(error.body);
   const code = classifyStudioProblemStatus(error.statusCode);
   const message = problem?.detail ?? problem?.title ?? error.message;
