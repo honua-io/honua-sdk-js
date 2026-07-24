@@ -282,6 +282,19 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     },
   ],
   [
+    "evidence:migration-workbench:live",
+    {
+      definition:
+        "npm run prepare:test-sdk --silent && node scripts/migration-workbench-live-evidence.mjs --output samples/evidence/migration-workbench/live.v1.json",
+      generatorPath: "scripts/migration-workbench-live-evidence.mjs",
+      sampleId: "migration-workbench",
+      operation: "migration-workbench-deterministic-cli-replay",
+      dependencies: {
+        "prepare:test-sdk": "node scripts/prepare-sdk-test-artifacts.mjs --prepare",
+      },
+    },
+  ],
+  [
     "evidence:overture:live",
     {
       definition: "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",

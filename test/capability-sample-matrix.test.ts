@@ -11,11 +11,13 @@ import {
 import type { QualificationEvidenceInventory } from "../scripts/sample-contract.mjs";
 
 // canonicalInputs() (below) calls collectQualificationEvidence against the
-// real samples/evidence tree for the now genuinely qualified First Map
-// journey. That real I/O regularly exceeds vitest's 5s default under
-// full-suite contention; it was effectively instant against the previously
-// always-empty evidence set, so this was never exercised before.
-vi.setConfig({ testTimeout: 20_000 });
+// real samples/evidence tree for the now genuinely qualified First Map and
+// ArcGIS Migration Workbench journeys. That real I/O regularly exceeds
+// vitest's 5s default under full-suite contention, and doubled again once a
+// second golden sample's receipts joined the same read (#549); it was
+// effectively instant against the previously always-empty evidence set, so
+// this was never exercised before either journey qualified.
+vi.setConfig({ testTimeout: 40_000 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(file, "utf8"));
 
@@ -75,6 +77,17 @@ async function promotedFirstMap(window?: { observedAt: string; expiresAt: string
   journey.status = "qualified";
   sample.track = "golden";
   sample.validationProfile = "golden-browser";
+  // Isolate down to first-map alone: demote migration-workbench (the
+  // catalog's other, now genuinely qualified, golden sample) back out so
+  // this helper's single-sample qualificationEvidence still exactly covers
+  // every catalog-qualified golden sample.
+  const otherJourney = catalog.goldenJourneys.find((candidate: { id: string }) => candidate.id === "arcgis-migration");
+  const otherSample = catalog.samples.find(
+    (candidate: { id: string }) => candidate.id === otherJourney.candidateSampleId,
+  );
+  otherJourney.status = "planned";
+  otherSample.track = "lab";
+  otherSample.validationProfile = "browser-lab";
   const qualificationEvidence: QualificationEvidenceInventory = {
     format: "honua.sdk.sample-qualification-evidence.v1",
     schemaVersion: 1,
@@ -130,18 +143,23 @@ describe("capability-to-sample matrix contract", () => {
     // 53 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
     // manifest-advertised PMTiles plugin entrypoint published in issue #671).
     expect(matrix.packageEntrypoints).toHaveLength(53);
-    // maplibre-quickstart is the one real, evidence-backed qualified sample
-    // (the First Map golden journey); everything else must stay unqualified.
-    expect(matrix.evidenceBindings).toHaveLength(1);
+    // maplibre-quickstart (First Map) and migration-workbench (ArcGIS
+    // Migration Workbench) are the two real, evidence-backed qualified
+    // samples; everything else must stay unqualified.
+    expect(matrix.evidenceBindings).toHaveLength(2);
     expect(matrix.evidenceBindings[0]).toMatchObject({ sampleId: "maplibre-quickstart" });
-    expect(matrix.inputs.qualificationEvidence).toMatchObject({ receiptCount: 9 });
+    expect(matrix.evidenceBindings[1]).toMatchObject({ sampleId: "migration-workbench" });
+    expect(matrix.inputs.qualificationEvidence).toMatchObject({ receiptCount: 18 });
     expect(Object.values(matrix.inputs).every((input) => /^[a-f0-9]{64}$/.test(String(input.sha256)))).toBe(true);
     expect(JSON.stringify(matrix)).not.toContain("generatedAt");
     expect(
       matrix.samples.filter((sample) => sample.qualification.state === "qualified").map((sample) => sample.id),
-    ).toEqual(["maplibre-quickstart"]);
+    ).toEqual(["maplibre-quickstart", "migration-workbench"]);
 
     expect(matrix.goldenJourneys.find((journey) => journey.id === "first-map")?.coverage.state).toBe("qualified");
+    expect(matrix.goldenJourneys.find((journey) => journey.id === "arcgis-migration")?.coverage.state).toBe(
+      "qualified",
+    );
     expect(matrix.goldenJourneys.find((journey) => journey.id === "cloud-native-analysis")?.coverage.state).toBe(
       "experimental",
     );
@@ -170,6 +188,19 @@ describe("capability-to-sample matrix contract", () => {
     journey.status = "qualified";
     sample.track = "golden";
     sample.validationProfile = "golden-browser";
+    // Isolate down to first-map alone: demote migration-workbench (the
+    // catalog's other, now genuinely qualified, golden sample) back out so
+    // this sub-case's single-sample qualificationEvidence still exactly
+    // covers every catalog-qualified golden sample.
+    const otherJourney = catalog.goldenJourneys.find(
+      (candidate: { id: string }) => candidate.id === "arcgis-migration",
+    );
+    const otherSample = catalog.samples.find(
+      (candidate: { id: string }) => candidate.id === otherJourney.candidateSampleId,
+    );
+    otherJourney.status = "planned";
+    otherSample.track = "lab";
+    otherSample.validationProfile = "browser-lab";
 
     // maplibre-quickstart is now genuinely qualified with real evidence, so
     // inputs.qualificationEvidence would no longer disagree with the catalog
@@ -328,11 +359,12 @@ describe("capability-to-sample matrix contract", () => {
       for (let index = 0; index < 128; index += 1) {
         await mkdir(path.join(receiptRoot, `unexpected-${index.toString().padStart(3, "0")}`));
       }
-      // The catalog currently has exactly one catalog-qualified journey
-      // (first-map/maplibre-quickstart), so the root bound is 1: the walk
-      // must stop at the second unexpected entry rather than reading all 128.
+      // The catalog currently has exactly two catalog-qualified journeys
+      // (first-map/maplibre-quickstart, arcgis-migration/migration-workbench),
+      // so the root bound is 2: the walk must stop at the third unexpected
+      // entry rather than reading all 128.
       await expect(collectQualificationEvidence(inputs.catalog, { receiptRoot })).rejects.toThrow(
-        "qualification evidence root has orphan or missing entries; found more than 1 entries",
+        "qualification evidence root has orphan or missing entries; found more than 2 entries",
       );
     } finally {
       await rm(receiptRoot, { recursive: true, force: true });

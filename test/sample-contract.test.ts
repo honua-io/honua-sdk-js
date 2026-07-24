@@ -35,11 +35,13 @@ import type { GoldenJourneyVisualEvidence } from "../scripts/sample-contract.mjs
 
 // validateCatalog and the golden-journey visual-evidence helpers below read
 // the real samples/evidence tree (receipts, screenshots, live evidence) for
-// the now genuinely qualified First Map journey. That real I/O regularly
-// exceeds vitest's 5s default under full-suite contention; the default
-// empty-evidence case was effectively instant, so this was never exercised
-// before. Raise this file's timeout rather than the global default.
-vi.setConfig({ testTimeout: 20_000 });
+// the now genuinely qualified First Map and ArcGIS Migration Workbench
+// journeys. That real I/O regularly exceeds vitest's 5s default under
+// full-suite contention, and doubled again once a second golden sample's
+// receipts joined the same read (#549); the default empty-evidence case was
+// effectively instant, so this was never exercised before either journey
+// qualified. Raise this file's timeout rather than the global default.
+vi.setConfig({ testTimeout: 40_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
@@ -151,12 +153,12 @@ describe("sample publication contract", () => {
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(1);
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(2);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      1,
+      2,
     );
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
-      6,
+      5,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
@@ -203,7 +205,7 @@ describe("sample publication contract", () => {
     const migrated = await migrateCatalogV1ToV2(v1, migration);
     expect(migrated).toEqual(canonical);
     expect(migrated.samples.find((sample) => sample.id === "migration-workbench")).toMatchObject({
-      track: "lab",
+      track: "golden",
       journeyId: "arcgis-migration",
       supportTier: "supported",
       lifecycle: { state: "active" },
@@ -218,7 +220,11 @@ describe("sample publication contract", () => {
           status: "executed",
           commands: ["npm run demo:migration-workbench:mock"],
         },
-        live: { mode: "unavailable", status: "not-applicable", commands: [] },
+        live: {
+          mode: "demo-live",
+          status: "executed",
+          commands: ["npm run evidence:migration-workbench:live"],
+        },
       },
     });
 
@@ -298,14 +304,18 @@ describe("sample publication contract", () => {
         },
       },
     });
-    // maplibre-quickstart is the one real, evidence-backed golden journey;
-    // check its stable identity fields rather than the full volatile object
-    // (timestamps, run IDs, screenshot hashes all legitimately change every
-    // capture).
-    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(1);
+    // maplibre-quickstart and migration-workbench are the real,
+    // evidence-backed golden journeys; check their stable identity fields
+    // rather than the full volatile object (timestamps, run IDs, screenshot
+    // hashes all legitimately change every capture).
+    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(2);
     expect(visualEvidence.qualifiedGoldenJourneys[0]).toMatchObject({
       journeyId: "first-map",
       sampleId: "maplibre-quickstart",
+    });
+    expect(visualEvidence.qualifiedGoldenJourneys[1]).toMatchObject({
+      journeyId: "arcgis-migration",
+      sampleId: "migration-workbench",
     });
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
@@ -412,6 +422,13 @@ describe("sample publication contract", () => {
     const staleCatalog = structuredClone(catalog);
     staleCatalog.goldenJourneys[0].status = "qualified";
     staleCatalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").track = "golden";
+    // Demote migration-workbench back out of golden/qualified within this
+    // clone: the sub-cases below replace (not push) qualifiedGoldenJourneys
+    // with a single first-map adversary entry, so staleCatalog must isolate
+    // down to that one real qualified journey rather than the catalog's
+    // current two.
+    staleCatalog.goldenJourneys.find((journey: { id: string }) => journey.id === "arcgis-migration").status = "planned";
+    staleCatalog.samples.find((sample: { id: string }) => sample.id === "migration-workbench").track = "lab";
     // Replace (not push): canonical already carries the one real first-map
     // entry, and this sub-case isolates a stale freshness window on the
     // catalog's single qualified journey rather than an extra/duplicate one.
@@ -446,7 +463,15 @@ describe("sample publication contract", () => {
     incidentCatalog.samples.find((sample: { id: string }) => sample.id === "realtime-incident-dashboard").track =
       "golden";
     const staticIncident = structuredClone(canonical);
-    staticIncident.qualifiedGoldenJourneys.push(
+    // Insert (not push): validateGoldenJourneyVisualEvidence compares
+    // qualifiedGoldenJourneys against catalog.goldenJourneys' own qualified
+    // subset in that array's canonical reserved order (first-map, ...,
+    // incident-operations, ..., arcgis-migration), so the synthetic
+    // incident-operations entry must land between first-map and
+    // arcgis-migration, not after both.
+    staticIncident.qualifiedGoldenJourneys.splice(
+      1,
+      0,
       visualEvidenceAdversary("incident-operations", "realtime-incident-dashboard", observedAt, expiresAt),
     );
     await expect(
@@ -460,55 +485,63 @@ describe("sample publication contract", () => {
     );
   });
 
-  it("derives release versions without catalog edits and still detects semantic drift", async () => {
-    const catalog = await readJson("samples/catalog.v2.json");
-    const packageJson = await readJson("package.json");
-    const currentOutputs = await generatedOutputs(catalog, packageJson);
-    const versionMatch = /^(\d+)\.(\d+)\.(\d+)([-+].+)?$/.exec(packageJson.version);
-    if (!versionMatch) {
-      throw new Error(`Expected a semantic package version, received ${packageJson.version}`);
-    }
-    const bumpedVersion = `${versionMatch[1]}.${versionMatch[2]}.${Number(versionMatch[3]) + 1}${versionMatch[4] ?? ""}`;
-    const bumpedPackage = { ...packageJson, version: bumpedVersion };
+  // This case alone calls generatedOutputs (and therefore
+  // collectQualificationEvidence, reading both golden samples' packed
+  // tarballs and screenshots) four times over, so it needs headroom above
+  // this file's already-doubled 40s default.
+  it(
+    "derives release versions without catalog edits and still detects semantic drift",
+    { timeout: 90_000 },
+    async () => {
+      const catalog = await readJson("samples/catalog.v2.json");
+      const packageJson = await readJson("package.json");
+      const currentOutputs = await generatedOutputs(catalog, packageJson);
+      const versionMatch = /^(\d+)\.(\d+)\.(\d+)([-+].+)?$/.exec(packageJson.version);
+      if (!versionMatch) {
+        throw new Error(`Expected a semantic package version, received ${packageJson.version}`);
+      }
+      const bumpedVersion = `${versionMatch[1]}.${versionMatch[2]}.${Number(versionMatch[3]) + 1}${versionMatch[4] ?? ""}`;
+      const bumpedPackage = { ...packageJson, version: bumpedVersion };
 
-    await expect(validateCatalog(catalog, bumpedPackage, validationTime)).rejects.toThrow(
-      `live evidence SDK version ${packageJson.version} does not match ${bumpedVersion}`,
-    );
-    const bumpedOutputs = await generatedOutputs(catalog, bumpedPackage);
-    const bumpedProjection = JSON.parse(bumpedOutputs.get("samples/dist/honua-site-samples.v2.json")!);
-    expect(bumpedProjection.catalog.version).toBe(bumpedVersion);
-    expect(bumpedProjection.samples[0].sdk.version).toBe(bumpedVersion);
-    expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
-      "samples/dist/honua-site-samples.v2.json",
-      "samples/dist/capability-sample-matrix.v1.json",
-      "samples/dist/honua-site-consumer-handoff.v1.json",
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
-    ]);
+      await expect(validateCatalog(catalog, bumpedPackage, validationTime)).rejects.toThrow(
+        `live evidence SDK version ${packageJson.version} does not match ${bumpedVersion}`,
+      );
+      const bumpedOutputs = await generatedOutputs(catalog, bumpedPackage);
+      const bumpedProjection = JSON.parse(bumpedOutputs.get("samples/dist/honua-site-samples.v2.json")!);
+      expect(bumpedProjection.catalog.version).toBe(bumpedVersion);
+      expect(bumpedProjection.samples[0].sdk.version).toBe(bumpedVersion);
+      expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
+        "samples/dist/honua-site-samples.v2.json",
+        "samples/dist/capability-sample-matrix.v1.json",
+        "samples/dist/honua-site-consumer-handoff.v1.json",
+        "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
+        "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
+      ]);
 
-    const semanticDrift = new Map(currentOutputs);
-    semanticDrift.set(
-      "docs/generated/sample-catalog.md",
-      currentOutputs.get("docs/generated/sample-catalog.md")!.replace("# SDK sample catalog", "# Stale catalog"),
-    );
-    expect(generatedOutputDrift(currentOutputs, semanticDrift)).toEqual(["docs/generated/sample-catalog.md"]);
+      const semanticDrift = new Map(currentOutputs);
+      semanticDrift.set(
+        "docs/generated/sample-catalog.md",
+        currentOutputs.get("docs/generated/sample-catalog.md")!.replace("# SDK sample catalog", "# Stale catalog"),
+      );
+      expect(generatedOutputDrift(currentOutputs, semanticDrift)).toEqual(["docs/generated/sample-catalog.md"]);
 
-    const integrityDrift = new Map(currentOutputs);
-    const fixturePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
-    const consumerFixture = JSON.parse(currentOutputs.get(fixturePath)!);
-    consumerFixture.input.sha256 = "0".repeat(64);
-    integrityDrift.set(fixturePath, `${JSON.stringify(consumerFixture, null, 2)}\n`);
-    expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
-    expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
-      "samples/dist/honua-site-samples.v2.json",
-      "samples/dist/capability-sample-matrix.v1.json",
-      "samples/dist/honua-site-consumer-handoff.v1.json",
-      fixturePath,
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
-    ]);
-    expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
-    expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
-  });
+      const integrityDrift = new Map(currentOutputs);
+      const fixturePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+      const consumerFixture = JSON.parse(currentOutputs.get(fixturePath)!);
+      consumerFixture.input.sha256 = "0".repeat(64);
+      integrityDrift.set(fixturePath, `${JSON.stringify(consumerFixture, null, 2)}\n`);
+      expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
+      expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
+        "samples/dist/honua-site-samples.v2.json",
+        "samples/dist/capability-sample-matrix.v1.json",
+        "samples/dist/honua-site-consumer-handoff.v1.json",
+        fixturePath,
+        "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
+      ]);
+      expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
+      expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
+    },
+  );
 
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {
     const packageJson = await readJson("package.json");

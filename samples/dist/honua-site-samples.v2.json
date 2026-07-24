@@ -53,7 +53,7 @@
     {
       "id": "arcgis-migration",
       "title": "ArcGIS Migration Workbench",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "migration-workbench"
     }
   ],
@@ -867,14 +867,14 @@
       "title": "ArcGIS migration workbench",
       "summary": "Scans and transforms ArcGIS application source with auditable compatibility results.",
       "sourceKind": "root-example",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "arcgis-migration",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Canonical deterministic ArcGIS migration evidence workbench."
+        "reason": "Qualified ArcGIS Migration Workbench journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and deterministic-CLI live receipts."
       },
-      "validationProfile": "browser-lab",
+      "validationProfile": "golden-browser",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/migration-workbench",
@@ -910,8 +910,10 @@
           "status": "executed"
         },
         "live": {
-          "mode": "unavailable",
-          "status": "not-applicable"
+          "mode": "demo-live",
+          "status": "executed",
+          "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
+          "expiresAt": "2026-07-29T21:35:38.591Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."

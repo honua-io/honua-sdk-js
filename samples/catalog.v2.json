@@ -103,7 +103,7 @@
     {
       "id": "arcgis-migration",
       "title": "ArcGIS Migration Workbench",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "migration-workbench"
     }
   ],
@@ -418,7 +418,6 @@
         "map",
         "strategy-selection"
       ],
-      "capabilityKeys": [],
       "protocols": [
         "geoservices",
         "pmtiles",
@@ -456,7 +455,8 @@
       "validationProfile": "browser-fixture",
       "validation": [
         "npx playwright test test/playwright/automatic-source-workflow.spec.mjs"
-      ]
+      ],
+      "capabilityKeys": []
     },
     {
       "id": "cesium-route-playback",
@@ -476,11 +476,6 @@
         "route-playback",
         "terrain",
         "three-dimensional"
-      ],
-      "capabilityKeys": [
-        "raster.terrain-rgb",
-        "routing.solve",
-        "serve.3d-tiles-scene"
       ],
       "protocols": [
         "geoservices"
@@ -519,6 +514,11 @@
       "validation": [
         "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
         "npx vitest run test/cesium-route-playback.test.ts"
+      ],
+      "capabilityKeys": [
+        "raster.terrain-rgb",
+        "routing.solve",
+        "serve.3d-tiles-scene"
       ]
     },
     {
@@ -1178,12 +1178,12 @@
       "title": "ArcGIS migration workbench",
       "summary": "Scans and transforms ArcGIS application source with auditable compatibility results.",
       "sourceKind": "root-example",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "arcgis-migration",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Canonical deterministic ArcGIS migration evidence workbench."
+        "reason": "Qualified ArcGIS Migration Workbench journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and deterministic-CLI live receipts."
       },
       "sourcePath": "examples/migration-workbench",
       "docsPath": "docs/migration-honua-maplibre.md",
@@ -1218,13 +1218,17 @@
           ]
         },
         "live": {
-          "mode": "unavailable",
-          "status": "not-applicable",
-          "commands": []
+          "mode": "demo-live",
+          "status": "executed",
+          "commands": [
+            "npm run evidence:migration-workbench:live"
+          ],
+          "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
+          "expiresAt": "2026-07-29T21:35:38.591Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
-      "validationProfile": "browser-lab",
+      "validationProfile": "golden-browser",
       "validation": [
         "npm run demo:migration-workbench:typecheck",
         "npm run demo:migration-workbench:build",
@@ -2089,9 +2093,6 @@
         "selection",
         "temporal"
       ],
-      "capabilityKeys": [
-        "temporal.filtering"
-      ],
       "protocols": [
         "honua"
       ],
@@ -2127,6 +2128,9 @@
       "validationProfile": "browser-lab",
       "validation": [
         "npx playwright test test/playwright/shared-renderer-state.spec.mjs"
+      ],
+      "capabilityKeys": [
+        "temporal.filtering"
       ]
     },
     {

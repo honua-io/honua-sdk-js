@@ -369,6 +369,7 @@
     "demo:migration-workbench:artifacts:write": "npm run prepare:test-sdk --silent && node scripts/generate-migration-workbench-artifacts.mjs --write",
     "demo:migration-workbench:artifacts:check": "npm run prepare:test-sdk --silent && node scripts/generate-migration-workbench-artifacts.mjs --check",
     "demo:migration-workbench:build": "vite build --config examples/migration-workbench/vite.config.ts",
+    "evidence:migration-workbench:live": "npm run prepare:test-sdk --silent && node scripts/migration-workbench-live-evidence.mjs --output samples/evidence/migration-workbench/live.v1.json",
     "demo:migration-workbench:mock": "node examples/migration-workbench/mock-server.mjs",
     "demo:migration-workbench:preview": "vite preview --config examples/migration-workbench/vite.config.ts --host 127.0.0.1",
     "demo:migration-workbench:typecheck": "tsc -p examples/migration-workbench/tsconfig.json --noEmit",

@@ -16,7 +16,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
 | `imagery-terrain` | planned | [`imagery-cog-quickstart`](#imagery-cog-quickstart) |
 | `cloud-native-analysis` | planned | [`spatial-analytics-workbench`](#spatial-analytics-workbench) |
-| `arcgis-migration` | planned | [`migration-workbench`](#migration-workbench) |
+| `arcgis-migration` | qualified | [`migration-workbench`](#migration-workbench) |
 
 ## Executable samples
 
@@ -34,7 +34,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="kepler-analytics"></a>[`kepler-analytics`](../../examples/kepler-analytics/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Replays operations data through kepler.gl with linked filters and KPI evidence. |
 | <a id="maplibre-quickstart"></a>[`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | golden | first-map | supported | active | golden-browser | hybrid | approved | Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result. |
 | <a id="mcp-gis-assistant"></a>[`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | lab | - | experimental | rework | browser-lab | fixture | not-required | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
-| <a id="migration-workbench"></a>[`migration-workbench`](../../docs/migration-honua-maplibre.md) | lab | arcgis-migration | supported | active | browser-lab | fixture | not-required | Scans and transforms ArcGIS application source with auditable compatibility results. |
+| <a id="migration-workbench"></a>[`migration-workbench`](../../docs/migration-honua-maplibre.md) | golden | arcgis-migration | supported | active | golden-browser | fixture | not-required | Scans and transforms ArcGIS application source with auditable compatibility results. |
 | <a id="nl-map-control"></a>[`nl-map-control`](../../examples/nl-map-control/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
 | <a id="node-backend-quickstart"></a>[`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | - | supported | active | headless-recipe | hybrid | approved | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |

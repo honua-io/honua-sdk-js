@@ -61,7 +61,7 @@
     { "id": "incident-operations", "title": "Realtime Incident Operations", "status": "planned", "candidateSampleId": "realtime-incident-dashboard" },
     { "id": "imagery-terrain", "title": "Imagery and Terrain", "status": "planned", "candidateSampleId": "imagery-cog-quickstart" },
     { "id": "cloud-native-analysis", "title": "Cloud-Native Spatial Analysis", "status": "planned", "candidateSampleId": "spatial-analytics-workbench" },
-    { "id": "arcgis-migration", "title": "ArcGIS Migration Workbench", "status": "planned", "candidateSampleId": "migration-workbench" }
+    { "id": "arcgis-migration", "title": "ArcGIS Migration Workbench", "status": "qualified", "candidateSampleId": "migration-workbench" }
   ],
   "qualityProfiles": [
     {
@@ -274,9 +274,9 @@
       "validationProfile": "browser-lab"
     },
     "migration-workbench": {
-      "track": "lab",
+      "track": "golden",
       "journeyId": "arcgis-migration",
-      "validationProfile": "browser-lab",
+      "validationProfile": "golden-browser",
       "validation": [
         "npm run demo:migration-workbench:typecheck",
         "npm run demo:migration-workbench:build",
@@ -284,13 +284,19 @@
       ],
       "lifecycle": {
         "state": "active",
-        "reason": "Canonical deterministic ArcGIS migration evidence workbench."
+        "reason": "Qualified ArcGIS Migration Workbench journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and deterministic-CLI live receipts."
       },
       "fixture": {
         "status": "executed",
         "commands": ["npm run demo:migration-workbench:mock"]
       },
-      "live": { "mode": "unavailable", "status": "not-applicable", "commands": [] }
+      "live": {
+        "mode": "demo-live",
+        "status": "executed",
+        "commands": ["npm run evidence:migration-workbench:live"],
+        "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
+        "expiresAt": "2026-07-29T21:35:38.591Z"
+      }
     },
     "nl-map-control": {
       "track": "lab",
