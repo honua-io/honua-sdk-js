@@ -237,18 +237,19 @@ jobs:
       # project the dist artifacts from the fresh receipts. Runs STRICT (no
       # HONUA_DERIVED_ARTIFACTS_RELAX): captureGateSourceSnapshot verifies the
       # evidence-neutral checkout, so a binding that cannot hold fails the job.
-      # All three qualified golden samples share one evidence-neutral digest
+      # All four qualified golden samples share one evidence-neutral digest
       # (catalog entries for any of them are inside it), so a change that
-      # invalidates one invalidates all three -- each reseal names the other
-      # two via --qualification-bootstrap-also so this job can reseal them in
-      # sequence against the same tree (honua-io/honua-sdk-js#735, PR #738;
-      # extended to a third golden sample by #548).
+      # invalidates one invalidates all four -- each reseal names the other
+      # three via --qualification-bootstrap-also so this job can reseal them
+      # in sequence against the same tree (honua-io/honua-sdk-js#735, PR #738;
+      # extended to a third golden sample by #548, a fourth by #549).
       - name: Reseal sample evidence
         if: steps.guard.outputs.skip == 'false'
         run: |
-          npm run samples:run -- evidence --sample maplibre-quickstart --qualification-bootstrap-also imagery-cog-quickstart,service-explorer --allow-live
-          npm run samples:run -- evidence --sample imagery-cog-quickstart --qualification-bootstrap-also maplibre-quickstart,service-explorer --allow-live
-          npm run samples:run -- evidence --sample service-explorer --qualification-bootstrap-also maplibre-quickstart,imagery-cog-quickstart --allow-live
+          npm run samples:run -- evidence --sample maplibre-quickstart --qualification-bootstrap-also imagery-cog-quickstart,migration-workbench,service-explorer --allow-live
+          npm run samples:run -- evidence --sample imagery-cog-quickstart --qualification-bootstrap-also maplibre-quickstart,migration-workbench,service-explorer --allow-live
+          npm run samples:run -- evidence --sample migration-workbench --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart,service-explorer --allow-live
+          npm run samples:run -- evidence --sample service-explorer --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart,migration-workbench --allow-live
 
       - name: Regenerate sample dist projections
         if: steps.guard.outputs.skip == 'false'
@@ -268,6 +269,7 @@ jobs:
             samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json \
             samples/evidence/imagery-cog-quickstart \
             samples/evidence/maplibre-quickstart \
+            samples/evidence/migration-workbench \
             samples/evidence/service-explorer
           # The v2 consumer fixture and samples/dist projection are one atomic
           # generated contract: samples:generate rewrites the fixture digest to
@@ -375,7 +377,8 @@ jobs:
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
               samples/dist/* | samples/evidence/imagery-cog-quickstart/* | \
-              samples/evidence/maplibre-quickstart/* | samples/evidence/service-explorer/*)
+              samples/evidence/maplibre-quickstart/* | samples/evidence/migration-workbench/* | \
+              samples/evidence/service-explorer/*)
                 ;;
               *)
                 echo "Regeneration bundle contains an unexpected path: $changed_path"

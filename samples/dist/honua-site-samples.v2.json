@@ -210,7 +210,7 @@
           "targetMode": "authenticated",
           "status": "skipped",
           "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-07-24T18:00:00.000Z"
+          "expiresAt": "2026-08-15T18:00:00.000Z"
         }
       },
       "expectedDegradation": "Missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy."
@@ -1679,7 +1679,7 @@
           "targetMode": "public-live",
           "status": "skipped",
           "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-07-24T08:00:00.000Z"
+          "expiresAt": "2026-08-01T08:00:00.000Z"
         }
       },
       "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on."
