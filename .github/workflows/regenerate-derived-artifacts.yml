@@ -289,13 +289,20 @@ jobs:
         run: |
           npm run samples:refresh-live-expiry -- --sample imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
           npm run samples:migrate:v1
+          npm run samples:write-ci-selection
 
       # Commit the refreshed catalog before pass two below so that pass two's
       # own clean-checkout verification (and the receipts it writes) bind to
       # the tree the refresh actually produced, not the one from before it.
-      # Pass one above already left samples/evidence/** dirty; that is
-      # expected (pass two overwrites it next) and is excluded here since it
-      # is not this commit's concern -- and is excluded from the
+      # samples/dist/sample-ci-selection.v2.json embeds each sample's
+      # catalog-projected live.expiresAt too, and pass two's own readInputs
+      # rejects a stale entry for the one --sample it targets even under
+      # --qualification-bootstrap-also, so write-ci-selection above must also
+      # land here (force-added like the later evidence commit, since
+      # samples/dist is excluded from the evidence-neutral digest but still
+      # git-ignored). Pass one above already left samples/evidence/** dirty;
+      # that is expected (pass two overwrites it next) and is excluded here
+      # since it is not this commit's concern -- and is excluded from the
       # evidence-neutral digest entirely, so it cannot perturb this commit's
       # binding either.
       - name: Stage and commit refreshed catalog locally
@@ -306,6 +313,7 @@ jobs:
           git add -A -- \
             samples/catalog.v2.json \
             samples/contract/v2/migrations/catalog.v1-to-v2.json
+          git add -f -A -- samples/dist/sample-ci-selection.v2.json
           if ! git diff --quiet -- . ':(exclude)samples/evidence'; then
             echo "Catalog live-expiry refresh modified unexpected tracked content:"
             git status --short -- . ':(exclude)samples/evidence'
