@@ -1,13 +1,25 @@
 /**
  * `@honua/sdk-js/studio` — browser-safe TypeScript projections, validation and
- * preview envelopes, capability-manifest types, and publish/share/embed
- * contracts for the Studio package families.
+ * preview envelopes, capability-manifest types, publish/share/embed
+ * contracts, and a full typed package-lifecycle client for the Studio
+ * package families.
  *
- * This barrel is intentionally MCP/QGIS-safe: it exports only types and pure
- * functions and never imports from `operator`, `esri-compat`, `web-components`,
- * `interactions`, or `realtime` (which pull in MapLibre / DOM code). The
- * established `map` and `dashboard`/`app` shapes are re-exported from their
- * leaf modules so consumers reach every family from one import path.
+ * This barrel is intentionally MCP/QGIS-safe: it exports only types, pure
+ * functions, and one typed HTTP client built on the SDK's standard
+ * {@link HonuaClient} transport, and never imports from `operator`,
+ * `esri-compat`, `web-components`, `interactions`, or `realtime` (which pull
+ * in MapLibre / DOM code). The established `map` and `dashboard`/`app` shapes
+ * are re-exported from their leaf modules so consumers reach every family
+ * from one import path.
+ *
+ * {@link HonuaStudioLifecycleClient} (`./lifecycle-client.js`) covers every
+ * endpoint in `honua-server`'s Studio package lifecycle API
+ * (`/api/v{version}/studio`): package-family discovery, draft CRUD with
+ * optimistic-generation checking, validate, preview-plan, immutable content
+ * versions and comparisons, publish requests, reopen, and rollback requests.
+ * See that module's doc comment for the documented enumeration-endpoint gap
+ * (`honua-server#3003`) and how the client absorbs it without a breaking
+ * change.
  *
  * @experimental This entrypoint is not yet covered by the SDK's semver contract
  *   — the surface may change in any minor release prior to `1.0.0`, and the
@@ -136,3 +148,62 @@ export { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../runtime/map-package.js";
 export type { HonuaMapPackage, HonuaMapPackageFormat } from "../runtime/map-package.js";
 export { HONUA_GENERATED_APP_MANIFEST_FORMAT_V1 } from "../generated-app/manifest.js";
 export type { HonuaGeneratedAppManifest, HonuaGeneratedAppPackage } from "../generated-app/manifest.js";
+
+export {
+  HONUA_STUDIO_PROBLEM_TYPE,
+  HonuaStudioError,
+  classifyStudioProblemStatus,
+  isHonuaStudioError,
+  isHonuaStudioGenerationConflict,
+} from "./lifecycle-errors.js";
+export type { HonuaStudioProblemDetails, HonuaStudioProblemKind } from "./lifecycle-errors.js";
+
+export type {
+  StudioApiResponse,
+  StudioBindingRef,
+  StudioContentItemPointers,
+  StudioContentVersion,
+  StudioContentVersionListResponse,
+  StudioDependencyRef,
+  StudioPackageDraft,
+  StudioPackageDraftCreateRequest,
+  StudioPackageDraftReplaceRequest,
+  StudioPackageEnvelope,
+  StudioPackageFamilyCapabilities,
+  StudioPackageFamilyCapability,
+  StudioPackageFamilyOperation,
+  StudioPackageFamilySupportLevel,
+  StudioPersistenceMode,
+  StudioPreviewPlan,
+  StudioProvenanceRef,
+  StudioPublicationIntent,
+  StudioPublicationRequest,
+  StudioPublicationRequestInput,
+  StudioPublicationRequestStatus,
+  StudioReopenVersionRequest,
+  StudioRollbackPointer,
+  StudioRollbackRequest,
+  StudioRollbackRequestInput,
+  StudioValidationDepth,
+  StudioValidationStatus,
+  StudioValidationSummary,
+  StudioVersionComparison,
+  StudioVersionComparisonDiff,
+  StudioVersionComparisonRequest,
+} from "./lifecycle-types.js";
+
+export {
+  HONUA_STUDIO_LIFECYCLE_BASE_PATH,
+  HonuaStudioContentVersionsClient,
+  HonuaStudioDraftsClient,
+  HonuaStudioLifecycleClient,
+  HonuaStudioPackageFamiliesClient,
+  HonuaStudioPublicationRequestsClient,
+  HonuaStudioRollbackRequestsClient,
+  createHonuaStudioLifecycleClient,
+} from "./lifecycle-client.js";
+export type {
+  HonuaStudioLifecycleClientOptions,
+  HonuaStudioRawRequest,
+  HonuaStudioRequestOptions,
+} from "./lifecycle-client.js";

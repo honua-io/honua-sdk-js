@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/studio/package-families"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "data": {
+        "families": [
+          {
+            "family": "query",
+            "schemaVersion": "1.0",
+            "format": "studio_query_package.v1",
+            "supportLevel": "limited",
+            "supportedOperations": [
+              "draft.create",
+              "draft.read",
+              "draft.update",
+              "validate",
+              "preview-plan",
+              "content-version.create",
+              "content-version.read",
+              "content-version.compare",
+              "publish-request.create",
+              "reopen",
+              "rollback"
+            ],
+            "validationDepth": "envelope",
+            "maxPackageBytes": 1048576,
+            "durable": true,
+            "persistenceMode": "postgres"
+          },
+          {
+            "family": "map",
+            "schemaVersion": "1.0",
+            "format": "studio_map_package.v1",
+            "supportLevel": "supported",
+            "supportedOperations": [
+              "draft.create",
+              "draft.read",
+              "draft.update",
+              "validate",
+              "preview-plan",
+              "content-version.create",
+              "content-version.read",
+              "content-version.compare",
+              "publish-request.create",
+              "reopen",
+              "rollback"
+            ],
+            "validationDepth": "full",
+            "maxPackageBytes": 1048576,
+            "durable": true,
+            "persistenceMode": "postgres"
+          },
+          {
+            "family": "gp",
+            "schemaVersion": "1.0",
+            "format": "studio_gp_package.v1",
+            "supportLevel": "limited",
+            "supportedOperations": [
+              "draft.create",
+              "draft.read",
+              "draft.update",
+              "validate",
+              "preview-plan",
+              "content-version.create",
+              "content-version.read",
+              "content-version.compare",
+              "publish-request.create",
+              "reopen",
+              "rollback"
+            ],
+            "validationDepth": "envelope",
+            "limitations": ["Lifecycle data is not durable across server restarts."],
+            "maxPackageBytes": 1048576,
+            "durable": false,
+            "persistenceMode": "in-memory"
+          }
+        ]
+      },
+      "timestamp": "2026-07-01T00:00:00Z"
+    }
+  }
+}
