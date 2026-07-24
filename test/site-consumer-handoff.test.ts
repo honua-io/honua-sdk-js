@@ -21,13 +21,14 @@ import type {
 } from "../scripts/sample-contract.mjs";
 
 // canonicalInputs() reads the real samples/evidence tree (receipts,
-// screenshots, live evidence) for the now genuinely qualified First Map and
-// Universal Service Explorer journeys. That real I/O regularly exceeds
-// vitest's 5s default under full-suite contention -- and roughly doubled
-// once a second golden sample's evidence joined the walk -- while it was
-// effectively instant against the previously always-empty evidence set, so
-// this was never exercised before.
-vi.setConfig({ testTimeout: 40_000 });
+// screenshots, live evidence) for the now genuinely qualified First Map,
+// Imagery and Terrain, and Universal Service Explorer journeys. That real
+// I/O regularly exceeds vitest's 5s default under full-suite contention; it
+// was effectively instant against the previously always-empty evidence set,
+// so this was never exercised before. Three qualified journeys' worth of
+// receipts (up from one) need more headroom than the original
+// single-journey budget.
+vi.setConfig({ testTimeout: 60_000 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(file, "utf8"));
 const sha256 = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
@@ -100,27 +101,36 @@ describe("honua-site consumer handoff", () => {
       },
       counts: {
         cards: 30,
-        qualifiedJourneys: 2,
+        qualifiedJourneys: 3,
         canonicalRoutes: 30,
         legacyRoutes: 20,
         gaps: inputs.matrix.gaps.length,
       },
     });
-    // maplibre-quickstart and service-explorer are the two real,
-    // evidence-backed golden journeys; check stable identity fields rather
-    // than the full volatile object (timestamps, run IDs, and screenshot
-    // hashes legitimately change every capture).
-    expect(inputs.handoff.qualifiedJourneys).toHaveLength(2);
-    expect(inputs.handoff.qualifiedJourneys[0]).toMatchObject({
-      journeyId: "first-map",
-      sampleId: "maplibre-quickstart",
-      canonicalPath: "samples/maplibre-quickstart.html",
-    });
-    expect(inputs.handoff.qualifiedJourneys[1]).toMatchObject({
-      journeyId: "service-explorer",
-      sampleId: "service-explorer",
-      canonicalPath: "samples/service-explorer.html",
-    });
+    // maplibre-quickstart, imagery-cog-quickstart, and service-explorer are
+    // the three real, evidence-backed golden journeys; check stable identity
+    // fields rather than the full volatile object (timestamps, run IDs, and
+    // screenshot hashes legitimately change every capture).
+    expect(inputs.handoff.qualifiedJourneys).toHaveLength(3);
+    expect(
+      [...inputs.handoff.qualifiedJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
+    ).toMatchObject([
+      {
+        journeyId: "first-map",
+        sampleId: "maplibre-quickstart",
+        canonicalPath: "samples/maplibre-quickstart.html",
+      },
+      {
+        journeyId: "imagery-terrain",
+        sampleId: "imagery-cog-quickstart",
+        canonicalPath: "samples/imagery-cog-quickstart.html",
+      },
+      {
+        journeyId: "service-explorer",
+        sampleId: "service-explorer",
+        canonicalPath: "samples/service-explorer.html",
+      },
+    ]);
     expect(inputs.handoff.policy).toMatchObject({
       canonicalRoutes: { statusPages: ["fixture", "retire", "replace"] },
       limits: {
@@ -139,23 +149,22 @@ describe("honua-site consumer handoff", () => {
     expect(
       inputs.handoff.cards.every((card) => card.track === "golden" || card.track === "recipe" || card.track === "lab"),
     ).toBe(true);
-    // maplibre-quickstart and service-explorer are the two real,
-    // evidence-backed qualified cards; every OTHER card must still carry no
-    // invented evidence.
-    const qualifiedCardIds = new Set(["maplibre-quickstart", "service-explorer"]);
+    // maplibre-quickstart, imagery-cog-quickstart, and service-explorer are
+    // the three real, evidence-backed qualified cards; every OTHER card must
+    // still carry no invented evidence.
+    const qualifiedCardIds = new Set(["maplibre-quickstart", "imagery-cog-quickstart", "service-explorer"]);
     expect(
       inputs.handoff.cards
         .filter((card) => !qualifiedCardIds.has(card.id))
         .every((card) => card.evidenceBindingId === null && card.visualEvidence === null),
     ).toBe(true);
-    const quickstartCard = inputs.handoff.cards.find((card) => card.id === "maplibre-quickstart");
-    expect(quickstartCard?.evidenceBindingId).not.toBeNull();
-    expect(quickstartCard?.visualEvidence).not.toBeNull();
-    const serviceExplorerCard = inputs.handoff.cards.find((card) => card.id === "service-explorer");
-    expect(serviceExplorerCard?.evidenceBindingId).not.toBeNull();
-    expect(serviceExplorerCard?.visualEvidence).not.toBeNull();
+    for (const id of qualifiedCardIds) {
+      const card = inputs.handoff.cards.find((candidate) => candidate.id === id);
+      expect(card?.evidenceBindingId).not.toBeNull();
+      expect(card?.visualEvidence).not.toBeNull();
+    }
     expect(inputs.handoff.counts.qualifiedMatrixCells).toEqual({
-      goldenJourneys: 2,
+      goldenJourneys: 3,
       protocolOperations: 5,
       supportClaims: 0,
       packageEntrypoints: 1,

@@ -11,13 +11,14 @@ import {
 import type { QualificationEvidenceInventory } from "../scripts/sample-contract.mjs";
 
 // canonicalInputs() (below) calls collectQualificationEvidence against the
-// real samples/evidence tree for the now genuinely qualified First Map and
-// Universal Service Explorer journeys. That real I/O regularly exceeds
-// vitest's 5s default under full-suite contention -- and roughly doubled
-// once a second golden sample's evidence joined the walk -- while it was
-// effectively instant against the previously always-empty evidence set, so
-// this was never exercised before.
-vi.setConfig({ testTimeout: 40_000 });
+// real samples/evidence tree for the now genuinely qualified First Map,
+// Imagery and Terrain, and Universal Service Explorer journeys. That real
+// I/O regularly exceeds vitest's 5s default under full-suite contention; it
+// was effectively instant against the previously always-empty evidence set,
+// so this was never exercised before. Three qualified journeys' worth of
+// receipts (up from one) need more headroom than the original
+// single-journey budget.
+vi.setConfig({ testTimeout: 60_000 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(file, "utf8"));
 
@@ -69,11 +70,14 @@ function qualificationReceipts(
   }));
 }
 
-// Demote every other real golden journey to isolate first-map-only
-// qualification scenarios: the real catalog now qualifies both First Map and
-// Universal Service Explorer, but these fixtures build their own synthetic,
-// single-sample qualification evidence and must not require the real
-// service-explorer receipts to also be exactly covered.
+// imagery-terrain and service-explorer are now also genuinely qualified
+// alongside first-map. These adversarial/isolation scenarios are written
+// against a single promoted journey, so demote every other real golden
+// journey (and its candidate sample's track) back to non-golden in the
+// clone -- validateQualificationEvidenceInput only requires evidence
+// coverage for journeys whose status is "qualified", but leaving another
+// sample's track at "golden" while its journey is demoted would still be an
+// inconsistent catalog for the rest of the generation/validation pipeline.
 function demoteOtherGoldenJourneys(catalog: Record<string, unknown>, keepJourneyId: string) {
   for (const journey of catalog.goldenJourneys as Array<{ id: string; status: string }>) {
     if (journey.id !== keepJourneyId) journey.status = "planned";
@@ -150,20 +154,23 @@ describe("capability-to-sample matrix contract", () => {
     // 53 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
     // manifest-advertised PMTiles plugin entrypoint published in issue #671).
     expect(matrix.packageEntrypoints).toHaveLength(53);
-    // maplibre-quickstart and service-explorer are the two real,
-    // evidence-backed qualified samples (First Map and Universal Service
-    // Explorer); everything else must stay unqualified.
-    expect(matrix.evidenceBindings).toHaveLength(2);
-    expect(matrix.evidenceBindings[0]).toMatchObject({ sampleId: "maplibre-quickstart" });
-    expect(matrix.evidenceBindings[1]).toMatchObject({ sampleId: "service-explorer" });
-    expect(matrix.inputs.qualificationEvidence).toMatchObject({ receiptCount: 18 });
+    // imagery-cog-quickstart, maplibre-quickstart, and service-explorer are
+    // the three real, evidence-backed qualified samples (the Imagery and
+    // Terrain, First Map, and Universal Service Explorer golden journeys);
+    // everything else must stay unqualified.
+    expect(matrix.evidenceBindings).toHaveLength(3);
+    expect(matrix.evidenceBindings[0]).toMatchObject({ sampleId: "imagery-cog-quickstart" });
+    expect(matrix.evidenceBindings[1]).toMatchObject({ sampleId: "maplibre-quickstart" });
+    expect(matrix.evidenceBindings[2]).toMatchObject({ sampleId: "service-explorer" });
+    expect(matrix.inputs.qualificationEvidence).toMatchObject({ receiptCount: 27 });
     expect(Object.values(matrix.inputs).every((input) => /^[a-f0-9]{64}$/.test(String(input.sha256)))).toBe(true);
     expect(JSON.stringify(matrix)).not.toContain("generatedAt");
     expect(
       matrix.samples.filter((sample) => sample.qualification.state === "qualified").map((sample) => sample.id),
-    ).toEqual(["maplibre-quickstart", "service-explorer"]);
+    ).toEqual(["imagery-cog-quickstart", "maplibre-quickstart", "service-explorer"]);
 
     expect(matrix.goldenJourneys.find((journey) => journey.id === "first-map")?.coverage.state).toBe("qualified");
+    expect(matrix.goldenJourneys.find((journey) => journey.id === "imagery-terrain")?.coverage.state).toBe("qualified");
     expect(matrix.goldenJourneys.find((journey) => journey.id === "cloud-native-analysis")?.coverage.state).toBe(
       "experimental",
     );
@@ -351,12 +358,13 @@ describe("capability-to-sample matrix contract", () => {
       for (let index = 0; index < 128; index += 1) {
         await mkdir(path.join(receiptRoot, `unexpected-${index.toString().padStart(3, "0")}`));
       }
-      // The catalog currently has exactly two catalog-qualified journeys
-      // (first-map/maplibre-quickstart and service-explorer/service-explorer),
-      // so the root bound is 2: the walk must stop at the third unexpected
-      // entry rather than reading all 128.
+      // The catalog currently has exactly three catalog-qualified journeys
+      // (first-map/maplibre-quickstart, imagery-terrain/imagery-cog-quickstart,
+      // and service-explorer/service-explorer), so the root bound is 3: the
+      // walk must stop at the fourth unexpected entry rather than reading
+      // all 128.
       await expect(collectQualificationEvidence(inputs.catalog, { receiptRoot })).rejects.toThrow(
-        "qualification evidence root has orphan or missing entries; found more than 2 entries",
+        "qualification evidence root has orphan or missing entries; found more than 3 entries",
       );
     } finally {
       await rm(receiptRoot, { recursive: true, force: true });

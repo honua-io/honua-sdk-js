@@ -35,12 +35,13 @@ import type { GoldenJourneyVisualEvidence } from "../scripts/sample-contract.mjs
 
 // validateCatalog and the golden-journey visual-evidence helpers below read
 // the real samples/evidence tree (receipts, screenshots, live evidence) for
-// the now genuinely qualified First Map and Universal Service Explorer
-// journeys. That real I/O regularly exceeds vitest's 5s default under
-// full-suite contention -- and roughly doubled once a second golden sample's
-// evidence joined the walk -- while the default empty-evidence case was
+// the now genuinely qualified First Map, Imagery and Terrain, and Universal
+// Service Explorer journeys. That real I/O regularly exceeds vitest's 5s
+// default under full-suite contention; the default empty-evidence case was
 // effectively instant, so this was never exercised before. Raise this file's
-// timeout rather than the global default.
+// timeout rather than the global default; three qualified journeys' worth of
+// receipts (up from one) need more headroom than the original
+// single-journey budget.
 vi.setConfig({ testTimeout: 40_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
@@ -153,12 +154,12 @@ describe("sample publication contract", () => {
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(2);
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(3);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      2,
+      3,
     );
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
-      5,
+      4,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
@@ -253,6 +254,10 @@ describe("sample publication contract", () => {
     expect(compareReleases("0.2.0", "0.2.0-beta.0")).toBeGreaterThan(0);
   });
 
+  // Reads real qualification evidence for all three golden journeys
+  // (collectQualificationEvidence) plus generates golden-journey visual
+  // evidence from it; give this test its own headroom rather than
+  // inflating the whole file's budget.
   it("generates one shared docs/site taxonomy and an executable CI selection", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
@@ -300,19 +305,18 @@ describe("sample publication contract", () => {
         },
       },
     });
-    // maplibre-quickstart and service-explorer are the two real,
-    // evidence-backed golden journeys; check their stable identity fields
-    // rather than the full volatile object (timestamps, run IDs, screenshot
-    // hashes all legitimately change every capture).
-    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(2);
-    expect(visualEvidence.qualifiedGoldenJourneys[0]).toMatchObject({
-      journeyId: "first-map",
-      sampleId: "maplibre-quickstart",
-    });
-    expect(visualEvidence.qualifiedGoldenJourneys[1]).toMatchObject({
-      journeyId: "service-explorer",
-      sampleId: "service-explorer",
-    });
+    // maplibre-quickstart, imagery-cog-quickstart, and service-explorer are
+    // the three real, evidence-backed golden journeys; check their stable
+    // identity fields rather than the full volatile object (timestamps, run
+    // IDs, screenshot hashes all legitimately change every capture).
+    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(3);
+    expect(
+      [...visualEvidence.qualifiedGoldenJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
+    ).toMatchObject([
+      { journeyId: "first-map", sampleId: "maplibre-quickstart" },
+      { journeyId: "imagery-terrain", sampleId: "imagery-cog-quickstart" },
+      { journeyId: "service-explorer", sampleId: "service-explorer" },
+    ]);
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
     expect(JSON.stringify(projection)).not.toContain("VITE_");
@@ -398,8 +402,10 @@ describe("sample publication contract", () => {
     flattenedSample.commands = ["npm run demo:quickstart:mock"];
     delete flattenedSample.commandPlan;
     await expect(validateCiSelection(flattenedCi)).rejects.toThrow("JSON Schema validation failed");
-  });
+  }, 80_000);
 
+  // Also reads real qualification evidence for all three golden journeys;
+  // give it its own headroom for the same reason as the test above.
   it("rejects overstated, stale, cross-runtime, and non-realtime visual evidence", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const qualificationEvidence = await collectQualificationEvidence(catalog);
@@ -418,32 +424,37 @@ describe("sample publication contract", () => {
     const staleCatalog = structuredClone(catalog);
     staleCatalog.goldenJourneys[0].status = "qualified";
     staleCatalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").track = "golden";
-    // Replace (not push) first-map only, keeping canonical's real
-    // service-explorer entry alongside it: the real catalog now carries two
-    // qualified golden journeys, and the orphaned/overstated coverage check
-    // requires visualEvidence to exactly match the catalog's qualified set,
-    // so this sub-case isolates a stale freshness window on one journey
-    // without dropping the other's genuine evidence.
+    // Replace (not push) only the first-map entry: canonical now carries all
+    // three real qualified journeys (first-map, imagery-terrain, and
+    // service-explorer), and the orphaned/overstated coverage check requires
+    // visualEvidence to exactly match the catalog's qualified set, so this
+    // sub-case isolates a stale freshness window on one journey without
+    // orphaning or dropping the other two's genuine evidence.
     const stale = structuredClone(canonical);
-    stale.qualifiedGoldenJourneys[0] = visualEvidenceAdversary(
-      "first-map",
-      "maplibre-quickstart",
-      "2026-07-01T00:00:00.000Z",
-      "2026-07-08T00:00:00.000Z",
+    stale.qualifiedGoldenJourneys = stale.qualifiedGoldenJourneys.map((entry) =>
+      entry.journeyId === "first-map"
+        ? visualEvidenceAdversary(
+            "first-map",
+            "maplibre-quickstart",
+            "2026-07-01T00:00:00.000Z",
+            "2026-07-08T00:00:00.000Z",
+          )
+        : entry,
     );
     await expect(validateGoldenJourneyVisualEvidence(stale, staleCatalog, qualificationEvidence)).rejects.toThrow(
       "stale or has an invalid freshness window",
     );
 
     const staleLive = structuredClone(canonical);
-    staleLive.qualifiedGoldenJourneys[0] = visualEvidenceAdversary(
-      "first-map",
-      "maplibre-quickstart",
-      observedAt,
-      expiresAt,
+    staleLive.qualifiedGoldenJourneys = staleLive.qualifiedGoldenJourneys.map((entry) =>
+      entry.journeyId === "first-map"
+        ? visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt)
+        : entry,
     );
-    staleLive.qualifiedGoldenJourneys[0].liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
-    staleLive.qualifiedGoldenJourneys[0].liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
+    const staleLiveEntry = staleLive.qualifiedGoldenJourneys.find((entry) => entry.journeyId === "first-map");
+    if (!staleLiveEntry) throw new Error("expected a first-map entry in staleLive.qualifiedGoldenJourneys");
+    staleLiveEntry.liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
+    staleLiveEntry.liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
     await expect(validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence)).rejects.toThrow(
       "stale or has an invalid freshness window",
     );
@@ -455,8 +466,21 @@ describe("sample publication contract", () => {
     incidentJourney.status = "qualified";
     incidentCatalog.samples.find((sample: { id: string }) => sample.id === "realtime-incident-dashboard").track =
       "golden";
+    // Insert (not push) at the reserved goldenJourneys array position for
+    // incident-operations (index 3, between first-map and imagery-terrain):
+    // the orphaned/missing/overstated check compares qualifiedGoldenJourneys
+    // against the catalog's own qualified-journey order, so an append would
+    // trip that check instead of exercising the realtime invariant below.
     const staticIncident = structuredClone(canonical);
-    staticIncident.qualifiedGoldenJourneys.push(
+    const incidentJourneyIndex = incidentCatalog.goldenJourneys.findIndex(
+      (journey: { id: string }) => journey.id === "incident-operations",
+    );
+    const qualifiedBeforeIncident = incidentCatalog.goldenJourneys
+      .slice(0, incidentJourneyIndex)
+      .filter((journey: { status: string }) => journey.status === "qualified").length;
+    staticIncident.qualifiedGoldenJourneys.splice(
+      qualifiedBeforeIncident,
+      0,
       visualEvidenceAdversary("incident-operations", "realtime-incident-dashboard", observedAt, expiresAt),
     );
     await expect(
@@ -468,8 +492,12 @@ describe("sample publication contract", () => {
     await expect(validateGoldenJourneyVisualEvidence(crossRuntime, catalog, qualificationEvidence)).rejects.toThrow(
       "JSON Schema validation failed",
     );
-  });
+  }, 80_000);
 
+  // This test calls generatedOutputs() twice (current + bumped-version
+  // catalogs), roughly doubling the file's already-doubled two-journey I/O
+  // budget; give it its own headroom rather than inflating every other test
+  // in this file to match.
   it("derives release versions without catalog edits and still detects semantic drift", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
@@ -518,7 +546,7 @@ describe("sample publication contract", () => {
     ]);
     expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
     expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
-  });
+  }, 80_000);
 
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {
     const packageJson = await readJson("package.json");
@@ -1820,6 +1848,48 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     evidence.semantics.operation = "unsupported-old-journey";
     await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow(
       "producer generator does not support this journey",
+    );
+  });
+
+  // PR #786 review: cog.contractPath/contractSha256 previously recorded the
+  // pinned STAC/COG contract's digest without the validator ever opening the
+  // file to check it, so a swapped or tampered contract would still pass.
+  it("rejects a tampered or missing pinned COG contract behind its recorded digest", async () => {
+    const catalog = await readJson("samples/catalog.v2.json");
+    const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === "imagery-cog-quickstart");
+    const evidence = await readJson(sample.evidence.live.evidencePath);
+    expect(evidence.cog.contractPath).toBe("test/fixtures/cog/public-earth-search-sentinel-2.json");
+    expect(evidence.cog.contractSha256).toBe(
+      createHash("sha256")
+        .update(await readFile(evidence.cog.contractPath))
+        .digest("hex"),
+    );
+    await expect(validateLiveEvidenceProducer(evidence, sample)).resolves.toBeUndefined();
+
+    const digestDrift = structuredClone(evidence);
+    digestDrift.cog.contractSha256 = "0".repeat(64);
+    await expect(validateLiveEvidenceProducer(digestDrift, sample)).rejects.toThrow("pinned COG contract digest drift");
+    // The same drift is a no-op at PR time, before the trunk reseal that
+    // would bind it, mirroring the adjacent producer-generator digest check.
+    await expect(validateLiveEvidenceProducer(digestDrift, sample, { relaxed: true })).resolves.toBeUndefined();
+
+    const swappedContent = structuredClone(evidence);
+    swappedContent.cog.contractPath = "package.json";
+    swappedContent.cog.contractSha256 = createHash("sha256")
+      .update(await readFile("package.json"))
+      .digest("hex");
+    await expect(validateLiveEvidenceProducer(swappedContent, sample)).resolves.toBeUndefined();
+
+    const missingContract = structuredClone(evidence);
+    missingContract.cog.contractPath = "test/fixtures/cog/does-not-exist.json";
+    await expect(validateLiveEvidenceProducer(missingContract, sample)).rejects.toThrow(
+      "pinned COG contract test/fixtures/cog/does-not-exist.json is missing",
+    );
+
+    const escapingContract = structuredClone(evidence);
+    escapingContract.cog.contractPath = "../outside.json";
+    await expect(validateLiveEvidenceProducer(escapingContract, sample)).rejects.toThrow(
+      "cog.contractPath must stay inside the repository",
     );
   });
 

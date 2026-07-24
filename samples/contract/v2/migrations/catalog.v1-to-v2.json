@@ -55,13 +55,48 @@
     ]
   },
   "goldenJourneys": [
-    { "id": "first-map", "title": "First Map", "status": "qualified", "candidateSampleId": "maplibre-quickstart" },
-    { "id": "service-explorer", "title": "Universal Service Explorer", "status": "qualified", "candidateSampleId": "service-explorer" },
-    { "id": "planning-permitting", "title": "Planning and Permitting", "status": "planned", "candidateSampleId": "planning-permitting-workbench" },
-    { "id": "incident-operations", "title": "Realtime Incident Operations", "status": "planned", "candidateSampleId": "realtime-incident-dashboard" },
-    { "id": "imagery-terrain", "title": "Imagery and Terrain", "status": "planned", "candidateSampleId": "imagery-cog-quickstart" },
-    { "id": "cloud-native-analysis", "title": "Cloud-Native Spatial Analysis", "status": "planned", "candidateSampleId": "spatial-analytics-workbench" },
-    { "id": "arcgis-migration", "title": "ArcGIS Migration Workbench", "status": "planned", "candidateSampleId": "migration-workbench" }
+    {
+      "id": "first-map",
+      "title": "First Map",
+      "status": "qualified",
+      "candidateSampleId": "maplibre-quickstart"
+    },
+    {
+      "id": "service-explorer",
+      "title": "Universal Service Explorer",
+      "status": "qualified",
+      "candidateSampleId": "service-explorer"
+    },
+    {
+      "id": "planning-permitting",
+      "title": "Planning and Permitting",
+      "status": "planned",
+      "candidateSampleId": "planning-permitting-workbench"
+    },
+    {
+      "id": "incident-operations",
+      "title": "Realtime Incident Operations",
+      "status": "planned",
+      "candidateSampleId": "realtime-incident-dashboard"
+    },
+    {
+      "id": "imagery-terrain",
+      "title": "Imagery and Terrain",
+      "status": "qualified",
+      "candidateSampleId": "imagery-cog-quickstart"
+    },
+    {
+      "id": "cloud-native-analysis",
+      "title": "Cloud-Native Spatial Analysis",
+      "status": "planned",
+      "candidateSampleId": "spatial-analytics-workbench"
+    },
+    {
+      "id": "arcgis-migration",
+      "title": "ArcGIS Migration Workbench",
+      "status": "planned",
+      "candidateSampleId": "migration-workbench"
+    }
   ],
   "qualityProfiles": [
     {
@@ -165,13 +200,16 @@
         "targetMode": "authenticated",
         "status": "skipped",
         "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
-        "expiresAt": "2026-07-24T18:00:00.000Z"
+        "expiresAt": "2026-08-15T18:00:00.000Z"
       }
     },
     "app-bootstrap-basic": {
       "track": "lab",
       "validationProfile": "browser-lab",
-      "replacement": { "kind": "external", "id": "honua-app-platform" }
+      "replacement": {
+        "kind": "external",
+        "id": "honua-app-platform"
+      }
     },
     "arcgis-source-app": {
       "track": "fixture",
@@ -184,7 +222,10 @@
         "state": "replace",
         "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow."
       },
-      "replacement": { "kind": "journey", "id": "planning-permitting" }
+      "replacement": {
+        "kind": "journey",
+        "id": "planning-permitting"
+      }
     },
     "geocoding-quickstart": {
       "track": "recipe",
@@ -201,23 +242,40 @@
     "geoprocessing-job-runner": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
-      "replacement": { "kind": "journey", "id": "cloud-native-analysis" },
+      "replacement": {
+        "kind": "journey",
+        "id": "cloud-native-analysis"
+      },
       "configuration": {
         "status": "legacy-unsafe",
         "gap": "The browser bundle currently reads a process-service token variable."
       }
     },
     "imagery-cog-quickstart": {
-      "track": "recipe",
+      "track": "golden",
       "title": "Imagery and Terrain journey",
       "summary": "Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles.",
       "journeyId": "imagery-terrain",
-      "capabilities": ["cog", "elevation", "imagery", "profile", "range-requests", "raster", "stac", "terrain"],
-      "protocols": ["geoservices", "stac", "terrain-rgb", "wms"],
+      "capabilities": [
+        "cog",
+        "elevation",
+        "imagery",
+        "profile",
+        "range-requests",
+        "raster",
+        "stac",
+        "terrain"
+      ],
+      "protocols": [
+        "geoservices",
+        "stac",
+        "terrain-rgb",
+        "wms"
+      ],
       "validationProfile": "golden-browser",
       "lifecycle": {
         "state": "active",
-        "reason": "The fixture-first browser workflow, opt-in /cog renderer, pinned live semantic probe, and legacy WMS/Terrain routes now converge on one runnable journey; golden receipt qualification remains intentionally planned."
+        "reason": "Qualified Imagery and Terrain journey with current packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and pinned public STAC/COG live receipts."
       },
       "configuration": {
         "status": "approved"
@@ -230,8 +288,12 @@
       },
       "live": {
         "mode": "public-live",
-        "status": "planned",
-        "commands": ["npm run evidence:cog:live"]
+        "status": "executed",
+        "commands": [
+          "npm run evidence:cog:live"
+        ],
+        "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
+        "expiresAt": "2026-08-23T21:58:55.396Z"
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
       "validation": [
@@ -252,7 +314,11 @@
         "status": "legacy-unsafe",
         "gap": "The browser bundle reads a public Mapbox token; it is explicitly classified as public, but the current browser policy does not approve credential values."
       },
-      "live": { "mode": "public-live", "status": "planned", "commands": [] }
+      "live": {
+        "mode": "public-live",
+        "status": "planned",
+        "commands": []
+      }
     },
     "maplibre-quickstart": {
       "track": "golden",
@@ -288,9 +354,15 @@
       },
       "fixture": {
         "status": "executed",
-        "commands": ["npm run demo:migration-workbench:mock"]
+        "commands": [
+          "npm run demo:migration-workbench:mock"
+        ]
       },
-      "live": { "mode": "unavailable", "status": "not-applicable", "commands": [] }
+      "live": {
+        "mode": "unavailable",
+        "status": "not-applicable",
+        "commands": []
+      }
     },
     "nl-map-control": {
       "track": "lab",
@@ -303,12 +375,21 @@
     "oauth-signin": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
-      "live": { "mode": "authenticated", "status": "planned" }
+      "live": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
     },
     "overture-geoparquet": {
       "track": "lab",
       "validationProfile": "browser-lab",
-      "live": { "mode": "public-live", "status": "planned", "commands": ["npm run evidence:overture:live"] }
+      "live": {
+        "mode": "public-live",
+        "status": "planned",
+        "commands": [
+          "npm run evidence:overture:live"
+        ]
+      }
     },
     "planning-permitting-workbench": {
       "track": "lab",
@@ -325,7 +406,9 @@
         "provenance",
         "query"
       ],
-      "renderers": ["none"],
+      "renderers": [
+        "none"
+      ],
       "validationProfile": "browser-lab",
       "lifecycle": {
         "state": "active",
@@ -339,7 +422,9 @@
       "live": {
         "mode": "public-live",
         "status": "planned",
-        "commands": ["npm run evidence:planning:live"]
+        "commands": [
+          "npm run evidence:planning:live"
+        ]
       },
       "expectedDegradation": "Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.",
       "validation": [
@@ -371,7 +456,10 @@
     "runtime-parity-showcase": {
       "track": "lab",
       "validationProfile": "browser-lab",
-      "replacement": { "kind": "journey", "id": "service-explorer" }
+      "replacement": {
+        "kind": "journey",
+        "id": "service-explorer"
+      }
     },
     "service-explorer": {
       "track": "golden",
@@ -413,7 +501,7 @@
         "targetMode": "public-live",
         "status": "skipped",
         "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
-        "expiresAt": "2026-07-24T08:00:00.000Z"
+        "expiresAt": "2026-08-01T08:00:00.000Z"
       }
     },
     "stac-imagery-browser": {
@@ -427,7 +515,10 @@
     "storytelling-25d-map": {
       "track": "lab",
       "validationProfile": "browser-lab",
-      "replacement": { "kind": "journey", "id": "imagery-terrain" },
+      "replacement": {
+        "kind": "journey",
+        "id": "imagery-terrain"
+      },
       "configuration": {
         "status": "legacy-unsafe",
         "gap": "The browser bundle currently reads a Honua API-key variable."
@@ -440,7 +531,10 @@
     "terrain-rgb-elevation": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
-      "replacement": { "kind": "journey", "id": "imagery-terrain" },
+      "replacement": {
+        "kind": "journey",
+        "id": "imagery-terrain"
+      },
       "configuration": {
         "status": "legacy-unsafe",
         "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
@@ -449,17 +543,27 @@
     "unified-ops-workspace": {
       "track": "lab",
       "validationProfile": "browser-lab",
-      "replacement": { "kind": "journey", "id": "incident-operations" }
+      "replacement": {
+        "kind": "journey",
+        "id": "incident-operations"
+      }
     },
     "web-components-basic": {
       "track": "lab",
       "validationProfile": "browser-lab",
-      "replacement": { "kind": "external", "id": "honua-app-platform" }
+      "replacement": {
+        "kind": "external",
+        "id": "honua-app-platform"
+      }
     }
   },
   "siteMappingOverrides": {
-    "editing": { "sampleId": "planning-permitting-workbench" },
-    "maui-3d": { "sampleId": "imagery-cog-quickstart" }
+    "editing": {
+      "sampleId": "planning-permitting-workbench"
+    },
+    "maui-3d": {
+      "sampleId": "imagery-cog-quickstart"
+    }
   },
   "addedSamples": [
     {
@@ -475,9 +579,20 @@
       },
       "sourcePath": "docs/examples/automatic-source-workflow",
       "docsPath": "docs/examples/automatic-source-workflow/README.md",
-      "capabilities": ["interaction-state", "map", "strategy-selection"],
-      "protocols": ["geoservices", "pmtiles", "wms", "wmts"],
-      "renderers": ["maplibre"],
+      "capabilities": [
+        "interaction-state",
+        "map",
+        "strategy-selection"
+      ],
+      "protocols": [
+        "geoservices",
+        "pmtiles",
+        "wms",
+        "wmts"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
       "data": {
         "mode": "fixture",
         "authMode": "none",
@@ -491,13 +606,21 @@
         "fixture": {
           "mode": "fixture",
           "status": "executed",
-          "commands": ["npx playwright test test/playwright/automatic-source-workflow.spec.mjs"]
+          "commands": [
+            "npx playwright test test/playwright/automatic-source-workflow.spec.mjs"
+          ]
         },
-        "live": { "mode": "unavailable", "status": "not-applicable", "commands": [] }
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable",
+          "commands": []
+        }
       },
       "expectedDegradation": "Unsupported strategies and interaction operations remain explicit test failures.",
       "validationProfile": "browser-fixture",
-      "validation": ["npx playwright test test/playwright/automatic-source-workflow.spec.mjs"]
+      "validation": [
+        "npx playwright test test/playwright/automatic-source-workflow.spec.mjs"
+      ]
     },
     {
       "id": "cesium-route-playback",
@@ -513,9 +636,17 @@
       },
       "sourcePath": "docs/examples/cesium-route-playback",
       "docsPath": "docs/examples/cesium-route-playback/README.md",
-      "capabilities": ["route-playback", "terrain", "three-dimensional"],
-      "protocols": ["geoservices"],
-      "renderers": ["cesium"],
+      "capabilities": [
+        "route-playback",
+        "terrain",
+        "three-dimensional"
+      ],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "cesium"
+      ],
       "data": {
         "mode": "hybrid",
         "authMode": "api-key",
@@ -535,7 +666,11 @@
             "npx vitest run test/cesium-route-playback.test.ts"
           ]
         },
-        "live": { "mode": "authenticated", "status": "planned", "commands": [] }
+        "live": {
+          "mode": "authenticated",
+          "status": "planned",
+          "commands": []
+        }
       },
       "expectedDegradation": "Terrain, source Z, and 3D contract gaps are reported rather than promoted as production support.",
       "validationProfile": "browser-lab",
@@ -557,9 +692,19 @@
       },
       "sourcePath": "docs/examples/shared-renderer-state",
       "docsPath": "docs/examples/shared-renderer-state/README.md",
-      "capabilities": ["camera", "filtering", "selection", "temporal"],
-      "protocols": ["honua"],
-      "renderers": ["cesium", "maplibre"],
+      "capabilities": [
+        "camera",
+        "filtering",
+        "selection",
+        "temporal"
+      ],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "cesium",
+        "maplibre"
+      ],
       "data": {
         "mode": "fixture",
         "authMode": "none",
@@ -573,13 +718,21 @@
         "fixture": {
           "mode": "fixture",
           "status": "executed",
-          "commands": ["npx playwright test test/playwright/shared-renderer-state.spec.mjs"]
+          "commands": [
+            "npx playwright test test/playwright/shared-renderer-state.spec.mjs"
+          ]
         },
-        "live": { "mode": "unavailable", "status": "not-applicable", "commands": [] }
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable",
+          "commands": []
+        }
       },
       "expectedDegradation": "Missing optional renderers fail their own lane without changing shared state semantics.",
       "validationProfile": "browser-lab",
-      "validation": ["npx playwright test test/playwright/shared-renderer-state.spec.mjs"]
+      "validation": [
+        "npx playwright test test/playwright/shared-renderer-state.spec.mjs"
+      ]
     }
   ]
 }

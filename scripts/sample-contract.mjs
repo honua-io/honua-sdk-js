@@ -3219,6 +3219,31 @@ export async function validateLiveEvidenceProducer(evidence, sample, options = {
     invariant(generator.includes(sampleLiteral), `${sample.id}: producer generator does not support this sample`);
     invariant(generator.includes(journeyLiteral), `${sample.id}: producer generator does not support this journey`);
   }
+  // The pinned STAC/COG contract (scripts/cog-live-evidence.mjs) is a
+  // static, repo-committed fixture rather than a run-scoped artifact, so it
+  // is recorded as cog.contractPath/contractSha256 instead of in `artifacts`
+  // (see the matching comment there). Read the file back and compare its
+  // digest so a swapped/corrupted/mis-edited contract fails loudly instead
+  // of only being an unread claim (honua-io/honua-sdk-js PR #786 review).
+  if (evidence.cog?.contractPath !== undefined) {
+    assertRelativePath(evidence.cog.contractPath, `${sample.id}.cog.contractPath`);
+    invariant(/^[a-f0-9]{64}$/.test(evidence.cog?.contractSha256), `${sample.id}: cog.contractSha256 is invalid`);
+    let contractBytes;
+    try {
+      contractBytes = await readFile(path.join(PROJECT_ROOT, evidence.cog.contractPath));
+    } catch (error) {
+      if (error?.code === "ENOENT") {
+        throw new Error(`${sample.id}: pinned COG contract ${evidence.cog.contractPath} is missing`);
+      }
+      throw error;
+    }
+    if (options.relaxed !== true) {
+      invariant(
+        sha256(contractBytes) === evidence.cog.contractSha256,
+        `${sample.id}: pinned COG contract digest drift`,
+      );
+    }
+  }
 }
 
 export function effectiveCatalog(catalog, packageJson) {
@@ -6443,7 +6468,14 @@ async function main(argv) {
   if (["check", "write"].includes(command)) {
     let qualificationBootstrapSampleId;
     if (command === "write" && args.length === 2 && args[0] === "--qualification-bootstrap") {
-      qualificationBootstrapSampleId = args[1];
+      // Comma-separated, mirroring scripts/sample-runner.mjs's
+      // --qualification-bootstrap-also (honua-io/honua-sdk-js#735, PR #653):
+      // regenerating derived artifacts while more than one golden sample is
+      // simultaneously being requalified against the same source needs every
+      // such sample named here too, or validateCatalog's golden-sample loop
+      // reports the same qualification-bootstrap circularity `write` would
+      // otherwise be unable to resolve for any but a single sample.
+      qualificationBootstrapSampleId = args[1].split(",").map((id) => id.trim());
     } else {
       invariant(args.length === 0, `${command} does not accept arguments`);
     }

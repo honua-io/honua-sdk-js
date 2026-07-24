@@ -1,0 +1,36 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "imagery-cog-quickstart",
+  "gate": "packed-build",
+  "status": "passed",
+  "sdkMode": "packed",
+  "sourceRevision": "0182204756394f0a26b9130b70554caff957f040",
+  "sourceDigest": "6ccd8a2080ab5bdd99f808024c4840f22f0cebfe872dcbee0e0de24bf1aa3edc",
+  "runRoot": "samples/evidence/imagery-cog-quickstart/runs/96b66d7e-1398-4fb6-9ccb-a8f3915dba26",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "demo:imagery-cog:build"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "a1bc94a5e38fb21a450e17e2ffd2e8b5e3e486637d5f7aa6b0194bb0322b1293"
+  },
+  "observedAt": "2026-07-24T07:22:10.262Z",
+  "expiresAt": "2026-07-31T07:22:10.262Z",
+  "durationMs": 1073.86290800001,
+  "artifacts": [
+    {
+      "kind": "packed-build-report",
+      "path": "samples/evidence/imagery-cog-quickstart/runs/96b66d7e-1398-4fb6-9ccb-a8f3915dba26/artifacts/packed-build.json",
+      "bytes": 12083,
+      "sha256": "39e8b31ca97ad4026ddccaa7ab381d15cc78ac653ae80812d79069f5ca462eed"
+    }
+  ]
+}

@@ -33,7 +33,7 @@
     {
       "id": "imagery-terrain",
       "title": "Imagery and Terrain",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "imagery-cog-quickstart"
     },
     {
@@ -504,7 +504,7 @@
     {
       "id": "imagery-cog-quickstart",
       "sourcePath": "examples/imagery-cog-quickstart",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
       "validationProfile": "golden-browser",
@@ -547,7 +547,9 @@
       },
       "liveEvidence": {
         "mode": "public-live",
-        "status": "planned"
+        "status": "executed",
+        "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
+        "expiresAt": "2026-08-23T21:58:55.396Z"
       }
     },
     {
