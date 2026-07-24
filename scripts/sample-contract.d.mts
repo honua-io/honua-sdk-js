@@ -287,6 +287,18 @@ export function migrateCatalogV1ToV2(
   catalog: Record<string, unknown>,
   migration: Record<string, unknown>,
 ): Promise<SampleCatalog>;
+export function refreshOverlayLiveExpiry(
+  migration: Record<string, unknown>,
+  sampleIds: string | string[],
+  options?: { now?: string },
+): Promise<
+  Array<{
+    sampleId: string;
+    observedAt: string;
+    previousExpiresAt: string | undefined;
+    expiresAt: string;
+  }>
+>;
 export function compareReleases(left: string, right: string): number;
 export function isRunnableRootExampleDirectory(name: string, markers: string[]): boolean;
 export function validateCatalog(

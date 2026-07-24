@@ -20,6 +20,7 @@ import {
   isRunnableRootExampleDirectory,
   migrateCatalogV1ToV2,
   parseJsonDocument,
+  refreshOverlayLiveExpiry,
   validateCatalog,
   validateCiSelection,
   validateEvidenceEnvelope,
@@ -233,6 +234,65 @@ describe("sample publication contract", () => {
     await expect(migrateCatalogV1ToV2(v1, migration)).rejects.toThrow(
       "migration overrides must cover every v1 sample exactly",
     );
+  });
+
+  it("moves a resealed golden sample's overlay live-evidence expiry to observedAt plus the policy window", async () => {
+    // Resealing renews samples/evidence/<id>/live.v1.json's observedAt, but
+    // samples/catalog.v2.json's live.expiresAt is projected from this
+    // migration overlay's sampleOverrides[id].live.expiresAt literal, which
+    // reseal alone never touches -- the class of bug behind
+    // honua-io/honua-sdk-js#788 (receipts renew forever while the catalog's
+    // own expiry claim silently drifts toward, and eventually past, "now").
+    // refreshOverlayLiveExpiry is the fix: it re-derives that literal from
+    // the sample's own fresh evidence every time it is called, so a stale
+    // catalog expiry sitting alongside fresh receipts cannot arise as long
+    // as every reseal calls it.
+    const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+    const evidence = await readJson("samples/evidence/maplibre-quickstart/live.v1.json");
+    const staleOverlay = structuredClone(migration);
+    const originalExpiresAt = staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt;
+    // Simulate exactly the bug: real fresh evidence (a genuine reseal
+    // already ran) paired with a catalog expiry literal that was never
+    // refreshed and has now lapsed relative to that fresh observation.
+    staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt = evidence.observedAt;
+
+    const refreshed = await refreshOverlayLiveExpiry(staleOverlay, ["maplibre-quickstart"]);
+
+    expect(refreshed).toEqual([
+      {
+        sampleId: "maplibre-quickstart",
+        observedAt: evidence.observedAt,
+        previousExpiresAt: evidence.observedAt,
+        expiresAt: staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt,
+      },
+    ]);
+    const refreshedExpiresAt = staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt;
+    // The refreshed literal is no longer identical to the stale one (it moved)...
+    expect(refreshedExpiresAt).not.toBe(originalExpiresAt);
+    expect(refreshedExpiresAt).not.toBe(evidence.observedAt);
+    // ...and is now derived exactly from this fresh evidence's own
+    // observedAt plus the executed-lane policy window, so it can never again
+    // disagree with what reseal actually observed.
+    const observedAtMs = Date.parse(evidence.observedAt);
+    const expectedExpiresAtMs =
+      observedAtMs + migration.configuration.evidenceExpiry.executedMaxDays * 24 * 60 * 60 * 1000;
+    expect(Date.parse(refreshedExpiresAt)).toBe(expectedExpiresAtMs);
+    // The stale-expiry-alongside-fresh-evidence shape validateCatalog would
+    // have rejected (or worse, silently accepted right up until it lapsed)
+    // is exactly what this proves is no longer reachable through this
+    // helper: the refreshed value always exceeds "now" by the full policy
+    // window measured from the real observation, never from whenever the
+    // catalog literal happened to be hand-set.
+    expect(Date.parse(refreshedExpiresAt) - Date.now()).toBeGreaterThan(
+      (migration.configuration.evidenceExpiry.executedMaxDays - 1) * 24 * 60 * 60 * 1000,
+    );
+
+    await expect(refreshOverlayLiveExpiry(structuredClone(migration), ["not-a-real-sample"])).rejects.toThrow(
+      "unknown sample override",
+    );
+    const nonLiveOverlay = structuredClone(migration);
+    nonLiveOverlay.sampleOverrides["oauth-signin"].live.status = "planned";
+    await expect(refreshOverlayLiveExpiry(nonLiveOverlay, ["oauth-signin"])).rejects.toThrow("is not evidence-bound");
   });
 
   it("rejects duplicate JSON properties before permissive parsing can hide them", () => {
