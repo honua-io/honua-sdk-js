@@ -1,0 +1,43 @@
+{
+  "format": "honua.sdk.sample-performance-gate.v1",
+  "sampleId": "imagery-cog-quickstart",
+  "sourceRevision": "db4a639c13b04dc2a540ff33bcbf3d124ea4d5fd",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:imagery-cog",
+    "--",
+    "--reporter=json"
+  ],
+  "measurement": {
+    "projectName": "chromium",
+    "browserName": "chromium",
+    "source": "browser-performance-api",
+    "metric": "sample-ready-duration",
+    "unit": "ms",
+    "budget": {
+      "operator": "<=",
+      "value": 5000
+    },
+    "value": 1427.3000000000466,
+    "observations": {
+      "navigation": {
+        "entryType": "navigation",
+        "sampleReadyMs": 1427.3000000000466,
+        "responseStartMs": 11.5,
+        "domContentLoadedMs": 130,
+        "loadEventMs": 148.20000000006985
+      },
+      "resources": {
+        "count": 41,
+        "transferBytes": 1893637,
+        "decodedBodyBytes": 1881337,
+        "completedByMs": 975.2000000000698
+      },
+      "interaction": {
+        "name": "evidence-drawer-keyboard-workflow",
+        "durationMs": 14.699999999953434
+      }
+    }
+  }
+}
