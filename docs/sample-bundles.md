@@ -205,8 +205,6 @@ Instead, `.github/workflows/ci.yml`:
   ```sh
   gh release download sample-bundles-latest -R honua-io/honua-sdk-js \
     -p 'sample-bundles.v1.json' -p 'sample-bundles.tar.gz'
-  # or, plain HTTPS:
-  curl -LO https://github.com/honua-io/honua-sdk-js/releases/download/sample-bundles-latest/sample-bundles.v1.json
   ```
 
 ## Discovery from the site projection
