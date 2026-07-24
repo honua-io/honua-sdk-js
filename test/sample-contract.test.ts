@@ -254,6 +254,10 @@ describe("sample publication contract", () => {
     expect(compareReleases("0.2.0", "0.2.0-beta.0")).toBeGreaterThan(0);
   });
 
+  // Reads real qualification evidence for all three golden journeys
+  // (collectQualificationEvidence) plus generates golden-journey visual
+  // evidence from it; give this test its own headroom rather than
+  // inflating the whole file's budget.
   it("generates one shared docs/site taxonomy and an executable CI selection", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
@@ -398,8 +402,10 @@ describe("sample publication contract", () => {
     flattenedSample.commands = ["npm run demo:quickstart:mock"];
     delete flattenedSample.commandPlan;
     await expect(validateCiSelection(flattenedCi)).rejects.toThrow("JSON Schema validation failed");
-  });
+  }, 80_000);
 
+  // Also reads real qualification evidence for all three golden journeys;
+  // give it its own headroom for the same reason as the test above.
   it("rejects overstated, stale, cross-runtime, and non-realtime visual evidence", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const qualificationEvidence = await collectQualificationEvidence(catalog);
@@ -486,7 +492,7 @@ describe("sample publication contract", () => {
     await expect(validateGoldenJourneyVisualEvidence(crossRuntime, catalog, qualificationEvidence)).rejects.toThrow(
       "JSON Schema validation failed",
     );
-  });
+  }, 80_000);
 
   // This test calls generatedOutputs() twice (current + bumped-version
   // catalogs), roughly doubling the file's already-doubled two-journey I/O
