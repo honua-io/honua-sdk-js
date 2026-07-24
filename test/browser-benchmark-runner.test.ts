@@ -7,7 +7,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   BROWSER_CORPUS_SOURCE_FILES,
+  CODE_UNDER_TEST_SOURCE_FILES,
   browserCorpusFingerprint,
+  codeUnderTestFingerprint,
+  evaluateOperationalScenarios,
   evaluateScenarios,
   runRepeatedScenario,
   summarize,
@@ -16,6 +19,7 @@ import {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const budgets = {
+  schemaVersion: 2 as const,
   variability: {
     warningCoefficientOfVariation: 0.35,
     failureCoefficientOfVariation: 0.75,
@@ -89,6 +93,51 @@ describe("browser benchmark budget evaluator", () => {
     }
   });
 
+  it("keeps the deck.gl adapter (code under test) out of the corpus hash, per PR #770 review", async () => {
+    // report.corpus.sha256 must identify the benchmark's own scenario/data
+    // definitions, never the SDK implementation those scenarios exercise —
+    // otherwise an ordinary adapter-only change looks like a different
+    // benchmark corpus instead of the SDK regression it actually is.
+    expect(BROWSER_CORPUS_SOURCE_FILES.some((file) => file.startsWith("src/"))).toBe(false);
+    for (const file of CODE_UNDER_TEST_SOURCE_FILES) {
+      expect(BROWSER_CORPUS_SOURCE_FILES).not.toContain(file);
+    }
+
+    const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-browser-code-under-test-"));
+    const sourceRoot = path.join(temporaryRoot, "repo");
+    try {
+      for (const relativePath of [...BROWSER_CORPUS_SOURCE_FILES, ...CODE_UNDER_TEST_SOURCE_FILES]) {
+        const destination = path.join(sourceRoot, relativePath);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.copyFileSync(path.join(repoRoot, relativePath), destination);
+      }
+      const fixtureRoot = path.join(repoRoot, "samples/fixtures/first-map/v1");
+
+      const corpusBefore = await browserCorpusFingerprint({ repoRoot: sourceRoot, fixtureRoot });
+      const codeBefore = await codeUnderTestFingerprint({ repoRoot: sourceRoot });
+      expect(codeBefore.files).toEqual([...CODE_UNDER_TEST_SOURCE_FILES]);
+      expect(corpusBefore.files.some((file) => file.startsWith("src/"))).toBe(false);
+
+      // Editing an adapter file (code under test) must change codeUnderTest's
+      // hash but leave the corpus hash untouched.
+      fs.appendFileSync(path.join(sourceRoot, "src/deckgl/adapter.ts"), "\n// benchmark test edit\n");
+      const corpusAfterCodeEdit = await browserCorpusFingerprint({ repoRoot: sourceRoot, fixtureRoot });
+      const codeAfterCodeEdit = await codeUnderTestFingerprint({ repoRoot: sourceRoot });
+      expect(corpusAfterCodeEdit.sha256).toBe(corpusBefore.sha256);
+      expect(codeAfterCodeEdit.sha256).not.toBe(codeBefore.sha256);
+
+      // Editing a scenario producer (the corpus itself) must change the
+      // corpus hash but leave codeUnderTest's hash untouched.
+      fs.appendFileSync(path.join(sourceRoot, "bench/browser/main.ts"), "\n// benchmark test edit\n");
+      const corpusAfterScenarioEdit = await browserCorpusFingerprint({ repoRoot: sourceRoot, fixtureRoot });
+      const codeAfterScenarioEdit = await codeUnderTestFingerprint({ repoRoot: sourceRoot });
+      expect(corpusAfterScenarioEdit.sha256).not.toBe(corpusAfterCodeEdit.sha256);
+      expect(codeAfterScenarioEdit.sha256).toBe(codeAfterCodeEdit.sha256);
+    } finally {
+      fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
   it("passes stable renderer samples below the reviewed bounds", () => {
     const evaluation = evaluateScenarios([scenario([900, 1_000, 1_100], [8, 9, 10])], budgets);
     expect(evaluation.level).toBe("pass");
@@ -123,5 +172,175 @@ describe("browser benchmark budget evaluator", () => {
     expect(result.samples.every((sample) => sample.errors?.runner?.[0] === "render deadline exceeded")).toBe(true);
     expect(result.invariants.passed).toBe(false);
     expect(evaluateScenarios([result], budgets).level).toBe("failure");
+  });
+
+  it("computes a per-stage summary and evaluates it only when the scenario budget declares stages", async () => {
+    const stageBudgets = {
+      ...budgets,
+      scenarios: {
+        ...budgets.scenarios,
+        "scale-tier": {
+          firstVisibleMs: { warning: 20_000, failure: 60_000 },
+          interactionLatencyMs: { warning: 2_000, failure: 6_000 },
+          stages: {
+            conversionMs: { warning: 500, failure: 2_000 },
+            steadyFrameRateFps: { direction: "at-least" as const, warning: 20, failure: 5 },
+          },
+        },
+      },
+    };
+    const result = await runRepeatedScenario(
+      "scale-tier",
+      async () => ({
+        firstVisibleMs: 5_000,
+        interactionLatencyMs: 200,
+        stages: { conversionMs: 100, steadyFrameRateFps: 30 },
+        passed: true,
+      }),
+      "unused",
+    );
+
+    expect(result.stagesSummary?.conversionMs.median).toBe(100);
+    expect(result.stagesSummary?.steadyFrameRateFps.median).toBe(30);
+
+    const passingEvaluation = evaluateScenarios([result], stageBudgets);
+    expect(passingEvaluation.level).toBe("pass");
+    expect(passingEvaluation.items).toContainEqual(
+      expect.objectContaining({ scenarioId: "scale-tier", metric: "stages.conversionMs.median", level: "pass" }),
+    );
+
+    // Old (pre-#562) scenarios/budgets never populate stagesSummary/stages —
+    // this must not add items or otherwise change their evaluation shape.
+    const unstagedEvaluation = evaluateScenarios([scenario([900, 1_000, 1_100], [8, 9, 10])], budgets);
+    expect(unstagedEvaluation.items).toHaveLength(5);
+    expect(unstagedEvaluation.items.some((item) => item.metric.startsWith("stages."))).toBe(false);
+  });
+
+  it("proves a steady frame rate regression (a lower-is-worse metric) fails the lower-bound stage budget", async () => {
+    const stageBudgets = {
+      ...budgets,
+      scenarios: {
+        "scale-tier": {
+          firstVisibleMs: { warning: 20_000, failure: 60_000 },
+          interactionLatencyMs: { warning: 2_000, failure: 6_000 },
+          stages: {
+            steadyFrameRateFps: { direction: "at-least" as const, warning: 20, failure: 5 },
+          },
+        },
+      },
+    };
+    const result = await runRepeatedScenario(
+      "scale-tier",
+      async () => ({
+        firstVisibleMs: 5_000,
+        interactionLatencyMs: 200,
+        stages: { steadyFrameRateFps: 2 },
+        passed: true,
+      }),
+      "unused",
+    );
+    const evaluation = evaluateScenarios([result], stageBudgets);
+    expect(evaluation.level).toBe("failure");
+    expect(evaluation.items).toContainEqual(
+      expect.objectContaining({
+        scenarioId: "scale-tier",
+        metric: "stages.steadyFrameRateFps.median",
+        level: "failure",
+      }),
+    );
+  });
+});
+
+describe("evaluateOperationalScenarios (capability + lifecycle invariants)", () => {
+  const lifecycleBudgets = {
+    ...budgets,
+    lifecycle: {
+      repeatedMountUnmount: {
+        cycles: 25,
+        warmupCycles: 5,
+        maxHeapGrowthBytes: { warning: 5_000_000, failure: 20_000_000 },
+      },
+      contextLossRecovery: { maxRecoveryMs: { warning: 3_000, failure: 8_000 } },
+    },
+  };
+
+  it("passes when every operational scenario's invariants hold and heap growth/recovery time are in budget", () => {
+    const results = [
+      { id: "deckgl.capability-supported", passed: true, evidence: { message: "ok" } },
+      { id: "deckgl.capability-fallback", passed: true, evidence: { message: "ok" } },
+      {
+        id: "deckgl.lifecycle-repeated-mount-unmount",
+        passed: true,
+        evidence: { cycles: 25, warmupCycles: 5, heapGrowthBytes: 100_000, message: "ok" },
+      },
+      {
+        id: "deckgl.context-loss-recovery",
+        passed: true,
+        evidence: { loseContextExtensionAvailable: true, recoveryMs: 500, message: "ok" },
+      },
+    ];
+    const evaluation = evaluateOperationalScenarios(results, lifecycleBudgets);
+    expect(evaluation.level).toBe("pass");
+    expect(evaluation.items.filter((item) => item.metric === "invariants")).toHaveLength(4);
+  });
+
+  it("fails when a capability or lifecycle scenario reports a failed invariant", () => {
+    const results = [
+      { id: "deckgl.capability-supported", passed: false, evidence: { message: "picking proof failed" } },
+    ];
+    const evaluation = evaluateOperationalScenarios(results, lifecycleBudgets);
+    expect(evaluation.level).toBe("failure");
+    expect(evaluation.items[0]).toMatchObject({ scenarioId: "deckgl.capability-supported", level: "failure" });
+  });
+
+  it("fails a repeated mount/unmount leak that exceeds the heap-growth budget", () => {
+    const results = [
+      {
+        id: "deckgl.lifecycle-repeated-mount-unmount",
+        passed: true,
+        evidence: { cycles: 25, warmupCycles: 5, heapGrowthBytes: 50_000_000, message: "ok" },
+      },
+    ];
+    const evaluation = evaluateOperationalScenarios(results, lifecycleBudgets);
+    expect(evaluation.level).toBe("failure");
+    expect(evaluation.items).toContainEqual(
+      expect.objectContaining({
+        scenarioId: "deckgl.lifecycle-repeated-mount-unmount",
+        metric: "heapGrowthBytes",
+        level: "failure",
+      }),
+    );
+  });
+
+  it("reports not-measured (never a silent pass) when the memory API is unavailable", () => {
+    const results = [
+      {
+        id: "deckgl.lifecycle-repeated-mount-unmount",
+        passed: true,
+        evidence: { cycles: 25, warmupCycles: 5, heapGrowthBytes: null, message: "ok" },
+      },
+    ];
+    const evaluation = evaluateOperationalScenarios(results, lifecycleBudgets);
+    expect(evaluation.level).toBe("pass");
+    expect(evaluation.items).toContainEqual(
+      expect.objectContaining({
+        scenarioId: "deckgl.lifecycle-repeated-mount-unmount",
+        metric: "heapGrowthBytes",
+        level: "not-measured",
+      }),
+    );
+  });
+
+  it("skips the context-loss recovery time budget when WEBGL_lose_context is unavailable on this device", () => {
+    const results = [
+      {
+        id: "deckgl.context-loss-recovery",
+        passed: true,
+        evidence: { loseContextExtensionAvailable: false, message: "cannot exercise on this device" },
+      },
+    ];
+    const evaluation = evaluateOperationalScenarios(results, lifecycleBudgets);
+    expect(evaluation.items.some((item) => item.metric === "recoveryMs")).toBe(false);
+    expect(evaluation.level).toBe("pass");
   });
 });
