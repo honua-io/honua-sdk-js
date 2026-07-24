@@ -74,7 +74,6 @@ resetOutputRoot();
 
 createSdkPackage();
 createCompatPackage();
-createMigrationPackage();
 createReactPackage();
 createGeometryPackage();
 createAppPlatformPackage();
@@ -438,84 +437,6 @@ function createGeometryPackage() {
   );
 }
 
-function createMigrationPackage() {
-  const packageRoot = path.join(OUTPUT_ROOT, "honua-migrate");
-  fs.mkdirSync(packageRoot, { recursive: true });
-
-  copyDirectory(path.join(DIST_SRC_ROOT, "migration"), path.join(packageRoot, "migration"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
-  // The codemod imports `../map/webmap-maplibre.js` (and its `../style/specification.js` types),
-  // so the migration package needs those siblings to resolve at runtime.
-  copyFile(
-    path.join(DIST_SRC_ROOT, "map", "webmap-maplibre.js"),
-    path.join(packageRoot, "map", "webmap-maplibre.js"),
-  );
-  copyFile(
-    path.join(DIST_SRC_ROOT, "map", "webmap-maplibre.d.ts"),
-    path.join(packageRoot, "map", "webmap-maplibre.d.ts"),
-  );
-  copyFile(
-    path.join(DIST_SRC_ROOT, "style", "specification.js"),
-    path.join(packageRoot, "style", "specification.js"),
-  );
-  copyFile(
-    path.join(DIST_SRC_ROOT, "style", "specification.d.ts"),
-    path.join(packageRoot, "style", "specification.d.ts"),
-  );
-  // webmap/convert-renderer.js builds first-class renderer objects (issue
-  // #497), so the migration package also ships the style renderer module and
-  // its /expr dependency.
-  copyFile(path.join(DIST_SRC_ROOT, "style", "renderers.js"), path.join(packageRoot, "style", "renderers.js"));
-  copyFile(path.join(DIST_SRC_ROOT, "style", "renderers.d.ts"), path.join(packageRoot, "style", "renderers.d.ts"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
-  copyMigrationCoreTypeSupport(packageRoot);
-  copyFile(path.join(DIST_SRC_ROOT, "migration-entry.js"), path.join(packageRoot, "index.js"));
-  copyFile(path.join(DIST_SRC_ROOT, "migration-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
-  fs.chmodSync(path.join(packageRoot, "migration", "cli.js"), 0o755);
-
-  writePackageJson(packageRoot, {
-    name: "@honua/honua-migrate",
-    description: "ArcGIS-to-Honua migration scanner, codemod, and reporting tools",
-    keywords: packageKeywords(["arcgis", "arcgis-migration", "esri", "codemod", "migration"]),
-    main: "./index.js",
-    types: "./index.d.ts",
-    bin: {
-      "honua-migrate": "migration/cli.js",
-    },
-    exports: {
-      ".": {
-        types: "./index.d.ts",
-        default: "./index.js",
-      },
-      "./cli": {
-        default: "./migration/cli.js",
-      },
-    },
-    dependencies: {
-      typescript: rootPackageJson.devDependencies.typescript,
-    },
-  });
-
-  writeReadme(
-    packageRoot,
-    [
-      "# @honua/honua-migrate",
-      "",
-      "Migration tooling for ArcGIS JavaScript to Honua transitions.",
-      "",
-      "CLI:",
-      "",
-      "```bash",
-      "npx @honua/honua-migrate scan ./src",
-      "npx @honua/honua-migrate codemod ./src --write --report migration-report.json",
-      "npx @honua/honua-migrate reconcile --source-base-url https://source.example --source-service-id parcels --target-base-url https://target.example --target-service-id parcels --layer-id 0 --report reconcile-report.json",
-      "```",
-      "",
-      "This package is generated from `@honua/sdk-js` build artifacts.",
-    ].join("\n"),
-  );
-}
-
 function createReactPackage() {
   const packageRoot = path.join(OUTPUT_ROOT, "honua-react");
   fs.mkdirSync(packageRoot, { recursive: true });
@@ -698,18 +619,6 @@ function createAppPlatformPackage() {
       "This package is generated from `@honua/sdk-js` build artifacts.",
     ].join("\n"),
   );
-}
-
-function copyMigrationCoreTypeSupport(packageRoot) {
-  const coreRoot = path.join(packageRoot, "core");
-  copyFile(path.join(DIST_SRC_ROOT, "core", "types.js"), path.join(coreRoot, "types.js"));
-  copyFile(path.join(DIST_SRC_ROOT, "core", "types.d.ts"), path.join(coreRoot, "types.d.ts"));
-  copyFile(path.join(DIST_SRC_ROOT, "core", "cache-state.js"), path.join(coreRoot, "cache-state.js"));
-  copyFile(path.join(DIST_SRC_ROOT, "core", "cache-state.d.ts"), path.join(coreRoot, "cache-state.d.ts"));
-  // path-utils provides the linear slash/trim helpers used by migration/reconcile + content
-  // (self-contained, no further core deps).
-  copyFile(path.join(DIST_SRC_ROOT, "core", "path-utils.js"), path.join(coreRoot, "path-utils.js"));
-  copyFile(path.join(DIST_SRC_ROOT, "core", "path-utils.d.ts"), path.join(coreRoot, "path-utils.d.ts"));
 }
 
 function copySourceCapabilityContractSupport(packageRoot) {

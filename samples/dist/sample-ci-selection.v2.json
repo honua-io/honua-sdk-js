@@ -15,7 +15,7 @@
     {
       "id": "service-explorer",
       "title": "Universal Service Explorer",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "service-explorer"
     },
     {
@@ -1100,7 +1100,7 @@
     {
       "id": "service-explorer",
       "sourcePath": "examples/service-explorer",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "validationProfile": "golden-browser",
@@ -1141,7 +1141,9 @@
       },
       "liveEvidence": {
         "mode": "public-live",
-        "status": "planned"
+        "status": "executed",
+        "evidencePath": "samples/evidence/service-explorer/live.v1.json",
+        "expiresAt": "2026-08-21T20:22:41.000Z"
       }
     },
     {

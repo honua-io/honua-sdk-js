@@ -206,11 +206,13 @@ published from this repository for consumers who only want a subset:
 | [`@honua/geometry`](https://www.npmjs.com/package/@honua/geometry) | Curated turf/proj4 geometry ops + reprojection ([`docs/geometry.md`](./docs/geometry.md)) |
 | [`@honua/sdk`](https://www.npmjs.com/package/@honua/sdk) | Core client + contract only (split build) |
 | [`@honua/sdk-esri-compat`](https://www.npmjs.com/package/@honua/sdk-esri-compat) | ArcGIS JS compatibility layer (split build) |
-| [`@honua/honua-migrate`](https://www.npmjs.com/package/@honua/honua-migrate) | Migration codemod + scanner (split build) |
+| [`@honua/honua-migrate`](https://www.npmjs.com/package/@honua/honua-migrate) | Migration codemod + scanner, owned by the [`honua-migrate`](https://github.com/honua-io/honua-migrate) repository |
 | [`@honua/app-platform`](https://www.npmjs.com/package/@honua/app-platform) | Application-platform surfaces extracted from the SDK (own pre-1.0 cadence) |
 
-The split builds exist for packaging workflows and subset consumers; details in
-[`docs/split-packages.md`](./docs/split-packages.md).
+The SDK split builds exist for packaging workflows and subset consumers;
+details in [`docs/split-packages.md`](./docs/split-packages.md). Existing
+`@honua/sdk-js/migration` imports follow the
+[migration-tool transition policy](./docs/migration-tool-transition.md).
 
 ### Build-less / CDN usage
 
@@ -378,7 +380,7 @@ honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o m
 
 Authentication resolves from `--api-key`, `HONUA_API_KEY`, or a saved
 `honua login`. Run `honua --help` for the full command surface. This is the
-recommended replacement for `curl` in docs and demos.
+recommended command surface for docs and demos.
 
 For support-safe interoperability evidence, `honua doctor` emits a local,
 schema-validated diagnostic bundle with explicit classification/consent,
@@ -391,7 +393,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 32 executable examples: 1 qualified golden sample, 12 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 6 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 32 executable examples: 2 qualified golden samples, 12 recipes, 16 labs, and 2 fixtures. Seven journey IDs are reserved; 5 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at
@@ -965,7 +967,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | Journey | Status | Candidate sample |
 | --- | --- | --- |
 | `first-map` | qualified | [`maplibre-quickstart`](#maplibre-quickstart) |
-| `service-explorer` | planned | [`service-explorer`](#service-explorer) |
+| `service-explorer` | qualified | [`service-explorer`](#service-explorer) |
 | `planning-permitting` | planned | [`planning-permitting-workbench`](#planning-permitting-workbench) |
 | `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
 | `imagery-terrain` | planned | [`imagery-cog-quickstart`](#imagery-cog-quickstart) |
@@ -998,7 +1000,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey. |
 | <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | <a id="runtime-parity-showcase"></a>[`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | lab | - | experimental | replace | browser-lab | fixture | not-required | Compares supported rendering paths and makes fidelity differences explicit. |
-| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | lab | service-explorer | supported | active | golden-browser | hybrid | approved | Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code. |
+| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | golden | service-explorer | supported | active | golden-browser | hybrid | approved | Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code. |
 | <a id="shared-renderer-state"></a>[`shared-renderer-state`](../../docs/examples/shared-renderer-state/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | Exercises loop-safe camera, selection, filter, and time synchronization across MapLibre and Cesium. |
 | <a id="sketch-editing"></a>[`sketch-editing`](../../examples/sketch-editing/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
 | <a id="spatial-analytics-workbench"></a>[`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | lab | cloud-native-analysis | experimental | rework | browser-lab | hybrid | approved | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
@@ -1188,7 +1190,7 @@ Labels: `fixture` · `public-live` · `degraded`
 - Executable entry: [examples/service-explorer/src/main.ts](../../examples/service-explorer/src/main.ts)
 - Example notes: [examples/service-explorer/README.md](../../examples/service-explorer/README.md)
 - Compile check: `npm run demo:service-explorer:typecheck`
-- Sample contract: `lab` · `supported` · `active`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.
 - Freshness: Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics.
@@ -1435,7 +1437,8 @@ discovery remains `source-selection-required`. They never become an empty succes
 
 ## Browser network and CORS failures
 
-An anonymous public endpoint must allow the browser origin. A URL that works from `curl` can still fail CORS.
+An anonymous public endpoint must allow the browser origin. A command-line request can succeed while the browser is
+still blocked by CORS.
 
 - Confirm metadata and query responses allow the Vite/preview origin.
 - Do not put API keys or bearer tokens in `VITE_*`; Vite publishes those values in JavaScript.
@@ -1529,7 +1532,7 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-23 at commit `f5e42597`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-24 at commit `5ee1c173`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -8183,7 +8186,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-23 at commit `f5e42597`._
+_Generated 2026-07-24 at commit `5ee1c173`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -8212,7 +8215,7 @@ _Generated 2026-07-23 at commit `f5e42597`._
 | `/map` | 178.0 KiB | 182.2 KiB | 50.3 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 125.4 KiB | 137.8 KiB | 37.2 KiB | 40.9 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 62.5 KiB | 68.3 KiB | 16.7 KiB | 18.3 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 63.2 KiB | 68.3 KiB | 16.8 KiB | 18.3 KiB |
 | `/react` (react/react-dom external) | 463.2 KiB | 506.7 KiB | 123.0 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 616.1 KiB | 661.8 KiB | 163.5 KiB | 176.3 KiB |
@@ -8416,7 +8419,7 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 
 - Honua-first core: `@honua/sdk-js/honua`
 - Esri compat bridge: `@honua/sdk-js/esri-compat`
-- Migration tooling: `@honua/sdk-js/migration`
+- Migration tooling: `@honua/honua-migrate` (`@honua/sdk-js/migration` is a deprecated forwarder)
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
@@ -8732,7 +8735,10 @@ Generate publish-ready split packages under `dist/packages/`:
 
 - `@honua/sdk` -> `dist/packages/honua-sdk`
 - `@honua/sdk-esri-compat` -> `dist/packages/honua-sdk-esri-compat`
-- `@honua/honua-migrate` -> `dist/packages/honua-migrate`
+
+`@honua/honua-migrate` is built and published from the
+[`honua-migrate`](https://github.com/honua-io/honua-migrate) repository. See
+the [transition policy](./migration-tool-transition.md).
 
 ```bash
 npm run build:split-packages
@@ -9199,76 +9205,80 @@ connection.remove();
 
 ## Migration CLI
 
+Install `@honua/honua-migrate` and use `honua-js-migrate`. The SDK-local npm
+scripts remain temporary compatibility forwarders; see the
+[transition policy](./migration-tool-transition.md).
+
 ```bash
 # Scan only
-node dist/src/migration/cli.js scan ./src --report scan-report.json
+npx honua-js-migrate scan ./src --report scan-report.json
 
 # Widget-usage inventory + ArcGIS 6.0 readiness report (classic widgets are removed
 # at 6.0, as early as Q1 2027). Detects ESM imports, AMD require([...]) arrays, and
 # dynamic $arcgis.import(...) specifiers; per-widget dispositions come from the
 # generated docs/widget-survival-guide.md (source: src/migration/widget-dispositions.ts).
-node dist/src/migration/cli.js widgets ./src                     # human table
-node dist/src/migration/cli.js widgets ./src --json              # machine-readable
-node dist/src/migration/cli.js widgets ./src --markdown          # shareable report
-node dist/src/migration/cli.js widgets ./src --gate 80           # exit 2 if automated share < 80%
-node dist/src/migration/cli.js widgets ./src --report widget-readiness.json
+npx honua-js-migrate widgets ./src                     # human table
+npx honua-js-migrate widgets ./src --json              # machine-readable
+npx honua-js-migrate widgets ./src --markdown          # shareable report
+npx honua-js-migrate widgets ./src --gate 80           # exit 2 if automated share < 80%
+npx honua-js-migrate widgets ./src --report widget-readiness.json
 
 # Safe codemod (dry run)
-node dist/src/migration/cli.js codemod ./src --report migration-report.json
+npx honua-js-migrate codemod ./src --report migration-report.json
 
 # Safe codemod (write changes)
-node dist/src/migration/cli.js codemod ./src --write --report migration-report.json
+npx honua-js-migrate codemod ./src --write --report migration-report.json
 
 # Safe codemod (explicit honua target alias)
-node dist/src/migration/cli.js codemod ./src --target honua --write --report migration-report.json
+npx honua-js-migrate codemod ./src --target honua --write --report migration-report.json
 
 # Safe codemod (write changes targeting esri-leaflet for supported subset)
-node dist/src/migration/cli.js codemod ./src --target esri-leaflet --write --report migration-report.json
+npx honua-js-migrate codemod ./src --target esri-leaflet --write --report migration-report.json
 
 # Safe codemod (write + inline TODO annotations for manual sites)
-node dist/src/migration/cli.js codemod ./src --write --annotate-todos --report migration-report.json
+npx honua-js-migrate codemod ./src --write --annotate-todos --report migration-report.json
 
 # Emit parity matrix JSON (for docs/CI dashboards)
-node dist/src/migration/cli.js matrix --report parity-matrix.json
+npx honua-js-migrate matrix --report parity-matrix.json
 
 # Emit runtime parity matrix JSON (for JS API capability tracking)
-node dist/src/migration/cli.js runtime-matrix --report runtime-parity-matrix.json
+npx honua-js-migrate runtime-matrix --report runtime-parity-matrix.json
 
 # Generate readiness metrics for bundled complex real-sample fixtures
-node dist/src/migration/cli.js fixtures --report reports/real-sample-metrics.json
+npx honua-js-migrate fixtures --report reports/real-sample-metrics.json
 
 # Inspect the fixture-only Esri sample migration corpus helpers from tests/docs
 # See docs/esri-sample-corpus.md and test/fixtures/esri-sample-corpus/manifest.json
 
 # Enforce strict readiness gates for bundled real-sample fixtures
-node dist/src/migration/cli.js fixtures --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/real-sample-metrics.json
+npx honua-js-migrate fixtures --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/real-sample-metrics.json
 
 # Enforce strict readiness gates for the demo target fixture only
-node dist/src/migration/cli.js fixtures --target honua --fixtures esri-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json
+npx honua-js-migrate fixtures --target honua --fixtures esri-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json
 
 # Limit fixture metrics to a subset and esri-leaflet target mode
-node dist/src/migration/cli.js fixtures --target esri-leaflet --fixtures esri-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json
+npx honua-js-migrate fixtures --target esri-leaflet --fixtures esri-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json
 
 # Gate in CI (non-zero exit if migration constraints fail)
-node dist/src/migration/cli.js codemod ./src --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0.2 --max-manual-intervention-ratio 0.3
+npx honua-js-migrate codemod ./src --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0.2 --max-manual-intervention-ratio 0.3
 
 # Compare source vs target service fidelity for one layer
-node dist/src/migration/cli.js reconcile --source-base-url https://source.example --source-service-id parcels --target-base-url https://target.example --target-service-id parcels --layer-id 0 --sample-size 200 --report reconcile-report.json
+npx honua-js-migrate reconcile --source-base-url https://source.example --source-service-id parcels --target-base-url https://target.example --target-service-id parcels --layer-id 0 --sample-size 200 --report reconcile-report.json
 
 # Content inventory scan from ArcGIS Online/Portal
-node dist/src/migration/cli.js content scan --portal https://org.maps.arcgis.com --report ./content/scan.json
+npx honua-js-migrate content scan --portal https://org.maps.arcgis.com --report ./content/scan.json
 
 # Content export (WebMaps + hosted layers)
-node dist/src/migration/cli.js content export --portal https://org.maps.arcgis.com --output-dir ./export --report ./content/export.json
+npx honua-js-migrate content export --portal https://org.maps.arcgis.com --output-dir ./export --acknowledge-mutations --report ./content/export.json
 
 # Content import into Honua admin endpoint
-node dist/src/migration/cli.js content import --source ./export --target https://honua.example.com --admin-api-key $HONUA_ADMIN_API_KEY --report ./content/import.json
+npx honua-js-migrate content import --source ./export --target https://honua.example.com --admin-api-key $HONUA_ADMIN_API_KEY --acknowledge-mutations --report ./content/import.json
 
 # Content reconcile using export + import reports
-node dist/src/migration/cli.js content reconcile --source ./export --report ./content/reconcile.json
+npx honua-js-migrate content reconcile --source ./export --report ./content/reconcile.json
 
 # Convert a WebMap JSON export into Honua style config and rewrite portal URLs
-node dist/src/migration/cli.js content-webmap --input ./export/webmap.json --output ./export/webmap.honua.json --source-url-prefix https://org.maps.arcgis.com --target-url-prefix https://honua.example.com --report ./export/webmap.report.json
+npx honua-js-migrate content-webmap --input ./export/webmap.json --output ./export/webmap.honua.json --source-url-prefix https://org.maps.arcgis.com --target-url-prefix https://honua.example.com --report ./export/webmap.report.json
 ```
 
 ## Migration Admin Scanner

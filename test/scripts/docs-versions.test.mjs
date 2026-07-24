@@ -125,6 +125,7 @@ test("release projection updates without a committed generated manifest", () => 
       "samples/contract/v1/fixtures/sample-evidence.live.json",
       "samples/contract/v1/fixtures/sample-evidence.skipped.json",
       "samples/evidence/maplibre-quickstart/live.v1.json",
+      "samples/evidence/service-explorer/live.v1.json",
       "support/projections/sdk-support.v1.json",
     ],
   );

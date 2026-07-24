@@ -361,6 +361,34 @@
         "sampleIds": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "excluded": {
+          "type": "array",
+          "description": "Every catalog sample id not in sampleIds, with a machine-readable exclusion reason (honua-io/honua-sdk-js#656 REQ-004).",
+          "items": {
+            "type": "object",
+            "required": ["id", "category", "reason"],
+            "properties": {
+              "id": { "type": "string" },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "needs-prepare-step",
+                  "requires-api-key",
+                  "requires-live-backend",
+                  "requires-companion-server",
+                  "replay-mode-undecided",
+                  "agent-shaped",
+                  "non-browser-app",
+                  "non-runtime-sample",
+                  "lifecycle-not-active",
+                  "audit-pending"
+                ]
+              },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false

@@ -56,7 +56,7 @@
   },
   "goldenJourneys": [
     { "id": "first-map", "title": "First Map", "status": "qualified", "candidateSampleId": "maplibre-quickstart" },
-    { "id": "service-explorer", "title": "Universal Service Explorer", "status": "planned", "candidateSampleId": "service-explorer" },
+    { "id": "service-explorer", "title": "Universal Service Explorer", "status": "qualified", "candidateSampleId": "service-explorer" },
     { "id": "planning-permitting", "title": "Planning and Permitting", "status": "planned", "candidateSampleId": "planning-permitting-workbench" },
     { "id": "incident-operations", "title": "Realtime Incident Operations", "status": "planned", "candidateSampleId": "realtime-incident-dashboard" },
     { "id": "imagery-terrain", "title": "Imagery and Terrain", "status": "qualified", "candidateSampleId": "imagery-cog-quickstart" },
@@ -376,12 +376,18 @@
       "replacement": { "kind": "journey", "id": "service-explorer" }
     },
     "service-explorer": {
-      "track": "lab",
+      "track": "golden",
       "journeyId": "service-explorer",
       "validationProfile": "golden-browser",
       "lifecycle": {
         "state": "active",
-        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."
+        "reason": "Qualified Universal Service Explorer journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous dual-protocol live receipts."
+      },
+      "live": {
+        "mode": "public-live",
+        "status": "executed",
+        "evidencePath": "samples/evidence/service-explorer/live.v1.json",
+        "expiresAt": "2026-08-21T20:22:41.000Z"
       },
       "validation": [
         "npm run demo:service-explorer:typecheck",

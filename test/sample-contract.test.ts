@@ -35,12 +35,13 @@ import type { GoldenJourneyVisualEvidence } from "../scripts/sample-contract.mjs
 
 // validateCatalog and the golden-journey visual-evidence helpers below read
 // the real samples/evidence tree (receipts, screenshots, live evidence) for
-// the now genuinely qualified First Map and Imagery and Terrain journeys.
-// That real I/O regularly exceeds vitest's 5s default under full-suite
-// contention; the default empty-evidence case was effectively instant, so
-// this was never exercised before. Raise this file's timeout rather than the
-// global default; two qualified journeys' worth of receipts (up from one)
-// need more headroom than the original single-journey budget.
+// the now genuinely qualified First Map, Imagery and Terrain, and Universal
+// Service Explorer journeys. That real I/O regularly exceeds vitest's 5s
+// default under full-suite contention; the default empty-evidence case was
+// effectively instant, so this was never exercised before. Raise this file's
+// timeout rather than the global default; three qualified journeys' worth of
+// receipts (up from one) need more headroom than the original
+// single-journey budget.
 vi.setConfig({ testTimeout: 40_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
@@ -153,12 +154,12 @@ describe("sample publication contract", () => {
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(2);
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(3);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      2,
+      3,
     );
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
-      5,
+      4,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
@@ -300,16 +301,17 @@ describe("sample publication contract", () => {
         },
       },
     });
-    // maplibre-quickstart and imagery-cog-quickstart are the two real,
-    // evidence-backed golden journeys; check their stable identity fields
-    // rather than the full volatile object (timestamps, run IDs, screenshot
-    // hashes all legitimately change every capture).
-    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(2);
+    // maplibre-quickstart, imagery-cog-quickstart, and service-explorer are
+    // the three real, evidence-backed golden journeys; check their stable
+    // identity fields rather than the full volatile object (timestamps, run
+    // IDs, screenshot hashes all legitimately change every capture).
+    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(3);
     expect(
       [...visualEvidence.qualifiedGoldenJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
     ).toMatchObject([
       { journeyId: "first-map", sampleId: "maplibre-quickstart" },
       { journeyId: "imagery-terrain", sampleId: "imagery-cog-quickstart" },
+      { journeyId: "service-explorer", sampleId: "service-explorer" },
     ]);
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
@@ -416,10 +418,12 @@ describe("sample publication contract", () => {
     const staleCatalog = structuredClone(catalog);
     staleCatalog.goldenJourneys[0].status = "qualified";
     staleCatalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").track = "golden";
-    // Replace (not push) only the first-map entry: canonical now carries both
-    // real qualified journeys (first-map and imagery-terrain), and this
+    // Replace (not push) only the first-map entry: canonical now carries all
+    // three real qualified journeys (first-map, imagery-terrain, and
+    // service-explorer), and the orphaned/overstated coverage check requires
+    // visualEvidence to exactly match the catalog's qualified set, so this
     // sub-case isolates a stale freshness window on one journey without
-    // orphaning the other (which would trip the "missing" check instead).
+    // orphaning or dropping the other two's genuine evidence.
     const stale = structuredClone(canonical);
     stale.qualifiedGoldenJourneys = stale.qualifiedGoldenJourneys.map((entry) =>
       entry.journeyId === "first-map"

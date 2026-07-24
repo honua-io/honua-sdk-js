@@ -140,7 +140,6 @@ function compilerOptions(projectRoot) {
   const splitPaths = {};
   for (const [packageName, subpath] of [
     ["@honua/geometry", "./geometry"],
-    ["@honua/honua-migrate", "./migration"],
     ["@honua/react", "./react"],
     ["@honua/sdk-esri-compat", "./esri-compat"],
   ]) {

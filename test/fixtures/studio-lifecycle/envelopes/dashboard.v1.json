@@ -1,0 +1,13 @@
+{
+  "family": "dashboard",
+  "schemaVersion": "1.0",
+  "format": "studio_dashboard_package.v1",
+  "validation": { "status": "not-validated" },
+  "publicationIntent": { "route": "/studio/ops-dashboard", "visibility": "organization" },
+  "provenance": [{ "kind": "prompt", "ref": "prompt-dash-1", "rel": "generated-by" }],
+  "body": {
+    "manifestId": "dash-1",
+    "title": "Operations dashboard",
+    "widgets": [{ "id": "incidents-chart", "kind": "chart" }]
+  }
+}

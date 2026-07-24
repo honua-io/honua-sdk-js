@@ -6,8 +6,17 @@ advertise streaming. The map, filters, queue, metrics, event log, and detail
 panel share one linked exploration context.
 
 The dashboard makes snapshot time, observation time, event time, lag, cursor,
-sequence, duplicate/stale-event rejection, reconnect attempt, backoff, resume,
-and reconciliation outcome observable. It never presents replay as live data.
+sequence, duplicate/reordered-event rejection, reconnect attempt, backoff,
+resume, stale-cursor recovery, and reconciliation outcome observable. It never
+presents replay as live data.
+
+Snapshot and delta delivery passes through the public
+`createResumableRealtimeSubscription` gate before reaching the public realtime
+feature store. Duplicate and reordered data receive deterministic rejection
+receipts. Cursor expiry makes the last state stale and read-only until an
+explicit replacement snapshot is accepted; a heartbeat or `live` status alone
+cannot restore authority. Session disposal closes both the transport and gate
+and emits a cancellation receipt.
 
 ## Live State Authority
 
@@ -17,9 +26,10 @@ an explicit fresh snapshot. Metadata cache state for schemas, renderers,
 legends, and domains is shown separately and does not make incident feature
 state fresh.
 
-When the stream is stale, offline, or a feature-result cache is offered as the
-feature source, the dashboard keeps the last reconciled incidents visible for
-read-only context and disables mutations that require authoritative live state.
+When the stream is stale, awaiting a replacement snapshot, offline, or a
+feature-result cache is offered as the feature source, the dashboard keeps the
+last reconciled incidents visible for read-only context and disables mutations
+that require authoritative live state.
 
 ## Safe Editing
 
@@ -82,6 +92,9 @@ npm run demo:incident:build
 npx vitest run test/realtime-incident-dashboard.test.ts
 npm run test:playwright:incident
 npm run samples:verify
+npm run prepare:test-sdk
+npm run samples:run -- typecheck --sample realtime-incident-dashboard --sdk-mode packed
+npm run samples:run -- build --sample realtime-incident-dashboard --sdk-mode packed
 ```
 
 Required PR checks are deterministic and make no network requests. Scheduled

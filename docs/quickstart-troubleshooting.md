@@ -27,7 +27,8 @@ discovery remains `source-selection-required`. They never become an empty succes
 
 ## Browser network and CORS failures
 
-An anonymous public endpoint must allow the browser origin. A URL that works from `curl` can still fail CORS.
+An anonymous public endpoint must allow the browser origin. A command-line request can succeed while the browser is
+still blocked by CORS.
 
 - Confirm metadata and query responses allow the Vite/preview origin.
 - Do not put API keys or bearer tokens in `VITE_*`; Vite publishes those values in JavaScript.

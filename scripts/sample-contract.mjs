@@ -8,7 +8,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
+import { deriveExcludedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
 import {
   expectedGateCommand,
   isSampleEvidenceRunId,
@@ -3331,6 +3331,7 @@ export function generateSiteProjection(catalog, packageJson) {
         bundleAsset: "sample-bundles.tar.gz",
       },
       sampleIds: [...INCLUDED_SAMPLE_IDS].sort(),
+      excluded: deriveExcludedSamples(catalog),
     },
   };
 }

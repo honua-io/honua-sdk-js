@@ -284,7 +284,8 @@
     "sdk-coverage:check": "node --test test/scripts/sdk-coverage.test.mjs && node scripts/sdk-coverage.mjs check",
     "verify:root-surface": "npm run prepare:test-sdk --silent && node scripts/root-surface.mjs --check && tsc -p test/root-surface/tsconfig.json --noEmit",
     "verify:root-surface:prepared": "npm run prepare:test-sdk:already --silent && node scripts/root-surface.mjs --check && tsc -p test/root-surface/tsconfig.json --noEmit",
-    "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat && npm pack ./dist/packages/honua-migrate",
+    "verify:migration-forwarder-tarball": "node scripts/verify-migration-forwarder-tarball.mjs",
+    "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat",
     "typecheck": "tsc --noEmit",
     "docs:api": "node scripts/docs-api.mjs",
     "docs:learning:generate": "node scripts/docs-learning.mjs write",
@@ -324,7 +325,8 @@
     "samples:list": "node scripts/sample-runner.mjs list",
     "samples:runner:test": "node --test test/scripts/sample-runner.test.mjs test/scripts/sample-gate-receipt.test.mjs",
     "samples:bundles:build": "node scripts/build-sample-bundles.mjs build",
-    "samples:bundles:verify": "node scripts/build-sample-bundles.mjs check",
+    "samples:bundles:test": "node --test test/scripts/build-sample-bundles.test.mjs",
+    "samples:bundles:verify": "node --test test/scripts/build-sample-bundles.test.mjs && node scripts/build-sample-bundles.mjs check",
     "samples:artifacts": "npm run build:browser --silent && node scripts/sample-contract.mjs artifacts",
     "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",
     "verify:api-report": "npm run build --silent && node scripts/report-api-surface.mjs --check && node scripts/check-error-codes.mjs",
@@ -551,9 +553,9 @@
     "demo:kepler:build": "npm --prefix examples/kepler-analytics run build",
     "demo:kepler:smoke": "node scripts/ensure-kepler-demo-deps.mjs && playwright test test/playwright/kepler-analytics-fixture.spec.mjs",
     "demo:kepler:refresh-fixture": "npm run build --silent && npm --prefix examples/kepler-analytics run refresh-fixture",
-    "scan:arcgis": "npm run build --silent && node dist/src/migration/cli.js scan",
-    "scan:arcgis:widgets": "npm run build --silent && node dist/src/migration/cli.js widgets",
-    "migrate:arcgis": "npm run build --silent && node dist/src/migration/cli.js codemod",
+    "scan:arcgis": "node scripts/run-legacy-migration-cli.mjs scan",
+    "scan:arcgis:widgets": "node scripts/run-legacy-migration-cli.mjs widgets",
+    "migrate:arcgis": "node scripts/run-legacy-migration-cli.mjs codemod",
     "proto:generate": "buf generate --template ../../proto/buf.gen.yaml ../../proto",
     "lint": "biome lint src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/ examples/nl-map-control/src/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/",
     "lint:fix": "biome lint --write src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/ examples/nl-map-control/src/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/",
@@ -580,12 +582,14 @@
     "bench:references:source-tree": "npm run build --silent && node dist/bench/cross-sdk/validate.js --print-source-tree",
     "bench:references:source-tree:write": "npm run build --silent && node dist/bench/cross-sdk/validate.js --write-source-tree",
     "bench:browser": "node bench/browser/run.mjs --check --output test-results/browser-benchmark/report.json",
+    "bench:browser:full-scale": "HONUA_BROWSER_BENCH_SCALE=full node bench/browser/run.mjs --check --output test-results/browser-benchmark/report.json",
     "bench:live": "node scripts/live-benchmark-evidence.mjs --output test-results/live-benchmark-evidence.json",
     "evidence:overture:live": "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",
     "eval:coding-agents": "npm run build --silent && node scripts/eval-coding-agents.mjs",
     "eval:coding-agents:self-test": "npm run build --silent && node scripts/eval-coding-agents.mjs --variant known-bad --expect-fail"
   },
   "dependencies": {
+    "@honua/honua-migrate": "0.1.3-beta.0",
     "@maplibre/maplibre-gl-style-spec": "^24.7.0"
   },
   "devDependencies": {
@@ -644,6 +648,7 @@
   "files": [
     "dist/src",
     "dist/browser",
+    "scripts/run-legacy-migration-cli.mjs",
     "config/public-surface.json",
     "config/support-manifest.v1.json",
     "config/support-manifest.schema.json",
@@ -656,6 +661,7 @@
     "config/sdk-coverage.schema.json",
     "config/root-surface.json",
     "docs/root-surface-migration.md",
+    "docs/migration-tool-transition.md",
     "samples/dist",
     "samples/contract/v1/schemas",
     "samples/contract/v2/schemas",
@@ -791,6 +797,8 @@
     }
   },
   "sideEffects": [
+    "./dist/src/migration-entry.js",
+    "./src/migration-entry.ts",
     "./dist/src/web-components/index.js",
     "./dist/src/_deprecated/web-components.js",
     "./src/web-components/index.ts",
@@ -804,6 +812,6 @@
     "./examples/web-components-basic/src/register-controls-legend.ts"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.19.0"
   }
 }
