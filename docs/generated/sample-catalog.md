@@ -11,10 +11,10 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | Journey | Status | Candidate sample |
 | --- | --- | --- |
 | `first-map` | qualified | [`maplibre-quickstart`](#maplibre-quickstart) |
-| `service-explorer` | planned | [`service-explorer`](#service-explorer) |
+| `service-explorer` | qualified | [`service-explorer`](#service-explorer) |
 | `planning-permitting` | planned | [`planning-permitting-workbench`](#planning-permitting-workbench) |
 | `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
-| `imagery-terrain` | planned | [`imagery-cog-quickstart`](#imagery-cog-quickstart) |
+| `imagery-terrain` | qualified | [`imagery-cog-quickstart`](#imagery-cog-quickstart) |
 | `cloud-native-analysis` | planned | [`spatial-analytics-workbench`](#spatial-analytics-workbench) |
 | `arcgis-migration` | qualified | [`migration-workbench`](#migration-workbench) |
 
@@ -30,7 +30,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | replace | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
 | <a id="geocoding-quickstart"></a>[`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | - | supported | rework | browser-recipe | hybrid | legacy-unsafe | Runs forward, reverse, and suggestion workflows with map feedback. |
 | <a id="geoprocessing-job-runner"></a>[`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
-| <a id="imagery-cog-quickstart"></a>[`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | recipe | imagery-terrain | supported | active | golden-browser | hybrid | approved | Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles. |
+| <a id="imagery-cog-quickstart"></a>[`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | golden | imagery-terrain | supported | active | golden-browser | hybrid | approved | Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles. |
 | <a id="kepler-analytics"></a>[`kepler-analytics`](../../examples/kepler-analytics/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Replays operations data through kepler.gl with linked filters and KPI evidence. |
 | <a id="maplibre-quickstart"></a>[`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | golden | first-map | supported | active | golden-browser | hybrid | approved | Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result. |
 | <a id="mcp-gis-assistant"></a>[`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | lab | - | experimental | rework | browser-lab | fixture | not-required | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
@@ -44,7 +44,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey. |
 | <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | <a id="runtime-parity-showcase"></a>[`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | lab | - | experimental | replace | browser-lab | fixture | not-required | Compares supported rendering paths and makes fidelity differences explicit. |
-| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | lab | service-explorer | supported | active | golden-browser | hybrid | approved | Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code. |
+| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | golden | service-explorer | supported | active | golden-browser | hybrid | approved | Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code. |
 | <a id="shared-renderer-state"></a>[`shared-renderer-state`](../../docs/examples/shared-renderer-state/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | Exercises loop-safe camera, selection, filter, and time synchronization across MapLibre and Cesium. |
 | <a id="sketch-editing"></a>[`sketch-editing`](../../examples/sketch-editing/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
 | <a id="spatial-analytics-workbench"></a>[`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | lab | cloud-native-analysis | experimental | rework | browser-lab | hybrid | approved | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |

@@ -261,7 +261,6 @@ jobs:
           publish_package "."
           publish_package "./dist/packages/honua-sdk"
           publish_package "./dist/packages/honua-sdk-esri-compat"
-          publish_package "./dist/packages/honua-migrate"
           publish_package "./dist/packages/honua-react"
           publish_package "./dist/packages/honua-geometry"
           publish_package "./dist/packages/honua-app-platform"

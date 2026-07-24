@@ -1,0 +1,12 @@
+{
+  "family": "workflow",
+  "schemaVersion": "1.0",
+  "format": "studio_workflow_package.v1",
+  "validation": { "status": "not-validated" },
+  "provenance": [{ "kind": "prompt", "ref": "prompt-workflow-1", "rel": "generated-by" }],
+  "body": {
+    "title": "Escalate flooded parcels",
+    "trigger": "content.parcels.updated",
+    "steps": [{ "id": "notify", "kind": "notification" }]
+  }
+}

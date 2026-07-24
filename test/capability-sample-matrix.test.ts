@@ -10,14 +10,14 @@ import {
 } from "../scripts/sample-contract.mjs";
 import type { QualificationEvidenceInventory } from "../scripts/sample-contract.mjs";
 
-// canonicalInputs() (below) calls collectQualificationEvidence against the
-// real samples/evidence tree for the now genuinely qualified First Map and
-// ArcGIS Migration Workbench journeys. That real I/O regularly exceeds
-// vitest's 5s default under full-suite contention, and doubled again once a
-// second golden sample's receipts joined the same read (#549); it was
-// effectively instant against the previously always-empty evidence set, so
-// this was never exercised before either journey qualified.
-vi.setConfig({ testTimeout: 40_000 });
+// real samples/evidence tree for the now genuinely qualified First Map,
+// Imagery and Terrain, Universal Service Explorer, and ArcGIS Migration
+// Workbench journeys. That real I/O regularly exceeds vitest's 5s default
+// under full-suite contention; it was effectively instant against the
+// previously always-empty evidence set, so this was never exercised before.
+// Four qualified journeys' worth of receipts (up from one) need more
+// headroom than the original single-journey budget.
+vi.setConfig({ testTimeout: 60_000 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(file, "utf8"));
 
@@ -69,9 +69,30 @@ function qualificationReceipts(
   }));
 }
 
+// imagery-terrain and service-explorer are now also genuinely qualified
+// alongside first-map. These adversarial/isolation scenarios are written
+// against a single promoted journey, so demote every other real golden
+// journey (and its candidate sample's track) back to non-golden in the
+// clone -- validateQualificationEvidenceInput only requires evidence
+// coverage for journeys whose status is "qualified", but leaving another
+// sample's track at "golden" while its journey is demoted would still be an
+// inconsistent catalog for the rest of the generation/validation pipeline.
+function demoteOtherGoldenJourneys(catalog: Record<string, unknown>, keepJourneyId: string) {
+  for (const journey of catalog.goldenJourneys as Array<{ id: string; status: string }>) {
+    if (journey.id !== keepJourneyId) journey.status = "planned";
+  }
+  const keepJourney = (catalog.goldenJourneys as Array<{ id: string; candidateSampleId: string }>).find(
+    (candidate) => candidate.id === keepJourneyId,
+  );
+  for (const sample of catalog.samples as Array<{ id: string; track: string }>) {
+    if (sample.track === "golden" && sample.id !== keepJourney?.candidateSampleId) sample.track = "lab";
+  }
+}
+
 async function promotedFirstMap(window?: { observedAt: string; expiresAt: string }) {
   const inputs = await canonicalInputs();
   const catalog = structuredClone(inputs.catalog);
+  demoteOtherGoldenJourneys(catalog, "first-map");
   const journey = catalog.goldenJourneys.find((candidate: { id: string }) => candidate.id === "first-map");
   const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === journey.candidateSampleId);
   journey.status = "qualified";
@@ -143,20 +164,27 @@ describe("capability-to-sample matrix contract", () => {
     // 53 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
     // manifest-advertised PMTiles plugin entrypoint published in issue #671).
     expect(matrix.packageEntrypoints).toHaveLength(53);
-    // maplibre-quickstart (First Map) and migration-workbench (ArcGIS
-    // Migration Workbench) are the two real, evidence-backed qualified
-    // samples; everything else must stay unqualified.
-    expect(matrix.evidenceBindings).toHaveLength(2);
-    expect(matrix.evidenceBindings[0]).toMatchObject({ sampleId: "maplibre-quickstart" });
-    expect(matrix.evidenceBindings[1]).toMatchObject({ sampleId: "migration-workbench" });
-    expect(matrix.inputs.qualificationEvidence).toMatchObject({ receiptCount: 18 });
+    // imagery-cog-quickstart, maplibre-quickstart, migration-workbench, and
+    // service-explorer are the four real, evidence-backed qualified samples
+    // (the Imagery and Terrain, First Map, ArcGIS Migration Workbench, and
+    // Universal Service Explorer golden journeys); everything else must stay
+    // unqualified.
+    expect(matrix.evidenceBindings).toHaveLength(4);
+    expect(matrix.evidenceBindings[0]).toMatchObject({ sampleId: "imagery-cog-quickstart" });
+    expect(matrix.evidenceBindings[1]).toMatchObject({ sampleId: "maplibre-quickstart" });
+    expect(matrix.evidenceBindings[2]).toMatchObject({ sampleId: "migration-workbench" });
+    expect(matrix.evidenceBindings[3]).toMatchObject({ sampleId: "service-explorer" });
+    expect(matrix.inputs.qualificationEvidence).toMatchObject({ receiptCount: 36 });
     expect(Object.values(matrix.inputs).every((input) => /^[a-f0-9]{64}$/.test(String(input.sha256)))).toBe(true);
     expect(JSON.stringify(matrix)).not.toContain("generatedAt");
     expect(
       matrix.samples.filter((sample) => sample.qualification.state === "qualified").map((sample) => sample.id),
-    ).toEqual(["maplibre-quickstart", "migration-workbench"]);
+    ).toEqual(["imagery-cog-quickstart", "maplibre-quickstart", "migration-workbench", "service-explorer"]);
 
     expect(matrix.goldenJourneys.find((journey) => journey.id === "first-map")?.coverage.state).toBe("qualified");
+    expect(matrix.goldenJourneys.find((journey) => journey.id === "imagery-terrain")?.coverage.state).toBe(
+      "qualified",
+    );
     expect(matrix.goldenJourneys.find((journey) => journey.id === "arcgis-migration")?.coverage.state).toBe(
       "qualified",
     );
@@ -183,6 +211,7 @@ describe("capability-to-sample matrix contract", () => {
   it("requires receipt-backed catalog promotion and keeps ambiguous protocol joins non-qualified", async () => {
     const inputs = await canonicalInputs();
     const catalog = structuredClone(inputs.catalog);
+    demoteOtherGoldenJourneys(catalog, "first-map");
     const journey = catalog.goldenJourneys.find((candidate: { id: string }) => candidate.id === "first-map");
     const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === journey.candidateSampleId);
     journey.status = "qualified";
@@ -359,12 +388,14 @@ describe("capability-to-sample matrix contract", () => {
       for (let index = 0; index < 128; index += 1) {
         await mkdir(path.join(receiptRoot, `unexpected-${index.toString().padStart(3, "0")}`));
       }
-      // The catalog currently has exactly two catalog-qualified journeys
-      // (first-map/maplibre-quickstart, arcgis-migration/migration-workbench),
-      // so the root bound is 2: the walk must stop at the third unexpected
-      // entry rather than reading all 128.
+      // The catalog currently has exactly four catalog-qualified journeys
+      // (first-map/maplibre-quickstart, imagery-terrain/imagery-cog-quickstart,
+      // arcgis-migration/migration-workbench, and
+      // service-explorer/service-explorer), so the root bound is 4: the
+      // walk must stop at the fifth unexpected entry rather than reading
+      // all 128.
       await expect(collectQualificationEvidence(inputs.catalog, { receiptRoot })).rejects.toThrow(
-        "qualification evidence root has orphan or missing entries; found more than 2 entries",
+        "qualification evidence root has orphan or missing entries; found more than 4 entries",
       );
     } finally {
       await rm(receiptRoot, { recursive: true, force: true });

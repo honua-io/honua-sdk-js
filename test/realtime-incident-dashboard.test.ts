@@ -22,6 +22,11 @@ import {
 import { applyIncidentProjection, incidentRecords } from "../examples/realtime-incident-dashboard/src/projection.js";
 import { createFixtureIncidentTransport } from "../examples/realtime-incident-dashboard/src/realtime-fixture.js";
 import {
+  type IncidentRealtimeReceipt,
+  createIncidentRealtimeResumeContext,
+  createIncidentRealtimeSession,
+} from "../examples/realtime-incident-dashboard/src/realtime-session.js";
+import {
   createIncidentDashboardTransport,
   decodeIncidentServerEvent,
   readIncidentTransportConfig,
@@ -235,6 +240,7 @@ describe("realtime incident dashboard fixture", () => {
       streamUrl: "http://127.0.0.1:4173/api/v1/streaming/features",
       fixtureRunId: "incident-operations",
       fixtureControlUrl: "http://127.0.0.1:4173/__fixture__/runs/incident-operations",
+      fixtureAuthorization: "authorized",
     });
     expect(fixture.transport.capabilities?.kind).toBe("sse");
     expect(fixture.request).toMatchObject({
@@ -254,6 +260,30 @@ describe("realtime incident dashboard fixture", () => {
     await expect(pendingRefresh).rejects.toMatchObject({ name: "AbortError" });
     await expect(fixture.controls.step()).rejects.toMatchObject({ name: "AbortError" });
     expect(actionRequests.at(-1)).toBe("http://127.0.0.1:4173/__fixture__/runs/incident-operations/actions/refresh");
+  });
+
+  it("models an unauthorized fixture session without probing or changing realtime delivery", async () => {
+    const fixtureConfig = readIncidentTransportConfig({
+      origin: "http://127.0.0.1:4173",
+      search: "?transport=fixture-edit&fixtureRun=incident-operations&fixtureAuthorization=unauthorized",
+    } as Location);
+    const fixtureResolved = await resolveIncidentTransportConfig(fixtureConfig, {
+      fetchFn: async () => {
+        throw new Error("fixture configuration must not access the network");
+      },
+    });
+    const fixture = createIncidentDashboardTransport(fixtureResolved);
+
+    expect(fixtureConfig.fixtureAuthorization).toBe("unauthorized");
+    expect(fixture.controls).toMatchObject({
+      mode: "fixture-edit",
+      sourceIdentity: SAFE_DEMO_EDIT_SOURCE_ID,
+      safeDemoEditing: true,
+      authorized: false,
+    });
+    expect(fixture.transport.capabilities?.kind).toBe("sse");
+    expect(fixture.request.mode).toBe("snapshot-then-delta");
+    fixture.controls.dispose();
   });
 
   it("rejects missing runs and cross-origin fixture-edit endpoints before creating controls", () => {
@@ -278,6 +308,15 @@ describe("realtime incident dashboard fixture", () => {
         [parameter]: "http://127.0.0.1:9999/foreign",
       });
       expect(() => readIncidentTransportConfig({ origin, search: `?${search}` } as Location)).toThrow(/same origin/i);
+    }
+
+    for (const search of [
+      "?transport=fixture-edit&fixtureRun=incident-operations&fixtureAuthorization=admin",
+      "?transport=fixture-edit&fixtureRun=incident-operations&fixtureAuthorization=authorized&fixtureAuthorization=unauthorized",
+    ]) {
+      expect(() => readIncidentTransportConfig({ origin, search } as Location), search).toThrow(
+        /valid fixtureAuthorization/i,
+      );
     }
   });
 
@@ -311,6 +350,7 @@ describe("realtime incident dashboard fixture", () => {
       { payload: { resumed: "true" }, invoke: (controls) => controls.resume() },
       { payload: [], invoke: (controls) => controls.refresh() },
       { payload: { duplicated: 1 }, invoke: (controls) => controls.duplicateLast() },
+      { payload: { reordered: false }, invoke: (controls) => controls.reorderLast() },
       { payload: { staleCursorInjected: null }, invoke: (controls) => controls.staleCursor() },
       {
         payload: { incident: { id: SAFE_DEMO_INCIDENT_ID } },
@@ -667,7 +707,7 @@ describe("realtime incident dashboard fixture", () => {
     context.dispose();
   });
 
-  it("makes duplicate delivery, stale cursors, reconnect backoff, and resume observable", () => {
+  it("makes duplicate and reordered delivery, cursor expiry, reconnect backoff, and resume observable", () => {
     let clock = 50_000;
     const store = createRealtimeFeatureStore<IncidentFeature>();
     const transport = createFixtureIncidentTransport({ now: () => clock });
@@ -679,9 +719,12 @@ describe("realtime incident dashboard fixture", () => {
     expect(store.state.ignoredEventCount).toBe(1);
     expect(store.state.cursor).toBe(cursorBeforeDuplicate);
 
-    transport.staleCursor();
+    transport.reorderLast();
     expect(store.state.ignoredEventCount).toBe(2);
     expect(store.state.lastSequence).toBe(1);
+
+    transport.staleCursor();
+    expect(store.state).toMatchObject({ status: "reconnecting", statusReason: "cursor-expired" });
 
     clock += 1_000;
     transport.reconnect();
@@ -694,6 +737,110 @@ describe("realtime incident dashboard fixture", () => {
     transport.resume();
     expect(store.state.status).toBe("live");
     expect(store.state.cursor).toContain("heartbeat");
+  });
+
+  it("gates snapshot and delta delivery with deterministic duplicate, reorder, recovery, and cancellation receipts", async () => {
+    let clock = Date.parse("2026-05-05T19:00:00.000Z");
+    const store = createRealtimeFeatureStore<IncidentFeature>();
+    const transport = createFixtureIncidentTransport({ now: () => clock });
+    const request = { sourceId: INCIDENT_SOURCE_ID, layerId: INCIDENT_LAYER_ID, mode: "snapshot-then-delta" as const };
+    const receipts: IncidentRealtimeReceipt[] = [];
+    const session = await createIncidentRealtimeSession({
+      store,
+      transport,
+      request,
+      context: createIncidentRealtimeResumeContext(request, {
+        sourceVersion: "incident-operations-fixture/v1",
+        schemaVersion: "honua.incident-feature/v1",
+        authorizationScopeFingerprint: "isolated-fixture-edit",
+      }),
+      now: () => clock,
+      onReceipt: (receipt) => receipts.push(receipt),
+    });
+
+    session.connect();
+    await vi.waitFor(() => expect(receipts).toHaveLength(1));
+    expect(receipts[0]).toEqual({
+      outcome: "applied",
+      eventType: "snapshot",
+      eventId: "snapshot-1",
+      sequence: 1,
+      checkpointSequence: 1,
+      duplicateEventCount: 0,
+      gapCount: 0,
+      phase: "live",
+    });
+
+    transport.duplicateLast();
+    await vi.waitFor(() => expect(receipts).toHaveLength(2));
+    expect(receipts[1]).toMatchObject({
+      outcome: "duplicate",
+      sequence: 1,
+      checkpointSequence: 1,
+      duplicateEventCount: 1,
+      phase: "live",
+    });
+
+    transport.reorderLast();
+    await vi.waitFor(() => expect(receipts).toHaveLength(3));
+    expect(receipts[2]).toMatchObject({
+      outcome: "reordered",
+      sequence: 0,
+      checkpointSequence: 1,
+      duplicateEventCount: 2,
+      phase: "live",
+    });
+
+    transport.staleCursor();
+    await vi.waitFor(() => expect(receipts).toHaveLength(4));
+    expect(receipts[3]).toMatchObject({
+      outcome: "resnapshot-required",
+      reason: "cursor-expired",
+      checkpointSequence: 1,
+      duplicateEventCount: 2,
+      phase: "resnapshot-required",
+    });
+    expect(store.state).toMatchObject({ status: "stale", statusReason: "cursor-expired", lastSequence: 1 });
+
+    transport.resume();
+    await Promise.resolve();
+    expect(store.state).toMatchObject({ status: "stale", statusReason: "cursor-expired", lastSequence: 1 });
+    expect(receipts).toHaveLength(4);
+
+    clock += 1_000;
+    transport.refresh();
+    await vi.waitFor(() => expect(receipts).toHaveLength(5));
+    expect(receipts[4]).toMatchObject({
+      outcome: "replacement-snapshot-applied",
+      eventType: "snapshot",
+      sequence: 2,
+      checkpointSequence: 2,
+      duplicateEventCount: 2,
+      phase: "live",
+    });
+    expect(store.state).toMatchObject({ status: "live", lastSequence: 2 });
+
+    clock += 1_000;
+    expect(transport.step()?.label).toBe("Escalate outage");
+    await vi.waitFor(() => expect(receipts).toHaveLength(6));
+    expect(receipts[5]).toMatchObject({
+      outcome: "applied",
+      eventType: "upsert",
+      sequence: 3,
+      checkpointSequence: 3,
+      duplicateEventCount: 2,
+      phase: "live",
+    });
+
+    expect(session.close()).toEqual({
+      outcome: "cancelled",
+      reason: "cancelled",
+      checkpointSequence: 3,
+      duplicateEventCount: 2,
+      gapCount: 0,
+      phase: "closed",
+    });
+    expect(store.state.status).toBe("closed");
   });
 
   it("reconciles isolated idempotent edits, conflicts, and resets through realtime state", () => {

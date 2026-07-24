@@ -47,7 +47,17 @@
         },
         {
           "type": "json",
+          "path": "samples/evidence/imagery-cog-quickstart/live.v1.json",
+          "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
           "path": "samples/evidence/maplibre-quickstart/live.v1.json",
+          "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "samples/evidence/service-explorer/live.v1.json",
           "jsonpath": "$.sdk.version"
         },
         {

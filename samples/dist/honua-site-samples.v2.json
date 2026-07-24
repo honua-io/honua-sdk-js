@@ -23,7 +23,7 @@
     {
       "id": "service-explorer",
       "title": "Universal Service Explorer",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "service-explorer"
     },
     {
@@ -41,7 +41,7 @@
     {
       "id": "imagery-terrain",
       "title": "Imagery and Terrain",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "imagery-cog-quickstart"
     },
     {
@@ -624,12 +624,12 @@
       "title": "Imagery and Terrain journey",
       "summary": "Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles.",
       "sourceKind": "root-example",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "The fixture-first browser workflow, opt-in /cog renderer, pinned live semantic probe, and legacy WMS/Terrain routes now converge on one runnable journey; golden receipt qualification remains intentionally planned."
+        "reason": "Qualified Imagery and Terrain journey with current packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and pinned public STAC/COG live receipts."
       },
       "validationProfile": "golden-browser",
       "source": {
@@ -681,7 +681,9 @@
         },
         "live": {
           "mode": "public-live",
-          "status": "planned"
+          "status": "executed",
+          "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
+          "expiresAt": "2026-08-23T21:58:55.396Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
@@ -1442,12 +1444,12 @@
       "title": "Universal service explorer",
       "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "sourceKind": "root-example",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."
+        "reason": "Qualified Universal Service Explorer journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous dual-protocol live receipts."
       },
       "validationProfile": "golden-browser",
       "source": {
@@ -1499,7 +1501,9 @@
         },
         "live": {
           "mode": "public-live",
-          "status": "planned"
+          "status": "executed",
+          "evidencePath": "samples/evidence/service-explorer/live.v1.json",
+          "expiresAt": "2026-08-21T20:22:41.000Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
@@ -2193,10 +2197,133 @@
       "maplibre-quickstart",
       "migration-workbench",
       "nl-map-control",
+      "overture-geoparquet",
       "pmtiles-static",
       "sketch-editing",
       "stac-imagery-browser",
       "temporal-playback"
+    ],
+    "excluded": [
+      {
+        "id": "ai-spatial-app-builder",
+        "category": "agent-shaped",
+        "reason": "Agent-safety workbench flagship; its deterministic default needs no model/network/credential, but it has no map renderer and a complex approval-evidence UI better scoped in a follow-up."
+      },
+      {
+        "id": "app-bootstrap-basic",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"retire\" (target 0.2.0-beta.0): The app-platform split supersedes this SDK-owned compatibility demonstration. Replacement: external \"honua-app-platform\"."
+      },
+      {
+        "id": "arcgis-source-app",
+        "category": "non-runtime-sample",
+        "reason": "Migration-codemod end-to-end test input (a pre-migration ArcGIS app), not a Honua-runtime browser sample; no Vite config."
+      },
+      {
+        "id": "automatic-source-workflow",
+        "category": "non-runtime-sample",
+        "reason": "Documentation snippet under docs/examples/ (plain script/CDN pattern), not a Vite-built package."
+      },
+      {
+        "id": "cesium-route-playback",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion."
+      },
+      {
+        "id": "edit-workflow-demo",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"replace\" (target 0.2.0-beta.0): The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow. Replacement: journey \"planning-permitting\"."
+      },
+      {
+        "id": "geocoding-quickstart",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion."
+      },
+      {
+        "id": "geoprocessing-job-runner",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"merge\" (target 0.2.0-beta.0): Fold into the analysis journey while retaining this focused recipe. Replacement: journey \"cloud-native-analysis\"."
+      },
+      {
+        "id": "imagery-cog-quickstart",
+        "category": "requires-live-backend",
+        "reason": "Hybrid data mode with host-mediated auth and a configured-live COG leg — deferred pending a browser-public config review."
+      },
+      {
+        "id": "kepler-analytics",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Retain as a renderer recipe and align it with the columnar large-data journey."
+      },
+      {
+        "id": "mcp-gis-assistant",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Use the same plan, provenance, approval, and evidence contracts as the agent journey."
+      },
+      {
+        "id": "node-backend-quickstart",
+        "category": "non-browser-app",
+        "reason": "Server-side Node app; no Vite config, no browser renderer."
+      },
+      {
+        "id": "oauth-signin",
+        "category": "requires-companion-server",
+        "reason": "Requires its own running mock OAuth identity provider (mock-server.mjs) at runtime; no map renderer; not a static-embeddable bundle."
+      },
+      {
+        "id": "planning-permitting-workbench",
+        "category": "audit-pending",
+        "reason": "Active, Vite-buildable, fixture-mode candidate with no declared config surface -- structurally similar to the already-included fixture samples. It was previously miscategorized in this file's \"every remaining catalog entry has a non-active lifecycle\" catch-all comment, which was inaccurate for this id; the REQ-001 audit (support tier, browser-secret policy, fixture determinism, runtime dependencies) has not actually been completed for it. Promotion is a follow-up decision, not resolved by this pass."
+      },
+      {
+        "id": "react-quickstart",
+        "category": "requires-api-key",
+        "reason": "Hybrid data mode with api-key auth; needs a backend credential a static gallery bundle cannot embed."
+      },
+      {
+        "id": "realtime-incident-dashboard",
+        "category": "replay-mode-undecided",
+        "reason": "Realtime flagship that prefers a deployed live stream before falling back to replay; a gallery-safe replay-only embedding mode is undecided — deferred."
+      },
+      {
+        "id": "runtime-parity-showcase",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"replace\" (target 0.2.0-beta.0): Replace parity claims with renderer-specific execution and fidelity reports. Replacement: journey \"service-explorer\"."
+      },
+      {
+        "id": "service-explorer",
+        "category": "audit-pending",
+        "reason": "Active, Vite-buildable, hybrid-mode candidate whose sole declared config (HONUA_SERVICE_EXPLORER_LIVE_ENABLED) toggles a live producer path. It was previously miscategorized in this file's \"every remaining catalog entry has a non-active lifecycle\" catch-all comment, which was inaccurate for this id; the REQ-001 audit (confirming its default resolves to a fixture-safe, secret-free config) has not actually been completed for it. Promotion is a follow-up decision, not resolved by this pass."
+      },
+      {
+        "id": "shared-renderer-state",
+        "category": "non-runtime-sample",
+        "reason": "Documentation snippet under docs/examples/ (plain script/CDN pattern), not a Vite-built package."
+      },
+      {
+        "id": "spatial-analytics-workbench",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Join the large-data journey and distinguish fixture estimates from executed plans."
+      },
+      {
+        "id": "storytelling-25d-map",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"merge\" (target 0.2.0-beta.0): Use its strongest interactions inside the imagery and 3D journey. Replacement: journey \"imagery-terrain\"."
+      },
+      {
+        "id": "terrain-rgb-elevation",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"merge\" (target 0.2.0-beta.0): Combine point/profile proof with the imagery and 3D flagship. Replacement: journey \"imagery-terrain\"."
+      },
+      {
+        "id": "unified-ops-workspace",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"retire\" (target 0.2.0-beta.0): Application-shell ownership moves to app-platform; preserve the realtime SDK journey separately. Replacement: journey \"incident-operations\"."
+      },
+      {
+        "id": "web-components-basic",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"retire\" (target 0.2.0-beta.0): Controls move with app-platform rather than remaining in the core SDK gallery. Replacement: external \"honua-app-platform\"."
+      }
     ]
   }
 }

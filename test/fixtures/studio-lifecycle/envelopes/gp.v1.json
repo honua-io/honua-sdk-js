@@ -1,0 +1,12 @@
+{
+  "family": "gp",
+  "schemaVersion": "1.0",
+  "format": "studio_gp_package.v1",
+  "validation": { "status": "not-validated" },
+  "provenance": [{ "kind": "prompt", "ref": "prompt-gp-1", "rel": "generated-by" }],
+  "body": {
+    "processId": "buffer",
+    "inputs": [{ "name": "features", "dataType": "featureSet", "direction": "input" }],
+    "outputs": [{ "name": "buffered", "dataType": "featureSet", "direction": "output" }]
+  }
+}

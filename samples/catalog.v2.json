@@ -73,7 +73,7 @@
     {
       "id": "service-explorer",
       "title": "Universal Service Explorer",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "service-explorer"
     },
     {
@@ -91,7 +91,7 @@
     {
       "id": "imagery-terrain",
       "title": "Imagery and Terrain",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "imagery-cog-quickstart"
     },
     {
@@ -275,7 +275,7 @@
             "npm run demo:ai-spatial-builder:live-evidence"
           ],
           "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-07-24T18:00:00.000Z"
+          "expiresAt": "2026-08-15T18:00:00.000Z"
         }
       },
       "expectedDegradation": "Missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy.",
@@ -789,12 +789,12 @@
       "title": "Imagery and Terrain journey",
       "summary": "Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles.",
       "sourceKind": "root-example",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "The fixture-first browser workflow, opt-in /cog renderer, pinned live semantic probe, and legacy WMS/Terrain routes now converge on one runnable journey; golden receipt qualification remains intentionally planned."
+        "reason": "Qualified Imagery and Terrain journey with current packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and pinned public STAC/COG live receipts."
       },
       "sourcePath": "examples/imagery-cog-quickstart",
       "docsPath": "examples/imagery-cog-quickstart/README.md",
@@ -851,10 +851,12 @@
         },
         "live": {
           "mode": "public-live",
-          "status": "planned",
+          "status": "executed",
           "commands": [
             "npm run evidence:cog:live"
-          ]
+          ],
+          "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
+          "expiresAt": "2026-08-23T21:58:55.396Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -1995,12 +1997,12 @@
       "title": "Universal service explorer",
       "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "sourceKind": "root-example",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."
+        "reason": "Qualified Universal Service Explorer journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous dual-protocol live receipts."
       },
       "sourcePath": "examples/service-explorer",
       "docsPath": "examples/service-explorer/README.md",
@@ -2057,10 +2059,12 @@
         },
         "live": {
           "mode": "public-live",
-          "status": "planned",
+          "status": "executed",
           "commands": [
             "npm run demo:service-explorer:live-evidence"
-          ]
+          ],
+          "evidencePath": "samples/evidence/service-explorer/live.v1.json",
+          "expiresAt": "2026-08-21T20:22:41.000Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
@@ -2356,7 +2360,7 @@
             "npm run demo:spatial-analytics:live-evidence"
           ],
           "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-07-24T08:00:00.000Z"
+          "expiresAt": "2026-08-01T08:00:00.000Z"
         }
       },
       "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on.",

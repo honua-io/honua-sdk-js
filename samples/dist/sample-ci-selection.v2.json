@@ -15,7 +15,7 @@
     {
       "id": "service-explorer",
       "title": "Universal Service Explorer",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "service-explorer"
     },
     {
@@ -33,7 +33,7 @@
     {
       "id": "imagery-terrain",
       "title": "Imagery and Terrain",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "imagery-cog-quickstart"
     },
     {
@@ -504,7 +504,7 @@
     {
       "id": "imagery-cog-quickstart",
       "sourcePath": "examples/imagery-cog-quickstart",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
       "validationProfile": "golden-browser",
@@ -547,7 +547,9 @@
       },
       "liveEvidence": {
         "mode": "public-live",
-        "status": "planned"
+        "status": "executed",
+        "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
+        "expiresAt": "2026-08-23T21:58:55.396Z"
       }
     },
     {
@@ -1102,7 +1104,7 @@
     {
       "id": "service-explorer",
       "sourcePath": "examples/service-explorer",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "validationProfile": "golden-browser",
@@ -1143,7 +1145,9 @@
       },
       "liveEvidence": {
         "mode": "public-live",
-        "status": "planned"
+        "status": "executed",
+        "evidencePath": "samples/evidence/service-explorer/live.v1.json",
+        "expiresAt": "2026-08-21T20:22:41.000Z"
       }
     },
     {
