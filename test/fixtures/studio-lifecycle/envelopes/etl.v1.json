@@ -1,0 +1,12 @@
+{
+  "family": "etl",
+  "schemaVersion": "1.0",
+  "format": "studio_etl_package.v1",
+  "validation": { "status": "not-validated" },
+  "provenance": [{ "kind": "plan", "ref": "plan-etl-1", "rel": "generated-by" }],
+  "body": {
+    "pipelineId": "parcels-sync",
+    "sourceKind": "geoparquet",
+    "targetKind": "postgres"
+  }
+}
