@@ -1795,7 +1795,13 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       commands: ["npm run evidence:first-map:live"],
       evidencePath: "samples/evidence/maplibre-quickstart/live.v1.json",
     });
-    expect(sample.evidence.live.expiresAt).toMatch(/^2026-07-24T/);
+    // refresh-live-expiry (honua-io/honua-sdk-js#788) recomputes this from
+    // the live lane's own fresh evidence every reseal, so it legitimately
+    // moves on every reseal rather than pinning to one qualification day;
+    // assert it is a well-formed, currently-unexpired RFC 3339 date-time
+    // instead of a fixed literal.
+    expect(new Date(sample.evidence.live.expiresAt).toISOString()).toBe(sample.evidence.live.expiresAt);
+    expect(Date.parse(sample.evidence.live.expiresAt)).toBeGreaterThan(Date.now());
     const evidence = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
     evidence.sampleId = sample.id;
     delete evidence.realtime;
