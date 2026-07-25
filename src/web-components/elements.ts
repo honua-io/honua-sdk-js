@@ -1,6 +1,19 @@
 import type { HonuaClient } from "../core/client.js";
 import type { MapPackageLocator } from "../runtime/index.js";
 import { createHonuaWebComponentController } from "./controller.js";
+import type {
+  HonuaFeatureTable,
+  HonuaFeatureTableConflict,
+  HonuaFeatureTableFocusMove,
+  HonuaFeatureTableSnapshot,
+} from "./feature-table-engine.js";
+import {
+  featureTableFocusMoveForKey,
+  featureTableGridHtml,
+  featureTableGridStyles,
+  featureTableViewModel,
+  legacyFeatureTableViewModel,
+} from "./feature-table-view.js";
 import { HonuaMapLibreRenderer } from "./maplibre-renderer.js";
 import { HonuaMeasurementElement } from "./measurement.js";
 import type {
@@ -712,13 +725,65 @@ export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElemen
   }
 }
 
+/**
+ * `<honua-feature-table>` — the production feature grid (issue #681).
+ *
+ * Two lanes, both rendering the same accessible WAI-ARIA `grid`:
+ *
+ * - **Bounded lane** (recommended for operational apps) — assign the `table`
+ *   property a {@link HonuaFeatureTable} from
+ *   {@link createHonuaFeatureTable}. The element then renders the engine's
+ *   virtualized window, drives remote paging from real scroll geometry, pushes
+ *   header clicks into multi-column sort, exposes total-known / estimated /
+ *   partial / stale / loading / cancelled / unsupported / error truth, and
+ *   announces realtime reconciliation conflicts in a polite live region.
+ * - **Controller lane** (unchanged, backwards compatible) — with no engine
+ *   attached the element queries the shared controller for a single bounded
+ *   page, exactly as before, and renders it through the same grid markup so the
+ *   keyboard and screen-reader contract does not depend on which lane is in use.
+ *
+ * Keyboard: arrow keys move the focused cell, `Home`/`End` jump within the row
+ * (`Ctrl`/`Cmd` to the grid), `PageUp`/`PageDown` move a window at a time —
+ * loading the page the focus lands on in the bounded lane — and
+ * `Enter`/`Space` selects the focused row. Exactly one cell is tabbable
+ * (roving `tabindex`).
+ */
 export class HonuaFeatureTableElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
-    return ["for", "source", "fields", "page-size", "filter-text", "label"];
+    return ["for", "source", "fields", "page-size", "filter-text", "label", "row-height"];
   }
 
   #model: HonuaFeatureTableModel<T> | undefined;
   #refreshToken = 0;
+  #table: HonuaFeatureTable<T> | undefined;
+  #tableUnsubscribe: (() => void) | undefined;
+  #tableSnapshot: HonuaFeatureTableSnapshot<T> | undefined;
+  #announcedConflicts = "";
+
+  /**
+   * The bounded query engine backing this grid. Assigning one switches the
+   * element to the bounded lane; assigning `undefined` restores the
+   * controller-driven single-page lane.
+   */
+  public get table(): HonuaFeatureTable<T> | undefined {
+    return this.#table;
+  }
+
+  public set table(table: HonuaFeatureTable<T> | undefined) {
+    if (this.#table === table) return;
+    this.#tableUnsubscribe?.();
+    this.#tableUnsubscribe = undefined;
+    this.#table = table;
+    this.#tableSnapshot = table?.snapshot;
+    if (table) {
+      this.#tableUnsubscribe = table.subscribe((snapshot) => {
+        this.#tableSnapshot = snapshot;
+        this.render();
+        this.#announceConflicts(snapshot);
+      });
+    }
+    this.render();
+  }
 
   public attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null): void {
     this.resolveControllerFromContext();
@@ -738,11 +803,30 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     void this.refresh();
   }
 
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#tableUnsubscribe?.();
+    this.#tableUnsubscribe = undefined;
+  }
+
   protected stateChanged(): void {
+    if (this.#table) {
+      // Selection is owned by the engine (and, through it, shared exploration
+      // state) in the bounded lane — a controller state change must not trigger
+      // an unbounded re-query.
+      this.render();
+      return;
+    }
     void this.refresh();
   }
 
   public async refresh(): Promise<HonuaFeatureTableModel<T> | undefined> {
+    if (this.#table) {
+      const snapshot = await this.#table.refresh();
+      this.#tableSnapshot = snapshot;
+      this.render();
+      return featureTableModelFromSnapshot(snapshot);
+    }
     const controller = this.controller;
     if (!controller) return undefined;
     const token = ++this.#refreshToken;
@@ -757,58 +841,144 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   }
 
   protected render(): void {
-    const state = this.state;
-    const model = this.#model ?? tableModelFromState(state, this.sourceId(), this.fields(), this.pageSize());
-    const selectedId = state?.selection?.featureId;
     const label = this.getAttribute("label") ?? "Features";
-    this.setShadowHtml(`
-      <style>${baseStyles()}${tableStyles()}</style>
-      <section class="table-panel" part="panel" aria-label="${escapeHtml(label)}">
-        <div class="table-panel__bar">
-          <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(String(model.totalCount))}</span>
-        </div>
-        <div class="table-wrap">
-          <table role="grid" aria-rowcount="${escapeHtml(String(model.rows.length))}">
-            <thead>
-              <tr>${model.fields.map((field) => `<th scope="col">${escapeHtml(field)}</th>`).join("")}</tr>
-            </thead>
-            <tbody>
-              ${
-                model.rows.length === 0
-                  ? `<tr><td colspan="${Math.max(1, model.fields.length)}" class="empty">No rows</td></tr>`
-                  : model.rows
-                      .map(
-                        (row) => `
-                <tr tabindex="0" data-source-id="${escapeHtml(row.sourceId)}" data-feature-id="${escapeHtml(
-                  String(row.id),
-                )}" aria-selected="${String(String(selectedId ?? "") === String(row.id))}">
-                  ${model.fields.map((field) => `<td>${escapeHtml(formatCell((row.attributes as Record<string, unknown>)[field]))}</td>`).join("")}
-                </tr>
-              `,
-                      )
-                      .join("")
-              }
-            </tbody>
-          </table>
-        </div>
-      </section>
-    `);
-    this.shadowRoot?.querySelectorAll<HTMLTableRowElement>("tbody tr[data-feature-id]").forEach((row) => {
-      const select = () => this.selectRow(row);
-      row.addEventListener("click", select);
-      row.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        select();
+    const rowHeight = this.rowHeight();
+    const snapshot = this.#tableSnapshot;
+    const viewModel = snapshot
+      ? featureTableViewModel(snapshot, { label, rowHeight })
+      : legacyFeatureTableViewModel(
+          this.#model ?? tableModelFromState(this.state, this.sourceId(), this.fields(), this.pageSize()),
+          {
+            label,
+            rowHeight,
+            ...(this.state?.selection?.featureId !== undefined
+              ? { selectedFeatureId: String(this.state.selection.featureId) }
+              : {}),
+          },
+        );
+
+    this.setShadowHtml(
+      `<style>${baseStyles()}${tableStyles()}${featureTableGridStyles()}</style>${featureTableGridHtml(viewModel)}`,
+    );
+    this.#bindGrid();
+  }
+
+  #bindGrid(): void {
+    const root = this.shadowRoot;
+    if (!root) return;
+    for (const button of root.querySelectorAll<HTMLButtonElement>("[data-sort-field]")) {
+      button.addEventListener("click", (event) => {
+        const field = button.dataset.sortField;
+        if (!field) return;
+        void this.#table?.toggleSort(field, { additive: (event as MouseEvent).shiftKey });
       });
-    });
+    }
+    for (const row of root.querySelectorAll<HTMLTableRowElement>("tbody tr[data-feature-id]")) {
+      row.addEventListener("click", () => this.selectRow(row));
+    }
+    for (const cell of root.querySelectorAll<HTMLTableCellElement>('tbody [role="gridcell"]')) {
+      cell.addEventListener("focus", () => this.#focusCell(cell));
+      cell.addEventListener("keydown", (event) => this.#onGridKeydown(event as KeyboardEvent, cell));
+    }
+    const scroller = root.querySelector<HTMLElement>("[data-scroller]");
+    if (scroller && this.#table) {
+      scroller.addEventListener("scroll", () => {
+        void this.#table?.setScroll({
+          scrollTop: scroller.scrollTop,
+          rowHeight: this.rowHeight(),
+          viewportHeight: scroller.clientHeight || this.rowHeight() * 10,
+        });
+      });
+    }
+  }
+
+  #focusCell(cell: HTMLTableCellElement): void {
+    const rowKey = cell.closest<HTMLTableRowElement>("tr")?.dataset.rowKey;
+    const field = cell.dataset.field;
+    if (!rowKey || !field || !this.#table) return;
+    if (this.#tableSnapshot?.focus?.rowKey === rowKey && this.#tableSnapshot.focus.field === field) return;
+    this.#table.setFocus({ rowKey, field });
+  }
+
+  #onGridKeydown(event: KeyboardEvent, cell: HTMLTableCellElement): void {
+    const row = cell.closest<HTMLTableRowElement>("tr");
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (row) this.selectRow(row);
+      return;
+    }
+    const move = featureTableFocusMoveForKey(event.key, { ctrl: event.ctrlKey, meta: event.metaKey });
+    if (!move) return;
+    event.preventDefault();
+    const table = this.#table;
+    if (!table) {
+      this.#moveDomFocus(move, cell, row);
+      return;
+    }
+    if (!this.#tableSnapshot?.focus) this.#focusCell(cell);
+    void table.moveFocus(move).then(() => this.#restoreFocusedCell());
+  }
+
+  /** Controller lane: move focus within the rendered rows only — no paging. */
+  #moveDomFocus(move: HonuaFeatureTableFocusMove, cell: HTMLTableCellElement, row: HTMLTableRowElement | null): void {
+    const root = this.shadowRoot;
+    if (!root || !row) return;
+    const rows = [...root.querySelectorAll<HTMLTableRowElement>("tbody tr")];
+    const cells = [...row.querySelectorAll<HTMLTableCellElement>('[role="gridcell"]')];
+    const rowIndex = rows.indexOf(row);
+    const cellIndex = cells.indexOf(cell);
+    const clamp = (value: number, max: number) => Math.max(0, Math.min(value, max));
+    let nextRow = rowIndex;
+    let nextCell = cellIndex;
+    if (move === "up") nextRow -= 1;
+    else if (move === "down") nextRow += 1;
+    else if (move === "left") nextCell -= 1;
+    else if (move === "right") nextCell += 1;
+    else if (move === "row-start") nextCell = 0;
+    else if (move === "row-end") nextCell = cells.length - 1;
+    else if (move === "page-up") nextRow = 0;
+    else if (move === "page-down") nextRow = rows.length - 1;
+    else if (move === "grid-start") {
+      nextRow = 0;
+      nextCell = 0;
+    } else if (move === "grid-end") {
+      nextRow = rows.length - 1;
+      nextCell = cells.length - 1;
+    }
+    const target =
+      rows[clamp(nextRow, rows.length - 1)]?.querySelectorAll<HTMLTableCellElement>('[role="gridcell"]')[
+        clamp(nextCell, cells.length - 1)
+      ];
+    target?.focus();
+  }
+
+  #restoreFocusedCell(): void {
+    const focus = this.#tableSnapshot?.focus;
+    const root = this.shadowRoot;
+    if (!focus || !root) return;
+    const selector = `tbody tr[data-row-key="${cssEscape(focus.rowKey)}"] [data-field="${cssEscape(focus.field)}"]`;
+    root.querySelector<HTMLTableCellElement>(selector)?.focus();
+  }
+
+  #announceConflicts(snapshot: HonuaFeatureTableSnapshot<T>): void {
+    const digest = snapshot.conflicts.map((conflict) => `${conflict.code}:${conflict.rowKeys.join(",")}`).join("|");
+    if (digest === this.#announcedConflicts) return;
+    this.#announcedConflicts = digest;
+    for (const conflict of snapshot.conflicts) {
+      this.dispatchTypedEvent<HonuaFeatureTableConflictDetail>("honua-table-conflict", {
+        code: conflict.code,
+        message: conflict.message,
+        rowKeys: conflict.rowKeys,
+      });
+    }
   }
 
   private selectRow(row: HTMLTableRowElement): void {
     const sourceId = row.dataset.sourceId;
     const featureId = row.dataset.featureId;
     if (!sourceId || featureId === undefined) return;
+    const rowKey = row.dataset.rowKey;
+    if (this.#table && rowKey) this.#table.select([rowKey]);
     const feature = (this.#model?.rows ?? []).find((candidate) => String(candidate.id) === featureId);
     this.controller?.selectFeature({ sourceId, featureId, ...(feature ? { feature } : {}) });
     this.dispatchTypedEvent<HonuaSelectionChangeDetail<T>>("honua-selection-change", {
@@ -834,6 +1004,64 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     const parsed = Number(this.getAttribute("page-size"));
     return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
   }
+
+  private rowHeight(): number {
+    const parsed = Number(this.getAttribute("row-height"));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 32;
+  }
+}
+
+/** Detail of the `honua-table-conflict` event dispatched by `<honua-feature-table>`. */
+export interface HonuaFeatureTableConflictDetail {
+  readonly code: HonuaFeatureTableConflict["code"];
+  readonly message: string;
+  readonly rowKeys: readonly string[];
+}
+
+/**
+ * Project a bounded snapshot onto the legacy {@link HonuaFeatureTableModel} so
+ * existing `refresh()` callers keep compiling. `totalCount` is only the
+ * engine's count when the engine actually knows one; a partial or unknown count
+ * reports the resident row count, which the `exceededTransferLimit` flag marks
+ * as incomplete rather than presenting it as a total.
+ */
+function featureTableModelFromSnapshot<T>(snapshot: HonuaFeatureTableSnapshot<T>): HonuaFeatureTableModel<T> {
+  const rows = snapshot.rows.filter((row): row is NonNullable<typeof row> => row !== undefined);
+  const known = snapshot.count.kind === "known" || snapshot.count.kind === "estimated";
+  return {
+    sourceId: snapshot.sourceId,
+    status: legacyStatusForState(snapshot.state),
+    fields: snapshot.visibleColumns.map((column) => column.field),
+    rows: rows.map((row) => ({
+      id: row.id,
+      sourceId: row.sourceId,
+      attributes: row.attributes,
+      ...(row.geometry !== undefined ? { geometry: row.geometry } : {}),
+    })),
+    totalCount: known ? (snapshot.count.value ?? snapshot.count.loaded) : snapshot.count.loaded,
+    ...(known ? {} : { exceededTransferLimit: true }),
+    ...(snapshot.error !== undefined ? { error: snapshot.error } : {}),
+  };
+}
+
+function legacyStatusForState(state: HonuaFeatureTableSnapshot["state"]): HonuaComponentStatus {
+  switch (state) {
+    case "idle":
+      return "idle";
+    case "loading":
+      return "loading";
+    case "error":
+      return "error";
+    case "unsupported":
+      return "unsupported";
+    default:
+      return "ready";
+  }
+}
+
+/** Minimal `CSS.escape` for the attribute selectors this element builds. */
+function cssEscape(value: string): string {
+  return value.split("\\").join("\\\\").split('"').join('\\"');
 }
 
 /**

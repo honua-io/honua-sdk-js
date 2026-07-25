@@ -171,7 +171,7 @@ export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
     supportTier: "survival-tier",
     canonical: true,
     requiredAdapters: ["web-component-controller"],
-    events: ["honua-filter-change", "honua-selection-change"],
+    events: ["honua-filter-change", "honua-selection-change", "honua-table-conflict"],
     collidesWithIds: [],
   },
   {
