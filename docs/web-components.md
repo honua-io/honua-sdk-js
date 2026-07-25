@@ -264,9 +264,29 @@ MapLibre map, wires SDK snapping, reports terra-draw's real tool support so
 ```ts doc-test=skip reason="partial excerpt requires terra-draw peers and a MapLibre map"
 import { createTerraDrawEditorSketch } from "@honua/sdk-js/web-components";
 
-const sketch = await createTerraDrawEditorSketch(map, { workflow });
+const sketch = await createTerraDrawEditorSketch(map, { workflow, snapping: { index } });
 sketch.setTool("polygon"); // arms terra-draw and the workflow together
+await sketch.ready(); // resolves once bound to the current draft
 ```
+
+Apps that construct terra-draw themselves use `bindEditorSketch(draw, { workflow })`
+and, for snapping, `editorSnappingOptions(workflow, { index })`. Route snapping
+through that helper rather than passing a model directly: terra-draw resolves its
+snapping hook once per mode, and the editor builds a new contract sketch model
+for every draft, so a directly-passed model would pin snapping to the first
+draft and make `setSnapping(...)` on later drafts a silent no-op.
+
+Two lifecycle details worth knowing:
+
+- **Superseded submits.** An `AbortSignal` is advisory, so a transport may settle
+  a submit the editor has already moved on from. A completion that no longer
+  owns the workflow never writes to it: the commit comes back with
+  `superseded: true` and `status: "cancelled"`, its `snapshot` describes the
+  *current* draft, and the workflow makes no claim about the superseded edit's
+  server outcome (`failures` carries whatever the service reported).
+- **Detach and reattach.** The element holds its workflow subscription only
+  while connected, and re-takes it — re-reading state it missed — on reconnect,
+  so moving the editor in the DOM does not leave it frozen.
 
 Events: `honua-feature-edit-change` (redacted snapshot on every state change)
 and `honua-feature-edit-commit` (the submit outcome, including `transported`).

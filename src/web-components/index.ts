@@ -152,11 +152,12 @@ export type {
   HonuaEditorUnavailableCode,
   ResolveEditorOperationsInput,
 } from "./feature-editor-model.js";
-export { bindEditorSketch, createTerraDrawEditorSketch } from "./feature-editor-sketch.js";
+export { bindEditorSketch, createTerraDrawEditorSketch, editorSnappingOptions } from "./feature-editor-sketch.js";
 export type {
   CreateTerraDrawEditorSketchOptions,
   HonuaEditorSketchAdapter,
   HonuaEditorSketchOptions,
+  HonuaEditorSnappingOptions,
 } from "./feature-editor-sketch.js";
 
 export type {

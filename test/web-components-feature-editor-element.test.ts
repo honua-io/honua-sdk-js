@@ -555,6 +555,59 @@ describe("<honua-feature-editor> realtime, conflict, and commit states", () => {
     expect(status.textContent).toMatch(/Feature created \(id 101\)/);
   });
 
+  it("resumes updating after being detached and reinserted", () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+    const element = mount(workflow);
+    workflow.begin("create");
+    const changes: unknown[] = [];
+    element.addEventListener("honua-feature-edit-change", (event) => {
+      changes.push((event as CustomEvent).detail);
+    });
+
+    element.remove();
+    workflow.setValue("permit_no", "P-WHILE-DETACHED");
+    expect(changes).toHaveLength(0);
+
+    document.body.append(element);
+    // The element re-reads state on connect, so the change it missed is visible.
+    expect(query<HTMLInputElement>(element, "[data-field='permit_no']").value).toBe("P-WHILE-DETACHED");
+
+    workflow.setValue("permit_no", "P-AFTER-REINSERT");
+    expect(query<HTMLInputElement>(element, "[data-field='permit_no']").value).toBe("P-AFTER-REINSERT");
+    expect(changes).toHaveLength(1);
+  });
+
+  it("does not double-subscribe across repeated detach/reinsert cycles", () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+    const element = mount(workflow);
+    workflow.begin("create");
+    const changes: unknown[] = [];
+    element.addEventListener("honua-feature-edit-change", (event) => {
+      changes.push((event as CustomEvent).detail);
+    });
+
+    for (let i = 0; i < 3; i += 1) {
+      element.remove();
+      document.body.append(element);
+    }
+    workflow.setValue("permit_no", "P-ONCE");
+    // One workflow notification must produce exactly one change event.
+    expect(changes).toHaveLength(1);
+  });
+
+  it("subscribes when a workflow assigned before insertion is connected", () => {
+    defineHonuaWebComponents();
+    const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+    const element = document.createElement("honua-feature-editor") as HonuaFeatureEditorElement<PermitAttributes>;
+    element.workflow = workflow;
+    workflow.begin("create");
+    document.body.append(element);
+
+    expect(root(element).querySelector("[data-field='permit_no']")).not.toBeNull();
+    workflow.setValue("permit_no", "P-LATE-MOUNT");
+    expect(query<HTMLInputElement>(element, "[data-field='permit_no']").value).toBe("P-LATE-MOUNT");
+  });
+
   it("stops rendering once detached", () => {
     const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
     const element = mount(workflow);

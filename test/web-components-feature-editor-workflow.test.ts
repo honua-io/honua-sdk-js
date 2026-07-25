@@ -343,6 +343,86 @@ describe("HonuaFeatureEditorWorkflow — subtype and domain validation", () => {
   });
 });
 
+describe("HonuaFeatureEditorWorkflow — subtype-driven availability from the selection", () => {
+  /**
+   * Subtype overrides can flip a field's editability, so availability computed
+   * before a draft opens has to resolve subtypes from the SELECTED feature's
+   * attributes — not from empty values (which would silently fall back to the
+   * default subtype).
+   */
+  const LOCKED = 1;
+  const OPEN = 2;
+
+  function lockingSubtypes(lockedCode: number): HonuaEditorSubtypeConfig {
+    const lockAll = {
+      permit_kind: { editable: false },
+      permit_no: { editable: false },
+      status: { editable: false },
+      priority: { editable: false },
+      version: { editable: false },
+    };
+    return {
+      field: "permit_kind",
+      defaultCode: LOCKED,
+      subtypes: [
+        { code: LOCKED, name: "Locked", ...(lockedCode === LOCKED ? { fieldOverrides: lockAll } : {}) },
+        { code: OPEN, name: "Open", ...(lockedCode === OPEN ? { fieldOverrides: lockAll } : {}) },
+      ],
+    };
+  }
+
+  it("allows update when the selected subtype is editable although the default subtype is not", () => {
+    const { source } = makeSource();
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: lockingSubtypes(LOCKED) });
+
+    // No selection: the default (locked) subtype applies.
+    expect(workflow.operations().find((entry) => entry.operation === "create")).toMatchObject({
+      available: false,
+      code: "no-editable-fields",
+    });
+
+    workflow.setSelection(existing({ permit_kind: OPEN }));
+    expect(workflow.operations().find((entry) => entry.operation === "update")?.available).toBe(true);
+    expect(workflow.begin("update").status).toBe("draft");
+  });
+
+  it("blocks update when the selected subtype is read-only although the default subtype is editable", () => {
+    const { source } = makeSource();
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: lockingSubtypes(OPEN) });
+
+    workflow.setSelection(existing({ permit_kind: LOCKED }));
+    expect(workflow.operations().find((entry) => entry.operation === "update")?.available).toBe(true);
+
+    workflow.setSelection(existing({ permit_kind: OPEN }));
+    expect(workflow.operations().find((entry) => entry.operation === "update")).toMatchObject({
+      available: false,
+      code: "no-editable-fields",
+    });
+    const refused = workflow.begin("update");
+    expect(refused.status).toBe("rejected");
+    expect(refused.message).toMatch(/read-only/i);
+  });
+
+  it("resolves availability from an explicit begin() target rather than the standing selection", () => {
+    const { source } = makeSource();
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: lockingSubtypes(OPEN) });
+    workflow.setSelection(existing({ permit_kind: OPEN }));
+    expect(workflow.operations().find((entry) => entry.operation === "update")?.available).toBe(false);
+
+    const explicit = workflow.begin("update", existing({ OBJECTID: 9, permit_kind: LOCKED }));
+    expect(explicit.status).toBe("draft");
+  });
+
+  it("reports the selected subtype's field metadata before a draft is open", () => {
+    const { source } = makeSource();
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    workflow.setSelection(existing({ permit_kind: 2 }));
+    const status = workflow.fields().find((field) => field.name === "status");
+    expect(status?.domain?.codedValues?.map((coded) => coded.code)).toEqual(["review"]);
+    expect(workflow.fields().find((field) => field.name === "priority")?.required).toBe(true);
+  });
+});
+
 describe("HonuaFeatureEditorWorkflow — submit outcomes", () => {
   it("commits a create and records the server-assigned identity", async () => {
     const { source } = makeSource();
@@ -631,6 +711,149 @@ describe("HonuaFeatureEditorWorkflow — realtime reconciliation", () => {
     const { source } = makeSource();
     const idle = createFeatureEditorWorkflow({ source });
     expect(idle.applyExternalChange({ id: 1, attributes: {} })).toBe("ignored");
+  });
+});
+
+describe("HonuaFeatureEditorWorkflow — superseded submissions", () => {
+  /**
+   * An `AbortSignal` is advisory: a transport may settle a submit that the
+   * workflow has already moved on from. A completion that no longer owns the
+   * workflow must never stamp its outcome onto the draft that replaced it.
+   */
+  function gatedSource(result: () => EditResult) {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const made = makeSource({
+      applyEdits: async () => {
+        await gate;
+        return result();
+      },
+    });
+    return { ...made, release: () => release?.() };
+  }
+
+  it("discards a superseded success instead of marking the new draft committed", async () => {
+    const { source, release } = gatedSource(() => ok([{ id: 101, success: true }]));
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    const seen: string[] = [];
+    workflow.subscribe((snapshot) => {
+      seen.push(snapshot.status);
+    });
+
+    completeCreateDraft(workflow);
+    const pending = workflow.submit();
+    expect(workflow.snapshot().busy).toBe(true);
+
+    // A brand new draft opens while the first submit is still in flight.
+    workflow.begin("create");
+    workflow.setValue("permit_no", "P-SECOND");
+    release();
+    const commit = await pending;
+
+    expect(commit).toMatchObject({ superseded: true, status: "cancelled", transported: true });
+    expect(commit.committedFeatureId).toBeUndefined();
+
+    const snapshot = workflow.snapshot();
+    expect(snapshot.status).toBe("draft");
+    expect(snapshot.committedFeatureId).toBeUndefined();
+    expect(snapshot.identity?.featureId).toBeUndefined();
+    expect(snapshot.form?.controls.find((control) => control.name === "permit_no")?.value).toBe("P-SECOND");
+    expect(snapshot.message).toMatch(/New feature draft/i);
+    // The stale completion must not have notified anybody.
+    expect(seen).not.toContain("committed");
+  });
+
+  it("discards a superseded rejection instead of marking the new draft rejected", async () => {
+    const { source, release } = gatedSource(() =>
+      ok([{ success: false, error: { code: 500, description: "first draft blew up" } }]),
+    );
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    completeCreateDraft(workflow);
+    const pending = workflow.submit();
+
+    workflow.begin("create");
+    release();
+    const commit = await pending;
+
+    expect(commit.superseded).toBe(true);
+    expect(commit.failures[0]).toMatchObject({ code: 500 });
+    const snapshot = workflow.snapshot();
+    expect(snapshot.status).toBe("draft");
+    expect(snapshot.failures).toEqual([]);
+    expect(snapshot.message).not.toContain("first draft blew up");
+  });
+
+  it("does not let a superseded update rewrite the new draft's identity or baseline", async () => {
+    const { source, release } = gatedSource(() => ok([], [{ id: 1, success: true }]));
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    workflow.setSelection(existing());
+    workflow.begin("update");
+    workflow.setValue("status", "closed");
+    const pending = workflow.submit();
+
+    // Move to a different feature mid-flight.
+    workflow.begin("update", {
+      id: 55,
+      attributes: { OBJECTID: 55, permit_no: "P-55", permit_kind: 1, status: "open", version: 2 },
+    });
+    release();
+    const commit = await pending;
+
+    expect(commit.superseded).toBe(true);
+    const snapshot = workflow.snapshot();
+    expect(snapshot.identity).toMatchObject({ featureId: 55, version: 2 });
+    expect(snapshot.status).toBe("draft");
+    expect(snapshot.dirty).toBe(false);
+  });
+
+  it("still reports a plain cancellation when no new draft replaced it", async () => {
+    const { source, release } = gatedSource(() => ok([{ id: 101, success: true }]));
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    completeCreateDraft(workflow);
+    const pending = workflow.submit();
+    workflow.cancel();
+    release();
+    const commit = await pending;
+
+    expect(commit.status).toBe("cancelled");
+    expect(commit.superseded).toBeUndefined();
+    expect(commit.snapshot.message).toMatch(/unknown/i);
+  });
+
+  it("treats a cancel followed by a new draft as superseded, keeping the new draft's message", async () => {
+    const { source, release } = gatedSource(() => ok([{ id: 101, success: true }]));
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    completeCreateDraft(workflow);
+    const pending = workflow.submit();
+    workflow.cancel();
+    workflow.setSelection(existing());
+    workflow.begin("update");
+    release();
+    const commit = await pending;
+
+    expect(commit.superseded).toBe(true);
+    expect(workflow.snapshot().status).toBe("draft");
+    expect(workflow.snapshot().message).toMatch(/Editing the selected feature/i);
+    expect(workflow.snapshot().identity?.featureId).toBe(1);
+  });
+
+  it("does not rebuild the model under an in-flight submit when sketch tools change", async () => {
+    const { source, release } = gatedSource(() => ok([{ id: 101, success: true }]));
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    completeCreateDraft(workflow);
+    const pending = workflow.submit();
+
+    // A sketch adapter attaching mid-submit must not swap the model out, which
+    // would make the pending completion look superseded and drop its outcome.
+    workflow.configureSketchTools({ rectangle: "supported" });
+    release();
+    const commit = await pending;
+
+    expect(commit.superseded).toBeUndefined();
+    expect(commit.status).toBe("committed");
+    expect(workflow.snapshot().status).toBe("committed");
   });
 });
 

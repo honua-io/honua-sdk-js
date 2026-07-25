@@ -99,17 +99,24 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     this.#workflow = workflow;
     this.#geometryDraft = undefined;
     this.#geometryError = undefined;
-    if (workflow) {
-      this.#snapshot = workflow.snapshot();
-      this.#subscription = workflow.subscribe((snapshot) => {
-        this.#snapshot = snapshot;
-        this.#dispatch("honua-feature-edit-change", { snapshot });
-        this.render();
-      });
-    } else {
-      this.#snapshot = undefined;
-    }
+    this.#snapshot = workflow?.snapshot();
+    // Only hold a subscription while connected; `connectedCallback` re-takes it
+    // so a detached-then-reinserted element resumes updating.
+    if (this.#connected) this.#subscribe();
     this.render();
+  }
+
+  /** Takes the workflow subscription, unless one is already held. */
+  #subscribe(): void {
+    const workflow = this.#workflow;
+    if (!workflow || this.#subscription) return;
+    // State may have moved on while detached; re-read before listening.
+    this.#snapshot = workflow.snapshot();
+    this.#subscription = workflow.subscribe((snapshot) => {
+      this.#snapshot = snapshot;
+      this.#dispatch("honua-feature-edit-change", { snapshot });
+      this.render();
+    });
   }
 
   /** Equivalent to setting `.workflow`. */
@@ -143,6 +150,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
   public connectedCallback(): void {
     this.#connected = true;
     if (!this.shadowRoot && typeof this.attachShadow === "function") this.attachShadow({ mode: "open" });
+    this.#subscribe();
     this.render();
   }
 

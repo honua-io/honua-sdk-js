@@ -41,6 +41,7 @@ import {
   type EditWorkflowMetadataOptions,
   type EditWorkflowOperation,
   type EditWorkflowOptimisticHooks,
+  type EditWorkflowSubmitResult,
   type EditWorkflowValidationError,
   type EditWorkflowValidationResult,
   createEditSession,
@@ -151,6 +152,16 @@ export interface HonuaFeatureEditorCommit {
   readonly failures: readonly HonuaFeatureEditorFailure[];
   readonly attachments: readonly HonuaEditorAttachmentDraft[];
   readonly snapshot: HonuaFeatureEditorSnapshot;
+  /**
+   * True when this submit no longer owned the workflow by the time the
+   * transport settled — a newer draft had already been opened (or the draft was
+   * cancelled and replaced). The workflow state was left entirely to the newer
+   * draft, so `status` is reported as `"cancelled"` and `snapshot` describes the
+   * *current* draft, not this one. The server outcome for the superseded edit is
+   * in `failures` (empty means the service reported no failure), but the
+   * workflow makes no claim about it.
+   */
+  readonly superseded?: boolean;
 }
 
 /** Result of reconciling one external (realtime) feature change. */
@@ -203,7 +214,13 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   #message = "";
   #committedFeatureId: FeatureId | undefined;
   #abort: AbortController | undefined;
-  #cancelled = false;
+  /**
+   * The model whose in-flight submit was cancelled. Identity, not a boolean:
+   * `AbortSignal` is advisory — a transport may ignore it and settle anyway —
+   * so a completion has to prove it still owns the workflow before touching
+   * shared state.
+   */
+  #cancelledModel: EditSketchWorkflowModel<T> | undefined;
 
   public constructor(options: HonuaFeatureEditorOptions<T>) {
     this.source = options.source;
@@ -232,20 +249,20 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     return this.#model;
   }
 
-  /** Subtype-resolved field metadata for the current draft values. */
+  /**
+   * Subtype-resolved field metadata for the open draft, or — before one is
+   * opened — for the recorded selection. Resolving against the selection
+   * matters: a subtype's overrides can flip a field's editability, so using the
+   * default subtype here would report the wrong `update` / `delete`
+   * availability for the feature the host actually selected.
+   */
   public fields(): readonly EditWorkflowField[] {
-    return resolveEditorFields(this.#schemaFields, this.#options.subtypes, this.#values());
+    return this.#fieldsFor(this.#values());
   }
 
   /** Truthful per-operation availability for the current source and selection. */
   public operations(): readonly HonuaEditorOperationAvailability[] {
-    return resolveEditorOperations({
-      capabilities: { applyEdits: this.source.capabilities.has("applyEdits") ? "supported" : "unsupported" },
-      ...(capabilityDecisions(this.source) ? { decisions: capabilityDecisions(this.source) } : {}),
-      hasFeatureIdentity: this.#identity?.featureId !== undefined,
-      fields: this.fields(),
-      ...(this.#options.operations ? { overrides: this.#options.operations } : {}),
-    });
+    return this.#operationsFor(this.#values());
   }
 
   /**
@@ -340,14 +357,21 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   public begin(operation: HonuaEditorOperation, feature?: CanonicalFeature<T>): HonuaFeatureEditorSnapshot {
     const target = operation === "create" ? feature : (feature ?? this.#selection);
     this.#abort?.abort();
-    this.#cancelled = false;
+    // Any in-flight submit now belongs to a superseded draft, cancelled or not.
+    this.#cancelledModel = undefined;
     this.#conflict = undefined;
     this.#failures = [];
     this.#attachments = [];
     this.#committedFeatureId = undefined;
     this.#identity = this.#identityFor(target);
 
-    const availability = editorOperationAvailability(this.operations(), operation);
+    // Resolve availability against the feature this draft would open on, not
+    // the standing selection — an explicit `feature` argument may carry a
+    // different subtype, and subtypes can flip field editability.
+    const availability = editorOperationAvailability(
+      this.#operationsFor((target?.attributes ?? {}) as Record<string, unknown>),
+      operation,
+    );
     if (!availability.available) {
       this.#model = undefined;
       this.#operation = undefined;
@@ -374,7 +398,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
 
   /** Discards the draft and aborts any in-flight submit. */
   public cancel(): HonuaFeatureEditorSnapshot {
-    if (this.#status === "submitting") this.#cancelled = true;
+    if (this.#status === "submitting") this.#cancelledModel = this.#model;
     this.#abort?.abort();
     this.#abort = undefined;
     this.#model = undefined;
@@ -513,7 +537,10 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     if (JSON.stringify(this.#sketchTools ?? null) === JSON.stringify(tools)) return this.snapshot();
     this.#sketchTools = tools;
     const model = this.#model;
-    if (model && this.#operation) {
+    // Never swap the model out from under an in-flight submit: that would make
+    // the pending completion look superseded and silently drop its outcome.
+    // The new tool support applies to the next draft instead.
+    if (model && this.#operation && this.#status !== "submitting") {
       const snapshot = model.snapshot();
       this.#model = this.#createModel(this.#operation, snapshot.feature);
       for (const mutation of snapshot.attachments) restageAttachment(this.#model, mutation);
@@ -563,12 +590,22 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
 
     const result = await model.submit();
 
-    if (this.#cancelled) {
-      this.#cancelled = false;
-      this.#status = "cancelled";
-      this.#message = "Edit cancelled while it was being applied; treat the outcome as unknown.";
-      this.#failures = result.failures.map(normalizeFailure);
-      return this.#commit(operation, true);
+    // An `AbortSignal` is advisory: a transport may settle a cancelled — or
+    // superseded — submit anyway. Before touching shared state, prove this
+    // completion still owns the workflow. Otherwise a slow first submit could
+    // stamp its own outcome (and identity, baseline, and message) onto a draft
+    // that was opened after it started.
+    const cancelledThisSubmit = this.#cancelledModel === model;
+    if (cancelledThisSubmit) this.#cancelledModel = undefined;
+    if (this.#model !== model) {
+      // `begin()` clears `#cancelledModel`, so reaching here with it still set
+      // means the cancel was the last thing to touch the workflow.
+      if (cancelledThisSubmit && this.#model === undefined) {
+        this.#message = "Edit cancelled while it was being applied; treat the outcome as unknown.";
+        this.#failures = result.failures.map(normalizeFailure);
+        return this.#commit(operation, true);
+      }
+      return this.#supersededCommit(operation, model, result);
     }
 
     this.#failures = result.failures.map(normalizeFailure);
@@ -748,8 +785,28 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     this.#model?.setValues({ [subtypes.field]: active?.code ?? subtypes.defaultCode } as Partial<T>);
   }
 
+  /**
+   * Attribute values subtype resolution runs against: the open draft's, or the
+   * recorded selection's while no draft is open.
+   */
   #values(): Readonly<Record<string, unknown>> {
-    return (this.#model?.snapshot().feature.attributes ?? {}) as Record<string, unknown>;
+    const model = this.#model;
+    if (model) return model.snapshot().feature.attributes as Record<string, unknown>;
+    return (this.#selection?.attributes ?? {}) as Record<string, unknown>;
+  }
+
+  #fieldsFor(values: Readonly<Record<string, unknown>>): readonly EditWorkflowField[] {
+    return resolveEditorFields(this.#schemaFields, this.#options.subtypes, values);
+  }
+
+  #operationsFor(values: Readonly<Record<string, unknown>>): readonly HonuaEditorOperationAvailability[] {
+    return resolveEditorOperations({
+      capabilities: { applyEdits: this.source.capabilities.has("applyEdits") ? "supported" : "unsupported" },
+      ...(capabilityDecisions(this.source) ? { decisions: capabilityDecisions(this.source) } : {}),
+      hasFeatureIdentity: this.#identity?.featureId !== undefined,
+      fields: this.#fieldsFor(values),
+      ...(this.#options.operations ? { overrides: this.#options.operations } : {}),
+    });
   }
 
   #identityFor(feature: CanonicalFeature<T> | undefined): HonuaFeatureEditorIdentity {
@@ -808,6 +865,27 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
       transported: false,
       failures: this.#failures,
       attachments: this.#attachments,
+      snapshot: this.snapshot(),
+    };
+  }
+
+  /**
+   * Result of a submit that no longer owns the workflow. Built entirely from
+   * the caller's own locals — shared state belongs to the newer draft and is
+   * deliberately left untouched, and no listener is notified.
+   */
+  #supersededCommit(
+    operation: HonuaEditorOperation,
+    model: EditSketchWorkflowModel<T>,
+    result: EditWorkflowSubmitResult<T>,
+  ): HonuaFeatureEditorCommit {
+    return {
+      status: "cancelled",
+      operation,
+      transported: true,
+      superseded: true,
+      failures: result.failures.map(normalizeFailure),
+      attachments: attachmentDraftsFromResult(model, result.attachmentResults),
       snapshot: this.snapshot(),
     };
   }

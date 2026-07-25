@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createSnapIndex } from "../src/contract/edit-snapping.js";
 import type { Capability, EditEnvelope, EditResult, Source } from "../src/contract/types.js";
 import type {
   TerraDrawSketchFeature,
   TerraDrawSketchFeatureId,
   TerraDrawSketchInstance,
 } from "../src/runtime/terra-draw-sketch.js";
-import { bindEditorSketch } from "../src/web-components/feature-editor-sketch.js";
+import { createTerraDrawSnapping } from "../src/runtime/terra-draw-sketch.js";
+import { bindEditorSketch, editorSnappingOptions } from "../src/web-components/feature-editor-sketch.js";
 import { createFeatureEditorWorkflow } from "../src/web-components/feature-editor-workflow.js";
 
 /**
@@ -212,6 +214,50 @@ describe("bindEditorSketch", () => {
     adapter.select();
     adapter.cancel();
     expect(draw.modes).toEqual(expect.arrayContaining(["select", "static"]));
+  });
+
+  it("keeps snapping live across drafts so setSnapping works on later drafts", async () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource() });
+    const index = createSnapIndex();
+    index.setSourceFeatures("parcels", [{ id: 1, geometry: { type: "Point", coordinates: [10, 10] } }]);
+    const options = editorSnappingOptions(workflow, { index });
+    const snap = createTerraDrawSnapping(options);
+    // A pointer a hair off the indexed vertex; 1 unit ≈ 1 screen pixel here.
+    const event = { lng: 10.000004, lat: 10, containerX: 4, containerY: 0 };
+    const context = { project: (lng: number, lat: number) => ({ x: (lng - 10) * 1e6, y: (lat - 10) * 1e6 }) };
+
+    // No draft open yet: snapping is disabled by default, so nothing snaps.
+    expect(snap(event, context)).toBeUndefined();
+
+    workflow.begin("create");
+    workflow.sketchModel()?.setSnapping({ enabled: true, tolerance: 30 });
+    expect(snap(event, context)).toEqual([10, 10]);
+
+    workflow.setValue("label", "first");
+    await workflow.submit();
+
+    // A new draft builds a NEW contract model. A snapping callback that
+    // captured the first model would keep reporting the first draft's config.
+    workflow.begin("create");
+    expect(workflow.sketchModel()).not.toBe(undefined);
+    expect(snap(event, context)).toBeUndefined();
+
+    workflow.sketchModel()?.setSnapping({ enabled: true, tolerance: 30 });
+    expect(snap(event, context)).toEqual([10, 10]);
+
+    workflow.sketchModel()?.setSnapping({ enabled: false });
+    expect(snap(event, context)).toBeUndefined();
+  });
+
+  it("falls back to the configured snapping while no draft is open", () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource() });
+    const index = createSnapIndex();
+    const options = editorSnappingOptions(workflow, { index, config: { enabled: true, tolerance: 7 } });
+    expect(options.model?.snappingConfig()).toMatchObject({ enabled: true, tolerance: 7 });
+
+    workflow.begin("create");
+    // An open draft is authoritative; its own (default-off) config wins.
+    expect(options.model?.snappingConfig().enabled).toBe(false);
   });
 
   it("detaches every listener on remove and stops driving the workflow", async () => {

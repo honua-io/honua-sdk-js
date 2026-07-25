@@ -24,7 +24,7 @@
  */
 
 import type { EditSketchTool, EditSketchToolCapability, EditSketchWorkflowModel } from "../contract/edit-sketch.js";
-import type { SnapIndex, SnappingConfig } from "../contract/edit-snapping.js";
+import { type SnapIndex, type SnappingConfig, resolveSnappingConfig } from "../contract/edit-snapping.js";
 import {
   type BindTerraDrawSketchOptions,
   type CreateTerraDrawSnappingOptions,
@@ -93,14 +93,53 @@ export function bindEditorSketch<T = Record<string, unknown>>(
   return createAdapter(options, () => draw);
 }
 
+/** SDK snapping inputs for a terra-draw-backed editor. */
+export interface HonuaEditorSnappingOptions {
+  /** Snap index over the loaded snap-source features. */
+  readonly index: SnapIndex;
+  /** Fallback configuration used while no draft is open. */
+  readonly config?: Partial<SnappingConfig>;
+}
+
 /** Options for the one-call terra-draw default. */
 export interface CreateTerraDrawEditorSketchOptions<T = Record<string, unknown>> extends HonuaEditorSketchOptions<T> {
   /**
    * Wire SDK snapping into the terra-draw modes that expose a custom snapping
-   * hook (linestring / polygon). Snapping is configured when the instance is
-   * constructed, so it persists across draft re-binds.
+   * hook (linestring / polygon). terra-draw resolves its snapping options once,
+   * when the instance is constructed, so these are routed through
+   * {@link editorSnappingOptions} to stay live across draft re-binds.
    */
-  readonly snapping?: { readonly index: SnapIndex; readonly config?: Partial<SnappingConfig> };
+  readonly snapping?: HonuaEditorSnappingOptions;
+}
+
+/**
+ * Snapping options to hand terra-draw for an editor workflow.
+ *
+ * terra-draw resolves `snapping.toCustom` once per mode, at construction, and
+ * `createTerraDrawSnapping` captures the `model` it is given — but the editor
+ * builds a *new* contract sketch model for every draft. Passing the model
+ * directly would pin snapping to the first draft forever, so
+ * `setSnapping(...)` on any later draft would silently do nothing.
+ *
+ * This returns a stable options object whose `model` is a thin live view that
+ * resolves the workflow's *current* model on each pointer event, falling back
+ * to `config` (or disabled snapping) while no draft is open.
+ *
+ * Use it when constructing terra-draw yourself alongside
+ * {@link bindEditorSketch}; {@link createTerraDrawEditorSketch} applies it for
+ * you.
+ */
+export function editorSnappingOptions<T = Record<string, unknown>>(
+  workflow: HonuaFeatureEditorWorkflow<T>,
+  snapping: HonuaEditorSnappingOptions,
+): CreateTerraDrawSnappingOptions<T> {
+  const fallback = resolveSnappingConfig(snapping.config ?? { enabled: false });
+  const liveModel = {
+    snappingConfig: () => workflow.sketchModel()?.snappingConfig() ?? fallback,
+  } as unknown as EditSketchWorkflowModel<T>;
+  // Deliberately no `config`: `createTerraDrawSnapping` only consults the model
+  // when `config` is absent, which is exactly the live path we want.
+  return { index: snapping.index, model: liveModel };
 }
 
 /**
@@ -123,13 +162,7 @@ export async function createTerraDrawEditorSketch<T = Record<string, unknown>>(
   const { workflow } = options;
   workflow.configureSketchTools(terraDrawSketchToolCapabilities(options.modes));
   const model = workflow.sketchModel() ?? bootstrapModel(workflow);
-  const snapping: CreateTerraDrawSnappingOptions<T> | undefined = options.snapping
-    ? {
-        index: options.snapping.index,
-        model,
-        ...(options.snapping.config ? { config: options.snapping.config } : {}),
-      }
-    : undefined;
+  const snapping = options.snapping ? editorSnappingOptions<T>(workflow, options.snapping) : undefined;
   const controller = await createTerraDrawSketch<T>(map, {
     model,
     ...bindPassThrough(options),
