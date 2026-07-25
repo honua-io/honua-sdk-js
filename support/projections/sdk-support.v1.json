@@ -610,6 +610,12 @@
       "freshnessPolicy": "scheduled-live"
     },
     {
+      "id": "live-conformance",
+      "kind": "live",
+      "path": "scripts/live-conformance-evidence.mjs",
+      "freshnessPolicy": "scheduled-live"
+    },
+    {
       "id": "esri-compat-fixtures",
       "kind": "fixture",
       "path": "test/feature-layer-compat.test.ts",
@@ -1277,7 +1283,8 @@
         "connect-fixtures",
         "contract-conformance",
         "geoservices-conformance",
-        "first-map-live"
+        "first-map-live",
+        "live-conformance"
       ]
     },
     {
@@ -1427,7 +1434,8 @@
       "api": "connect(), Source with locator.layout=ogc-api or auto",
       "notes": "Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path.",
       "evidence": [
-        "ogc-features-fixtures"
+        "ogc-features-fixtures",
+        "live-conformance"
       ]
     },
     {
@@ -1449,7 +1457,8 @@
       "api": "connect(), Source, HonuaWfs",
       "notes": "Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path.",
       "evidence": [
-        "wfs-fixtures"
+        "wfs-fixtures",
+        "live-conformance"
       ]
     },
     {
@@ -1469,7 +1478,8 @@
       "notes": "Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding; canonical query remains disabled unless a Honua service id binds the existing FeatureInfo adapter.",
       "evidence": [
         "wms-wmts-connect-fixtures",
-        "maplibre-raster-source-fixtures"
+        "maplibre-raster-source-fixtures",
+        "live-conformance"
       ]
     },
     {
@@ -1489,7 +1499,8 @@
       "notes": "Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms.",
       "evidence": [
         "wms-wmts-connect-fixtures",
-        "maplibre-raster-source-fixtures"
+        "maplibre-raster-source-fixtures",
+        "live-conformance"
       ]
     },
     {
@@ -1509,7 +1520,8 @@
       "api": "connect(), Source with locator.layout=stac-api or stac-static",
       "notes": "Searches a raw STAC API or walks static catalog links with client-side filtering.",
       "evidence": [
-        "stac-fixtures"
+        "stac-fixtures",
+        "live-conformance"
       ]
     },
     {
@@ -1530,7 +1542,8 @@
       "api": "connect(), Source, HonuaOdataEntitySet",
       "notes": "Reads $metadata, intersects advertised capabilities, and uses the raw service root.",
       "evidence": [
-        "odata-fixtures"
+        "odata-fixtures",
+        "live-conformance"
       ]
     },
     {
