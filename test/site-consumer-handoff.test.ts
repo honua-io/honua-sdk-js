@@ -505,6 +505,168 @@ describe("honua-site consumer handoff", () => {
     );
   });
 
+  it("rejects duplicated card, journey, replacement, and evidence-binding identities", async () => {
+    const inputs = await canonicalInputs();
+    const checkoutHandoff = await checkoutBoundHandoff(inputs.handoff);
+
+    const duplicateJourney = structuredClone(inputs.projection);
+    duplicateJourney.goldenJourneys.push(structuredClone(duplicateJourney.goldenJourneys[0]));
+    expect(() => generateSiteConsumerHandoff(duplicateJourney, inputs.matrix, inputs.visualEvidence)).toThrow(
+      "duplicate journey, replacement, evidence-binding, or visual identities",
+    );
+
+    const duplicateReplacement = structuredClone(inputs.projection);
+    duplicateReplacement.externalReplacements.push(structuredClone(duplicateReplacement.externalReplacements[0]));
+    expect(() => generateSiteConsumerHandoff(duplicateReplacement, inputs.matrix, inputs.visualEvidence)).toThrow(
+      "duplicate journey, replacement, evidence-binding, or visual identities",
+    );
+
+    const duplicateBinding = structuredClone(inputs.matrix) as CapabilitySampleMatrix;
+    duplicateBinding.evidenceBindings.push(structuredClone(duplicateBinding.evidenceBindings[0]));
+    expect(() => generateSiteConsumerHandoff(inputs.projection, duplicateBinding, inputs.visualEvidence)).toThrow(
+      "duplicate journey, replacement, evidence-binding, or visual identities",
+    );
+
+    const duplicateVisualSample = structuredClone(inputs.visualEvidence) as GoldenJourneyVisualEvidence;
+    duplicateVisualSample.qualifiedGoldenJourneys[1].sampleId =
+      duplicateVisualSample.qualifiedGoldenJourneys[0].sampleId;
+    expect(() => generateSiteConsumerHandoff(inputs.projection, inputs.matrix, duplicateVisualSample)).toThrow(
+      "duplicate journey, replacement, evidence-binding, or visual identities",
+    );
+
+    // Two catalog IDs pointing at one executable tree is the duplicated-implementation
+    // shape the gallery must never publish, even though both card IDs stay unique.
+    const forkedSourcePath = structuredClone(inputs.projection);
+    const forkedMatrixSource = structuredClone(inputs.matrix) as CapabilitySampleMatrix;
+    const [firstProjected, secondProjected] = forkedSourcePath.samples;
+    secondProjected.source.path = firstProjected.source.path;
+    const secondMatrixSample = forkedMatrixSource.samples.find((sample) => sample.id === secondProjected.id);
+    if (!secondMatrixSample) throw new Error("canonical matrix sample fixture is missing");
+    secondMatrixSample.sourcePath = firstProjected.source.path;
+    expect(() => generateSiteConsumerHandoff(forkedSourcePath, forkedMatrixSource, inputs.visualEvidence)).toThrow(
+      "duplicated card executable source path",
+    );
+
+    const sharedBinding = structuredClone(inputs.matrix) as CapabilitySampleMatrix;
+    const qualifiedMatrixSamples = sharedBinding.samples.filter((sample) => sample.qualification.evidenceBindingId);
+    expect(qualifiedMatrixSamples.length).toBeGreaterThan(1);
+    qualifiedMatrixSamples[1].qualification.evidenceBindingId =
+      qualifiedMatrixSamples[0].qualification.evidenceBindingId;
+    expect(() => generateSiteConsumerHandoff(inputs.projection, sharedBinding, inputs.visualEvidence)).toThrow(
+      "duplicated card evidence binding",
+    );
+
+    const duplicatedCardJourney = structuredClone(checkoutHandoff);
+    const qualifiedCards = duplicatedCardJourney.cards.filter((card) => card.qualification.state === "qualified");
+    expect(qualifiedCards.length).toBeGreaterThan(1);
+    qualifiedCards[1].journey = structuredClone(qualifiedCards[0].journey);
+    await expect(validateSiteConsumerHandoff(duplicatedCardJourney)).rejects.toThrow("duplicated card golden journey");
+
+    const duplicatedCardVisual = structuredClone(checkoutHandoff);
+    const duplicatedVisualCards = duplicatedCardVisual.cards.filter((card) => card.qualification.state === "qualified");
+    duplicatedVisualCards[1].visualEvidence!.sampleId = duplicatedVisualCards[0].id;
+    await expect(validateSiteConsumerHandoff(duplicatedCardVisual)).rejects.toThrow(
+      "duplicated card visual evidence sample",
+    );
+  });
+
+  it("fails publication on stale, orphaned, or unverifiable golden-card receipts", async () => {
+    const inputs = await canonicalInputs();
+    const checkoutHandoff = await checkoutBoundHandoff(inputs.handoff);
+    const qualifiedCardId = checkoutHandoff.cards.find((card) => card.qualification.state === "qualified")?.id;
+    if (!qualifiedCardId) throw new Error("canonical qualified golden card fixture is missing");
+    const tamper = (mutate: (visual: NonNullable<SiteConsumerHandoff["cards"][number]["visualEvidence"]>) => void) => {
+      const candidate = structuredClone(checkoutHandoff);
+      const card = candidate.cards.find((entry) => entry.id === qualifiedCardId);
+      if (!card?.visualEvidence) throw new Error("canonical qualified golden card fixture is missing");
+      mutate(card.visualEvidence);
+      return candidate;
+    };
+
+    // The published policy names packed-package qualification, so a card whose
+    // packed-build receipt silently came from the source-mode SDK overstates it.
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          const packed = visual.semanticEvidence.find((entry) => entry.gate === "packed-build");
+          if (!packed) throw new Error("canonical packed-build receipt fixture is missing");
+          packed.sdkMode = "source";
+        }),
+      ),
+    ).rejects.toThrow("packed-build visual evidence must come from the packed SDK mode");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          const fixtureGate = visual.semanticEvidence.find((entry) => entry.gate === "fixture");
+          if (!fixtureGate) throw new Error("canonical fixture receipt fixture is missing");
+          fixtureGate.receiptPath = fixtureGate.receiptPath.replace(
+            `/${visual.sampleId}/`,
+            "/realtime-incident-dashboard/",
+          );
+        }),
+      ),
+    ).rejects.toThrow("fixture visual evidence receipt is orphaned from its sample");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          visual.semanticEvidence[0].expiresAt = "2026-01-01T00:00:00.000Z";
+        }),
+      ),
+    ).rejects.toThrow("visual evidence is stale or has an invalid freshness window");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          visual.expiresAt = visual.observedAt;
+        }),
+      ),
+    ).rejects.toThrow("visual evidence is stale or has an invalid freshness window");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          visual.source.path = "examples/does-not-exist";
+        }),
+      ),
+    ).rejects.toThrow("golden card source receipt is missing or unbound");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          const [desktop] = visual.screenshots;
+          desktop.sourcePath = desktop.sourcePath.replace(/[^/]+\.png$/, "screenshot-desktop-missing.png");
+        }),
+      ),
+    ).rejects.toThrow("desktop screenshot is broken or missing");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          const [desktop] = visual.screenshots;
+          desktop.sha256 = sha256("a-replaced-screenshot");
+          desktop.reproducibility.repeatSha256 = desktop.sha256;
+        }),
+      ),
+    ).rejects.toThrow("desktop screenshot byte or digest binding is stale");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          visual.semanticEvidence[0].reportSha256 = sha256("a-replaced-gate-report");
+        }),
+      ),
+    ).rejects.toThrow("report byte or digest binding is stale");
+
+    // Only overstated claims fail: a card that honestly reports no qualification
+    // still publishes, and the qualified cards on the current tree stay admissible.
+    const honestlyPending = checkoutHandoff.cards.filter((card) => card.qualification.state !== "qualified");
+    expect(honestlyPending.length).toBeGreaterThan(0);
+    expect(honestlyPending.every((card) => !card.visualEvidence && !card.evidenceBindingId)).toBe(true);
+    await expect(validateSiteConsumerHandoff(checkoutHandoff)).resolves.toBeUndefined();
+  });
+
   it("rejects symlinked source-link components instead of trusting lexical containment", async () => {
     const inputs = await canonicalInputs();
     const checkoutHandoff = await checkoutBoundHandoff(inputs.handoff);

@@ -21,6 +21,7 @@ export interface ProjectedSample {
   supportTier: "supported" | "experimental" | "internal" | "deprecated";
   lifecycle: Record<string, unknown>;
   validationProfile: string;
+  source: { repository: "honua-io/honua-sdk-js"; path: string; docsPath: string };
   sdk: { package: string; version: string };
 }
 
@@ -158,7 +159,23 @@ export interface GoldenJourneyVisualEvidence {
     };
     observedAt: string;
     expiresAt: string;
-    screenshots: Array<Record<string, unknown>>;
+    screenshots: Array<{
+      variant: "desktop" | "mobile";
+      projectName: string;
+      browserName: string;
+      sourcePath: string;
+      mediaType: string;
+      viewport: { width: number; height: number };
+      bytes: number;
+      sha256: string;
+      reproducibility: {
+        captureCount: number;
+        comparison: string;
+        repeatSourcePath: string;
+        repeatBytes: number;
+        repeatSha256: string;
+      };
+    }>;
     semanticEvidence: MatrixReceiptEvidenceBinding[];
     liveEvidence: Record<string, unknown>;
   }>;

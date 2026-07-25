@@ -104,6 +104,49 @@ object is a downstream requirement, not evidence that `honua-site` has already
 implemented or deployed it; that repository must validate the v3 fixture and
 run its own static/accessibility/responsive build before adoption is complete.
 
+Publication admission is fail-closed on four further conditions, and each one
+is checked against what the handoff itself publishes so a consumer can reproduce
+the decision from the handed-off bundle alone.
+
+- Golden-card receipts must be current. `policy.qualifiedRequires` is machine
+  checked per qualified card rather than read as prose: the source identity has
+  to match the card's own executable path and carry a full revision and
+  evidence-neutral digest, `packed-build` has to come from the packed SDK mode,
+  the `fixture` and `live` gates have to be present with a live observation
+  window, both the desktop and the mobile capture have to be present at their
+  required viewport and byte-identical across the repeat capture, and all nine
+  semantic gate receipts have to appear in canonical order. Every aggregate,
+  per-gate, and live freshness window is re-evaluated against the validation
+  clock, so an expired receipt fails publication instead of shipping a stale
+  card.
+- Identities may never be duplicated. Two cards may not share a canonical route,
+  an executable source path, a golden journey, an evidence binding, or a visual
+  evidence sample, and the upstream projection, matrix, and visual-evidence
+  inventories may not repeat a journey, replacement, evidence-binding, or
+  journey/sample identity. This is what keeps a second implementation from
+  riding an already-qualified card's evidence.
+- Published evidence must dereference. Every screenshot, repeat capture, gate
+  receipt, and gate report a card advertises has to resolve inside the owning
+  sample's own `samples/evidence/<sample-id>` root and its own evidence run, as
+  a regular non-symlink file whose bytes and digest match the published
+  reference. A missing file, a replaced file, a stale digest, or a path that
+  reaches into another sample's evidence fails publication.
+- The handoff must stay versioned. Each `inputs` reference is bound to the
+  versioned schema that governs it: the schema's own `$id` has to be a canonical
+  `https://honua.io/schemas/sdk/` identifier ending in the referenced schema
+  version, and its `format`/`schemaVersion` constants have to match the
+  reference. A schema edited without a version bump therefore fails publication
+  rather than silently handing consumers an unversioned bundle.
+
+The file-dereferencing and schema-pinning checks require a checkout and are
+consequently deferred at pull-request time by the derived-artifact decoupling
+(`HONUA_DERIVED_ARTIFACTS_RELAX`, honua-io/honua-sdk-js#677), exactly like the
+existing source and docs link checks. The receipt-currency and duplicate-identity
+checks are pure metadata and always run. Legitimately pending coverage stays
+publishable: an honest `planned`, `partial`, `experimental`, or `unsupported`
+card carries no evidence binding and no visual evidence, and only overstated
+claims fail.
+
 CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence
 producers are `scheduled-only`. Consumers must never flatten those groups or
