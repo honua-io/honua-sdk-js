@@ -4,8 +4,10 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { startImageryCogFixtureServer } from "../../examples/imagery-cog-quickstart/mock-server.mjs";
 import {
   browserExposedCredentials,
+  browserPublicConfigNames,
   deriveExcludedSamples,
   derivePublishedSamples,
   deriveSampleBundleDecisions,
@@ -16,6 +18,7 @@ import {
   INCLUDED_SAMPLES,
   INELIGIBLE_SUPPORT_TIERS,
   PUBLISHABLE_RUNTIME_HOSTING,
+  routeCoveredByHostFixtureRoutes,
   RUNNABILITY_BY_HOSTING,
   RUNTIME_HOSTING_KINDS,
   SAMPLE_BUNDLE_AUDIT,
@@ -242,6 +245,63 @@ test("only requires-host-fixture-service bundles declare host prerequisites (#65
   }
 });
 
+test("declared hostFixtureRoutes cover the asset URLs the imagery-cog journey follows", async () => {
+  // Regression for a route set that looked complete but wasn't: declaring the
+  // STAC item route alone left every asset read uncovered, because the item's
+  // assets carry relative hrefs that resolve against the item URL. A host
+  // provisioning exactly the declared prerequisites would still have 404'd.
+  // Drive the sample's real fixture server so this cannot rot if the fixture
+  // changes shape.
+  const declared = INCLUDED_SAMPLES.find((sample) => sample.id === "imagery-cog-quickstart")?.hostFixtureRoutes;
+  assert.ok(declared?.length, "imagery-cog-quickstart should declare host fixture routes");
+
+  const fixture = await startImageryCogFixtureServer({ build: false });
+  try {
+    const itemPath = "/fixtures/cog/item.json";
+    assert.ok(
+      routeCoveredByHostFixtureRoutes(itemPath, declared),
+      `${itemPath} must itself be covered by the declared routes`,
+    );
+
+    const itemUrl = new URL(itemPath, fixture.url);
+    const response = await fetch(itemUrl);
+    assert.equal(response.status, 200, "the declared STAC item route must serve the fixture item");
+    const item = await response.json();
+
+    const hrefs = Object.values(item.assets ?? {}).map((asset) => asset.href);
+    assert.ok(hrefs.length > 0, "the fixture item should declare assets to follow");
+    assert.ok(
+      hrefs.some((href) => href.startsWith("./")),
+      "this regression only has teeth while the fixture uses relative asset hrefs",
+    );
+
+    for (const href of hrefs) {
+      // STAC resolves an asset href against the item's own URL.
+      const resolved = new URL(href, itemUrl);
+      assert.ok(
+        routeCoveredByHostFixtureRoutes(resolved.pathname, declared),
+        `${resolved.pathname} is requested by the journey but is not covered by any declared hostFixtureRoutes entry`,
+      );
+      const assetResponse = await fetch(resolved, { method: "HEAD" });
+      assert.equal(
+        assetResponse.status,
+        200,
+        `${resolved.pathname} must actually be served by the fixture host, or the declared route is fiction`,
+      );
+    }
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("routeCoveredByHostFixtureRoutes matches whole path segments, not bare string prefixes", () => {
+  assert.ok(routeCoveredByHostFixtureRoutes("/fixtures/cog/assets/x", ["/fixtures/cog/"]));
+  assert.ok(routeCoveredByHostFixtureRoutes("/fixtures/cog", ["/fixtures/cog"]));
+  assert.ok(routeCoveredByHostFixtureRoutes("/rest/services/A/ImageServer/exportImage", ["/rest/services/A/ImageServer"]));
+  assert.ok(!routeCoveredByHostFixtureRoutes("/fixtures/cognition", ["/fixtures/cog"]));
+  assert.ok(!routeCoveredByHostFixtureRoutes("/fixtures/other", ["/fixtures/cog/"]));
+});
+
 test("the newly published samples audited by #656 are bundled", () => {
   for (const id of [
     "ai-spatial-app-builder",
@@ -289,6 +349,38 @@ test("no projected exclusion reason leaks a config variable name", () => {
       `${entry.id}: an exclusion reason is projected publicly and must not name a browser config variable`,
     );
   }
+});
+
+test("configDefaults describes only the browser-public config surface", () => {
+  // `data.config` is a sample's whole configuration surface and mixes in
+  // server-only settings; publishing those in a field the schema documents as
+  // the browser-public surface overstates what a consumer can influence and
+  // leaks backend topology. Two published samples (ai-spatial-app-builder,
+  // service-explorer) have an entirely server-only surface, so they are the
+  // regression canaries.
+  for (const included of INCLUDED_SAMPLES) {
+    const entry = catalogById.get(included.id);
+    const browserPublic = browserPublicConfigNames(entry);
+    const serverOnly = (entry.data.configClassifications ?? [])
+      .filter((classification) => classification.exposure !== "browser-public")
+      .map((classification) => classification.name);
+    for (const name of serverOnly) {
+      assert.ok(
+        !browserPublic.includes(name),
+        `${included.id}: server-only config name ${name} must not reach the published configDefaults`,
+      );
+    }
+  }
+  assert.deepEqual(browserPublicConfigNames(catalogById.get("ai-spatial-app-builder")), []);
+  assert.deepEqual(browserPublicConfigNames(catalogById.get("service-explorer")), []);
+  assert.deepEqual(browserPublicConfigNames(catalogById.get("imagery-cog-quickstart")), ["VITE_HONUA_IMAGERY_BASE_URL"]);
+});
+
+test("browserPublicConfigNames fails closed on an unclassified config name", () => {
+  const entry = fakeSample("fixture-unclassified", {
+    data: { mode: "hybrid", config: ["VITE_MYSTERY"], configurationStatus: "approved", configClassifications: [] },
+  });
+  assert.throws(() => browserPublicConfigNames(entry), /has no configClassifications entry/);
 });
 
 test("the exclusion category enum stays in sync between the source list and both JSON schemas", () => {
@@ -478,8 +570,8 @@ function placeholderSample(id) {
 
 test("validateSampleBundleManifest rejects a manifest whose excluded ids overlap its bundled ids", async () => {
   const manifest = {
-    format: "honua.sdk.sample-bundles.v1",
-    schemaVersion: 1,
+    format: "honua.sdk.sample-bundles.v2",
+    schemaVersion: 2,
     build: { node: ">=20.0.0", lockfileSha256: "a".repeat(64) },
     samples: INCLUDED_SAMPLE_IDS.map((id) => placeholderSample(id)),
     excluded: [{ id: INCLUDED_SAMPLE_IDS[0], category: "agent-shaped", reason: "duplicate of a bundled sample" }],
@@ -492,8 +584,8 @@ test("validateSampleBundleManifest rejects runnability truth that drifted from t
   const target = samples.find((sample) => sample.runnability === "requires-host-fixture-service");
   assert.ok(target, "at least one published bundle should declare host prerequisites");
   const manifest = {
-    format: "honua.sdk.sample-bundles.v1",
-    schemaVersion: 1,
+    format: "honua.sdk.sample-bundles.v2",
+    schemaVersion: 2,
     build: { node: ">=20.0.0", lockfileSha256: "a".repeat(64) },
     samples: samples.map((sample) =>
       sample.id === target.id
@@ -508,8 +600,8 @@ test("validateSampleBundleManifest rejects runnability truth that drifted from t
 test("validateSampleBundleManifest cross-checks full catalog coverage when given a catalog", async () => {
   const excluded = deriveExcludedSamples(catalog);
   const completeManifest = {
-    format: "honua.sdk.sample-bundles.v1",
-    schemaVersion: 1,
+    format: "honua.sdk.sample-bundles.v2",
+    schemaVersion: 2,
     build: { node: ">=20.0.0", lockfileSha256: "a".repeat(64) },
     samples: INCLUDED_SAMPLE_IDS.map((id) => placeholderSample(id)),
     excluded,

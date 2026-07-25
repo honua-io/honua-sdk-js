@@ -55,7 +55,10 @@ const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 // snapshot (scripts/lib/prepared-sdk-artifact.mjs); foreign files there break
 // its digest verification in every downstream test step.
 const OUTPUT_ROOT = path.join(PROJECT_ROOT, ".artifacts", "sample-bundles");
-const MANIFEST_PATH = path.join(OUTPUT_ROOT, "sample-bundles.v1.json");
+// The manifest filename carries its own format version (the repo convention —
+// cf. samples/dist/sample-ci-selection.v2.json), so a v2 cutover publishes a
+// distinct asset rather than silently changing v1's shape under consumers.
+const MANIFEST_PATH = path.join(OUTPUT_ROOT, "sample-bundles.v2.json");
 const SCHEMA_PATH = path.join(PROJECT_ROOT, "samples/contract/v2/schemas/sample-bundles.schema.json");
 
 /**
@@ -224,7 +227,13 @@ export const SAMPLE_BUNDLE_AUDIT = [
     buildScript: "demo:imagery-cog:build",
     hostFixtureRoutes: [
       "/api/v1/terrain/OahuTerrain/elevation/value",
-      "/fixtures/cog/item.json",
+      // The whole `/fixtures/cog/` prefix, not just `item.json`: the item's
+      // STAC assets carry relative hrefs (`./assets/<key>`) that the SDK's
+      // stac-static inspection resolves against the item URL, so the bundle
+      // then requests `/fixtures/cog/assets/<key>`. Declaring only the item
+      // route left a host provisioning exactly the stated prerequisites
+      // 404ing on every asset read.
+      "/fixtures/cog/",
       "/fixtures/imagery/cog/",
       "/rest/services/OahuCog/ImageServer",
       "/rest/services/OahuImagery/MapServer/WMS",
@@ -350,6 +359,51 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/temporal-playback/src/main.ts mounts an inline MapLibre style over in-module fixture frames; the sample issues no fetch.",
   },
 ];
+
+/**
+ * Whether a same-origin request path is satisfied by a bundle's declared
+ * `hostFixtureRoutes`. A declared route matches its own exact path and
+ * everything beneath it as a path-segment prefix, so `/fixtures/cog/` covers
+ * `/fixtures/cog/assets/x` and `/rest/services/OahuCog/ImageServer` covers
+ * `.../ImageServer/exportImage`, while `/fixtures/cog` never covers an
+ * unrelated `/fixtures/cognition`. This is the semantics an embedding host has
+ * to implement, so it is part of the contract rather than a test detail.
+ */
+export function routeCoveredByHostFixtureRoutes(requestPath, routes) {
+  return routes.some((route) => {
+    if (requestPath === route) return true;
+    const prefix = route.endsWith("/") ? route : `${route}/`;
+    return requestPath.startsWith(prefix);
+  });
+}
+
+/**
+ * The config names that actually reach a browser build, which is the only
+ * surface a published bundle's `configDefaults` may describe.
+ *
+ * `data.config` is the sample's *whole* declared configuration surface and
+ * mixes in server-only settings (`ai-spatial-app-builder`'s
+ * `HONUA_AGENT_HOST_URL` / `HONUA_LIVE_DATA_URL`, `service-explorer`'s live
+ * toggle). Deriving `configDefaults` from it published those names in a field
+ * the schema and docs define as the browser-public surface, overstating what a
+ * consumer can influence and leaking backend topology into a public artifact.
+ * `configClassifications` is the catalog's authoritative exposure verdict, so
+ * filter on it and fail closed on anything unclassified.
+ */
+export function browserPublicConfigNames(catalogEntry) {
+  const classifications = catalogEntry.data.configClassifications ?? [];
+  const classified = new Set(classifications.map((entry) => entry.name));
+  for (const name of catalogEntry.data.config ?? []) {
+    invariant(
+      classified.has(name),
+      `${catalogEntry.id}: declared config name "${name}" has no configClassifications entry, so its browser exposure is unknown`,
+    );
+  }
+  return classifications
+    .filter((entry) => entry.exposure === "browser-public")
+    .map((entry) => entry.name)
+    .sort();
+}
 
 /**
  * Config names the catalog classifies as reaching the browser *and* holding a
@@ -543,7 +597,7 @@ export function verifySampleBundleAudit(catalog, { audit = SAMPLE_BUNDLE_AUDIT, 
         invariant(route.startsWith("/"), `${record.id}: hostFixtureRoutes entry "${route}" must be an absolute path`);
       }
       invariant(
-        [...routes].sort().join(" ") === routes.join(" "),
+        routes.every((route, index) => index === 0 || routes[index - 1] <= route),
         `${record.id}: hostFixtureRoutes must be sorted for a stable manifest`,
       );
       invariant(
@@ -726,8 +780,8 @@ async function buildSample(
 
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   // "--base ./" makes Vite emit relative asset URLs so bundles work when
-// served under per-sample subpaths (samples.honua.io/sdk/<id>/app/).
-const result = spawnSync(npmCommand, ["run", buildScript, "--silent", "--", "--base", "./"], {
+  // served under per-sample subpaths (samples.honua.io/sdk/<id>/app/).
+  const result = spawnSync(npmCommand, ["run", buildScript, "--silent", "--", "--base", "./"], {
     cwd: PROJECT_ROOT,
     encoding: "utf8",
     env: fixtureBuildEnv(),
@@ -751,7 +805,7 @@ const result = spawnSync(npmCommand, ["run", buildScript, "--silent", "--", "--b
     `${id}: copied bundle is missing index.html`,
   );
 
-  const configDefaults = Object.fromEntries((catalogEntry.data.config ?? []).map((name) => [name, null]));
+  const configDefaults = Object.fromEntries(browserPublicConfigNames(catalogEntry).map((name) => [name, null]));
 
   return {
     id,
@@ -788,8 +842,8 @@ export async function buildSampleBundleManifest({ gitCommit = gitSha() } = {}) {
   const excluded = deriveExcludedSamples(catalog);
 
   return {
-    format: "honua.sdk.sample-bundles.v1",
-    schemaVersion: 1,
+    format: "honua.sdk.sample-bundles.v2",
+    schemaVersion: 2,
     build: {
       node: packageJson.engines.node,
       lockfileSha256: sha256(packageLock),

@@ -29,11 +29,10 @@ Each build:
    committed);
 3. hashes every emitted file (SHA-256 + a Subresource-Integrity string).
 
-The result is written to `.artifacts/sample-bundles/sample-bundles.v1.json`,
+The result is written to `.artifacts/sample-bundles/sample-bundles.v2.json`,
 validated against `samples/contract/v2/schemas/sample-bundles.schema.json`
-(format `honua.sdk.sample-bundles.v1`). Each bundled sample entry carries
-`id`, `entrypoint`, `dataMode`, `configDefaults` (the sample's declared
-browser-public config surface; `null` values mean no override was applied),
+(format `honua.sdk.sample-bundles.v2`). Each bundled sample entry carries
+`id`, `entrypoint`, `dataMode`, `configDefaults` (see below),
 `builtFrom: { commit, packageVersion }`, and `files[]`, plus the publication
 truth honua-io/honua-sdk-js#656 REQ-005 requires:
 
@@ -44,6 +43,36 @@ truth honua-io/honua-sdk-js#656 REQ-005 requires:
 | `hostFixtureRoutes` | The same-origin path prefixes the embedding host must serve. Empty for `standalone`. |
 | `support` | `{ tier, track, validationProfile }`, copied from the catalog. |
 | `lifecycle` | `{ state, reason }` plus `targetRelease` / `replacement` when the catalog declares them. |
+
+`configDefaults` is the sample's **browser-public** config surface only:
+exactly the catalog `data.configClassifications` entries whose `exposure` is
+`browser-public`, with `null` meaning no override was applied. It is
+deliberately *not* `data.config`, which is the sample's whole configuration
+surface and mixes in server-only settings (`ai-spatial-app-builder`'s
+`HONUA_AGENT_HOST_URL` / `HONUA_LIVE_DATA_URL`, `service-explorer`'s live
+toggle). Publishing those in a field defined as the browser-public surface
+would overstate what a consumer can influence and leak backend topology into a
+public artifact.
+
+### `hostFixtureRoutes` matching, and derived URLs
+
+Each entry matches its own exact path and everything beneath it as a
+**path-segment prefix**: `/fixtures/cog/` covers `/fixtures/cog/assets/x`, and
+`/rest/services/OahuCog/ImageServer` covers `.../ImageServer/exportImage`, but
+`/fixtures/cog` never covers `/fixtures/cognition`.
+`routeCoveredByHostFixtureRoutes` in `scripts/build-sample-bundles.mjs` is the
+reference implementation.
+
+Routes must account for URLs the journey *derives from fixture responses*, not
+only the ones it requests first. `imagery-cog-quickstart` is the worked
+example: its STAC item at `/fixtures/cog/item.json` carries relative asset
+hrefs (`./assets/<key>`) that resolve against the item URL, so the bundle then
+reads `/fixtures/cog/assets/<key>`. Declaring only the item route left all
+seven assets uncovered, and a host provisioning exactly the stated
+prerequisites would still have 404'd; the declared prefix is now
+`/fixtures/cog/`. A test drives the sample's real fixture server, follows every
+asset href, and asserts both that the resolved path is covered and that the
+host actually serves it.
 
 `builtFrom.commit` is the source SHA and `builtFrom.packageVersion` the SDK
 version; `files[].sha256` / `files[].integrity` are the integrity hashes.
@@ -64,6 +93,48 @@ since honua-io/honua-sdk-js#642 with an undeclared prerequisite of exactly this
 kind (`endpointFromEnvironment` resolves to
 `${location.origin}/rest/services/natural-earth/FeatureServer/0` with no
 `public/` directory to serve it from).
+
+## Manifest format v1 -> v2 (retirement, not extension)
+
+honua-io/honua-sdk-js#656 publishes the manifest as
+`honua.sdk.sample-bundles.v2` (`sample-bundles.v2.json`,
+`$id: .../sample-bundles.v2.schema.json`, `schemaVersion: 2`) and **retires
+v1**. The schema filename stays `sample-bundles.schema.json`, matching the
+repo convention that the version lives in `$id` / `format` / `schemaVersion`
+and in the generated artifact's filename (cf. `sample-ci-selection.schema.json`
+producing `samples/dist/sample-ci-selection.v2.json`, and
+`site-consumer-fixture.schema.json` bumped in place from v2 to v3).
+
+A version bump is required rather than optional. Both the manifest object and
+every sample object are `additionalProperties: false`, so the v2 fields break
+compatibility in *both* directions: a consumer validating against pinned v1
+rejects a newly generated manifest for unknown properties, and the updated
+schema rejects a previously valid v1 manifest for missing required fields.
+Keeping `format` and `schemaVersion` at v1 through that change would have been
+a silent breaking change.
+
+**v1 is retired rather than dual-published**, for two reasons:
+
+- v1 has no field that can express a host prerequisite. Any v1 manifest listing
+  the five `requires-host-fixture-service` bundles -- which includes
+  `maplibre-quickstart`, already published in v1 -- is misleading by
+  construction. Continuing to emit v1 would preserve exactly the overstatement
+  this issue exists to remove, and restricting v1 to the standalone bundles
+  would instead drop the flagship First Map card out of it.
+- `sample-bundles.tar.gz` is a single rolling asset built from the v2 sample
+  set. A left-behind `sample-bundles.v1.json` would pair stale per-file hashes
+  with fresh bundle bytes and fail every integrity check it exists to support,
+  which is worse than a clean 404. The release job therefore deletes the v1
+  asset after uploading v2.
+
+There is no migration artifact under `samples/contract/v2/migrations/` because
+there is nothing to migrate: unlike `catalog.v1-to-v2.json`, which is a
+script input that transforms a committed source file, this manifest is
+regenerated from source on every build. Migrating means pointing at the new
+asset name and format string, both of which are discoverable from the site
+projection (`sampleBundles.publication.manifestAsset` and
+`sampleBundles.format`), so a consumer that follows the documented discovery
+path moves over without a code change.
 
 ```sh
 npm run samples:bundles:build    # build every included sample + write the manifest
@@ -295,7 +366,7 @@ Instead, `.github/workflows/ci.yml`:
 
   ```sh
   gh release download sample-bundles-latest -R honua-io/honua-sdk-js \
-    -p 'sample-bundles.v1.json' -p 'sample-bundles.tar.gz'
+    -p 'sample-bundles.v2.json' -p 'sample-bundles.tar.gz'
   ```
 
 ## Discovery from the site projection

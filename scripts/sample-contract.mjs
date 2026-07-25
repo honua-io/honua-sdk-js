@@ -3414,12 +3414,12 @@ export function generateSiteProjection(catalog, packageJson) {
     samples: effective.samples.map((sample) => publicSample(sample, effective.sdk)),
     routes,
     sampleBundles: {
-      format: "honua.sdk.sample-bundles.v1",
-      schemaVersion: 1,
+      format: "honua.sdk.sample-bundles.v2",
+      schemaVersion: 2,
       publication: {
         repo: "honua-io/honua-sdk-js",
         releaseTag: "sample-bundles-latest",
-        manifestAsset: "sample-bundles.v1.json",
+        manifestAsset: "sample-bundles.v2.json",
         bundleAsset: "sample-bundles.tar.gz",
       },
       sampleIds: [...INCLUDED_SAMPLE_IDS].sort(),

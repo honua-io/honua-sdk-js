@@ -41,6 +41,15 @@ execution evidence so none of those meanings has to be inferred from another.
   required accessible keyboard and desktop/mobile responsive behavior. Both
   artifacts publish closed collection, string, JSON-depth, and byte budgets;
   the fixture separately exercises positive text and zero-result searches.
+- `sample-bundles.schema.json` defines the static browser bundles published for
+  the samples gallery to embed. The manifest is not committed: it is built into
+  `.artifacts/sample-bundles/sample-bundles.v2.json` and published as a rolling
+  GitHub Release asset. Alongside per-file SHA-256/SRI integrity and the build
+  commit, every entry carries the publication truth a consumer needs to embed a
+  bundle honestly -- support tier, lifecycle, the browser-public config surface,
+  and whether the bundle runs `standalone` or only where the host serves its
+  declared `hostFixtureRoutes`. Format v2 (honua-io/honua-sdk-js#656) retires
+  v1; see [`docs/sample-bundles.md`](../../../docs/sample-bundles.md).
 - `migrations/catalog.v1-to-v2.json` is the reviewed one-time migration overlay.
   `npm run samples:migrate:v1` reproduces `samples/catalog.v2.json` from the
   frozen v1 catalog and this overlay.
