@@ -17,6 +17,21 @@ and a stamped subtree re-themes locally). SDK web components pick the theme up
 automatically — the sheet bridges the `--honua-ui-*` hooks used by
 `src/web-components` and `src/controls`.
 
+The kit's own diagnostics strip (`mountSamplePresentation`) is styled once in
+`examples/_kit/presentation.css` from these tokens, with literal fallbacks for
+samples that have not adopted the language yet. Samples must not re-tint
+`.honua-sample-kit`.
+
+Samples on the language: `maplibre-quickstart` (First Map),
+`migration-workbench`, `service-explorer`, `imagery-cog-quickstart`. Still to
+convert: `planning-permitting-workbench`, `realtime-incident-dashboard`, and
+the non-kit examples.
+
+A sample that offers a manual theme override stamps `<html data-theme>` from a
+three-state toggle (`auto → light → dark`) and re-keys its basemap background
+from `--hn-basemap-land`, so the canvas never stays a light plate under dark
+chrome.
+
 ## Identity: the field instrument
 
 Honua is Hawaiian for earth. The samples are instruments for reading the earth,
