@@ -5,12 +5,22 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  browserExposedCredentials,
   deriveExcludedSamples,
+  derivePublishedSamples,
+  deriveSampleBundleDecisions,
+  evaluateSampleBundleEligibility,
   EXCLUDED_SAMPLE_CATEGORIES,
   EXCLUDED_SAMPLES,
   INCLUDED_SAMPLE_IDS,
   INCLUDED_SAMPLES,
+  INELIGIBLE_SUPPORT_TIERS,
+  PUBLISHABLE_RUNTIME_HOSTING,
+  RUNNABILITY_BY_HOSTING,
+  RUNTIME_HOSTING_KINDS,
+  SAMPLE_BUNDLE_AUDIT,
   validateSampleBundleManifest,
+  verifySampleBundleAudit,
 } from "../../scripts/build-sample-bundles.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -22,6 +32,8 @@ const siteProjectionSchema = JSON.parse(
   fs.readFileSync(path.join(ROOT, "samples/contract/v2/schemas/site-projection.schema.json"), "utf8"),
 );
 
+const catalogById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+
 function fakeCatalog(samples) {
   return { samples };
 }
@@ -29,92 +41,379 @@ function fakeCatalog(samples) {
 function fakeSample(id, overrides = {}) {
   return {
     id,
-    data: { mode: "fixture", config: [] },
+    supportTier: "supported",
+    track: "recipe",
+    validationProfile: "browser-recipe",
+    sourcePath: `examples/${id}`,
+    data: { mode: "fixture", config: [], configurationStatus: "not-required", configClassifications: [] },
     lifecycle: { state: "active", reason: "test fixture" },
     ...overrides,
   };
 }
 
-test("every real catalog sample is exactly bundled or excluded, never both", () => {
-  const excluded = deriveExcludedSamples(catalog);
+function fakeAudit(id, overrides = {}) {
+  return { id, runtimeHosting: "self-contained", buildScript: `demo:${id}:build`, auditedVia: "test fixture", ...overrides };
+}
+
+test("every catalog sample gets exactly one publish-or-exclude decision (#656 REQ-001)", () => {
+  const decisions = deriveSampleBundleDecisions(catalog);
+  assert.equal(decisions.length, catalog.samples.length, "every catalog entry must be decided exactly once");
+  assert.equal(new Set(decisions.map((decision) => decision.id)).size, decisions.length, "decision ids must be unique");
+
   const includedIds = new Set(INCLUDED_SAMPLE_IDS);
-  const excludedIds = new Set(excluded.map((entry) => entry.id));
-
-  assert.equal(excluded.length, catalog.samples.length - INCLUDED_SAMPLES.length);
-  assert.equal(excludedIds.size, excluded.length, "excluded ids must be unique");
-
+  const excludedIds = new Set(EXCLUDED_SAMPLES.map((entry) => entry.id));
+  assert.equal(includedIds.size + excludedIds.size, catalog.samples.length);
   for (const sample of catalog.samples) {
-    const bundled = includedIds.has(sample.id);
-    const isExcluded = excludedIds.has(sample.id);
-    assert.notEqual(bundled, isExcluded, `${sample.id} must be either bundled or excluded, not both/neither`);
+    assert.notEqual(
+      includedIds.has(sample.id),
+      excludedIds.has(sample.id),
+      `${sample.id} must be either bundled or excluded, not both/neither`,
+    );
   }
-  for (const id of includedIds) {
+});
+
+test("the audit table covers exactly the active catalog entries (#656 REQ-001)", () => {
+  const auditedIds = SAMPLE_BUNDLE_AUDIT.map((record) => record.id);
+  assert.equal(new Set(auditedIds).size, auditedIds.length, "audit ids must be unique");
+
+  const activeIds = catalog.samples.filter((sample) => sample.lifecycle.state === "active").map((sample) => sample.id);
+  assert.deepEqual([...auditedIds].sort(), [...activeIds].sort());
+
+  for (const record of SAMPLE_BUNDLE_AUDIT) {
     assert.ok(
-      catalog.samples.some((sample) => sample.id === id),
-      `${id}: INCLUDED_SAMPLES id not found in samples/catalog.v2.json`,
+      RUNTIME_HOSTING_KINDS.includes(record.runtimeHosting),
+      `${record.id}: unknown runtimeHosting "${record.runtimeHosting}"`,
+    );
+    assert.ok(
+      typeof record.auditedVia === "string" && record.auditedVia.length > 0,
+      `${record.id}: must record the source location that establishes its runtimeHosting`,
+    );
+  }
+});
+
+test("the audit table's structural claims hold against the tree (#656 REQ-001)", () => {
+  assert.doesNotThrow(() => verifySampleBundleAudit(catalog));
+});
+
+test("verifySampleBundleAudit rejects a runtimeHosting claim the tree contradicts", () => {
+  // maplibre-quickstart really is a Vite app, so claiming it is not a runtime
+  // sample must fail rather than silently mis-describing the gallery.
+  assert.throws(
+    () =>
+      verifySampleBundleAudit(catalog, {
+        audit: [{ id: "maplibre-quickstart", runtimeHosting: "not-a-runtime-sample", auditedVia: "wrong" }],
+      }),
+    /claims there is no browser app, but examples\/maplibre-quickstart\/vite\.config\.ts exists/,
+  );
+  // node-backend-quickstart has no vite.config.ts, so claiming it bundles must fail.
+  assert.throws(
+    () =>
+      verifySampleBundleAudit(catalog, {
+        audit: [
+          {
+            id: "node-backend-quickstart",
+            runtimeHosting: "self-contained",
+            buildScript: "demo:node-backend:build",
+            auditedVia: "wrong",
+          },
+        ],
+      }),
+    /implies a Vite browser app, but examples\/node-backend-quickstart\/vite\.config\.ts is missing/,
+  );
+});
+
+test("verifySampleBundleAudit binds hostFixtureRoutes to the same-origin-fixture-service kind", () => {
+  assert.throws(
+    () =>
+      verifySampleBundleAudit(catalog, {
+        audit: [
+          {
+            id: "service-explorer",
+            runtimeHosting: "same-origin-fixture-service",
+            buildScript: "demo:service-explorer:build",
+            auditedVia: "missing routes",
+          },
+        ],
+      }),
+    /same-origin-fixture-service must declare hostFixtureRoutes/,
+  );
+  assert.throws(
+    () =>
+      verifySampleBundleAudit(catalog, {
+        audit: [
+          {
+            id: "sketch-editing",
+            runtimeHosting: "self-contained",
+            buildScript: "demo:sketch-editing:build",
+            hostFixtureRoutes: ["/fixtures/anything"],
+            auditedVia: "self-contained samples need no host routes",
+          },
+        ],
+      }),
+    /only same-origin-fixture-service may declare hostFixtureRoutes/,
+  );
+  assert.throws(
+    () =>
+      verifySampleBundleAudit(catalog, {
+        audit: [
+          {
+            id: "service-explorer",
+            runtimeHosting: "same-origin-fixture-service",
+            buildScript: "demo:service-explorer:build",
+            hostFixtureRoutes: ["fixtures/ogc"],
+            auditedVia: "relative route",
+          },
+        ],
+      }),
+    /must be an absolute path/,
+  );
+});
+
+test("verifySampleBundleAudit requires a declared buildScript to actually build that sample", () => {
+  assert.throws(
+    () =>
+      verifySampleBundleAudit(catalog, {
+        audit: [
+          {
+            id: "sketch-editing",
+            runtimeHosting: "self-contained",
+            buildScript: "demo:quickstart:build",
+            auditedVia: "wrong build script",
+          },
+        ],
+      }),
+    /does not build examples\/sketch-editing\/vite\.config\.ts/,
+  );
+});
+
+test("every published bundle clears the catalog-derived eligibility gates (#656 REQ-002/REQ-003)", () => {
+  assert.ok(INCLUDED_SAMPLES.length > 0);
+  for (const included of INCLUDED_SAMPLES) {
+    const entry = catalogById.get(included.id);
+    assert.ok(entry, `${included.id}: published id is not in samples/catalog.v2.json`);
+    assert.equal(entry.lifecycle.state, "active", `${included.id}: only active samples may publish`);
+    assert.ok(
+      !INELIGIBLE_SUPPORT_TIERS.has(entry.supportTier),
+      `${included.id}: supportTier "${entry.supportTier}" may not publish a bundle`,
+    );
+    assert.notEqual(
+      entry.data.configurationStatus,
+      "legacy-unsafe",
+      `${included.id}: legacy-unsafe browser configuration may not publish a bundle`,
+    );
+    assert.deepEqual(
+      browserExposedCredentials(entry),
+      [],
+      `${included.id}: a published bundle may not depend on a browser-public credential`,
+    );
+    assert.ok(
+      PUBLISHABLE_RUNTIME_HOSTING.has(included.runtimeHosting),
+      `${included.id}: runtimeHosting "${included.runtimeHosting}" is not publishable`,
+    );
+    assert.equal(included.runnability, RUNNABILITY_BY_HOSTING.get(included.runtimeHosting));
+  }
+});
+
+test("only requires-host-fixture-service bundles declare host prerequisites (#656 REQ-005)", () => {
+  const published = derivePublishedSamples(catalog);
+  assert.deepEqual(
+    published.map((entry) => entry.id),
+    [...INCLUDED_SAMPLE_IDS].sort(),
+  );
+  for (const entry of published) {
+    if (entry.runnability === "standalone") {
+      assert.deepEqual(entry.hostFixtureRoutes, [], `${entry.id}: a standalone bundle needs no host routes`);
+    } else {
+      assert.equal(entry.runnability, "requires-host-fixture-service");
+      assert.ok(entry.hostFixtureRoutes.length > 0, `${entry.id}: must state what the host has to serve`);
+    }
+  }
+  // The five samples whose default lane addresses same-origin fixture routes
+  // the bundle does not contain must never be presented as standalone.
+  const byId = new Map(published.map((entry) => [entry.id, entry]));
+  for (const id of [
+    "imagery-cog-quickstart",
+    "maplibre-quickstart",
+    "planning-permitting-workbench",
+    "react-quickstart",
+    "service-explorer",
+  ]) {
+    assert.equal(byId.get(id)?.runnability, "requires-host-fixture-service", `${id} must declare its prerequisites`);
+  }
+});
+
+test("the newly published samples audited by #656 are bundled", () => {
+  for (const id of [
+    "ai-spatial-app-builder",
+    "imagery-cog-quickstart",
+    "planning-permitting-workbench",
+    "react-quickstart",
+    "service-explorer",
+  ]) {
+    const included = INCLUDED_SAMPLES.find((sample) => sample.id === id);
+    assert.ok(included, `${id} should be published by #656's audit`);
+    assert.ok(included.buildScript, `${id} must reuse an existing demo build script`);
+    assert.ok(
+      !EXCLUDED_SAMPLES.some((entry) => entry.id === id),
+      `${id} must not also appear as an exclusion`,
     );
   }
 });
 
 test("overture-geoparquet is bundled through the existing prepare+build script chain", () => {
   const overture = INCLUDED_SAMPLES.find((sample) => sample.id === "overture-geoparquet");
-  assert.ok(overture, "overture-geoparquet should now be an INCLUDED_SAMPLES entry (#656)");
+  assert.ok(overture, "overture-geoparquet should be a published sample (#656)");
   assert.equal(overture.buildScript, "demo:overture:build");
-  assert.ok(
-    !EXCLUDED_SAMPLES.some((entry) => entry.id === "overture-geoparquet"),
-    "overture-geoparquet must not also appear in EXCLUDED_SAMPLES",
-  );
+  assert.equal(overture.runnability, "standalone");
 });
 
-test("every hand-classified exclusion category is declared in EXCLUDED_SAMPLE_CATEGORIES", () => {
+test("every computed exclusion category is declared in EXCLUDED_SAMPLE_CATEGORIES", () => {
   for (const entry of EXCLUDED_SAMPLES) {
     assert.ok(
       EXCLUDED_SAMPLE_CATEGORIES.includes(entry.category),
       `${entry.id}: category "${entry.category}" is not in EXCLUDED_SAMPLE_CATEGORIES`,
+    );
+    assert.ok(entry.reason.length > 0, `${entry.id}: every exclusion must carry a reason (#656 REQ-004)`);
+  }
+});
+
+test("no projected exclusion reason leaks a config variable name", () => {
+  // `sampleBundles.excluded[].reason` lands in the public site projection,
+  // which test/sample-contract.test.ts asserts never contains "VITE_". Guard
+  // it here too, next to the audit records the reasons are composed from, so
+  // a new `auditedVia` string fails fast rather than in a distant spec.
+  for (const entry of EXCLUDED_SAMPLES) {
+    assert.doesNotMatch(
+      entry.reason,
+      /VITE_/,
+      `${entry.id}: an exclusion reason is projected publicly and must not name a browser config variable`,
     );
   }
 });
 
 test("the exclusion category enum stays in sync between the source list and both JSON schemas", () => {
   const bundleEnum = bundleSchema.$defs.excludedSample.properties.category.enum;
-  const projectionEnum =
-    siteProjectionSchema.$defs.sampleBundles.properties.excluded.items.properties.category.enum;
+  const projectionEnum = siteProjectionSchema.$defs.sampleBundles.properties.excluded.items.properties.category.enum;
 
   assert.deepEqual([...bundleEnum].sort(), [...EXCLUDED_SAMPLE_CATEGORIES].sort());
   assert.deepEqual([...projectionEnum].sort(), [...EXCLUDED_SAMPLE_CATEGORIES].sort());
 });
 
-test("no hand-classified id is not also an active or non-active catalog member's real state", () => {
-  // Regression test for the bug this pass found: build-sample-bundles.mjs's
-  // old catch-all comment claimed planning-permitting-workbench and
-  // service-explorer had a non-"active" lifecycle.state when the catalog
-  // actually marks both "active". deriveExcludedSamples must reject a
-  // "lifecycle-not-active" category on an active catalog sample, and must
-  // reject any other category on a non-active catalog sample.
-  const activeSample = fakeSample("fixture-active");
-  const reworkSample = fakeSample("fixture-rework", { lifecycle: { state: "rework", reason: "test fixture" } });
-  const catalogFixture = fakeCatalog([activeSample, reworkSample]);
-
-  assert.throws(
-    () =>
-      deriveExcludedSamples(catalogFixture, {
-        explicit: [{ id: "fixture-active", category: "lifecycle-not-active", reason: "stale" }],
-      }),
-    /lifecycle\.state is "active"/,
+test("the runnability enum stays in sync between the source map and both JSON schemas", () => {
+  const expected = [...new Set(RUNNABILITY_BY_HOSTING.values())].sort();
+  assert.deepEqual([...bundleSchema.$defs.sample.properties.runnability.enum].sort(), expected);
+  assert.deepEqual(
+    [...siteProjectionSchema.$defs.sampleBundles.properties.published.items.properties.runnability.enum].sort(),
+    expected,
   );
-
-  assert.throws(
-    () =>
-      deriveExcludedSamples(catalogFixture, {
-        explicit: [{ id: "fixture-rework", category: "agent-shaped", reason: "stale" }],
-      }),
-    /use category "lifecycle-not-active" instead/,
+  assert.deepEqual(
+    [...bundleSchema.$defs.sample.properties.runtimeHosting.enum].sort(),
+    [...PUBLISHABLE_RUNTIME_HOSTING].sort(),
   );
 });
 
-test("an active catalog sample with no inclusion or exclusion entry fails loudly instead of guessing", () => {
+test("a browser-public credential blocks publication as requires-api-key (#656 REQ-003)", () => {
+  const entry = fakeSample("fixture-secret", {
+    data: {
+      mode: "hybrid",
+      config: ["VITE_SECRET"],
+      configurationStatus: "approved",
+      configClassifications: [{ name: "VITE_SECRET", exposure: "browser-public", valueKind: "credential" }],
+    },
+  });
+  const decision = evaluateSampleBundleEligibility(entry, fakeAudit("fixture-secret"));
+  assert.equal(decision.decision, "exclude");
+  assert.equal(decision.category, "requires-api-key");
+  // The projected reason counts the offending names without printing them --
+  // the public site projection must never carry a config variable name.
+  assert.match(decision.reason, /1 declared config name as a browser-public credential/);
+  assert.doesNotMatch(decision.reason, /VITE_SECRET/);
+  // ...but the names stay locally derivable for debugging.
+  assert.deepEqual(browserExposedCredentials(entry), ["VITE_SECRET"]);
+  // A server-only credential never reaches the browser build, so it must not block.
+  const serverOnly = fakeSample("fixture-server-secret", {
+    data: {
+      mode: "hybrid",
+      config: ["SECRET"],
+      configurationStatus: "approved",
+      configClassifications: [{ name: "SECRET", exposure: "server-only", valueKind: "credential" }],
+    },
+  });
+  assert.equal(evaluateSampleBundleEligibility(serverOnly, fakeAudit("fixture-server-secret")).decision, "publish");
+});
+
+test("legacy-unsafe configuration and ineligible support tiers block publication (#656 REQ-003)", () => {
+  const legacy = fakeSample("fixture-legacy", {
+    data: { mode: "hybrid", config: [], configurationStatus: "legacy-unsafe", configClassifications: [] },
+  });
+  const legacyDecision = evaluateSampleBundleEligibility(legacy, fakeAudit("fixture-legacy"));
+  assert.equal(legacyDecision.category, "legacy-unsafe-configuration");
+
+  for (const tier of INELIGIBLE_SUPPORT_TIERS) {
+    const decision = evaluateSampleBundleEligibility(
+      fakeSample(`fixture-${tier}`, { supportTier: tier }),
+      fakeAudit(`fixture-${tier}`),
+    );
+    assert.equal(decision.category, "unsupported-support-tier", `${tier} must not publish`);
+  }
+});
+
+test("each non-publishable runtimeHosting maps to its own exclusion category (#656 REQ-004)", () => {
+  const expected = new Map([
+    ["external-live-endpoint", "requires-live-backend"],
+    ["companion-process", "requires-companion-server"],
+    ["server-side-app", "non-browser-app"],
+    ["not-a-runtime-sample", "non-runtime-sample"],
+  ]);
+  for (const [hosting, category] of expected) {
+    const decision = evaluateSampleBundleEligibility(
+      fakeSample("fixture-hosting"),
+      fakeAudit("fixture-hosting", { runtimeHosting: hosting }),
+    );
+    assert.equal(decision.decision, "exclude");
+    assert.equal(decision.category, category, `${hosting} should exclude as ${category}`);
+    assert.match(decision.reason, /test fixture$/, "the reason must end with the audit evidence");
+  }
+  for (const hosting of PUBLISHABLE_RUNTIME_HOSTING) {
+    const audit = fakeAudit("fixture-hosting", {
+      runtimeHosting: hosting,
+      ...(hosting === "same-origin-fixture-service" ? { hostFixtureRoutes: ["/fixtures"] } : {}),
+    });
+    assert.equal(evaluateSampleBundleEligibility(fakeSample("fixture-hosting"), audit).decision, "publish");
+  }
+});
+
+test("a structural non-browser sample keeps its structural category even at an ineligible tier", () => {
+  // "this is not a browser app at all" is the more fundamental truth than
+  // "its support tier is internal", so it must win the reported category
+  // while the tier still shows up as a recorded blocker.
+  const decision = evaluateSampleBundleEligibility(
+    fakeSample("fixture-internal-docs", { supportTier: "internal" }),
+    fakeAudit("fixture-internal-docs", { runtimeHosting: "not-a-runtime-sample", buildScript: undefined }),
+  );
+  assert.equal(decision.category, "non-runtime-sample");
+  assert.deepEqual(
+    decision.blockers.map((blocker) => blocker.category),
+    ["non-runtime-sample", "unsupported-support-tier"],
+  );
+});
+
+test("an audit record for a non-active catalog entry fails loudly instead of shadowing the lifecycle truth", () => {
+  const catalogFixture = fakeCatalog([
+    fakeSample("fixture-rework", { lifecycle: { state: "rework", reason: "test fixture" } }),
+  ]);
+  assert.throws(
+    () => deriveSampleBundleDecisions(catalogFixture, { audit: [fakeAudit("fixture-rework")] }),
+    /drop the record so the mechanical lifecycle-not-active exclusion applies/,
+  );
+});
+
+test("an active catalog sample with no audit record fails loudly instead of guessing", () => {
   const catalogFixture = fakeCatalog([fakeSample("fixture-unaccounted")]);
-  assert.throws(() => deriveExcludedSamples(catalogFixture, { explicit: [] }), /has no INCLUDED_SAMPLES or EXCLUDED_SAMPLES entry/);
+  assert.throws(
+    () => deriveSampleBundleDecisions(catalogFixture, { audit: [] }),
+    /has no SAMPLE_BUNDLE_AUDIT record/,
+  );
 });
 
 test("a non-active catalog sample is auto-derived with a lifecycle-not-active reason from its own catalog data", () => {
@@ -128,60 +427,27 @@ test("a non-active catalog sample is auto-derived with a lifecycle-not-active re
       },
     }),
   ]);
-  const excluded = deriveExcludedSamples(catalogFixture, { explicit: [] });
+  const excluded = deriveExcludedSamples(catalogFixture, { audit: [] });
   assert.equal(excluded.length, 1);
   assert.equal(excluded[0].id, "fixture-retire");
   assert.equal(excluded[0].category, "lifecycle-not-active");
-  assert.match(excluded[0].reason, /^Catalog lifecycle\.state is "retire" \(target 9\.9\.9\): Superseded by the next thing\./);
+  assert.match(
+    excluded[0].reason,
+    /^Catalog lifecycle\.state is "retire" \(target 9\.9\.9\): Superseded by the next thing\./,
+  );
   assert.match(excluded[0].reason, /Replacement: external "some-other-thing"\.$/);
 });
 
-test("duplicate or overlapping hand-classified entries are rejected", () => {
+test("duplicate audit records and unknown catalog ids are rejected", () => {
   const catalogFixture = fakeCatalog([fakeSample("fixture-a")]);
   assert.throws(
-    () =>
-      deriveExcludedSamples(catalogFixture, {
-        explicit: [
-          { id: "fixture-a", category: "agent-shaped", reason: "one" },
-          { id: "fixture-a", category: "agent-shaped", reason: "two" },
-        ],
-      }),
-    /duplicate id in EXCLUDED_SAMPLES/,
+    () => deriveSampleBundleDecisions(catalogFixture, { audit: [fakeAudit("fixture-a"), fakeAudit("fixture-a")] }),
+    /duplicate id in SAMPLE_BUNDLE_AUDIT/,
   );
   assert.throws(
-    () =>
-      deriveExcludedSamples(catalogFixture, {
-        explicit: [{ id: "fixture-a", category: "agent-shaped", reason: "one" }],
-        includedIds: new Set(["fixture-a"]),
-      }),
-    /listed in both INCLUDED_SAMPLES and EXCLUDED_SAMPLES/,
+    () => deriveSampleBundleDecisions(catalogFixture, { audit: [fakeAudit("fixture-ghost")] }),
+    /not found in samples\/catalog\.v2\.json/,
   );
-});
-
-test("validateSampleBundleManifest rejects a manifest whose excluded ids overlap its bundled ids", async () => {
-  const manifest = {
-    format: "honua.sdk.sample-bundles.v1",
-    schemaVersion: 1,
-    build: { node: ">=20.0.0", lockfileSha256: "a".repeat(64) },
-    samples: INCLUDED_SAMPLE_IDS.map((id) => ({
-      id,
-      entrypoint: "index.html",
-      dataMode: "fixture",
-      configDefaults: {},
-      builtFrom: { commit: "b".repeat(40), packageVersion: "0.0.0" },
-      files: [
-        {
-          path: "index.html",
-          bytes: 1,
-          sha256: "c".repeat(64),
-          integrity: "sha256-AA==",
-          mediaType: "text/html",
-        },
-      ],
-    })),
-    excluded: [{ id: INCLUDED_SAMPLE_IDS[0], category: "agent-shaped", reason: "duplicate of a bundled sample" }],
-  };
-  await assert.rejects(validateSampleBundleManifest(manifest), /listed in both samples and excluded/);
 });
 
 function placeholderFile() {
@@ -189,15 +455,55 @@ function placeholderFile() {
 }
 
 function placeholderSample(id) {
+  const included = INCLUDED_SAMPLES.find((sample) => sample.id === id);
+  const entry = catalogById.get(id);
   return {
     id,
     entrypoint: "index.html",
-    dataMode: "fixture",
+    dataMode: entry?.data.mode ?? "fixture",
     configDefaults: {},
+    runtimeHosting: included?.runtimeHosting ?? "self-contained",
+    runnability: included?.runnability ?? "standalone",
+    hostFixtureRoutes: [...(included?.hostFixtureRoutes ?? [])],
+    support: {
+      tier: entry?.supportTier ?? "supported",
+      track: entry?.track ?? "recipe",
+      validationProfile: entry?.validationProfile ?? "browser-recipe",
+    },
+    lifecycle: { state: "active", reason: entry?.lifecycle.reason ?? "test fixture" },
     builtFrom: { commit: "b".repeat(40), packageVersion: "0.0.0" },
     files: [placeholderFile()],
   };
 }
+
+test("validateSampleBundleManifest rejects a manifest whose excluded ids overlap its bundled ids", async () => {
+  const manifest = {
+    format: "honua.sdk.sample-bundles.v1",
+    schemaVersion: 1,
+    build: { node: ">=20.0.0", lockfileSha256: "a".repeat(64) },
+    samples: INCLUDED_SAMPLE_IDS.map((id) => placeholderSample(id)),
+    excluded: [{ id: INCLUDED_SAMPLE_IDS[0], category: "agent-shaped", reason: "duplicate of a bundled sample" }],
+  };
+  await assert.rejects(validateSampleBundleManifest(manifest), /listed in both samples and excluded/);
+});
+
+test("validateSampleBundleManifest rejects runnability truth that drifted from the audited decision", async () => {
+  const samples = INCLUDED_SAMPLE_IDS.map((id) => placeholderSample(id));
+  const target = samples.find((sample) => sample.runnability === "requires-host-fixture-service");
+  assert.ok(target, "at least one published bundle should declare host prerequisites");
+  const manifest = {
+    format: "honua.sdk.sample-bundles.v1",
+    schemaVersion: 1,
+    build: { node: ">=20.0.0", lockfileSha256: "a".repeat(64) },
+    samples: samples.map((sample) =>
+      sample.id === target.id
+        ? { ...sample, runnability: "standalone", runtimeHosting: "self-contained", hostFixtureRoutes: [] }
+        : sample,
+    ),
+    excluded: deriveExcludedSamples(catalog),
+  };
+  await assert.rejects(validateSampleBundleManifest(manifest), /runnability truth drifted from the audited decision/);
+});
 
 test("validateSampleBundleManifest cross-checks full catalog coverage when given a catalog", async () => {
   const excluded = deriveExcludedSamples(catalog);

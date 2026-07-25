@@ -32,7 +32,19 @@
   "$defs": {
     "sample": {
       "type": "object",
-      "required": ["id", "entrypoint", "dataMode", "configDefaults", "builtFrom", "files"],
+      "required": [
+        "id",
+        "entrypoint",
+        "dataMode",
+        "configDefaults",
+        "runtimeHosting",
+        "runnability",
+        "hostFixtureRoutes",
+        "support",
+        "lifecycle",
+        "builtFrom",
+        "files"
+      ],
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
         "entrypoint": { "type": "string", "minLength": 1 },
@@ -41,6 +53,52 @@
           "type": "object",
           "description": "Declared browser-public config surface for this sample (samples/catalog.v2.json data.config). A null value means the build applied no override and the sample's own committed fixture-mode default (or scenario fallback) was used.",
           "additionalProperties": { "type": ["string", "null"] }
+        },
+        "runtimeHosting": {
+          "type": "string",
+          "description": "Audited classification of how this sample's default build obtains the data it renders (honua-io/honua-sdk-js#656 REQ-001). Only the two publishable kinds can appear on a built bundle.",
+          "enum": ["self-contained", "same-origin-fixture-service"]
+        },
+        "runnability": {
+          "type": "string",
+          "description": "Whether this bundle runs from any static host on its own (`standalone`) or only where the embedding host also serves `hostFixtureRoutes` (`requires-host-fixture-service`). Consumers must not present a `requires-host-fixture-service` bundle as runnable without those prerequisites.",
+          "enum": ["standalone", "requires-host-fixture-service"]
+        },
+        "hostFixtureRoutes": {
+          "type": "array",
+          "description": "Same-origin path prefixes the embedding host must serve for this bundle to complete its fixture journey. Always empty for `runnability: standalone`.",
+          "items": { "type": "string", "pattern": "^/" }
+        },
+        "support": {
+          "type": "object",
+          "description": "Support truth copied from samples/catalog.v2.json so a consumer never infers maturity from the existence of a bundle (honua-io/honua-sdk-js#656 REQ-005).",
+          "required": ["tier", "track", "validationProfile"],
+          "properties": {
+            "tier": { "type": "string", "minLength": 1 },
+            "track": { "type": "string", "minLength": 1 },
+            "validationProfile": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "lifecycle": {
+          "type": "object",
+          "description": "Lifecycle truth (and replacement metadata when the catalog declares one) copied from samples/catalog.v2.json (honua-io/honua-sdk-js#656 REQ-005).",
+          "required": ["state", "reason"],
+          "properties": {
+            "state": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 },
+            "targetRelease": { "type": "string", "minLength": 1 },
+            "replacement": {
+              "type": "object",
+              "required": ["kind", "id"],
+              "properties": {
+                "kind": { "type": "string", "minLength": 1 },
+                "id": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
         },
         "builtFrom": {
           "type": "object",
@@ -76,6 +134,8 @@
             "non-browser-app",
             "non-runtime-sample",
             "lifecycle-not-active",
+            "legacy-unsafe-configuration",
+            "unsupported-support-tier",
             "audit-pending"
           ]
         },

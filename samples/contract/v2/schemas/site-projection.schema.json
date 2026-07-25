@@ -362,6 +362,20 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "published": {
+          "type": "array",
+          "description": "Per-bundle publication truth for every id in sampleIds, so a gallery card can state a bundle's runtime prerequisites without fetching the bundle manifest (honua-io/honua-sdk-js#656 REQ-004/REQ-005). A `requires-host-fixture-service` entry must never be presented as runnable unless the embedding host also serves its hostFixtureRoutes.",
+          "items": {
+            "type": "object",
+            "required": ["id", "runnability", "hostFixtureRoutes"],
+            "properties": {
+              "id": { "type": "string" },
+              "runnability": { "type": "string", "enum": ["standalone", "requires-host-fixture-service"] },
+              "hostFixtureRoutes": { "type": "array", "items": { "type": "string", "pattern": "^/" } }
+            },
+            "additionalProperties": false
+          }
+        },
         "excluded": {
           "type": "array",
           "description": "Every catalog sample id not in sampleIds, with a machine-readable exclusion reason (honua-io/honua-sdk-js#656 REQ-004).",
@@ -382,6 +396,8 @@
                   "non-browser-app",
                   "non-runtime-sample",
                   "lifecycle-not-active",
+                  "legacy-unsafe-configuration",
+                  "unsupported-support-tier",
                   "audit-pending"
                 ]
               },
