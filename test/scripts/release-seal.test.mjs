@@ -130,6 +130,20 @@ test("an unresolvable sealing revision is reported once per revision", () => {
   assert.match(result.problems[0], new RegExp(`^sample gate receipts sealed by ${sealingRevision}: source revision`));
 });
 
+test("a receipt without a full-commit sourceRevision fails the seal", () => {
+  for (const sourceRevision of [undefined, "", "trunk", sealingRevision.slice(0, 12)]) {
+    const result = evaluateReleaseSeal(
+      sealedInputs({
+        receipts: [
+          { path: "samples/evidence/maplibre-quickstart/receipts/browser.v1.json", sourceDigest: digest, sourceRevision },
+        ],
+        receiptRevisions: [],
+      }),
+    );
+    assert.equal(problemsMatching(result, /sourceRevision .* is not a full commit SHA/).length, 1, String(sourceRevision));
+  }
+});
+
 test("an unreadable receipt is reported with its path", () => {
   const result = evaluateReleaseSeal(
     sealedInputs({

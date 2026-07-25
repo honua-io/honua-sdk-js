@@ -57,6 +57,7 @@ const EVIDENCE_ROOT = "samples/evidence";
 const RECEIPT_GLOB = `${EVIDENCE_ROOT}/*/receipts/*.json`;
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
+const REVISION_PATTERN = /^[0-9a-f]{40}$/;
 
 const REMEDIATION = [
   "Remediation: a release tag must name a commit whose derived sample artifacts are sealed to it.",
@@ -177,6 +178,17 @@ export function evaluateReleaseSeal({
   for (const receipt of receipts) {
     if (receipt.problem) problems.push(`${receipt.path}: ${receipt.problem}`);
   }
+  // A digest-matching receipt with no full-commit sourceRevision has no
+  // resolvable sealing commit, and the revision verifier skips silently when
+  // handed undefined — treat it as a seal failure, never a success.
+  for (const receipt of receipts) {
+    if (receipt.problem !== undefined || receipt.sourceDigest !== sourceDigest) continue;
+    if (typeof receipt.sourceRevision !== "string" || !REVISION_PATTERN.test(receipt.sourceRevision)) {
+      problems.push(
+        `${receipt.path}: sourceRevision ${JSON.stringify(receipt.sourceRevision)} is not a full commit SHA, so its sealing commit cannot be verified`,
+      );
+    }
+  }
   // One message per sealing revision rather than per receipt: every receipt a
   // reseal writes shares that reseal's revision, so a per-receipt report would
   // repeat one failure dozens of times.
@@ -267,11 +279,22 @@ export async function collectReleaseSealInputs({ root = ROOT, tag, expectVersion
   // see the regeneration-chain commit its receipts were sealed by.
   const receiptRevisions = [];
   if (checkoutProblem === undefined) {
-    const revisions = new Set(
-      receipts
-        .filter((receipt) => receipt.problem === undefined && receipt.sourceDigest === sourceDigest)
-        .map((receipt) => receipt.sourceRevision),
-    );
+    const revisions = new Set();
+    for (const receipt of receipts) {
+      if (receipt.problem !== undefined || receipt.sourceDigest !== sourceDigest) continue;
+      // A receipt without a resolvable sealing commit must fail the gate:
+      // verifyEvidenceNeutralCheckout skips revision verification entirely
+      // when the revision argument is undefined, so an absent or malformed
+      // sourceRevision would otherwise be recorded as verified.
+      if (typeof receipt.sourceRevision !== "string" || !REVISION_PATTERN.test(receipt.sourceRevision)) {
+        receiptRevisions.push({
+          revision: String(receipt.sourceRevision),
+          problem: `${receipt.path} declares no full-commit sourceRevision, so its sealing commit cannot be verified`,
+        });
+        continue;
+      }
+      revisions.add(receipt.sourceRevision);
+    }
     for (const revision of revisions) {
       try {
         verifyEvidenceNeutralCheckout(sourceDigest, root, revision);
