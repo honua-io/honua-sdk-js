@@ -398,6 +398,14 @@ describe("sample publication contract", () => {
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
     expect(JSON.stringify(projection)).not.toContain("VITE_");
+    // site-projection.schema.json transitionally accepts a v1 bundle-manifest
+    // pointer so the not-yet-resealed committed projection stays valid; pin
+    // generation to v2 so that allowance cannot mask a regression.
+    expect(projection.sampleBundles).toMatchObject({
+      format: "honua.sdk.sample-bundles.v2",
+      schemaVersion: 2,
+      publication: { manifestAsset: "sample-bundles.v2.json" },
+    });
     for (const sample of catalog.samples) {
       const projected = projection.samples.find((candidate: { id: string }) => candidate.id === sample.id);
       const selected = ciSelection.samples.find((candidate: { id: string }) => candidate.id === sample.id);

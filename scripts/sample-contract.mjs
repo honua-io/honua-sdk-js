@@ -9,7 +9,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { deriveExcludedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
+import { deriveExcludedSamples, derivePublishedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
 import {
   expectedGateCommand,
   isSampleEvidenceRunId,
@@ -3427,15 +3427,16 @@ export function generateSiteProjection(catalog, packageJson) {
     samples: effective.samples.map((sample) => publicSample(sample, effective.sdk)),
     routes,
     sampleBundles: {
-      format: "honua.sdk.sample-bundles.v1",
-      schemaVersion: 1,
+      format: "honua.sdk.sample-bundles.v2",
+      schemaVersion: 2,
       publication: {
         repo: "honua-io/honua-sdk-js",
         releaseTag: "sample-bundles-latest",
-        manifestAsset: "sample-bundles.v1.json",
+        manifestAsset: "sample-bundles.v2.json",
         bundleAsset: "sample-bundles.tar.gz",
       },
       sampleIds: [...INCLUDED_SAMPLE_IDS].sort(),
+      published: derivePublishedSamples(catalog),
       excluded: deriveExcludedSamples(catalog),
     },
   };

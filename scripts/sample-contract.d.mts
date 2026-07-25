@@ -353,6 +353,14 @@ export function generateSiteProjection(
   routes: Array<Record<string, unknown>>;
   goldenJourneys: GoldenJourney[];
   externalReplacements: Array<{ id: string; title: string; url: string }>;
+  sampleBundles: {
+    format: string;
+    schemaVersion: number;
+    publication: { repo: string; releaseTag: string; manifestAsset: string; bundleAsset: string };
+    sampleIds: string[];
+    published: Array<{ id: string; runnability: string; hostFixtureRoutes: string[] }>;
+    excluded: Array<{ id: string; category: string; reason: string }>;
+  };
 };
 export function collectQualificationEvidence(
   catalog: SampleCatalog,
