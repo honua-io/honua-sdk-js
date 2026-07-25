@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -504,6 +504,245 @@ describe("honua-site consumer handoff", () => {
       "must be credential-free canonical HTTPS",
     );
   });
+
+  it("rejects duplicated card, journey, replacement, and evidence-binding identities", async () => {
+    const inputs = await canonicalInputs();
+    const checkoutHandoff = await checkoutBoundHandoff(inputs.handoff);
+
+    const duplicateJourney = structuredClone(inputs.projection);
+    duplicateJourney.goldenJourneys.push(structuredClone(duplicateJourney.goldenJourneys[0]));
+    expect(() => generateSiteConsumerHandoff(duplicateJourney, inputs.matrix, inputs.visualEvidence)).toThrow(
+      "duplicate journey, replacement, evidence-binding, or visual identities",
+    );
+
+    const duplicateReplacement = structuredClone(inputs.projection);
+    duplicateReplacement.externalReplacements.push(structuredClone(duplicateReplacement.externalReplacements[0]));
+    expect(() => generateSiteConsumerHandoff(duplicateReplacement, inputs.matrix, inputs.visualEvidence)).toThrow(
+      "duplicate journey, replacement, evidence-binding, or visual identities",
+    );
+
+    const duplicateBinding = structuredClone(inputs.matrix) as CapabilitySampleMatrix;
+    duplicateBinding.evidenceBindings.push(structuredClone(duplicateBinding.evidenceBindings[0]));
+    expect(() => generateSiteConsumerHandoff(inputs.projection, duplicateBinding, inputs.visualEvidence)).toThrow(
+      "duplicate journey, replacement, evidence-binding, or visual identities",
+    );
+
+    const duplicateVisualSample = structuredClone(inputs.visualEvidence) as GoldenJourneyVisualEvidence;
+    duplicateVisualSample.qualifiedGoldenJourneys[1].sampleId =
+      duplicateVisualSample.qualifiedGoldenJourneys[0].sampleId;
+    expect(() => generateSiteConsumerHandoff(inputs.projection, inputs.matrix, duplicateVisualSample)).toThrow(
+      "duplicate journey, replacement, evidence-binding, or visual identities",
+    );
+
+    // Two catalog IDs pointing at one executable tree is the duplicated-implementation
+    // shape the gallery must never publish, even though both card IDs stay unique.
+    const forkedSourcePath = structuredClone(inputs.projection);
+    const forkedMatrixSource = structuredClone(inputs.matrix) as CapabilitySampleMatrix;
+    const [firstProjected, secondProjected] = forkedSourcePath.samples;
+    secondProjected.source.path = firstProjected.source.path;
+    const secondMatrixSample = forkedMatrixSource.samples.find((sample) => sample.id === secondProjected.id);
+    if (!secondMatrixSample) throw new Error("canonical matrix sample fixture is missing");
+    secondMatrixSample.sourcePath = firstProjected.source.path;
+    expect(() => generateSiteConsumerHandoff(forkedSourcePath, forkedMatrixSource, inputs.visualEvidence)).toThrow(
+      "duplicated card executable source path",
+    );
+
+    const sharedBinding = structuredClone(inputs.matrix) as CapabilitySampleMatrix;
+    const qualifiedMatrixSamples = sharedBinding.samples.filter((sample) => sample.qualification.evidenceBindingId);
+    expect(qualifiedMatrixSamples.length).toBeGreaterThan(1);
+    qualifiedMatrixSamples[1].qualification.evidenceBindingId =
+      qualifiedMatrixSamples[0].qualification.evidenceBindingId;
+    expect(() => generateSiteConsumerHandoff(inputs.projection, sharedBinding, inputs.visualEvidence)).toThrow(
+      "duplicated card evidence binding",
+    );
+
+    const duplicatedCardJourney = structuredClone(checkoutHandoff);
+    const qualifiedCards = duplicatedCardJourney.cards.filter((card) => card.qualification.state === "qualified");
+    expect(qualifiedCards.length).toBeGreaterThan(1);
+    qualifiedCards[1].journey = structuredClone(qualifiedCards[0].journey);
+    await expect(validateSiteConsumerHandoff(duplicatedCardJourney)).rejects.toThrow("duplicated card golden journey");
+
+    const duplicatedCardVisual = structuredClone(checkoutHandoff);
+    const duplicatedVisualCards = duplicatedCardVisual.cards.filter((card) => card.qualification.state === "qualified");
+    duplicatedVisualCards[1].visualEvidence!.sampleId = duplicatedVisualCards[0].id;
+    await expect(validateSiteConsumerHandoff(duplicatedCardVisual)).rejects.toThrow(
+      "duplicated card visual evidence sample",
+    );
+  });
+
+  it("fails publication on stale, orphaned, or unverifiable golden-card receipts", async () => {
+    const inputs = await canonicalInputs();
+    const checkoutHandoff = await checkoutBoundHandoff(inputs.handoff);
+    const qualifiedCardId = checkoutHandoff.cards.find((card) => card.qualification.state === "qualified")?.id;
+    if (!qualifiedCardId) throw new Error("canonical qualified golden card fixture is missing");
+    const tamper = (mutate: (visual: NonNullable<SiteConsumerHandoff["cards"][number]["visualEvidence"]>) => void) => {
+      const candidate = structuredClone(checkoutHandoff);
+      const card = candidate.cards.find((entry) => entry.id === qualifiedCardId);
+      if (!card?.visualEvidence) throw new Error("canonical qualified golden card fixture is missing");
+      mutate(card.visualEvidence);
+      return candidate;
+    };
+
+    // The published policy names packed-package qualification, so a card whose
+    // packed-build receipt silently came from the source-mode SDK overstates it.
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          const packed = visual.semanticEvidence.find((entry) => entry.gate === "packed-build");
+          if (!packed) throw new Error("canonical packed-build receipt fixture is missing");
+          packed.sdkMode = "source";
+        }),
+      ),
+    ).rejects.toThrow("packed-build visual evidence must come from the packed SDK mode");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          const fixtureGate = visual.semanticEvidence.find((entry) => entry.gate === "fixture");
+          if (!fixtureGate) throw new Error("canonical fixture receipt fixture is missing");
+          fixtureGate.receiptPath = fixtureGate.receiptPath.replace(
+            `/${visual.sampleId}/`,
+            "/realtime-incident-dashboard/",
+          );
+        }),
+      ),
+    ).rejects.toThrow("fixture visual evidence receipt is orphaned from its sample");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          visual.semanticEvidence[0].expiresAt = "2026-01-01T00:00:00.000Z";
+        }),
+      ),
+    ).rejects.toThrow("visual evidence is stale or has an invalid freshness window");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          visual.expiresAt = visual.observedAt;
+        }),
+      ),
+    ).rejects.toThrow("visual evidence is stale or has an invalid freshness window");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          visual.source.path = "examples/does-not-exist";
+        }),
+      ),
+    ).rejects.toThrow("golden card source receipt is missing or unbound");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          const [desktop] = visual.screenshots;
+          desktop.sourcePath = desktop.sourcePath.replace(/[^/]+\.png$/, "screenshot-desktop-missing.png");
+        }),
+      ),
+    ).rejects.toThrow("desktop screenshot is broken or missing");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          const [desktop] = visual.screenshots;
+          desktop.sha256 = sha256("a-replaced-screenshot");
+          desktop.reproducibility.repeatSha256 = desktop.sha256;
+        }),
+      ),
+    ).rejects.toThrow("desktop screenshot byte or digest binding is stale");
+
+    await expect(
+      validateSiteConsumerHandoff(
+        tamper((visual) => {
+          visual.semanticEvidence[0].reportSha256 = sha256("a-replaced-gate-report");
+        }),
+      ),
+    ).rejects.toThrow("report byte or digest binding is stale");
+
+    // Only overstated claims fail: a card that honestly reports no qualification
+    // still publishes, and the qualified cards on the current tree stay admissible.
+    const honestlyPending = checkoutHandoff.cards.filter((card) => card.qualification.state !== "qualified");
+    expect(honestlyPending.length).toBeGreaterThan(0);
+    expect(honestlyPending.every((card) => !card.visualEvidence && !card.evidenceBindingId)).toBe(true);
+    await expect(validateSiteConsumerHandoff(checkoutHandoff)).resolves.toBeUndefined();
+  });
+
+  it(
+    "fails publication when a referenced contract schema is edited without a version bump",
+    { timeout: 90_000 },
+    async () => {
+      const inputs = await canonicalInputs();
+
+      // Every published reference content-addresses its governing schema, including
+      // the handoff's own schema, which only the v3 fixture can reference.
+      const references = [...Object.values(inputs.handoff.inputs), inputs.fixture.input];
+      expect(references).toHaveLength(4);
+      for (const reference of references) {
+        const bytes = await readFile(reference.schemaPath, "utf8");
+        expect(reference.schemaBytes).toBe(Buffer.byteLength(bytes));
+        expect(reference.schemaSha256).toBe(sha256(bytes));
+      }
+
+      const upstream = inputs.handoff.inputs.visualEvidence;
+      const upstreamOriginal = await readFile(upstream.schemaPath, "utf8");
+      try {
+        // Whitespace only: same file, same $id, same format, same schemaVersion, and
+        // identical semantics. This is exactly what the self-declared version pin
+        // cannot see, so only the recomputed digest can reject it.
+        await writeFile(upstream.schemaPath, `${upstreamOriginal.trimEnd()}\n\n`, "utf8");
+        const reformatted = JSON.parse(await readFile(upstream.schemaPath, "utf8"));
+        expect(reformatted).toEqual(JSON.parse(upstreamOriginal));
+        expect(reformatted.$id).toBe(JSON.parse(upstreamOriginal).$id);
+        expect(reformatted.properties.schemaVersion.const).toBe(upstream.schemaVersion);
+        expect(reformatted.properties.format.const).toBe(upstream.format);
+        await expect(validateSiteConsumerHandoff(inputs.handoff)).rejects.toThrow(
+          "visualEvidence schema definition changed without a version bump",
+        );
+
+        // A weakened constraint under the same version is rejected for the same reason.
+        const weakened = JSON.parse(upstreamOriginal);
+        weakened.$defs.qualifiedJourney.properties.screenshots.minItems = 1;
+        await writeFile(upstream.schemaPath, `${JSON.stringify(weakened, null, 2)}\n`, "utf8");
+        await expect(validateSiteConsumerHandoff(inputs.handoff)).rejects.toThrow(
+          "visualEvidence schema definition changed without a version bump",
+        );
+      } finally {
+        await writeFile(upstream.schemaPath, upstreamOriginal, "utf8");
+      }
+
+      const handoffSchemaPath = inputs.fixture.input.schemaPath;
+      const handoffSchemaOriginal = await readFile(handoffSchemaPath, "utf8");
+      try {
+        await writeFile(handoffSchemaPath, `${handoffSchemaOriginal.trimEnd()}\n\n`, "utf8");
+        await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).rejects.toThrow(
+          "fixture handoff schema definition changed without a version bump",
+        );
+      } finally {
+        await writeFile(handoffSchemaPath, handoffSchemaOriginal, "utf8");
+      }
+
+      // A handoff published before this binding existed carries no digest. The first
+      // test in this file covers the pending-under-relax side by validating the
+      // committed artifact; a strict run must never accept it as verified.
+      const pending = structuredClone(inputs.handoff);
+      for (const reference of Object.values(pending.inputs)) {
+        delete reference.schemaBytes;
+        delete reference.schemaSha256;
+      }
+      const previousRelax = process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+      process.env.HONUA_DERIVED_ARTIFACTS_RELAX = "";
+      try {
+        await expect(validateSiteConsumerHandoff(pending)).rejects.toThrow("schema integrity binding is missing");
+      } finally {
+        if (previousRelax === undefined) delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+        else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = previousRelax;
+      }
+
+      await expect(validateSiteConsumerHandoff(inputs.handoff)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
+    },
+  );
 
   it("rejects symlinked source-link components instead of trusting lexical containment", async () => {
     const inputs = await canonicalInputs();

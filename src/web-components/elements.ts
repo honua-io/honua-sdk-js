@@ -1,6 +1,11 @@
 import type { HonuaClient } from "../core/client.js";
 import type { MapPackageLocator } from "../runtime/index.js";
 import { createHonuaWebComponentController } from "./controller.js";
+import {
+  type HonuaFeatureEditChangeDetail,
+  type HonuaFeatureEditCommitDetail,
+  HonuaFeatureEditorElement,
+} from "./feature-editor.js";
 import type {
   HonuaFeatureTable,
   HonuaFeatureTableConflict,
@@ -2051,6 +2056,7 @@ const WEB_COMPONENT_ELEMENTS: ReadonlyMap<string, CustomElementConstructor> = ne
     ["honua-feature-table", HonuaFeatureTableElement],
     ["honua-search", HonuaSearchElement],
     ["honua-editor", HonuaEditorElement],
+    ["honua-feature-editor", HonuaFeatureEditorElement],
     ["honua-chart", HonuaChartElement],
     ["honua-basemap-control", HonuaBasemapControlElement],
     ["honua-bookmarks", HonuaBookmarksElement],
@@ -2648,6 +2654,7 @@ declare global {
     "honua-feature-table": HonuaFeatureTableElement;
     "honua-search": HonuaSearchElement;
     "honua-editor": HonuaEditorElement;
+    "honua-feature-editor": HonuaFeatureEditorElement;
     "honua-chart": HonuaChartElement;
     "honua-basemap-control": HonuaBasemapControlElement;
     "honua-bookmarks": HonuaBookmarksElement;
@@ -2675,6 +2682,8 @@ declare global {
     "honua-filter-change": CustomEvent<HonuaFilterChangeDetail>;
     "honua-search": CustomEvent<HonuaSearchDetail>;
     "honua-edit-change": CustomEvent<HonuaEditChangeDetail>;
+    "honua-feature-edit-change": CustomEvent<HonuaFeatureEditChangeDetail>;
+    "honua-feature-edit-commit": CustomEvent<HonuaFeatureEditCommitDetail>;
     "honua-basemap-change": CustomEvent<HonuaBasemapChangeDetail>;
     "honua-bookmark-change": CustomEvent<HonuaBookmarkChangeDetail>;
     "honua-locate-change": CustomEvent<HonuaLocateChangeDetail>;

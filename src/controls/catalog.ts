@@ -32,10 +32,13 @@ export type HonuaComponentSource = "controls" | "web-components";
  * - `"survival-tier"` — the baseline widget shipped for issue #493: usable,
  *   accessible, but not yet hardened to epic #678's production bar (bounded
  *   virtualized tables, capability-aware editing/sketch, pluggable chart
- *   adapters, secure export, full qualification gates). Every entry below is
- *   currently `"survival-tier"`.
+ *   adapters, secure export, full qualification gates).
  * - `"production-tier"` — the target state feature issues #680-683 raise
- *   individual components to.
+ *   individual components to. `honua-feature-editor` is the first entry there
+ *   (issue #680): a capability-aware, schema/domain/subtype-derived editing and
+ *   sketch surface composed from the public contract edit primitives. The
+ *   survival-tier `honua-editor` remains as the simpler controller-driven
+ *   widget.
  */
 export type HonuaComponentSupportTier = "survival-tier" | "production-tier";
 
@@ -194,6 +197,17 @@ export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
     canonical: true,
     requiredAdapters: ["web-component-controller"],
     events: ["honua-edit-change"],
+    collidesWithIds: [],
+  },
+  {
+    id: "web-components.feature-editor",
+    tag: "honua-feature-editor",
+    source: "web-components",
+    className: "HonuaFeatureEditorElement",
+    supportTier: "production-tier",
+    canonical: true,
+    requiredAdapters: ["edit-capable-source"],
+    events: ["honua-feature-edit-change", "honua-feature-edit-commit"],
     collidesWithIds: [],
   },
   {
