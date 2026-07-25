@@ -19,6 +19,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   LIVE_CONFORMANCE_EVIDENCE_FORMAT,
   assertLiveConformanceEvidenceRedacted,
+  availabilityStatusCode,
   classifyLiveConformanceFailure,
   collectLiveConformanceEvidence,
   createBoundedLiveConformanceFetch,
@@ -277,6 +278,43 @@ describe("live-conformance request budgets", () => {
     await expect(bounded("https://demo.pygeoapi.io/master?token=nope")).rejects.toThrow(/credential query/);
   });
 
+  it("classifies availability statuses inside the fetch seam", async () => {
+    expect(availabilityStatusCode(429)).toBe("endpoint-rate-limited");
+    expect(availabilityStatusCode(408)).toBe("endpoint-timeout");
+    expect(availabilityStatusCode(503)).toBe("endpoint-server-error");
+    expect(availabilityStatusCode(404)).toBeNull();
+    expect(availabilityStatusCode(200)).toBeNull();
+
+    const bounded = createBoundedLiveConformanceFetch({
+      targetUrl: "https://demo.pygeoapi.io/master",
+      budgets: { ...budgets, maxRequestsPerTarget: 32 },
+      fetchFn: (async (input: RequestInfo | URL) => {
+        const status = Number(new URL(new Request(input).url).pathname.split("/").pop());
+        return new Response(status === 200 ? "{}" : "upstream", {
+          status,
+          headers: { "content-type": "application/json" },
+        });
+      }) as unknown as typeof fetch,
+    });
+    for (const [status, code] of [
+      [429, "endpoint-rate-limited"],
+      [503, "endpoint-server-error"],
+      [408, "endpoint-timeout"],
+    ] as const) {
+      await expect(bounded(`https://demo.pygeoapi.io/master/${status}`)).rejects.toMatchObject({ reasonCode: code });
+    }
+    // A 4xx still reaches the SDK, which turns it into a semantic failure.
+    await expect(bounded("https://demo.pygeoapi.io/master/404")).resolves.toMatchObject({ status: 404 });
+  });
+
+  it("keeps a typed transport reason when the SDK wraps the rejection", () => {
+    const wrapped = new Error("HonuaNetworkError", {
+      cause: Object.assign(new Error("HTTP 503"), { reasonCode: "endpoint-server-error" }),
+    });
+    wrapped.name = "HonuaNetworkError";
+    expect(classifyLiveConformanceFailure(wrapped).code).toBe("endpoint-server-error");
+  });
+
   it("classifies availability problems apart from semantic ones", () => {
     expect(classifyLiveConformanceFailure({ name: "HonuaNetworkError", message: "fetch failed" }).code).toBe(
       "endpoint-unreachable",
@@ -440,6 +478,40 @@ describe("live-conformance journeys against the deterministic reference services
     expect(wmts?.operation?.raster?.strategy).toBe("wmts-raster");
     expect(wmts?.operation?.raster?.tile).toEqual({ z: 0, x: 0, y: 0 });
   });
+
+  it("proves the capability-gap contract on every executed target, raster included", async () => {
+    const evidence = await runOffline();
+    for (const target of evidence.targets) {
+      expect(target.status).toBe("executed");
+      // A raster target must exercise the guard too; a missing guard used to
+      // be silently skipped, which let the artifact overstate what it proved.
+      expect(target.operation?.capabilityGuard).not.toBeNull();
+      expect(target.operation?.capabilityGuard?.errorName).toBe("HonuaCapabilityNotSupportedError");
+      expect(target.operation?.capabilityGuard?.sdkCode).toBe("core.capability-not-supported");
+      expect(target.assertions.map((assertion) => assertion.id)).toEqual(
+        expect.arrayContaining([
+          "capability-guard-resolves-a-source",
+          "capability-guard-finds-an-unadvertised-operation",
+          "unadvertised-operations-throw-instead-of-returning-empty-data",
+        ]),
+      );
+    }
+    const raster = evidence.targets.filter((target) => target.journey === "raster-tiles");
+    expect(raster.map((target) => target.operation?.capabilityGuard?.capability)).toEqual(["query", "query"]);
+  });
+
+  it("refuses to publish an executed target that skipped the capability-gap proof", async () => {
+    const evidence = await runOffline();
+    const tampered = {
+      ...evidence,
+      targets: evidence.targets.map((target, index) =>
+        index === 0 ? { ...target, operation: { ...target.operation, capabilityGuard: null } } : target,
+      ),
+    };
+    expect(() => validateLiveConformanceEvidence(tampered, { now: OBSERVED_AT })).toThrow(
+      /executed without proving that an unadvertised operation throws/,
+    );
+  });
 });
 
 describe("live-conformance degrades honestly", () => {
@@ -521,6 +593,46 @@ describe("live-conformance degrades honestly", () => {
       id: "bounded-page-honours-the-requested-limit",
       outcome: "fail",
     });
+  });
+
+  it("degrades rather than fails when a bounded tile is rate-limited or 5xx", async () => {
+    const rateLimited = await runOffline({
+      [REFERENCE_ROUTE_KEYS.wmtsTile]: () => new Response("slow down", { status: 429 }),
+    });
+    const limited = rateLimited.targets.find((target) => target.protocol === "wmts");
+    expect(limited?.status).toBe("degraded");
+    expect(limited?.degradation.state).toBe("unavailable");
+    expect(limited?.degradation.reasons[0]?.code).toBe("endpoint-rate-limited");
+    expect(rateLimited.status).toBe("degraded");
+    // An ordinary upstream outage must stay inside the availability exit code
+    // so --allow-degraded can keep a scheduled run green.
+    expect(summarizeLiveConformanceEvidence(rateLimited).exitCode).toBe(2);
+    expect(summarizeLiveConformanceEvidence(rateLimited, { allowDegraded: true }).exitCode).toBe(0);
+
+    const serverError = await runOffline({
+      [REFERENCE_ROUTE_KEYS.wmsService]: (url) =>
+        (url.searchParams.get("REQUEST") ?? "").toLowerCase() === "getmap"
+          ? new Response("upstream exploded", { status: 502 })
+          : new Response(null, { status: 500 }),
+    });
+    const wms = serverError.targets.find((target) => target.protocol === "wms");
+    expect(wms?.status).toBe("degraded");
+    expect(wms?.degradation.reasons[0]?.code).toBe("endpoint-server-error");
+    expect(summarizeLiveConformanceEvidence(serverError).exitCode).toBe(2);
+  });
+
+  it("enforces the response-byte ceiling across the run, not once per target", async () => {
+    // The first two targets consume ~18 KB of the 20 KB run budget offline; a
+    // per-target ceiling would have let all eight through.
+    const evidence = await runOffline({}, { budgets: { maxResponseBytes: 20_000, maxTotalResponseBytes: 20_000 } });
+    expect(evidence.budgets.maxTotalResponseBytes).toBe(20_000);
+    expect(evidence.totals.responseBytes).toBeLessThanOrEqual(20_000);
+    expect(evidence.totals.executed).toBeGreaterThan(0);
+    expect(evidence.totals.executed).toBeLessThan(evidence.totals.targets);
+    const starved = evidence.targets.filter((target) => target.status !== "executed");
+    expect(starved.length).toBeGreaterThan(0);
+    expect(starved[0]?.degradation.reasons[0]?.code).toBe("budget-exceeded");
+    expect(starved[0]?.degradation.state).toBe("unavailable");
   });
 
   it("fails the lane when a bounded tile stops being an image", async () => {

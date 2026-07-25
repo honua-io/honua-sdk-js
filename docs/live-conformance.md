@@ -68,10 +68,7 @@ Discovery alone would only prove that a document parsed.
 5. `Source.query({ pagination: { limit: 1 } })` — one bounded page. Assert the
    limit was honoured, features parsed with typed attributes, geometry presence
    matches the review, and `Result.degraded` is empty.
-6. Call one capability the endpoint does **not** advertise and require
-   `HonuaCapabilityNotSupportedError`. This is the SDK's headline contract
-   ("capability gaps throw rather than return empty data") and costs no
-   requests, because the capability check precedes the wire.
+6. Run the capability guard (below).
 
 **`raster-tiles`** (WMS, WMTS)
 
@@ -81,6 +78,17 @@ Discovery alone would only prove that a document parsed.
 3. Fetch **one** bounded tile at the reviewed `z/x/y`, then assert HTTP 200, a
    media type the service advertised, and real image magic bytes — so an error
    page served as `image/jpeg` fails instead of passing.
+4. Run the capability guard (below), against the same source the tile came
+   from — `query` is unadvertised on every WMS/WMTS source.
+
+**The capability guard**, on *both* journeys: call one capability the endpoint
+does **not** advertise and require `HonuaCapabilityNotSupportedError`. This is
+the SDK's headline contract ("capability gaps throw rather than return empty
+data") and costs no requests, because the capability check precedes the wire.
+A guard that cannot run — no resolvable source, or nothing unadvertised left to
+probe — **fails the target**, and `validateLiveConformanceEvidence()` refuses to
+publish an `executed` target whose `operation.capabilityGuard` is missing. The
+lane may not claim it proved something it skipped.
 
 ## Operation and conformance-class evidence, not a protocol boolean
 
@@ -109,14 +117,22 @@ the artifact. The runner hands the SDK a wrapped `fetch` that enforces:
   TripPin, which issues session-scoped 302s.
 - **Per-request timeout**, nested inside a per-target timeout, nested inside a
   run timeout; every request also carries the run's cancellation signal.
-- **Request ceiling per target** and **byte ceilings** per response and per run,
-  enforced while streaming so an unbounded body is cancelled mid-flight.
+- **Request ceiling per target**, and **byte ceilings** per response
+  (`maxResponseBytes`, per target) and per run (`maxTotalResponseBytes`, a
+  single ledger shared by every target, so the published run ceiling is the
+  real one). Both are enforced while streaming, so an unbounded body is
+  cancelled mid-flight.
 - **Retries** capped through the SDK client's own `retry.maxRetries`.
 - **One page** (`limit=1`) and **one tile** per target.
 - **Media-type allowlist**: JSON/XML/text for metadata, images only on the
   raster journey.
 - **Credential refusal**: credential-shaped query parameters and auth headers
   are rejected before the request leaves the process.
+- **Availability statuses classified in the seam**: 408, 429, and 5xx become
+  typed transport errors inside the wrapped `fetch`, so an upstream outage on a
+  directly fetched tile degrades the lane instead of reading as a broken
+  serializer. If the SDK client wraps such a rejection in its own error, the
+  innermost typed reason still wins.
 
 ## Redaction
 
@@ -144,6 +160,7 @@ The lane separates *availability* from *semantics*:
 | 4xx to an SDK-serialized request | **`failed`** | `unexpected` | `endpoint-client-error` |
 | Expected capability or conformance class gone | **`failed`** | `capability-gap` | `capability-regression` |
 | 200 that violates a semantic assertion | **`failed`** | `semantic-regression` | `semantic-assertion-failed` |
+| Capability guard could not run | **`failed`** | `semantic-regression` | `semantic-assertion-failed` |
 | Endpoint review expired | **`failed`** | `unexpected` | `endpoint-review-expired` |
 | Target muted, mute unexpired | `skipped` | `muted` | `target-muted` |
 | Mute expired | **`failed`** | `unexpected` | `mute-metadata-expired` |

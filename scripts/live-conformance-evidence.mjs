@@ -236,10 +236,6 @@ function isIsoDateTime(value) {
   );
 }
 
-function isoDay(value) {
-  return new Date(value).toISOString().slice(0, 10);
-}
-
 /** Scheduled/manual gate. The lane never runs from a pull request. */
 export function isLiveConformanceEnabled(env = process.env) {
   return LIVE_CONFORMANCE_NETWORK_GATES.some((name) => /^(?:1|true)$/i.test(env[name] ?? ""));
@@ -555,6 +551,9 @@ export function createBoundedLiveConformanceFetch(options) {
   const allowImages = options.allowImages === true;
   const ledger = options.ledger ?? [];
   const state = options.state ?? { requests: 0, responseBytes: 0 };
+  // `state` counts this target; `runState` counts the whole run. Callers that
+  // omit runState (unit tests, one-off probes) get a run of exactly one target.
+  const runState = options.runState ?? state;
 
   return async (input, init) => {
     const request = new Request(input, init);
@@ -634,6 +633,16 @@ export function createBoundedLiveConformanceFetch(options) {
         "live-conformance does not accept followed responses",
       );
     }
+    // Availability statuses are classified here, not left to the caller: the
+    // raster journey reads tile responses directly, and an upstream 429/5xx on
+    // a tile must degrade the lane rather than read as a broken serializer.
+    const availabilityCode = availabilityStatusCode(response.status);
+    if (availabilityCode !== null) {
+      throw new LiveConformanceTransportError(
+        availabilityCode,
+        `live-conformance received HTTP ${response.status} from ${requestUrl.pathname}`,
+      );
+    }
     if (!isAllowedMediaType(entry.mediaType, allowImages)) {
       throw new LiveConformanceTransportError(
         "unexpected-error",
@@ -641,13 +650,16 @@ export function createBoundedLiveConformanceFetch(options) {
       );
     }
 
-    const remaining = budgets.maxTotalResponseBytes - state.responseBytes;
+    const remaining = budgets.maxTotalResponseBytes - runState.responseBytes;
     if (remaining <= 0) {
-      throw new LiveConformanceBudgetError("live-conformance exceeded its total response budget");
+      throw new LiveConformanceBudgetError(
+        `live-conformance exceeded its ${budgets.maxTotalResponseBytes}-byte run response budget`,
+      );
     }
     const copied = await copyBoundedResponse(response, Math.min(budgets.maxResponseBytes, remaining), signal);
     entry.bytes = copied.bytes;
     state.responseBytes += copied.bytes;
+    if (runState !== state) runState.responseBytes += copied.bytes;
     return copied.response;
   };
 }
@@ -695,6 +707,23 @@ async function copyBoundedResponse(response, maxBytes, signal) {
   };
 }
 
+function findTypedReason(error) {
+  for (let candidate = error, depth = 0; candidate && depth < 8; candidate = candidate.cause, depth += 1) {
+    if (typeof candidate.reasonCode === "string") {
+      return { code: candidate.reasonCode, message: errorMessage(candidate) };
+    }
+  }
+  return null;
+}
+
+/** HTTP statuses that mean "the service is having a bad day", not "the SDK is wrong". */
+export function availabilityStatusCode(status) {
+  if (status === 429) return "endpoint-rate-limited";
+  if (status === 408) return "endpoint-timeout";
+  if (status >= 500) return "endpoint-server-error";
+  return null;
+}
+
 function toTransportError(error) {
   if (error instanceof LiveConformanceBudgetError || error instanceof LiveConformanceTransportError) return error;
   const name = error?.name ?? "";
@@ -714,9 +743,10 @@ function errorMessage(error) {
  * 4xx to an SDK-serialized request is a serializer or manifest defect.
  */
 export function classifyLiveConformanceFailure(error) {
-  if (typeof error?.reasonCode === "string") {
-    return { code: error.reasonCode, message: errorMessage(error) };
-  }
+  // The SDK client may wrap a bounded-fetch rejection (for example a typed
+  // 5xx) in its own error; the innermost typed reason still wins.
+  const typed = findTypedReason(error);
+  if (typed !== null) return typed;
   const name = error?.name ?? "";
   const sdkCode = typeof error?.sdkCode === "string" ? error.sdkCode : null;
   const status = Number.isSafeInteger(error?.status) ? error.status : null;
@@ -976,6 +1006,8 @@ export async function runLiveConformanceTarget(context) {
   }
 
   const ledger = [];
+  // Per-target accounting for the artifact; the run ledger (shared across
+  // every target) is what enforces maxTotalResponseBytes.
   const state = { requests: 0, responseBytes: 0 };
   const fetchFn = createBoundedLiveConformanceFetch({
     targetUrl: target.endpoint,
@@ -986,6 +1018,7 @@ export async function runLiveConformanceTarget(context) {
     allowImages: target.journey === "raster-tiles",
     ledger,
     state,
+    runState: context.runState,
   });
   const targetController = new AbortController();
   const targetTimer = setTimeout(() => targetController.abort(), budgets.targetTimeoutMs);
@@ -1093,7 +1126,7 @@ export async function runLiveConformanceTarget(context) {
     operation =
       target.journey === "query"
         ? await runQueryJourney({ connection, selected, target, budgets, sdk, signal, assertions })
-        : await runRasterJourney({ selected, target, budgets, sdk, fetchFn, signal, assertions });
+        : await runRasterJourney({ connection, selected, target, budgets, sdk, fetchFn, signal, assertions });
     operationMs = Math.max(0, performance.now() - operationStartedAt);
 
     return {
@@ -1215,12 +1248,25 @@ async function runQueryJourney(context) {
  * Costs no requests because the capability check precedes the wire.
  */
 async function probeCapabilityGuard(context) {
-  const { source, decisions, preferred, assertions } = context;
-  const capability = source === null ? null : pickCapabilityGuard(decisions, preferred);
-  if (!capability) return null;
+  const { source, decisions, preferred, assertions, sourceError } = context;
+  const assertionId = "unadvertised-operations-throw-instead-of-returning-empty-data";
+  // A guard that cannot run is a failure, never a silent pass: the artifact
+  // must not report a target as executed while skipping the contract it claims
+  // to have exercised.
+  assertions.require(
+    "capability-guard-resolves-a-source",
+    source !== null && source !== undefined,
+    `the connection exposed no source to probe (${sourceError ?? "no source"})`,
+  );
+  const capability = pickCapabilityGuard(decisions, preferred);
+  assertions.require(
+    "capability-guard-finds-an-unadvertised-operation",
+    capability !== null,
+    `none of ${preferred.join(", ")} is unadvertised, so the capability-gap contract cannot be proven`,
+  );
   const guard = await runCapabilityGuard(source, capability);
   assertions.require(
-    "unadvertised-operations-throw-instead-of-returning-empty-data",
+    assertionId,
     guard?.sdkCode === "core.capability-not-supported",
     `${capability} produced ${guard?.sdkCode ?? "no error"}`,
   );
@@ -1268,8 +1314,10 @@ async function runRasterJourney(context) {
     `signature ${signature} for ${mediaType}`,
   );
 
+  const resolved = resolveSource(connection, selected.descriptor.id);
   const capabilityGuard = await probeCapabilityGuard({
-    source: safeSource(connection, selected.descriptor.id),
+    source: resolved.source,
+    sourceError: resolved.error,
     decisions: projectCapabilityDecisions(selected.capabilityDecisions ?? []),
     preferred: RASTER_JOURNEY_GUARDS,
     assertions,
@@ -1297,12 +1345,16 @@ async function runRasterJourney(context) {
   };
 }
 
-/** A raster-only descriptor may have no source resolver; that is not a failure. */
-function safeSource(connection, sourceId) {
+/**
+ * Resolve the capability-aware source for a descriptor. A raster target still
+ * has to produce one: the capability-gap guard runs against it, and a
+ * connection that cannot hand one back is reported, not swallowed.
+ */
+function resolveSource(connection, sourceId) {
   try {
-    return connection.source(sourceId);
-  } catch {
-    return null;
+    return { source: connection.source(sourceId), error: null };
+  } catch (error) {
+    return { source: null, error: errorMessage(error) };
   }
 }
 
@@ -1425,6 +1477,9 @@ export async function collectLiveConformanceEvidence(options = {}) {
   const runController = new AbortController();
   const runTimer = setTimeout(() => runController.abort(), budgets.runTimeoutMs);
   const producerSignal = combineSignals(options.signal, runController.signal);
+  // One byte ledger for the whole run, so maxTotalResponseBytes is the ceiling
+  // the manifest and the artifact both advertise rather than a per-target one.
+  const runState = { requests: 0, responseBytes: 0 };
   const targets = [];
   try {
     for (const target of manifest.targets) {
@@ -1438,6 +1493,7 @@ export async function collectLiveConformanceEvidence(options = {}) {
           allowLoopback: options.allowLoopback === true,
           fetchFn: options.fetchFn,
           producerSignal,
+          runState,
         }),
       );
     }
@@ -1543,6 +1599,12 @@ export function validateLiveConformanceEvidence(evidence, options = {}) {
       invariant(
         target.discovery.capabilityDecisions.length > 0,
         `${target.id} executed without per-operation capability evidence`,
+      );
+      // The lane claims every executed target proved the capability-gap
+      // contract; the artifact may not say "executed" without that proof.
+      invariant(
+        target.operation.capabilityGuard?.sdkCode === "core.capability-not-supported",
+        `${target.id} executed without proving that an unadvertised operation throws`,
       );
     } else {
       invariant(target.degradation.state !== "none", `${target.id} is not executed but records no degradation`);

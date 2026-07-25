@@ -291,8 +291,14 @@ export function createBoundedLiveConformanceFetch(options: {
   allowLoopback?: boolean;
   allowImages?: boolean;
   ledger?: unknown[];
+  /** Per-target byte and request accounting. */
   state?: { requests: number; responseBytes: number };
+  /** Shared run-level accounting that enforces `maxTotalResponseBytes`. */
+  runState?: { requests: number; responseBytes: number };
 }): typeof fetch;
+export function availabilityStatusCode(
+  status: number,
+): "endpoint-rate-limited" | "endpoint-timeout" | "endpoint-server-error" | null;
 export function imageSignatureOf(bytes: Uint8Array): "png" | "jpeg" | "webp" | "unknown";
 export function classifyLiveConformanceFailure(error: unknown): { readonly code: string; readonly message: string };
 export function runLiveConformanceTarget(context: {
@@ -304,6 +310,7 @@ export function runLiveConformanceTarget(context: {
   allowLoopback?: boolean;
   fetchFn?: typeof fetch;
   producerSignal?: AbortSignal;
+  runState?: { requests: number; responseBytes: number };
 }): Promise<LiveConformanceTargetEvidence>;
 export function collectLiveConformanceEvidence(
   options?: CollectLiveConformanceEvidenceOptions,
