@@ -101,6 +101,64 @@ export {
 
 export { HonuaMeasurementElement, defineHonuaMeasurement } from "./measurement.js";
 
+// ── production-tier feature editor (issue #680) ──────────────────────────
+export { HonuaFeatureEditorElement, defineHonuaFeatureEditor } from "./feature-editor.js";
+export type { HonuaFeatureEditChangeDetail, HonuaFeatureEditCommitDetail } from "./feature-editor.js";
+export { HonuaFeatureEditorWorkflow, createFeatureEditorWorkflow } from "./feature-editor-workflow.js";
+export type {
+  HonuaFeatureEditorCommit,
+  HonuaFeatureEditorConflict,
+  HonuaFeatureEditorConflictChoice,
+  HonuaFeatureEditorExternalChangeOutcome,
+  HonuaFeatureEditorFailure,
+  HonuaFeatureEditorIdentity,
+  HonuaFeatureEditorOptions,
+  HonuaFeatureEditorSketchState,
+  HonuaFeatureEditorSnapshot,
+  HonuaFeatureEditorStatus,
+} from "./feature-editor-workflow.js";
+export {
+  buildEditorFormModel,
+  coerceEditorFieldValue,
+  editorControlKind,
+  editorDomainFromSchema,
+  editorFieldInputValue,
+  editorFieldsFromSchema,
+  editorOperationAvailability,
+  hiddenEditorFieldNames,
+  redactEditorAttachment,
+  resolveActiveEditorSubtype,
+  resolveEditorFields,
+  resolveEditorOperations,
+} from "./feature-editor-model.js";
+export type {
+  BuildEditorFormModelInput,
+  HonuaEditorAttachmentDraft,
+  HonuaEditorAttachmentMutationLike,
+  HonuaEditorCapabilityDecisionLike,
+  HonuaEditorChoice,
+  HonuaEditorControlKind,
+  HonuaEditorFieldControl,
+  HonuaEditorFormModel,
+  HonuaEditorOperation,
+  HonuaEditorOperationAvailability,
+  HonuaEditorOperationOverride,
+  HonuaEditorOperationOverrides,
+  HonuaEditorSchemaDomainLike,
+  HonuaEditorSchemaFieldLike,
+  HonuaEditorSubtype,
+  HonuaEditorSubtypeConfig,
+  HonuaEditorSubtypeFieldOverride,
+  HonuaEditorUnavailableCode,
+  ResolveEditorOperationsInput,
+} from "./feature-editor-model.js";
+export { bindEditorSketch, createTerraDrawEditorSketch } from "./feature-editor-sketch.js";
+export type {
+  CreateTerraDrawEditorSketchOptions,
+  HonuaEditorSketchAdapter,
+  HonuaEditorSketchOptions,
+} from "./feature-editor-sketch.js";
+
 export type {
   HonuaActionDetail,
   HonuaActionPanelAction,
