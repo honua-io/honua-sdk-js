@@ -519,6 +519,30 @@ CI publish workflow:
 - tag-triggered publish uses Release Please tags in form `js-sdk-<version>`; the workflow also accepts `js-sdk-v<version>` and enforces tag/version match
 - Release Please dispatches the JS SDK and MCP publish workflows after creating releases; package publishes skip versions that already exist on npm.
 
+Release tags are strictly self-verifiable (honua-io/honua-sdk-js#768): checking
+one out on a pristine clone and running `npm run samples:generate` and
+`npm run samples:verify` must succeed with no `HONUA_DERIVED_ARTIFACTS_RELAX`
+relaxation. Release Please's version-bump commit never satisfies that on its own
+-- it edits `package.json` and the version-stamped fixtures declared in
+`release-please-config.json`, all inside the evidence-neutral source digest
+(`scripts/sample-gate-receipt.mjs`), which re-stales every sample gate receipt,
+and the derived sample artifacts it carries were generated before the bump, so
+they still self-report the previous version. The release therefore:
+
+- waits for `regenerate-derived-artifacts.yml` to reseal evidence and regenerate
+  the projections against the bumped tree and merge that generated-only
+  descendant;
+- verifies the descendant changed only generated paths, then moves the
+  `js-sdk-*` tag onto it, so the tag names the sealed commit;
+- publishes from that tag, and dispatches the First Map release smoke at it.
+
+`npm run release:seal:check` is the gate that proves a commit is sealed (every
+gate receipt bound to this tree, derived artifacts stamping this release
+version). It runs in both `Publish JS SDK Packages` and `First Map Release
+Smoke`, and it fails closed if a relaxation signal is set. Use
+`--tag js-sdk-v<version>` to also require that the tag resolves to the verified
+commit, and `npm run release:seal:test` for its unit tests.
+
 ## Request/Auth Bridge
 
 ```ts doc-test=compile
