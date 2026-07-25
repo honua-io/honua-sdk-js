@@ -98,7 +98,10 @@ function visualEvidenceAdversary(
     sampleId,
     source: {
       repository: "honua-io/honua-sdk-js",
-      path: "examples/maplibre-quickstart",
+      // Derived from the sample so two synthetic entries never claim one
+      // executable tree; duplicate source identities are their own admission
+      // failure (honua-io/honua-sdk-js#550).
+      path: `examples/${sampleId}`,
       revision: "b".repeat(40),
       evidenceNeutralSha256: "c".repeat(64),
     },
@@ -568,6 +571,64 @@ describe("sample publication contract", () => {
     await expect(validateGoldenJourneyVisualEvidence(crossRuntime, catalog, qualificationEvidence)).rejects.toThrow(
       "JSON Schema validation failed",
     );
+
+    // Two entries cannot resolve to one sample, journey, or executable tree:
+    // that is how a second implementation would ride qualified evidence
+    // (honua-io/honua-sdk-js#550 duplicate-identity handling).
+    const duplicateIdentity = structuredClone(canonical);
+    duplicateIdentity.qualifiedGoldenJourneys[1].source.path = duplicateIdentity.qualifiedGoldenJourneys[0].source.path;
+    await expect(
+      validateGoldenJourneyVisualEvidence(duplicateIdentity, catalog, qualificationEvidence),
+    ).rejects.toThrow("duplicate journey, sample, or source identities");
+
+    const borrowedReceipt = structuredClone(canonical);
+    borrowedReceipt.qualifiedGoldenJourneys = borrowedReceipt.qualifiedGoldenJourneys.map((entry) => {
+      if (entry.journeyId !== "first-map") return entry;
+      const adversary = visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt);
+      adversary.semanticEvidence[0].receiptPath = "samples/evidence/service-explorer/receipts/packed-build.v1.json";
+      return adversary;
+    });
+    await expect(
+      validateGoldenJourneyVisualEvidence(borrowedReceipt, staleCatalog, qualificationEvidence),
+    ).rejects.toThrow("visual evidence receipt is orphaned from its sample");
+
+    const borrowedScreenshot = structuredClone(canonical);
+    borrowedScreenshot.qualifiedGoldenJourneys = borrowedScreenshot.qualifiedGoldenJourneys.map((entry) => {
+      if (entry.journeyId !== "first-map") return entry;
+      const adversary = visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt);
+      adversary.screenshots[0].sourcePath =
+        "samples/evidence/service-explorer/runs/11111111-1111-4111-8111-111111111111/artifacts/screenshot-desktop.png";
+      return adversary;
+    });
+    await expect(
+      validateGoldenJourneyVisualEvidence(borrowedScreenshot, staleCatalog, qualificationEvidence),
+    ).rejects.toThrow("screenshot is orphaned from its own evidence run");
+
+    const sourceModePacked = structuredClone(canonical);
+    sourceModePacked.qualifiedGoldenJourneys = sourceModePacked.qualifiedGoldenJourneys.map((entry) => {
+      if (entry.journeyId !== "first-map") return entry;
+      const adversary = visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt);
+      const packed = adversary.semanticEvidence.find((receipt) => receipt.gate === "packed-build");
+      if (!packed) throw new Error("expected a packed-build receipt in the adversary");
+      packed.sdkMode = "source";
+      return adversary;
+    });
+    await expect(
+      validateGoldenJourneyVisualEvidence(sourceModePacked, staleCatalog, qualificationEvidence),
+    ).rejects.toThrow("must come from the packed SDK mode");
+
+    // A structurally consistent entry that advertises artifacts the checkout
+    // does not contain must fail publication rather than ship an unverifiable
+    // golden card.
+    const unverifiableArtifacts = structuredClone(canonical);
+    unverifiableArtifacts.qualifiedGoldenJourneys = unverifiableArtifacts.qualifiedGoldenJourneys.map((entry) =>
+      entry.journeyId === "first-map"
+        ? visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt)
+        : entry,
+    );
+    await expect(
+      validateGoldenJourneyVisualEvidence(unverifiableArtifacts, staleCatalog, qualificationEvidence),
+    ).rejects.toThrow("is broken or missing");
   }, 80_000);
 
   // This test calls generatedOutputs() twice (current + bumped-version
