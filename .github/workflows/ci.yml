@@ -234,6 +234,13 @@ jobs:
           npm run samples:runner:test
           npm run samples:run -- list --kit --json
 
+      # Unit tests for the release-tag sealing gate (#768). Only the tests run
+      # here; `release:seal:check` itself is a release-time gate (publish-js-sdk,
+      # first-map-release-smoke) and would legitimately fail on any branch that
+      # changed source without a reseal.
+      - name: Validate release-seal policy
+        run: npm run release:seal:test
+
       - name: Code style
         run: npm run check
 
