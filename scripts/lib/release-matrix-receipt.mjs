@@ -68,12 +68,26 @@ export const RELEASE_MATRIX_MAX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 export const RELEASE_MATRIX_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 export const RELEASE_MATRIX_RECEIPT_MAX_BYTES = 64 * 1024;
 export const RELEASE_MATRIX_RELAX_ENV_NAME = "HONUA_RELEASE_MATRIX_RECEIPT_RELAX";
+// Establishment registry. It deliberately lives under samples/contract -- INSIDE
+// the evidence-neutral source digest -- while the receipt itself lives under
+// samples/evidence, which is outside it. That asymmetry is the anti-laundering
+// property: deleting a failing or lapsed sidecar cannot relax the lane back to
+// "not established", because the requirement is recorded in reviewed contract
+// source that the digest and code review both cover.
+export const RELEASE_MATRIX_LANES_FORMAT = "honua.sdk.sample-release-matrix-lanes.v1";
+export const RELEASE_MATRIX_LANES_PATH = "samples/contract/v2/release-matrix-lanes.v1.json";
+export const RELEASE_MATRIX_LANES_SCHEMA_PATH =
+  "samples/contract/v2/schemas/sample-release-matrix-lanes.schema.json";
+export const RELEASE_MATRIX_LANES_MAX_BYTES = 64 * 1024;
 
 const RELEASE_MATRIX_STATES = Object.freeze({
   notEstablished: "not-established",
   current: "current",
   stale: "stale",
   failed: "failed",
+  // Established by the registry, but the sealed sidecar is gone. Deleting
+  // evidence is never a way back to qualified.
+  missing: "missing",
 });
 
 export const RELEASE_MATRIX_STATE = RELEASE_MATRIX_STATES;
@@ -86,18 +100,28 @@ function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-let compiledSchema;
+const compiledSchemas = new Map();
 
-async function releaseMatrixReceiptSchemaValidator(projectRoot = PROJECT_ROOT) {
-  if (compiledSchema) return compiledSchema;
-  const bytes = await readCanonicalBoundedFile(projectRoot, RELEASE_MATRIX_RECEIPT_SCHEMA_PATH, {
-    label: "release-matrix receipt schema",
+async function releaseMatrixSchemaValidator(schemaPath, label, projectRoot = PROJECT_ROOT) {
+  const cached = compiledSchemas.get(schemaPath);
+  if (cached) return cached;
+  const bytes = await readCanonicalBoundedFile(projectRoot, schemaPath, {
+    label,
     maxBytes: 256 * 1024,
   });
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   addFormats(ajv);
-  compiledSchema = ajv.compile(JSON.parse(bytes.toString("utf8")));
-  return compiledSchema;
+  const validate = ajv.compile(JSON.parse(bytes.toString("utf8")));
+  compiledSchemas.set(schemaPath, validate);
+  return validate;
+}
+
+function releaseMatrixReceiptSchemaValidator(projectRoot = PROJECT_ROOT) {
+  return releaseMatrixSchemaValidator(RELEASE_MATRIX_RECEIPT_SCHEMA_PATH, "release-matrix receipt schema", projectRoot);
+}
+
+function releaseMatrixLanesSchemaValidator(projectRoot = PROJECT_ROOT) {
+  return releaseMatrixSchemaValidator(RELEASE_MATRIX_LANES_SCHEMA_PATH, "release-matrix lanes schema", projectRoot);
 }
 
 /**
@@ -120,6 +144,141 @@ export function releaseMatrixReceiptRelativePath(sampleId) {
  */
 export function releaseMatrixReceiptRelaxed(env = process.env) {
   return /^(1|true|yes|on)$/i.test(env[RELEASE_MATRIX_RELAX_ENV_NAME] ?? "");
+}
+
+export async function validateReleaseMatrixLaneRegistry(registry, options = {}) {
+  const projectRoot = options.projectRoot ?? PROJECT_ROOT;
+  invariant(
+    registry && typeof registry === "object" && !Array.isArray(registry),
+    "release-matrix lane registry must be an object",
+  );
+  const validate = await releaseMatrixLanesSchemaValidator(projectRoot);
+  if (!validate(registry)) {
+    const detail = validate.errors?.map((error) => `${error.instancePath || "/"} ${error.message}`).join("; ");
+    throw new Error(`release-matrix lane registry schema validation failed: ${detail}`);
+  }
+  const sampleIds = registry.lanes.map((lane) => lane.sampleId);
+  invariant(
+    JSON.stringify(sampleIds) === JSON.stringify([...new Set(sampleIds)].sort()),
+    "release-matrix lane registry entries must be unique and sorted by sample id",
+  );
+  for (const lane of registry.lanes) {
+    invariant(
+      RELEASE_MATRIX_SAMPLE_IDS.includes(lane.sampleId),
+      `${lane.sampleId}: release-matrix lane registry names a sample that does not declare the lane`,
+    );
+    invariant(
+      lane.receiptPath === releaseMatrixReceiptRelativePath(lane.sampleId),
+      `${lane.sampleId}: release-matrix lane registry receipt path drift`,
+    );
+    const establishedAt = Date.parse(lane.establishedAt);
+    const now = Date.parse(options.now ?? new Date().toISOString());
+    invariant(Number.isFinite(establishedAt), `${lane.sampleId}: release-matrix lane establishment time is invalid`);
+    invariant(
+      establishedAt <= now + RELEASE_MATRIX_MAX_FUTURE_SKEW_MS,
+      `${lane.sampleId}: release-matrix lane establishment is more than five minutes in the future`,
+    );
+  }
+  return registry;
+}
+
+/**
+ * Reads the committed establishment registry. An ABSENT file means no lane has
+ * ever been established, which is the pre-first-receipt state and stays a
+ * harmless note. A present file is authoritative: every sample it names must
+ * carry its sealed sidecar from then on.
+ */
+export async function readReleaseMatrixLaneRegistry(options = {}) {
+  const projectRoot = options.projectRoot ?? PROJECT_ROOT;
+  const relative = options.registryPath ?? RELEASE_MATRIX_LANES_PATH;
+  const absolute = path.join(projectRoot, relative);
+  let metadata;
+  try {
+    metadata = await lstat(absolute);
+  } catch (error) {
+    if (error?.code === "ENOENT") return undefined;
+    throw error;
+  }
+  invariant(
+    metadata.isFile() && !metadata.isSymbolicLink(),
+    "release-matrix lane registry must be a regular non-symlink file",
+  );
+  const bytes = await readCanonicalBoundedFile(projectRoot, relative, {
+    label: "release-matrix lane registry",
+    maxBytes: RELEASE_MATRIX_LANES_MAX_BYTES,
+  });
+  let parsed;
+  try {
+    parsed = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw new Error("release-matrix lane registry is not valid JSON");
+  }
+  await validateReleaseMatrixLaneRegistry(parsed, { projectRoot, now: options.now });
+  return {
+    registry: parsed,
+    path: relative,
+    lanes: new Map(parsed.lanes.map((lane) => [lane.sampleId, lane])),
+  };
+}
+
+export function releaseMatrixLaneEstablished(laneRegistry, sampleId) {
+  return Boolean(laneRegistry?.lanes?.has(sampleId));
+}
+
+export function releaseMatrixMissingReceiptMessage(sampleId) {
+  return (
+    `${sampleId}: ${RELEASE_MATRIX_LANES_PATH} established the release-matrix browser lane, but ` +
+    `${releaseMatrixReceiptRelativePath(sampleId)} is missing; deleting sealed cross-browser evidence ` +
+    "cannot restore the golden qualification -- reseal it with first-map-release-smoke.yml"
+  );
+}
+
+/**
+ * Idempotently records a lane's establishment from its sealed receipt. Called by
+ * `node scripts/sample-contract.mjs record-release-matrix-lane`, which the
+ * regeneration workflow runs alongside the catalog live-expiry refresh so the
+ * registry lands in the SAME automation commit chain that publishes the receipt.
+ * `establishedAt` is pinned to the first receipt's observation, so re-running it
+ * for an already-established lane produces no bytes and therefore no
+ * source-digest churn.
+ */
+export function recordedReleaseMatrixLaneRegistry(registry, receipt) {
+  invariant(
+    receipt?.format === RELEASE_MATRIX_RECEIPT_FORMAT && receipt.lane === RELEASE_MATRIX_LANE,
+    "release-matrix lane establishment requires a release-matrix receipt",
+  );
+  invariant(
+    RELEASE_MATRIX_SAMPLE_IDS.includes(receipt.sampleId),
+    `${receipt.sampleId}: release-matrix lane establishment requires a sample that declares the lane`,
+  );
+  const base =
+    registry ?? {
+      $schema: path.posix.relative(path.posix.dirname(RELEASE_MATRIX_LANES_PATH), RELEASE_MATRIX_LANES_SCHEMA_PATH),
+      format: RELEASE_MATRIX_LANES_FORMAT,
+      schemaVersion: 1,
+      lanes: [],
+    };
+  invariant(base.format === RELEASE_MATRIX_LANES_FORMAT && base.schemaVersion === 1, "release-matrix lane registry format must be v1");
+  if (base.lanes.some((lane) => lane.sampleId === receipt.sampleId)) {
+    return { registry: base, changed: false };
+  }
+  const lanes = [
+    ...base.lanes,
+    {
+      sampleId: receipt.sampleId,
+      lane: RELEASE_MATRIX_LANE,
+      receiptPath: releaseMatrixReceiptRelativePath(receipt.sampleId),
+      establishedAt: receipt.observedAt,
+      establishedBy: {
+        repository: receipt.run.repository,
+        workflow: receipt.run.workflow,
+        runId: receipt.run.runId,
+        runAttempt: receipt.run.runAttempt,
+        commit: receipt.run.commit,
+      },
+    },
+  ].sort((left, right) => left.sampleId.localeCompare(right.sampleId));
+  return { registry: { ...base, lanes }, changed: true };
 }
 
 export async function validateReleaseMatrixReceiptStructure(receipt, options = {}) {
@@ -227,13 +386,21 @@ export async function readReleaseMatrixReceipt(options = {}) {
 /**
  * Classifies a (possibly absent) receipt without deciding severity.
  *
- * - `not-established`: no receipt has ever been sealed for this sample.
+ * - `not-established`: the lane is absent from the establishment registry and no
+ *   receipt has ever been sealed for this sample.
+ * - `missing`: the registry established the lane, but its sealed receipt is gone.
+ *   Deleting evidence is not a route back to qualified.
  * - `failed`: the last observed matrix run had a failing engine.
  * - `stale`: the last observed matrix run passed but its seven-day window lapsed.
  * - `current`: all three engines passed inside the freshness window.
  */
 export function releaseMatrixState(record, options = {}) {
-  if (!record) return { state: RELEASE_MATRIX_STATES.notEstablished, failedEngines: [] };
+  if (!record) {
+    return {
+      state: options.established === true ? RELEASE_MATRIX_STATES.missing : RELEASE_MATRIX_STATES.notEstablished,
+      failedEngines: [],
+    };
+  }
   const receipt = record.receipt ?? record;
   const now = Date.parse(options.now ?? new Date().toISOString());
   invariant(Number.isFinite(now), "release-matrix state evaluation time is invalid");
@@ -255,7 +422,11 @@ export function releaseMatrixState(record, options = {}) {
  *
  * - `not-established` is never an error. Merging this feature cannot turn CI
  *   red before any release-matrix run has sealed a receipt; the lane becomes
- *   enforced the moment the first receipt exists.
+ *   enforced the moment the automation records its establishment.
+ * - `missing` (established, sidecar deleted) carries exactly the same severity as
+ *   `failed`. The establishment record lives in reviewed contract source inside
+ *   the evidence-neutral digest, so removing the sealed receipt cannot launder a
+ *   failing or lapsed lane back to a harmless note.
  * - `failed` is an error everywhere except the persistence automation
  *   (HONUA_RELEASE_MATRIX_RECEIPT_RELAX), which must be able to commit the
  *   failing receipt itself.
@@ -281,7 +452,14 @@ export function releaseMatrixGateOutcome(record, options = {}) {
       message:
         `${sampleId}: release-matrix browser evidence is not established yet; ` +
         `${releaseMatrixReceiptRelativePath(sampleId)} is sealed by the First Map release smoke ` +
-        "and becomes a required qualification input once it exists",
+        `and becomes a required qualification input once ${RELEASE_MATRIX_LANES_PATH} records the lane`,
+    };
+  }
+  if (state === RELEASE_MATRIX_STATES.missing) {
+    return {
+      state,
+      severity: relaxed ? "warning" : "error",
+      message: releaseMatrixMissingReceiptMessage(sampleId),
     };
   }
   if (state === RELEASE_MATRIX_STATES.failed) {

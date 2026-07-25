@@ -18,12 +18,18 @@ import {
 } from "./lib/sample-gates.mjs";
 import { loadCapabilityKeyList } from "./lib/capability-key-list.mjs";
 import {
+  readReleaseMatrixLaneRegistry,
   readReleaseMatrixReceipt,
+  recordedReleaseMatrixLaneRegistry,
+  RELEASE_MATRIX_LANES_PATH,
   RELEASE_MATRIX_RECEIPT_FILE_NAME,
   RELEASE_MATRIX_SAMPLE_IDS,
   releaseMatrixEvidenceProjection,
   releaseMatrixGateOutcome,
+  releaseMatrixLaneEstablished,
+  releaseMatrixMissingReceiptMessage,
   releaseMatrixReceiptRelaxed,
+  validateReleaseMatrixLaneRegistry,
 } from "./lib/release-matrix-receipt.mjs";
 import {
   readCanonicalBoundedFile,
@@ -3218,6 +3224,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT)),
     now: new Date(currentTime).toISOString(),
     relaxDerivedArtifacts: options.relaxDerivedArtifacts === true || derivedArtifactsRelaxed(),
+    laneRegistryPath: options.releaseMatrixLaneRegistryPath,
   });
 
   const exampleDirectories = await runnableRootExampleDirectories();
@@ -3710,15 +3717,35 @@ function releaseMatrixGatedSampleIds(goldenSamples) {
 }
 
 /**
- * Maps every release-matrix sample that currently has a sealed sidecar to its
- * file name, so the strict evidence-root inventory accepts exactly the files
- * that exist and still rejects orphans. An absent sidecar is legitimate: the
- * lane is simply not established yet.
+ * Maps every release-matrix sample whose sidecar the strict evidence-root
+ * inventory must account for.
+ *
+ * A sample is included when the establishment registry names it -- and then the
+ * file is REQUIRED, so a deleted receipt fails here too and not only in the
+ * staleness gate -- or when a sidecar exists (the pre-establishment window
+ * between the first seal and the automation commit that records the lane). A
+ * sample with neither is legitimately not established.
+ *
+ * This requirement is not relaxed for the publication automation. That relaxation
+ * exists so a FAILING receipt can be committed; it must never let a generator
+ * publish a qualified projection for an established lane whose sealed evidence
+ * has been removed.
  */
-async function releaseMatrixSidecarFileBySample(receiptRoot, sampleIds) {
+async function releaseMatrixSidecarFileBySample(receiptRoot, sampleIds, laneRegistry) {
   const sidecars = new Map();
   for (const sampleId of sampleIds) {
     if (!RELEASE_MATRIX_SAMPLE_IDS.includes(sampleId)) continue;
+    if (releaseMatrixLaneEstablished(laneRegistry, sampleId)) {
+      const established = path.join(receiptRoot, sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME);
+      try {
+        await lstat(established);
+      } catch (error) {
+        if (error?.code === "ENOENT") throw new Error(releaseMatrixMissingReceiptMessage(sampleId));
+        throw error;
+      }
+      sidecars.set(sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME);
+      continue;
+    }
     try {
       const metadata = await lstat(path.join(receiptRoot, sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME));
       invariant(
@@ -3736,15 +3763,25 @@ async function releaseMatrixSidecarFileBySample(receiptRoot, sampleIds) {
 /**
  * Gates golden qualification staleness on the release-matrix receipt (REQ-003).
  * Severity policy lives in scripts/lib/release-matrix-receipt.mjs: a failing
- * receipt is an error everywhere except the persistence automation, a lapsed
- * one is an error in strict lanes, and a receipt that has never been sealed is
- * a note so merging the gate cannot redden CI before the first matrix run.
+ * receipt -- or a receipt that has been DELETED after the lane was established
+ * in samples/contract/v2/release-matrix-lanes.v1.json -- is an error everywhere
+ * except the persistence automation; a lapsed one is an error in strict lanes;
+ * and a lane that has never been established is a note, so merging the gate
+ * cannot redden CI before the first matrix run.
  */
 const reportedReleaseMatrixNotes = new Set();
 
 async function validateReleaseMatrixEvidence(goldenSamples, options = {}) {
   const relaxed = releaseMatrixReceiptRelaxed();
   const notes = [];
+  // options.laneRegistryPath exists so adversarial tests can point the gate at a
+  // fixture registry under test/fixtures without writing to the real contract
+  // tree. Production callers always read the canonical committed path.
+  const laneRegistry = await readReleaseMatrixLaneRegistry({
+    projectRoot: PROJECT_ROOT,
+    registryPath: options.laneRegistryPath,
+    now: options.now,
+  });
   for (const sampleId of releaseMatrixGatedSampleIds(goldenSamples)) {
     const record = await readReleaseMatrixReceipt({
       sampleId,
@@ -3757,6 +3794,7 @@ async function validateReleaseMatrixEvidence(goldenSamples, options = {}) {
       now: options.now,
       relaxed,
       derivedArtifactsRelaxed: options.relaxDerivedArtifacts === true,
+      established: releaseMatrixLaneEstablished(laneRegistry, sampleId),
     });
     if (outcome.severity === "error") throw new Error(outcome.message);
     if (outcome.message) notes.push(`${outcome.severity}: ${outcome.message}`);
@@ -3949,7 +3987,15 @@ export async function collectQualificationEvidence(catalog, options = {}) {
     receiptRoot,
     qualifiedSampleIds,
     legacyLiveEvidenceFileBySample,
-    await releaseMatrixSidecarFileBySample(receiptRoot, qualifiedSampleIds),
+    await releaseMatrixSidecarFileBySample(
+      receiptRoot,
+      qualifiedSampleIds,
+      await readReleaseMatrixLaneRegistry({
+        projectRoot: PROJECT_ROOT,
+        registryPath: options.releaseMatrixLaneRegistryPath,
+        now: options.now,
+      }),
+    ),
   );
   const samples = [];
   for (const journey of qualifiedJourneys) {
@@ -6699,6 +6745,49 @@ async function main(argv) {
       process.stdout.write(
         `${entry.sampleId}: live.expiresAt ${entry.previousExpiresAt ?? "(none)"} -> ${entry.expiresAt} (observedAt ${entry.observedAt})\n`,
       );
+    }
+    return;
+  }
+  // Establishment recording (honua-io/honua-sdk-js#766). Runs in the same slot
+  // as refresh-live-expiry above -- after a reseal pass has observed the tree,
+  // before the automation's catalog commit -- because
+  // samples/contract/v2/release-matrix-lanes.v1.json is INSIDE the
+  // evidence-neutral digest and must therefore be committed before the reseal
+  // pass whose receipts bind to it. Idempotent: an already-established lane
+  // writes no bytes, so routine regenerations cause no digest churn.
+  if (command === "record-release-matrix-lane") {
+    invariant(
+      args.length === 2 && args[0] === "--sample",
+      "record-release-matrix-lane requires --sample <comma-separated-ids>",
+    );
+    const sampleIds = args[1].split(",").map((id) => id.trim());
+    let registry;
+    const existing = await readReleaseMatrixLaneRegistry({ projectRoot: PROJECT_ROOT });
+    if (existing) registry = existing.registry;
+    let changedAny = false;
+    for (const sampleId of sampleIds) {
+      invariant(
+        RELEASE_MATRIX_SAMPLE_IDS.includes(sampleId),
+        `${sampleId}: sample does not declare the release-matrix browser lane`,
+      );
+      const record = await readReleaseMatrixReceipt({ sampleId, projectRoot: PROJECT_ROOT });
+      if (!record) {
+        process.stdout.write(`${sampleId}: no sealed release-matrix receipt to establish\n`);
+        continue;
+      }
+      const { registry: next, changed } = recordedReleaseMatrixLaneRegistry(registry, record.receipt);
+      registry = next;
+      changedAny ||= changed;
+      process.stdout.write(
+        changed
+          ? `${sampleId}: release-matrix browser lane established from run ${record.receipt.run.runId}\n`
+          : `${sampleId}: release-matrix browser lane already established\n`,
+      );
+    }
+    if (changedAny) {
+      await validateReleaseMatrixLaneRegistry(registry, { projectRoot: PROJECT_ROOT });
+      await writeFile(path.join(PROJECT_ROOT, RELEASE_MATRIX_LANES_PATH), stableJson(registry), "utf8");
+      process.stdout.write(`Wrote ${RELEASE_MATRIX_LANES_PATH}\n`);
     }
     return;
   }

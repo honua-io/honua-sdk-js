@@ -377,6 +377,18 @@ jobs:
           npm run samples:migrate:v1
           npm run samples:write-ci-selection
 
+      # Record release-matrix lane establishment (#766) in the same slot, and for
+      # the same reason: samples/contract/v2/release-matrix-lanes.v1.json is
+      # INSIDE the evidence-neutral digest, so it must land in the catalog commit
+      # below -- before pass two -- for pass two's receipts to bind to a tree that
+      # already contains it. Idempotent and receipt-driven: it writes nothing
+      # unless a sealed sidecar exists for a lane that is not yet established, so
+      # routine regenerations produce no diff. Once written, deleting the sealed
+      # sidecar can no longer relax the lane back to "not established".
+      - name: Record established release-matrix lanes
+        if: steps.guard.outputs.skip == 'false'
+        run: npm run samples:release-matrix:record -- --sample maplibre-quickstart
+
       # Commit the refreshed catalog before pass two below so that pass two's
       # own clean-checkout verification (and the receipts it writes) bind to
       # the tree the refresh actually produced, not the one from before it.
@@ -398,7 +410,8 @@ jobs:
           set -euo pipefail
           git add -A -- \
             samples/catalog.v2.json \
-            samples/contract/v2/migrations/catalog.v1-to-v2.json
+            samples/contract/v2/migrations/catalog.v1-to-v2.json \
+            samples/contract/v2/release-matrix-lanes.v1.json
           git add -f -A -- samples/dist/sample-ci-selection.v2.json
           if ! git diff --quiet -- . ':(exclude)samples/evidence'; then
             echo "Catalog live-expiry refresh modified unexpected tracked content:"
@@ -557,6 +570,7 @@ jobs:
               examples/migration-workbench/src/generated/* | \
               samples/catalog.v2.json | \
               samples/contract/v2/migrations/catalog.v1-to-v2.json | \
+              samples/contract/v2/release-matrix-lanes.v1.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
               samples/dist/* | samples/evidence/imagery-cog-quickstart/* | \

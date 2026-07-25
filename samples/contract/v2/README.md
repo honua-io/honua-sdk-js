@@ -301,9 +301,40 @@ virtual display with `HONUA_FIRST_MAP_RELEASE_MATRIX=true`.
   `HONUA_DERIVED_ARTIFACTS_RELAX` already relaxes shared derived-artifact
   freshness. Re-running `first-map-release-smoke.yml` reseals the lane and
   restores qualified status with no manual edit.
-- An **absent** receipt is not evidence of anything and is never an error: the
-  lane is simply not established until the first release smoke seals it, and it
-  becomes a required qualification input from that point on. Qualified golden
-  journeys publish the link to their current release-matrix evidence in
-  `samples/dist/golden-journey-visual-evidence.v1.json` (`releaseMatrix`), which
-  stays absent, and therefore byte-stable, until then.
+- Qualified golden journeys publish the link to their current release-matrix
+  evidence in `samples/dist/golden-journey-visual-evidence.v1.json`
+  (`releaseMatrix`), which stays absent, and therefore byte-stable, until the
+  first receipt lands.
+
+### Lane establishment is recorded outside the evidence tree
+
+An **absent** receipt is not evidence of anything, so before a lane is
+established it is only a note: `samples:verify` cannot go red for cross-browser
+evidence that has never been produced. Establishment itself, however, must not be
+erasable by deleting the evidence, or a failing lane could be laundered back to
+that harmless note.
+
+- `release-matrix-lanes.v1.json` (schema: `sample-release-matrix-lanes.schema.json`)
+  is the reviewed registry of established lanes. It records `sampleId`, the
+  canonical `receiptPath`, the first receipt's `establishedAt`, and the workflow
+  run that produced it. Absence of the file means no lane has ever been
+  established.
+- It lives under `samples/contract/`, **inside** the evidence-neutral source
+  digest, while the receipt lives under `samples/evidence/`, which is outside it.
+  That asymmetry is the point: removing a sealed receipt cannot relax the
+  requirement, because the requirement is reviewed contract source that the
+  digest, code review, and CI all cover.
+- `npm run samples:release-matrix:record -- --sample <id>` writes it from the
+  sealed receipt. `regenerate-derived-artifacts.yml` runs it in the same slot as
+  `samples:refresh-live-expiry` -- after a reseal pass, before the catalog
+  commit -- so establishment lands in the SAME automation commit chain that
+  publishes the first receipt, and so the following reseal binds to a tree that
+  already contains it. It is idempotent and pins `establishedAt` to the first
+  receipt, so later regenerations write no bytes and cause no digest churn.
+- Once a lane is recorded, a missing sidecar carries exactly the same severity as
+  a failing engine: an error in every enforced lane, downgraded only by the
+  publication automation's `HONUA_RELEASE_MATRIX_RECEIPT_RELAX`. The generator
+  side is stricter still and is never relaxed -- `collectQualificationEvidence`
+  requires the declared sidecar to exist, so no projection can present an
+  established lane as qualified after its evidence was removed. Resealing with
+  `first-map-release-smoke.yml` is the only way back to green.

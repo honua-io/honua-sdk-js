@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/sample-release-matrix-lanes.v1.schema.json",
+  "title": "Honua SDK established release-matrix lanes v1",
+  "description": "Reviewed registry of samples whose golden qualification is bound to the release-only cross-browser matrix. Establishment is recorded here, inside the evidence-neutral source digest, precisely because samples/evidence/<sample>/release-matrix.v1.json is not: deleting a sealed receipt must not be able to relax the lane back to unestablished. Absence of this file means no lane has ever been established; an entry means the sidecar receipt is a required qualification input from that point on.",
+  "type": "object",
+  "required": ["format", "schemaVersion", "lanes"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.sample-release-matrix-lanes.v1" },
+    "schemaVersion": { "const": 1 },
+    "lanes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "required": ["sampleId", "lane", "receiptPath", "establishedAt", "establishedBy"],
+        "properties": {
+          "sampleId": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          "lane": { "const": "release-matrix-browser" },
+          "receiptPath": {
+            "type": "string",
+            "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/release-matrix\\.v1\\.json$"
+          },
+          "establishedAt": {
+            "description": "Observation time of the FIRST sealed receipt for this lane. Stable once written, so later regenerations produce no source-digest churn.",
+            "type": "string",
+            "format": "date-time"
+          },
+          "establishedBy": {
+            "description": "Workflow run identity of that first release smoke.",
+            "type": "object",
+            "required": ["repository", "workflow", "runId", "runAttempt", "commit"],
+            "properties": {
+              "repository": { "const": "honua-io/honua-sdk-js" },
+              "workflow": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "runId": { "type": "string", "pattern": "^[1-9][0-9]{0,19}$" },
+              "runAttempt": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

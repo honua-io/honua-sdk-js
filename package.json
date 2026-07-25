@@ -326,6 +326,7 @@
     "samples:run": "node scripts/sample-runner.mjs",
     "samples:list": "node scripts/sample-runner.mjs list",
     "samples:release-matrix:seal": "node scripts/seal-release-matrix-receipt.mjs",
+    "samples:release-matrix:record": "node scripts/sample-contract.mjs record-release-matrix-lane",
     "samples:runner:test": "node --test test/scripts/sample-runner.test.mjs test/scripts/sample-gate-receipt.test.mjs test/scripts/release-matrix-receipt.test.mjs",
     "release:seal:check": "node scripts/release-seal.mjs check",
     "release:seal:test": "node --test test/scripts/release-seal.test.mjs",
