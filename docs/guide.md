@@ -238,6 +238,9 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
   [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md).
 - Live SDK ↔ Honua Server protocol integration lane:
   [`docs/integration-tests.md`](./docs/integration-tests.md).
+- Scheduled public-reference-service conformance lane (GeoServices, OGC API
+  Features, WFS, WMS, WMTS, STAC, OData):
+  [`docs/live-conformance.md`](./docs/live-conformance.md).
 
 ```ts doc-test=compile
 import { createDataset } from "@honua/sdk-js/contract";
@@ -480,6 +483,7 @@ npm run test:playwright:25d
 npm run test:playwright
 npm run demo:kepler:smoke
 HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live # scheduled anonymous public evidence
+HONUA_LIVE_CONFORMANCE_ENABLED=true npm run evidence:live-conformance # scheduled public reference services — see docs/live-conformance.md
 npm run test:integration # connect-only; requires HONUA_INTEGRATION_BASE_URL — see docs/integration-tests.md
 npm run scan:arcgis -- ../../path/to/arcgis-app
 npm run migrate:arcgis -- ../../path/to/arcgis-app --write --report migration-report.json
