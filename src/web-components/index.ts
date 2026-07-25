@@ -97,9 +97,88 @@ export {
   HonuaSketchControlElement,
   defineHonuaWebComponent,
   defineHonuaWebComponents,
+  honuaExportKindFromFormat,
 } from "./elements.js";
 
 export { HonuaMeasurementElement, defineHonuaMeasurement } from "./measurement.js";
+
+// ── secure export contract (issue #683) ──────────────────────────────────
+export {
+  HONUA_EXPORT_KINDS,
+  HonuaExportError,
+  approximateHonuaScaleLabel,
+  assertHonuaExportProvenanceComplete,
+  assertHonuaExportReady,
+  buildHonuaExportProvenance,
+  createBrowserPrintExportAdapter,
+  createHonuaExportAdapter,
+  runHonuaExport,
+} from "./export.js";
+export type {
+  BuildHonuaExportProvenanceOptions,
+  CreateHonuaExportAdapterOptions,
+  HonuaExportAdapter,
+  HonuaExportCapabilities,
+  HonuaExportContext,
+  HonuaExportKind,
+  HonuaExportOwnership,
+  HonuaExportPayload,
+  HonuaExportProvenance,
+  HonuaExportRequest,
+  HonuaExportResult,
+  HonuaExportStatus,
+  HonuaPrintWindowLike,
+  HonuaSnapshotCanvasLike,
+  HonuaSnapshotSource,
+} from "./export.js";
+export {
+  HONUA_EXPORT_REDACTED,
+  HONUA_EXPORT_STATE_SCHEMA,
+  HonuaExportSafetyError,
+  assertCredentialFreeExportText,
+  containsCredentialMaterial,
+  isSensitiveExportKey,
+  projectExportEndpoint,
+  redactHonuaExportText,
+  sanitizeHonuaExportFilename,
+  sanitizeHonuaExportHeaders,
+  sanitizeHonuaExportState,
+} from "./export-redaction.js";
+export type {
+  HonuaExportEndpointProjection,
+  HonuaExportRedaction,
+  HonuaExportRedactionReason,
+  HonuaExportStateSanitizationResult,
+  HonuaSanitizedExportFilter,
+  HonuaSanitizedExportLayer,
+  HonuaSanitizedExportLegendItem,
+  HonuaSanitizedExportSelection,
+  HonuaSanitizedExportSource,
+  HonuaSanitizedExportState,
+  SanitizeHonuaExportFilenameOptions,
+  SanitizeHonuaExportStateOptions,
+} from "./export-redaction.js";
+
+// ── production qualification matrix (issue #683) ─────────────────────────
+export {
+  HONUA_COMPONENT_QUALIFICATION_DATA_VERSION,
+  HONUA_COMPONENT_QUALIFICATION_GATES,
+  HONUA_COMPONENT_QUALIFICATION_STATUSES,
+  describeComponentQualificationGate,
+  getComponentQualification,
+  isComponentProductionQualified,
+  listComponentQualifications,
+  summarizeComponentQualification,
+} from "../controls/qualification.js";
+export type {
+  HonuaComponentQualification,
+  HonuaComponentQualificationGate,
+  HonuaComponentQualificationGateId,
+  HonuaComponentQualificationRequirement,
+  HonuaComponentQualificationStatus,
+  HonuaComponentQualificationSummary,
+  HonuaComponentQualificationCell,
+} from "../controls/qualification.js";
 
 export type {
   HonuaActionDetail,

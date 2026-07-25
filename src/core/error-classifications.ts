@@ -153,6 +153,8 @@ export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = Object.freeze({
   "app.data-load-failed": runtimeClassification("app", "internal", false),
   "app.render-failed": runtimeClassification("app", "internal", false),
   "app.disposed": runtimeClassification("app", "validation", false),
+  "app.export-unsafe": runtimeClassification("app", "validation", false),
+  "app.export-failed": runtimeClassification("app", "internal", false),
 } as const satisfies Record<HonuaErrorCode, HonuaErrorRuntimeClassification>);
 
 function runtimeClassification(

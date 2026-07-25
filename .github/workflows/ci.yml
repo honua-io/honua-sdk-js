@@ -289,6 +289,13 @@ jobs:
       - name: Validate documentation snippets
         run: npm run docs:snippets:check
 
+      - name: Component qualification matrix
+        # Runs against the already-built dist/, so it does not rebuild. Fails on
+        # an unrecorded catalog component, a `passing` gate whose evidence file
+        # no longer exists, a missing justification, a support-tier claim that
+        # disagrees with the evidence, or manifest/doc drift (issue #683).
+        run: node scripts/component-qualification.mjs check
+
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets
 

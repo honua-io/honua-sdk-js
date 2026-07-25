@@ -522,11 +522,46 @@ export interface HonuaSketchChangeDetail<T = Record<string, unknown>> {
   result?: HonuaSketchResult<T>;
 }
 
+/**
+ * Detail carried by the `honua-export` event.
+ *
+ * Every string field is passed through the export pipeline's redaction pass
+ * before it lands here (issue #683, REQ-002): an event listener, a console
+ * logger, or an analytics hook that forwards this object cannot leak a
+ * credential, a signed URL, or an authorization scope, even when the failure
+ * that produced it originated inside a third-party adapter.
+ */
 export interface HonuaExportDetail {
+  /**
+   * Legacy wire label kept for compatibility with pre-#683 listeners:
+   * `print`/`png`/`json` map to the `print`/`snapshot`/`state` export kinds.
+   * Prefer {@link HonuaExportDetail.kind}.
+   */
   format: "print" | "png" | "json";
+  /**
+   * Component status, so the element's `honua-export` event stays consistent
+   * with every other `honua-*` event. `cancelled` exports report `idle`; use
+   * {@link HonuaExportDetail.exportStatus} for the precise outcome.
+   */
   status: HonuaComponentStatus;
+  /** The export kind that was attempted. */
+  kind?: "print" | "snapshot" | "state";
+  /** Precise export outcome: `ready`, `unsupported`, `cancelled`, or `error`. */
+  exportStatus?: "ready" | "unsupported" | "cancelled" | "error";
   title?: string;
+  /** Redacted, displayable explanation. */
   message?: string;
+  /** Adapter that served the request, when one was available. */
+  adapterId?: string;
+  /** Credential-safe download filename, on success. */
+  filename?: string;
+  mediaType?: string;
+  /** Byte length of the produced artifact, when it carried bytes. */
+  byteLength?: number;
+  /** How many values the sanitizer withheld while building this export. */
+  redactionCount?: number;
+  /** Registered SDK error code, when the export did not succeed. */
+  errorCode?: string;
 }
 
 export interface HonuaFullscreenChangeDetail {

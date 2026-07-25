@@ -1,6 +1,17 @@
 import type { HonuaClient } from "../core/client.js";
 import type { MapPackageLocator } from "../runtime/index.js";
 import { createHonuaWebComponentController } from "./controller.js";
+import { redactHonuaExportText } from "./export-redaction.js";
+import {
+  HONUA_EXPORT_KINDS,
+  type HonuaExportAdapter,
+  type HonuaExportKind,
+  type HonuaExportResult,
+  type HonuaExportStatus,
+  approximateHonuaScaleLabel,
+  createBrowserPrintExportAdapter,
+  runHonuaExport,
+} from "./export.js";
 import { HonuaMapLibreRenderer } from "./maplibre-renderer.js";
 import { HonuaMeasurementElement } from "./measurement.js";
 import type {
@@ -942,11 +953,17 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
       if (this.#geocoder) void this.runGeocode(query);
       else void this.runSearch(query);
     });
+    // The typed query is tracked unconditionally, not only when a geocoder is
+    // assigned. `render()` re-creates the input from `#query`, so without this
+    // any controller-driven re-render (a viewport change, a layer toggle, a
+    // realtime refresh) silently wiped whatever the user had typed — the
+    // focus-restoration gate this is measured against (issue #683, REQ-004)
+    // found exactly that. Suggestion scheduling stays geocoder-gated.
+    input?.addEventListener("input", () => {
+      this.#query = input.value;
+      if (this.#geocoder) this.scheduleSuggest();
+    });
     if (this.#geocoder) {
-      input?.addEventListener("input", () => {
-        this.#query = input.value;
-        this.scheduleSuggest();
-      });
       input?.addEventListener("keydown", (event) => this.onComboboxKeydown(event));
       this.shadowRoot?.querySelectorAll<HTMLLIElement>("li[data-suggestion-index]").forEach((option) => {
         option.addEventListener("click", () => {
@@ -1606,9 +1623,64 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
   }
 }
 
+/** Legacy `honua-export` event `format` label for each export kind. */
+const EXPORT_FORMAT_BY_KIND: Readonly<Record<HonuaExportKind, HonuaExportDetail["format"]>> = {
+  print: "print",
+  snapshot: "png",
+  state: "json",
+};
+
+const EXPORT_KIND_BY_FORMAT: Readonly<Record<HonuaExportDetail["format"], HonuaExportKind>> = {
+  print: "print",
+  png: "snapshot",
+  json: "state",
+};
+
+/** Maps an export outcome onto the shared component-status vocabulary. */
+const EXPORT_COMPONENT_STATUS: Readonly<Record<HonuaExportStatus, HonuaComponentStatus>> = {
+  ready: "ready",
+  unsupported: "unsupported",
+  cancelled: "idle",
+  error: "error",
+};
+
+/**
+ * `<honua-print-export>` — print, snapshot, and sanitized state export.
+ *
+ * Assign {@link HonuaPrintExportElement.exportAdapter} to enable snapshot and
+ * state export. Without an adapter both **fail closed** (issue #683): the
+ * buttons render disabled with an explanation, and a programmatic
+ * `requestExport()` resolves to an `unsupported` result carrying a
+ * `HonuaCapabilityNotSupportedError` — never a blank image or a
+ * partially-credentialed JSON document. Browser print keeps working with no
+ * adapter, because `window.print()` reads no pixels and serializes no state.
+ */
 export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
+  #exportAdapter: HonuaExportAdapter | undefined;
+  #lastResult: HonuaExportResult | undefined;
+  #inFlight: AbortController | undefined;
+
   static get observedAttributes(): string[] {
     return ["for", "label", "title"];
+  }
+
+  /**
+   * The application-supplied export adapter. Setting it re-renders so the
+   * snapshot/state affordances become enabled; clearing it re-disables them.
+   */
+  public get exportAdapter(): HonuaExportAdapter | undefined {
+    return this.#exportAdapter;
+  }
+
+  public set exportAdapter(adapter: HonuaExportAdapter | undefined) {
+    if (this.#exportAdapter === adapter) return;
+    this.#exportAdapter = adapter;
+    this.render();
+  }
+
+  /** The most recent export result, for callers that prefer polling to events. */
+  public get lastExportResult(): HonuaExportResult | undefined {
+    return this.#lastResult;
   }
 
   public attributeChangedCallback(): void {
@@ -1616,49 +1688,158 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
     this.render();
   }
 
+  public disconnectedCallback(): void {
+    // An in-flight export outlives nothing: disconnecting cancels it so a
+    // detached element cannot keep an adapter (or a server-side render job)
+    // alive (REQ-005 deterministic disposal).
+    this.#inFlight?.abort();
+    this.#inFlight = undefined;
+    super.disconnectedCallback();
+  }
+
+  /** Kinds that are actually available right now, given the assigned adapter. */
+  public availableExportKinds(): readonly HonuaExportKind[] {
+    const adapter = this.#resolveAdapter();
+    if (!adapter) return [];
+    try {
+      return adapter.describeCapabilities().kinds.filter((kind) => HONUA_EXPORT_KINDS.includes(kind));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Runs one export. Resolves with the full result envelope (never throws) and
+   * dispatches `honua-export` with a redacted projection of it.
+   */
+  public async requestExport(kind: HonuaExportKind): Promise<HonuaExportResult> {
+    this.#inFlight?.abort();
+    const controller = typeof AbortController === "function" ? new AbortController() : undefined;
+    this.#inFlight = controller;
+    const title = this.getAttribute("title") ?? this.state?.packageId ?? undefined;
+    const result = await runHonuaExport<T>({
+      kind,
+      adapter: this.#resolveAdapter(kind),
+      state: this.state,
+      ...(title ? { title } : {}),
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+    if (this.#inFlight === controller) this.#inFlight = undefined;
+    this.#lastResult = result;
+    this.dispatchTypedEvent<HonuaExportDetail>("honua-export", exportDetailFromResult(result, title));
+    this.render();
+    return result;
+  }
+
+  /**
+   * Resolves the adapter for `kind`. The built-in browser-print adapter is used
+   * for `print` only when the application supplied nothing — snapshot and state
+   * have no built-in fallback by design.
+   */
+  #resolveAdapter(kind?: HonuaExportKind): HonuaExportAdapter | undefined {
+    if (this.#exportAdapter) return this.#exportAdapter;
+    if (kind !== undefined && kind !== "print") return undefined;
+    const printAdapter = createBrowserPrintExportAdapter();
+    return printAdapter.describeCapabilities().kinds.length > 0 ? printAdapter : undefined;
+  }
+
   protected render(): void {
     const label = this.getAttribute("label") ?? "Print and export";
+    const available = new Set(this.availableExportKinds());
+    const status = available.size === 0 ? "unsupported" : "ready";
+    const last = this.#lastResult;
+    const buttons = (["print", "snapshot", "state"] as const)
+      .map((kind) => {
+        const enabled = available.has(kind);
+        const title = enabled
+          ? `${EXPORT_LABELS[kind]} export`
+          : `${EXPORT_LABELS[kind]} export requires an application-supplied export adapter.`;
+        return `<button type="button" data-export-format="${EXPORT_FORMAT_BY_KIND[kind]}" data-export-kind="${kind}"${
+          enabled ? "" : ' disabled aria-disabled="true"'
+        } title="${escapeHtml(title)}">${escapeHtml(EXPORT_LABELS[kind])}</button>`;
+      })
+      .join("");
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(typeof window !== "undefined" && typeof window.print === "function" ? "ready" : "unsupported")}</span>
+          <span>${escapeHtml(status)}</span>
         </div>
-        <div class="button-stack">
-          <button type="button" data-export-format="print">Print</button>
-          <button type="button" data-export-format="png">Snapshot</button>
-          <button type="button" data-export-format="json">State JSON</button>
-        </div>
+        <div class="button-stack">${buttons}</div>
+        <p part="status" role="status" aria-live="polite">${escapeHtml(exportStatusText(last, available))}</p>
       </section>
     `);
-    this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-export-format]").forEach((button) => {
-      button.addEventListener("click", () => this.export(button.dataset.exportFormat as HonuaExportDetail["format"]));
-    });
-  }
-
-  private export(format: HonuaExportDetail["format"]): void {
-    const title = this.getAttribute("title") ?? this.state?.packageId ?? undefined;
-    if (format === "print" && typeof window !== "undefined" && typeof window.print === "function") {
-      this.dispatchTypedEvent<HonuaExportDetail>("honua-export", {
-        format,
-        status: "ready",
-        ...(title ? { title } : {}),
+    this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-export-kind]").forEach((button) => {
+      button.addEventListener("click", () => {
+        void this.requestExport(button.dataset.exportKind as HonuaExportKind);
       });
-      window.print();
-      return;
-    }
-    const message =
-      format === "print"
-        ? "Window printing is unavailable."
-        : "Snapshot export requires an application adapter to avoid leaking private map credentials.";
-    this.dispatchTypedEvent<HonuaExportDetail>("honua-export", {
-      format,
-      status: "unsupported",
-      ...(title ? { title } : {}),
-      message,
     });
   }
+}
+
+const EXPORT_LABELS: Readonly<Record<HonuaExportKind, string>> = {
+  print: "Print",
+  snapshot: "Snapshot",
+  state: "State JSON",
+};
+
+/**
+ * Redacted, displayable summary of the last export attempt — or, before any
+ * attempt, an honest statement of what is actually available. The
+ * adapter-required message is keyed on snapshot/state specifically, not on
+ * "nothing is available": browser print is available with no adapter, and
+ * reporting "ready to export" while two of the three buttons are inert would be
+ * exactly the kind of quiet degradation issue #683 exists to remove.
+ */
+function exportStatusText(result: HonuaExportResult | undefined, available: ReadonlySet<HonuaExportKind>): string {
+  if (!result) {
+    if (available.has("snapshot") && available.has("state")) return "Ready to export.";
+    return available.size === 0
+      ? "Assign an export adapter to enable export."
+      : "Assign an export adapter to enable snapshot and state export.";
+  }
+  if (result.status === "ready") {
+    const redacted =
+      result.redactions.length > 0 ? ` ${result.redactions.length} value(s) were withheld as non-exportable.` : "";
+    return result.sideEffectOnly
+      ? `Print layout sent to the browser.${redacted}`
+      : `Exported ${result.filename ?? "artifact"}.${redacted}`;
+  }
+  return result.message ?? `Export ${result.status}.`;
+}
+
+/** Projects a result onto the event detail, carrying only redacted fields. */
+function exportDetailFromResult(result: HonuaExportResult, title: string | undefined): HonuaExportDetail {
+  const detail: HonuaExportDetail = {
+    format: EXPORT_FORMAT_BY_KIND[result.kind],
+    kind: result.kind,
+    status: EXPORT_COMPONENT_STATUS[result.status],
+    exportStatus: result.status,
+    redactionCount: result.redactions.length,
+  };
+  const mutable = detail as {
+    title?: string;
+    message?: string;
+    adapterId?: string;
+    filename?: string;
+    mediaType?: string;
+    byteLength?: number;
+    errorCode?: string;
+  };
+  if (title) mutable.title = redactHonuaExportText(title);
+  if (result.message) mutable.message = result.message;
+  if (result.adapterId) mutable.adapterId = result.adapterId;
+  if (result.filename) mutable.filename = result.filename;
+  if (result.mediaType) mutable.mediaType = result.mediaType;
+  if (result.bytes) mutable.byteLength = result.bytes.byteLength;
+  if (result.error) mutable.errorCode = result.error.sdkCode;
+  return detail;
+}
+
+/** The `format` → export-kind mapping, exported for callers on the legacy event shape. */
+export function honuaExportKindFromFormat(format: HonuaExportDetail["format"]): HonuaExportKind {
+  return EXPORT_KIND_BY_FORMAT[format];
 }
 
 export class HonuaMapStatusElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
@@ -1935,13 +2116,13 @@ function modeLabel(mode: string): string {
   return mode.charAt(0).toUpperCase() + mode.slice(1);
 }
 
+/**
+ * `<honua-map-status>`'s scale readout. Shares the single scale implementation
+ * with the export pipeline's provenance block (issue #683) so a printed or
+ * snapshotted map can never disagree with the scale the user saw on screen.
+ */
 function approximateScale(viewport: HonuaViewportState | undefined): string {
-  const zoom = viewport?.zoom;
-  if (!Number.isFinite(zoom)) return "Scale unavailable";
-  const latitude = viewport?.center?.[1] ?? 0;
-  const metersPerPixel = (156543.03392 * Math.cos((latitude * Math.PI) / 180)) / 2 ** Number(zoom);
-  const scale = Math.max(1, Math.round(metersPerPixel * 96 * 39.37));
-  return `1:${scale.toLocaleString("en-US")}`;
+  return approximateHonuaScaleLabel(viewport) ?? "Scale unavailable";
 }
 
 function setText(element: Element | null | undefined, value: string): void {
