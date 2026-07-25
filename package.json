@@ -116,6 +116,10 @@
       "types": "./dist/src/deckgl/index.d.ts",
       "default": "./dist/src/deckgl/index.js"
     },
+    "./kepler": {
+      "types": "./dist/src/kepler/index.d.ts",
+      "default": "./dist/src/kepler/index.js"
+    },
     "./control-plane": {
       "types": "./dist/src/_deprecated/control-plane.d.ts",
       "default": "./dist/src/_deprecated/control-plane.js"
@@ -681,6 +685,7 @@
     "@connectrpc/connect-web": "^2.0.0",
     "@deck.gl/layers": "^9.0.0",
     "@duckdb/duckdb-wasm": "^1.29.0",
+    "@kepler.gl/actions": "^3.0.0",
     "apache-arrow": "^17.0.0",
     "@turf/area": "^7.0.0",
     "@turf/bbox": "^7.0.0",
@@ -766,6 +771,9 @@
       "optional": true
     },
     "@duckdb/duckdb-wasm": {
+      "optional": true
+    },
+    "@kepler.gl/actions": {
       "optional": true
     },
     "apache-arrow": {
