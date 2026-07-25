@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -666,6 +666,83 @@ describe("honua-site consumer handoff", () => {
     expect(honestlyPending.every((card) => !card.visualEvidence && !card.evidenceBindingId)).toBe(true);
     await expect(validateSiteConsumerHandoff(checkoutHandoff)).resolves.toBeUndefined();
   });
+
+  it(
+    "fails publication when a referenced contract schema is edited without a version bump",
+    { timeout: 90_000 },
+    async () => {
+      const inputs = await canonicalInputs();
+
+      // Every published reference content-addresses its governing schema, including
+      // the handoff's own schema, which only the v3 fixture can reference.
+      const references = [...Object.values(inputs.handoff.inputs), inputs.fixture.input];
+      expect(references).toHaveLength(4);
+      for (const reference of references) {
+        const bytes = await readFile(reference.schemaPath, "utf8");
+        expect(reference.schemaBytes).toBe(Buffer.byteLength(bytes));
+        expect(reference.schemaSha256).toBe(sha256(bytes));
+      }
+
+      const upstream = inputs.handoff.inputs.visualEvidence;
+      const upstreamOriginal = await readFile(upstream.schemaPath, "utf8");
+      try {
+        // Whitespace only: same file, same $id, same format, same schemaVersion, and
+        // identical semantics. This is exactly what the self-declared version pin
+        // cannot see, so only the recomputed digest can reject it.
+        await writeFile(upstream.schemaPath, `${upstreamOriginal.trimEnd()}\n\n`, "utf8");
+        const reformatted = JSON.parse(await readFile(upstream.schemaPath, "utf8"));
+        expect(reformatted).toEqual(JSON.parse(upstreamOriginal));
+        expect(reformatted.$id).toBe(JSON.parse(upstreamOriginal).$id);
+        expect(reformatted.properties.schemaVersion.const).toBe(upstream.schemaVersion);
+        expect(reformatted.properties.format.const).toBe(upstream.format);
+        await expect(validateSiteConsumerHandoff(inputs.handoff)).rejects.toThrow(
+          "visualEvidence schema definition changed without a version bump",
+        );
+
+        // A weakened constraint under the same version is rejected for the same reason.
+        const weakened = JSON.parse(upstreamOriginal);
+        weakened.$defs.qualifiedJourney.properties.screenshots.minItems = 1;
+        await writeFile(upstream.schemaPath, `${JSON.stringify(weakened, null, 2)}\n`, "utf8");
+        await expect(validateSiteConsumerHandoff(inputs.handoff)).rejects.toThrow(
+          "visualEvidence schema definition changed without a version bump",
+        );
+      } finally {
+        await writeFile(upstream.schemaPath, upstreamOriginal, "utf8");
+      }
+
+      const handoffSchemaPath = inputs.fixture.input.schemaPath;
+      const handoffSchemaOriginal = await readFile(handoffSchemaPath, "utf8");
+      try {
+        await writeFile(handoffSchemaPath, `${handoffSchemaOriginal.trimEnd()}\n\n`, "utf8");
+        await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).rejects.toThrow(
+          "fixture handoff schema definition changed without a version bump",
+        );
+      } finally {
+        await writeFile(handoffSchemaPath, handoffSchemaOriginal, "utf8");
+      }
+
+      // A handoff published before this binding existed carries no digest. The first
+      // test in this file covers the pending-under-relax side by validating the
+      // committed artifact; a strict run must never accept it as verified.
+      const pending = structuredClone(inputs.handoff);
+      for (const reference of Object.values(pending.inputs)) {
+        delete reference.schemaBytes;
+        delete reference.schemaSha256;
+      }
+      const previousRelax = process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+      process.env.HONUA_DERIVED_ARTIFACTS_RELAX = "";
+      try {
+        await expect(validateSiteConsumerHandoff(pending)).rejects.toThrow("schema integrity binding is missing");
+      } finally {
+        if (previousRelax === undefined) delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+        else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = previousRelax;
+      }
+
+      await expect(validateSiteConsumerHandoff(inputs.handoff)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
+    },
+  );
 
   it("rejects symlinked source-link components instead of trusting lexical containment", async () => {
     const inputs = await canonicalInputs();

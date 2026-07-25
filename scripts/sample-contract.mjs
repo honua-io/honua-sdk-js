@@ -2,6 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { lstat, mkdir, opendir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -5329,6 +5330,27 @@ function validateSiteConsumerJsonBudget(value, label) {
   visit(value, 0);
 }
 
+/**
+ * Content-address one contract schema exactly as the artifact digests do. A schema's
+ * own `$id`, `format`, and `schemaVersion` are self-declared by the file under
+ * inspection, so they cannot detect the case the version pin exists for: a schema
+ * edited in place while keeping its version. Its bytes can, so the published
+ * reference carries the schema digest and validation recomputes it from disk
+ * (honua-io/honua-sdk-js#550).
+ *
+ * Read fresh on every reference rather than cached: a generation pass must publish
+ * the schema revision it actually validated against, never a digest a previous pass
+ * observed.
+ */
+function siteConsumerSchemaDefinition(schemaPath) {
+  const bytes = readFileSync(path.join(PROJECT_ROOT, schemaPath));
+  invariant(
+    bytes.byteLength > 0 && bytes.byteLength <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+    `${schemaPath}: contract schema exceeds its byte budget`,
+  );
+  return { schemaBytes: bytes.byteLength, schemaSha256: sha256(bytes) };
+}
+
 function siteConsumerArtifactReference(relativePath, schemaPath, artifact) {
   validateSiteConsumerJsonBudget(artifact, relativePath);
   const bytes = Buffer.from(stableJson(artifact));
@@ -5343,6 +5365,7 @@ function siteConsumerArtifactReference(relativePath, schemaPath, artifact) {
     schemaVersion: artifact.schemaVersion,
     bytes: bytes.byteLength,
     sha256: sha256(bytes),
+    ...siteConsumerSchemaDefinition(schemaPath),
   };
 }
 
@@ -6071,23 +6094,29 @@ async function validateSiteConsumerArtifactInput(reference, label) {
 }
 
 /**
- * Bind each published input reference to the versioned schema that actually governs
- * it, so honua-samples can pin a contract revision instead of trusting a `schemaPath`
- * string. A schema whose own `$id`, `format`, or `schemaVersion` no longer agrees with
- * the reference means the handed-off bundle is unversioned or stale, and publication
- * fails (honua-io/honua-sdk-js#550 versioned visual-evidence handoff).
+ * Bind each published reference to the immutable definition of the schema that
+ * governs it, so honua-samples can pin a contract revision instead of trusting a
+ * `schemaPath` string (honua-io/honua-sdk-js#550 versioned visual-evidence handoff).
+ *
+ * Two layers, and only the second is load-bearing. `$id`, `format`, and
+ * `schemaVersion` catch a reference pointed at the wrong or a renamed schema, but a
+ * schema under inspection declares them about itself, so they cannot detect a schema
+ * edited in place while keeping its version — the exact no-version-bump case. The
+ * recomputed byte digest can, so it fails publication whether the edit weakened a
+ * constraint or only reformatted the file.
+ *
+ * The digest binding is checkout-dependent and therefore subject to the
+ * derived-artifact decoupling (honua-io/honua-sdk-js#677): a handoff published before
+ * this binding existed carries no schema digest, and under the relax flag that counts
+ * as pending until the post-merge regeneration emits it. Strict runs require it.
  */
-async function validateSiteConsumerInputSchemaVersion(reference, label) {
+async function validateSiteConsumerSchemaBinding(reference, label) {
   await validateSiteConsumerLocalLink(reference.schemaPath, `${label} schema`, "file");
-  const schema = parseJsonDocument(
-    (
-      await readCanonicalBoundedFile(PROJECT_ROOT, reference.schemaPath, {
-        label: `${label} schema`,
-        maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
-      })
-    ).toString("utf8"),
-    reference.schemaPath,
-  );
+  const bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.schemaPath, {
+    label: `${label} schema`,
+    maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+  });
+  const schema = parseJsonDocument(bytes.toString("utf8"), reference.schemaPath);
   let schemaId;
   try {
     schemaId = new URL(schema.$id);
@@ -6106,6 +6135,39 @@ async function validateSiteConsumerInputSchemaVersion(reference, label) {
       schema.properties?.schemaVersion?.const === reference.schemaVersion,
     `${label} schema does not govern the referenced artifact format or version`,
   );
+  if (reference.schemaSha256 === undefined && reference.schemaBytes === undefined) {
+    invariant(
+      derivedArtifactsRelaxed(),
+      `${label} schema integrity binding is missing; run npm run samples:generate`,
+    );
+    return;
+  }
+  invariant(
+    reference.schemaBytes === bytes.byteLength && reference.schemaSha256 === sha256(bytes),
+    `${label} schema definition changed without a version bump`,
+  );
+}
+
+/**
+ * A handoff published before the schema integrity binding existed carries no
+ * `schemaBytes`/`schemaSha256`. Under the derived-artifact decoupling that is pending
+ * regeneration rather than drift, so the content-bound expectation drops exactly the
+ * fields the committed artifact cannot yet carry; once the post-merge regeneration
+ * emits them the comparison is exact again. Strict runs never take this branch, and a
+ * reference that does carry a digest is always compared (honua-io/honua-sdk-js#550).
+ */
+function withPendingSchemaBinding(expected, handoff) {
+  if (!derivedArtifactsRelaxed()) return expected;
+  const pending = Object.entries(handoff.inputs ?? {})
+    .filter(([, reference]) => reference?.schemaSha256 === undefined)
+    .map(([name]) => name);
+  if (pending.length === 0) return expected;
+  const relaxed = structuredClone(expected);
+  for (const name of pending) {
+    delete relaxed.inputs[name]?.schemaBytes;
+    delete relaxed.inputs[name]?.schemaSha256;
+  }
+  return relaxed;
 }
 
 export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
@@ -6172,7 +6234,7 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   validateGoldenCardReceiptEnforcement(handoff);
   if (inputs.verifyCheckout !== false) {
     for (const [name, reference] of Object.entries(handoff.inputs)) {
-      await validateSiteConsumerInputSchemaVersion(reference, `site consumer ${name}`);
+      await validateSiteConsumerSchemaBinding(reference, `site consumer ${name}`);
     }
     for (const card of handoff.cards) {
       if (!card.visualEvidence) continue;
@@ -6264,7 +6326,8 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   }
   if (contentBoundExpected) {
     invariant(
-      JSON.stringify(handoff) === JSON.stringify(contentBoundExpected),
+      JSON.stringify(handoff) ===
+        JSON.stringify(withPendingSchemaBinding(contentBoundExpected, handoff)),
       "site consumer handoff does not match its content-bound projection inputs",
     );
   }
@@ -6332,13 +6395,19 @@ export function generateSiteConsumerFixtureV3(handoff) {
   };
 }
 
-export async function validateSiteConsumerFixtureV3(fixture, handoff) {
+export async function validateSiteConsumerFixtureV3(fixture, handoff, options = {}) {
   validateSiteConsumerJsonBudget(fixture, "site consumer fixture v3");
   validateSensitiveMetadata(fixture, "site consumer fixture v3", {
     maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
     maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
   });
   await validateJsonSchema(fixture, SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH);
+  // The handoff's own schema is referenced only from here, so this is the one place
+  // that can pin it to an immutable definition the way handoff.inputs pins the three
+  // upstream authority schemas.
+  if (options.verifyCheckout !== false) {
+    await validateSiteConsumerSchemaBinding(fixture.input, "site consumer fixture handoff");
+  }
   const expected = generateSiteConsumerFixtureV3(handoff);
   invariant(
     JSON.stringify(fixture) === JSON.stringify(expected),
@@ -6551,7 +6620,9 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     qualificationEvidence,
     verifyCheckout: options.verifyCheckout,
   });
-  await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff);
+  await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff, {
+    verifyCheckout: options.verifyCheckout,
+  });
   return new Map([
     [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
     [SITE_PROJECTION_PATH, stableJson(projection)],

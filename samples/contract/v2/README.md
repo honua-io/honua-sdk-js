@@ -131,12 +131,22 @@ the decision from the handed-off bundle alone.
   a regular non-symlink file whose bytes and digest match the published
   reference. A missing file, a replaced file, a stale digest, or a path that
   reaches into another sample's evidence fails publication.
-- The handoff must stay versioned. Each `inputs` reference is bound to the
-  versioned schema that governs it: the schema's own `$id` has to be a canonical
+- The handoff must stay versioned, and the version pin has to be immutable. Each
+  reference content-addresses the schema that governs it with `schemaBytes` and
+  `schemaSha256`, exactly as it already content-addresses the artifact with
+  `bytes` and `sha256`; validation recomputes the digest from the schema on disk
+  and fails publication on mismatch. The schema's own `$id` (a canonical
   `https://honua.io/schemas/sdk/` identifier ending in the referenced schema
-  version, and its `format`/`schemaVersion` constants have to match the
-  reference. A schema edited without a version bump therefore fails publication
-  rather than silently handing consumers an unversioned bundle.
+  version) and its `format`/`schemaVersion` constants are still checked, but only
+  as a guard against a reference pointed at the wrong or a renamed schema: a
+  schema declares those about itself, so they cannot detect a schema edited in
+  place while keeping its version. The digest can, whether the edit weakened a
+  constraint or only reformatted the file. `handoff.inputs` pins the three
+  upstream authority schemas and the v3 consumer fixture's `input` pins the
+  handoff's own schema, so all four contract schemas a consumer depends on are
+  bound. A reference published before this binding existed carries no schema
+  digest; under the relax flag below that counts as pending regeneration, and a
+  strict run rejects it rather than treating it as verified.
 
 The file-dereferencing and schema-pinning checks require a checkout and are
 consequently deferred at pull-request time by the derived-artifact decoupling

@@ -59,10 +59,12 @@ visual evidence sample, and the upstream projection, matrix, and visual-evidence
 inventories may not repeat those identities either. Every screenshot, repeat
 capture, gate receipt, and gate report a card advertises must resolve inside the
 owning sample's own evidence root and evidence run as a regular non-symlink file
-whose bytes and digest match the published reference. Each `inputs` reference is
-bound to the versioned schema that governs it, so a schema edited without a
-version bump fails publication rather than handing consumers an unversioned
-bundle. Honestly pending coverage still publishes: a `planned`, `partial`,
+whose bytes and digest match the published reference. Each reference also
+content-addresses the schema that governs it — `schemaBytes` and `schemaSha256`
+alongside the artifact's own `bytes` and `sha256` — and validation recomputes
+that digest from the schema on disk, so a schema edited in place while keeping
+its `$id` and version fails publication rather than handing consumers an
+unversioned bundle. Honestly pending coverage still publishes: a `planned`, `partial`,
 `experimental`, or `unsupported` card carries no evidence binding and no visual
 evidence, and only overstated claims fail. See
 [`samples/contract/v2/README.md`](../samples/contract/v2/README.md) for the full

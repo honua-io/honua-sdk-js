@@ -218,6 +218,19 @@ export type SiteConsumerResolvedReplacement =
     }
   | { kind: "external"; id: string; title: string; url: string };
 
+export interface SiteConsumerArtifactReference {
+  path: string;
+  schemaPath: string;
+  format: string;
+  schemaVersion: number;
+  bytes: number;
+  sha256: string;
+  /** Absent only in an artifact published before the schema integrity binding existed. */
+  schemaBytes?: number;
+  /** Absent only in an artifact published before the schema integrity binding existed. */
+  schemaSha256?: string;
+}
+
 export interface SiteConsumerHandoff {
   format: "honua.site.sdk-sample-consumer-handoff.v1";
   schemaVersion: 1;
@@ -225,14 +238,7 @@ export interface SiteConsumerHandoff {
   ownership: Record<string, unknown>;
   inputs: Record<
     "siteProjection" | "capabilityMatrix" | "visualEvidence",
-    {
-      path: string;
-      schemaPath: string;
-      format: string;
-      schemaVersion: number;
-      bytes: number;
-      sha256: string;
-    }
+    SiteConsumerArtifactReference
   >;
   policy: Record<string, unknown> & { interaction: Record<string, unknown> };
   filters: Record<string, string[]>;
@@ -272,7 +278,7 @@ export interface SiteConsumerFixtureV3 {
   format: "honua.site.sdk-sample-consumer-fixture.v3";
   schemaVersion: 3;
   accepts: Record<string, unknown>;
-  input: Record<string, unknown>;
+  input: SiteConsumerArtifactReference;
   assertions: Record<string, unknown>;
   filterCases: Array<{
     id: "all-public-cards" | "task" | "capability" | "protocol" | "combined" | "text" | "zero-results";
@@ -404,6 +410,7 @@ export function generateSiteConsumerFixtureV3(handoff: SiteConsumerHandoff): Sit
 export function validateSiteConsumerFixtureV3(
   fixture: unknown,
   handoff: SiteConsumerHandoff,
+  options?: { verifyCheckout?: boolean },
 ): Promise<void>;
 export function validateCapabilitySampleMatrix(
   matrix: unknown,
