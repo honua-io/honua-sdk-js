@@ -163,8 +163,8 @@ jobs:
       # Runs before the long validation below so a stale tag fails in seconds
       # with release-specific remediation instead of surfacing as a bare "gate
       # receipt source digest mismatch" minutes later. Strict by construction:
-      # HONUA_DERIVED_ARTIFACTS_RELAX is set nowhere in this workflow and the
-      # gate refuses to run if it is set at all.
+      # the derived-artifacts relax escape hatch is set nowhere in this
+      # workflow, and the gate refuses to run if it is set at all.
       - name: Verify release seal
         run: |
           set -euo pipefail
