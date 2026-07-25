@@ -213,7 +213,7 @@ function marksMatchingClause(artifact: AnalyticsArtifact, clause: FilterClause):
  */
 export function bindAnalyticsToExploration(
   view: ExplorationViewController,
-  artifact: AnalyticsArtifact,
+  initialArtifact: AnalyticsArtifact,
   options: AnalyticsLinkBindingOptions = {},
 ): AnalyticsLinkedStateBinding {
   if (typeof view?.setFilter !== "function" || typeof view?.select !== "function") {
@@ -223,15 +223,32 @@ export function bindAnalyticsToExploration(
     );
   }
 
-  const clauseIds = analyticsClauseIds(options.clausePrefix ?? artifact.identity.artifactId, options.clauseIds);
+  const clauseIds = analyticsClauseIds(options.clausePrefix ?? initialArtifact.identity.artifactId, options.clauseIds);
   const { publishSelection = true, replaceSelection = true, publishTemporalFilter = true } = options;
 
+  /**
+   * The artifact every projection reads. Mutable because a realtime patch
+   * replaces the marks: a binding that kept looking up keys in the artifact it
+   * was constructed with would resolve a newly added mark to nothing and clear
+   * the filter instead of selecting it.
+   */
+  let artifact = initialArtifact;
   let hoveredMarkKey: string | undefined;
+  /** True while this binding owns a published feature selection. */
+  let publishedSelection = false;
   let disposed = false;
   const listeners = new Set<(state: AnalyticsLinkedState) => void>();
 
   function currentState(): AnalyticsLinkedState {
     return selectAnalyticsLinkedState(artifact, view.state.filters, clauseIds, hoveredMarkKey);
+  }
+
+  /**
+   * Clause id the mark channel writes to. Time-series marks are a temporal
+   * window, so clicks, brushes, and clears all agree on one clause.
+   */
+  function marksClauseId(): string {
+    return artifact.kind === "time-series" ? clauseIds.temporal : clauseIds.marks;
   }
 
   function notify(): void {
@@ -259,11 +276,18 @@ export function bindAnalyticsToExploration(
 
   function writeSelection(targets: readonly FeatureSelectionTarget[] | undefined): () => void {
     const previous = [...view.state.selection];
-    if (targets && targets.length > 0) view.select(targets, { replace: replaceSelection });
-    else view.deselect();
+    const previouslyPublished = publishedSelection;
+    if (targets && targets.length > 0) {
+      view.select(targets, { replace: replaceSelection });
+      publishedSelection = true;
+    } else {
+      view.deselect();
+      publishedSelection = false;
+    }
     return () => {
       if (previous.length > 0) view.select(previous, { replace: true });
       else view.deselect();
+      publishedSelection = previouslyPublished;
     };
   }
 
@@ -315,17 +339,18 @@ export function bindAnalyticsToExploration(
     const inverses: Array<() => void> = [];
     const touched: string[] = [];
 
-    // A time-series mark selection is a temporal window, so it is published on
-    // the temporal clause rather than the generic mark clause. That keeps one
-    // temporal contract for clicks and brushes.
-    const clauseId = artifact.kind === "time-series" ? clauseIds.temporal : clauseIds.marks;
+    const clauseId = marksClauseId();
     inverses.push(writeClause(clauseId, analyticsMarkFilterClause(artifact, nextKeys)));
     touched.push(clauseId);
 
     let touchedSelection = false;
     if (publishSelection) {
       const targets = targetsForMarks(nextKeys);
-      if (targets.length > 0 || (previousKeys.length > 0 && nextKeys.length === 0)) {
+      // Write whenever there is something to publish, and also whenever this
+      // binding already published a selection — otherwise selecting a mark
+      // that carries no enumerable `targets` would leave the *previous* mark's
+      // features selected while the filter points at the new one.
+      if (targets.length > 0 || publishedSelection) {
         inverses.push(writeSelection(targets));
         touchedSelection = true;
       }
@@ -335,8 +360,23 @@ export function bindAnalyticsToExploration(
 
   return {
     clauseIds,
+    get artifact(): AnalyticsArtifact {
+      return artifact;
+    },
     get linkedState(): AnalyticsLinkedState {
       return disposed ? EMPTY_ANALYTICS_LINKED_STATE : currentState();
+    },
+    retarget(next: AnalyticsArtifact): void {
+      if (disposed) {
+        throw new HonuaAnalyticsError("disposed", "This analytics link binding has been disposed.", {
+          artifactId: artifact.identity.artifactId,
+        });
+      }
+      if (next === artifact) return;
+      artifact = next;
+      // Clause ids stay bound to the prefix the binding was created with, so a
+      // retarget can never orphan a clause this view already wrote.
+      notify();
     },
     apply(interaction: AnalyticsInteraction): AnalyticsLinkCommit {
       if (disposed) {
@@ -388,17 +428,16 @@ export function bindAnalyticsToExploration(
           const channel = interaction.channel;
           const inverses: Array<() => void> = [];
           const touched: string[] = [];
-          if (!channel || channel === "marks") {
-            inverses.push(writeClause(clauseIds.marks, undefined));
-            touched.push(clauseIds.marks);
-          }
-          if (!channel || channel === "range") {
-            inverses.push(writeClause(clauseIds.range, undefined));
-            touched.push(clauseIds.range);
-          }
-          if (!channel || channel === "temporal") {
-            inverses.push(writeClause(clauseIds.temporal, undefined));
-            touched.push(clauseIds.temporal);
+          // The marks channel clears whichever clause `applyMarkSelect` would
+          // have written, so clearing a time-series presentation actually
+          // releases its temporal filter instead of an unused marks clause.
+          const clearing = new Set<string>();
+          if (!channel || channel === "marks") clearing.add(marksClauseId());
+          if (!channel || channel === "range") clearing.add(clauseIds.range);
+          if (!channel || channel === "temporal") clearing.add(clauseIds.temporal);
+          for (const id of clearing) {
+            inverses.push(writeClause(id, undefined));
+            touched.push(id);
           }
           let touchedSelection = false;
           if ((!channel || channel === "marks") && publishSelection && view.state.selection.length > 0) {

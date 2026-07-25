@@ -637,8 +637,20 @@ export interface AnalyticsLinkBindingOptions {
  */
 export interface AnalyticsLinkedStateBinding {
   readonly clauseIds: AnalyticsFilterClauseIds;
+  /** The artifact every projection and mark lookup currently reads. */
+  readonly artifact: AnalyticsArtifact;
   /** Current linked state projected from the exploration view. */
   readonly linkedState: AnalyticsLinkedState;
+  /**
+   * Point the binding at a newly accepted artifact in the same lineage.
+   *
+   * Required after a realtime patch: mark lookups, filter projections, and
+   * feature targets all resolve against the artifact the binding holds, so a
+   * binding left on a superseded artifact would resolve a newly added mark to
+   * nothing and clear the filter instead of selecting it. `clauseIds` are
+   * unchanged, so a retarget can never orphan a clause this view already wrote.
+   */
+  retarget(artifact: AnalyticsArtifact): void;
   /** Commit one adapter interaction into shared state. */
   apply(interaction: AnalyticsInteraction): AnalyticsLinkCommit;
   /** Observe linked-state changes (including those made by peer views). */

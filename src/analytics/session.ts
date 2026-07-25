@@ -197,6 +197,19 @@ export function createAnalyticsLinkedSession(options: CreateAnalyticsLinkedSessi
         },
       });
 
+      // `mount()` may await a dynamic peer import, so the session can be
+      // disposed while it is in flight. Registering the handle now would leave
+      // a live chart (and its listeners) inside a disposed session, so the
+      // freshly built presentation is torn down instead.
+      if (disposed) {
+        handle.dispose();
+        throw new HonuaAnalyticsError(
+          "disposed",
+          `The analytics session was disposed while "${id}" was mounting; the presentation was released.`,
+          { id, adapterId: resolution.adapter.id },
+        );
+      }
+
       const presentation: AnalyticsSessionPresentation = {
         id,
         adapter: resolution.adapter,
@@ -217,6 +230,11 @@ export function createAnalyticsLinkedSession(options: CreateAnalyticsLinkedSessi
       const decision = resolveAnalyticsUpdateDisposition(artifact, next);
       if (decision.disposition === "ignore") return decision;
       artifact = next;
+      // Retarget before the presentations update: the binding resolves mark
+      // keys, filter clauses, and feature targets against the artifact it
+      // holds, so leaving it on the superseded one would make a click on a
+      // newly added mark resolve to nothing and clear the filter.
+      binding.retarget(next);
       for (const presentation of presentations.values()) {
         if (presentation.handle.disposed) continue;
         presentation.handle.update(next);

@@ -126,13 +126,25 @@ export function widgetResponseProvenance(
   if (truncated) {
     notes.push("Marks are incomplete: the widget source bounded its client-side scan.");
   }
+
+  // On the pushdown path the aggregate rows *are* the transfer, so the mark
+  // count is the true transferred-row count. On a client or mixed reduction the
+  // rows that crossed the wire are the underlying features, a number the widget
+  // response does not expose — reporting 5 buckets as "5 rows transferred"
+  // after a 10,000-row scan would badly understate the cost, so the field is
+  // left absent. Honest absence beats a confident wrong number.
+  const pushedDown = response.serverPushdown && response.execution === "server";
+  if (!pushedDown) {
+    notes.push("Transferred row count is unavailable: the reduction ran outside the source.");
+  }
+
   return analyticsProvenance({
     computedBy: computeSiteFor(response),
     pushdown: response.serverPushdown,
     bounds: {
       truncated,
       ...(options.rowBudget !== undefined ? { rowBudget: options.rowBudget } : {}),
-      transferredRowCount: marksReturned,
+      ...(pushedDown ? { transferredRowCount: marksReturned } : {}),
     },
     degraded,
     ...(options.attribution ? { attribution: options.attribution } : {}),

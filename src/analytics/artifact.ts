@@ -240,12 +240,14 @@ function assertOrdering(artifact: AnalyticsArtifact): void {
     }
   };
 
-  let previous: number | string | null | undefined;
+  // `previous` only ever holds a non-null key, because null keys `continue`
+  // before the assignment below.
+  let previous: number | string | undefined;
   for (const [index, mark] of (artifact.marks as readonly AnalyticsMark[]).entries()) {
     const current = keyOf(mark);
     // Nulls are ordering-neutral: a `null` measure has no position on the axis.
     if (current === null) continue;
-    if (previous !== undefined && previous !== null) {
+    if (previous !== undefined) {
       const ordered =
         typeof current === "string" && typeof previous === "string"
           ? sign * previous.localeCompare(current) <= 0

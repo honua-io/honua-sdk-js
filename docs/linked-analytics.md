@@ -33,7 +33,7 @@ identity: a click, a hover, and a brush all resolve back through it.
 | `identity.sequence` | Orders deltas within one lineage. A lower sequence is a late delta and is **ignored**, so numbers never rewind. |
 | `identity.freshness` | `authority` / `observedAt` / `staleAfter` / `validator`, matching `ColumnarFreshnessV1` so one badge serves both. |
 | `provenance.computedBy` / `pushdown` | Where the numbers were aggregated. A client reduction can never claim pushdown by default. |
-| `provenance.bounds` | Structured truncation: `truncated`, `rowBudget`, `scannedRowCount`, `transferredRowCount`. |
+| `provenance.bounds` | Structured truncation: `truncated`, `rowBudget`, `scannedRowCount`, `transferredRowCount`. Count fields are **absent** rather than approximated when the producer does not expose them. |
 | `nullPolicy` | `excluded`, `counted-as-zero`, `separate-bucket`, `propagated-as-null`, or `unknown` — never implicit. |
 | `ordering` | Declared once and validated at accept time, so every linked presentation shows the same sequence. |
 
@@ -71,6 +71,14 @@ When the widget source had to bound a client-side scan, the artifact comes back
 `partial`, `provenance.bounds.truncated` is `true`, and the accessible
 projection says so in words. Nothing silently rounds up to "complete".
 
+`bounds.transferredRowCount` is only populated on the pushdown path, where the
+aggregate rows genuinely *are* the transfer. After a client or mixed reduction
+the rows that crossed the wire are the underlying features — a number the widget
+response does not expose — so the field is left absent and a provenance note
+says why. Reporting "5 rows transferred" for five buckets distilled from a
+10,000-row scan would understate the cost by three orders of magnitude, and an
+absent number is easier to handle correctly than a confident wrong one.
+
 ## Linking to shared exploration state
 
 `bindAnalyticsToExploration()` owns the mapping from interactions to the shared
@@ -96,6 +104,21 @@ no clause rather than a clause that would quietly match the wrong rows. A mixed
 null-plus-value selection keeps the value clause and drops the null bucket,
 rather than widening to `is-null OR in (...)` in only the protocols that could
 express it.
+
+Two subtleties the binding handles for you:
+
+- **Replacement selection clears what it replaced.** Selecting a mark that
+  carries no enumerable `targets` still clears the feature selection this
+  binding previously published, so the map can never highlight rows the filter
+  has since excluded.
+- **A binding must follow its artifact.** `retarget(next)` points the binding at
+  a newly accepted artifact; mark lookups, clause projections, and feature
+  targets all resolve against the artifact the binding holds, so a binding left
+  on a superseded artifact would resolve a newly added mark to nothing and clear
+  the filter instead of selecting it. `createAnalyticsLinkedSession()` calls
+  `retarget()` on every non-ignored `accept()`, so sessions get this for free;
+  call it yourself only if you drive a binding directly. `clauseIds` never
+  change, so a retarget cannot orphan a clause the view already wrote.
 
 ## One artifact, many presentations
 
@@ -130,6 +153,11 @@ both the visual and the assistive-technology reading. Rows are focusable
 buttons (keyboard mark selection) and brushing uses a native `<input
 type="range">` pair rather than a drag surface. Null measures render as
 `no data`, never as `0`.
+
+The brush inputs are initialized from the current linked state (via
+`analyticsBrushIndices()`), not from the artifact's extent, so the range the
+user just brushed — or one a peer presentation published — survives the
+rerender instead of snapping back to full width.
 
 `analyticsTableModel()` is the renderer-neutral truth behind it — a caption, a
 status banner, columns, rows, and a full text `description`. Chart adapters use

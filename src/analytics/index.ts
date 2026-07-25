@@ -143,6 +143,7 @@ export {
 export type { AnalyticsTableModel, AnalyticsTableRow } from "./accessible-table.js";
 
 export {
+  analyticsBrushIndices,
   createDefaultAnalyticsPresentation,
   renderAnalyticsBrushHtml,
   renderAnalyticsTableHtml,

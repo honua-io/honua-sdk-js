@@ -141,17 +141,65 @@ ${attribution}
 }
 
 /**
+ * Resolve the brushed mark-index range currently described by shared linked
+ * state, so the controls reflect it instead of snapping back to full range.
+ *
+ * Returns the full range when nothing is brushed. A brush published by a peer
+ * presentation (or by a chart adapter) lands here too, which is what keeps the
+ * two surfaces agreeing.
+ */
+export function analyticsBrushIndices(
+  artifact: AnalyticsArtifact,
+  state: AnalyticsLinkedState = { selectedMarkKeys: [] },
+): { readonly start: number; readonly end: number } | undefined {
+  if (artifact.kind !== "histogram" && artifact.kind !== "time-series") return undefined;
+  if (artifact.marks.length === 0) return undefined;
+  const last = artifact.marks.length - 1;
+
+  if (artifact.kind === "histogram" && state.range) {
+    const { min, max } = state.range;
+    const covered = artifact.marks
+      .map((mark, index) => ({ mark, index }))
+      .filter(({ mark }) => mark.min >= min && mark.max <= max);
+    if (covered.length > 0) {
+      return { start: covered[0].index, end: covered[covered.length - 1].index };
+    }
+  }
+
+  if (artifact.kind === "time-series" && state.temporalWindow) {
+    const from = Date.parse(state.temporalWindow.start);
+    const to = Date.parse(state.temporalWindow.end);
+    const covered = artifact.marks
+      .map((mark, index) => ({ mark, index }))
+      .filter(({ mark }) => Date.parse(mark.start) >= from && Date.parse(mark.end) <= to);
+    if (covered.length > 0) {
+      return { start: covered[0].index, end: covered[covered.length - 1].index };
+    }
+  }
+
+  return { start: 0, end: last };
+}
+
+/**
  * Render the brush controls for a histogram or time-series artifact. Two range
  * inputs rather than a drag surface: keyboard-operable, screen-reader
  * announced, and zero dependencies.
+ *
+ * The inputs are initialized from `state`, not from the artifact's extent, so
+ * a rerender triggered by the brush the user just made (or by an inbound peer
+ * brush) shows that range rather than resetting both handles.
  */
-export function renderAnalyticsBrushHtml(artifact: AnalyticsArtifact, className = "honua-analytics"): string {
-  if (artifact.kind !== "histogram" && artifact.kind !== "time-series") return "";
-  if (artifact.marks.length === 0) return "";
+export function renderAnalyticsBrushHtml(
+  artifact: AnalyticsArtifact,
+  state: AnalyticsLinkedState = { selectedMarkKeys: [] },
+  className = "honua-analytics",
+): string {
+  const indices = analyticsBrushIndices(artifact, state);
+  if (!indices) return "";
   const last = artifact.marks.length - 1;
   return `<div class="${className}__brush" role="group" aria-label="Filter range">
-<label class="${className}__brush-label">From <input type="range" class="${className}__brush-input" data-brush="start" min="0" max="${last}" step="1" value="0"></label>
-<label class="${className}__brush-label">To <input type="range" class="${className}__brush-input" data-brush="end" min="0" max="${last}" step="1" value="${last}"></label>
+<label class="${className}__brush-label">From <input type="range" class="${className}__brush-input" data-brush="start" min="0" max="${last}" step="1" value="${indices.start}"></label>
+<label class="${className}__brush-label">To <input type="range" class="${className}__brush-input" data-brush="end" min="0" max="${last}" step="1" value="${indices.end}"></label>
 </div>`;
 }
 
@@ -292,7 +340,7 @@ export function createDefaultAnalyticsPresentation(
         releaseListeners();
         model = analyticsTableModel(artifact, request.locale);
         target.innerHTML = `${renderAnalyticsTableHtml(model, state, { className, brushing })}${
-          brushing ? renderAnalyticsBrushHtml(artifact, className) : ""
+          brushing ? renderAnalyticsBrushHtml(artifact, state, className) : ""
         }`;
         bindListeners();
       }
