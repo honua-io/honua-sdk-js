@@ -988,3 +988,238 @@ describe("engine lifecycle", () => {
     ).toBe("#5");
   });
 });
+
+/**
+ * Regression tests for the PR #801 code-quality review findings. Each of these
+ * fails on the pre-fix engine.
+ */
+describe("review regressions (PR #801)", () => {
+  it("discards a superseded generation's late response instead of publishing the wrong rows", async () => {
+    // `Source.query` is not required to reject on abort, so a stale response can
+    // resolve normally long after the filter moved on (finding 2).
+    const pending: { request: Query<Row>; resolve: (result: Result<Row>) => void }[] = [];
+    const page = (name: string): Result<Row> => ({
+      features: Array.from({ length: 50 }, (_unused, index) => ({
+        attributes: { OBJECTID: index + 1, NAME: `${name} ${index + 1}`, STATUS: "open", SEVERITY: 1 },
+      })),
+      exceededTransferLimit: true,
+      totalCount: TOTAL_ROWS,
+    });
+    const table = createHonuaFeatureTable<Row>({
+      source: {
+        descriptor: descriptor(),
+        query: (request?: Query<Row>) =>
+          new Promise<Result<Row>>((resolve) => {
+            pending.push({ request: request ?? {}, resolve });
+          }),
+      },
+      sourceId: "incidents",
+      columns: COLUMNS,
+      budgets: { pageSize: 50, windowOverscan: 0 },
+    });
+
+    const stale = table.refresh();
+    const fresh = table.setFilters([statusFilter("open")]);
+    expect(pending).toHaveLength(2);
+
+    // The new generation lands first; the superseded one resolves afterwards.
+    pending[1]?.resolve(page("fresh"));
+    await Promise.resolve();
+    pending[0]?.resolve(page("stale"));
+    await Promise.all([stale, fresh]);
+
+    expect(table.snapshot.rows[0]?.attributes.NAME).toBe("fresh 1");
+    expect(table.snapshot.rows.every((row) => !row || !String(row.attributes.NAME).startsWith("stale"))).toBe(true);
+    // The superseded run must not clobber the newer run's verdict either.
+    expect(table.snapshot.state).toBe("partial");
+    expect(table.snapshot.paging.loadedPages).toBe(1);
+  });
+
+  it("gives a new filter identity its own request allowance", async () => {
+    // Carrying the previous identity's request count forward left an exhausted
+    // table unable to ever load a new question (finding 3).
+    const table = makeTable(makeFixture(), { budgets: { pageSize: 50, maxRequests: 1, windowOverscan: 0 } });
+    await table.refresh();
+    await table.setScroll({ scrollTop: 1_000 * 32, rowHeight: 32, viewportHeight: 320 });
+    expect(table.snapshot.ledger.exhausted).toContain("requests");
+
+    const snapshot = await table.setFilters([statusFilter("open")]);
+
+    expect(snapshot.count.loaded).toBe(50);
+    expect(snapshot.ledger.requests).toBe(1);
+    expect(snapshot.ledger.exhausted).toEqual([]);
+    // Lifetime consumption is still reported, just kept separate.
+    expect(snapshot.ledger.lifetimeRequests).toBe(2);
+  });
+
+  it("keeps the per-identity allowance separate from lifetime totals across a sort change", async () => {
+    const table = makeTable(makeFixture(), { budgets: { pageSize: 50, maxRequests: 2, windowOverscan: 0 } });
+    await table.refresh();
+    await table.setSort([{ field: "NAME", direction: "asc" }]);
+
+    expect(table.snapshot.ledger.requests).toBe(1);
+    expect(table.snapshot.ledger.lifetimeRequests).toBe(2);
+  });
+
+  it("reports unsupported instead of manufacturing a positional id for a row missing its identity", async () => {
+    // The positional fallback reintroduced exactly the selection corruption the
+    // unsupported-identity state exists to prevent (finding 4).
+    const table = makeTable(
+      makeFixture({
+        totalRows: 3,
+        rows: (index) =>
+          (index === 1
+            ? { NAME: `Incident ${index + 1}`, STATUS: "open", SEVERITY: 1 }
+            : { OBJECTID: index + 1, NAME: `Incident ${index + 1}`, STATUS: "open", SEVERITY: 1 }) as Row,
+      }),
+    );
+
+    const snapshot = await table.refresh();
+
+    expect(snapshot.state).toBe("unsupported");
+    expect(snapshot.message).toContain("no stable identity");
+    expect(snapshot.message).toContain("absent");
+    // Nothing positional was cached.
+    expect(snapshot.rows.filter((row) => row !== undefined)).toHaveLength(0);
+    expect(snapshot.paging.loadedPages).toBe(0);
+  });
+
+  it("reports unsupported for a null or non-scalar identity value", async () => {
+    for (const [value, described] of [
+      [null, "null"],
+      [{ nested: 1 }, "a object"],
+      [["a"], "a array"],
+    ] as const) {
+      const table = makeTable(
+        makeFixture({
+          totalRows: 1,
+          rows: () => ({ OBJECTID: value, NAME: "x", STATUS: "open", SEVERITY: 1 }) as unknown as Row,
+        }),
+      );
+
+      const snapshot = await table.refresh();
+
+      expect(snapshot.state).toBe("unsupported");
+      expect(snapshot.message).toContain(described);
+    }
+  });
+
+  it("still accepts a legitimate zero or empty-string identity", async () => {
+    const table = makeTable(
+      makeFixture({
+        totalRows: 2,
+        rows: (index) => ({ OBJECTID: index === 0 ? 0 : "", NAME: "x", STATUS: "open", SEVERITY: 1 }) as unknown as Row,
+      }),
+    );
+
+    const snapshot = await table.refresh();
+
+    expect(snapshot.state).toBe("ready");
+    expect(snapshot.rows.filter((row) => row !== undefined).map((row) => row.key)).toEqual([
+      "incidents:0",
+      "incidents:",
+    ]);
+  });
+
+  it("drops an oversized page rather than holding the cache above its byte ceiling", async () => {
+    // Protecting the just-fetched page from eviction left the cache above a
+    // ceiling documented as hard (finding 6).
+    const table = makeTable(makeFixture(), { budgets: { pageSize: 50, maxCachedBytes: 64, windowOverscan: 0 } });
+
+    const snapshot = await table.refresh();
+
+    expect(snapshot.ledger.exhausted).toContain("bytes");
+    expect(snapshot.count.loaded).toBe(0);
+    expect(snapshot.message).toContain("memory budget");
+    // The window reports placeholders rather than pretending rows are resident.
+    expect(snapshot.rows.every((row) => row === undefined)).toBe(true);
+  });
+
+  it("reports unsupported when pageSize can never fit inside maxCachedRows", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, { budgets: { pageSize: 100, maxCachedRows: 50 } });
+
+    expect(table.snapshot.state).toBe("unsupported");
+    expect(table.snapshot.message).toContain("maxCachedRows");
+    // A misconfigured table performs no I/O at all.
+    expect((await table.refresh()).paging.loadedPages).toBe(0);
+    expect(fixture.requests).toHaveLength(0);
+  });
+
+  it("resolves a same-source selection target that is outside the cached pages", async () => {
+    // Residency-dependent resolution let a linked view's off-window selection
+    // silently clear the table's selection (finding 7).
+    const table = makeTable(makeFixture());
+    await table.refresh();
+
+    expect(table.keysForTargets([{ sourceId: "incidents", id: 4_000 }])).toEqual(["incidents:4000"]);
+    expect(table.keysForTargets([{ sourceId: "other", id: 1 }])).toEqual([]);
+    // Bare ids are the single-source exploration form and belong to this table.
+    expect(table.keysForTargets([4_000])).toEqual(["incidents:4000"]);
+  });
+
+  it("round-trips an off-window selection back to an exploration target", async () => {
+    const table = makeTable(makeFixture());
+    await table.refresh();
+
+    table.select(table.keysForTargets([{ sourceId: "incidents", id: 4_000 }]));
+
+    expect(table.snapshot.selection).toEqual(["incidents:4000"]);
+    expect(table.selectionTargets()).toEqual([{ sourceId: "incidents", id: 4_000 }]);
+  });
+
+  it("keeps an off-window linked selection instead of replacing it with empty", async () => {
+    const table = makeTable(makeFixture());
+    await table.refresh();
+    const context = createExplorationContext({ datasetId: "incidents", sourceIds: ["incidents"] });
+    const grid = context.connectView({ id: "grid", role: "grid" });
+    const unlink = linkFeatureTableToExploration(table, grid);
+    const map = context.connectView({ id: "map", role: "map" });
+
+    map.select([{ sourceId: "incidents", id: 4_000 }], { replace: true });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(table.snapshot.selection).toEqual(["incidents:4000"]);
+    expect(context.state.selection).toEqual([{ sourceId: "incidents", id: 4_000 }]);
+
+    unlink();
+  });
+
+  it("does not drop a peer source's selection when publishing its own", async () => {
+    const table = makeTable(makeFixture());
+    await table.refresh();
+    const context = createExplorationContext({ datasetId: "ops", sourceIds: ["incidents", "hydrants"] });
+    const grid = context.connectView({ id: "grid", role: "grid" });
+    const unlink = linkFeatureTableToExploration(table, grid);
+    const map = context.connectView({ id: "map", role: "map" });
+
+    map.select([{ sourceId: "hydrants", id: 9 }], { replace: true });
+    await Promise.resolve();
+    await Promise.resolve();
+    table.select(["incidents:2"]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(context.state.selection).toEqual([
+      { sourceId: "hydrants", id: 9 },
+      { sourceId: "incidents", id: 2 },
+    ]);
+
+    unlink();
+  });
+
+  it("prunes the selection target index to the live selection", async () => {
+    const table = makeTable(makeFixture());
+    await table.refresh();
+
+    table.select(table.keysForTargets([{ sourceId: "incidents", id: 4_000 }]));
+    expect(table.selectionTargets()).toHaveLength(1);
+
+    table.deselect();
+    table.select(["incidents:2"]);
+
+    expect(table.selectionTargets()).toEqual([{ sourceId: "incidents", id: 2 }]);
+  });
+});

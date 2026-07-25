@@ -32,7 +32,7 @@
 
 import type { DegradedReason, FeatureId, Query, Result, SortSpec, SourceDescriptor } from "../contract/types.js";
 import type { HonuaTypedFeature } from "../core/types.js";
-import { featureSelectionKey, sourceFeatureSelectionTarget } from "../exploration/selection.js";
+import { isSourceQualifiedSelectionTarget, sourceFeatureSelectionTarget } from "../exploration/selection.js";
 import type {
   FilterClause as ExplorationFilterClause,
   ExplorationViewController,
@@ -186,10 +186,21 @@ export type HonuaFeatureTableBudgetKind = "rows" | "bytes" | "requests" | "expor
 
 /** Running budget consumption. Exact, and never reset by a render. */
 export interface HonuaFeatureTableBudgetLedger {
+  /**
+   * Requests issued against the **current** filter/sort/projection identity,
+   * which is what `budgets.maxRequests` bounds. Reset when the identity
+   * changes, so a new question always gets its own request allowance.
+   */
   readonly requests: number;
+  /** Requests issued over the engine's whole lifetime. Never reset. */
+  readonly lifetimeRequests: number;
+  /** Rows transferred over the engine's whole lifetime. Never reset. */
   readonly rows: number;
+  /** Attribute bytes transferred over the engine's whole lifetime. Never reset. */
   readonly bytes: number;
+  /** Rows dropped by cache eviction over the whole lifetime. Never reset. */
   readonly evictedRows: number;
+  /** Ceilings hit under the current identity. */
   readonly exhausted: readonly HonuaFeatureTableBudgetKind[];
 }
 
@@ -539,6 +550,17 @@ const EMPTY_EVIDENCE: HonuaFeatureTableQueryEvidence = Object.freeze({
 
 const CANCELLED_MESSAGE = "The table refresh was cancelled.";
 
+const NO_IDENTITY_FIELD_MESSAGE =
+  "A stable row identity is required. Set `identityField` (or the source descriptor's `schema.primaryKey`) so selection, focus, and realtime reconciliation survive paging.";
+
+const IDENTITY_REQUIRED_HINT =
+  "Every row must carry a string or number identity value, or selection and realtime reconciliation cannot survive paging.";
+
+const PAGE_SIZE_HINT =
+  "no page could ever be held within the memory budget. Lower `pageSize` or raise `maxCachedRows`.";
+
+const CACHE_BUDGET_HINT = "Lower `pageSize` or raise the cache budget.";
+
 interface CachedPage<T> {
   readonly offset: number;
   readonly rows: readonly HonuaFeatureTableRow<T>[];
@@ -566,6 +588,15 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
 
   const listeners = new Set<(snapshot: HonuaFeatureTableSnapshot<T>) => void>();
   const pages = new Map<number, CachedPage<T>>();
+  /**
+   * Exploration selection targets for the keys currently selected. Selection
+   * outlives cache residency, so a row scrolled out of the bounded window must
+   * still round-trip to a target. Pruned to the live selection on every change,
+   * so this never becomes a second unbounded row cache.
+   */
+  const selectionTargetIndex = new Map<HonuaFeatureTableRowKey, FeatureSelectionTarget>();
+
+  const misconfiguredPageSize = budgets.pageSize > budgets.maxCachedRows;
 
   let columns = resolveColumns(options.columns ?? []);
   let sort: readonly SortSpec[] = Object.freeze([...(options.sort ?? [])]);
@@ -573,18 +604,22 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   let selection: readonly HonuaFeatureTableRowKey[] = Object.freeze([]);
   let focus: HonuaFeatureTableFocus | undefined;
   let window: HonuaFeatureTableWindow = Object.freeze({ startIndex: 0, endIndex: 0 });
-  let state: HonuaFeatureTableState = identityField ? "idle" : "unsupported";
+  let state: HonuaFeatureTableState = identityField && !misconfiguredPageSize ? "idle" : "unsupported";
   let stale = false;
-  let message: string | undefined = identityField
-    ? undefined
-    : "A stable row identity is required. Set `identityField` (or the source descriptor's `schema.primaryKey`) so " +
-      "selection, focus, and realtime reconciliation survive paging.";
+  let message: string | undefined = !identityField
+    ? NO_IDENTITY_FIELD_MESSAGE
+    : misconfiguredPageSize
+      ? `\`budgets.pageSize\` (${budgets.pageSize}) exceeds \`budgets.maxCachedRows\` (${budgets.maxCachedRows}), so ${PAGE_SIZE_HINT}`
+      : undefined;
+  /** Set when a bounded operation had to give something up; survives a successful run. */
+  let budgetNotice: string | undefined;
   let error: unknown;
   let conflicts: readonly HonuaFeatureTableConflict[] = Object.freeze([]);
   let evidence = EMPTY_EVIDENCE;
   let count: HonuaFeatureTableCount = Object.freeze({ kind: "unknown", loaded: 0, evidence: "none" });
   let ledger: HonuaFeatureTableBudgetLedger = Object.freeze({
     requests: 0,
+    lifetimeRequests: 0,
     rows: 0,
     bytes: 0,
     evictedRows: 0,
@@ -799,6 +834,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   function noteBudget(patch: { requests?: number; rows?: number; bytes?: number; evictedRows?: number }): void {
     ledger = Object.freeze({
       requests: ledger.requests + (patch.requests ?? 0),
+      lifetimeRequests: ledger.lifetimeRequests + (patch.requests ?? 0),
       rows: ledger.rows + (patch.rows ?? 0),
       bytes: ledger.bytes + (patch.bytes ?? 0),
       evictedRows: ledger.evictedRows + (patch.evictedRows ?? 0),
@@ -823,16 +859,38 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     return total;
   }
 
-  /** Evict least-recently-used pages until both memory ceilings hold. */
+  function withinMemoryBudgets(): boolean {
+    return residentRows() <= budgets.maxCachedRows && residentBytes() <= budgets.maxCachedBytes;
+  }
+
+  function evictPage(victim: CachedPage<T>): void {
+    markExhausted(residentBytes() > budgets.maxCachedBytes ? "bytes" : "rows");
+    pages.delete(victim.offset);
+    noteBudget({ evictedRows: victim.rows.length });
+  }
+
+  /**
+   * Evict least-recently-used pages until both memory ceilings hold.
+   *
+   * `protectedOffsets` names the pages the current window just fetched, which
+   * are evicted last — but they are *not* exempt. A single page heavier than
+   * `maxCachedBytes` would otherwise sit above a ceiling documented as hard,
+   * so once every other page is gone the oversized page is dropped too and the
+   * caller is told why. Its window rows then render as placeholders, which is
+   * the honest outcome: the budget forbids holding that page.
+   */
   function enforceMemoryBudgets(protectedOffsets: ReadonlySet<number>): void {
-    const candidates = [...pages.values()]
-      .filter((page) => !protectedOffsets.has(page.offset))
-      .sort((left, right) => left.sequence - right.sequence);
-    for (const victim of candidates) {
-      if (residentRows() <= budgets.maxCachedRows && residentBytes() <= budgets.maxCachedBytes) break;
-      markExhausted(residentBytes() > budgets.maxCachedBytes ? "bytes" : "rows");
-      pages.delete(victim.offset);
-      noteBudget({ evictedRows: victim.rows.length });
+    const byAge = (left: CachedPage<T>, right: CachedPage<T>) => left.sequence - right.sequence;
+    const evictable = [...pages.values()].filter((page) => !protectedOffsets.has(page.offset)).sort(byAge);
+    for (const victim of evictable) {
+      if (withinMemoryBudgets()) return;
+      evictPage(victim);
+    }
+    if (withinMemoryBudgets()) return;
+    for (const victim of [...pages.values()].sort(byAge)) {
+      if (withinMemoryBudgets()) break;
+      evictPage(victim);
+      budgetNotice = `A page exceeded the table's memory budget (${budgets.maxCachedRows} rows / ${budgets.maxCachedBytes} bytes) and was dropped. ${CACHE_BUDGET_HINT}`;
     }
   }
 
@@ -860,14 +918,26 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
 
     noteBudget({ requests: 1 });
     const request: Query<T> = { ...composed.query, ...(signal ? { signal } : {}) };
+    // `Source.query` is not required to reject when its signal aborts, so a
+    // superseded generation's response can still resolve normally and land here
+    // long after the filter/sort/projection moved on. Cancellation alone cannot
+    // prevent that; only refusing to write results whose generation no longer
+    // matches can.
+    const requestGeneration = generation;
     const result =
       pagingMode === "cursor" ? await nextCursorPage(offset, request) : await options.source.query(request);
+    if (generation !== requestGeneration || disposed) return undefined;
     if (!result) return undefined;
 
-    const rows = result.features.map((feature, index) => toRow(feature, offset + index));
+    const rows: HonuaFeatureTableRow<T>[] = [];
+    for (const [index, feature] of result.features.entries()) {
+      const row = toRow(feature, offset + index);
+      if (!row) return undefined; // `toRow` already moved the table to `"unsupported"`.
+      rows.push(row);
+    }
     const bytes = estimateBytes(result.features);
     sequence += 1;
-    const page: CachedPage<T> = { offset, rows: Object.freeze(rows), bytes, cacheKey, sequence };
+    const page: CachedPage<T> = { offset, rows: Object.freeze([...rows]), bytes, cacheKey, sequence };
     pages.set(offset, page);
     noteBudget({ rows: rows.length, bytes });
     if (rows.length < budgets.pageSize && !result.exceededTransferLimit) {
@@ -915,10 +985,24 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     return next.value;
   }
 
-  function toRow(feature: HonuaTypedFeature<T>, index: number): HonuaFeatureTableRow<T> {
+  /**
+   * Build one row, or move the table to `"unsupported"` and return `undefined`.
+   *
+   * A row whose identity attribute is missing, `null`, or not a string/number
+   * has no stable identity. Substituting its position in the page would key the
+   * row by an offset that changes with every sort, filter, and page boundary —
+   * exactly the selection corruption the unsupported-identity state exists to
+   * prevent — so this refuses instead of inventing one.
+   */
+  function toRow(feature: HonuaTypedFeature<T>, index: number): HonuaFeatureTableRow<T> | undefined {
     const attributes = feature.attributes ?? ({} as T);
     const raw = identityField ? (attributes as Record<string, unknown>)[identityField] : undefined;
-    const id: FeatureId = typeof raw === "string" || typeof raw === "number" ? raw : `${options.sourceId}:${index}`;
+    if (typeof raw !== "string" && typeof raw !== "number") {
+      state = "unsupported";
+      message = `Row ${index} has no stable identity: \`${identityField}\` is ${describeIdentityValue(raw)}. ${IDENTITY_REQUIRED_HINT}`;
+      return undefined;
+    }
+    const id: FeatureId = raw;
     return Object.freeze({
       key: featureTableRowKey(options.sourceId, id),
       id,
@@ -972,21 +1056,28 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       if (signal.aborted) controller.abort();
       else signal.addEventListener("abort", () => controller.abort(), { once: true });
     }
+    // A superseded run must not write state either: its `cancelled` verdict
+    // would otherwise land after the newer run already published `ready`.
+    const runGeneration = generation;
     state = "loading";
     error = undefined;
     publish();
     try {
       await loadWindow(controller.signal);
+      if (generation !== runGeneration || disposed) return snapshot;
       if (controller.signal.aborted) {
         state = "cancelled";
         message = CANCELLED_MESSAGE;
       } else if (currentState() !== "unsupported") {
         const complete = exhausted || (typeof totalKnown === "number" && residentRows() >= totalKnown);
         state = complete ? "ready" : "partial";
-        message = undefined;
+        // A budget the run had to give something up for is not an error, but it
+        // must not be silently cleared either.
+        message = budgetNotice;
         stale = false;
       }
     } catch (caught) {
+      if (generation !== runGeneration || disposed) return snapshot;
       if (isAbort(caught)) {
         state = "cancelled";
         message = CANCELLED_MESSAGE;
@@ -1012,7 +1103,12 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     cursorPages = 0;
     void cursorIterator?.return(undefined);
     cursorIterator = undefined;
-    ledger = Object.freeze({ ...ledger, exhausted: Object.freeze([]) });
+    // `budgets.maxRequests` bounds one filter/sort/projection identity. Carrying
+    // the previous identity's consumption forward would let an exhausted table
+    // refuse to load a brand-new question forever, so the per-identity counter
+    // and its exhaustion flags reset while the lifetime totals stay intact.
+    ledger = Object.freeze({ ...ledger, requests: 0, exhausted: Object.freeze([]) });
+    budgetNotice = undefined;
     conflicts = Object.freeze([]);
     if (state !== "unsupported") state = "idle";
   }
@@ -1028,7 +1124,39 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     const deduped = [...new Set(next)];
     if (deduped.length === selection.length && deduped.every((key, index) => selection[index] === key)) return;
     selection = Object.freeze(deduped);
+    rememberSelectionTargets();
     publish();
+  }
+
+  /**
+   * Keep an exploration target for every selected key, and only for those keys.
+   *
+   * Resident rows supply their own target; keys learned from
+   * {@link HonuaFeatureTable.keysForTargets} keep the target they were resolved
+   * from. Pruning to the live selection bounds the index by selection size.
+   */
+  function rememberSelectionTargets(): void {
+    for (const key of selection) {
+      const row = findRow(key);
+      if (row) selectionTargetIndex.set(key, row.target);
+    }
+    for (const key of [...selectionTargetIndex.keys()]) {
+      if (!selection.includes(key)) selectionTargetIndex.delete(key);
+    }
+  }
+
+  /**
+   * The row key a selection target maps to, or `undefined` when the target
+   * belongs to another source.
+   *
+   * Resolution is arithmetic on identity, not a cache lookup: a target for this
+   * source resolves whether or not its page is resident. A bare `FeatureId`
+   * target (the single-source exploration form) is treated as this source's.
+   */
+  function keyForTarget(target: FeatureSelectionTarget): HonuaFeatureTableRowKey | undefined {
+    if (!isSourceQualifiedSelectionTarget(target)) return featureTableRowKey(options.sourceId, target);
+    if (target.sourceId !== options.sourceId) return undefined;
+    return featureTableRowKey(options.sourceId, target.id);
   }
 
   async function applyFocusMove(move: HonuaFeatureTableFocusMove): Promise<HonuaFeatureTableSnapshot<T>> {
@@ -1336,18 +1464,22 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       setSelection(selection.filter((key) => !drop.has(key)));
     },
     keysForTargets(targets) {
-      const wanted = new Set(targets.map((target) => featureSelectionKey(target)));
       const out: HonuaFeatureTableRowKey[] = [];
-      for (const row of loadedRows()) {
-        if (wanted.has(featureSelectionKey(row.target))) out.push(row.key);
+      for (const target of targets) {
+        const key = keyForTarget(target);
+        if (key === undefined || out.includes(key)) continue;
+        // Remember the target so a selection made from an off-window key can
+        // still be published back as a target.
+        selectionTargetIndex.set(key, target);
+        out.push(key);
       }
       return Object.freeze(out);
     },
     selectionTargets() {
       const out: FeatureSelectionTarget[] = [];
       for (const key of selection) {
-        const row = findRow(key);
-        if (row) out.push(row.target);
+        const target = findRow(key)?.target ?? selectionTargetIndex.get(key);
+        if (target !== undefined) out.push(target);
       }
       return Object.freeze(out);
     },
@@ -1468,7 +1600,13 @@ export function linkFeatureTableToExploration<T>(
     try {
       if (syncSelection && snapshot.selection !== lastSelection) {
         lastSelection = snapshot.selection;
-        view.select(table.selectionTargets(), { replace: true });
+        // Replace only this table's own source. A multi-source workspace's
+        // selections for peer sources are not the table's to drop.
+        const sourceId = snapshot.sourceId;
+        const peers = view.state.selection.filter(
+          (target) => isSourceQualifiedSelectionTarget(target) && target.sourceId !== sourceId,
+        );
+        view.select([...peers, ...table.selectionTargets()], { replace: true });
       }
       if (syncSort && snapshot.sort !== lastSort) {
         lastSort = snapshot.sort;
@@ -1577,6 +1715,13 @@ function resolveColumns(columns: readonly HonuaFeatureTableColumn[]): readonly H
       }),
     ),
   );
+}
+
+/** Name an unusable identity value without leaking the attribute payload. */
+function describeIdentityValue(value: unknown): string {
+  if (value === undefined) return "absent";
+  if (value === null) return "null";
+  return `a ${Array.isArray(value) ? "array" : typeof value}`;
 }
 
 function normalizeFilters(

@@ -759,6 +759,8 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   #tableUnsubscribe: (() => void) | undefined;
   #tableSnapshot: HonuaFeatureTableSnapshot<T> | undefined;
   #announcedConflicts = "";
+  #tableConnected = false;
+  #restoringScroll = false;
 
   /**
    * The bounded query engine backing this grid. Assigning one switches the
@@ -770,19 +772,33 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   }
 
   public set table(table: HonuaFeatureTable<T> | undefined) {
-    if (this.#table === table) return;
+    if (this.#table === table) {
+      // Re-assigning the same engine must still be able to re-take a
+      // subscription that `disconnectedCallback()` dropped.
+      this.#subscribeTable();
+      return;
+    }
     this.#tableUnsubscribe?.();
     this.#tableUnsubscribe = undefined;
     this.#table = table;
     this.#tableSnapshot = table?.snapshot;
-    if (table) {
-      this.#tableUnsubscribe = table.subscribe((snapshot) => {
-        this.#tableSnapshot = snapshot;
-        this.render();
-        this.#announceConflicts(snapshot);
-      });
-    }
+    // Only hold a subscription while connected; `connectedCallback()` re-takes
+    // it so a detached-then-reinserted grid resumes updating.
+    this.#subscribeTable();
     this.render();
+  }
+
+  /** Takes the engine subscription, unless one is already held or we are detached. */
+  #subscribeTable(): void {
+    const table = this.#table;
+    if (!table || this.#tableUnsubscribe || !this.#tableConnected) return;
+    // The engine may have moved on while detached; re-read before listening.
+    this.#tableSnapshot = table.snapshot;
+    this.#tableUnsubscribe = table.subscribe((snapshot) => {
+      this.#tableSnapshot = snapshot;
+      this.render();
+      this.#announceConflicts(snapshot);
+    });
   }
 
   public attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null): void {
@@ -799,12 +815,21 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   }
 
   public connectedCallback(): void {
+    this.#tableConnected = true;
     super.connectedCallback();
+    this.#subscribeTable();
+    if (this.#table) {
+      // Reconnect must not re-query: the engine already holds bounded pages, and
+      // re-taking the subscription plus a render is enough to resume.
+      this.render();
+      return;
+    }
     void this.refresh();
   }
 
   public disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.#tableConnected = false;
     this.#tableUnsubscribe?.();
     this.#tableUnsubscribe = undefined;
   }
@@ -857,10 +882,34 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
           },
         );
 
+    // `setShadowHtml` replaces the whole shadow tree, including the scroll
+    // container. A fresh container starts at `scrollTop = 0`, which would snap a
+    // virtualized grid back to the top (and strand a full-height leading spacer)
+    // on every publish — including the synchronous loading snapshot that
+    // `setScroll` itself publishes. Carry the offset across the swap.
+    const previousScrollTop = this.#scroller()?.scrollTop ?? 0;
     this.setShadowHtml(
       `<style>${baseStyles()}${tableStyles()}${featureTableGridStyles()}</style>${featureTableGridHtml(viewModel)}`,
     );
     this.#bindGrid();
+    this.#restoreScrollTop(previousScrollTop);
+  }
+
+  #scroller(): HTMLElement | null {
+    return this.shadowRoot?.querySelector<HTMLElement>("[data-scroller]") ?? null;
+  }
+
+  #restoreScrollTop(scrollTop: number): void {
+    if (scrollTop <= 0) return;
+    const scroller = this.#scroller();
+    if (!scroller || scroller.scrollTop === scrollTop) return;
+    // Restoring the offset fires `scroll`; that echo must not be mistaken for a
+    // user gesture and fed back into the engine as a new window.
+    this.#restoringScroll = true;
+    scroller.scrollTop = scrollTop;
+    queueMicrotask(() => {
+      this.#restoringScroll = false;
+    });
   }
 
   #bindGrid(): void {
@@ -883,6 +932,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     const scroller = root.querySelector<HTMLElement>("[data-scroller]");
     if (scroller && this.#table) {
       scroller.addEventListener("scroll", () => {
+        if (this.#restoringScroll) return;
         void this.#table?.setScroll({
           scrollTop: scroller.scrollTop,
           rowHeight: this.rowHeight(),

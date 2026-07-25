@@ -223,6 +223,17 @@ consumption and names the ceiling that was hit in `ledger.exhausted`. A window
 row whose page is not resident is `undefined` in `snapshot.rows`, and the grid
 paints a placeholder rather than inventing values.
 
+The row and byte ceilings are hard. If a single page cannot fit under
+`maxCachedBytes`, that page is evicted too rather than left resident above the
+ceiling; `ledger.exhausted` reports `bytes` and `snapshot.message` explains it.
+A `pageSize` larger than `maxCachedRows` can never fit, so it is rejected up
+front as `unsupported` instead of failing per page.
+
+`maxRequests` bounds **one** filter/sort/projection identity, so
+`ledger.requests` resets when that identity changes and an exhausted table can
+still load a new question. `ledger.lifetimeRequests`, `ledger.rows`,
+`ledger.bytes`, and `ledger.evictedRows` are lifetime totals and never reset.
+
 `table.export({ format: "csv", maxRows })` reuses the same paged query path.
 `maxRows` can only lower the ceiling — a request above `budgets.maxExportRows`
 is clamped and the result reports `truncated: true` with the `limit` that
@@ -243,9 +254,14 @@ behind any number:
 
 `count.value` is absent for `partial` and `unknown`, the grid renders
 `aria-rowcount="-1"`, and the live region says "at least N rows loaded; total
-unknown". A source without a resolvable stable row identity (`identityField` or
-`descriptor.schema.primaryKey`) reports `unsupported` rather than keying rows by
-page position, which would corrupt selection across paging.
+unknown".
+
+Stable row identity is required, not best-effort. A table with no
+`identityField` (or `descriptor.schema.primaryKey`) reports `unsupported`, and so
+does a table whose declared identity attribute is absent, `null`, or not a
+string/number on any returned row. Substituting a row's position in its page
+would key it by an offset that changes with every sort, filter, and page
+boundary, corrupting selection — so the engine refuses instead.
 
 ### Paging modes
 
@@ -280,6 +296,14 @@ changes to selection, sort, visible fields, and filters apply inward. Row keys
 and exploration selection targets round-trip deterministically through
 `table.keysForTargets()` and `table.selectionTargets()`, so map-to-table and
 table-to-map selection agree on identity.
+
+Selection is independent of cache residency: `keysForTargets()` resolves any
+target for the table's own source — computed from the target's id, not looked up
+in the page cache — so a map selecting a feature far outside the loaded window
+still selects the right row, and selecting it does not clear the shared
+selection. Targets for other sources resolve to nothing, and publishing the
+table's selection outward replaces only its own source's entries, leaving a
+multi-source workspace's peer selections intact.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 const grid = context.connectView({ id: "grid", role: "grid" });

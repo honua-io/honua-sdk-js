@@ -436,3 +436,176 @@ describe("feature-table view helpers", () => {
     expect(featureTableGridHtml(model)).toContain('aria-rowcount="-1"');
   });
 });
+
+/**
+ * Regression tests for the PR #801 code-quality review findings. Each of these
+ * fails on the pre-fix element.
+ */
+describe("<honua-feature-table> review regressions (PR #801)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("keeps the scroll offset when a render replaces the scroll container", async () => {
+    // `setScroll` synchronously publishes a loading snapshot, and rendering
+    // replaces the whole shadow tree; a fresh scroller starts at 0, which snapped
+    // the grid back to the top mid-scroll (finding 1).
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+
+    const scroller = shadow(element).querySelector<HTMLElement>("[data-scroller]");
+    if (!scroller) throw new Error("no scroller");
+    scroller.scrollTop = 100 * 32;
+    scroller.dispatchEvent(new Event("scroll"));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // A new node — the point of the test — but at the same offset.
+    const current = shadow(element).querySelector<HTMLElement>("[data-scroller]");
+    expect(current).not.toBe(scroller);
+    expect(current?.scrollTop).toBe(100 * 32);
+    // And the window actually moved, so the offset is not stale.
+    expect(engine.snapshot.window.startIndex).toBe(100);
+    expect(shadow(element).querySelector<HTMLElement>("[data-leading]")?.style.height).toBe(`${100 * 32}px`);
+  });
+
+  it("keeps the scroll offset across an unrelated engine publish", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+    const scroller = shadow(element).querySelector<HTMLElement>("[data-scroller]");
+    if (!scroller) throw new Error("no scroller");
+    scroller.scrollTop = 640;
+
+    // A selection change re-renders without any scroll involvement.
+    engine.select(["incidents:2"]);
+
+    expect(shadow(element).querySelector<HTMLElement>("[data-scroller]")?.scrollTop).toBe(640);
+  });
+
+  it("does not feed the restore echo back into the engine as a user scroll", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+    const scroller = shadow(element).querySelector<HTMLElement>("[data-scroller]");
+    if (!scroller) throw new Error("no scroller");
+    scroller.scrollTop = 320;
+    engine.select(["incidents:1"]);
+
+    const revisionAfterRestore = engine.snapshot.revision;
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // No extra setScroll round trip was triggered by restoring the offset.
+    expect(engine.snapshot.revision).toBe(revisionAfterRestore);
+    expect(engine.snapshot.window.startIndex).toBe(0);
+  });
+
+  it("resubscribes to the engine after a detach and reinsert", async () => {
+    // `disconnectedCallback` dropped the subscription permanently, so a
+    // reinserted grid went dead (finding 5).
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+
+    element.remove();
+    document.body.append(element);
+    engine.select(["incidents:3"]);
+
+    const selected = shadow(element).querySelectorAll("tbody tr[aria-selected='true']");
+    expect(selected).toHaveLength(1);
+    expect(selected[0]?.getAttribute("data-row-key")).toBe("incidents:3");
+  });
+
+  it("resubscribes when the same engine is re-assigned after a detach", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+
+    element.remove();
+    document.body.append(element);
+    // Re-assigning the identical instance used to early-return before
+    // re-subscribing.
+    element.table = engine;
+    engine.select(["incidents:4"]);
+
+    expect(shadow(element).querySelectorAll("tbody tr[aria-selected='true']")).toHaveLength(1);
+  });
+
+  it("holds exactly one subscription after reconnecting and re-assigning", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+    element.remove();
+    document.body.append(element);
+    element.table = engine;
+
+    const conflicts: HonuaFeatureTableConflictDetail[] = [];
+    element.addEventListener("honua-table-conflict", (event) => {
+      conflicts.push((event as CustomEvent<HonuaFeatureTableConflictDetail>).detail);
+    });
+    engine.select(["incidents:2"]);
+    engine.applyRealtimeDiff({
+      changes: [{ kind: "delete", key: "incidents:2", id: 2, sourceId: "incidents" }],
+      reset: false,
+    });
+
+    // A double subscription would announce the same conflict twice.
+    expect(conflicts).toHaveLength(1);
+  });
+
+  it("re-reads the engine snapshot it missed while detached", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+
+    element.remove();
+    engine.select(["incidents:5"]);
+    document.body.append(element);
+
+    const selected = shadow(element).querySelectorAll("tbody tr[aria-selected='true']");
+    expect(selected).toHaveLength(1);
+    expect(selected[0]?.getAttribute("data-row-key")).toBe("incidents:5");
+  });
+
+  it("does not re-query the source on reconnect", async () => {
+    let queries = 0;
+    const engine = createHonuaFeatureTable<Row>({
+      source: {
+        descriptor: descriptor(),
+        query: async (request?: Query<Row>) => {
+          queries += 1;
+          const offset = request?.pagination?.offset ?? 0;
+          return {
+            features: [{ attributes: { OBJECTID: offset + 1, NAME: "a", SEVERITY: 0 } }],
+            exceededTransferLimit: false,
+            totalCount: 1,
+          };
+        },
+      },
+      sourceId: "incidents",
+      columns: [{ field: "OBJECTID" }],
+      budgets: { pageSize: 20 },
+    });
+    const element = mount();
+    element.table = engine;
+    await engine.refresh();
+    const before = queries;
+
+    element.remove();
+    document.body.append(element);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(queries).toBe(before);
+  });
+});
