@@ -9,6 +9,7 @@ plain TypeScript applications:
 - `honua-feature-table`
 - `honua-search`
 - `honua-editor`
+- `honua-feature-editor` (production tier — see below)
 - `honua-chart`
 - `honua-basemap-control`
 - `honua-bookmarks`
@@ -99,6 +100,8 @@ Components dispatch typed custom events:
 - `honua-filter-change`
 - `honua-search`
 - `honua-edit-change`
+- `honua-feature-edit-change`
+- `honua-feature-edit-commit`
 - `honua-basemap-change`
 - `honua-bookmark-change`
 - `honua-locate-change`
@@ -220,6 +223,123 @@ freshness, and fidelity warnings travel with every artifact, and an export that
 would drop attribution a source requires fails closed like a leak, because
 shipping an unattributed map is a licence violation.
 
+## Production-Tier Feature Editing (`honua-feature-editor`)
+
+`honua-feature-editor` is the production-tier editing surface (issue #680). It
+composes the public contract edit primitives — `createEditSketchWorkflow`,
+`createEditSession`, snapping, attachment staging, undo/redo, optimistic hooks
+— rather than reimplementing any protocol behavior, and it imports no
+protocol-specific adapter. The survival-tier `honua-editor` remains available
+as the simpler controller-bound widget.
+
+Wire it to a `Source` through `createFeatureEditorWorkflow`:
+
+```ts doc-test=skip reason="partial excerpt requires an editable Source and application host context"
+import {
+  createFeatureEditorWorkflow,
+  defineHonuaWebComponents,
+} from "@honua/sdk-js/web-components";
+
+defineHonuaWebComponents();
+
+const workflow = createFeatureEditorWorkflow({
+  source: dataset.source("permits")!,
+  // Optional. Subtypes are a presentation contract: one field carries the
+  // subtype code, and each subtype narrows the valid choices per field.
+  subtypes: {
+    field: "permit_kind",
+    defaultCode: 1,
+    subtypes: [
+      { code: 1, name: "Residential" },
+      {
+        code: 2,
+        name: "Commercial",
+        fieldOverrides: {
+          status: { domain: { type: "coded-value", codedValues: [{ name: "Under review", code: "review" }] } },
+          inspector: { required: true },
+        },
+      },
+    ],
+  },
+  // Deny-only. An override can never grant an operation the source lacks.
+  operations: { delete: { available: false, reason: "Permits are archived, never deleted." } },
+});
+
+const editor = document.querySelector("honua-feature-editor")!;
+editor.workflow = workflow;
+editor.selectedFeature = selectedPermit; // drives update / delete availability
+```
+
+What the element derives, and what it refuses:
+
+- **Form from metadata.** Controls, labels, coded-value choices, numeric range
+  bounds, max lengths, required and read-only state all come from the source's
+  public schema (with domains projected across by `editorFieldsFromSchema`) plus
+  the active subtype's overrides. No service field name is hard-coded.
+- **Truthful per-operation state.** `create` / `update` / `delete` are gated
+  independently. An evaluated `capabilityProfile` wins over the coarse
+  `applyEdits` capability, so `authorization-required`, `authorization-denied`,
+  and `policy-disabled` are surfaced with their reason codes instead of a
+  disabled button with no explanation. A read-only or partially editable service
+  renders each blocked operation's reason.
+- **Rejection is never success.** A draft that fails validation (including a
+  subtype-narrowed domain) is never transported — the commit reports
+  `transported: false`. Every non-succeeded `applyEdits` outcome maps to
+  `rejected`, `conflict`, `unsupported`, or `cancelled`, and a partial apply is
+  reported as such.
+- **Explicit conflict resolution.** A version / precondition failure, or a
+  divergent external change to the drafted feature, parks the draft in
+  `conflict`; submitting again is refused until `resolveConflict("keep-mine" |
+  "discard-mine" | "reload")` records a decision.
+- **Realtime safety.** `workflow.applyExternalChange(feature)` ignores changes to
+  other features entirely (no re-render, so selection, unsaved values, focus, and
+  caret survive), adopts server values only for fields the user has not touched,
+  and escalates a divergent token to a conflict.
+- **Redacted attachments.** Staged attachment payloads — including string URLs
+  that may carry credentials — never enter component state or an emitted event;
+  only name, content type, size, and status do.
+- **Keyboard and screen-reader complete.** The whole workflow, geometry
+  included, is usable without the map canvas: labelled native controls with
+  `aria-required` / `aria-invalid` / `aria-describedby`, `role="alert"` problem
+  regions, a `role="status"` live message, a GeoJSON geometry textarea with
+  **Apply geometry** / **Clear geometry**, `Escape` to cancel, and
+  `Ctrl`/`Cmd`+`Z` (with `Shift`) for undo / redo.
+
+Geometry can additionally be drawn on the map. `createTerraDrawEditorSketch` is
+the app-platform default: it constructs terra-draw (an optional peer) for a
+MapLibre map, wires SDK snapping, reports terra-draw's real tool support so
+`rectangle` / `circle` become enabled, and re-binds itself to each new draft.
+
+```ts doc-test=skip reason="partial excerpt requires terra-draw peers and a MapLibre map"
+import { createTerraDrawEditorSketch } from "@honua/sdk-js/web-components";
+
+const sketch = await createTerraDrawEditorSketch(map, { workflow, snapping: { index } });
+sketch.setTool("polygon"); // arms terra-draw and the workflow together
+await sketch.ready(); // resolves once bound to the current draft
+```
+
+Apps that construct terra-draw themselves use `bindEditorSketch(draw, { workflow })`
+and, for snapping, `editorSnappingOptions(workflow, { index })`. Route snapping
+through that helper rather than passing a model directly: terra-draw resolves its
+snapping hook once per mode, and the editor builds a new contract sketch model
+for every draft, so a directly-passed model would pin snapping to the first
+draft and make `setSnapping(...)` on later drafts a silent no-op.
+
+Two lifecycle details worth knowing:
+
+- **Superseded submits.** An `AbortSignal` is advisory, so a transport may settle
+  a submit the editor has already moved on from. A completion that no longer
+  owns the workflow never writes to it: the commit comes back with
+  `superseded: true` and `status: "cancelled"`, its `snapshot` describes the
+  *current* draft, and the workflow makes no claim about the superseded edit's
+  server outcome (`failures` carries whatever the service reported).
+- **Detach and reattach.** The element holds its workflow subscription only
+  while connected, and re-takes it — re-reading state it missed — on reconnect,
+  so moving the editor in the DOM does not leave it frozen.
+
+Events: `honua-feature-edit-change` (redacted snapshot on every state change)
+and `honua-feature-edit-commit` (the submit outcome, including `transported`).
+
 ## Production qualification matrix
 
 Production support for the component kit is tracked as an enforceable matrix
@@ -230,38 +350,49 @@ lifecycle cleanup, and bundle cost (issue #683, REQ-004/REQ-005/NFR-001).
 The matrix is seeded from what the test suite actually asserts today. `passing`
 requires evidence files that are verified to exist, so deleting the test behind a
 gate fails CI instead of quietly downgrading the claim. `failing` records a
-requirement we know is unmet. `pending` — most of this matrix — means no
-automated gate and no verdict yet. `not-applicable` requires an argument. A
-component reaches the catalog's `production-tier` only when every gate is
-passing or not-applicable, cross-checked in both directions.
+requirement we know is unmet — including from code inspection, before an
+automated gate exists. `pending` — most of this matrix — means no automated gate
+and no verdict yet. `not-applicable` requires an argument.
+
+These gates are a **different axis** from the catalog's `supportTier`. The tier
+records the functional maturity a feature issue delivered on a component
+(`honua-feature-editor` is `production-tier` because issue #680 delivered
+capability-aware editing, conflict handling, snapping, and attachment staging).
+Gate completion is the strictly harder bar, so the verifier enforces only that
+direction — anything clearing every gate must carry the production tier — and
+every production-tier component's still-open gates are listed as `openGates` in
+the manifest, so the tier can never be mistaken for gate completion.
 
 <!-- component-qualification:start -->
 <!-- GENERATED by scripts/component-qualification.mjs from src/controls/qualification.ts. Do not edit by hand; run npm run qualification:components. -->
 
-340 cells across 20 components x 17 gates: **107 passing**, 126 failing, 87 pending, 20 not applicable. 0 of 20 components are production-qualified.
+357 cells across 21 components x 17 gates: **112 passing**, 133 failing, 91 pending, 21 not applicable.
 
-| Component | keyboard-behavior | screen-reader-semantics | focus-restoration | reduced-motion | high-contrast | responsive-layout | localization | pseudo-locale | rtl | visual-regression | strict-csp | zero-console-error | deterministic-disposal | duplicate-listener | memory-leak | ssr-import | bundle-budget |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `honua-basemap-switcher` (controls) | pending | pending | pending | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pass | pending | pending | pass | pass |
-| `honua-swipe-control` (controls) | pass | pending | pending | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pending | pending | pending | pass | pass |
-| `honua-legend` (controls) | pending | pass | pending | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pass | pending | pending | pass | pass |
-| `honua-layer-list` (controls) | pending | pending | pending | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pass | pending | pending | pass | pass |
-| `honua-map` (web-components) | pending | pending | pending | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pass | pending | pending | pass | pass |
-| `honua-layer-list` (web-components) | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-legend` (web-components) | pending | pass | n/a | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | n/a | pending | pass | pass |
-| `honua-feature-table` (web-components) | pass | pending | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-search` (web-components) | pass | pass | pass | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-editor` (web-components) | pending | pending | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-chart` (web-components) | pending | pending | n/a | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | n/a | pending | pass | pass |
-| `honua-basemap-control` (web-components) | pending | pending | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-bookmarks` (web-components) | pending | pending | pass | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-locate-control` (web-components) | pending | pending | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-measure-control` (web-components) | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-measurement` (web-components) | pass | pass | pending | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pass | pending | pending | pass | pass |
-| `honua-sketch-control` (web-components) | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-print-export` (web-components) | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-map-status` (web-components) | pending | pending | FAIL | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-action-panel` (web-components) | pending | pending | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+0 of 21 components have cleared every gate. That is a different axis from the catalog's `supportTier`, which records the functional maturity a feature issue delivered: 1 component(s) are `production-tier` and still carry open gates, listed per component as `openGates` in the manifest.
+
+| Component | Tier | keyboard-behavior | screen-reader-semantics | focus-restoration | reduced-motion | high-contrast | responsive-layout | localization | pseudo-locale | rtl | visual-regression | strict-csp | zero-console-error | deterministic-disposal | duplicate-listener | memory-leak | ssr-import | bundle-budget |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `honua-basemap-switcher` (controls) | survival | pending | pending | pending | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pass | pending | pending | pass | pass |
+| `honua-swipe-control` (controls) | survival | pass | pending | pending | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pending | pending | pending | pass | pass |
+| `honua-legend` (controls) | survival | pending | pass | pending | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pass | pending | pending | pass | pass |
+| `honua-layer-list` (controls) | survival | pending | pending | pending | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pass | pending | pending | pass | pass |
+| `honua-map` (web-components) | survival | pending | pending | pending | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pass | pending | pending | pass | pass |
+| `honua-layer-list` (web-components) | survival | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-legend` (web-components) | survival | pending | pass | n/a | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | n/a | pending | pass | pass |
+| `honua-feature-table` (web-components) | survival | pass | pending | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-search` (web-components) | survival | pass | pass | pass | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-editor` (web-components) | survival | pending | pending | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-feature-editor` (web-components) | production | pass | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | pending | pending | FAIL | pending | FAIL | FAIL | pending | pass | pass |
+| `honua-chart` (web-components) | survival | pending | pending | n/a | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | n/a | pending | pass | pass |
+| `honua-basemap-control` (web-components) | survival | pending | pending | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-bookmarks` (web-components) | survival | pending | pending | pass | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-locate-control` (web-components) | survival | pending | pending | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-measure-control` (web-components) | survival | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-measurement` (web-components) | survival | pass | pass | pending | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pending | pass | pending | pending | pass | pass |
+| `honua-sketch-control` (web-components) | survival | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-print-export` (web-components) | survival | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-map-status` (web-components) | survival | pending | pending | FAIL | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-action-panel` (web-components) | survival | pending | pending | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
 
 Gate definitions and per-cell evidence and notes live in
 [`config/component-qualification.v1.json`](../config/component-qualification.v1.json).
@@ -269,3 +400,4 @@ Gate definitions and per-cell evidence and notes live in
 
 Regenerate with `npm run qualification:components`; `npm run
 qualification:components:check` is the CI drift and invariant gate.
+

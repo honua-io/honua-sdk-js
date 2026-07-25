@@ -27,6 +27,7 @@ import {
   createServiceExplorerTruthModel,
 } from "./truth-model.js";
 
+import "../../_kit/design/index.css";
 import "../../_kit/presentation.css";
 import "./styles.css";
 
@@ -48,11 +49,21 @@ declare global {
 }
 
 const MAP_SOURCE_ID = "service-explorer-source";
+const BACKGROUND_LAYER_ID = "background";
 const INSPECTION_TIMEOUT_MS = 10_000;
+
+/* The basemap is the stage: its land tone is the design language's basemap
+ * token, so the canvas re-keys with the active theme instead of staying a
+ * light plate behind dark chrome. */
+function basemapLand(): string {
+  const token = getComputedStyle(document.documentElement).getPropertyValue("--hn-basemap-land").trim();
+  return token.length > 0 ? token : "#f4f5f1";
+}
+
 const DEFAULT_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {},
-  layers: [{ id: "background", type: "background", paint: { "background-color": "#e8efeb" } }],
+  layers: [{ id: BACKGROUND_LAYER_ID, type: "background", paint: { "background-color": basemapLand() } }],
 };
 
 const cleanup = new SampleCleanupRegistry();
@@ -145,6 +156,8 @@ cleanup.listen(sourceList, "click", (event) => {
   void inspectEndpoint();
 });
 
+setupThemeToggle();
+
 const defaultEndpoint = `${window.location.origin}/fixtures/ogc`;
 endpointInput.value = defaultEndpoint;
 protocolInput.value = "ogc-features";
@@ -152,6 +165,35 @@ sourceInput.value = "places";
 queryLimit.value = String(SERVICE_EXPLORER_DEFAULT_LIMIT);
 window.__HONUA_SERVICE_EXPLORER_DISPOSE__ = () => disposeDemo();
 void inspectEndpoint();
+
+type ThemePreference = "auto" | "light" | "dark";
+const THEME_SEQUENCE: readonly ThemePreference[] = ["auto", "light", "dark"];
+
+function setupThemeToggle(): void {
+  const toggle = element<HTMLButtonElement>("#theme-toggle");
+  let preference: ThemePreference = "auto";
+  const apply = (): void => {
+    if (preference === "auto") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = preference;
+    toggle.textContent = `Theme: ${preference}`;
+    retintBasemap();
+  };
+  cleanup.listen(toggle, "click", () => {
+    const nextIndex = (THEME_SEQUENCE.indexOf(preference) + 1) % THEME_SEQUENCE.length;
+    preference = THEME_SEQUENCE[nextIndex] ?? "auto";
+    apply();
+  });
+  cleanup.listen(matchMedia("(prefers-color-scheme: dark)"), "change", () => retintBasemap());
+  cleanup.add(() => {
+    delete document.documentElement.dataset.theme;
+  });
+  apply();
+}
+
+function retintBasemap(): void {
+  if (!map.getLayer(BACKGROUND_LAYER_ID)) return;
+  map.setPaintProperty(BACKGROUND_LAYER_ID, "background-color", basemapLand());
+}
 
 async function inspectEndpoint(): Promise<void> {
   abortActiveOperation(new DOMException("Service Explorer operation was superseded", "AbortError"));
@@ -541,6 +583,7 @@ async function applyQueryResult(
     map.addLayer(layer as unknown as maplibregl.LayerSpecification);
     mapLayerIds.push(String(layer.id));
   }
+  syncMapEmptyState();
 }
 
 async function applyNativePlan(plan: AutomaticMapLibrePlan, signal: AbortSignal): Promise<void> {
@@ -554,6 +597,7 @@ async function applyNativePlan(plan: AutomaticMapLibrePlan, signal: AbortSignal)
     map.addLayer(layer as unknown as maplibregl.LayerSpecification);
     mapLayerIds.push(String(layer.id));
   }
+  syncMapEmptyState();
 }
 
 function clearMapPreview(): void {
@@ -561,6 +605,13 @@ function clearMapPreview(): void {
   mapLayerIds = [];
   if (mapSourceId && map.getSource(mapSourceId)) map.removeSource(mapSourceId);
   mapSourceId = undefined;
+  syncMapEmptyState();
+}
+
+/* An empty stage states what is missing and which control fills it, rather
+ * than leaving a blank canvas that reads as a broken map. */
+function syncMapEmptyState(): void {
+  element<HTMLElement>("#map-empty").hidden = mapLayerIds.length > 0;
 }
 
 function renderResult(result: Result<Record<string, unknown>>): void {

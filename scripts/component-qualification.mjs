@@ -22,10 +22,14 @@
 //   4. Claims must be argued. `passing` requires evidence; `failing` and
 //      `not-applicable` require a note. `not-applicable` is the only status that
 //      removes work, so it is the one that most needs a justification attached.
-//   5. Tier agreement. A catalog entry may declare supportTier
-//      "production-tier" only when every one of its gates is passing or
-//      not-applicable, and must declare it when they are. Neither the tier claim
-//      nor the evidence can drift ahead of the other.
+//   5. Tier agreement, in the one direction that is actually implied. The
+//      catalog's supportTier is a FUNCTIONAL maturity claim owned by whichever
+//      feature issue raised the component (#680-#683); this matrix is the
+//      cross-cutting gate axis. Clearing every gate is the strictly harder bar,
+//      so a fully-qualified component MUST be declared production-tier. The
+//      reverse does not hold: a production-tier component carries its still-open
+//      gates in `openGates`, counted and visible, so the tier can never be
+//      mistaken for gate completion.
 //
 // Usage: node scripts/component-qualification.mjs <write|check>
 // npm scripts: qualification:components / qualification:components:check.
@@ -131,17 +135,17 @@ export function buildManifest({ catalog, qualification }, fileExists) {
 
     const entry = entries.find((candidate) => candidate.id === row.id);
     const qualified = qualification.isComponentProductionQualified(row.id);
-    if (entry) {
+    if (entry && qualified) {
+      // Only this direction is implied; see the header note on tier agreement.
       invariant(
-        (entry.supportTier === "production-tier") === qualified,
-        qualified
-          ? `component "${row.id}" clears every gate but the catalog still declares supportTier "${entry.supportTier}"`
-          : `component "${row.id}" declares supportTier "production-tier" but has gates that are not passing or not-applicable: ${row.gates
-              .filter((cell) => cell.status !== "passing" && cell.status !== "not-applicable")
-              .map((cell) => `${cell.gate}=${cell.status}`)
-              .join(", ")}`,
+        entry.supportTier === "production-tier",
+        `component "${row.id}" clears every qualification gate but the catalog still declares supportTier "${entry.supportTier}"`,
       );
     }
+    invariant(
+      qualified === (qualification.listOpenQualificationGates(row.id).length === 0),
+      `component "${row.id}": openGates disagrees with its production-qualified verdict`,
+    );
   }
 
   const overall = qualification.summarizeComponentQualification();
@@ -173,14 +177,21 @@ export function buildManifest({ catalog, qualification }, fileExists) {
       pending: overall.pending,
       notApplicable: overall.notApplicable,
       productionQualifiedComponents: rows.filter((row) => qualification.isComponentProductionQualified(row.id)).length,
+      productionTierComponents: entries.filter((entry) => entry.supportTier === "production-tier").length,
     },
     components: rows.map((row) => {
       const summary = qualification.summarizeComponentQualification(row.id);
+      const entry = entries.find((candidate) => candidate.id === row.id);
+      const openGates = qualification.listOpenQualificationGates(row.id);
       return {
         id: row.id,
         tag: row.tag,
         source: row.source,
+        // Functional maturity from the catalog, kept next to the gate verdict so
+        // the two claims are never read as the same thing.
+        supportTier: entry?.supportTier ?? "unknown",
         productionQualified: qualification.isComponentProductionQualified(row.id),
+        openGates: [...openGates],
         summary: {
           passing: summary.passing,
           failing: summary.failing,
@@ -211,16 +222,23 @@ export function renderTable(manifest) {
   lines.push(
     `${manifest.summary.cells} cells across ${manifest.summary.components} components x ${manifest.summary.gates} gates: ` +
       `**${manifest.summary.passing} passing**, ${manifest.summary.failing} failing, ${manifest.summary.pending} pending, ` +
-      `${manifest.summary.notApplicable} not applicable. ` +
-      `${manifest.summary.productionQualifiedComponents} of ${manifest.summary.components} components are production-qualified.`,
+      `${manifest.summary.notApplicable} not applicable.`,
   );
   lines.push("");
-  const header = ["Component", ...manifest.gates.map((gate) => gate.id)];
+  lines.push(
+    `${manifest.summary.productionQualifiedComponents} of ${manifest.summary.components} components have cleared every ` +
+      `gate. That is a different axis from the catalog's \`supportTier\`, which records the functional maturity a feature ` +
+      `issue delivered: ${manifest.summary.productionTierComponents} component(s) are \`production-tier\` and still carry ` +
+      `open gates, listed per component as \`openGates\` in the manifest.`,
+  );
+  lines.push("");
+  const header = ["Component", "Tier", ...manifest.gates.map((gate) => gate.id)];
   lines.push(`| ${header.join(" | ")} |`);
   lines.push(`| ${header.map(() => "---").join(" | ")} |`);
   for (const component of manifest.components) {
     const cells = component.gates.map((cell) => STATUS_SYMBOLS[cell.status]);
-    lines.push(`| \`${component.tag}\` (${component.source}) | ${cells.join(" | ")} |`);
+    const tier = component.supportTier === "production-tier" ? "production" : "survival";
+    lines.push(`| \`${component.tag}\` (${component.source}) | ${tier} | ${cells.join(" | ")} |`);
   }
   lines.push("");
   lines.push("Gate definitions and per-cell evidence and notes live in");

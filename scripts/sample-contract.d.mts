@@ -21,6 +21,7 @@ export interface ProjectedSample {
   supportTier: "supported" | "experimental" | "internal" | "deprecated";
   lifecycle: Record<string, unknown>;
   validationProfile: string;
+  source: { repository: "honua-io/honua-sdk-js"; path: string; docsPath: string };
   sdk: { package: string; version: string };
 }
 
@@ -158,7 +159,23 @@ export interface GoldenJourneyVisualEvidence {
     };
     observedAt: string;
     expiresAt: string;
-    screenshots: Array<Record<string, unknown>>;
+    screenshots: Array<{
+      variant: "desktop" | "mobile";
+      projectName: string;
+      browserName: string;
+      sourcePath: string;
+      mediaType: string;
+      viewport: { width: number; height: number };
+      bytes: number;
+      sha256: string;
+      reproducibility: {
+        captureCount: number;
+        comparison: string;
+        repeatSourcePath: string;
+        repeatBytes: number;
+        repeatSha256: string;
+      };
+    }>;
     semanticEvidence: MatrixReceiptEvidenceBinding[];
     liveEvidence: Record<string, unknown>;
   }>;
@@ -201,6 +218,19 @@ export type SiteConsumerResolvedReplacement =
     }
   | { kind: "external"; id: string; title: string; url: string };
 
+export interface SiteConsumerArtifactReference {
+  path: string;
+  schemaPath: string;
+  format: string;
+  schemaVersion: number;
+  bytes: number;
+  sha256: string;
+  /** Absent only in an artifact published before the schema integrity binding existed. */
+  schemaBytes?: number;
+  /** Absent only in an artifact published before the schema integrity binding existed. */
+  schemaSha256?: string;
+}
+
 export interface SiteConsumerHandoff {
   format: "honua.site.sdk-sample-consumer-handoff.v1";
   schemaVersion: 1;
@@ -208,14 +238,7 @@ export interface SiteConsumerHandoff {
   ownership: Record<string, unknown>;
   inputs: Record<
     "siteProjection" | "capabilityMatrix" | "visualEvidence",
-    {
-      path: string;
-      schemaPath: string;
-      format: string;
-      schemaVersion: number;
-      bytes: number;
-      sha256: string;
-    }
+    SiteConsumerArtifactReference
   >;
   policy: Record<string, unknown> & { interaction: Record<string, unknown> };
   filters: Record<string, string[]>;
@@ -255,7 +278,7 @@ export interface SiteConsumerFixtureV3 {
   format: "honua.site.sdk-sample-consumer-fixture.v3";
   schemaVersion: 3;
   accepts: Record<string, unknown>;
-  input: Record<string, unknown>;
+  input: SiteConsumerArtifactReference;
   assertions: Record<string, unknown>;
   filterCases: Array<{
     id: "all-public-cards" | "task" | "capability" | "protocol" | "combined" | "text" | "zero-results";
@@ -330,6 +353,14 @@ export function generateSiteProjection(
   routes: Array<Record<string, unknown>>;
   goldenJourneys: GoldenJourney[];
   externalReplacements: Array<{ id: string; title: string; url: string }>;
+  sampleBundles: {
+    format: string;
+    schemaVersion: number;
+    publication: { repo: string; releaseTag: string; manifestAsset: string; bundleAsset: string };
+    sampleIds: string[];
+    published: Array<{ id: string; runnability: string; hostFixtureRoutes: string[] }>;
+    excluded: Array<{ id: string; category: string; reason: string }>;
+  };
 };
 export function collectQualificationEvidence(
   catalog: SampleCatalog,
@@ -387,6 +418,7 @@ export function generateSiteConsumerFixtureV3(handoff: SiteConsumerHandoff): Sit
 export function validateSiteConsumerFixtureV3(
   fixture: unknown,
   handoff: SiteConsumerHandoff,
+  options?: { verifyCheckout?: boolean },
 ): Promise<void>;
 export function validateCapabilitySampleMatrix(
   matrix: unknown,

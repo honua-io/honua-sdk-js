@@ -292,6 +292,31 @@ async function probeParquetFunctions(runtime: GeoparquetRuntime, signal: AbortSi
   return { duckDbVersion, parquetScanRows, readParquetRows };
 }
 
+/**
+ * This bounded lane deliberately runs DuckDB-WASM without the 23 MB `spatial`
+ * extension (`loadSpatial: false`): the AOI predicate is a scalar comparison
+ * against the GeoParquet bbox covering column, which is also what lets DuckDB
+ * skip row groups over ranged HTTP reads. If the bbox covering column is not
+ * detected, the SDK compiles `ST_Intersects(...)` instead, which both decodes
+ * every candidate geometry and fails with an opaque DuckDB catalog error
+ * because no spatial extension is loaded. Fail closed with the actual reason
+ * before the AOI query runs (#767). `runtime.profile` is memoized per source
+ * list, so the query below reuses this footer read.
+ */
+async function requireBboxCoveringPushdown(
+  runtime: GeoparquetRuntime,
+  locator: string,
+  signal: AbortSignal,
+): Promise<void> {
+  const profile = await runtime.profile([locator]);
+  if (signal.aborted) throw signal.reason ?? new DOMException("Query was aborted.", "AbortError");
+  if (!profile.geometry?.bboxColumn) {
+    throw new Error(
+      `${locator} exposes no GeoParquet bbox covering column, so the AOI filter would need DuckDB's spatial extension, which this bounded lane does not load. Re-point the lane at a file with a bbox covering column.`,
+    );
+  }
+}
+
 async function executePlan(
   plan: OvertureQueryPlan,
   range: OvertureRangeEvidence,
@@ -325,6 +350,8 @@ async function executePlan(
       },
     );
     const parquetRuntime = plan.lane === "fixture" ? await probeParquetFunctions(runtime, signal) : undefined;
+    const locator = plan.lane === "fixture" ? FIXTURE_NAME : (plan.selectedObjects[0]?.url ?? "");
+    await requireBboxCoveringPushdown(runtime, locator, signal);
     const resolver = geoparquetResolver({ runtime });
     const dataset = createDataset({
       id: `overture-${plan.lane}`,
@@ -336,7 +363,7 @@ async function executePlan(
         {
           id: "places",
           protocol: "geoparquet",
-          locator: { url: plan.lane === "fixture" ? FIXTURE_NAME : (plan.selectedObjects[0]?.url ?? "") },
+          locator: { url: locator },
           capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
         },
       ],

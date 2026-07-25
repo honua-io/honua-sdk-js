@@ -11,6 +11,7 @@ import {
   getComponentQualification,
   isComponentProductionQualified,
   listComponentQualifications,
+  listOpenQualificationGates,
   summarizeComponentQualification,
 } from "../../src/controls/qualification.js";
 
@@ -124,10 +125,25 @@ describe("every cell is honest", () => {
   });
 });
 
-describe("support tier cannot drift ahead of the evidence", () => {
-  it("agrees with the catalog's declared tier in both directions", () => {
+describe("gate completion and catalog support tier are distinct axes", () => {
+  it("requires the production tier of anything that clears every gate", () => {
+    // The only implied direction. Gate completion is strictly the harder bar, so
+    // a fully-qualified component must also carry the functional tier.
     for (const entry of HONUA_COMPONENT_CATALOG) {
-      expect(entry.supportTier === "production-tier", entry.id).toBe(isComponentProductionQualified(entry.id));
+      if (!isComponentProductionQualified(entry.id)) continue;
+      expect(entry.supportTier, entry.id).toBe("production-tier");
+    }
+  });
+
+  it("does NOT treat the production tier as gate completion", () => {
+    // `<honua-feature-editor>` is production-tier because issue #680 delivered
+    // its editing feature set, not because it cleared this matrix. Asserting the
+    // gap explicitly is what stops the tier from being read as a gate claim.
+    const productionTier = HONUA_COMPONENT_CATALOG.filter((entry) => entry.supportTier === "production-tier");
+    expect(productionTier.length).toBeGreaterThan(0);
+    for (const entry of productionTier) {
+      expect(listOpenQualificationGates(entry.id).length, entry.id).toBeGreaterThan(0);
+      expect(isComponentProductionQualified(entry.id), entry.id).toBe(false);
     }
   });
 
@@ -135,14 +151,60 @@ describe("support tier cannot drift ahead of the evidence", () => {
     for (const row of listComponentQualifications()) {
       const blocked = row.gates.some((cell) => cell.status === "pending" || cell.status === "failing");
       expect(isComponentProductionQualified(row.id), row.id).toBe(!blocked);
+      expect(listOpenQualificationGates(row.id).length === 0, row.id).toBe(!blocked);
     }
   });
 
-  it("records the seed honestly: no component is production-qualified yet", () => {
-    // Seeded from what the suite actually asserts today (issue #683). This is
-    // asserted so that the day a component genuinely clears every gate, this
-    // test fails and forces its catalog supportTier to be promoted with it.
+  it("lists open gates in gate order and only for unmet gates", () => {
+    const gateOrder = HONUA_COMPONENT_QUALIFICATION_GATES.map((gate) => gate.id);
+    for (const row of listComponentQualifications()) {
+      const open = listOpenQualificationGates(row.id);
+      expect([...open]).toEqual(gateOrder.filter((gate) => open.includes(gate)));
+      for (const gate of open) {
+        const cell = row.gates.find((candidate) => candidate.gate === gate);
+        expect(cell?.status, `${row.id}/${gate}`).not.toBe("passing");
+        expect(cell?.status, `${row.id}/${gate}`).not.toBe("not-applicable");
+      }
+    }
+  });
+
+  it("records the seed honestly: no component has cleared every gate yet", () => {
+    // Seeded from what the suite actually asserts today (issue #683). Asserted so
+    // that the day a component genuinely clears every gate, this test fails and
+    // forces a deliberate review of the promotion.
     expect(HONUA_COMPONENT_CATALOG.filter((entry) => isComponentProductionQualified(entry.id))).toEqual([]);
+  });
+});
+
+describe("the production-tier feature editor is seeded honestly", () => {
+  const row = getComponentQualification("web-components.feature-editor");
+
+  it("is recorded at all", () => {
+    expect(row).toBeDefined();
+  });
+
+  it("claims only the gates its own suites assert", () => {
+    const status = (gate: string) => row?.gates.find((cell) => cell.gate === gate)?.status;
+    // Its suites genuinely cover these three, with real key events, a thorough
+    // ARIA contract, and text-input focus restoration across a re-render.
+    expect(status("keyboard-behavior")).toBe("passing");
+    expect(status("screen-reader-semantics")).toBe("passing");
+    expect(status("focus-restoration")).toBe("passing");
+    // And these two are recorded as known defects rather than left pending: a
+    // per-render shadow-root keydown binding that accumulates and is never
+    // released on disconnect.
+    expect(status("deterministic-disposal")).toBe("failing");
+    expect(status("duplicate-listener")).toBe("failing");
+    // Nothing asserts these for it.
+    for (const gate of ["visual-regression", "zero-console-error", "memory-leak", "rtl"]) {
+      expect(status(gate), gate).toBe("pending");
+    }
+  });
+
+  it("cites its own element suite as the evidence for what it claims", () => {
+    const passing = row?.gates.filter((cell) => cell.status === "passing") ?? [];
+    const own = passing.filter((cell) => cell.evidence.includes("test/web-components-feature-editor-element.test.ts"));
+    expect(own.length).toBeGreaterThanOrEqual(3);
   });
 });
 
@@ -177,8 +239,8 @@ describe("generated manifest tracks the source of truth", () => {
       format: string;
       dataVersion: string;
       gates: { id: string }[];
-      components: { id: string; productionQualified: boolean }[];
-      summary: { cells: number; components: number; gates: number };
+      components: { id: string; productionQualified: boolean; supportTier: string; openGates: string[] }[];
+      summary: { cells: number; components: number; gates: number; productionTierComponents: number };
     };
 
     expect(manifest.format).toBe("honua.app-platform.component-qualification.v1");
@@ -188,8 +250,15 @@ describe("generated manifest tracks the source of truth", () => {
       HONUA_COMPONENT_CATALOG.map((entry) => entry.id),
     );
     expect(manifest.summary.cells).toBe(manifest.summary.components * manifest.summary.gates);
+    expect(manifest.summary.productionTierComponents).toBe(
+      HONUA_COMPONENT_CATALOG.filter((entry) => entry.supportTier === "production-tier").length,
+    );
     for (const component of manifest.components) {
       expect(component.productionQualified, component.id).toBe(isComponentProductionQualified(component.id));
+      expect(component.openGates, component.id).toEqual([...listOpenQualificationGates(component.id)]);
+      expect(component.supportTier, component.id).toBe(
+        HONUA_COMPONENT_CATALOG.find((entry) => entry.id === component.id)?.supportTier,
+      );
     }
   });
 

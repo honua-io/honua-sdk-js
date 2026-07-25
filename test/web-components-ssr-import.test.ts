@@ -49,6 +49,22 @@ describe("component kits are SSR-safe to import", () => {
     await expect(registry.registerAllComponents()).resolves.toBeUndefined();
   });
 
+  it("imports the production-tier feature editor's own module with no DOM", async () => {
+    // Named explicitly rather than left to the barrel: this element extends its
+    // DOM-optional base directly and hand-rolls its own render path, so the
+    // `ssr-import` gate the matrix records for it must actually touch this
+    // module (issue #680 component, issue #683 gate).
+    const editor = await import("../src/web-components/feature-editor.js");
+    expect(typeof editor.HonuaFeatureEditorElement).toBe("function");
+    expect(typeof editor.defineHonuaFeatureEditor).toBe("function");
+    expect(() => editor.defineHonuaFeatureEditor()).not.toThrow();
+
+    const workflow = await import("../src/web-components/feature-editor-workflow.js");
+    const model = await import("../src/web-components/feature-editor-model.js");
+    expect(typeof workflow.createFeatureEditorWorkflow).toBe("function");
+    expect(typeof model.buildEditorFormModel).toBe("function");
+  });
+
   it("imports the export contract and sanitizes state with no DOM", async () => {
     const { runHonuaExport, sanitizeHonuaExportState, createBrowserPrintExportAdapter } = await import(
       "../src/web-components/index.js"

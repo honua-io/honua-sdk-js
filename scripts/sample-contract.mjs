@@ -2,13 +2,14 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { lstat, mkdir, opendir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { deriveExcludedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
+import { deriveExcludedSamples, derivePublishedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
 import {
   expectedGateCommand,
   isSampleEvidenceRunId,
@@ -156,6 +157,18 @@ const SITE_CONSUMER_CONTROL_ORDER = Object.freeze([
   "additional-filters",
   "clear-filters",
   "sample-cards",
+]);
+// Machine-checked per qualified card by validateGoldenCardReceiptEnforcement. The
+// handoff publishes this list, so it has to stay the single source both the emitted
+// policy and the admission gate read (honua-io/honua-sdk-js#550).
+const SITE_CONSUMER_QUALIFIED_REQUIREMENTS = Object.freeze([
+  "source",
+  "packed",
+  "fixture",
+  "live",
+  "desktop",
+  "mobile",
+  "semantic-gates",
 ]);
 const SITE_CONSUMER_RESERVED_ROOT_ROUTES = new Set(["index.html", "gallery.html", "404.html"]);
 const SITE_CONSUMER_RESERVED_SAMPLE_ROUTES = new Set([
@@ -3414,15 +3427,16 @@ export function generateSiteProjection(catalog, packageJson) {
     samples: effective.samples.map((sample) => publicSample(sample, effective.sdk)),
     routes,
     sampleBundles: {
-      format: "honua.sdk.sample-bundles.v1",
-      schemaVersion: 1,
+      format: "honua.sdk.sample-bundles.v2",
+      schemaVersion: 2,
       publication: {
         repo: "honua-io/honua-sdk-js",
         releaseTag: "sample-bundles-latest",
-        manifestAsset: "sample-bundles.v1.json",
+        manifestAsset: "sample-bundles.v2.json",
         bundleAsset: "sample-bundles.tar.gz",
       },
       sampleIds: [...INCLUDED_SAMPLE_IDS].sort(),
+      published: derivePublishedSamples(catalog),
       excluded: deriveExcludedSamples(catalog),
     },
   };
@@ -4214,37 +4228,141 @@ export async function generateGoldenJourneyVisualEvidence(catalog, qualification
   return visualEvidence;
 }
 
-function validateGoldenVisualEvidenceEntries(visualEvidence) {
-  const now = Date.now();
+/**
+ * Every published visual-evidence artifact reference the consumer can dereference,
+ * flattened to `{ label, path, bytes, sha256 }`. `bytes` is null for the gate
+ * receipts, whose size is bound by the receipt digest rather than a recorded length.
+ */
+function goldenVisualArtifactReferences(entry) {
+  const references = [];
+  for (const screenshot of entry.screenshots) {
+    references.push({
+      label: `${entry.sampleId} ${screenshot.variant} screenshot`,
+      path: screenshot.sourcePath,
+      bytes: screenshot.bytes,
+      sha256: screenshot.sha256,
+    });
+    references.push({
+      label: `${entry.sampleId} ${screenshot.variant} repeat screenshot`,
+      path: screenshot.reproducibility.repeatSourcePath,
+      bytes: screenshot.reproducibility.repeatBytes,
+      sha256: screenshot.reproducibility.repeatSha256,
+    });
+  }
+  for (const semantic of entry.semanticEvidence) {
+    references.push({
+      label: `${entry.sampleId} ${semantic.gate} receipt`,
+      path: semantic.receiptPath,
+      bytes: null,
+      sha256: semantic.receiptSha256,
+    });
+    references.push({
+      label: `${entry.sampleId} ${semantic.gate} report`,
+      path: semantic.reportPath,
+      bytes: semantic.reportBytes,
+      sha256: semantic.reportSha256,
+    });
+  }
+  return references;
+}
+
+/**
+ * Bind every published visual-evidence path to the evidence root the entry's own
+ * sample owns. Without this a tampered or hand-edited artifact could advertise
+ * another sample's screenshots and receipts as its own qualification, which is the
+ * duplicate-identity form of overstated coverage (honua-io/honua-sdk-js#550).
+ */
+function validateGoldenVisualEvidenceOwnership(entry) {
+  const sampleRoot = `${QUALIFICATION_EVIDENCE_ROOT}/${entry.sampleId}`;
+  const runRoots = new Set();
+  for (const semantic of entry.semanticEvidence) {
+    invariant(
+      semantic.receiptPath === `${sampleRoot}/receipts/${semantic.gate}.v1.json`,
+      `${entry.sampleId}: ${semantic.gate} visual evidence receipt is orphaned from its sample`,
+    );
+    invariant(
+      semantic.runRoot.startsWith(`${sampleRoot}/runs/`) &&
+        isSampleEvidenceRunId(semantic.runRoot.split("/").at(-1)) &&
+        semantic.reportPath.startsWith(`${semantic.runRoot}/`) &&
+        path.posix.normalize(semantic.reportPath) === semantic.reportPath,
+      `${entry.sampleId}: ${semantic.gate} visual evidence report path is orphaned or stale`,
+    );
+    runRoots.add(semantic.runRoot);
+  }
+  const sdkModeByGate = new Map(entry.semanticEvidence.map((semantic) => [semantic.gate, semantic.sdkMode]));
+  invariant(
+    sdkModeByGate.get("packed-build") === "packed",
+    `${entry.sampleId}: packed-build visual evidence must come from the packed SDK mode`,
+  );
+  for (const screenshot of entry.screenshots) {
+    for (const candidate of [screenshot.sourcePath, screenshot.reproducibility.repeatSourcePath]) {
+      invariant(
+        path.posix.normalize(candidate) === candidate &&
+          [...runRoots].some((runRoot) => candidate.startsWith(`${runRoot}/`)),
+        `${entry.sampleId}: ${screenshot.variant} screenshot is orphaned from its own evidence run`,
+      );
+    }
+  }
+  const referencePaths = goldenVisualArtifactReferences(entry).map((reference) => reference.path);
+  const distinctPaths = new Set(referencePaths);
+  invariant(
+    distinctPaths.size === referencePaths.length,
+    `${entry.sampleId}: visual evidence reuses one artifact path for more than one claim`,
+  );
+}
+
+/**
+ * Every freshness window a published golden entry advertises: the aggregate visual
+ * window, each semantic gate receipt, and the live observation. Any expired member
+ * means the card is no longer current (honua-io/honua-sdk-js#550).
+ */
+function validateGoldenVisualEvidenceFreshness(entry, now = Date.now()) {
   const maximumFutureSkewMs = GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS * 1000;
   const maximumWindowMs = GOLDEN_VISUAL_MAX_WINDOW_SECONDS * 1000;
+  const windows = [
+    { observedAt: entry.observedAt, expiresAt: entry.expiresAt },
+    ...entry.semanticEvidence,
+    { observedAt: entry.liveEvidence.observedAt, expiresAt: entry.liveEvidence.expiresAt },
+  ];
+  for (const item of windows) {
+    const observedAt = Date.parse(item.observedAt);
+    const expiresAt = Date.parse(item.expiresAt);
+    invariant(
+      Number.isFinite(observedAt) &&
+        Number.isFinite(expiresAt) &&
+        observedAt <= now + maximumFutureSkewMs &&
+        expiresAt > now &&
+        expiresAt > observedAt &&
+        expiresAt - observedAt <= maximumWindowMs,
+      `${entry.sampleId}: visual evidence is stale or has an invalid freshness window`,
+    );
+  }
+}
+
+function validateGoldenVisualEvidenceEntries(visualEvidence) {
+  const now = Date.now();
+  const journeyIds = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.journeyId);
+  const sampleIds = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.sampleId);
+  const sourcePaths = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.source.path);
+  invariant(
+    new Set(journeyIds).size === journeyIds.length &&
+      new Set(sampleIds).size === sampleIds.length &&
+      new Set(sourcePaths).size === sourcePaths.length,
+    "golden journey visual evidence contains duplicate journey, sample, or source identities",
+  );
   for (const entry of visualEvidence.qualifiedGoldenJourneys) {
     invariant(
       JSON.stringify(entry.semanticEvidence.map((item) => item.gate)) ===
         JSON.stringify(GOLDEN_VISUAL_GATE_ORDER),
       `${entry.sampleId}: visual semantic evidence is incomplete or out of order`,
     );
-    const allFreshness = [
-      { observedAt: entry.observedAt, expiresAt: entry.expiresAt },
-      ...entry.semanticEvidence,
-      {
-        observedAt: entry.liveEvidence.observedAt,
-        expiresAt: entry.liveEvidence.expiresAt,
-      },
-    ];
-    for (const item of allFreshness) {
-      const observedAt = Date.parse(item.observedAt);
-      const expiresAt = Date.parse(item.expiresAt);
-      invariant(
-        Number.isFinite(observedAt) &&
-          Number.isFinite(expiresAt) &&
-          observedAt <= now + maximumFutureSkewMs &&
-          expiresAt > now &&
-          expiresAt > observedAt &&
-          expiresAt - observedAt <= maximumWindowMs,
-        `${entry.sampleId}: visual evidence is stale or has an invalid freshness window`,
-      );
-    }
+    invariant(
+      JSON.stringify(entry.screenshots.map((screenshot) => screenshot.variant)) ===
+        JSON.stringify(SAMPLE_SCREENSHOT_VARIANTS.map((variant) => variant.id)),
+      `${entry.sampleId}: visual evidence is missing a required desktop/mobile screenshot variant`,
+    );
+    validateGoldenVisualEvidenceOwnership(entry);
+    validateGoldenVisualEvidenceFreshness(entry, now);
     invariant(
       entry.screenshots.every(
         (screenshot) =>
@@ -4262,6 +4380,31 @@ function validateGoldenVisualEvidenceEntries(visualEvidence) {
         `${entry.sampleId}: incident operations visual evidence must remain realtime`,
       );
     }
+  }
+}
+
+/**
+ * Dereference every published visual-evidence artifact against the checkout so a
+ * broken link, a replaced file, or a stale digest fails publication instead of
+ * shipping an unverifiable golden card (honua-io/honua-sdk-js#550).
+ */
+async function validateGoldenVisualEvidenceArtifactFiles(entry) {
+  for (const reference of goldenVisualArtifactReferences(entry)) {
+    let bytes;
+    try {
+      bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
+        label: reference.label,
+        maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+      });
+    } catch (error) {
+      if (error?.code === "ENOENT") throw new Error(`${reference.label} is broken or missing`);
+      throw error;
+    }
+    invariant(
+      (reference.bytes === null || bytes.byteLength === reference.bytes) &&
+        sha256(bytes) === reference.sha256,
+      `${reference.label} byte or digest binding is stale`,
+    );
   }
 }
 
@@ -4288,6 +4431,20 @@ export async function validateGoldenJourneyVisualEvidence(
     "golden journey visual evidence is orphaned, missing, or overstated",
   );
   validateGoldenVisualEvidenceEntries(visualEvidence);
+  if (options.verifyCheckout !== false) {
+    invariant(
+      visualEvidence.inputs.catalog.path === CATALOG_PATH &&
+        visualEvidence.inputs.catalog.sha256 ===
+          sha256(await readCanonicalBoundedFile(PROJECT_ROOT, CATALOG_PATH, {
+            label: "golden visual evidence catalog input",
+            maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+          })),
+      "golden journey visual evidence catalog input digest is stale",
+    );
+    for (const entry of visualEvidence.qualifiedGoldenJourneys) {
+      await validateGoldenVisualEvidenceArtifactFiles(entry);
+    }
+  }
   const expected = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence, options);
   invariant(
     JSON.stringify(visualEvidence) === JSON.stringify(expected),
@@ -5174,6 +5331,27 @@ function validateSiteConsumerJsonBudget(value, label) {
   visit(value, 0);
 }
 
+/**
+ * Content-address one contract schema exactly as the artifact digests do. A schema's
+ * own `$id`, `format`, and `schemaVersion` are self-declared by the file under
+ * inspection, so they cannot detect the case the version pin exists for: a schema
+ * edited in place while keeping its version. Its bytes can, so the published
+ * reference carries the schema digest and validation recomputes it from disk
+ * (honua-io/honua-sdk-js#550).
+ *
+ * Read fresh on every reference rather than cached: a generation pass must publish
+ * the schema revision it actually validated against, never a digest a previous pass
+ * observed.
+ */
+function siteConsumerSchemaDefinition(schemaPath) {
+  const bytes = readFileSync(path.join(PROJECT_ROOT, schemaPath));
+  invariant(
+    bytes.byteLength > 0 && bytes.byteLength <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+    `${schemaPath}: contract schema exceeds its byte budget`,
+  );
+  return { schemaBytes: bytes.byteLength, schemaSha256: sha256(bytes) };
+}
+
 function siteConsumerArtifactReference(relativePath, schemaPath, artifact) {
   validateSiteConsumerJsonBudget(artifact, relativePath);
   const bytes = Buffer.from(stableJson(artifact));
@@ -5188,6 +5366,7 @@ function siteConsumerArtifactReference(relativePath, schemaPath, artifact) {
     schemaVersion: artifact.schemaVersion,
     bytes: bytes.byteLength,
     sha256: sha256(bytes),
+    ...siteConsumerSchemaDefinition(schemaPath),
   };
 }
 
@@ -5441,6 +5620,120 @@ function siteConsumerInteractionContract(visualEvidence) {
   };
 }
 
+/**
+ * Reject any handoff whose public cards duplicate an identity the consumer renders
+ * as one thing: the canonical route, the executable source tree, the golden journey,
+ * or the evidence binding a qualified claim rests on. Card IDs alone are not enough
+ * because two IDs can still point at one implementation or one journey's evidence
+ * (honua-io/honua-sdk-js#550 duplicate-identity handling).
+ */
+function validateSiteConsumerCardIdentities(cards) {
+  const identities = [
+    ["ID", cards.map((card) => card.id)],
+    ["canonical route", cards.map((card) => card.canonicalPath)],
+    ["executable source path", cards.map((card) => card.source.path)],
+    ["golden journey", cards.filter((card) => card.journey).map((card) => card.journey.id)],
+    [
+      "evidence binding",
+      cards.filter((card) => card.evidenceBindingId).map((card) => card.evidenceBindingId),
+    ],
+    [
+      "visual evidence sample",
+      cards.filter((card) => card.visualEvidence).map((card) => card.visualEvidence.sampleId),
+    ],
+  ];
+  for (const [label, values] of identities) {
+    invariant(
+      new Set(values).size === values.length,
+      `site consumer handoff publishes a duplicated card ${label}`,
+    );
+  }
+}
+
+/**
+ * Machine-check `policy.qualifiedRequires` against each qualified card's embedded
+ * evidence instead of treating the declared list as prose. The handoff is the
+ * artifact honua-samples consumes, so every requirement it advertises has to be
+ * verifiable from the handoff alone (honua-io/honua-sdk-js#550 golden-card receipt
+ * enforcement).
+ */
+function validateGoldenCardReceiptEnforcement(handoff, now = Date.now()) {
+  invariant(
+    JSON.stringify(handoff.policy.qualifiedRequires) ===
+      JSON.stringify(SITE_CONSUMER_QUALIFIED_REQUIREMENTS),
+    "site consumer handoff qualified-card requirement policy drift",
+  );
+  const requirements = new Set(handoff.policy.qualifiedRequires);
+  for (const card of handoff.cards) {
+    if (card.qualification.state !== "qualified") {
+      invariant(
+        !card.evidenceBindingId && !card.visualEvidence,
+        `${card.id}: unqualified card overstates evidence`,
+      );
+      continue;
+    }
+    const visual = card.visualEvidence;
+    invariant(
+      visual && card.journey?.status === "qualified" && card.evidenceBindingId,
+      `${card.id}: qualified golden card is missing its journey, binding, or visual receipt`,
+    );
+    invariant(
+      visual.sampleId === card.id && visual.journeyId === card.journey.id,
+      `${card.id}: golden card visual receipt belongs to another journey or sample`,
+    );
+    validateGoldenVisualEvidenceOwnership(visual);
+    validateGoldenVisualEvidenceFreshness(visual, now);
+    const gates = new Map(visual.semanticEvidence.map((entry) => [entry.gate, entry]));
+    if (requirements.has("source")) {
+      invariant(
+        visual.source.repository === card.source.repository &&
+          visual.source.path === card.source.path &&
+          /^[a-f0-9]{40}$/.test(visual.source.revision) &&
+          /^[a-f0-9]{64}$/.test(visual.source.evidenceNeutralSha256),
+        `${card.id}: golden card source receipt is missing or unbound`,
+      );
+    }
+    if (requirements.has("packed")) {
+      invariant(
+        gates.get("packed-build")?.sdkMode === "packed",
+        `${card.id}: golden card is missing packed-package qualification`,
+      );
+    }
+    for (const gate of ["fixture", "live"]) {
+      if (requirements.has(gate)) {
+        invariant(gates.has(gate), `${card.id}: golden card is missing its ${gate} receipt`);
+      }
+    }
+    if (requirements.has("live")) {
+      invariant(
+        visual.liveEvidence?.observedAt && visual.liveEvidence.expiresAt,
+        `${card.id}: golden card live evidence has no observation window`,
+      );
+    }
+    for (const variant of SAMPLE_SCREENSHOT_VARIANTS) {
+      if (!requirements.has(variant.id)) continue;
+      const screenshot = visual.screenshots.find((entry) => entry.variant === variant.id);
+      invariant(
+        screenshot &&
+          screenshot.viewport.width === variant.viewport.width &&
+          screenshot.viewport.height === variant.viewport.height &&
+          screenshot.reproducibility.captureCount ===
+            SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount &&
+          screenshot.reproducibility.comparison ===
+            SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison &&
+          screenshot.sha256 === screenshot.reproducibility.repeatSha256,
+        `${card.id}: golden card ${variant.id} screenshot is missing or not reproducible`,
+      );
+    }
+    if (requirements.has("semantic-gates")) {
+      invariant(
+        JSON.stringify([...gates.keys()]) === JSON.stringify(GOLDEN_VISUAL_GATE_ORDER),
+        `${card.id}: golden card semantic gate receipts are incomplete or out of order`,
+      );
+    }
+  }
+}
+
 function qualifiedCoverageCount(collection) {
   return collection.filter((entry) => entry.coverage.state === "qualified").length;
 }
@@ -5497,6 +5790,19 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
   };
   invariant(indexes.samples.size === projection.samples.length, "site projection sample IDs are not unique");
   invariant(indexes.matrixSamples.size === matrix.samples.length, "capability matrix sample IDs are not unique");
+  // Every remaining join index is a Map keyed by an upstream identity. A duplicate
+  // key would silently collapse into one entry and let a second implementation ride
+  // the first one's evidence, so the sizes are bound before any lookup runs
+  // (honua-io/honua-sdk-js#550 duplicate-identity handling).
+  invariant(
+    indexes.journeys.size === projection.goldenJourneys.length &&
+      indexes.externalReplacements.size === projection.externalReplacements.length &&
+      indexes.evidenceBindings.size === matrix.evidenceBindings.length &&
+      indexes.visualBySample.size === visualEvidence.qualifiedGoldenJourneys.length &&
+      new Set(visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.journeyId)).size ===
+        visualEvidence.qualifiedGoldenJourneys.length,
+    "site consumer handoff inputs contain duplicate journey, replacement, evidence-binding, or visual identities",
+  );
   invariant(
     projection.samples.every((sample) => indexes.matrixSamples.has(sample.id)) &&
       matrix.samples.every((sample) => indexes.samples.has(sample.id)),
@@ -5549,6 +5855,7 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
     return { ...card, searchText: siteConsumerSearchText(card) };
   });
   const cardById = new Map(cards.map((card) => [card.id, card]));
+  validateSiteConsumerCardIdentities(cards);
   const qualifiedCards = cards.filter((card) => card.qualification.state === "qualified");
   const qualifiedJourneys = qualifiedCards.map((card) => ({
     journeyId: card.journey.id,
@@ -5643,7 +5950,7 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
     },
     policy: {
       qualificationAuthority: "validated-matrix-and-visual-evidence",
-      qualifiedRequires: ["source", "packed", "fixture", "live", "desktop", "mobile", "semantic-gates"],
+      qualifiedRequires: [...SITE_CONSUMER_QUALIFIED_REQUIREMENTS],
       honestZeroQualificationAllowed: true,
       externalListings: "canonical-routes-only",
       canonicalRoutes: {
@@ -5787,6 +6094,83 @@ async function validateSiteConsumerArtifactInput(reference, label) {
   return artifact;
 }
 
+/**
+ * Bind each published reference to the immutable definition of the schema that
+ * governs it, so honua-samples can pin a contract revision instead of trusting a
+ * `schemaPath` string (honua-io/honua-sdk-js#550 versioned visual-evidence handoff).
+ *
+ * Two layers, and only the second is load-bearing. `$id`, `format`, and
+ * `schemaVersion` catch a reference pointed at the wrong or a renamed schema, but a
+ * schema under inspection declares them about itself, so they cannot detect a schema
+ * edited in place while keeping its version — the exact no-version-bump case. The
+ * recomputed byte digest can, so it fails publication whether the edit weakened a
+ * constraint or only reformatted the file.
+ *
+ * The digest binding is checkout-dependent and therefore subject to the
+ * derived-artifact decoupling (honua-io/honua-sdk-js#677): a handoff published before
+ * this binding existed carries no schema digest, and under the relax flag that counts
+ * as pending until the post-merge regeneration emits it. Strict runs require it.
+ */
+async function validateSiteConsumerSchemaBinding(reference, label) {
+  await validateSiteConsumerLocalLink(reference.schemaPath, `${label} schema`, "file");
+  const bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.schemaPath, {
+    label: `${label} schema`,
+    maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+  });
+  const schema = parseJsonDocument(bytes.toString("utf8"), reference.schemaPath);
+  let schemaId;
+  try {
+    schemaId = new URL(schema.$id);
+  } catch {
+    throw new Error(`${label} schema does not publish a canonical versioned $id`);
+  }
+  invariant(
+    schemaId.protocol === "https:" &&
+      schemaId.origin === "https://honua.io" &&
+      schemaId.pathname.startsWith("/schemas/sdk/") &&
+      schemaId.pathname.endsWith(`.v${reference.schemaVersion}.schema.json`),
+    `${label} schema $id does not pin schema version ${reference.schemaVersion}`,
+  );
+  invariant(
+    schema.properties?.format?.const === reference.format &&
+      schema.properties?.schemaVersion?.const === reference.schemaVersion,
+    `${label} schema does not govern the referenced artifact format or version`,
+  );
+  if (reference.schemaSha256 === undefined && reference.schemaBytes === undefined) {
+    invariant(
+      derivedArtifactsRelaxed(),
+      `${label} schema integrity binding is missing; run npm run samples:generate`,
+    );
+    return;
+  }
+  invariant(
+    reference.schemaBytes === bytes.byteLength && reference.schemaSha256 === sha256(bytes),
+    `${label} schema definition changed without a version bump`,
+  );
+}
+
+/**
+ * A handoff published before the schema integrity binding existed carries no
+ * `schemaBytes`/`schemaSha256`. Under the derived-artifact decoupling that is pending
+ * regeneration rather than drift, so the content-bound expectation drops exactly the
+ * fields the committed artifact cannot yet carry; once the post-merge regeneration
+ * emits them the comparison is exact again. Strict runs never take this branch, and a
+ * reference that does carry a digest is always compared (honua-io/honua-sdk-js#550).
+ */
+function withPendingSchemaBinding(expected, handoff) {
+  if (!derivedArtifactsRelaxed()) return expected;
+  const pending = Object.entries(handoff.inputs ?? {})
+    .filter(([, reference]) => reference?.schemaSha256 === undefined)
+    .map(([name]) => name);
+  if (pending.length === 0) return expected;
+  const relaxed = structuredClone(expected);
+  for (const name of pending) {
+    delete relaxed.inputs[name]?.schemaBytes;
+    delete relaxed.inputs[name]?.schemaSha256;
+  }
+  return relaxed;
+}
+
 export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   validateSiteConsumerJsonBudget(handoff, "site consumer handoff");
   validateSensitiveMetadata(handoff, "site consumer handoff", {
@@ -5847,6 +6231,17 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
 
   const cardById = new Map(handoff.cards.map((card) => [card.id, card]));
   invariant(cardById.size === handoff.cards.length, "site consumer handoff card IDs must be unique");
+  validateSiteConsumerCardIdentities(handoff.cards);
+  validateGoldenCardReceiptEnforcement(handoff);
+  if (inputs.verifyCheckout !== false) {
+    for (const [name, reference] of Object.entries(handoff.inputs)) {
+      await validateSiteConsumerSchemaBinding(reference, `site consumer ${name}`);
+    }
+    for (const card of handoff.cards) {
+      if (!card.visualEvidence) continue;
+      await validateGoldenVisualEvidenceArtifactFiles(card.visualEvidence);
+    }
+  }
   invariant(
     handoff.cards.length > 0 &&
       handoff.counts.cards === handoff.cards.length &&
@@ -5932,7 +6327,8 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   }
   if (contentBoundExpected) {
     invariant(
-      JSON.stringify(handoff) === JSON.stringify(contentBoundExpected),
+      JSON.stringify(handoff) ===
+        JSON.stringify(withPendingSchemaBinding(contentBoundExpected, handoff)),
       "site consumer handoff does not match its content-bound projection inputs",
     );
   }
@@ -6000,13 +6396,19 @@ export function generateSiteConsumerFixtureV3(handoff) {
   };
 }
 
-export async function validateSiteConsumerFixtureV3(fixture, handoff) {
+export async function validateSiteConsumerFixtureV3(fixture, handoff, options = {}) {
   validateSiteConsumerJsonBudget(fixture, "site consumer fixture v3");
   validateSensitiveMetadata(fixture, "site consumer fixture v3", {
     maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
     maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
   });
   await validateJsonSchema(fixture, SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH);
+  // The handoff's own schema is referenced only from here, so this is the one place
+  // that can pin it to an immutable definition the way handoff.inputs pins the three
+  // upstream authority schemas.
+  if (options.verifyCheckout !== false) {
+    await validateSiteConsumerSchemaBinding(fixture.input, "site consumer fixture handoff");
+  }
   const expected = generateSiteConsumerFixtureV3(handoff);
   invariant(
     JSON.stringify(fixture) === JSON.stringify(expected),
@@ -6219,7 +6621,9 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     qualificationEvidence,
     verifyCheckout: options.verifyCheckout,
   });
-  await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff);
+  await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff, {
+    verifyCheckout: options.verifyCheckout,
+  });
   return new Map([
     [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
     [SITE_PROJECTION_PATH, stableJson(projection)],

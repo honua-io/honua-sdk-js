@@ -72,10 +72,21 @@ describe("HONUA_COMPONENT_CATALOG", () => {
     expect(getComponentCatalogEntry("web-components.map")?.tag).toBe("honua-map");
     expect(getComponentCatalogEntry("not-a-real-id")).toBeUndefined();
     expect(listComponentCatalogEntries("controls")).toHaveLength(4);
-    expect(listComponentCatalogEntries("web-components")).toHaveLength(16);
+    expect(listComponentCatalogEntries("web-components")).toHaveLength(17);
     expect(listComponentCatalogEntries()).toHaveLength(HONUA_COMPONENT_CATALOG.length);
     expect(getCanonicalComponentCatalogEntry("honua-basemap-switcher")?.id).toBe("controls.basemap-switcher");
     expect(getCanonicalComponentCatalogEntry("honua-does-not-exist")).toBeUndefined();
+  });
+
+  test("the support tier vocabulary is used, with honua-feature-editor as the production-tier entry", () => {
+    for (const entry of HONUA_COMPONENT_CATALOG) {
+      expect(["survival-tier", "production-tier"]).toContain(entry.supportTier);
+    }
+    const production = HONUA_COMPONENT_CATALOG.filter((entry) => entry.supportTier === "production-tier");
+    expect(production.map((entry) => entry.id)).toContain("web-components.feature-editor");
+    // The survival-tier `honua-editor` stays alongside it, under its own tag.
+    expect(getComponentCatalogEntry("web-components.editor")?.supportTier).toBe("survival-tier");
+    expect(getComponentCatalogEntry("web-components.feature-editor")?.tag).toBe("honua-feature-editor");
   });
 
   test("every entry's className is exported (as a value) from its owning kit's public entrypoint", () => {

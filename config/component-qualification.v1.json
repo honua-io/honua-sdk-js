@@ -124,21 +124,38 @@
     }
   ],
   "summary": {
-    "components": 20,
+    "components": 21,
     "gates": 17,
-    "cells": 340,
-    "passing": 107,
-    "failing": 126,
-    "pending": 87,
-    "notApplicable": 20,
-    "productionQualifiedComponents": 0
+    "cells": 357,
+    "passing": 112,
+    "failing": 133,
+    "pending": 91,
+    "notApplicable": 21,
+    "productionQualifiedComponents": 0,
+    "productionTierComponents": 1
   },
   "components": [
     {
       "id": "controls.basemap-switcher",
       "tag": "honua-basemap-switcher",
       "source": "controls",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "zero-console-error",
+        "duplicate-listener",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 3,
         "failing": 6,
@@ -264,7 +281,23 @@
       "id": "controls.swipe-control",
       "tag": "honua-swipe-control",
       "source": "controls",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 3,
         "failing": 6,
@@ -390,7 +423,22 @@
       "id": "controls.legend",
       "tag": "honua-legend",
       "source": "controls",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "zero-console-error",
+        "duplicate-listener",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 4,
         "failing": 6,
@@ -521,7 +569,23 @@
       "id": "controls.layer-list",
       "tag": "honua-layer-list",
       "source": "controls",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "zero-console-error",
+        "duplicate-listener",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 3,
         "failing": 6,
@@ -648,7 +712,24 @@
       "id": "web-components.map",
       "tag": "honua-map",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "reduced-motion",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "zero-console-error",
+        "duplicate-listener",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 3,
         "failing": 7,
@@ -774,7 +855,19 @@
       "id": "web-components.layer-list",
       "tag": "honua-layer-list",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 7,
         "failing": 6,
@@ -912,7 +1005,19 @@
       "id": "web-components.legend",
       "tag": "honua-legend",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 5,
         "failing": 6,
@@ -1045,7 +1150,19 @@
       "id": "web-components.feature-table",
       "tag": "honua-feature-table",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "screen-reader-semantics",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 7,
         "failing": 6,
@@ -1183,7 +1300,19 @@
       "id": "web-components.search",
       "tag": "honua-search",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "reduced-motion",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 8,
         "failing": 7,
@@ -1326,7 +1455,20 @@
       "id": "web-components.editor",
       "tag": "honua-editor",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 6,
         "failing": 6,
@@ -1458,10 +1600,169 @@
       ]
     },
     {
+      "id": "web-components.feature-editor",
+      "tag": "honua-feature-editor",
+      "source": "web-components",
+      "supportTier": "production-tier",
+      "productionQualified": false,
+      "openGates": [
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener",
+        "memory-leak"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 7,
+        "pending": 4,
+        "notApplicable": 1
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "Ctrl+Z / Ctrl+Shift+Z drive undo and redo and Escape cancels the draft, each dispatched as a real KeyboardEvent with the resulting workflow state asserted. The events are dispatched at the shadow root rather than from a focused control, so the root-level handler is proven but focus-based delivery is not."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "The kit's most complete accessibility contract: per-field label association, aria-required, aria-invalid with aria-describedby resolving to the validation text, role=alert on validation/conflict/failure regions, aria-pressed on operation and sketch-tool toggles, aria-disabled on unavailable actions, role=group with an accessible name on the tool groups, and a role=status aria-live=polite readout."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "A reconciling realtime change forces a re-render and the focused field keeps its edited value, its focus, and its caret range. Covered for text inputs only: this element hand-rolls its own captureFocus() keyed on `id` alone rather than using the shared setShadowHtml() helper's id/name/data-* selector, and none of its buttons carry an id, so button focus is silently lost across the same re-render."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No verdict rather than a known failure, which is the honest distinction for this component: unlike the rest of the kit its styles declare no physical left/right offsets at all, so it is not demonstrably RTL-hostile. It also uses no logical properties and nothing renders it under dir=rtl, so it is simply unverified."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "failing",
+          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "failing",
+          "note": "Partial, so the gate is not met. Its workflow subscription is genuinely released on disconnect and re-taken on reconnect (asserted by test/web-components-feature-editor-element.test.ts), but disconnectedCallback releases only that subscription: the shadow-root keydown listener the element binds on every render is never removed, so a detached element keeps a live handler. Fixing this is coupled to the duplicate-listener defect below, since both stem from the same per-render root binding."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "failing",
+          "note": "A real accumulation defect, recorded rather than left pending. render() replaces the shadow root's innerHTML, which discards the per-node handlers it binds, but the same bind pass also adds a keydown listener to the shadow root itself — which innerHTML does not replace. Each re-render therefore adds another closure, so after N renders one Escape calls cancel() N times and one Ctrl+Z calls undo() N times. The existing keyboard tests cannot see it: they run after a single render, and surplus cancel()/undo() calls are idempotent no-ops."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
       "id": "web-components.chart",
       "tag": "honua-chart",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 4,
         "failing": 6,
@@ -1590,7 +1891,20 @@
       "id": "web-components.basemap-control",
       "tag": "honua-basemap-control",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 6,
         "failing": 6,
@@ -1725,7 +2039,21 @@
       "id": "web-components.bookmarks",
       "tag": "honua-bookmarks",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "reduced-motion",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 6,
         "failing": 7,
@@ -1860,7 +2188,22 @@
       "id": "web-components.locate-control",
       "tag": "honua-locate-control",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "reduced-motion",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 5,
         "failing": 8,
@@ -1992,7 +2335,19 @@
       "id": "web-components.measure-control",
       "tag": "honua-measure-control",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 7,
         "failing": 6,
@@ -2130,7 +2485,21 @@
       "id": "web-components.measurement",
       "tag": "honua-measurement",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "zero-console-error",
+        "duplicate-listener",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 5,
         "failing": 6,
@@ -2262,7 +2631,19 @@
       "id": "web-components.sketch-control",
       "tag": "honua-sketch-control",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 7,
         "failing": 6,
@@ -2400,7 +2781,19 @@
       "id": "web-components.print-export",
       "tag": "honua-print-export",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 7,
         "failing": 6,
@@ -2538,7 +2931,21 @@
       "id": "web-components.map-status",
       "tag": "honua-map-status",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 5,
         "failing": 7,
@@ -2670,7 +3077,20 @@
       "id": "web-components.action-panel",
       "tag": "honua-action-panel",
       "source": "web-components",
+      "supportTier": "survival-tier",
       "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "pseudo-locale",
+        "rtl",
+        "visual-regression",
+        "strict-csp",
+        "memory-leak"
+      ],
       "summary": {
         "passing": 6,
         "failing": 6,

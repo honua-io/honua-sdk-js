@@ -67,6 +67,7 @@ export {
   describeComponentQualificationGate,
   getComponentQualification,
   isComponentProductionQualified,
+  listOpenQualificationGates,
   listComponentQualifications,
   summarizeComponentQualification,
 } from "./qualification.js";

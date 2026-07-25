@@ -17,30 +17,57 @@
     "components"
   ],
   "properties": {
-    "$schema": { "type": "string" },
-    "format": { "const": "honua.app-platform.component-qualification.v1" },
-    "schemaVersion": { "const": 1 },
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": "honua.app-platform.component-qualification.v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
     "dataVersion": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
       "description": "Bumped when a gate is added/removed or a vocabulary changes, distinctly from a routine status update."
     },
-    "generatedFrom": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "generatedFrom": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
     "statusVocabulary": {
       "type": "array",
-      "items": { "$ref": "#/definitions/status" },
+      "items": {
+        "$ref": "#/definitions/status"
+      },
       "minItems": 4,
       "maxItems": 4
     },
     "statusMeaning": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["passing", "failing", "pending", "not-applicable"],
+      "required": [
+        "passing",
+        "failing",
+        "pending",
+        "not-applicable"
+      ],
       "properties": {
-        "passing": { "type": "string" },
-        "failing": { "type": "string" },
-        "pending": { "type": "string" },
-        "not-applicable": { "type": "string" }
+        "passing": {
+          "type": "string"
+        },
+        "failing": {
+          "type": "string"
+        },
+        "pending": {
+          "type": "string"
+        },
+        "not-applicable": {
+          "type": "string"
+        }
       }
     },
     "gates": {
@@ -49,11 +76,28 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "requirement", "title", "criterion"],
+        "required": [
+          "id",
+          "requirement",
+          "title",
+          "criterion"
+        ],
         "properties": {
-          "id": { "type": "string", "minLength": 3 },
-          "requirement": { "enum": ["REQ-004", "REQ-005", "NFR-001"] },
-          "title": { "type": "string", "minLength": 3 },
+          "id": {
+            "type": "string",
+            "minLength": 3
+          },
+          "requirement": {
+            "enum": [
+              "REQ-004",
+              "REQ-005",
+              "NFR-001"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3
+          },
           "criterion": {
             "type": "string",
             "minLength": 40,
@@ -73,17 +117,46 @@
         "failing",
         "pending",
         "notApplicable",
-        "productionQualifiedComponents"
+        "productionQualifiedComponents",
+        "productionTierComponents"
       ],
       "properties": {
-        "components": { "type": "integer", "minimum": 1 },
-        "gates": { "type": "integer", "minimum": 1 },
-        "cells": { "type": "integer", "minimum": 1 },
-        "passing": { "type": "integer", "minimum": 0 },
-        "failing": { "type": "integer", "minimum": 0 },
-        "pending": { "type": "integer", "minimum": 0 },
-        "notApplicable": { "type": "integer", "minimum": 0 },
-        "productionQualifiedComponents": { "type": "integer", "minimum": 0 }
+        "components": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "gates": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cells": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "passing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pending": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notApplicable": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "productionQualifiedComponents": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "productionTierComponents": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "components": {
@@ -92,24 +165,61 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "tag", "source", "productionQualified", "summary", "gates"],
+        "required": [
+          "id",
+          "tag",
+          "source",
+          "supportTier",
+          "productionQualified",
+          "openGates",
+          "summary",
+          "gates"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^(controls|web-components)\\.[a-z0-9-]+$" },
-          "tag": { "type": "string", "pattern": "^honua-[a-z0-9-]+$" },
-          "source": { "enum": ["controls", "web-components"] },
+          "id": {
+            "type": "string",
+            "pattern": "^(controls|web-components)\\.[a-z0-9-]+$"
+          },
+          "tag": {
+            "type": "string",
+            "pattern": "^honua-[a-z0-9-]+$"
+          },
+          "source": {
+            "enum": [
+              "controls",
+              "web-components"
+            ]
+          },
           "productionQualified": {
             "type": "boolean",
-            "description": "True only when every gate is passing or not-applicable. Cross-checked against the catalog's supportTier in both directions."
+            "description": "True only when every gate is passing or not-applicable. Clearing every gate requires supportTier production-tier (the verifier enforces that direction); the reverse does not hold."
           },
           "summary": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["passing", "failing", "pending", "notApplicable"],
+            "required": [
+              "passing",
+              "failing",
+              "pending",
+              "notApplicable"
+            ],
             "properties": {
-              "passing": { "type": "integer", "minimum": 0 },
-              "failing": { "type": "integer", "minimum": 0 },
-              "pending": { "type": "integer", "minimum": 0 },
-              "notApplicable": { "type": "integer", "minimum": 0 }
+              "passing": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failing": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pending": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "notApplicable": {
+                "type": "integer",
+                "minimum": 0
+              }
             }
           },
           "gates": {
@@ -118,41 +228,129 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["gate", "requirement", "status"],
+              "required": [
+                "gate",
+                "requirement",
+                "status"
+              ],
               "properties": {
-                "gate": { "type": "string", "minLength": 3 },
-                "requirement": { "enum": ["REQ-004", "REQ-005", "NFR-001"] },
-                "status": { "$ref": "#/definitions/status" },
+                "gate": {
+                  "type": "string",
+                  "minLength": 3
+                },
+                "requirement": {
+                  "enum": [
+                    "REQ-004",
+                    "REQ-005",
+                    "NFR-001"
+                  ]
+                },
+                "status": {
+                  "$ref": "#/definitions/status"
+                },
                 "evidence": {
                   "type": "array",
-                  "items": { "type": "string", "minLength": 1 },
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
                   "minItems": 1,
                   "description": "Repo-relative files that prove a passing status. Their existence is verified by the generator, so deleting a cited test fails CI."
                 },
-                "note": { "type": "string", "minLength": 20 }
+                "note": {
+                  "type": "string",
+                  "minLength": 20
+                }
               },
               "allOf": [
                 {
-                  "if": { "properties": { "status": { "const": "passing" } }, "required": ["status"] },
-                  "then": { "required": ["evidence"] },
-                  "else": { "not": { "required": ["evidence"] } }
+                  "if": {
+                    "properties": {
+                      "status": {
+                        "const": "passing"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "evidence"
+                    ]
+                  },
+                  "else": {
+                    "not": {
+                      "required": [
+                        "evidence"
+                      ]
+                    }
+                  }
                 },
                 {
-                  "if": { "properties": { "status": { "const": "failing" } }, "required": ["status"] },
-                  "then": { "required": ["note"] }
+                  "if": {
+                    "properties": {
+                      "status": {
+                        "const": "failing"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "note"
+                    ]
+                  }
                 },
                 {
-                  "if": { "properties": { "status": { "const": "not-applicable" } }, "required": ["status"] },
-                  "then": { "required": ["note"] }
+                  "if": {
+                    "properties": {
+                      "status": {
+                        "const": "not-applicable"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "note"
+                    ]
+                  }
                 }
               ]
             }
+          },
+          "supportTier": {
+            "enum": [
+              "survival-tier",
+              "production-tier"
+            ],
+            "description": "Functional maturity from the component catalog, owned by whichever feature issue raised the component. A DIFFERENT axis from productionQualified: a production-tier component may still carry open gates."
+          },
+          "openGates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 3
+            },
+            "description": "Gates still pending or failing. Empty exactly when productionQualified is true. This is what keeps a production-tier claim honest."
           }
         }
       }
     }
   },
   "definitions": {
-    "status": { "enum": ["passing", "failing", "pending", "not-applicable"] }
+    "status": {
+      "enum": [
+        "passing",
+        "failing",
+        "pending",
+        "not-applicable"
+      ]
+    }
   }
 }

@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-25 at commit `288b04ed`._
+_Generated 2026-07-25 at commit `74da18c1`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -35,11 +35,11 @@ _Generated 2026-07-25 at commit `288b04ed`._
 | `/auth` | 25.8 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 61.3 KiB | 69.0 KiB | 15.3 KiB | 17.2 KiB |
 | `/map` | 178.1 KiB | 182.2 KiB | 50.3 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 125.5 KiB | 137.8 KiB | 37.2 KiB | 40.9 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 125.6 KiB | 137.8 KiB | 37.2 KiB | 40.9 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 63.2 KiB | 68.3 KiB | 16.8 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 816.8 KiB | 896.8 KiB | 220.8 KiB | 242.3 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 820.7 KiB | 901.0 KiB | 222.3 KiB | 244.0 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 836.6 KiB | 920.3 KiB | 227.0 KiB | 249.7 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 885.0 KiB | 973.5 KiB | 240.9 KiB | 265.0 KiB |
 | `/react` (react/react-dom external) | 463.3 KiB | 506.7 KiB | 123.0 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 616.4 KiB | 661.8 KiB | 163.6 KiB | 176.3 KiB |
