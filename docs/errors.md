@@ -339,6 +339,8 @@ classification is conservatively non-retryable.
 | `app.data-load-failed` | `app` | `internal` | no | Generated app feature data failed to load |
 | `app.render-failed` | `app` | `internal` | no | Generated app render failed |
 | `app.disposed` | `app` | `validation` | no | Generated app runtime is disposed |
+| `app.export-unsafe` | `app` | `validation` | no | Component export refused because the artifact could not be proven credential-free |
+| `app.export-failed` | `app` | `internal` | no | Component export adapter failed to produce an artifact |
 <!-- error-code-registry:end -->
 
 ## Narrowing in `catch`

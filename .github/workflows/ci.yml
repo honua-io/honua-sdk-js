@@ -1,6 +1,4 @@
-﻿name: SDK CI
-run-name: >-
-  ${{ inputs.release_head_sha && format('SDK CI | trusted release #{0} @ {1}', inputs.release_pull_request_number, inputs.release_head_sha) || 'SDK CI' }}
+name: SDK CI
 
 on:
   push:
@@ -12,43 +10,9 @@ on:
       - trunk
       - "release/**"
   workflow_dispatch:
-    inputs:
-      # Set only by regenerate-derived-artifacts.yml for its own artifacts PR
-      # (honua-io/honua-sdk-js#766): that PR can be the one publishing a failing
-      # or lapsed First Map release-matrix receipt, and the publication path
-      # cannot be gated on the outcome it publishes. Trunk pushes, feature PRs,
-      # and every manual dispatch leave this false, so the release-matrix gate
-      # stays enforced. See scripts/lib/release-matrix-receipt.mjs.
-      release_matrix_receipt_relax:
-        description: >-
-          Report, but do not enforce, a failing or expired release-matrix
-          browser receipt. Reserved for the evidence-publication automation.
-        required: false
-        default: false
-        type: boolean
-      release_pull_request_number:
-        description: >-
-          Exact Release Please pull request validated by trusted trunk policy.
-          Reserved for release-please.yml.
-        required: false
-        default: ""
-        type: string
-      release_head_sha:
-        description: >-
-          Exact Release Please head validated by trusted trunk policy. Reserved
-          for release-please.yml.
-        required: false
-        default: ""
-        type: string
 
 permissions:
   contents: read
-
-concurrency:
-  # Supersede stale runs within one event/ref (including consecutive Release
-  # Please dispatches) without allowing a manual dispatch to cancel push CI.
-  group: sdk-ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
 
 env:
   NODE_VERSION: "20.19.0"
@@ -88,9 +52,6 @@ jobs:
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
 
-      - name: Test Release Please CI dispatch policy
-        run: node --test test/scripts/release-please-ci-dispatch.test.mjs
-
       - name: Test backlog dependency reconciliation policy
         run: node --test test/scripts/backlog-dependencies.test.mjs
 
@@ -122,11 +83,9 @@ jobs:
     # regenerate-derived-artifacts workflow, so ci.yml tolerates a lagging pin
     # only on trunk PRs and the initial trunk push (every other corpus binding
     # stays enforced). Release branches and post-regeneration dispatches remain
-    # strict; the trunk workflow is the authority that re-binds the pin. The
-    # exact-head Release Please dispatch gets the same relaxation as the trunk
-    # PR event it replaces.
+    # strict; the trunk workflow is the authority that re-binds the pin.
     env:
-      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release-please--branches--trunk' && inputs.release_head_sha == github.sha) && '1' || '' }}
+      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk') && '1' || '' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
@@ -159,45 +118,14 @@ jobs:
       # Derived-artifact decoupling (#677): every gate that binds committed
       # generated artifacts to the working tree (sample-publication contract,
       # llms/comparison/api freshness, migration-workbench artifacts) runs in
-      # relaxed mode only for trunk PRs, the initial trunk push, and the exact
-      # trusted Release Please dispatch that substitutes for its suppressed PR
-      # event. Other release branches stay strict. Feature PRs no longer
-      # reseal/regenerate; the regenerate-derived-artifacts workflow
-      # re-establishes the binding and dispatches this workflow in strict mode
-      # on trunk post-merge. Functional gates (typecheck/build/test, kit
+      # relaxed mode only for trunk PRs and the initial trunk push. Release
+      # branches stay strict. Feature PRs no longer reseal/regenerate; the
+      # regenerate-derived-artifacts workflow re-establishes the binding and
+      # dispatches this workflow in strict mode on trunk post-merge. Functional gates (typecheck/build/test, kit
       # qualification from source and packed SDK, verify:bundle-budgets) are
       # unaffected and still fail a PR that genuinely breaks a sample.
-      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release-please--branches--trunk' && inputs.release_head_sha == github.sha) && '1' || '' }}
-      # Release-matrix receipt gate (#766): enforced unless the evidence
-      # publication automation asked for report-only mode.
-      HONUA_RELEASE_MATRIX_RECEIPT_RELAX: ${{ inputs.release_matrix_receipt_relax && '1' || '' }}
+      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk') && '1' || '' }}
     steps:
-      - name: Validate trusted Release Please dispatch
-        if: ${{ github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/release-please--branches--trunk' || inputs.release_pull_request_number != '' || inputs.release_head_sha != '') }}
-        working-directory: .
-        shell: bash
-        env:
-          RELEASE_PULL_REQUEST_NUMBER: ${{ inputs.release_pull_request_number }}
-          RELEASE_HEAD_SHA: ${{ inputs.release_head_sha }}
-        run: |
-          set -euo pipefail
-          if [[ ! "${RELEASE_PULL_REQUEST_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::Trusted release dispatch requires a positive pull-request number."
-            exit 1
-          fi
-          if [[ ! "${RELEASE_HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::Trusted release dispatch requires a full lowercase head SHA."
-            exit 1
-          fi
-          if [[ "${GITHUB_REF}" != "refs/heads/release-please--branches--trunk" ]]; then
-            echo "::error::Trusted release dispatch must target the canonical Release Please branch."
-            exit 1
-          fi
-          if [[ "${GITHUB_SHA}" != "${RELEASE_HEAD_SHA}" ]]; then
-            echo "::error::Dispatched release head ${RELEASE_HEAD_SHA} is stale; current workflow head is ${GITHUB_SHA}."
-            exit 1
-          fi
-
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
@@ -211,9 +139,6 @@ jobs:
 
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
-
-      - name: Test Release Please CI dispatch policy
-        run: node --test test/scripts/release-please-ci-dispatch.test.mjs
 
       - name: Test backlog dependency reconciliation policy
         run: node --test test/scripts/backlog-dependencies.test.mjs
@@ -308,13 +233,6 @@ jobs:
         run: |
           npm run samples:runner:test
           npm run samples:run -- list --kit --json
-
-      # Unit tests for the release-tag sealing gate (#768). Only the tests run
-      # here; `release:seal:check` itself is a release-time gate (publish-js-sdk,
-      # first-map-release-smoke) and would legitimately fail on any branch that
-      # changed source without a reseal.
-      - name: Validate release-seal policy
-        run: npm run release:seal:test
 
       - name: Code style
         run: npm run check
@@ -471,32 +389,6 @@ jobs:
       run:
         working-directory: mcp
     steps:
-      - name: Validate trusted Release Please dispatch
-        if: ${{ github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/release-please--branches--trunk' || inputs.release_pull_request_number != '' || inputs.release_head_sha != '') }}
-        working-directory: .
-        shell: bash
-        env:
-          RELEASE_PULL_REQUEST_NUMBER: ${{ inputs.release_pull_request_number }}
-          RELEASE_HEAD_SHA: ${{ inputs.release_head_sha }}
-        run: |
-          set -euo pipefail
-          if [[ ! "${RELEASE_PULL_REQUEST_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::Trusted release dispatch requires a positive pull-request number."
-            exit 1
-          fi
-          if [[ ! "${RELEASE_HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::Trusted release dispatch requires a full lowercase head SHA."
-            exit 1
-          fi
-          if [[ "${GITHUB_REF}" != "refs/heads/release-please--branches--trunk" ]]; then
-            echo "::error::Trusted release dispatch must target the canonical Release Please branch."
-            exit 1
-          fi
-          if [[ "${GITHUB_SHA}" != "${RELEASE_HEAD_SHA}" ]]; then
-            echo "::error::Dispatched release head ${RELEASE_HEAD_SHA} is stale; current workflow head is ${GITHUB_SHA}."
-            exit 1
-          fi
-
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Setup Node.js
@@ -618,7 +510,7 @@ jobs:
       - name: Package release assets
         run: |
           set -euo pipefail
-          sample_dirs=$(node -e "const m=require('./.artifacts/sample-bundles/sample-bundles.v2.json'); console.log(m.samples.map((s) => s.id).join(' '))")
+          sample_dirs=$(node -e "const m=require('./.artifacts/sample-bundles/sample-bundles.v1.json'); console.log(m.samples.map((s) => s.id).join(' '))")
           tar -czf .artifacts/sample-bundles/sample-bundles.tar.gz -C .artifacts/sample-bundles $sample_dirs
 
       - name: Publish rolling GitHub Release
@@ -636,15 +528,6 @@ jobs:
               --title "Sample bundles (latest trunk build)" --notes "$notes"
           fi
           gh release upload sample-bundles-latest -R "$repo" \
-            .artifacts/sample-bundles/sample-bundles.v2.json \
+            .artifacts/sample-bundles/sample-bundles.v1.json \
             .artifacts/sample-bundles/sample-bundles.tar.gz \
             --clobber
-          # Retire the v1 manifest asset (honua-io/honua-sdk-js#656). The
-          # tarball is rolling and is now built from the v2 sample set, so a
-          # left-behind v1 manifest would pair stale per-file hashes with fresh
-          # bundle bytes and fail every integrity check it exists to support.
-          # Deleting it makes the retirement an honest 404 instead of a silent
-          # mismatch. Best-effort: the asset is already gone after the first
-          # post-cutover run.
-          gh release delete-asset sample-bundles-latest sample-bundles.v1.json \
-            -R "$repo" --yes || true

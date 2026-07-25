@@ -314,6 +314,8 @@
     "samples:generate": "node scripts/sample-contract.mjs write",
     "samples:migrate:v1": "node scripts/sample-contract.mjs migrate-v1",
     "samples:verify": "node scripts/sample-contract.mjs check",
+    "qualification:components": "npm run build --silent && node scripts/component-qualification.mjs write",
+    "qualification:components:check": "npm run build --silent && node scripts/component-qualification.mjs check",
     "samples:fixtures:verify": "node samples/fixtures/verify.mjs && biome check samples/scenarios/ samples/fixtures/",
     "samples:verify:flagships": "node scripts/verify-flagship-evidence.mjs",
     "samples:run": "node scripts/sample-runner.mjs",

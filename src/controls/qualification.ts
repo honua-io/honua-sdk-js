@@ -1,0 +1,698 @@
+/**
+ * The **production qualification matrix** for the Honua custom-element kit
+ * (issue #683, parent epic #678; REQ-004 / REQ-005 / NFR-001).
+ *
+ * Epic #678's premise is that "production support" for a component library is
+ * not a claim anybody gets to make in prose. It is a matrix: every shipped
+ * component × every gate that matters, each cell carrying a status and, when
+ * the status is a claim of success, the automated evidence that backs it. This
+ * module is that matrix, and it extends the existing component catalog
+ * ({@link "./catalog.js"}) rather than introducing a second inventory —
+ * `HONUA_COMPONENT_CATALOG` remains the single list of shipped tags, and every
+ * catalog id must appear here exactly once (enforced by
+ * `scripts/component-qualification.mjs`).
+ *
+ * ## The honesty rules
+ *
+ * The matrix is seeded from what the test suite *actually* asserts today, not
+ * from what the components ought to do. Concretely:
+ *
+ * - `"passing"` requires at least one existing test file as evidence, and the
+ *   CI verifier fails if any referenced file is missing. Deleting the test that
+ *   backs a gate therefore breaks the build rather than quietly downgrading the
+ *   claim.
+ * - `"failing"` is used where the requirement is *known* not to be met —
+ *   including from code inspection, before an automated gate exists. It always
+ *   carries a note naming the mechanism. This is deliberately more informative
+ *   than `"pending"`: "we know the components hard-code English strings" is a
+ *   different engineering state from "nobody has looked".
+ * - `"pending"` means no automated gate and no established verdict. It is the
+ *   default, and most of this matrix is honestly in it.
+ * - `"not-applicable"` requires a note justifying why the gate cannot apply to
+ *   that component — it is the only status that can silently remove work, so it
+ *   is the one that most needs an argument attached.
+ *
+ * Nothing here is aspirational. A component reaches
+ * `"production-tier"` in the catalog only when
+ * {@link isComponentProductionQualified} is true, and the verifier cross-checks
+ * that in both directions, so a tier claim cannot drift ahead of the evidence.
+ *
+ * ## Shape
+ *
+ * The declarations below are stored **inverted** — per gate, the groups of
+ * components that share a status and evidence — because that is how the
+ * evidence actually clusters (one test file typically proves one gate for
+ * several components) and because it keeps the reviewable diff small. The
+ * public API ({@link getComponentQualification},
+ * {@link listComponentQualifications}) expands it back into the dense
+ * per-component × per-gate matrix that consumers and the generated
+ * `config/component-qualification.v1.json` manifest want.
+ *
+ * Like `./catalog.js` this module is pure metadata: no DOM, no element classes,
+ * no registration, no `src/core` or `src/runtime` import. Importing it costs a
+ * consumer bundle nothing that NFR-001 forbids.
+ *
+ * @module
+ */
+
+import { HONUA_COMPONENT_CATALOG, type HonuaComponentCatalogEntry } from "./catalog.js";
+
+/**
+ * Bumped whenever a gate is added/removed or a status vocabulary changes, so
+ * the generated manifest and any external consumer can detect a shape change
+ * distinctly from a routine status update.
+ */
+export const HONUA_COMPONENT_QUALIFICATION_DATA_VERSION = "1.0.0";
+
+/** Which issue requirement a gate discharges. */
+export type HonuaComponentQualificationRequirement = "REQ-004" | "REQ-005" | "NFR-001";
+
+/** Closed status vocabulary. See the module doc for the honesty rules. */
+export type HonuaComponentQualificationStatus = "passing" | "failing" | "pending" | "not-applicable";
+
+/** Every status, in escalating-confidence order. */
+export const HONUA_COMPONENT_QUALIFICATION_STATUSES: readonly HonuaComponentQualificationStatus[] = Object.freeze([
+  "passing",
+  "failing",
+  "pending",
+  "not-applicable",
+] as const);
+
+/** Stable gate ids. Never reused; adding one bumps the data version. */
+export type HonuaComponentQualificationGateId =
+  // REQ-004 — accessibility, localization, and visual behavior
+  | "keyboard-behavior"
+  | "screen-reader-semantics"
+  | "focus-restoration"
+  | "reduced-motion"
+  | "high-contrast"
+  | "responsive-layout"
+  | "localization"
+  | "pseudo-locale"
+  | "rtl"
+  // REQ-005 — engineering gates
+  | "visual-regression"
+  | "strict-csp"
+  | "zero-console-error"
+  | "deterministic-disposal"
+  | "duplicate-listener"
+  | "memory-leak"
+  | "ssr-import"
+  | "bundle-budget";
+
+/** One gate's definition: what it means and what would satisfy it. */
+export interface HonuaComponentQualificationGate {
+  readonly id: HonuaComponentQualificationGateId;
+  readonly requirement: HonuaComponentQualificationRequirement;
+  readonly title: string;
+  /** What a `passing` cell asserts for this gate. */
+  readonly criterion: string;
+}
+
+/** The full gate list, in a stable order. */
+export const HONUA_COMPONENT_QUALIFICATION_GATES: readonly HonuaComponentQualificationGate[] = Object.freeze([
+  {
+    id: "keyboard-behavior",
+    requirement: "REQ-004",
+    title: "Keyboard behavior",
+    criterion:
+      "Every interactive affordance is operable from the keyboard alone, proven by dispatching real key events (not synthetic clicks) and asserting the resulting state change.",
+  },
+  {
+    id: "screen-reader-semantics",
+    requirement: "REQ-004",
+    title: "Screen-reader semantics",
+    criterion:
+      "Roles, accessible names, state (pressed/checked/expanded/selected), and live regions are asserted on the rendered shadow tree.",
+  },
+  {
+    id: "focus-restoration",
+    requirement: "REQ-004",
+    title: "Focus restoration",
+    criterion:
+      "A state-driven re-render preserves the active element and, for text fields, the caret/selection range — asserted, not assumed from the shared setShadowHtml() helper.",
+  },
+  {
+    id: "reduced-motion",
+    requirement: "REQ-004",
+    title: "Reduced motion",
+    criterion:
+      "Any animation the component owns, whether CSS or a programmatic camera move, is suppressed or shortened under prefers-reduced-motion.",
+  },
+  {
+    id: "high-contrast",
+    requirement: "REQ-004",
+    title: "High contrast / forced colors",
+    criterion:
+      "The component remains legible and its state remains distinguishable under forced-colors: active and prefers-contrast: more.",
+  },
+  {
+    id: "responsive-layout",
+    requirement: "REQ-004",
+    title: "Responsive layout",
+    criterion:
+      "The component adapts to its container across the supported width range without clipping content or forcing horizontal overflow.",
+  },
+  {
+    id: "localization",
+    requirement: "REQ-004",
+    title: "Localization",
+    criterion:
+      "Every user-visible string is externalized and resolvable through an injectable message source; no user-visible literal is hard-coded in the render template.",
+  },
+  {
+    id: "pseudo-locale",
+    requirement: "REQ-004",
+    title: "Pseudo-locale expansion",
+    criterion:
+      "Rendering under an accented/expanded pseudo-locale neither truncates nor overflows any label, proving the layout tolerates real translation growth.",
+  },
+  {
+    id: "rtl",
+    requirement: "REQ-004",
+    title: "Right-to-left",
+    criterion:
+      "Under dir=rtl the component mirrors correctly, using logical properties rather than physical left/right offsets.",
+  },
+  {
+    id: "visual-regression",
+    requirement: "REQ-005",
+    title: "Visual regression",
+    criterion: "A committed reference screenshot is compared per release, so unintended visual change fails CI.",
+  },
+  {
+    id: "strict-csp",
+    requirement: "REQ-005",
+    title: "Strict CSP",
+    criterion:
+      "The component renders and functions under a strict Content-Security-Policy with no 'unsafe-inline' for script or style, producing no CSP violation reports.",
+  },
+  {
+    id: "zero-console-error",
+    requirement: "REQ-005",
+    title: "Zero console error",
+    criterion:
+      "Mounting, driving, and unmounting the component emits no console.error or console.warn and raises no uncaught exception.",
+  },
+  {
+    id: "deterministic-disposal",
+    requirement: "REQ-005",
+    title: "Deterministic disposal",
+    criterion:
+      "Disconnecting the element releases every subscription, listener, timer, and in-flight request it created, asserted by observing the collaborator's listener count drop to zero.",
+  },
+  {
+    id: "duplicate-listener",
+    requirement: "REQ-005",
+    title: "No duplicate listeners",
+    criterion:
+      "Repeated re-renders do not accumulate handlers: a single user interaction after N renders still produces exactly one event.",
+  },
+  {
+    id: "memory-leak",
+    requirement: "REQ-005",
+    title: "Memory retention",
+    criterion:
+      "A mounted-then-removed element is not retained, proven by a WeakRef/heap-retention probe after the controller is released.",
+  },
+  {
+    id: "ssr-import",
+    requirement: "REQ-005",
+    title: "SSR-safe import",
+    criterion:
+      "The owning entrypoint imports cleanly with no DOM globals present, defining no custom element and touching no browser API at module scope.",
+  },
+  {
+    id: "bundle-budget",
+    requirement: "NFR-001",
+    title: "Per-entrypoint bundle budget",
+    criterion:
+      "The owning kit's entrypoint carries a declared byte ceiling in bundle-budgets.json, enforced by npm run verify:bundle-budgets, and is forbidden from statically retaining a renderer, PDF writer, image encoder, localization framework, or test-only peer.",
+  },
+] as const);
+
+/** One cell of the matrix. */
+export interface HonuaComponentQualificationCell {
+  readonly gate: HonuaComponentQualificationGateId;
+  readonly requirement: HonuaComponentQualificationRequirement;
+  readonly status: HonuaComponentQualificationStatus;
+  /** Repo-relative files that prove a `passing` status. Empty otherwise. */
+  readonly evidence: readonly string[];
+  /** Required for `failing` and `not-applicable`; optional context otherwise. */
+  readonly note?: string;
+}
+
+/** One component's full row. */
+export interface HonuaComponentQualification {
+  readonly id: string;
+  readonly tag: string;
+  readonly source: HonuaComponentCatalogEntry["source"];
+  readonly gates: readonly HonuaComponentQualificationCell[];
+}
+
+/** Aggregate counts for a row or for the whole matrix. */
+export interface HonuaComponentQualificationSummary {
+  readonly passing: number;
+  readonly failing: number;
+  readonly pending: number;
+  readonly notApplicable: number;
+  /** Gates that must still reach `passing` before production tier. */
+  readonly blocking: readonly HonuaComponentQualificationGateId[];
+}
+
+// ── declarations ─────────────────────────────────────────────────────────
+
+/** Catalog id groups referenced repeatedly below. */
+const ALL_IDS = HONUA_COMPONENT_CATALOG.map((entry) => entry.id);
+
+/**
+ * The web-components tags covered by the cross-cutting lifecycle harness
+ * `test/web-components-lifecycle-gates.test.ts`. `web-components.map` is
+ * excluded because mounting it requires a real MapLibre renderer (its disposal
+ * is covered by the browser spec instead), and `web-components.measurement`
+ * because it owns a map-bound lifecycle proven by its own suite.
+ */
+const LIFECYCLE_HARNESS_IDS = [
+  "web-components.layer-list",
+  "web-components.legend",
+  "web-components.feature-table",
+  "web-components.search",
+  "web-components.editor",
+  "web-components.chart",
+  "web-components.basemap-control",
+  "web-components.bookmarks",
+  "web-components.locate-control",
+  "web-components.measure-control",
+  "web-components.sketch-control",
+  "web-components.print-export",
+  "web-components.map-status",
+  "web-components.action-panel",
+] as const;
+
+const LIFECYCLE_HARNESS = "test/web-components-lifecycle-gates.test.ts";
+const SSR_IMPORT_SUITE = "test/web-components-ssr-import.test.ts";
+const BROWSER_SPEC = "test/playwright/web-components-basic.spec.mjs";
+
+/**
+ * Read-only presentations: a legend and a chart render no interactive control in
+ * any state, so the interaction-driven gates have nothing to bind to. The
+ * harness asserts this in both directions, so adding an affordance to either
+ * forces these rows to move.
+ */
+const DISPLAY_ONLY_IDS = ["web-components.legend", "web-components.chart"] as const;
+
+/** Harness tags that carry a real interactive affordance. */
+const INTERACTIVE_HARNESS_IDS = LIFECYCLE_HARNESS_IDS.filter(
+  (id) => !DISPLAY_ONLY_IDS.includes(id as (typeof DISPLAY_ONLY_IDS)[number]),
+);
+
+/**
+ * Harness tags whose focused control survives a re-render. Determined
+ * empirically by the harness, which requires the complement to *lose* focus, so
+ * this set cannot drift away from observed behavior.
+ */
+const FOCUS_RESTORING_IDS = [
+  "web-components.layer-list",
+  "web-components.feature-table",
+  "web-components.editor",
+  "web-components.basemap-control",
+  "web-components.bookmarks",
+  "web-components.measure-control",
+  "web-components.sketch-control",
+  "web-components.print-export",
+  "web-components.action-panel",
+  // The search element's *text input* — the case that actually matters — is
+  // covered by the harness's dedicated text-field suite.
+  "web-components.search",
+] as const;
+
+/** Harness tags whose focused control is demonstrably lost across a re-render. */
+const FOCUS_LOSING_IDS = ["web-components.locate-control", "web-components.map-status"] as const;
+
+/** Components that move the map camera and would need to honour reduced motion. */
+const CAMERA_MOVING_IDS = [
+  "web-components.map",
+  "web-components.search",
+  "web-components.bookmarks",
+  "web-components.locate-control",
+] as const;
+
+interface QualificationGroup {
+  readonly ids: readonly string[];
+  readonly evidence?: readonly string[];
+  readonly note?: string;
+}
+
+interface GateDeclaration {
+  readonly passing?: readonly QualificationGroup[];
+  readonly failing?: readonly QualificationGroup[];
+  readonly notApplicable?: readonly QualificationGroup[];
+  /** Note attached to every cell this gate leaves at `pending`. */
+  readonly pendingNote?: string;
+}
+
+const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDeclaration>> = {
+  "keyboard-behavior": {
+    passing: [
+      {
+        ids: ["web-components.search"],
+        evidence: ["test/web-components-search-element.test.ts"],
+        note: "ArrowDown/ArrowUp/Enter/Escape are dispatched as real KeyboardEvents against the combobox and the resulting suggestion, selection, and viewport changes are asserted.",
+      },
+      {
+        ids: ["web-components.measurement"],
+        evidence: ["test/web-components-measurement-element.test.ts"],
+        note: "Escape cancels an in-progress measurement via a real keydown.",
+      },
+      {
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/swipe-control.test.ts"],
+        note: "ArrowLeft/ArrowRight (with and without Shift), Home, and End step the divider and emit change.",
+      },
+      {
+        ids: ["web-components.feature-table"],
+        evidence: [BROWSER_SPEC],
+        note: "Focusing a row and pressing Enter selects the feature, asserted in a real browser. Unit-level coverage is still absent.",
+      },
+    ],
+    pendingNote:
+      "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons.",
+  },
+
+  "screen-reader-semantics": {
+    passing: [
+      {
+        ids: ["web-components.search"],
+        evidence: ["test/web-components-search-element.test.ts"],
+        note: "Full ARIA combobox contract: role, aria-autocomplete, aria-expanded, aria-controls, aria-activedescendant, listbox/option roles, aria-selected, and a role=status live region — plus the plain-textbox contract when no geocoder is assigned.",
+      },
+      {
+        ids: ["web-components.measurement"],
+        evidence: ["test/web-components-measurement-element.test.ts"],
+        note: "role=group mode set with aria-pressed state and a role=status aria-live=polite readout.",
+      },
+      {
+        ids: ["web-components.legend", "controls.legend"],
+        evidence: ["test/web-components-legend-element.test.ts", "test/controls/legend.test.ts"],
+        note: "List/listitem roles with aria-hidden swatches, asserted in both kits' implementations of honua-legend.",
+      },
+      {
+        ids: ["web-components.layer-list"],
+        evidence: ["test/web-components-layer-list-element.test.ts"],
+        note: "list/listitem roles per layer row plus accessible names on the opacity slider and reorder controls.",
+      },
+      {
+        ids: ["web-components.measure-control", "web-components.sketch-control"],
+        evidence: ["test/web-components-measure-sketch-elements.test.ts"],
+        note: "The provider-absent affordance is asserted to carry aria-disabled=true rather than a silently inert button.",
+      },
+      {
+        ids: ["web-components.print-export"],
+        evidence: [LIFECYCLE_HARNESS],
+        note: "Export buttons carry aria-disabled when no adapter is assigned, and the outcome readout is a role=status aria-live=polite region.",
+      },
+    ],
+    pendingNote:
+      "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract.",
+  },
+
+  "focus-restoration": {
+    passing: [
+      {
+        ids: FOCUS_RESTORING_IDS,
+        evidence: [LIFECYCLE_HARNESS],
+        note: "The shared setShadowHtml() capture/restore path is asserted per tag: the focused control survives a controller-driven re-render. For the search element the covered case is its text input, which additionally keeps its typed value and selection range.",
+      },
+      {
+        ids: ["web-components.search"],
+        evidence: ["test/web-components-search-element.test.ts", BROWSER_SPEC],
+        note: "Also verified end to end in a real browser: the search input keeps focus across the re-render that follows a suggestion commit.",
+      },
+    ],
+    failing: [
+      {
+        ids: FOCUS_LOSING_IDS,
+        note: "Focus is lost across a re-render, asserted by the harness rather than assumed: this element's control carries no id, name, or non-empty data-* attribute, so the base class's focusSelector() cannot find it again after innerHTML is replaced. The search element's submit button has the same defect, though its text input (the case that matters) is covered.",
+      },
+    ],
+    notApplicable: [
+      {
+        ids: DISPLAY_ONLY_IDS,
+        note: "A read-only presentation with no focusable control; there is no active element to preserve. The harness asserts the absence, so adding an affordance moves this row.",
+      },
+    ],
+    pendingNote:
+      "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there.",
+  },
+
+  "reduced-motion": {
+    failing: [
+      {
+        ids: CAMERA_MOVING_IDS,
+        note: "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition.",
+      },
+    ],
+    notApplicable: [
+      {
+        ids: ALL_IDS.filter((id) => !CAMERA_MOVING_IDS.includes(id as (typeof CAMERA_MOVING_IDS)[number])),
+        note: "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added.",
+      },
+    ],
+  },
+
+  "high-contrast": {
+    failing: [
+      {
+        ids: ALL_IDS,
+        note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
+      },
+    ],
+  },
+
+  "responsive-layout": {
+    failing: [
+      {
+        ids: ALL_IDS,
+        note: "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit.",
+      },
+    ],
+  },
+
+  localization: {
+    failing: [
+      {
+        ids: ALL_IDS,
+        note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
+      },
+    ],
+  },
+
+  "pseudo-locale": {
+    failing: [
+      {
+        ids: ALL_IDS,
+        note: "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes.",
+      },
+    ],
+  },
+
+  rtl: {
+    failing: [
+      {
+        ids: ALL_IDS,
+        note: "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl.",
+      },
+    ],
+  },
+
+  "visual-regression": {
+    pendingNote:
+      "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared.",
+  },
+
+  "strict-csp": {
+    failing: [
+      {
+        ids: ALL_IDS,
+        note: "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate.",
+      },
+    ],
+  },
+
+  "zero-console-error": {
+    passing: [
+      {
+        ids: LIFECYCLE_HARNESS_IDS,
+        evidence: [LIFECYCLE_HARNESS],
+        note: "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called.",
+      },
+    ],
+    pendingNote:
+      "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec.",
+  },
+
+  "deterministic-disposal": {
+    passing: [
+      {
+        ids: LIFECYCLE_HARNESS_IDS,
+        evidence: [LIFECYCLE_HARNESS],
+        note: "Removing the element drops its controller state subscription and its root honua-controller-ready listener to zero, and a subsequent controller update reaches no detached element.",
+      },
+      {
+        ids: ["web-components.measurement"],
+        evidence: ["test/web-components-measurement-element.test.ts"],
+        note: "Disconnecting unbinds every map listener and restores double-click zoom.",
+      },
+      {
+        ids: ["controls.legend", "controls.layer-list"],
+        evidence: ["test/controls/legend.test.ts", "test/controls/layer-list.test.ts"],
+        note: "The auto-refresh styledata subscription is dropped on disconnect and re-established on reconnect.",
+      },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/basemap-switcher.test.ts"],
+        note: "Unbinding the map removes every layer and source the control added, and reconnecting restores the selection.",
+      },
+      {
+        ids: ["web-components.map"],
+        evidence: [BROWSER_SPEC],
+        note: "Removing the element tears down canvas, map, and runtime, asserted in a real browser. Unit-level coverage is not possible without a renderer.",
+      },
+    ],
+    pendingNote: "Nothing asserts what this component releases when it is disconnected.",
+  },
+
+  "duplicate-listener": {
+    passing: [
+      {
+        ids: INTERACTIVE_HARNESS_IDS,
+        evidence: [LIFECYCLE_HARNESS],
+        note: "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones.",
+      },
+    ],
+    notApplicable: [
+      {
+        ids: DISPLAY_ONLY_IDS,
+        note: "A read-only presentation that binds no event handler; there is nothing that could accumulate. The harness asserts the absence of any interactive control, so adding one moves this row.",
+      },
+    ],
+    pendingNote:
+      "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render.",
+  },
+
+  "memory-leak": {
+    pendingNote:
+      "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven.",
+  },
+
+  "ssr-import": {
+    passing: [
+      {
+        ids: ALL_IDS,
+        evidence: [SSR_IMPORT_SUITE],
+        note: "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope.",
+      },
+    ],
+  },
+
+  "bundle-budget": {
+    passing: [
+      {
+        ids: ALL_IDS,
+        evidence: ["bundle-budgets.json", "scripts/report-bundle-sizes.mjs"],
+        note: "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001).",
+      },
+    ],
+  },
+};
+
+// ── expansion + queries ──────────────────────────────────────────────────
+
+function statusFor(gate: HonuaComponentQualificationGateId, id: string): HonuaComponentQualificationCell {
+  const declaration = DECLARATIONS[gate];
+  const definition = HONUA_COMPONENT_QUALIFICATION_GATES.find((entry) => entry.id === gate);
+  if (!definition) throw new Error(`Unknown qualification gate "${gate}".`);
+  const base = { gate, requirement: definition.requirement } as const;
+  for (const [status, groups] of [
+    ["passing", declaration.passing],
+    ["failing", declaration.failing],
+    ["not-applicable", declaration.notApplicable],
+  ] as const) {
+    const matches = (groups ?? []).filter((group) => group.ids.includes(id));
+    if (matches.length === 0) continue;
+    const evidence = [...new Set(matches.flatMap((group) => group.evidence ?? []))].sort();
+    const notes = matches.map((group) => group.note).filter((note): note is string => Boolean(note));
+    return {
+      ...base,
+      status,
+      evidence,
+      ...(notes.length > 0 ? { note: notes.join(" ") } : {}),
+    };
+  }
+  return {
+    ...base,
+    status: "pending",
+    evidence: [],
+    ...(declaration.pendingNote ? { note: declaration.pendingNote } : {}),
+  };
+}
+
+/** The full matrix row for one catalog id, or `undefined` for an unknown id. */
+export function getComponentQualification(id: string): HonuaComponentQualification | undefined {
+  const entry = HONUA_COMPONENT_CATALOG.find((candidate) => candidate.id === id);
+  if (!entry) return undefined;
+  return {
+    id: entry.id,
+    tag: entry.tag,
+    source: entry.source,
+    gates: HONUA_COMPONENT_QUALIFICATION_GATES.map((gate) => statusFor(gate.id, entry.id)),
+  };
+}
+
+/** The full matrix, in catalog order. */
+export function listComponentQualifications(): readonly HonuaComponentQualification[] {
+  return HONUA_COMPONENT_CATALOG.map((entry) => {
+    const qualification = getComponentQualification(entry.id);
+    if (!qualification) throw new Error(`Catalog entry "${entry.id}" has no qualification row.`);
+    return qualification;
+  });
+}
+
+/** One gate's definition. */
+export function describeComponentQualificationGate(
+  gate: HonuaComponentQualificationGateId,
+): HonuaComponentQualificationGate | undefined {
+  return HONUA_COMPONENT_QUALIFICATION_GATES.find((entry) => entry.id === gate);
+}
+
+/** Counts and remaining blockers for one row, or for the whole matrix when `id` is omitted. */
+export function summarizeComponentQualification(id?: string): HonuaComponentQualificationSummary {
+  const rows = id ? [getComponentQualification(id)].filter((row) => row !== undefined) : listComponentQualifications();
+  const cells = rows.flatMap((row) => row.gates);
+  const blocking = new Set<HonuaComponentQualificationGateId>();
+  for (const cell of cells) {
+    if (cell.status === "failing" || cell.status === "pending") blocking.add(cell.gate);
+  }
+  return {
+    passing: cells.filter((cell) => cell.status === "passing").length,
+    failing: cells.filter((cell) => cell.status === "failing").length,
+    pending: cells.filter((cell) => cell.status === "pending").length,
+    notApplicable: cells.filter((cell) => cell.status === "not-applicable").length,
+    blocking: [...blocking].sort(),
+  };
+}
+
+/**
+ * Whether a component has cleared every applicable gate, i.e. whether it may
+ * legitimately claim `supportTier: "production-tier"` in the catalog.
+ *
+ * `not-applicable` cells count as cleared (that is what the status means, and
+ * why it requires a justifying note); `pending` and `failing` do not.
+ * `scripts/component-qualification.mjs` asserts this agrees with the catalog's
+ * declared tier in both directions, so neither can drift ahead of the other.
+ */
+export function isComponentProductionQualified(id: string): boolean {
+  const qualification = getComponentQualification(id);
+  if (!qualification) return false;
+  return qualification.gates.every((cell) => cell.status === "passing" || cell.status === "not-applicable");
+}

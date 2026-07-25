@@ -595,6 +595,18 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "app.data-load-failed": classification("app", "internal", false, "Generated app feature data failed to load"),
   "app.render-failed": classification("app", "internal", false, "Generated app render failed"),
   "app.disposed": classification("app", "validation", false, "Generated app runtime is disposed"),
+  "app.export-unsafe": classification(
+    "app",
+    "validation",
+    false,
+    "Component export refused because the artifact could not be proven credential-free",
+  ),
+  "app.export-failed": classification(
+    "app",
+    "internal",
+    false,
+    "Component export adapter failed to produce an artifact",
+  ),
 } as const satisfies Record<string, HonuaErrorCodeDescriptor>);
 
 export type HonuaErrorCode = keyof typeof HONUA_ERROR_CODE_REGISTRY;

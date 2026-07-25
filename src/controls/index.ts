@@ -29,7 +29,38 @@ export { HonuaBasemapSwitcherElement, defineHonuaControls } from "./basemap-swit
 export { HonuaLayerListElement, defineHonuaLayerList } from "./layer-list.js";
 export { HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js";
 export type { HonuaLegendDeriveErrorCode } from "./legend-derive.js";
-export { HonuaLegendElement } from "./legend.js";
+export { HonuaLegendElement, defineHonuaLegend } from "./legend.js";
+export {
+  HONUA_COMPONENT_QUALIFICATION_DATA_VERSION,
+  HONUA_COMPONENT_QUALIFICATION_GATES,
+  HONUA_COMPONENT_QUALIFICATION_STATUSES,
+  describeComponentQualificationGate,
+  getComponentQualification,
+  isComponentProductionQualified,
+  listComponentQualifications,
+  summarizeComponentQualification,
+} from "./qualification.js";
+export type {
+  HonuaComponentQualification,
+  HonuaComponentQualificationCell,
+  HonuaComponentQualificationGate,
+  HonuaComponentQualificationGateId,
+  HonuaComponentQualificationRequirement,
+  HonuaComponentQualificationStatus,
+  HonuaComponentQualificationSummary,
+} from "./qualification.js";
+export {
+  HonuaComponentCatalogError,
+  createComponentRegistry,
+  registerAllComponents,
+  registerComponent,
+  registerComponents,
+} from "./registry.js";
+export type {
+  HonuaComponentCatalogId,
+  HonuaComponentRegistrationOptions,
+  HonuaComponentRegistry,
+} from "./registry.js";
 export { HonuaSwipeControlElement, defineHonuaSwipeControl } from "./swipe-control.js";
 export type {
   HonuaBasemapDefinition,
