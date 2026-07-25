@@ -16,6 +16,12 @@ permissions:
 
 env:
   NODE_VERSION: "20.19.0"
+  # Sealed release-matrix receipt (honua-io/honua-sdk-js#766). Keep in lockstep
+  # with RELEASE_MATRIX_ARTIFACT_NAME in scripts/lib/release-matrix-receipt.mjs:
+  # the receipt names the artifact that retains the raw Playwright report, and
+  # regenerate-derived-artifacts.yml downloads this artifact by name.
+  RELEASE_MATRIX_ARTIFACT: "honua-sdk-first-map-release-matrix"
+  RELEASE_MATRIX_RECEIPT: "samples/evidence/maplibre-quickstart/release-matrix.v1.json"
 
 jobs:
   # No derived-artifact reseal dispatch here (#768): a reseal always lands as a
@@ -25,8 +31,13 @@ jobs:
   source-packed-parity:
     name: Three-engine smoke and source-packed parity
     runs-on: ubuntu-latest
+    outputs:
+      matrix-outcome: ${{ steps.matrix.outcome }}
+      receipt-sealed: ${{ steps.seal.outputs.sealed }}
+      receipt-status: ${{ steps.seal.outputs.status }}
     env:
       HONUA_FIRST_MAP_RELEASE_MATRIX: "true"
+      PLAYWRIGHT_JSON_OUTPUT_NAME: .tmp/release-matrix/playwright-report.json
     steps:
       # Full history: strict sample verification resolves the receipt's
       # sourceRevision (a regeneration-chain commit, never the trunk tip), so a
@@ -62,7 +73,62 @@ jobs:
       # release matrix's Firefox project runs headed (playwright.first-map.config.mjs)
       # under a virtual display; xvfb-run gives it a real X server to render
       # into. Chromium and WebKit stay headless and are unaffected. See #687.
-      - run: xvfb-run --auto-servernum --server-args='-screen 0 1280x800x24' -- npm run test:playwright:quickstart
+      # continue-on-error, then an explicit gate below: a red Firefox or WebKit
+      # engine must still be SEALED and PERSISTED (#766 REQ-002) before this job
+      # reports failure, otherwise the only trace of the regression is an
+      # ephemeral artifact and the golden qualification silently keeps its
+      # Chromium-only claim.
+      - name: Run the three-engine release matrix
+        id: matrix
+        continue-on-error: true
+        run: |
+          mkdir -p .tmp/release-matrix
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x800x24' -- \
+            npm run test:playwright:quickstart -- --reporter=json
+
+      - name: Seal the release-matrix browser receipt
+        id: seal
+        if: always()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          node scripts/seal-release-matrix-receipt.mjs \
+            --sample maplibre-quickstart \
+            --report "$PLAYWRIGHT_JSON_OUTPUT_NAME"
+          echo "sealed=true" >> "$GITHUB_OUTPUT"
+          echo "status=$(jq -r .status "$RELEASE_MATRIX_RECEIPT")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the sealed release-matrix receipt
+        if: always() && steps.seal.outputs.sealed == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ env.RELEASE_MATRIX_ARTIFACT }}
+          # Both paths are uploaded so the artifact root is the repository root
+          # and the receipt keeps its repository-relative path, which is exactly
+          # what regenerate-derived-artifacts.yml installs from. The raw report
+          # lives under the git-ignored .tmp tree, so hidden files must be
+          # included or it would be silently dropped and the artifact root would
+          # collapse to the receipt's directory.
+          include-hidden-files: true
+          path: |
+            ${{ env.RELEASE_MATRIX_RECEIPT }}
+            .tmp/release-matrix/playwright-report.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Gate on the three-engine matrix outcome
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.seal.outputs.sealed }}" != "true" ]]; then
+            echo "The release-matrix receipt could not be sealed; cross-browser evidence was not persisted."
+            exit 1
+          fi
+          if [[ "${{ steps.matrix.outcome }}" != "success" ]]; then
+            echo "The three-engine release matrix failed; the sealed receipt makes the First Map golden qualification stale."
+            exit 1
+          fi
+
       - run: npm run demo:quickstart:parity
       - run: npm run demo:quickstart:copyability
       - run: npm run samples:run -- verify --sample maplibre-quickstart --sdk-mode source
@@ -79,3 +145,38 @@ jobs:
             examples/maplibre-quickstart/dist/honua-sample-sdk-resolution.json
           if-no-files-found: warn
           retention-days: 30
+
+  # Persist the sealed receipt (#766 REQ-002) through the SAME automation that
+  # owns every other evidence commit: regenerate-derived-artifacts.yml. This job
+  # only dispatches that workflow with this run's ID; the regeneration job
+  # downloads the artifact above, installs the receipt, reseals the evidence
+  # around it, and lands it through its protected, path-validated automation PR.
+  # There is deliberately no direct push or commit here -- a second commit path
+  # into samples/evidence would bypass that validation.
+  #
+  # Runs on failure too: a red Firefox/WebKit run is exactly the outcome that has
+  # to reach trunk, so that `npm run samples:verify` reports the First Map golden
+  # qualification stale until a green three-engine run reseals it.
+  persist-release-matrix-receipt:
+    name: Persist the release-matrix receipt through evidence automation
+    needs: source-packed-parity
+    if: always() && needs.source-packed-parity.outputs.receipt-sealed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch derived-artifact regeneration with the sealed receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECEIPT_STATUS: ${{ needs.source-packed-parity.outputs.receipt-status }}
+        run: |
+          set -euo pipefail
+          gh workflow run regenerate-derived-artifacts.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref trunk \
+            -f "release_matrix_receipt_run_id=${GITHUB_RUN_ID}"
+          {
+            echo "Dispatched derived-artifact regeneration to persist the"
+            echo "\`$RECEIPT_STATUS\` release-matrix receipt sealed by run \`$GITHUB_RUN_ID\`."
+          } >> "$GITHUB_STEP_SUMMARY"

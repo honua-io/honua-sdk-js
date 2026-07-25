@@ -265,3 +265,45 @@ receipts require the reviewed producer to honor the runner's explicit enable
 flag, write a fresh envelope to the runner-provided per-run path, and reject
 exact forwarded credential values in the envelope or any declared artifact. See
 [`examples/_kit/README.md`](../../../examples/_kit/README.md) for runner usage.
+
+## Release-matrix browser evidence (honua-io/honua-sdk-js#766)
+
+Per-gate `browser` receipts only ever prove the default Playwright lane, which
+is Chromium-only. Cross-engine outcomes come from the release-only First Map
+smoke (`.github/workflows/first-map-release-smoke.yml`), which runs the
+quickstart spec across Chromium, headless WebKit, and headed Firefox under a
+virtual display with `HONUA_FIRST_MAP_RELEASE_MATRIX=true`.
+
+- `sample-release-matrix-receipt.schema.json` defines that lane's receipt,
+  sealed to `samples/evidence/<sample>/release-matrix.v1.json` by
+  `scripts/seal-release-matrix-receipt.mjs`. It is a separate receipt type from
+  `sample-gate-receipt.schema.json` on purpose: gate receipts are
+  `status: "passed"` by construction, while a matrix receipt must be able to
+  publish a FAILURE, because the failure is the signal that makes the golden
+  qualification stale. It records per-engine status, test and failure counts,
+  durations, the release-matrix environment, the workflow run identity, the
+  evidence-neutral whole-tree digest and revision, and the SHA-256 of the raw
+  Playwright report retained as the release smoke's workflow artifact.
+- The sidecar sits beside `receipts/`, never inside it: that directory must
+  contain exactly the quality profile's per-gate receipts. It is declared in the
+  strict evidence-root inventory, so an undeclared sidecar is still an orphan.
+- Persistence has no separate commit path. The release smoke seals the receipt
+  on every run, green or red, uploads it, and dispatches
+  `regenerate-derived-artifacts.yml`, which downloads it, verifies it is bound
+  to the dispatching run, installs it, and lands it through the same protected,
+  path-validated evidence-reseal automation as every other generated artifact.
+- Freshness mirrors the gate-receipt policy exactly: `observedAt` plus seven
+  days, no new cadence. `samples:verify` treats a **failing** receipt as an
+  error everywhere except the publication automation
+  (`HONUA_RELEASE_MATRIX_RECEIPT_RELAX`, which reports instead of enforcing so
+  the automation can commit the failing receipt), and an **expired** one as an
+  error in strict lanes while reporting it wherever
+  `HONUA_DERIVED_ARTIFACTS_RELAX` already relaxes shared derived-artifact
+  freshness. Re-running `first-map-release-smoke.yml` reseals the lane and
+  restores qualified status with no manual edit.
+- An **absent** receipt is not evidence of anything and is never an error: the
+  lane is simply not established until the first release smoke seals it, and it
+  becomes a required qualification input from that point on. Qualified golden
+  journeys publish the link to their current release-matrix evidence in
+  `samples/dist/golden-journey-visual-evidence.v1.json` (`releaseMatrix`), which
+  stays absent, and therefore byte-stable, until then.

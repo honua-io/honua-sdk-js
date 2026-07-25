@@ -182,6 +182,10 @@ jobs:
           fi
           node scripts/release-seal.mjs "${seal_args[@]}"
 
+      # samples:verify runs strict here, so it also enforces the First Map
+      # release-matrix lane (honua-io/honua-sdk-js#766): publishing is blocked
+      # while the last sealed three-engine run failed, or while its seven-day
+      # window has lapsed. Dispatch first-map-release-smoke.yml to reseal it.
       - name: Validate package
         run: |
           npm run samples:generate

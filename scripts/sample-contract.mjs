@@ -18,6 +18,14 @@ import {
 } from "./lib/sample-gates.mjs";
 import { loadCapabilityKeyList } from "./lib/capability-key-list.mjs";
 import {
+  readReleaseMatrixReceipt,
+  RELEASE_MATRIX_RECEIPT_FILE_NAME,
+  RELEASE_MATRIX_SAMPLE_IDS,
+  releaseMatrixEvidenceProjection,
+  releaseMatrixGateOutcome,
+  releaseMatrixReceiptRelaxed,
+} from "./lib/release-matrix-receipt.mjs";
+import {
   readCanonicalBoundedFile,
   requiredReceiptGates,
   validateGateReceipt,
@@ -3199,6 +3207,19 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     );
   }
 
+  // Release-matrix browser evidence (honua-io/honua-sdk-js#766, split from
+  // #687). The per-gate `browser` receipt only ever proves the Chromium-only
+  // default Playwright lane, so a Firefox or WebKit regression observed by the
+  // release smoke has to bind the golden qualification through its own sealed
+  // receipt. This runs outside the qualification-bootstrap exemption above: the
+  // matrix lane is independent of the reseal circularity, and a bootstrap pass
+  // must not be able to launder a failing engine.
+  await validateReleaseMatrixEvidence(goldenSamples, {
+    receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT)),
+    now: new Date(currentTime).toISOString(),
+    relaxDerivedArtifacts: options.relaxDerivedArtifacts === true || derivedArtifactsRelaxed(),
+  });
+
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
     .filter((sample) => sample.sourceKind === "root-example")
@@ -3676,7 +3697,87 @@ function exactEvidenceDirectoryNames(entries, expectedNames, label, options = {}
   );
 }
 
-async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds, legacyLiveEvidenceFileBySample = new Map()) {
+/**
+ * Samples whose golden qualification is bound to the release-only cross-browser
+ * matrix, restricted to catalog-golden candidates so an orphan sidecar can never
+ * declare a lane for itself.
+ */
+function releaseMatrixGatedSampleIds(goldenSamples) {
+  return goldenSamples
+    .map((sample) => sample.id)
+    .filter((sampleId) => RELEASE_MATRIX_SAMPLE_IDS.includes(sampleId))
+    .sort();
+}
+
+/**
+ * Maps every release-matrix sample that currently has a sealed sidecar to its
+ * file name, so the strict evidence-root inventory accepts exactly the files
+ * that exist and still rejects orphans. An absent sidecar is legitimate: the
+ * lane is simply not established yet.
+ */
+async function releaseMatrixSidecarFileBySample(receiptRoot, sampleIds) {
+  const sidecars = new Map();
+  for (const sampleId of sampleIds) {
+    if (!RELEASE_MATRIX_SAMPLE_IDS.includes(sampleId)) continue;
+    try {
+      const metadata = await lstat(path.join(receiptRoot, sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME));
+      invariant(
+        metadata.isFile() && !metadata.isSymbolicLink(),
+        `${sampleId}: release-matrix receipt must be a regular non-symlink file`,
+      );
+      sidecars.set(sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  return sidecars;
+}
+
+/**
+ * Gates golden qualification staleness on the release-matrix receipt (REQ-003).
+ * Severity policy lives in scripts/lib/release-matrix-receipt.mjs: a failing
+ * receipt is an error everywhere except the persistence automation, a lapsed
+ * one is an error in strict lanes, and a receipt that has never been sealed is
+ * a note so merging the gate cannot redden CI before the first matrix run.
+ */
+const reportedReleaseMatrixNotes = new Set();
+
+async function validateReleaseMatrixEvidence(goldenSamples, options = {}) {
+  const relaxed = releaseMatrixReceiptRelaxed();
+  const notes = [];
+  for (const sampleId of releaseMatrixGatedSampleIds(goldenSamples)) {
+    const record = await readReleaseMatrixReceipt({
+      sampleId,
+      projectRoot: PROJECT_ROOT,
+      receiptRoot: options.receiptRoot,
+      now: options.now,
+    });
+    const outcome = releaseMatrixGateOutcome(record, {
+      sampleId,
+      now: options.now,
+      relaxed,
+      derivedArtifactsRelaxed: options.relaxDerivedArtifacts === true,
+    });
+    if (outcome.severity === "error") throw new Error(outcome.message);
+    if (outcome.message) notes.push(`${outcome.severity}: ${outcome.message}`);
+  }
+  // validateCatalog runs several times per process (migrate, write, check,
+  // runner input validation); report each distinct lane state once so the
+  // signal stays readable.
+  for (const note of notes) {
+    if (reportedReleaseMatrixNotes.has(note)) continue;
+    reportedReleaseMatrixNotes.add(note);
+    process.stdout.write(`${note}\n`);
+  }
+  return notes;
+}
+
+async function validateQualificationEvidenceRoot(
+  receiptRoot,
+  qualifiedSampleIds,
+  legacyLiveEvidenceFileBySample = new Map(),
+  releaseMatrixFileBySample = new Map(),
+) {
   const rootEntries = await evidenceDirectoryEntries(receiptRoot, "qualification evidence root", {
     optional: qualifiedSampleIds.length === 0,
     maxEntries: qualifiedSampleIds.length,
@@ -3691,16 +3792,20 @@ async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds
     // path via sample.evidence.live.evidencePath, so it is an honest,
     // declared artifact rather than an orphan.
     const legacyLiveEvidenceFile = legacyLiveEvidenceFileBySample.get(sampleId);
-    const expectedNames = legacyLiveEvidenceFile
-      ? ["receipts", "runs", legacyLiveEvidenceFile]
-      : ["receipts", "runs"];
+    // The release-matrix receipt (honua-io/honua-sdk-js#766) is a second
+    // declared top-level sidecar. It lives beside `receipts/` rather than inside
+    // it because validateQualificationReceiptSet requires that directory to
+    // contain exactly the quality profile's per-gate receipts.
+    const releaseMatrixFile = releaseMatrixFileBySample.get(sampleId);
+    const allowedFiles = [legacyLiveEvidenceFile, releaseMatrixFile].filter(Boolean);
+    const expectedNames = ["receipts", "runs", ...allowedFiles];
     const sampleEntries = await evidenceDirectoryEntries(
       path.join(receiptRoot, sampleId),
       `${sampleId}: qualification evidence directory`,
       { maxEntries: expectedNames.length, containmentRoot: receiptRoot },
     );
     exactEvidenceDirectoryNames(sampleEntries, expectedNames, `${sampleId}: qualification evidence directory`, {
-      allowedFiles: legacyLiveEvidenceFile ? [legacyLiveEvidenceFile] : [],
+      allowedFiles,
     });
   }
 }
@@ -3839,10 +3944,12 @@ export async function collectQualificationEvidence(catalog, options = {}) {
       legacyLiveEvidenceFileBySample.set(journey.candidateSampleId, evidencePath.slice(samplePrefix.length));
     }
   }
+  const qualifiedSampleIds = qualifiedJourneys.map((journey) => journey.candidateSampleId);
   await validateQualificationEvidenceRoot(
     receiptRoot,
-    qualifiedJourneys.map((journey) => journey.candidateSampleId),
+    qualifiedSampleIds,
     legacyLiveEvidenceFileBySample,
+    await releaseMatrixSidecarFileBySample(receiptRoot, qualifiedSampleIds),
   );
   const samples = [];
   for (const journey of qualifiedJourneys) {
@@ -4157,6 +4264,20 @@ export async function generateGoldenJourneyVisualEvidence(catalog, qualification
       `${sample.id}: visual evidence aggregate freshness window is invalid`,
     );
     const liveRecord = receiptRecords.get("live");
+    // Release-matrix link (honua-io/honua-sdk-js#766 REQ-004). Present only once
+    // the First Map release smoke has sealed a receipt, so this projection stays
+    // byte-identical until the first matrix run lands, and the published bytes
+    // stay clock-free: the sealed outcome and window are published, never a
+    // derived freshness verdict.
+    const releaseMatrixRecord = RELEASE_MATRIX_SAMPLE_IDS.includes(sample.id)
+      ? await readReleaseMatrixReceipt({
+          sampleId: sample.id,
+          projectRoot: PROJECT_ROOT,
+          receiptRoot: path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT),
+          now: options.now,
+        })
+      : undefined;
+    const releaseMatrix = releaseMatrixEvidenceProjection(releaseMatrixRecord);
     entries.push({
       journeyId: journey.id,
       sampleId: sample.id,
@@ -4188,6 +4309,7 @@ export async function generateGoldenJourneyVisualEvidence(catalog, qualification
         };
       }),
       liveEvidence: projectedGoldenLiveEvidence(sample, liveRecord.report, liveRecord.receipt),
+      ...(releaseMatrix ? { releaseMatrix } : {}),
     });
   }
 

@@ -352,6 +352,89 @@
       },
       "additionalProperties": false
     },
+    "releaseMatrixEvidence": {
+      "description": "Link to the sealed release-only cross-browser matrix receipt for this journey (honua-io/honua-sdk-js#766). Optional: absent until the First Map release smoke has sealed its first receipt. Deliberately clock-free -- consumers derive freshness from observedAt/expiresAt the same way they do for live evidence.",
+      "type": "object",
+      "required": [
+        "lane",
+        "status",
+        "receiptPath",
+        "receiptSha256",
+        "envName",
+        "playwrightConfig",
+        "playwrightVersion",
+        "observedAt",
+        "expiresAt",
+        "source",
+        "run",
+        "engines",
+        "report"
+      ],
+      "properties": {
+        "lane": { "const": "release-matrix-browser" },
+        "status": { "enum": ["passed", "failed"] },
+        "receiptPath": {
+          "type": "string",
+          "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/release-matrix\\.v1\\.json$"
+        },
+        "receiptSha256": { "$ref": "#/$defs/sha256" },
+        "envName": { "const": "HONUA_FIRST_MAP_RELEASE_MATRIX" },
+        "playwrightConfig": { "const": "playwright.first-map.config.mjs" },
+        "playwrightVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+].+)?$" },
+        "observedAt": { "$ref": "#/$defs/dateTime" },
+        "expiresAt": { "$ref": "#/$defs/dateTime" },
+        "source": {
+          "type": "object",
+          "required": ["revision", "evidenceNeutralSha256"],
+          "properties": {
+            "revision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+            "evidenceNeutralSha256": { "$ref": "#/$defs/sha256" }
+          },
+          "additionalProperties": false
+        },
+        "run": {
+          "type": "object",
+          "required": ["repository", "workflow", "runId", "runAttempt", "event", "commit"],
+          "properties": {
+            "repository": { "const": "honua-io/honua-sdk-js" },
+            "workflow": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "runId": { "type": "string", "pattern": "^[1-9][0-9]{0,19}$" },
+            "runAttempt": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "event": { "enum": ["release", "workflow_dispatch"] },
+            "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+          },
+          "additionalProperties": false
+        },
+        "engines": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["name", "browserName", "headless", "status"],
+            "properties": {
+              "name": { "enum": ["chromium", "firefox", "webkit"] },
+              "browserName": { "enum": ["chromium", "firefox", "webkit"] },
+              "headless": { "type": "boolean" },
+              "status": { "enum": ["passed", "failed", "timedOut", "skipped", "interrupted"] }
+            },
+            "additionalProperties": false
+          }
+        },
+        "report": {
+          "type": "object",
+          "required": ["kind", "bytes", "sha256", "workflowArtifactName"],
+          "properties": {
+            "kind": { "const": "playwright-release-matrix-report" },
+            "bytes": { "type": "integer", "minimum": 1 },
+            "sha256": { "$ref": "#/$defs/sha256" },
+            "workflowArtifactName": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "qualifiedJourney": {
       "type": "object",
       "required": [
@@ -418,7 +501,8 @@
           "maxItems": 9,
           "items": { "$ref": "#/$defs/semanticEvidence" }
         },
-        "liveEvidence": { "$ref": "#/$defs/liveEvidence" }
+        "liveEvidence": { "$ref": "#/$defs/liveEvidence" },
+        "releaseMatrix": { "$ref": "#/$defs/releaseMatrixEvidence" }
       },
       "additionalProperties": false
     }
