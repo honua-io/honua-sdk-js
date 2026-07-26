@@ -39,6 +39,8 @@ import {
 } from "./model.js";
 import type { ImageryRenderPlan } from "./types.js";
 
+import "../../_kit/design/index.css";
+import "../../_kit/presentation.css";
 import "./styles.css";
 
 declare const __HONUA_SDK_VERSION__: string;
@@ -58,6 +60,15 @@ const ROUTE_LAYER_ID = "journey-elevation-route-layer";
 const DEFAULT_ASSET_KEY = "cog";
 const DIRECT_COG_SOURCE_ID = "honua-direct-cog";
 const DIRECT_COG_LAYER_ID = "honua-direct-cog-layer";
+const BACKGROUND_LAYER_ID = "background";
+
+/* The basemap is the stage: its land tone is the design language's basemap
+ * token, so the canvas re-keys with the active theme instead of leaving a
+ * light plate behind dark chrome. */
+function basemapLand(): string {
+  const token = getComputedStyle(document.documentElement).getPropertyValue("--hn-basemap-land").trim();
+  return token.length > 0 ? token : "#f4f5f1";
+}
 
 interface DirectCogEvidence {
   readonly phase: "discovering" | "inspecting" | "reading" | "rendering" | "ready" | "failed" | "disposed";
@@ -179,7 +190,7 @@ const map = new maplibregl.Map({
   style: {
     version: 8,
     sources: {},
-    layers: [{ id: "background", type: "background", paint: { "background-color": "#d8e5e3" } }],
+    layers: [{ id: BACKGROUND_LAYER_ID, type: "background", paint: { "background-color": basemapLand() } }],
   },
 });
 const mapLoaded = new Promise<void>((resolve) => map.once("load", () => resolve()));
@@ -1414,6 +1425,37 @@ cleanup.listen(getElement<HTMLFormElement>("#elevation-form"), "submit", (event)
 });
 cleanup.listen(getElement<HTMLButtonElement>("#run-profile"), "click", () => void runFixtureProfile());
 cleanup.listen(window, "beforeunload", () => void dispose(), { once: true });
+
+type ThemePreference = "auto" | "light" | "dark";
+const THEME_SEQUENCE: readonly ThemePreference[] = ["auto", "light", "dark"];
+
+function setupThemeToggle(): void {
+  const toggle = getElement<HTMLButtonElement>("#theme-toggle");
+  let preference: ThemePreference = "auto";
+  const apply = (): void => {
+    if (preference === "auto") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = preference;
+    toggle.textContent = `Theme: ${preference}`;
+    retintBasemap();
+  };
+  cleanup.listen(toggle, "click", () => {
+    const nextIndex = (THEME_SEQUENCE.indexOf(preference) + 1) % THEME_SEQUENCE.length;
+    preference = THEME_SEQUENCE[nextIndex] ?? "auto";
+    apply();
+  });
+  cleanup.listen(matchMedia("(prefers-color-scheme: dark)"), "change", () => retintBasemap());
+  cleanup.add(() => {
+    delete document.documentElement.dataset.theme;
+  });
+  apply();
+}
+
+function retintBasemap(): void {
+  if (disposed || !map.getLayer(BACKGROUND_LAYER_ID)) return;
+  map.setPaintProperty(BACKGROUND_LAYER_ID, "background-color", basemapLand());
+}
+
+setupThemeToggle();
 
 const mapClick = (event: MapMouseEvent) => {
   getElement<HTMLInputElement>("#longitude-input").value = event.lngLat.lng.toFixed(4);

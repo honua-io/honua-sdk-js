@@ -13,6 +13,8 @@ import { GeoparquetRuntime, geoparquetResolver, geoparquetSource } from "../src/
 import { createNodeDuckDbDriver } from "./helpers/geoparquet-node-driver.mjs";
 
 const GEOPARQUET_URL = "places-geoparquet.parquet";
+const OVERTURE_URL =
+  "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-06-17.0/theme=places/type=place/part-00000-6c973aba-862d-590f-a178-70bcd31cde1c-c000.zstd.parquet";
 const WKB_URL = "places-wkb-nometa.parquet";
 const LOSSLESS_URL = "lossless-values.parquet";
 
@@ -396,6 +398,93 @@ describe("geoparquet profile safety", () => {
     });
 
     await expect(runtime.profile(["a.parquet", "b.parquet"])).rejects.toThrow(/nesting-depth safety bound/);
+    await runtime.dispose();
+  });
+
+  // #767: an Overture-shaped file (no `geo` metadata, bbox members written as
+  // xmin/xmax/ymin/ymax) must push the AOI down onto the bbox covering column.
+  // The browser lane runs DuckDB-WASM without the spatial extension, so an
+  // `ST_Intersects` fallback here is a hard failure, not a slow path.
+  it("pushes an AOI onto the Overture bbox covering column without any spatial function", async () => {
+    const sql: string[] = [];
+    const runtime = new GeoparquetRuntime({
+      driverFactory: async () => ({
+        async run() {},
+        async query(statement: string) {
+          sql.push(statement);
+          // Verbatim DESCRIBE rows + `geo` document observed through DuckDB-WASM
+          // against release/2026-06-17.0/theme=places/type=place/part-00000-….
+          if (statement.startsWith("DESCRIBE")) {
+            return [
+              { column_name: "id", column_type: "VARCHAR", null: "YES" },
+              { column_name: "geometry", column_type: "BLOB", null: "YES" },
+              { column_name: "categories", column_type: 'STRUCT("primary" VARCHAR, alternate VARCHAR[])', null: "YES" },
+              { column_name: "confidence", column_type: "DOUBLE", null: "YES" },
+              {
+                column_name: "bbox",
+                column_type: "STRUCT(xmin DOUBLE, xmax DOUBLE, ymin DOUBLE, ymax DOUBLE)",
+                null: "YES",
+              },
+              { column_name: "theme", column_type: "VARCHAR", null: "YES" },
+              { column_name: "type", column_type: "VARCHAR", null: "YES" },
+            ];
+          }
+          if (statement.includes("parquet_kv_metadata")) {
+            return [
+              {
+                file_name: OVERTURE_URL,
+                value: JSON.stringify({
+                  version: "1.1.0",
+                  primary_column: "geometry",
+                  columns: {
+                    geometry: {
+                      encoding: "WKB",
+                      geometry_types: ["Point"],
+                      bbox: [-179.99806213378906, -84.83818054199219, -76.6320571899414, 28.47271728515625],
+                      covering: {
+                        bbox: {
+                          xmin: ["bbox", "xmin"],
+                          ymin: ["bbox", "ymin"],
+                          xmax: ["bbox", "xmax"],
+                          ymax: ["bbox", "ymax"],
+                        },
+                      },
+                    },
+                  },
+                }),
+              },
+            ];
+          }
+          if (statement.includes("row_estimate")) return [{ row_estimate: 4_717_270 }];
+          return [{ id: "08f2…", confidence: 0.9, bbox: { xmin: -158, xmax: -158, ymin: 21, ymax: 21 } }];
+        },
+        async registerFileBuffer() {},
+        async close() {},
+      }),
+    });
+
+    const profile = await runtime.profile([OVERTURE_URL]);
+    expect(profile.geometry).toMatchObject({
+      encoding: "wkb",
+      bboxColumn: "bbox",
+      metadataState: "valid",
+    });
+    expect(profile.crs).toBe("OGC:CRS84");
+
+    const source = geoparquetSource({ ...descriptor("places", OVERTURE_URL) }, { runtime });
+    const result = await source.query({
+      outFields: ["id", "confidence", "bbox"],
+      spatialFilter: envelope(-158.5, 21, -157.5, 21.7),
+      returnGeometry: false,
+      pagination: { limit: 200 },
+    });
+
+    expect(result.features).toHaveLength(1);
+    const aoiSql = sql.filter((statement) => statement.includes(" WHERE "));
+    expect(aoiSql).toHaveLength(1);
+    expect(aoiSql[0]).toContain('"bbox".xmin <= -157.5');
+    expect(aoiSql[0]).toContain('"bbox".ymax >= 21');
+    expect(sql.join("\n")).not.toMatch(/ST_/i);
     await runtime.dispose();
   });
 });

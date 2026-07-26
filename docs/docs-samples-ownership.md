@@ -46,6 +46,30 @@ listings use only the canonical paths. Executable source remains in this
 repository and is represented only by canonical, non-symlink repository/path
 references in the handoff.
 
+Publication is fail-closed and reproducible from the handed-off bundle alone.
+The handoff's declared `policy.qualifiedRequires` is machine-checked per
+qualified card against that card's own embedded evidence — bound source
+identity, packed-mode `packed-build`, `fixture` and `live` receipts, both the
+desktop and mobile reproducible captures, and all nine semantic gate receipts in
+canonical order — and every aggregate, per-gate, and live freshness window is
+re-evaluated against the validation clock, so an expired receipt fails
+publication instead of shipping a stale card. No two cards may share a canonical
+route, an executable source path, a golden journey, an evidence binding, or a
+visual evidence sample, and the upstream projection, matrix, and visual-evidence
+inventories may not repeat those identities either. Every screenshot, repeat
+capture, gate receipt, and gate report a card advertises must resolve inside the
+owning sample's own evidence root and evidence run as a regular non-symlink file
+whose bytes and digest match the published reference. Each reference also
+content-addresses the schema that governs it — `schemaBytes` and `schemaSha256`
+alongside the artifact's own `bytes` and `sha256` — and validation recomputes
+that digest from the schema on disk, so a schema edited in place while keeping
+its `$id` and version fails publication rather than handing consumers an
+unversioned bundle. Honestly pending coverage still publishes: a `planned`, `partial`,
+`experimental`, or `unsupported` card carries no evidence binding and no visual
+evidence, and only overstated claims fail. See
+[`samples/contract/v2/README.md`](../samples/contract/v2/README.md) for the full
+admission contract.
+
 The generated
 [`honua-site-consumer.v3.json`](../samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json)
 fixture pins the handoff digest and expected task, capability, protocol,
