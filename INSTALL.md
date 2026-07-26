@@ -8,7 +8,7 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 13 experimental,
+It projects 22 supported (documented below as stable), 15 experimental,
 and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
@@ -68,6 +68,8 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
 | `@honua/sdk-js/pmtiles-protocol-plugin.js` | The first-party PMTiles `ProtocolModule` packaged as a certifiable `HonuaPluginFactory<"protocol">` — the manifest-advertised plugin entrypoint, resolvable as a package export. |
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
+| `@honua/sdk-js/analytics` | Versioned linked-analytics and chart presentation contract: accepted category/histogram/aggregate/time-series artifacts with units, null policy, ordering, and pushdown provenance; deterministic mark/brush sync with shared exploration state; and a small accessible default presentation ([guide](./docs/linked-analytics.md)). Carries no chart adapters, so unused chart peers cost nothing. |
+| `@honua/sdk-js/analytics/uplot` | Reference third-party chart adapter over the optional [µPlot](https://github.com/leeoniya/uPlot) peer, loaded only through a dynamic import at mount time. Proves the analytics contract against a real library ([guide](./docs/linked-analytics.md)). |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
 | `@honua/sdk-js/diagnostics` | Dependency-free diagnostic-bundle validation, sanitization, integrity pinning, and bounded read-only replay used by `honua doctor`. |
 | `@honua/sdk-js/nl-map-control` | Natural-language map control ([safety model + walkthrough](./docs/nl-map-control.md)): compiles NL instructions into serializable, inspectable plans (query-planner IR + agent-tool invocations) via a caller-provided LLM callback; execution accepts plans only, gates mutations behind agent-safety envelopes, and emits receipts. |

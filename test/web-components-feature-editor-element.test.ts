@@ -425,6 +425,102 @@ describe("<honua-feature-editor> keyboard geometry workflow (NFR-001)", () => {
     expect(statusText(element)).toMatch(/nothing was sent/i);
     expect(source.applyEdits).not.toHaveBeenCalled();
   });
+
+  /**
+   * The keyboard shortcuts live on the shadow root, which survives every
+   * `innerHTML` re-render. Re-adding them per render would stack one handler
+   * per render — invisible to assertions on workflow *state*, because the
+   * surplus `undo()` / `cancel()` calls are no-ops, so these tests count
+   * invocations instead.
+   */
+  function countCalls(
+    workflow: HonuaFeatureEditorWorkflow<PermitAttributes>,
+    method: "undo" | "redo" | "cancel",
+  ): () => number {
+    let calls = 0;
+    const original = workflow[method].bind(workflow);
+    // Shadows the prototype method for this instance only.
+    (workflow as unknown as Record<string, unknown>)[method] = (...args: unknown[]) => {
+      calls += 1;
+      return (original as (...a: unknown[]) => unknown)(...args);
+    };
+    return () => calls;
+  }
+
+  it("binds the keydown listener once, no matter how many times it re-renders", () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+    const element = mount(workflow);
+    workflow.setSelection(feature());
+    workflow.begin("update");
+
+    // Every one of these notifies the element and forces a full re-render.
+    setControl(element, "status", "closed");
+    setControl(element, "priority", "4");
+    setControl(element, "permit_no", "P-2");
+    workflow.startSketch("point");
+    expect(root(element).querySelector("[data-field='status']")).not.toBeNull();
+
+    const undoCalls = countCalls(workflow, "undo");
+    root(element).dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+    expect(undoCalls()).toBe(1);
+
+    const redoCalls = countCalls(workflow, "redo");
+    root(element).dispatchEvent(
+      new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: true, bubbles: true }),
+    );
+    expect(redoCalls()).toBe(1);
+
+    const cancelCalls = countCalls(workflow, "cancel");
+    root(element).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(cancelCalls()).toBe(1);
+  });
+
+  it("releases the keydown listener on disconnect and re-arms exactly one on reconnect", () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+    const element = mount(workflow);
+    workflow.setSelection(feature());
+    workflow.begin("update");
+    setControl(element, "status", "closed");
+
+    const shadow = root(element);
+    const undoCalls = countCalls(workflow, "undo");
+
+    element.remove();
+    // The shadow root outlives detachment; a listener left on it would still fire.
+    shadow.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+    expect(undoCalls()).toBe(0);
+
+    document.body.append(element);
+    shadow.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+    expect(undoCalls()).toBe(1);
+
+    // Repeated cycles must not accumulate handlers either.
+    for (let i = 0; i < 3; i += 1) {
+      element.remove();
+      document.body.append(element);
+    }
+    shadow.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+    expect(undoCalls()).toBe(2);
+  });
+
+  it("routes shortcuts to the current workflow after the workflow is replaced", () => {
+    const first = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+    const second = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+    const element = mount(first);
+    first.setSelection(feature());
+    first.begin("update");
+
+    element.workflow = second;
+    second.setSelection(feature());
+    second.begin("update");
+    setControl(element, "status", "closed");
+
+    const firstUndo = countCalls(first, "undo");
+    const secondUndo = countCalls(second, "undo");
+    root(element).dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+    expect(secondUndo()).toBe(1);
+    expect(firstUndo()).toBe(0);
+  });
 });
 
 describe("<honua-feature-editor> realtime, conflict, and commit states", () => {

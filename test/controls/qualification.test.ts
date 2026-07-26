@@ -185,16 +185,17 @@ describe("the production-tier feature editor is seeded honestly", () => {
 
   it("claims only the gates its own suites assert", () => {
     const status = (gate: string) => row?.gates.find((cell) => cell.gate === gate)?.status;
-    // Its suites genuinely cover these three, with real key events, a thorough
-    // ARIA contract, and text-input focus restoration across a re-render.
+    // Its suites genuinely cover these, with real key events, a thorough ARIA
+    // contract, and text-input focus restoration across a re-render.
     expect(status("keyboard-behavior")).toBe("passing");
     expect(status("screen-reader-semantics")).toBe("passing");
     expect(status("focus-restoration")).toBe("passing");
-    // And these two are recorded as known defects rather than left pending: a
-    // per-render shadow-root keydown binding that accumulates and is never
-    // released on disconnect.
-    expect(status("deterministic-disposal")).toBe("failing");
-    expect(status("duplicate-listener")).toBe("failing");
+    // These two were seeded `failing` against a named per-render shadow-root
+    // listener defect. Issue #809 fixed it and added invocation-counting
+    // regression tests, so they now flip to passing on that evidence — the
+    // matrix doing the job it exists to do.
+    expect(status("deterministic-disposal")).toBe("passing");
+    expect(status("duplicate-listener")).toBe("passing");
     // Nothing asserts these for it.
     for (const gate of ["visual-regression", "zero-console-error", "memory-leak", "rtl"]) {
       expect(status(gate), gate).toBe("pending");
@@ -204,7 +205,7 @@ describe("the production-tier feature editor is seeded honestly", () => {
   it("cites its own element suite as the evidence for what it claims", () => {
     const passing = row?.gates.filter((cell) => cell.status === "passing") ?? [];
     const own = passing.filter((cell) => cell.evidence.includes("test/web-components-feature-editor-element.test.ts"));
-    expect(own.length).toBeGreaterThanOrEqual(3);
+    expect(own.length).toBeGreaterThanOrEqual(5);
   });
 });
 

@@ -68,7 +68,8 @@
   "/realtime was reset for bounded SSE and WebSocket resume transports (#557): the raw WebSocket wire adapter (websocket.ts) plus the reconnect-owning wrapper (resumable-transport.ts — exponential-backoff-and-jitter reconnect, heartbeat timeout, resume-vs-resnapshot selection driven by the delivery gate's own phase, and redacted telemetry) measure 54,897 minified / 15,726 gzip bytes. Both ceilings are measured actual plus ~10% headroom.",
   "/realtime was reset for the OData v4 delta-link pull adapter (#558): createOdataDeltaTransport's bounded @odata.nextLink/@odata.deltaLink paging, scoped-link rejection, @removed/relationship-delta normalization, and explicit expired-link resnapshot recovery measure 62,626 minified / 18,181 gzip bytes. Both ceilings are measured actual plus ~10% headroom.",
   "/deckgl was reset for direct GeoArrow LineString/Polygon rendering and shared MapLibre-overlay map state (#561): the feature-path/feature-polygon zero-copy PathLayer/SolidPolygonLayer binary bindings (startIndices-addressed, optional PathLayer/SolidPolygonLayer peers), plus the focused renderer-state seam (camera sync, picked-selection-to-exploration linking, and combined disposal) measure 63,572 minified / 16,990 gzip bytes. The entrypoint remains experimental-tier and opt-in; @deck.gl/layers stays an optional peer kept out of the root/browser barrels, and root/non-deck ceilings are unchanged. The ceiling is measured actual plus 10% headroom.",
-  "/geoparquet was reset for GeoParquet 1.1 native point/linestring/polygon/multipoint/multilinestring/multipolygon geometry decoding (#581): the entrypoint now reuses src/columnar/geoarrow.ts's bounded encode/decode pipeline (offset/vertex/ring validation, ring-closure, dimension ordering) instead of a second implementation, measuring 128,288 minified / 38,049 gzip bytes. The ceiling is measured actual plus ~10% headroom."
+  "/geoparquet was reset for GeoParquet 1.1 native point/linestring/polygon/multipoint/multilinestring/multipolygon geometry decoding (#581): the entrypoint now reuses src/columnar/geoarrow.ts's bounded encode/decode pipeline (offset/vertex/ring validation, ring-closure, dimension ordering) instead of a second implementation, measuring 128,288 minified / 38,049 gzip bytes. The ceiling is measured actual plus ~10% headroom.",
+  "/analytics and /analytics/uplot gained their first dedicated guards with the linked-analytics and chart presentation contract (#682). /analytics carries the versioned artifact contract, the widget-source pushdown bridge, exploration link bindings with deterministic undo, the adapter registry, and the small accessible default presentation at 32,743 minified / 10,766 gzip bytes; it declares forbiddenInputs on dist/src/analytics/adapters/ and node_modules/uplot/, so the core seam structurally cannot retain a chart adapter or a chart peer. /analytics/uplot is the reference third-party adapter at 9,558 minified / 3,934 gzip bytes with the same node_modules/uplot/ exclusion — uPlot is reached only through a variable-specifier dynamic import, so the ~50 KiB peer never enters any measured graph. 'tree-shake:analytics-core' measures a consumer that accepts artifacts, links them, and renders the default presentation at 24,494 minified / 8,524 gzip bytes, proving the barrel shakes below its own total. Root, /honua, and browser entrypoints are unchanged: the subpaths are experimental and are not re-exported from any barrel. Each ceiling is measured actual plus ~10% headroom."
  ],
  "entrypoints": {
   ".": {
@@ -183,6 +184,14 @@
    "min": 996837,
    "gzip": 271383
   },
+  "/analytics": {
+   "min": 36018,
+   "gzip": 11843
+  },
+  "/analytics/uplot": {
+   "min": 10514,
+   "gzip": 4328
+  },
   "browser-iife": {
    "min": 677675,
    "gzip": 180536
@@ -230,6 +239,10 @@
   "tree-shake:runtime-terra-draw-sketch": {
    "min": 3386,
    "gzip": 1533
+  },
+  "tree-shake:analytics-core": {
+   "min": 26944,
+   "gzip": 9377
   },
   "tree-shake:error-leaf": {
    "min": 15857,

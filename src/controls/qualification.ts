@@ -279,10 +279,16 @@ function allExcept(...excluded: readonly string[]): readonly string[] {
  * `<honua-feature-editor>` (issue #680) is the kit's first component the catalog
  * declares `production-tier`, and it is the reason the tier cross-check below is
  * one-directional. Its own suites are the strongest in the kit on the gates they
- * cover — real keyboard events, a thorough ARIA contract, text-input focus
- * restoration across a reconciling re-render — and it is also the only component
- * whose code carries two gate failures we can name precisely rather than leave
- * pending. Both are recorded, not rounded off.
+ * cover: real keyboard events, a thorough ARIA contract, text-input focus
+ * restoration across a reconciling re-render, and — since issue #809 — the kit's
+ * only invocation-counting proofs of single-binding and full listener release.
+ *
+ * It is also the matrix earning its keep. Seeding it honestly recorded two
+ * `failing` cells naming a per-render shadow-root listener that accumulated and
+ * was never released on disconnect; #809 fixed exactly those two defects and
+ * added regression tests that count invocations rather than assert state, and
+ * both cells now flip to `passing` on that evidence. A matrix that had rounded
+ * those up to "probably fine" would have had nothing to flip.
  */
 const FEATURE_EDITOR = "web-components.feature-editor";
 const FEATURE_EDITOR_SUITE = "test/web-components-feature-editor-element.test.ts";
@@ -597,11 +603,10 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [BROWSER_SPEC],
         note: "Removing the element tears down canvas, map, and runtime, asserted in a real browser. Unit-level coverage is not possible without a renderer.",
       },
-    ],
-    failing: [
       {
         ids: [FEATURE_EDITOR],
-        note: "Partial, so the gate is not met. Its workflow subscription is genuinely released on disconnect and re-taken on reconnect (asserted by test/web-components-feature-editor-element.test.ts), but disconnectedCallback releases only that subscription: the shadow-root keydown listener the element binds on every render is never removed, so a detached element keeps a live handler. Fixing this is coupled to the duplicate-listener defect below, since both stem from the same per-render root binding.",
+        evidence: [FEATURE_EDITOR_SUITE],
+        note: "Complete for what this element owns: the workflow subscription is released on disconnect and re-taken on reconnect, and the shadow-root keydown listener is released too — asserted by dispatching at the detached element's still-live shadow root and counting zero workflow calls, then exactly one after reconnect, and still exactly one after three detach/reattach cycles (issue #809). The element holds no timers and no AbortController of its own, so there is nothing further to release.",
       },
     ],
     pendingNote: "Nothing asserts what this component releases when it is disconnected.",
@@ -614,11 +619,10 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [LIFECYCLE_HARNESS],
         note: "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones.",
       },
-    ],
-    failing: [
       {
         ids: [FEATURE_EDITOR],
-        note: "A real accumulation defect, recorded rather than left pending. render() replaces the shadow root's innerHTML, which discards the per-node handlers it binds, but the same bind pass also adds a keydown listener to the shadow root itself — which innerHTML does not replace. Each re-render therefore adds another closure, so after N renders one Escape calls cancel() N times and one Ctrl+Z calls undo() N times. The existing keyboard tests cannot see it: they run after a single render, and surplus cancel()/undo() calls are idempotent no-ops.",
+        evidence: [FEATURE_EDITOR_SUITE],
+        note: "One keystroke after four re-renders drives exactly one undo, one redo, and one cancel, asserted by counting workflow invocations rather than resulting state — which is the only way to see this defect class, since surplus undo()/cancel() calls are idempotent no-ops that leave state looking correct. The keydown listener is now bound once per connection on the shadow root instead of on every render (issue #809).",
       },
     ],
     notApplicable: [
