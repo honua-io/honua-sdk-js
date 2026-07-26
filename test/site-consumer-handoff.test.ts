@@ -41,6 +41,17 @@ async function checkoutBoundHandoff(current: SiteConsumerHandoff): Promise<SiteC
   return readJson("samples/dist/honua-site-consumer-handoff.v1.json");
 }
 
+/**
+ * The committed consumer fixture that pairs with {@link checkoutBoundHandoff}.
+ * A freshly generated fixture content-addresses the freshly generated handoff,
+ * so a schema-binding assertion has to take both from the same side of the
+ * derived-artifact boundary or the pair's own digests disagree.
+ */
+async function checkoutBoundFixture(current: CanonicalInputs["fixture"]): Promise<CanonicalInputs["fixture"]> {
+  if (!derivedArtifactsRelaxed) return current;
+  return readJson("samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json");
+}
+
 async function buildCanonicalInputs() {
   const [catalog, packageJson, supportTruth] = await Promise.all([
     readJson("samples/catalog.v2.json"),
@@ -672,10 +683,15 @@ describe("honua-site consumer handoff", () => {
     { timeout: 90_000 },
     async () => {
       const inputs = await canonicalInputs();
+      // Schema digest binding is a property of one internally coherent
+      // handoff/fixture pair, so both come from the same side of the
+      // derived-artifact boundary (see checkoutBoundHandoff).
+      const handoff = await checkoutBoundHandoff(inputs.handoff);
+      const fixture = await checkoutBoundFixture(inputs.fixture);
 
       // Every published reference content-addresses its governing schema, including
       // the handoff's own schema, which only the v3 fixture can reference.
-      const references = [...Object.values(inputs.handoff.inputs), inputs.fixture.input];
+      const references = [...Object.values(handoff.inputs), fixture.input];
       expect(references).toHaveLength(4);
       for (const reference of references) {
         const bytes = await readFile(reference.schemaPath, "utf8");
@@ -683,7 +699,7 @@ describe("honua-site consumer handoff", () => {
         expect(reference.schemaSha256).toBe(sha256(bytes));
       }
 
-      const upstream = inputs.handoff.inputs.visualEvidence;
+      const upstream = handoff.inputs.visualEvidence;
       const upstreamOriginal = await readFile(upstream.schemaPath, "utf8");
       try {
         // Whitespace only: same file, same $id, same format, same schemaVersion, and
@@ -695,7 +711,7 @@ describe("honua-site consumer handoff", () => {
         expect(reformatted.$id).toBe(JSON.parse(upstreamOriginal).$id);
         expect(reformatted.properties.schemaVersion.const).toBe(upstream.schemaVersion);
         expect(reformatted.properties.format.const).toBe(upstream.format);
-        await expect(validateSiteConsumerHandoff(inputs.handoff)).rejects.toThrow(
+        await expect(validateSiteConsumerHandoff(handoff)).rejects.toThrow(
           "visualEvidence schema definition changed without a version bump",
         );
 
@@ -703,18 +719,18 @@ describe("honua-site consumer handoff", () => {
         const weakened = JSON.parse(upstreamOriginal);
         weakened.$defs.qualifiedJourney.properties.screenshots.minItems = 1;
         await writeFile(upstream.schemaPath, `${JSON.stringify(weakened, null, 2)}\n`, "utf8");
-        await expect(validateSiteConsumerHandoff(inputs.handoff)).rejects.toThrow(
+        await expect(validateSiteConsumerHandoff(handoff)).rejects.toThrow(
           "visualEvidence schema definition changed without a version bump",
         );
       } finally {
         await writeFile(upstream.schemaPath, upstreamOriginal, "utf8");
       }
 
-      const handoffSchemaPath = inputs.fixture.input.schemaPath;
+      const handoffSchemaPath = fixture.input.schemaPath;
       const handoffSchemaOriginal = await readFile(handoffSchemaPath, "utf8");
       try {
         await writeFile(handoffSchemaPath, `${handoffSchemaOriginal.trimEnd()}\n\n`, "utf8");
-        await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).rejects.toThrow(
+        await expect(validateSiteConsumerFixtureV3(fixture, handoff)).rejects.toThrow(
           "fixture handoff schema definition changed without a version bump",
         );
       } finally {
@@ -724,7 +740,7 @@ describe("honua-site consumer handoff", () => {
       // A handoff published before this binding existed carries no digest. The first
       // test in this file covers the pending-under-relax side by validating the
       // committed artifact; a strict run must never accept it as verified.
-      const pending = structuredClone(inputs.handoff);
+      const pending = structuredClone(handoff);
       for (const reference of Object.values(pending.inputs)) {
         delete reference.schemaBytes;
         delete reference.schemaSha256;
@@ -738,9 +754,9 @@ describe("honua-site consumer handoff", () => {
         else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = previousRelax;
       }
 
-      await expect(validateSiteConsumerHandoff(inputs.handoff)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerHandoff(handoff)).resolves.toBeUndefined();
       await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
-      await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerFixtureV3(fixture, handoff)).resolves.toBeUndefined();
     },
   );
 
