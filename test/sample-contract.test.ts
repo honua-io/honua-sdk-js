@@ -307,6 +307,113 @@ describe("sample publication contract", () => {
     await expect(refreshOverlayLiveExpiry(nonLiveOverlay, ["oauth-signin"])).rejects.toThrow("is not evidence-bound");
   });
 
+  // honua-io/honua-sdk-js#810. A skip-attested live lane is the harder half of
+  // #788's bug class: nothing reseals a skip attestation, so its observedAt
+  // never moves, and the catalog literal projected from it was hand-set at
+  // qualification time -- the incident dashboard's was 14 days against a
+  // 90-day non-executed policy, so it lapsed 76 days before the observation it
+  // describes had to. When it lapsed, validateCatalog's wall-clock expiry check
+  // (deliberately NOT relaxed by HONUA_DERIVED_ARTIFACTS_RELAX) failed every
+  // `samples:verify` on trunk AND every reseal pass inside the regeneration
+  // workflow -- including passes targeting entirely unrelated samples -- so the
+  // automation that exists to prevent the lapse could not run at all.
+  //
+  // The contract these two cases pin: a skip lane is refreshable by the
+  // automation path from its own real observation, and once even that
+  // observation has aged past its full policy window the refresh refuses
+  // honestly (naming the sample and the remedy) instead of writing an
+  // already-lapsed literal that resurfaces later as an opaque catalog error.
+  it("refreshes a skip-attested lane from its own observation and refuses once that observation outlives its policy window", async () => {
+    const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+    const skipLaneIds = Object.entries(migration.sampleOverrides)
+      .filter(([, override]: [string, any]) => override.live?.status === "skipped")
+      .map(([sampleId]) => sampleId)
+      .sort();
+    expect(skipLaneIds.length).toBeGreaterThan(0);
+    const nonExecutedWindowMs = migration.configuration.evidenceExpiry.nonExecutedMaxDays * 24 * 60 * 60 * 1000;
+
+    // Every skip lane refreshes to exactly its attestation's own observedAt
+    // plus the non-executed window -- no lane depends on a reseal having run,
+    // which is what makes refreshing them safe before the first reseal pass.
+    for (const sampleId of skipLaneIds) {
+      const overlay = structuredClone(migration);
+      const lane = overlay.sampleOverrides[sampleId].live;
+      lane.expiresAt = "2000-01-01T00:00:00.000Z";
+      const evidence = await readJson(lane.evidencePath);
+      expect(evidence.status).toBe("skipped");
+
+      const refreshed = await refreshOverlayLiveExpiry(overlay, [sampleId]);
+
+      expect(refreshed).toEqual([
+        {
+          sampleId,
+          observedAt: evidence.observedAt,
+          previousExpiresAt: "2000-01-01T00:00:00.000Z",
+          expiresAt: lane.expiresAt,
+        },
+      ]);
+      expect(Date.parse(lane.expiresAt)).toBe(Date.parse(evidence.observedAt) + nonExecutedWindowMs);
+      // No explicit "is in the future" assertion is needed: the refresh above
+      // now refuses outright once an observation has outlived its window, so
+      // reaching this line at all means the lane is still honestly refreshable.
+      // A skip attestation that ages out therefore fails here with the
+      // actionable "re-observe it" message rather than at some later gate.
+    }
+
+    // An observation older than the whole non-executed window cannot be healed
+    // by recomputing the literal, and the refresh must say so rather than
+    // writing a past expiry that fails later as a catalog-projection error.
+    const lapsedSampleId = skipLaneIds[0];
+    const lapsedOverlay = structuredClone(migration);
+    const lapsedEvidence = await readJson(lapsedOverlay.sampleOverrides[lapsedSampleId].live.evidencePath);
+    const beyondWindowNow = new Date(Date.parse(lapsedEvidence.observedAt) + nonExecutedWindowMs + 1).toISOString();
+    const previousLapsedExpiresAt = lapsedOverlay.sampleOverrides[lapsedSampleId].live.expiresAt;
+    await expect(refreshOverlayLiveExpiry(lapsedOverlay, [lapsedSampleId], { now: beyondWindowNow })).rejects.toThrow(
+      /is older than its .* policy window/,
+    );
+    await expect(refreshOverlayLiveExpiry(lapsedOverlay, [lapsedSampleId], { now: beyondWindowNow })).rejects.toThrow(
+      "re-run this lane's evidence producer to re-observe it",
+    );
+    // The refusal leaves the overlay untouched: no half-refreshed literal to
+    // commit, and no already-lapsed value projected into the catalog.
+    expect(lapsedOverlay.sampleOverrides[lapsedSampleId].live.expiresAt).toBe(previousLapsedExpiresAt);
+  });
+
+  // The recurrence half of #810: refreshability is only useful if the
+  // regeneration workflow actually exercises it for these lanes, and does so
+  // before the first reseal pass -- the pass a lapsed expiry would otherwise
+  // fail. Pinning the step ordering and the covered sample set here means
+  // adding a skip-attested sample without wiring it into the refresh (which is
+  // how the incident dashboard was left out) fails this test instead of
+  // silently arming the next trunk-wide outage.
+  it("refreshes every skip-attested lane's catalog expiry before the regeneration workflow's first reseal pass", async () => {
+    const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+    const skipLaneIds = Object.entries(migration.sampleOverrides)
+      .filter(([, override]: [string, any]) => override.live?.status === "skipped")
+      .map(([sampleId]) => sampleId)
+      .sort();
+    const workflow = await readFile(".github/workflows/regenerate-derived-artifacts.yml", "utf8");
+
+    const refreshIndex = workflow.indexOf("- name: Refresh catalog live-evidence expiry for skip-attested lanes");
+    const commitIndex = workflow.indexOf("- name: Stage and commit refreshed skip-attestation catalog locally");
+    const passOneIndex = workflow.indexOf("- name: Reseal sample evidence (pass one");
+    expect(refreshIndex).toBeGreaterThan(-1);
+    expect(commitIndex).toBeGreaterThan(refreshIndex);
+    // Committed before pass one, because every reseal pass requires a clean
+    // checkout of the evidence-neutral roots the catalog and overlay live in.
+    expect(passOneIndex).toBeGreaterThan(commitIndex);
+
+    const refreshStep = workflow.slice(refreshIndex, commitIndex);
+    const sampleArgument = /samples:refresh-live-expiry -- --sample ([\w,-]+)/.exec(refreshStep);
+    expect(sampleArgument).not.toBeNull();
+    expect(sampleArgument![1].split(",").sort()).toEqual(skipLaneIds);
+    // migrate-v1 projects the refreshed overlay into samples/catalog.v2.json
+    // and write-ci-selection reprojects the dist copy of the same literal;
+    // without both, pass one still reads the lapsed value.
+    expect(refreshStep).toContain("npm run samples:migrate:v1");
+    expect(refreshStep).toContain("npm run samples:write-ci-selection");
+  });
+
   it("rejects duplicate JSON properties before permissive parsing can hide them", () => {
     expect(() =>
       parseJsonDocument('{"data":{"attribution":"first","attribution":"second"}}', "duplicate-catalog.json"),
