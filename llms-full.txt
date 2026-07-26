@@ -684,6 +684,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
 | `@honua/sdk-js/pmtiles-protocol-plugin.js` | The first-party PMTiles `ProtocolModule` packaged as a certifiable `HonuaPluginFactory<"protocol">` — the manifest-advertised plugin entrypoint, resolvable as a package export. |
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
+| `@honua/sdk-js/kepler` | Optional [Kepler.gl workspace bridge](./docs/kepler-workspace-bridge.md): explicit ingestion mappings that avoid a GeoJSON round trip for tabular/point/columnar results, preserved provenance and CRS decisions, a declared linked-state channel table, bounded delta reconciliation, and credential redaction on export. |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
 | `@honua/sdk-js/diagnostics` | Dependency-free diagnostic-bundle validation, sanitization, integrity pinning, and bounded read-only replay used by `honua doctor`. |
 | `@honua/sdk-js/nl-map-control` | Natural-language map control ([safety model + walkthrough](./docs/nl-map-control.md)): compiles NL instructions into serializable, inspectable plans (query-planner IR + agent-tool invocations) via a caller-provided LLM callback; execution accepts plans only, gates mutations behind agent-safety envelopes, and emits receipts. |
@@ -770,6 +771,7 @@ Node-only or REST-only consumer never pays the install cost:
 |-------------|-----------------|
 | MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
 | deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
+| Kepler.gl workspace bridge (`@honua/sdk-js/kepler`) | `npm install @kepler.gl/actions` (plus the Kepler UI packages your app renders) |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
 | gRPC-Web transport (`new HonuaClient({ transport: "grpc-web" })`) | `npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf` |
 | Geometry ops (`@honua/sdk-js/geometry`) | `npm install proj4 @turf/buffer @turf/area …` (only the ops you import) — or use the `@honua/geometry` split package |
@@ -1532,7 +1534,7 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-24 at commit `16d59da2`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-25 at commit `41915999`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -8388,7 +8390,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-25 at commit `f1bdb118`._
+_Generated 2026-07-25 at commit `41915999`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -8418,7 +8420,6 @@ _Generated 2026-07-25 at commit `f1bdb118`._
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 125.5 KiB | 137.8 KiB | 37.2 KiB | 40.9 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 63.2 KiB | 68.3 KiB | 16.8 KiB | 18.3 KiB |
-| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 49.0 KiB | 53.9 KiB | 14.9 KiB | 16.4 KiB |
 | `/react` (react/react-dom external) | 463.2 KiB | 506.7 KiB | 123.0 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 616.1 KiB | 661.8 KiB | 163.5 KiB | 176.3 KiB |
@@ -8958,6 +8959,30 @@ CI publish workflow:
 - manual dry-run or publish via `Publish JS SDK Packages` workflow
 - tag-triggered publish uses Release Please tags in form `js-sdk-<version>`; the workflow also accepts `js-sdk-v<version>` and enforces tag/version match
 - Release Please dispatches the JS SDK and MCP publish workflows after creating releases; package publishes skip versions that already exist on npm.
+
+Release tags are strictly self-verifiable (honua-io/honua-sdk-js#768): checking
+one out on a pristine clone and running `npm run samples:generate` and
+`npm run samples:verify` must succeed with no `HONUA_DERIVED_ARTIFACTS_RELAX`
+relaxation. Release Please's version-bump commit never satisfies that on its own
+-- it edits `package.json` and the version-stamped fixtures declared in
+`release-please-config.json`, all inside the evidence-neutral source digest
+(`scripts/sample-gate-receipt.mjs`), which re-stales every sample gate receipt,
+and the derived sample artifacts it carries were generated before the bump, so
+they still self-report the previous version. The release therefore:
+
+- waits for `regenerate-derived-artifacts.yml` to reseal evidence and regenerate
+  the projections against the bumped tree and merge that generated-only
+  descendant;
+- verifies the descendant changed only generated paths, then moves the
+  `js-sdk-*` tag onto it, so the tag names the sealed commit;
+- publishes from that tag, and dispatches the First Map release smoke at it.
+
+`npm run release:seal:check` is the gate that proves a commit is sealed (every
+gate receipt bound to this tree, derived artifacts stamping this release
+version). It runs in both `Publish JS SDK Packages` and `First Map Release
+Smoke`, and it fails closed if a relaxation signal is set. Use
+`--tag js-sdk-v<version>` to also require that the tag resolves to the verified
+commit, and `npm run release:seal:test` for its unit tests.
 
 ## Request/Auth Bridge
 

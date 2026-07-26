@@ -36,8 +36,16 @@ jobs:
   # Derived artifacts regenerate on a schedule, not per merge (#746), so force
   # a refresh before the strict samples:verify below. Fast no-op when trunk's
   # tip is already a regeneration merge.
+  #
+  # Branch-recovery runs only (#768): a reseal always lands as a NEW commit on
+  # trunk, so it can never freshen the tree a tag already names. Waiting for one
+  # on a tag run would burn 10+ minutes and still leave a stale tag stale, so
+  # tag runs are gated by the strict release-seal check in the publish job
+  # instead -- and release-please.yml moves the tag onto the resealed commit
+  # before dispatching this workflow.
   ensure-fresh-evidence:
     name: Ensure derived artifacts are fresh
+    if: github.ref_type != 'tag'
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -83,6 +91,10 @@ jobs:
 
   publish-js-packages:
     needs: ensure-fresh-evidence
+    # ensure-fresh-evidence is deliberately skipped for tag runs (see above); a
+    # skipped dependency would otherwise skip this job too. A genuine failure
+    # there still blocks the publish.
+    if: ${{ !cancelled() && needs.ensure-fresh-evidence.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -144,6 +156,31 @@ jobs:
 
       - name: Security audit (npm dependencies)
         run: npm audit --omit=dev
+
+      # Release-tag sealing gate (#768). Proves this exact commit is what a
+      # downstream consumer can re-derive: every sample gate receipt is sealed
+      # to its tree and the derived sample artifacts stamp this release version.
+      # Runs before the long validation below so a stale tag fails in seconds
+      # with release-specific remediation instead of surfacing as a bare "gate
+      # receipt source digest mismatch" minutes later. Strict by construction:
+      # the derived-artifacts relax escape hatch is set nowhere in this
+      # workflow, and the gate refuses to run if it is set at all.
+      - name: Verify release seal
+        run: |
+          set -euo pipefail
+          seal_args=(check)
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            # fetch-depth: 0 normally brings the tag ref along, but a
+            # workflow_dispatch on a tag is not guaranteed to, and the gate
+            # asserts the tag resolves to the verified commit.
+            git fetch --no-tags --force origin \
+              "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+            seal_args+=(--tag "${GITHUB_REF_NAME}")
+          fi
+          if [[ -n "${RELEASE_VERSION}" ]]; then
+            seal_args+=(--expect-version "${RELEASE_VERSION}")
+          fi
+          node scripts/release-seal.mjs "${seal_args[@]}"
 
       - name: Validate package
         run: |
