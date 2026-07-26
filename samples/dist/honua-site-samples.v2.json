@@ -683,7 +683,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-08-24T14:57:52.958Z"
+          "expiresAt": "2026-08-25T20:47:36.447Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
@@ -802,7 +802,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-08-24T14:56:02.536Z"
+          "expiresAt": "2026-08-25T20:45:58.688Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
@@ -915,7 +915,7 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-08-24T14:58:15.041Z"
+          "expiresAt": "2026-08-25T20:47:54.208Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
@@ -1503,7 +1503,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-08-24T14:59:05.631Z"
+          "expiresAt": "2026-08-25T20:48:34.517Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
@@ -2185,30 +2185,116 @@
     }
   ],
   "sampleBundles": {
-    "format": "honua.sdk.sample-bundles.v1",
-    "schemaVersion": 1,
+    "format": "honua.sdk.sample-bundles.v2",
+    "schemaVersion": 2,
     "publication": {
       "repo": "honua-io/honua-sdk-js",
       "releaseTag": "sample-bundles-latest",
-      "manifestAsset": "sample-bundles.v1.json",
+      "manifestAsset": "sample-bundles.v2.json",
       "bundleAsset": "sample-bundles.tar.gz"
     },
     "sampleIds": [
+      "ai-spatial-app-builder",
+      "imagery-cog-quickstart",
       "maplibre-quickstart",
       "migration-workbench",
       "nl-map-control",
       "overture-geoparquet",
+      "planning-permitting-workbench",
       "pmtiles-static",
+      "react-quickstart",
+      "service-explorer",
       "sketch-editing",
       "stac-imagery-browser",
       "temporal-playback"
     ],
-    "excluded": [
+    "published": [
       {
         "id": "ai-spatial-app-builder",
-        "category": "agent-shaped",
-        "reason": "Agent-safety workbench flagship; its deterministic default needs no model/network/credential, but it has no map renderer and a complex approval-evidence UI better scoped in a follow-up."
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
       },
+      {
+        "id": "imagery-cog-quickstart",
+        "runnability": "requires-host-fixture-service",
+        "hostFixtureRoutes": [
+          "/api/v1/terrain/OahuTerrain/elevation/value",
+          "/fixtures/cog/",
+          "/fixtures/imagery/cog/",
+          "/rest/services/OahuCog/ImageServer",
+          "/rest/services/OahuImagery/MapServer/WMS",
+          "/rest/services/OahuTerrain/ImageServer",
+          "/stac/search"
+        ]
+      },
+      {
+        "id": "maplibre-quickstart",
+        "runnability": "requires-host-fixture-service",
+        "hostFixtureRoutes": [
+          "/__honua-quickstart__/basemap-style.json",
+          "/rest/services/natural-earth/FeatureServer/0"
+        ]
+      },
+      {
+        "id": "migration-workbench",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "nl-map-control",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "overture-geoparquet",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "planning-permitting-workbench",
+        "runnability": "requires-host-fixture-service",
+        "hostFixtureRoutes": [
+          "/rest/services/Maui/Planning/FeatureServer"
+        ]
+      },
+      {
+        "id": "pmtiles-static",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "react-quickstart",
+        "runnability": "requires-host-fixture-service",
+        "hostFixtureRoutes": [
+          "/api/v1/admin/capabilities",
+          "/rest/services/natural-earth/FeatureServer/0"
+        ]
+      },
+      {
+        "id": "service-explorer",
+        "runnability": "requires-host-fixture-service",
+        "hostFixtureRoutes": [
+          "/fixtures/geoservices",
+          "/fixtures/ogc"
+        ]
+      },
+      {
+        "id": "sketch-editing",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "stac-imagery-browser",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "temporal-playback",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      }
+    ],
+    "excluded": [
       {
         "id": "app-bootstrap-basic",
         "category": "lifecycle-not-active",
@@ -2217,12 +2303,12 @@
       {
         "id": "arcgis-source-app",
         "category": "non-runtime-sample",
-        "reason": "Migration-codemod end-to-end test input (a pre-migration ArcGIS app), not a Honua-runtime browser sample; no Vite config."
+        "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. Catalog supportTier is \"internal\", which may not gain a new public runnable surface. examples/arcgis-source-app has no vite.config.ts; it is the pre-migration ArcGIS input consumed by npm run test:migration:real-samples (catalog validationProfile internal-fixture)."
       },
       {
         "id": "automatic-source-workflow",
         "category": "non-runtime-sample",
-        "reason": "Documentation snippet under docs/examples/ (plain script/CDN pattern), not a Vite-built package."
+        "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. Catalog supportTier is \"internal\", which may not gain a new public runnable surface. docs/examples/automatic-source-workflow has no vite.config.ts; it is a documentation snippet (plain script/CDN pattern) exercised by a Playwright spec."
       },
       {
         "id": "cesium-route-playback",
@@ -2245,11 +2331,6 @@
         "reason": "Catalog lifecycle.state is \"merge\" (target 0.2.0-beta.0): Fold into the analysis journey while retaining this focused recipe. Replacement: journey \"cloud-native-analysis\"."
       },
       {
-        "id": "imagery-cog-quickstart",
-        "category": "requires-live-backend",
-        "reason": "Hybrid data mode with host-mediated auth and a configured-live COG leg — deferred pending a browser-public config review."
-      },
-      {
         "id": "kepler-analytics",
         "category": "lifecycle-not-active",
         "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Retain as a renderer recipe and align it with the columnar large-data journey."
@@ -2262,27 +2343,17 @@
       {
         "id": "node-backend-quickstart",
         "category": "non-browser-app",
-        "reason": "Server-side Node app; no Vite config, no browser renderer."
+        "reason": "Not a browser app: no Vite config and no browser renderer. examples/node-backend-quickstart has no vite.config.ts; the catalog declares renderers [none], validationProfile headless-recipe, and an entirely server-only config surface including API-key and service-account credentials."
       },
       {
         "id": "oauth-signin",
         "category": "requires-companion-server",
-        "reason": "Requires its own running mock OAuth identity provider (mock-server.mjs) at runtime; no map renderer; not a static-embeddable bundle."
-      },
-      {
-        "id": "planning-permitting-workbench",
-        "category": "audit-pending",
-        "reason": "Active, Vite-buildable, fixture-mode candidate with no declared config surface -- structurally similar to the already-included fixture samples. It was previously miscategorized in this file's \"every remaining catalog entry has a non-active lifecycle\" catch-all comment, which was inaccurate for this id; the REQ-001 audit (support tier, browser-secret policy, fixture determinism, runtime dependencies) has not actually been completed for it. Promotion is a follow-up decision, not resolved by this pass."
-      },
-      {
-        "id": "react-quickstart",
-        "category": "requires-api-key",
-        "reason": "Hybrid data mode with api-key auth; needs a backend credential a static gallery bundle cannot embed."
+        "reason": "The default flow needs its own running companion server process at runtime, not just a data origin. examples/oauth-signin/mock-server.mjs is a mock OAuth identity provider the sample redirects to and exchanges codes against at runtime (catalog data.authMode oauth); the flow needs a live participant process, not a static data origin."
       },
       {
         "id": "realtime-incident-dashboard",
-        "category": "replay-mode-undecided",
-        "reason": "Realtime flagship that prefers a deployed live stream before falling back to replay; a gallery-safe replay-only embedding mode is undecided — deferred."
+        "category": "requires-live-backend",
+        "reason": "The default build resolves to an off-bundle live endpoint, so a published bundle would be neither offline nor deterministic. examples/realtime-incident-dashboard/src/realtime-transport.ts readIncidentTransportConfig: without ?transport=fixture-edit or a declared incident base/stream override, the base resolves to DEFAULT_DEMO_BASE_URL https://demo.honua.io and the sample subscribes to /api/v1/streaming/features, so the default bundle prefers a deployed live stream. A gallery-safe replay-only default is a product decision, not a bundling change."
       },
       {
         "id": "runtime-parity-showcase",
@@ -2290,14 +2361,9 @@
         "reason": "Catalog lifecycle.state is \"replace\" (target 0.2.0-beta.0): Replace parity claims with renderer-specific execution and fidelity reports. Replacement: journey \"service-explorer\"."
       },
       {
-        "id": "service-explorer",
-        "category": "audit-pending",
-        "reason": "Active, Vite-buildable, hybrid-mode candidate whose sole declared config (HONUA_SERVICE_EXPLORER_LIVE_ENABLED) toggles a live producer path. It was previously miscategorized in this file's \"every remaining catalog entry has a non-active lifecycle\" catch-all comment, which was inaccurate for this id; the REQ-001 audit (confirming its default resolves to a fixture-safe, secret-free config) has not actually been completed for it. Promotion is a follow-up decision, not resolved by this pass."
-      },
-      {
         "id": "shared-renderer-state",
         "category": "non-runtime-sample",
-        "reason": "Documentation snippet under docs/examples/ (plain script/CDN pattern), not a Vite-built package."
+        "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. docs/examples/shared-renderer-state has no vite.config.ts; it is a documentation snippet exercised by test/playwright/shared-renderer-state.spec.mjs."
       },
       {
         "id": "spatial-analytics-workbench",
