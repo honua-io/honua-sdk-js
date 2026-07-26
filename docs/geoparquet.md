@@ -225,7 +225,17 @@ const summary = await places.queryAggregate({
   `Query.signal` is forwarded to the browser driver's `cancelSent()` path.
 - Browser deployments can set `loadSpatial: false` when a GeoParquet `bbox`
   covering is sufficient, and can pin `extensionRepository` plus
-  `preloadExtensions` to keep Parquet execution self-hosted.
+  `preloadExtensions` to keep Parquet execution self-hosted. A covering is
+  detected either from declared GeoParquet 1.1 `covering.bbox` paths or, for
+  files with no `geo` metadata, from a struct column named `bbox`. Both paths
+  require the exact member set (`xmin`/`ymin`/`xmax`/`ymax`, plus `zmin`/`zmax`
+  in 3D), one numeric type shared by every member, and the same repetition as
+  the geometry column — but **never a particular member order**, since the
+  compiled predicate addresses members by name. Overture Maps, for example,
+  declares a conforming covering over
+  `STRUCT(xmin DOUBLE, xmax DOUBLE, ymin DOUBLE, ymax DOUBLE)`. Without a
+  detected covering the compiler falls back to `ST_Intersects(...)`, which
+  requires the spatial extension.
 - Browser deployments reading large remote objects can set
   `filesystem: { reliableHeadRequests: true, allowFullHttpReads: false }` to
   require range-capable HTTP I/O and fail closed instead of allowing

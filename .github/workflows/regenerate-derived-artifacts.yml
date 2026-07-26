@@ -31,11 +31,13 @@ name: Regenerate derived artifacts
 
 # Cadence (#746 REQ-001): regeneration no longer runs after every trunk merge --
 # a 6-hour schedule and workflow_dispatch are the baseline triggers. Release-time
-# consumers (first-map-release-smoke, publish-js-sdk, and release-please's
-# resealed JS publish path) dispatch this workflow and wait for it before
-# strictly verifying evidence, so releases never observe the bounded staleness
-# window. The loop guard below makes a dispatch a fast no-op when trunk's tip
-# is already a regeneration merge.
+# consumers dispatch this workflow and wait for it before strictly verifying
+# evidence, so releases never observe the bounded staleness window: publish-js-sdk
+# does so for branch-recovery runs, and release-please's resealed JS publish path
+# does so for every release -- then moves the js-sdk-* tag onto the resealed
+# commit this workflow merged, because a reseal is always a NEW commit and can
+# never freshen a tree an existing tag already names (#768). The loop guard below
+# makes a dispatch a fast no-op when trunk's tip is already a regeneration merge.
 #
 # Digest-narrowed push trigger (#746 REQ-003): the `paths:` filter below
 # mirrors EVIDENCE_NEUTRAL_INCLUDED_ROOTS / EVIDENCE_NEUTRAL_EXCLUDED_ROOTS in

@@ -234,6 +234,13 @@ jobs:
           npm run samples:runner:test
           npm run samples:run -- list --kit --json
 
+      # Unit tests for the release-tag sealing gate (#768). Only the tests run
+      # here; `release:seal:check` itself is a release-time gate (publish-js-sdk,
+      # first-map-release-smoke) and would legitimately fail on any branch that
+      # changed source without a reseal.
+      - name: Validate release-seal policy
+        run: npm run release:seal:test
+
       - name: Code style
         run: npm run check
 
@@ -503,7 +510,7 @@ jobs:
       - name: Package release assets
         run: |
           set -euo pipefail
-          sample_dirs=$(node -e "const m=require('./.artifacts/sample-bundles/sample-bundles.v1.json'); console.log(m.samples.map((s) => s.id).join(' '))")
+          sample_dirs=$(node -e "const m=require('./.artifacts/sample-bundles/sample-bundles.v2.json'); console.log(m.samples.map((s) => s.id).join(' '))")
           tar -czf .artifacts/sample-bundles/sample-bundles.tar.gz -C .artifacts/sample-bundles $sample_dirs
 
       - name: Publish rolling GitHub Release
@@ -521,6 +528,15 @@ jobs:
               --title "Sample bundles (latest trunk build)" --notes "$notes"
           fi
           gh release upload sample-bundles-latest -R "$repo" \
-            .artifacts/sample-bundles/sample-bundles.v1.json \
+            .artifacts/sample-bundles/sample-bundles.v2.json \
             .artifacts/sample-bundles/sample-bundles.tar.gz \
             --clobber
+          # Retire the v1 manifest asset (honua-io/honua-sdk-js#656). The
+          # tarball is rolling and is now built from the v2 sample set, so a
+          # left-behind v1 manifest would pair stale per-file hashes with fresh
+          # bundle bytes and fail every integrity check it exists to support.
+          # Deleting it makes the retirement an honest 404 instead of a silent
+          # mismatch. Best-effort: the asset is already gone after the first
+          # post-cutover run.
+          gh release delete-asset sample-bundles-latest sample-bundles.v1.json \
+            -R "$repo" --yes || true

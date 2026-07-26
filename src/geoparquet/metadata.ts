@@ -204,29 +204,53 @@ function geoParquetRepetitionMatches(geometry: DescribeRow, bbox: DescribeRow): 
   return geometryRepetition !== undefined && bboxRepetition === geometryRepetition;
 }
 
+/**
+ * Physical shape check for a *declared* GeoParquet 1.1 `covering.bbox` column.
+ * The covering maps each of `xmin`/`ymin`/`xmax`/`ymax` (plus `zmin`/`zmax` in
+ * 3D) to a column path, so the spec constrains the referenced members' names
+ * and numeric type but never their physical order inside the struct — Overture
+ * Maps declares a conforming covering over
+ * `STRUCT(xmin DOUBLE, xmax DOUBLE, ymin DOUBLE, ymax DOUBLE)`. Require exactly
+ * the expected member set, each present once, every member the same
+ * `FLOAT`/`DOUBLE` type (#767).
+ */
 function isGeoParquetBboxStruct(columnType: string): boolean {
   const members = bboxStructMembers(columnType);
   if (!members) return false;
-  const expectedNames =
+  const required =
     members.length === 4
-      ? ["xmin", "ymin", "xmax", "ymax"]
+      ? new Set(["xmin", "ymin", "xmax", "ymax"])
       : members.length === 6
-        ? ["xmin", "ymin", "zmin", "xmax", "ymax", "zmax"]
+        ? new Set(["xmin", "ymin", "zmin", "xmax", "ymax", "zmax"])
         : undefined;
-  if (!expectedNames) return false;
+  if (!required) return false;
   let memberType: "FLOAT" | "DOUBLE" | undefined;
-  return members.every(({ name, type }, index) => {
-    if (name !== expectedNames[index] || (type !== "FLOAT" && type !== "DOUBLE")) return false;
+  for (const { name, type } of members) {
+    if (!required.delete(name) || (type !== "FLOAT" && type !== "DOUBLE")) return false;
     memberType ??= type;
-    return memberType === type;
-  });
+    if (memberType !== type) return false;
+  }
+  return required.size === 0;
 }
 
+/**
+ * Runtime named-bbox fast path shape check (no declared GeoParquet 1.1
+ * covering). Member *order* is deliberately not constrained: the compiled
+ * predicate addresses `bbox.xmin` … `bbox.ymax` by name, so ordering carries no
+ * meaning, and real-world writers do not follow the covering order — Overture
+ * Maps ships `STRUCT(xmin FLOAT, xmax FLOAT, ymin FLOAT, ymax FLOAT)`. Unlike
+ * {@link isGeoParquetBboxStruct}, which validates a covering the file itself
+ * declared, this path has no declaration to trust, so every member must still
+ * be a distinct expected name with an exact numeric runtime type.
+ */
 function isRuntimeBboxStruct(columnType: string): boolean {
   const members = bboxStructMembers(columnType);
   if (!members || members.length !== 4) return false;
-  const expectedNames = ["xmin", "ymin", "xmax", "ymax"];
-  return members.every(({ name, type }, index) => name === expectedNames[index] && isRuntimeNumericType(type));
+  const required = new Set(["xmin", "ymin", "xmax", "ymax"]);
+  for (const { name, type } of members) {
+    if (!required.delete(name) || !isRuntimeNumericType(type)) return false;
+  }
+  return required.size === 0;
 }
 
 function bboxStructMembers(columnType: string): Array<{ readonly name: string; readonly type: string }> | undefined {

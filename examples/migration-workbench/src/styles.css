@@ -19,71 +19,8 @@
   scroll-margin-top: var(--hn-space-5);
 }
 
-/* -- Sample diagnostics strip (shared presentation kit, retinted) ---------- */
-.honua-sample-kit {
-  align-items: center;
-  background: var(--hn-surface);
-  border-bottom: 1px solid var(--hn-line-strong);
-  color: var(--hn-ink-secondary);
-  font-family: var(--hn-font-mono);
-  font-size: var(--hn-text-xs);
-  padding: var(--hn-space-2) var(--hn-space-4);
-}
-
-.honua-sample-kit__mode {
-  background: transparent;
-  border: 1px solid currentcolor;
-  border-radius: var(--hn-radius-sm);
-  color: var(--hn-accent);
-  font: 600 var(--hn-text-register) / 1 var(--hn-font-mono);
-  letter-spacing: var(--hn-tracking-register);
-  padding: 3px var(--hn-space-2);
-  text-transform: uppercase;
-}
-
-.honua-sample-kit details {
-  min-width: 0;
-}
-
-.honua-sample-kit summary {
-  color: var(--hn-link);
-  cursor: pointer;
-}
-
-.honua-sample-kit details dd {
-  overflow-wrap: anywhere;
-}
-
-.honua-sample-kit [role="status"] {
-  color: var(--hn-warn-text);
-}
-
-.honua-sample-kit [role="alert"] {
-  color: var(--hn-critical-text);
-}
-
-.honua-sample-kit button {
-  background: var(--hn-surface);
-  border: 1px solid var(--hn-border-control);
-  border-radius: var(--hn-radius);
-  color: var(--hn-ink);
-  cursor: pointer;
-  font: 600 var(--hn-text-xs) / 1 var(--hn-font-ui);
-  margin-left: auto;
-  min-height: 1.75rem;
-  padding: 0 var(--hn-space-3);
-  transition: border-color var(--hn-motion-fast) var(--hn-ease), background-color var(--hn-motion-fast) var(--hn-ease);
-}
-
-.honua-sample-kit button:hover:not(:disabled) {
-  background: var(--hn-accent-wash);
-  border-color: var(--hn-accent);
-}
-
-.honua-sample-kit button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
+/* The shared sample-kit diagnostics strip is styled once by the kit itself
+ * (examples/_kit/presentation.css) from these same tokens. */
 
 /* -- Masthead: headline plus the floating docket title block ---------------- */
 .masthead {
