@@ -2764,6 +2764,15 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
 // enforces. Callers must rerun migrate-v1 (to project the refreshed overlay
 // into samples/catalog.v2.json) and write (to regenerate the dist
 // projections) after calling this.
+//
+// This applies to non-executed ("skipped") lanes too, and they are the harder
+// case: nothing reseals a skip attestation, so its observedAt never moves and
+// a literal hand-set tighter than the policy window (the incident dashboard's
+// was 14 days against a 90-day non-executed policy) lapses long before the
+// observation it describes has to. Refreshing those lanes on the regeneration
+// cadence keeps the catalog claim equal to what the policy actually allows for
+// the observation on file; when even that has run out, this refuses rather
+// than writing an already-lapsed literal (honua-io/honua-sdk-js#810).
 export async function refreshOverlayLiveExpiry(migration, sampleIds, options = {}) {
   const ids = Array.isArray(sampleIds) ? sampleIds : [sampleIds];
   invariant(ids.length > 0, "refresh-live-expiry requires at least one sample id");
@@ -2796,6 +2805,25 @@ export async function refreshOverlayLiveExpiry(migration, sampleIds, options = {
     invariant(observedAtMs <= nowMs, `${sampleId}: live evidence observedAt is in the future`);
     const maxDays = live.status === "executed" ? evidenceExpiry.executedMaxDays : evidenceExpiry.nonExecutedMaxDays;
     const expiresAt = new Date(observedAtMs + maxDays * 24 * 60 * 60 * 1000).toISOString();
+    // A lane whose own observation is already older than its full policy
+    // window cannot be healed by recomputing this literal: the furthest expiry
+    // that can honestly be derived from that observation is itself in the past.
+    // Writing it anyway would leave the very next migrate-v1 (and every
+    // unrelated `samples:verify` after it) failing with an opaque
+    // "<id>: live evidence expired at <literal>" that points at the catalog
+    // projection rather than at the attestation that actually needs
+    // re-observing -- which is exactly how a lapsed skip attestation wedged
+    // the regeneration workflow that exists to prevent the lapse
+    // (honua-io/honua-sdk-js#810). Refusing here keeps the refresh path
+    // honest: it renews a claim about a real observation, it never extends a
+    // lane past what its observation can support.
+    invariant(
+      Date.parse(expiresAt) > nowMs,
+      `${sampleId}: live lane observation ${evidence.observedAt} is older than its ${maxDays}-day ` +
+        `"${live.status}" policy window, so the furthest honest expiry (${expiresAt}) has already lapsed; ` +
+        "re-run this lane's evidence producer to re-observe it -- refreshing the catalog expiry literal " +
+        "cannot renew a lapsed observation",
+    );
     const previousExpiresAt = live.expiresAt;
     live.expiresAt = expiresAt;
     refreshed.push({ sampleId, observedAt: evidence.observedAt, previousExpiresAt, expiresAt });

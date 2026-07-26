@@ -21,13 +21,34 @@ name: Regenerate derived artifacts
 # exact head, approves only that head's native ruleset checks, and auto-merges
 # them with a merge commit so evidence revisions remain reachable.
 #
-# The read-only job's commit chain can carry up to three commits, not two:
-# (1) regenerated non-evidence inputs, (2) the golden samples' catalog
+# The read-only job's commit chain can carry up to four commits, not two:
+# (1) regenerated non-evidence inputs, (2) the NON-EXECUTED (skip-attestation)
+# lanes' catalog live-evidence expiry refresh, (3) the golden samples' catalog
 # live-evidence expiry refresh (honua-io/honua-sdk-js#788 -- projected from
 # samples/contract/v2/migrations/catalog.v1-to-v2.json into
 # samples/catalog.v2.json, both themselves inside the evidence-neutral
 # digest, so it must land as its own commit *before* the real reseal that
-# binds evidence to it), and (3) the resealed evidence + regenerated dist.
+# binds evidence to it), and (4) the resealed evidence + regenerated dist.
+#
+# Release-matrix browser evidence (honua-io/honua-sdk-js#766) deliberately adds
+# NO fifth commit: a sealed receipt rides (4) from the
+# samples/evidence/<sample> paths that commit already stages, and its
+# establishment record (samples/contract/v2/release-matrix-lanes.v1.json, inside
+# the evidence-neutral digest) rides (3), which is already the commit for
+# digest-inside catalog refreshes that must precede pass two.
+#
+# (2) exists separately from (3), and lands *before* the first reseal pass,
+# because of an ordering deadlock (honua-io/honua-sdk-js#810): every reseal
+# pass validates the whole catalog through readInputs, and the catalog-level
+# wall-clock expiry check is deliberately NOT relaxed by
+# HONUA_DERIVED_ARTIFACTS_RELAX, so ONE lapsed skip-attestation expiry -- for
+# a sample no reseal pass even targets -- failed pass one and took the entire
+# regeneration job down with it, leaving the automation unable to heal the
+# lapse it exists to prevent. Unlike an executed golden lane, a skip lane's
+# observedAt is not renewed by resealing, so nothing about its expiry needs a
+# reseal to have happened first: refreshing it up front is equivalent to
+# refreshing it later, and it is the only ordering under which a lapsed skip
+# expiry cannot wedge the passes that follow.
 
 # Cadence (#746 REQ-001): regeneration no longer runs after every trunk merge --
 # a 6-hour schedule and workflow_dispatch are the baseline triggers. Release-time
@@ -141,9 +162,10 @@ jobs:
           persist-credentials: false
 
       # Loop guard: a historical direct regeneration commit, or a clean merge
-      # of this workflow's own one-, two-, or three-commit PR chain (source
-      # regen; the catalog live-expiry refresh, when it produced a change;
-      # resealed evidence + dist), needs no further work. If trunk advanced
+      # of this workflow's own one- to four-commit PR chain (source regen; the
+      # skip-attestation catalog live-expiry refresh and the golden-lane one,
+      # each when it produced a change; resealed evidence + dist), needs no
+      # further work. If trunk advanced
       # after that chain was cut, the merge commit's
       # first parent differs from the chain base and regeneration runs again
       # against the combined tree instead of accepting stale evidence.
@@ -176,7 +198,7 @@ jobs:
               commit_count=$((commit_count + 1))
             done
             first_parent="$(git rev-parse HEAD^1)"
-            if (( commit_count >= 1 && commit_count <= 3 )) && [[ "$chain_base" == "$first_parent" ]]; then
+            if (( commit_count >= 1 && commit_count <= 4 )) && [[ "$chain_base" == "$first_parent" ]]; then
               echo "Tip cleanly merges the current regeneration chain; nothing to regenerate."
               echo "skip=true" >> "$GITHUB_OUTPUT"
               exit 0
@@ -279,13 +301,84 @@ jobs:
           echo "changed=true" >> "$GITHUB_OUTPUT"
           git commit -m "$REGEN_MARKER for $(git rev-parse --short HEAD)"
 
-      # Install the sealed release-matrix receipt (#766) AFTER the generated-input
-      # commit above, whose guard rejects unexpected untracked content, and
+      # Refresh the NON-EXECUTED (skip-attestation) live lanes first, before any
+      # reseal pass runs (honua-io/honua-sdk-js#810).
+      #
+      # Every reseal pass below validates the whole catalog, and the
+      # catalog-level wall-clock expiry check is deliberately not relaxed by
+      # HONUA_DERIVED_ARTIFACTS_RELAX, so a single lapsed live.expiresAt fails
+      # pass one no matter which sample it belongs to -- which is how one
+      # lapsed skip attestation wedged this entire job and left trunk red with
+      # no automated way out (#810). The golden-lane refresh further below
+      # cannot cover these lanes: it has to run *after* a reseal pass, because
+      # that pass is what produces the fresh observedAt it refreshes from.
+      #
+      # A skip attestation has no such dependency. Nothing reseals it, so its
+      # observedAt is fixed and refreshing its projected expiry is a pure
+      # function of an evidence file already on disk -- identical whether it
+      # runs before or after a reseal. Running it here is therefore free of
+      # ordering cost and is the only placement under which a lapsed skip
+      # expiry cannot wedge the passes that follow.
+      #
+      # Keep this list equal to the set of overlay live lanes whose status is
+      # "skipped" (test/sample-contract.test.ts pins that equality, so a new
+      # skip-attested sample cannot silently reintroduce the lapse). These
+      # samples are not golden and hold no receipts, so refreshing them needs
+      # no bootstrap exemption. If a skip attestation has aged past its full
+      # non-executed policy window, refresh-live-expiry refuses rather than
+      # writing an already-lapsed literal, and fails here naming the sample
+      # and the producer to re-run -- the honest outcome, since only a real
+      # re-observation can renew an observation that old.
+      - name: Refresh catalog live-evidence expiry for skip-attested lanes
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          npm run samples:refresh-live-expiry -- --sample ai-spatial-app-builder,realtime-incident-dashboard,spatial-analytics-workbench
+          npm run samples:migrate:v1
+          npm run samples:write-ci-selection
+
+      # Commit it before pass one for the same reason the golden-lane refresh
+      # is committed before pass two: the catalog and the overlay are inside
+      # the evidence-neutral digest, and every reseal pass requires a clean
+      # checkout of those roots, so an uncommitted refresh would fail the pass
+      # it is supposed to unblock.
+      - name: Stage and commit refreshed skip-attestation catalog locally
+        if: steps.guard.outputs.skip == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A -- \
+            samples/catalog.v2.json \
+            samples/contract/v2/migrations/catalog.v1-to-v2.json
+          git add -f -A -- samples/dist/sample-ci-selection.v2.json
+          if ! git diff --quiet; then
+            echo "Skip-attestation live-expiry refresh modified unexpected tracked content:"
+            git status --short
+            exit 1
+          fi
+          unexpected_untracked="$(git ls-files --others --exclude-standard)"
+          if [[ -n "$unexpected_untracked" ]]; then
+            echo "Skip-attestation live-expiry refresh created unexpected untracked content:"
+            printf '%s\n' "$unexpected_untracked"
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "No skip-attestation live-expiry refresh to commit."
+          else
+            git commit -m "$REGEN_MARKER (skip-attestation-expiry) for $(git rev-parse --short HEAD)"
+          fi
+
+      # Install the sealed release-matrix receipt (#766) AFTER the two commits
+      # above -- both of their guards reject unexpected untracked content with no
+      # samples/evidence exemption, and a first-ever receipt is untracked -- and
       # BEFORE the reseal passes below, so the reseal validates the tree that
       # actually carries it and the existing evidence commit picks it up from the
       # samples/evidence/maplibre-quickstart path it already stages. The receipt
       # is verified against the dispatching run before it is trusted: right
       # artifact, right sample, right lane, right run identity.
+      #
+      # This adds no commit to the chain: the receipt rides the existing resealed-
+      # evidence commit and its establishment record rides the existing
+      # golden-lane catalog commit, so the chain ceiling below stays at four.
       - name: Install the sealed release-matrix receipt
         if: steps.guard.outputs.skip == 'false' && inputs.release_matrix_receipt_run_id != ''
         shell: bash
@@ -336,7 +429,8 @@ jobs:
       # with a new observedAt but leaves that catalog-level literal frozen,
       # so it eventually lapses out from under evidence that stays otherwise
       # fresh (honua-io/honua-sdk-js#788, the same class of bug that lapsed
-      # the spatial-analytics skip-attestation). refresh-live-expiry (further
+      # the spatial-analytics and then the incident-dashboard
+      # skip-attestation). refresh-live-expiry (further
       # below) recomputes that literal from a live lane's fresh observedAt,
       # but samples/catalog.v2.json and this overlay are themselves inside
       # the evidence-neutral digest (samples/ minus only samples/evidence,
@@ -370,7 +464,12 @@ jobs:
           npm run samples:run -- evidence --sample migration-workbench --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart,service-explorer --allow-live
           npm run samples:run -- evidence --sample service-explorer --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart,migration-workbench --allow-live
 
-      - name: Refresh catalog live-evidence expiry
+      # Only the four executed golden lanes belong here -- these are the ones
+      # whose observedAt pass one just renewed. The skip-attested lanes were
+      # already refreshed and committed before pass one, because their
+      # observedAt does not move and refreshing them late is what allowed a
+      # lapse to wedge pass one (#810).
+      - name: Refresh catalog live-evidence expiry for resealed golden lanes
         if: steps.guard.outputs.skip == 'false'
         run: |
           npm run samples:refresh-live-expiry -- --sample imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
@@ -550,8 +649,8 @@ jobs:
           generated="$(git rev-parse refs/remotes/artifacts/generated)"
           git merge-base --is-ancestor "$GITHUB_SHA" "$generated"
           commit_count="$(git rev-list --count "$GITHUB_SHA..$generated")"
-          if (( commit_count < 1 || commit_count > 3 )); then
-            echo "Expected one to three regeneration commits, found $commit_count."
+          if (( commit_count < 1 || commit_count > 4 )); then
+            echo "Expected one to four regeneration commits, found $commit_count."
             exit 1
           fi
           while IFS= read -r subject; do
