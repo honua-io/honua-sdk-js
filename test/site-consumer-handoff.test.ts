@@ -672,10 +672,19 @@ describe("honua-site consumer handoff", () => {
     { timeout: 90_000 },
     async () => {
       const inputs = await canonicalInputs();
+      // The schema-integrity assertions below publish the handoff, so they must
+      // run against the same authority set the committed artifacts are bound to.
+      // Under the derived-artifact decoupling a branch that adds a package
+      // entrypoint regenerates a projection whose capabilityMatrix digest
+      // legitimately differs from the committed one, and that artifact drift
+      // would fire before the schema binding under test. The sibling tests in
+      // this file use the same helper for the same reason; a strict run returns
+      // the generated handoff unchanged, so trunk behaviour is identical.
+      const publishable = await checkoutBoundHandoff(inputs.handoff);
 
       // Every published reference content-addresses its governing schema, including
       // the handoff's own schema, which only the v3 fixture can reference.
-      const references = [...Object.values(inputs.handoff.inputs), inputs.fixture.input];
+      const references = [...Object.values(publishable.inputs), inputs.fixture.input];
       expect(references).toHaveLength(4);
       for (const reference of references) {
         const bytes = await readFile(reference.schemaPath, "utf8");
@@ -683,7 +692,7 @@ describe("honua-site consumer handoff", () => {
         expect(reference.schemaSha256).toBe(sha256(bytes));
       }
 
-      const upstream = inputs.handoff.inputs.visualEvidence;
+      const upstream = publishable.inputs.visualEvidence;
       const upstreamOriginal = await readFile(upstream.schemaPath, "utf8");
       try {
         // Whitespace only: same file, same $id, same format, same schemaVersion, and
@@ -695,7 +704,7 @@ describe("honua-site consumer handoff", () => {
         expect(reformatted.$id).toBe(JSON.parse(upstreamOriginal).$id);
         expect(reformatted.properties.schemaVersion.const).toBe(upstream.schemaVersion);
         expect(reformatted.properties.format.const).toBe(upstream.format);
-        await expect(validateSiteConsumerHandoff(inputs.handoff)).rejects.toThrow(
+        await expect(validateSiteConsumerHandoff(publishable)).rejects.toThrow(
           "visualEvidence schema definition changed without a version bump",
         );
 
@@ -703,7 +712,7 @@ describe("honua-site consumer handoff", () => {
         const weakened = JSON.parse(upstreamOriginal);
         weakened.$defs.qualifiedJourney.properties.screenshots.minItems = 1;
         await writeFile(upstream.schemaPath, `${JSON.stringify(weakened, null, 2)}\n`, "utf8");
-        await expect(validateSiteConsumerHandoff(inputs.handoff)).rejects.toThrow(
+        await expect(validateSiteConsumerHandoff(publishable)).rejects.toThrow(
           "visualEvidence schema definition changed without a version bump",
         );
       } finally {
@@ -724,7 +733,7 @@ describe("honua-site consumer handoff", () => {
       // A handoff published before this binding existed carries no digest. The first
       // test in this file covers the pending-under-relax side by validating the
       // committed artifact; a strict run must never accept it as verified.
-      const pending = structuredClone(inputs.handoff);
+      const pending = structuredClone(publishable);
       for (const reference of Object.values(pending.inputs)) {
         delete reference.schemaBytes;
         delete reference.schemaSha256;
@@ -738,7 +747,8 @@ describe("honua-site consumer handoff", () => {
         else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = previousRelax;
       }
 
-      await expect(validateSiteConsumerHandoff(inputs.handoff)).resolves.toBeUndefined();
+      // Restored schemas publish cleanly again.
+      await expect(validateSiteConsumerHandoff(publishable)).resolves.toBeUndefined();
       await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
       await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
     },
