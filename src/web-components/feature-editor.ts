@@ -86,6 +86,13 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
   #connected = false;
   #geometryDraft: string | undefined;
   #geometryError: string | undefined;
+  /**
+   * The shadow-root keydown listener. Held as a stored reference because it is
+   * bound to the shadow root itself, which survives every `innerHTML`
+   * re-render — re-adding it per render would stack one handler per render and
+   * fire the shortcut N times per keystroke.
+   */
+  #keydownListener: ((event: Event) => void) | undefined;
 
   /** The workflow this editor renders. Setting it re-subscribes and re-renders. */
   public get workflow(): HonuaFeatureEditorWorkflow<T> | undefined {
@@ -151,6 +158,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     this.#connected = true;
     if (!this.shadowRoot && typeof this.attachShadow === "function") this.attachShadow({ mode: "open" });
     this.#subscribe();
+    this.#armKeyboard();
     this.render();
   }
 
@@ -158,6 +166,46 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     this.#connected = false;
     this.#subscription?.remove();
     this.#subscription = undefined;
+    this.#releaseKeyboard();
+  }
+
+  /**
+   * Attaches the panel-wide keyboard shortcuts once per connection.
+   *
+   * Deliberately not part of `#bind()`: `#bind()` runs on every render and
+   * re-attaches listeners to freshly created children (which the `innerHTML`
+   * swap discarded), but the shadow root persists, so a listener added there
+   * per render would accumulate. The handler reads `this.#workflow` at event
+   * time rather than closing over it, so replacing the workflow never leaves a
+   * shortcut driving the previous one.
+   */
+  #armKeyboard(): void {
+    const root = this.shadowRoot;
+    if (!root || this.#keydownListener) return;
+    const listener = (event: Event): void => {
+      const workflow = this.#workflow;
+      if (!workflow) return;
+      const keyboard = event as KeyboardEvent;
+      if (keyboard.key === "Escape") {
+        workflow.cancel();
+        return;
+      }
+      if ((keyboard.ctrlKey || keyboard.metaKey) && keyboard.key.toLowerCase() === "z") {
+        keyboard.preventDefault();
+        if (keyboard.shiftKey) workflow.redo();
+        else workflow.undo();
+      }
+    };
+    root.addEventListener("keydown", listener);
+    this.#keydownListener = listener;
+  }
+
+  /** Releases the shadow-root keyboard listener. Re-armed by `connectedCallback`. */
+  #releaseKeyboard(): void {
+    const listener = this.#keydownListener;
+    if (!listener) return;
+    this.shadowRoot?.removeEventListener("keydown", listener);
+    this.#keydownListener = undefined;
   }
 
   // ── rendering ──────────────────────────────────────────────────────────
@@ -469,18 +517,8 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
       this.#geometryDraft = geometry.value;
     });
 
-    root.addEventListener("keydown", (event) => {
-      const keyboard = event as KeyboardEvent;
-      if (keyboard.key === "Escape") {
-        workflow.cancel();
-        return;
-      }
-      if ((keyboard.ctrlKey || keyboard.metaKey) && keyboard.key.toLowerCase() === "z") {
-        keyboard.preventDefault();
-        if (keyboard.shiftKey) workflow.redo();
-        else workflow.undo();
-      }
-    });
+    // No shadow-root-level listener here: those survive the `innerHTML` swap
+    // and would stack per render. See `#armKeyboard()`.
   }
 
   #dispatchOperation(operation: HonuaEditorOperation): void {
