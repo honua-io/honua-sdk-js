@@ -253,14 +253,21 @@
     },
     "artifactInput": {
       "type": "object",
+      "comment": "schemaBytes/schemaSha256 content-address the governing schema itself so a schema edited in place while keeping its $id and schemaVersion fails publication. They are optional only so a handoff published before this binding existed still validates; strict validation requires them and the derived-artifact regeneration emits them.",
       "required": ["path", "schemaPath", "format", "schemaVersion", "bytes", "sha256"],
+      "dependentRequired": {
+        "schemaBytes": ["schemaSha256"],
+        "schemaSha256": ["schemaBytes"]
+      },
       "properties": {
         "path": { "$ref": "#/$defs/nonEmptyString" },
         "schemaPath": { "$ref": "#/$defs/nonEmptyString" },
         "format": { "$ref": "#/$defs/nonEmptyString" },
         "schemaVersion": { "type": "integer", "minimum": 1 },
         "bytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
-        "sha256": { "$ref": "#/$defs/sha256" }
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "schemaBytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
+        "schemaSha256": { "$ref": "#/$defs/sha256" }
       },
       "additionalProperties": false
     },
