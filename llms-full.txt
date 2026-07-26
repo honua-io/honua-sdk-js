@@ -90,7 +90,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.2-beta.0`). The 22-entrypoint stable tier is frozen and guarded <!-- x-release-please-version -->
-by an API-surface gate; 14 experimental subpaths may change before 1.0, and
+by an API-surface gate; 16 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -624,7 +624,7 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 14 experimental,
+It projects 22 supported (documented below as stable), 16 experimental,
 and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
@@ -685,6 +685,8 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/pmtiles-protocol-plugin.js` | The first-party PMTiles `ProtocolModule` packaged as a certifiable `HonuaPluginFactory<"protocol">` — the manifest-advertised plugin entrypoint, resolvable as a package export. |
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
 | `@honua/sdk-js/kepler` | Optional [Kepler.gl workspace bridge](./docs/kepler-workspace-bridge.md): explicit ingestion mappings that avoid a GeoJSON round trip for tabular/point/columnar results, preserved provenance and CRS decisions, a declared linked-state channel table, bounded delta reconciliation, and credential redaction on export. |
+| `@honua/sdk-js/analytics` | Versioned linked-analytics and chart presentation contract: accepted category/histogram/aggregate/time-series artifacts with units, null policy, ordering, and pushdown provenance; deterministic mark/brush sync with shared exploration state; and a small accessible default presentation ([guide](./docs/linked-analytics.md)). Carries no chart adapters, so unused chart peers cost nothing. |
+| `@honua/sdk-js/analytics/uplot` | Reference third-party chart adapter over the optional [µPlot](https://github.com/leeoniya/uPlot) peer, loaded only through a dynamic import at mount time. Proves the analytics contract against a real library ([guide](./docs/linked-analytics.md)). |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
 | `@honua/sdk-js/diagnostics` | Dependency-free diagnostic-bundle validation, sanitization, integrity pinning, and bounded read-only replay used by `honua doctor`. |
 | `@honua/sdk-js/nl-map-control` | Natural-language map control ([safety model + walkthrough](./docs/nl-map-control.md)): compiles NL instructions into serializable, inspectable plans (query-planner IR + agent-tool invocations) via a caller-provided LLM callback; execution accepts plans only, gates mutations behind agent-safety envelopes, and emits receipts. |
@@ -8390,7 +8392,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-26 at commit `5485f836`._
+_Generated 2026-07-26 at commit `854fca18`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -8421,6 +8423,8 @@ _Generated 2026-07-26 at commit `5485f836`._
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 63.2 KiB | 68.3 KiB | 16.8 KiB | 18.3 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 49.0 KiB | 53.9 KiB | 14.9 KiB | 16.4 KiB |
+| `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 33.1 KiB | 35.2 KiB | 10.8 KiB | 11.6 KiB |
+| `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 9.3 KiB | 10.3 KiB | 3.8 KiB | 4.2 KiB |
 | `/react` (react/react-dom external) | 463.2 KiB | 506.7 KiB | 123.0 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 616.1 KiB | 661.8 KiB | 163.5 KiB | 176.3 KiB |
@@ -8435,6 +8439,7 @@ _Generated 2026-07-26 at commit `5485f836`._
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 42.4 KiB | 44.7 KiB | 13.0 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
+| tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 24.9 KiB | 26.3 KiB | 8.6 KiB | 9.2 KiB |
 
 ---
 

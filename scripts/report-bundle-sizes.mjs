@@ -158,6 +158,20 @@ const TARGETS = [
     forbiddenInputs: ["node_modules/@kepler.gl/", "node_modules/react/", "node_modules/react-dom/", "node_modules/redux/"],
   },
   {
+    key: "/analytics",
+    kind: "bundle",
+    entry: "dist/src/analytics/index.js",
+    label: "`/analytics` (contract + accessible default presentation; no chart adapter, no chart peer)",
+    forbiddenInputs: ["dist/src/analytics/adapters/", "node_modules/uplot/"],
+  },
+  {
+    key: "/analytics/uplot",
+    kind: "bundle",
+    entry: "dist/src/analytics/adapters/uplot.js",
+    label: "`/analytics/uplot` (µPlot external — dynamically imported optional peer)",
+    forbiddenInputs: ["node_modules/uplot/"],
+  },
+  {
     key: "/react",
     kind: "bundle",
     entry: "dist/src/react/index.js",
@@ -255,6 +269,13 @@ const TARGETS = [
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-runtime-terra-draw-sketch.mjs",
     label: "tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external)",
+  },
+  {
+    key: "tree-shake:analytics-core",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-analytics-core.mjs",
+    label: "tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded)",
+    forbiddenInputs: ["dist/src/analytics/adapters/", "node_modules/uplot/"],
   },
 ];
 

@@ -120,6 +120,14 @@
       "types": "./dist/src/kepler/index.d.ts",
       "default": "./dist/src/kepler/index.js"
     },
+    "./analytics": {
+      "types": "./dist/src/analytics/index.d.ts",
+      "default": "./dist/src/analytics/index.js"
+    },
+    "./analytics/uplot": {
+      "types": "./dist/src/analytics/adapters/uplot.d.ts",
+      "default": "./dist/src/analytics/adapters/uplot.js"
+    },
     "./control-plane": {
       "types": "./dist/src/_deprecated/control-plane.d.ts",
       "default": "./dist/src/_deprecated/control-plane.js"
@@ -651,6 +659,7 @@
     "terra-draw": "^1.32.0",
     "terra-draw-maplibre-gl-adapter": "^1.4.1",
     "typescript": "^5.9.2",
+    "uplot": "^1.6.32",
     "vite": "^8.0.16",
     "vitest": "^4.0.16"
   },
@@ -688,7 +697,6 @@
     "@deck.gl/layers": "^9.0.0",
     "@duckdb/duckdb-wasm": "^1.29.0",
     "@kepler.gl/actions": "^3.0.0",
-    "apache-arrow": "^17.0.0",
     "@turf/area": "^7.0.0",
     "@turf/bbox": "^7.0.0",
     "@turf/boolean-contains": "^7.0.0",
@@ -704,6 +712,7 @@
     "@turf/nearest-point": "^7.0.0",
     "@turf/simplify": "^7.0.0",
     "@turf/union": "^7.0.0",
+    "apache-arrow": "^17.0.0",
     "cesium": "^1.139.0",
     "maplibre-gl": "^5.0.0",
     "pmtiles": "^4.0.0",
@@ -712,7 +721,8 @@
     "react-dom": "^18.2.0 || ^19.0.0",
     "terra-draw": "^1.32.0",
     "terra-draw-maplibre-gl-adapter": "^1.4.1",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "uplot": "^1.6.32"
   },
   "peerDependenciesMeta": {
     "@bufbuild/protobuf": {
@@ -806,6 +816,9 @@
       "optional": true
     },
     "typescript": {
+      "optional": true
+    },
+    "uplot": {
       "optional": true
     }
   },

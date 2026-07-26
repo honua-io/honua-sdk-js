@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-26 at commit `5485f836`._
+_Generated 2026-07-26 at commit `854fca18`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -39,6 +39,8 @@ _Generated 2026-07-26 at commit `5485f836`._
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 63.2 KiB | 68.3 KiB | 16.8 KiB | 18.3 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 49.0 KiB | 53.9 KiB | 14.9 KiB | 16.4 KiB |
+| `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 33.1 KiB | 35.2 KiB | 10.8 KiB | 11.6 KiB |
+| `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 9.3 KiB | 10.3 KiB | 3.8 KiB | 4.2 KiB |
 | `/react` (react/react-dom external) | 463.2 KiB | 506.7 KiB | 123.0 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 616.1 KiB | 661.8 KiB | 163.5 KiB | 176.3 KiB |
@@ -53,3 +55,4 @@ _Generated 2026-07-26 at commit `5485f836`._
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 42.4 KiB | 44.7 KiB | 13.0 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
+| tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 24.9 KiB | 26.3 KiB | 8.6 KiB | 9.2 KiB |
