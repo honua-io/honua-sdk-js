@@ -2,7 +2,7 @@
   "$schema": "./live-conformance-endpoints.schema.json",
   "format": "honua.sdk.live-conformance-endpoints.v1",
   "schemaVersion": 1,
-  "revision": "2026-07-25",
+  "revision": "2026-07-27",
   "manifestEvidenceId": "live-conformance",
   "artifact": {
     "format": "honua.sdk.live-conformance-evidence.v1",
@@ -201,6 +201,94 @@
         "geometry": false
       },
       "notes": "OData v4 CSDL ($metadata) parsing plus a bounded $top=1 entity-set page. The TripPin reference service recorded in test/fixtures/backend-agnostic/odata issues session-scoped 302 redirects, which this lane refuses to follow, so the redirect-free Northwind V4 root is pinned instead."
+    },
+    {
+      "id": "pygeoapi-master-dutch-metadata-records",
+      "protocol": "ogc-records",
+      "endpoint": "https://demo.pygeoapi.io/master",
+      "provider": "pygeoapi demo deployment",
+      "attribution": "pygeoapi development team.",
+      "reliability": "community-demo",
+      "owner": "honua-io/honua-sdk-js maintainers",
+      "reviewedAt": "2026-07-27",
+      "reviewExpiresAt": "2026-10-25",
+      "sourceId": "dutch-metadata",
+      "journey": "query",
+      "expect": {
+        "capabilities": ["query"],
+        "conformanceEvidence": "service-metadata-operations",
+        "minItemCount": 1,
+        "geometry": true
+      },
+      "notes": "Raw OGC API Records discovery selects the dutch-metadata catalog from the shared collections document, then Source.query requests one record through the advertised raw collection path. The server currently advertises the Records sorting class, which is the positive metadata evidence that unlocks query while queryObjectIds remains fail-closed."
+    },
+    {
+      "id": "pygeoapi-master-lakes-tiles",
+      "protocol": "ogc-tiles",
+      "endpoint": "https://demo.pygeoapi.io/master",
+      "provider": "pygeoapi demo deployment",
+      "attribution": "pygeoapi development team; Natural Earth large lakes data.",
+      "reliability": "community-demo",
+      "owner": "honua-io/honua-sdk-js maintainers",
+      "reviewedAt": "2026-07-27",
+      "reviewExpiresAt": "2026-10-25",
+      "sourceId": "lakes",
+      "journey": "ogc-tile",
+      "expect": {
+        "capabilities": ["render", "tiles"],
+        "conformanceEvidence": "service-metadata-operations",
+        "operationMediaTypes": ["application/vnd.mapbox-vector-tile"],
+        "tile": {
+          "tileMatrixSetId": "WebMercatorQuad",
+          "z": 0,
+          "x": 0,
+          "y": 0,
+          "format": "pbf"
+        }
+      },
+      "notes": "Raw OGC API Tiles discovery retains the lakes collection, then the Source protocol adapter fetches exactly one WebMercatorQuad vector tile with the server-advertised pbf encoding. The request must remain under /master/collections/lakes/tiles and must not fall back to the Honua /ogc/tiles facade."
+    },
+    {
+      "id": "pygeoapi-master-world-map",
+      "protocol": "ogc-maps",
+      "endpoint": "https://demo.pygeoapi.io/master",
+      "provider": "pygeoapi demo deployment",
+      "attribution": "pygeoapi development team; MapServer world-map demo data.",
+      "reliability": "community-demo",
+      "owner": "honua-io/honua-sdk-js maintainers",
+      "reviewedAt": "2026-07-27",
+      "reviewExpiresAt": "2026-10-25",
+      "sourceId": "mapserver_world_map",
+      "journey": "ogc-map",
+      "expect": {
+        "capabilities": ["render"],
+        "conformanceEvidence": "service-metadata-operations",
+        "operationMediaTypes": ["image/png"],
+        "map": {
+          "format": "png",
+          "width": 256,
+          "height": 256
+        }
+      },
+      "notes": "Raw OGC API Maps discovery retains the mapserver_world_map collection, then its Source protocol adapter renders one bounded 256 by 256 PNG through the raw collection map route. Image magic bytes are asserted so a 200 error page cannot pass."
+    },
+    {
+      "id": "pygeoapi-master-processes",
+      "protocol": "ogc-processes",
+      "endpoint": "https://demo.pygeoapi.io/master",
+      "provider": "pygeoapi demo deployment",
+      "attribution": "pygeoapi development team.",
+      "reliability": "community-demo",
+      "owner": "honua-io/honua-sdk-js maintainers",
+      "reviewedAt": "2026-07-27",
+      "reviewExpiresAt": "2026-10-25",
+      "journey": "process-discovery",
+      "expect": {
+        "capabilities": ["processes"],
+        "conformanceEvidence": "service-metadata-operations",
+        "processId": "hello-world"
+      },
+      "notes": "discoverOgcProcesses() reads the raw landing, conformance, and process list and must retain the hello-world operation. A zero-request connect() rejection is asserted separately so the lane proves Processes stays operation-only and never becomes a fake Source."
     }
   ]
 }

@@ -1,11 +1,12 @@
 # Live SDK Conformance Lane
 
 The live-conformance lane drives the **public SDK journeys** —
-`connect()` → `HonuaConnection.inspection` → `Source.query()` /
-`projectRasterSourceToMapLibre()` — against a small, reviewed set of **public
-reference services** for every protocol family the SDK claims: Esri
-GeoServices, OGC API Features (two independent implementations), WFS 2.0, WMS
-1.3, WMTS 1.0, STAC API, and OData v4.
+`connect()` → `HonuaConnection.inspection` → bounded source operations, plus
+the operation-only `discoverOgcProcesses()` boundary — against a small,
+reviewed set of **public reference services**. The lane covers Esri
+GeoServices, OGC API Features (two independent implementations), raw OGC API
+Records / Tiles / Maps / Processes, WFS 2.0, WMS 1.3, WMTS 1.0, STAC API, and
+OData v4.
 
 It exists to catch the class of drift that fixtures structurally cannot: a real
 server changes a landing-page link, retires a conformance class, renames an
@@ -47,16 +48,16 @@ lane people learn to ignore.
 
 `config/support-manifest.v1.json` carries a `live-conformance` evidence entry
 (`kind: live`, `freshnessPolicy: scheduled-live`) that the GeoServices, OGC API
-Features, WFS, WMS, WMTS, STAC, and OData support claims reference, so
-`config/sdk-coverage.v1.json` shows this lane as evidence behind each of those
-claims.
+Features, Records, Tiles, Maps, operation-only Processes discovery, WFS, WMS,
+WMTS, STAC, and OData support claims reference, so
+`config/sdk-coverage.v1.json` shows this lane as evidence behind each claim.
 
 ## Journeys
 
 Every enabled target runs discovery plus **at least one supported operation**.
 Discovery alone would only prove that a document parsed.
 
-**`query`** (GeoServices, OGC API Features, STAC, WFS, OData)
+**`query`** (GeoServices, OGC API Features, OGC API Records, STAC, WFS, OData)
 
 1. `connect()` with the reviewed protocol and discovery narrowing.
 2. Assert the resolved protocol, that the reviewed `sourceId` survived
@@ -81,8 +82,38 @@ Discovery alone would only prove that a document parsed.
 4. Run the capability guard (below), against the same source the tile came
    from — `query` is unadvertised on every WMS/WMTS source.
 
-**The capability guard**, on *both* journeys: call one capability the endpoint
-does **not** advertise and require `HonuaCapabilityNotSupportedError`. This is
+**`ogc-tile`** (raw OGC API Tiles)
+
+1. `connect()` and select the reviewed collection-backed `Source`.
+2. Resolve its `ogc-tiles` protocol adapter and fetch exactly one reviewed
+   tile matrix / row / column.
+3. Assert the server-advertised vector-tile media type and a non-empty body.
+4. Prove canonical `Source.query()` remains fail-closed because the source does
+   not advertise `query`.
+
+**`ogc-map`** (raw OGC API Maps)
+
+1. `connect()` and select the reviewed collection-backed `Source`.
+2. Resolve its `ogc-maps` protocol adapter and render one bounded 256-by-256
+   map.
+3. Assert the reviewed media type, a non-empty body, and image magic bytes.
+4. Prove canonical `Source.query()` remains fail-closed because the source does
+   not advertise `query`.
+
+**`process-discovery`** (raw OGC API Processes)
+
+1. Call `discoverOgcProcesses()` and require the reviewed process id,
+   provenance, and effective `processes` capability.
+2. Record operation-level discovery evidence with `sourceId: null` and
+   `sourceCount: 0`.
+3. Call `connect({ protocol: "ogc-processes" })` and require
+   `discovery.unsupported-protocol` with a zero-request delta. This proves
+   Processes remains operation-only and is never represented as a fake
+   protocol-neutral `Source`.
+
+**The capability guard**, on every source-backed journey: call one capability
+the endpoint does **not** advertise and require
+`HonuaCapabilityNotSupportedError`. This is
 the SDK's headline contract ("capability gaps throw rather than return empty
 data") and costs no requests, because the capability check precedes the wire.
 A guard that cannot run — no resolvable source, or nothing unadvertised left to
@@ -123,9 +154,10 @@ the artifact. The runner hands the SDK a wrapped `fetch` that enforces:
   real one). Both are enforced while streaming, so an unbounded body is
   cancelled mid-flight.
 - **Retries** capped through the SDK client's own `retry.maxRetries`.
-- **One page** (`limit=1`) and **one tile** per target.
-- **Media-type allowlist**: JSON/XML/text for metadata, images only on the
-  raster journey.
+- **One page** (`limit=1`), **one tile**, or **one map** per source-backed
+  target.
+- **Media-type allowlist**: JSON/XML/text for metadata, reviewed image types
+  for raster/map targets, and reviewed vector-tile types for raw OGC Tiles.
 - **Credential refusal**: credential-shaped query parameters and auth headers
   are rejected before the request leaves the process.
 - **Availability statuses classified in the seam**: 408, 429, and 5xx become
@@ -181,8 +213,9 @@ lane exists to find.
 1. Add an entry to `config/live-conformance-endpoints.v1.json`: credential-free
    HTTPS root, `provider`, `attribution`, `reliability`, `owner`, `reviewedAt`,
    `reviewExpiresAt` (within `defaults.reviewCadenceDays` of `reviewedAt`),
-   `journey`, `sourceId`, `expect`, and reviewer `notes` explaining why this
-   endpoint is trustworthy and what it proves.
+   `journey`, `expect`, and reviewer `notes` explaining why this endpoint is
+   trustworthy and what it proves. Source-backed journeys also require
+   `sourceId`; operation-only Processes discovery deliberately forbids it.
 2. Add routes to `test/helpers/live-conformance-reference-services.ts` so the
    offline lane covers the new family, and extend
    `test/live-conformance-evidence.test.ts`.
@@ -199,8 +232,9 @@ silence.
 ## Endpoint selection policy
 
 Targets are anonymous, credential-free, read-only, and bounded to a single
-page or tile per run — a courteous load on services we do not own. Preference
-order is national-agency and cloud-reference services first, then
+page, tile, map, or process-list request per operation — a courteous load on
+services we do not own. Preference order is national-agency and cloud-reference
+services first, then
 vendor/community demos where they are the only realistic option (or where the
 repo already records fixtures from them). Two independently implemented OGC API
 Features servers are pinned on purpose: one vendor's landing-page shape must

@@ -41,7 +41,13 @@ export const LIVE_CONFORMANCE_EVIDENCE_SCHEMA_PATH = "schemas/live-conformance-e
 export const LIVE_CONFORMANCE_NETWORK_GATES = Object.freeze(["HONUA_LIVE_CONFORMANCE_ENABLED"]);
 
 /** Journey identities this runner knows how to drive through the public SDK. */
-export const LIVE_CONFORMANCE_JOURNEYS = Object.freeze(["query", "raster-tiles"]);
+export const LIVE_CONFORMANCE_JOURNEYS = Object.freeze([
+  "query",
+  "raster-tiles",
+  "ogc-tile",
+  "ogc-map",
+  "process-discovery",
+]);
 
 /** Availability problems: the upstream service, not the SDK, is at fault. */
 const AVAILABILITY_CODES = Object.freeze([
@@ -173,11 +179,16 @@ const METADATA_MEDIA_TYPES = new Set([
   "application/vnd.ogc.wms_xml",
 ]);
 
-const IMAGE_SIGNATURES = Object.freeze([
-  { signature: "png", bytes: [0x89, 0x50, 0x4e, 0x47] },
-  { signature: "jpeg", bytes: [0xff, 0xd8, 0xff] },
-  { signature: "webp", bytes: [0x52, 0x49, 0x46, 0x46] },
-]);
+const PNG_SIGNATURE = Object.freeze([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_SIGNATURE = Object.freeze([0xff, 0xd8, 0xff]);
+const RIFF_SIGNATURE = Object.freeze([0x52, 0x49, 0x46, 0x46]);
+const WEBP_SIGNATURE = Object.freeze([0x57, 0x45, 0x42, 0x50]);
+const IMAGE_SIGNATURE_BY_MEDIA_TYPE = Object.freeze({
+  "image/jpeg": "jpeg",
+  "image/jpg": "jpeg",
+  "image/png": "png",
+  "image/webp": "webp",
+});
 
 class LiveConformanceAssertionError extends Error {
   constructor(assertionId, message) {
@@ -472,7 +483,19 @@ export function validateLiveConformanceEndpointManifest(manifest, options = {}) 
       `${target.id} review window exceeds the manifest cadence`,
     );
     invariant(LIVE_CONFORMANCE_JOURNEYS.includes(target.journey), `${target.id} declares an unknown journey`);
-    invariant(typeof target.sourceId === "string" && target.sourceId.length > 0, `${target.id} declares no sourceId`);
+    if (target.journey === "process-discovery") {
+      invariant(target.protocol === "ogc-processes", `${target.id} process discovery must use ogc-processes`);
+      invariant(target.sourceId === undefined, `${target.id} operation-only discovery must not declare a sourceId`);
+      invariant(
+        typeof target.expect?.processId === "string" && target.expect.processId.length > 0,
+        `${target.id} process discovery declares no processId`,
+      );
+    } else {
+      invariant(
+        typeof target.sourceId === "string" && target.sourceId.length > 0,
+        `${target.id} declares no sourceId`,
+      );
+    }
     invariant(
       Array.isArray(target.expect?.capabilities) && target.expect.capabilities.length > 0,
       `${target.id} declares no expected capabilities`,
@@ -485,6 +508,25 @@ export function validateLiveConformanceEndpointManifest(manifest, options = {}) 
         `${target.id} raster journey declares no accepted tile formats`,
       );
       invariant(target.expect.tile !== undefined, `${target.id} raster journey declares no bounded tile`);
+    }
+    if (target.journey === "ogc-tile") {
+      invariant(target.protocol === "ogc-tiles", `${target.id} OGC tile journey must use ogc-tiles`);
+      invariant(
+        Array.isArray(target.expect.operationMediaTypes) && target.expect.operationMediaTypes.length > 0,
+        `${target.id} OGC tile journey declares no reviewed response media types`,
+      );
+      invariant(
+        typeof target.expect.tile?.tileMatrixSetId === "string" && target.expect.tile.tileMatrixSetId.length > 0,
+        `${target.id} OGC tile journey declares no tile matrix set`,
+      );
+    }
+    if (target.journey === "ogc-map") {
+      invariant(target.protocol === "ogc-maps", `${target.id} OGC map journey must use ogc-maps`);
+      invariant(
+        Array.isArray(target.expect.operationMediaTypes) && target.expect.operationMediaTypes.length > 0,
+        `${target.id} OGC map journey declares no reviewed response media types`,
+      );
+      invariant(target.expect.map !== undefined, `${target.id} OGC map journey declares no bounded map`);
     }
     if (target.enabled === false) {
       invariant(target.skip !== undefined, `${target.id} is disabled without typed skip metadata`);
@@ -500,6 +542,10 @@ export function validateLiveConformanceEndpointManifest(manifest, options = {}) 
   for (const family of [
     ["geoservices-feature-service", "geoservices-map-service"],
     ["ogc-features"],
+    ["ogc-tiles"],
+    ["ogc-maps"],
+    ["ogc-records"],
+    ["ogc-processes"],
     ["wfs"],
     ["wms"],
     ["wmts"],
@@ -524,17 +570,127 @@ function mediaTypeOf(response) {
   return response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() ?? null;
 }
 
-function isAllowedMediaType(mediaType, allowImages) {
+function isAllowedMediaType(mediaType, allowImages, allowedMediaTypes) {
   if (mediaType === null) return true;
   if (METADATA_MEDIA_TYPES.has(mediaType) || mediaType.endsWith("+json") || mediaType.endsWith("+xml")) return true;
+  if (allowedMediaTypes.has(mediaType)) return true;
   return allowImages === true && mediaType.startsWith("image/");
 }
 
 export function imageSignatureOf(bytes) {
-  for (const candidate of IMAGE_SIGNATURES) {
-    if (candidate.bytes.every((byte, index) => bytes[index] === byte)) return candidate.signature;
-  }
+  if (startsWithBytes(bytes, PNG_SIGNATURE)) return "png";
+  if (startsWithBytes(bytes, JPEG_SIGNATURE)) return "jpeg";
+  if (startsWithBytes(bytes, RIFF_SIGNATURE, 0) && startsWithBytes(bytes, WEBP_SIGNATURE, 8)) return "webp";
   return "unknown";
+}
+
+export function imageSignatureMatchesMediaType(signature, mediaType) {
+  return IMAGE_SIGNATURE_BY_MEDIA_TYPE[mediaType] === signature;
+}
+
+/**
+ * Validate the protobuf envelope and the required MVT layer metadata without
+ * depending on an optional renderer/decoder. A proxy error body with the
+ * reviewed media type must never be published as executed vector-tile
+ * evidence.
+ */
+export function isStructurallyValidMvt(bytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) return false;
+  let offset = 0;
+  let layerCount = 0;
+  while (offset < bytes.byteLength) {
+    const key = readProtobufVarint(bytes, offset);
+    if (!key || key.value === 0) return false;
+    const fieldNumber = Math.floor(key.value / 8);
+    const wireType = key.value & 0x07;
+    if (fieldNumber === 3) {
+      if (wireType !== 2) return false;
+      const layer = readLengthDelimited(bytes, key.next);
+      if (!layer || !isStructurallyValidMvtLayer(bytes.subarray(layer.start, layer.end))) return false;
+      layerCount += 1;
+      offset = layer.end;
+      continue;
+    }
+    const next = skipProtobufField(bytes, key.next, wireType);
+    if (next === null) return false;
+    offset = next;
+  }
+  return layerCount > 0;
+}
+
+function isStructurallyValidMvtLayer(bytes) {
+  let offset = 0;
+  let hasName = false;
+  let hasSupportedVersion = false;
+  while (offset < bytes.byteLength) {
+    const key = readProtobufVarint(bytes, offset);
+    if (!key || key.value === 0) return false;
+    const fieldNumber = Math.floor(key.value / 8);
+    const wireType = key.value & 0x07;
+    if (fieldNumber === 1) {
+      if (wireType !== 2) return false;
+      const name = readLengthDelimited(bytes, key.next);
+      if (!name || name.end === name.start) return false;
+      try {
+        new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(name.start, name.end));
+      } catch {
+        return false;
+      }
+      hasName = true;
+      offset = name.end;
+      continue;
+    }
+    if (fieldNumber === 15) {
+      if (wireType !== 0) return false;
+      const version = readProtobufVarint(bytes, key.next);
+      if (!version || (version.value !== 1 && version.value !== 2)) return false;
+      hasSupportedVersion = true;
+      offset = version.next;
+      continue;
+    }
+    const next = skipProtobufField(bytes, key.next, wireType);
+    if (next === null) return false;
+    offset = next;
+  }
+  return hasName && hasSupportedVersion;
+}
+
+function startsWithBytes(bytes, expected, offset = 0) {
+  return (
+    bytes.byteLength >= offset + expected.length &&
+    expected.every((byte, index) => bytes[offset + index] === byte)
+  );
+}
+
+function readProtobufVarint(bytes, start) {
+  let value = 0;
+  let multiplier = 1;
+  for (let index = 0; index < 10; index += 1) {
+    const offset = start + index;
+    if (offset >= bytes.byteLength) return null;
+    const byte = bytes[offset];
+    value += (byte & 0x7f) * multiplier;
+    if (!Number.isSafeInteger(value)) return null;
+    if ((byte & 0x80) === 0) return { value, next: offset + 1 };
+    multiplier *= 128;
+  }
+  return null;
+}
+
+function readLengthDelimited(bytes, start) {
+  const length = readProtobufVarint(bytes, start);
+  if (!length) return null;
+  const end = length.next + length.value;
+  if (!Number.isSafeInteger(end) || end > bytes.byteLength) return null;
+  return { start: length.next, end };
+}
+
+function skipProtobufField(bytes, start, wireType) {
+  if (wireType === 0) return readProtobufVarint(bytes, start)?.next ?? null;
+  if (wireType === 1) return start + 8 <= bytes.byteLength ? start + 8 : null;
+  if (wireType === 2) return readLengthDelimited(bytes, start)?.end ?? null;
+  if (wireType === 5) return start + 4 <= bytes.byteLength ? start + 4 : null;
+  return null;
 }
 
 /**
@@ -549,6 +705,9 @@ export function createBoundedLiveConformanceFetch(options) {
   const budgets = normalizeLiveConformanceBudgets(options.budgets);
   const fetchFn = options.fetchFn ?? globalThis.fetch;
   const allowImages = options.allowImages === true;
+  const allowedMediaTypes = new Set(
+    (options.allowedMediaTypes ?? []).map((mediaType) => String(mediaType).toLowerCase()),
+  );
   const ledger = options.ledger ?? [];
   const state = options.state ?? { requests: 0, responseBytes: 0 };
   // `state` counts this target; `runState` counts the whole run. Callers that
@@ -643,7 +802,7 @@ export function createBoundedLiveConformanceFetch(options) {
         `live-conformance received HTTP ${response.status} from ${requestUrl.pathname}`,
       );
     }
-    if (!isAllowedMediaType(entry.mediaType, allowImages)) {
+    if (!isAllowedMediaType(entry.mediaType, allowImages, allowedMediaTypes)) {
       throw new LiveConformanceTransportError(
         "unexpected-error",
         `live-conformance refused an unreviewed ${entry.mediaType} response`,
@@ -787,9 +946,14 @@ function targetStatusFor(code) {
 }
 
 async function loadDefaultSdk() {
-  const [root, map] = await Promise.all([import("../dist/src/index.js"), import("../dist/src/map/index.js")]);
+  const [root, honua, map] = await Promise.all([
+    import("../dist/src/index.js"),
+    import("../dist/src/honua.js"),
+    import("../dist/src/map/index.js"),
+  ]);
   return {
     connect: root.connect,
+    discoverOgcProcesses: honua.discoverOgcProcesses,
     explainQuery: root.explainQuery,
     HonuaClient: root.HonuaClient,
     projectRasterSourceToMapLibre: map.projectRasterSourceToMapLibre,
@@ -1015,7 +1179,8 @@ export async function runLiveConformanceTarget(context) {
     budgets,
     fetchFn: context.fetchFn,
     producerSignal: context.producerSignal,
-    allowImages: target.journey === "raster-tiles",
+    allowImages: target.journey === "raster-tiles" || target.journey === "ogc-map",
+    allowedMediaTypes: target.expect.operationMediaTypes,
     ledger,
     state,
     runState: context.runState,
@@ -1031,6 +1196,32 @@ export async function runLiveConformanceTarget(context) {
   let operation = null;
 
   try {
+    if (target.journey === "process-discovery") {
+      const process = await runProcessDiscoveryJourney({
+        target,
+        budgets,
+        sdk,
+        fetchFn,
+        signal,
+        assertions,
+        state,
+      });
+      discoveryMs = process.discoveryMs;
+      operationMs = process.operationMs;
+      discovery = process.discovery;
+      operation = process.operation;
+      return {
+        ...base,
+        status: "executed",
+        timing: { totalMs: Math.max(0, performance.now() - startedAt), discoveryMs, operationMs },
+        traffic: { requests: state.requests, responseBytes: state.responseBytes, ledger },
+        discovery,
+        operation,
+        assertions: assertions.entries,
+        degradation: { state: "none", reasons: [] },
+      };
+    }
+
     const connection = await sdk.connect({
       endpoint: target.endpoint,
       protocol: target.protocol,
@@ -1126,7 +1317,11 @@ export async function runLiveConformanceTarget(context) {
     operation =
       target.journey === "query"
         ? await runQueryJourney({ connection, selected, target, budgets, sdk, signal, assertions })
-        : await runRasterJourney({ connection, selected, target, budgets, sdk, fetchFn, signal, assertions });
+        : target.journey === "raster-tiles"
+          ? await runRasterJourney({ connection, selected, target, budgets, sdk, fetchFn, signal, assertions })
+          : target.journey === "ogc-tile"
+            ? await runOgcTileJourney({ connection, selected, target, signal, assertions })
+            : await runOgcMapJourney({ connection, selected, target, signal, assertions });
     operationMs = Math.max(0, performance.now() - operationStartedAt);
 
     return {
@@ -1165,6 +1360,117 @@ export async function runLiveConformanceTarget(context) {
   } finally {
     clearTimeout(targetTimer);
   }
+}
+
+async function runProcessDiscoveryJourney(context) {
+  const { target, budgets, sdk, fetchFn, signal, assertions, state } = context;
+  const discoveryStartedAt = performance.now();
+  const result = await sdk.discoverOgcProcesses({
+    endpoint: target.endpoint,
+    clientOptions: { fetchFn, retry: { maxRetries: budgets.maxRetriesPerRequest } },
+    ...(signal ? { signal } : {}),
+  });
+  const discoveryMs = Math.max(0, performance.now() - discoveryStartedAt);
+  const capabilities = [...result.capabilities];
+  for (const capability of target.expect.capabilities) {
+    if (!capabilities.includes(capability)) {
+      throw new LiveConformanceCapabilityError(
+        `${target.id} no longer resolves the ${capability} capability through operation-only discovery`,
+      );
+    }
+  }
+  assertions.pass("expected-operations-resolve-as-effective");
+  assertions.require(
+    "process-discovery-retains-reviewed-operation",
+    result.processes.some((process) => process.id === target.expect.processId),
+    `discovered ${result.processes
+      .slice(0, 8)
+      .map((process) => process.id)
+      .join(",")}`,
+  );
+  assertions.require(
+    "process-discovery-records-metadata-provenance",
+    Array.isArray(result.provenance) && result.provenance.length > 0,
+    "no process discovery provenance",
+  );
+  assertions.require(
+    "process-discovery-has-no-capability-warning",
+    (result.diagnostics ?? []).every((diagnostic) => diagnostic.code !== "discovery-unavailable"),
+    "Processes capability metadata was unavailable",
+  );
+
+  const decisions = target.expect.capabilities.map((capability) => ({
+    capability,
+    effective: capabilities.includes(capability),
+    code: capabilities.includes(capability) ? "advertised" : "not-advertised",
+    evidenceKinds: ["metadata"],
+  }));
+  const discovery = {
+    protocol: "ogc-processes",
+    cacheStatus: "bypass",
+    sourceId: null,
+    sourceCount: 0,
+    discoveryState: "metadata",
+    protocolVersion: null,
+    capabilities,
+    capabilityDecisions: decisions,
+    conformance: {
+      kind: "service-metadata-operations",
+      classes: [],
+      operations: decisions.map((decision) => ({ name: decision.capability, available: decision.effective })),
+    },
+    diagnostics: (result.diagnostics ?? []).map((diagnostic) => ({
+      code: diagnostic.code,
+      severity: diagnostic.severity,
+      ...(diagnostic.capabilities ? { capabilities: [...diagnostic.capabilities] } : {}),
+    })),
+  };
+  assertions.require(
+    "discovery-records-operation-or-conformance-class-evidence",
+    discovery.conformance.operations.length > 0,
+    "operation-only discovery produced no operation evidence",
+  );
+  assertions.pass("required-conformance-classes-still-advertised");
+
+  const operationStartedAt = performance.now();
+  const requestCountBeforeBoundaryProbe = state.requests;
+  let sourceBoundary = null;
+  try {
+    await sdk.connect({
+      endpoint: target.endpoint,
+      protocol: "ogc-processes",
+      authorizationScopeFingerprint: "honua-live-conformance:v1",
+      clientOptions: { fetchFn, retry: { maxRetries: budgets.maxRetriesPerRequest } },
+      ...(signal ? { signal } : {}),
+    });
+  } catch (error) {
+    sourceBoundary = {
+      errorName: error?.name ?? "UnknownError",
+      sdkCode: typeof error?.sdkCode === "string" ? error.sdkCode : "unknown",
+      requestDelta: state.requests - requestCountBeforeBoundaryProbe,
+    };
+  }
+  assertions.require(
+    "process-discovery-does-not-create-a-fake-source",
+    sourceBoundary?.sdkCode === "discovery.unsupported-protocol" && sourceBoundary.requestDelta === 0,
+    `${sourceBoundary?.sdkCode ?? "no error"} after ${sourceBoundary?.requestDelta ?? "unknown"} requests`,
+  );
+  const operationMs = Math.max(0, performance.now() - operationStartedAt);
+
+  return {
+    discoveryMs,
+    operationMs,
+    discovery,
+    operation: {
+      kind: "process-discovery",
+      capability: "processes",
+      outcome: "operation-only-process-list-discovered-without-a-source",
+      processCount: result.processes.length,
+      processId: target.expect.processId,
+      capabilityGuard: null,
+      sourceBoundary,
+    },
+  };
 }
 
 async function runQueryJourney(context) {
@@ -1242,6 +1548,108 @@ async function runQueryJourney(context) {
   };
 }
 
+async function probeKnownUnsupportedCapability(source, capability, assertions) {
+  assertions.require(
+    "capability-guard-resolves-a-source",
+    source !== null && source !== undefined,
+    "the connection exposed no source to probe",
+  );
+  assertions.require(
+    "capability-guard-finds-an-unadvertised-operation",
+    !source.descriptor.capabilities.has(capability),
+    `${capability} is advertised by ${source.descriptor.id}`,
+  );
+  const guard = await runCapabilityGuard(source, capability);
+  assertions.require(
+    "unadvertised-operations-throw-instead-of-returning-empty-data",
+    guard?.sdkCode === "core.capability-not-supported",
+    `${capability} produced ${guard?.sdkCode ?? "no error"}`,
+  );
+  return guard;
+}
+
+async function runOgcTileJourney(context) {
+  const { connection, selected, target, signal, assertions } = context;
+  const source = connection.source(selected.descriptor.id);
+  const root = source.protocol("ogc-tiles");
+  assertions.require(
+    "ogc-tile-source-exposes-the-raw-protocol-adapter",
+    typeof root?.tileset === "function",
+    `adapter ${root?.constructor?.name ?? "missing"}`,
+  );
+  const tile = target.expect.tile;
+  const response = await root.tileset(selected.descriptor.id, tile.tileMatrixSetId).tile({
+    tileMatrix: tile.z,
+    tileRow: tile.y,
+    tileCol: tile.x,
+    accept: target.expect.operationMediaTypes.join(","),
+    ...(tile.format ? { extraParams: { f: tile.format } } : {}),
+    ...(signal ? { signal } : {}),
+  });
+  const mediaType = response.contentType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  assertions.require(
+    "ogc-tile-media-type-matches-the-reviewed-encoding",
+    target.expect.operationMediaTypes.includes(mediaType),
+    `served ${mediaType || "no media type"}`,
+  );
+  assertions.require("ogc-tile-carries-bytes", response.bytes.byteLength > 0, "empty tile body");
+  assertions.require(
+    "ogc-tile-bytes-form-a-valid-vector-tile",
+    isStructurallyValidMvt(response.bytes),
+    `malformed MVT/protobuf body (${String(response.bytes.byteLength)} bytes)`,
+  );
+  const capabilityGuard = await probeKnownUnsupportedCapability(source, "query", assertions);
+  return {
+    kind: "ogc-tile",
+    capability: "tiles",
+    outcome: "bounded-tile-fetched-through-the-source-protocol-adapter",
+    tileMatrixSetId: tile.tileMatrixSetId,
+    tile: { z: tile.z, x: tile.x, y: tile.y },
+    mediaType,
+    bytes: response.bytes.byteLength,
+    capabilityGuard,
+    sourceBoundary: null,
+  };
+}
+
+async function runOgcMapJourney(context) {
+  const { connection, selected, target, signal, assertions } = context;
+  const source = connection.source(selected.descriptor.id);
+  const map = source.protocol("ogc-maps");
+  assertions.require(
+    "ogc-map-source-exposes-the-raw-protocol-adapter",
+    typeof map?.map === "function",
+    `adapter ${map?.constructor?.name ?? "missing"}`,
+  );
+  const response = await map.map({ ...target.expect.map, ...(signal ? { signal } : {}) });
+  const mediaType = response.contentType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  assertions.require(
+    "ogc-map-media-type-matches-the-reviewed-encoding",
+    target.expect.operationMediaTypes.includes(mediaType),
+    `served ${mediaType || "no media type"}`,
+  );
+  assertions.require("ogc-map-carries-image-bytes", response.bytes.byteLength > 0, "empty map body");
+  const signature = imageSignatureOf(response.bytes);
+  assertions.require(
+    "ogc-map-bytes-match-the-declared-media-type",
+    imageSignatureMatchesMediaType(signature, mediaType),
+    `signature ${signature} for ${mediaType}`,
+  );
+  const capabilityGuard = await probeKnownUnsupportedCapability(source, "query", assertions);
+  return {
+    kind: "ogc-map",
+    capability: "render",
+    outcome: "bounded-map-rendered-through-the-source-protocol-adapter",
+    width: target.expect.map.width,
+    height: target.expect.map.height,
+    mediaType,
+    bytes: response.bytes.byteLength,
+    signature,
+    capabilityGuard,
+    sourceBoundary: null,
+  };
+}
+
 /**
  * The SDK's headline contract: an operation the endpoint does not advertise
  * throws `HonuaCapabilityNotSupportedError` instead of returning empty data.
@@ -1309,8 +1717,8 @@ async function runRasterJourney(context) {
   assertions.require("bounded-tile-carries-image-bytes", bytes.byteLength > 0, "empty tile body");
   const signature = imageSignatureOf(bytes);
   assertions.require(
-    "bounded-tile-bytes-match-an-image-signature",
-    signature !== "unknown",
+    "bounded-tile-bytes-match-the-declared-media-type",
+    imageSignatureMatchesMediaType(signature, mediaType),
     `signature ${signature} for ${mediaType}`,
   );
 
@@ -1600,12 +2008,29 @@ export function validateLiveConformanceEvidence(evidence, options = {}) {
         target.discovery.capabilityDecisions.length > 0,
         `${target.id} executed without per-operation capability evidence`,
       );
-      // The lane claims every executed target proved the capability-gap
-      // contract; the artifact may not say "executed" without that proof.
-      invariant(
-        target.operation.capabilityGuard?.sdkCode === "core.capability-not-supported",
-        `${target.id} executed without proving that an unadvertised operation throws`,
-      );
+      if (target.journey === "process-discovery") {
+        invariant(
+          target.discovery.sourceId === null && target.discovery.sourceCount === 0,
+          `${target.id} invented a Source for operation-only discovery`,
+        );
+        invariant(
+          target.operation.sourceBoundary?.sdkCode === "discovery.unsupported-protocol" &&
+            target.operation.sourceBoundary.requestDelta === 0,
+          `${target.id} executed without proving the zero-request operation-only boundary`,
+        );
+      } else {
+        invariant(
+          typeof target.discovery.sourceId === "string" && target.discovery.sourceCount >= 1,
+          `${target.id} executed without a reviewed Source`,
+        );
+        // Source-backed lanes claim every executed target proved the
+        // capability-gap contract; the artifact may not say "executed" without
+        // that proof.
+        invariant(
+          target.operation.capabilityGuard?.sdkCode === "core.capability-not-supported",
+          `${target.id} executed without proving that an unadvertised operation throws`,
+        );
+      }
     } else {
       invariant(target.degradation.state !== "none", `${target.id} is not executed but records no degradation`);
       invariant(target.degradation.reasons.length > 0, `${target.id} is not executed but records no typed reason`);

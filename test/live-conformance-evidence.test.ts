@@ -23,9 +23,11 @@ import {
   classifyLiveConformanceFailure,
   collectLiveConformanceEvidence,
   createBoundedLiveConformanceFetch,
+  imageSignatureMatchesMediaType,
   imageSignatureOf,
   isCredentialQueryParameter,
   isLiveConformanceEnabled,
+  isStructurallyValidMvt,
   loadLiveConformanceEndpointManifest,
   normalizeLiveConformanceBudgets,
   redactLiveConformanceEndpoint,
@@ -35,15 +37,18 @@ import {
   validateLiveConformanceEndpointManifest,
   validateLiveConformanceEvidence,
 } from "../scripts/live-conformance-evidence.mjs";
+import { discoverOgcProcesses } from "../src/honua.js";
 import { HonuaClient, connect, explainQuery } from "../src/index.js";
 import { projectRasterSourceToMapLibre } from "../src/map/index.js";
 import {
   REFERENCE_ROUTE_KEYS,
   REFERENCE_TILE_JPEG,
+  REFERENCE_TILE_MVT,
+  REFERENCE_TILE_PNG,
   createReferenceServiceFetch,
 } from "./helpers/live-conformance-reference-services.js";
 
-const sdk = { connect, explainQuery, HonuaClient, projectRasterSourceToMapLibre };
+const sdk = { connect, discoverOgcProcesses, explainQuery, HonuaClient, projectRasterSourceToMapLibre };
 const OBSERVED_AT = "2026-07-25T12:00:00.000Z";
 const SOURCE_REVISION = "0123456789abcdef0123456789abcdef01234567";
 
@@ -90,7 +95,7 @@ describe("live-conformance endpoint manifest", () => {
     expect(budgets.maxRetriesPerRequest).toBeLessThanOrEqual(2);
   });
 
-  it("spans the GeoServices, OGC API, WFS, WMS, WMTS, STAC, and OData families", () => {
+  it("spans the reviewed source-backed and operation-only protocol families", () => {
     const protocols = manifest.targets.map((target) => target.protocol);
     expect(protocols).toContain("geoservices-feature-service");
     expect(protocols).toContain("ogc-features");
@@ -99,6 +104,10 @@ describe("live-conformance endpoint manifest", () => {
     expect(protocols).toContain("wmts");
     expect(protocols).toContain("stac");
     expect(protocols).toContain("odata");
+    expect(protocols).toContain("ogc-records");
+    expect(protocols).toContain("ogc-tiles");
+    expect(protocols).toContain("ogc-maps");
+    expect(protocols).toContain("ogc-processes");
     // Two independently implemented OGC API Features servers, so one vendor's
     // landing-page shape cannot pass for the standard.
     expect(protocols.filter((protocol) => protocol === "ogc-features")).toHaveLength(2);
@@ -338,8 +347,21 @@ describe("live-conformance request budgets", () => {
 
   it("reads image signatures for the bounded tile assertion", () => {
     expect(imageSignatureOf(REFERENCE_TILE_JPEG)).toBe("jpeg");
-    expect(imageSignatureOf(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).toBe("png");
+    expect(imageSignatureOf(REFERENCE_TILE_PNG)).toBe("png");
+    expect(
+      imageSignatureOf(new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50])),
+    ).toBe("webp");
+    expect(imageSignatureOf(new Uint8Array([0x52, 0x49, 0x46, 0x46]))).toBe("unknown");
     expect(imageSignatureOf(new Uint8Array([0x3c, 0x21]))).toBe("unknown");
+    expect(imageSignatureMatchesMediaType("png", "image/png")).toBe(true);
+    expect(imageSignatureMatchesMediaType("jpeg", "image/png")).toBe(false);
+  });
+
+  it("validates the protobuf envelope and required MVT layer metadata", () => {
+    expect(isStructurallyValidMvt(REFERENCE_TILE_MVT)).toBe(true);
+    expect(isStructurallyValidMvt(new TextEncoder().encode('{"error":"proxy failure"}'))).toBe(false);
+    expect(isStructurallyValidMvt(new Uint8Array([0x1a, 0x05, 0x78, 0x02]))).toBe(false);
+    expect(isStructurallyValidMvt(new Uint8Array([0x1a, 0x03, 0x0a, 0x01, 0x6e]))).toBe(false);
   });
 });
 
@@ -392,9 +414,18 @@ describe("live-conformance journeys against the deterministic reference services
     for (const target of evidence.targets) {
       expect(target.status).toBe("executed");
       expect(target.discovery?.protocol).toBe(target.protocol);
-      expect(target.discovery?.sourceId).toBeTruthy();
-      // REQ-002: per-operation truth, not a single protocol boolean.
-      expect(target.discovery?.capabilityDecisions.length ?? 0).toBeGreaterThan(1);
+      if (target.journey === "process-discovery") {
+        expect(target.discovery?.sourceId).toBeNull();
+        expect(target.discovery?.sourceCount).toBe(0);
+      } else {
+        expect(target.discovery?.sourceId).toBeTruthy();
+        expect(target.discovery?.sourceCount ?? 0).toBeGreaterThan(0);
+      }
+      // REQ-002: source-backed discovery retains multi-operation truth. The
+      // operation-only Processes contract has exactly one reviewed capability.
+      expect(target.discovery?.capabilityDecisions.length ?? 0).toBeGreaterThan(
+        target.journey === "process-discovery" ? 0 : 1,
+      );
       expect(target.operation).not.toBeNull();
       expect(target.assertions.length).toBeGreaterThan(3);
       expect(target.assertions.every((assertion) => assertion.outcome === "pass")).toBe(true);
@@ -479,9 +510,62 @@ describe("live-conformance journeys against the deterministic reference services
     expect(wmts?.operation?.raster?.tile).toEqual({ z: 0, x: 0, y: 0 });
   });
 
-  it("proves the capability-gap contract on every executed target, raster included", async () => {
+  it("proves raw Records, Tiles, Maps, and operation-only Processes through their public contracts", async () => {
     const evidence = await runOffline();
-    for (const target of evidence.targets) {
+    const byId = new Map(evidence.targets.map((target) => [target.id, target]));
+
+    const records = byId.get("pygeoapi-master-dutch-metadata-records");
+    expect(records?.operation).toMatchObject({
+      kind: "source-query",
+      capability: "query",
+      itemCount: 1,
+      requestedLimit: 1,
+      geometryPresent: true,
+    });
+
+    const tile = byId.get("pygeoapi-master-lakes-tiles");
+    expect(tile?.operation).toMatchObject({
+      kind: "ogc-tile",
+      capability: "tiles",
+      mediaType: "application/vnd.mapbox-vector-tile",
+      bytes: REFERENCE_TILE_MVT.byteLength,
+      tileMatrixSetId: "WebMercatorQuad",
+      tile: { z: 0, x: 0, y: 0 },
+    });
+
+    const map = byId.get("pygeoapi-master-world-map");
+    expect(map?.operation).toMatchObject({
+      kind: "ogc-map",
+      capability: "render",
+      mediaType: "image/png",
+      bytes: REFERENCE_TILE_PNG.byteLength,
+      signature: "png",
+      width: 256,
+      height: 256,
+    });
+
+    const processes = byId.get("pygeoapi-master-processes");
+    expect(processes?.discovery).toMatchObject({
+      sourceId: null,
+      sourceCount: 0,
+      capabilities: ["processes"],
+    });
+    expect(processes?.operation).toMatchObject({
+      kind: "process-discovery",
+      capability: "processes",
+      processId: "hello-world",
+      sourceBoundary: {
+        sdkCode: "discovery.unsupported-protocol",
+        requestDelta: 0,
+      },
+      capabilityGuard: null,
+    });
+    expect(processes?.operation?.processCount ?? 0).toBeGreaterThan(0);
+  });
+
+  it("proves the capability-gap contract on every source-backed target, raster included", async () => {
+    const evidence = await runOffline();
+    for (const target of evidence.targets.filter((candidate) => candidate.journey !== "process-discovery")) {
       expect(target.status).toBe("executed");
       // A raster target must exercise the guard too; a missing guard used to
       // be silently skipped, which let the artifact overstate what it proved.
@@ -498,6 +582,11 @@ describe("live-conformance journeys against the deterministic reference services
     }
     const raster = evidence.targets.filter((target) => target.journey === "raster-tiles");
     expect(raster.map((target) => target.operation?.capabilityGuard?.capability)).toEqual(["query", "query"]);
+    const processes = evidence.targets.find((target) => target.journey === "process-discovery");
+    expect(processes?.operation?.capabilityGuard).toBeNull();
+    expect(processes?.assertions.map((assertion) => assertion.id)).toContain(
+      "process-discovery-does-not-create-a-fake-source",
+    );
   });
 
   it("refuses to publish an executed target that skipped the capability-gap proof", async () => {
@@ -517,12 +606,12 @@ describe("live-conformance journeys against the deterministic reference services
 describe("live-conformance degrades honestly", () => {
   it("reports an unreachable endpoint as a typed degradation with owner and expiry", async () => {
     const evidence = await runOffline({
-      [REFERENCE_ROUTE_KEYS.pygeoapiLanding]: () => {
+      [REFERENCE_ROUTE_KEYS.ldproxyLanding]: () => {
         throw new TypeError("fetch failed");
       },
     });
     expect(evidence.status).toBe("degraded");
-    const target = evidence.targets.find((candidate) => candidate.id === "pygeoapi-demo-lakes");
+    const target = evidence.targets.find((candidate) => candidate.id === "ldproxy-demo-vineyards");
     expect(target?.status).toBe("degraded");
     expect(target?.degradation.state).toBe("unavailable");
     expect(target?.degradation.reasons[0]?.code).toBe("endpoint-unreachable");
@@ -623,7 +712,7 @@ describe("live-conformance degrades honestly", () => {
 
   it("enforces the response-byte ceiling across the run, not once per target", async () => {
     // The first two targets consume ~18 KB of the 20 KB run budget offline; a
-    // per-target ceiling would have let all eight through.
+    // per-target ceiling would have let every reviewed target through.
     const evidence = await runOffline({}, { budgets: { maxResponseBytes: 20_000, maxTotalResponseBytes: 20_000 } });
     expect(evidence.budgets.maxTotalResponseBytes).toBe(20_000);
     expect(evidence.totals.responseBytes).toBeLessThanOrEqual(20_000);
@@ -635,7 +724,7 @@ describe("live-conformance degrades honestly", () => {
     expect(starved[0]?.degradation.state).toBe("unavailable");
   });
 
-  it("fails the lane when a bounded tile stops being an image", async () => {
+  it("fails the lane when a bounded raster tile stops being the declared image encoding", async () => {
     const evidence = await runOffline({
       [REFERENCE_ROUTE_KEYS.wmtsTile]: () =>
         new Response("<html>rate limited</html>", { status: 200, headers: { "content-type": "image/jpeg" } }),
@@ -643,7 +732,31 @@ describe("live-conformance degrades honestly", () => {
     const target = evidence.targets.find((candidate) => candidate.protocol === "wmts");
     expect(target?.status).toBe("failed");
     expect(target?.degradation.reasons[0]?.code).toBe("semantic-assertion-failed");
-    expect(target?.assertions.at(-1)?.id).toBe("bounded-tile-bytes-match-an-image-signature");
+    expect(target?.assertions.at(-1)?.id).toBe("bounded-tile-bytes-match-the-declared-media-type");
+  });
+
+  it("fails raw OGC evidence for malformed vector tiles and mismatched map encodings", async () => {
+    const malformedTile = await runOffline({
+      [REFERENCE_ROUTE_KEYS.pygeoapiOgcTile]: () =>
+        new Response('{"error":"proxy failure"}', {
+          status: 200,
+          headers: { "content-type": "application/vnd.mapbox-vector-tile" },
+        }),
+    });
+    const tile = malformedTile.targets.find((candidate) => candidate.id === "pygeoapi-master-lakes-tiles");
+    expect(tile?.status).toBe("failed");
+    expect(tile?.assertions.at(-1)?.id).toBe("ogc-tile-bytes-form-a-valid-vector-tile");
+
+    const mismatchedMap = await runOffline({
+      [REFERENCE_ROUTE_KEYS.pygeoapiOgcMap]: () =>
+        new Response(REFERENCE_TILE_JPEG.slice().buffer as ArrayBuffer, {
+          status: 200,
+          headers: { "content-type": "image/png" },
+        }),
+    });
+    const map = mismatchedMap.targets.find((candidate) => candidate.id === "pygeoapi-master-world-map");
+    expect(map?.status).toBe("failed");
+    expect(map?.assertions.at(-1)?.id).toBe("ogc-map-bytes-match-the-declared-media-type");
   });
 
   it("expires muted targets and expired reviews instead of skipping them forever", async () => {
