@@ -88,6 +88,7 @@ import {
   type HonuaExportRedaction,
   HonuaExportSafetyError,
   type HonuaSanitizedExportState,
+  assertCredentialFreeExportBytes,
   assertCredentialFreeExportText,
   redactHonuaExportText,
   sanitizeHonuaExportFilename,
@@ -216,6 +217,20 @@ export interface HonuaExportPayload {
    * the browser print dialog being the canonical case.
    */
   readonly sideEffectOnly?: boolean;
+  /**
+   * Whether the artifact's **bytes** carry the attribution and licence notices
+   * the sources require (REQ-003) — a watermark composited into the image, a
+   * PDF footer, a JSON provenance block.
+   *
+   * Defaults to `false`, which is the honest default: reading a WebGL canvas
+   * captures the map's pixels and nothing else, because MapLibre renders its
+   * attribution as DOM outside the canvas. An adapter that does not composite
+   * attribution must not claim it did, so the runner adds an explicit fidelity
+   * warning naming what the caller has to present alongside the artifact, and
+   * {@link HonuaExportRequest.requireEmbeddedProvenance} turns that into a hard
+   * failure for callers who cannot.
+   */
+  readonly provenanceEmbedded?: boolean;
 }
 
 /**
@@ -249,6 +264,14 @@ export interface HonuaExportResult {
   /** `true` when the export completed as a side effect (browser print) and has no payload. */
   readonly sideEffectOnly?: boolean;
   readonly provenance: HonuaExportProvenance;
+  /**
+   * Whether the required attribution and licence notices are carried by the
+   * artifact's own bytes (REQ-003). When `false`, `provenance` still names them
+   * and `provenance.fidelityWarnings` says so explicitly — the caller is
+   * responsible for presenting them wherever the artifact is published.
+   * `undefined` only on results that produced no artifact.
+   */
+  readonly provenanceEmbedded?: boolean;
   /** Everything withheld while sanitizing state for this export. */
   readonly redactions: readonly HonuaExportRedaction[];
   readonly ownership: HonuaExportOwnership;
@@ -276,6 +299,16 @@ export interface HonuaExportRequest<T = Record<string, unknown>> {
   readonly requiredAttribution?: readonly string[];
   /** Licence notices required by the accepted plan. */
   readonly requiredLicenseNotices?: readonly string[];
+  /**
+   * Fail closed unless the adapter embeds the required attribution into the
+   * artifact's own bytes (REQ-003). Off by default, because the common and
+   * legitimate arrangement is for the application to present attribution
+   * alongside the artifact — the result reports
+   * {@link HonuaExportResult.provenanceEmbedded} and carries an explicit
+   * fidelity warning either way. Set this when the artifact will travel on its
+   * own, with no surrounding surface to carry the notice.
+   */
+  readonly requireEmbeddedProvenance?: boolean;
   /** Overrides the export timestamp. Tests pin it; production should not set it. */
   readonly exportedAt?: string;
 }
@@ -562,16 +595,37 @@ export async function runHonuaExport<T>(request: HonuaExportRequest<T>): Promise
   } catch (cause) {
     return failed(
       kind,
-      adapter.id,
+      typeof adapter.id === "string" ? adapter.id : undefined,
       baseProvenance,
       redactions,
       new HonuaExportError("error", "Export adapter failed to describe its capabilities.", { cause }),
       "none",
     );
   }
-  const adapterId = capabilities.adapterId || adapter.id;
+  // Validated rather than trusted, and validated *inside* the guarded region:
+  // an adapter that returns undefined, null, or an object without a `kinds`
+  // array used to be dereferenced here and reject the whole call with a
+  // TypeError, breaking this function's one guarantee — that it always resolves
+  // to a structured result. A malformed capability declaration is a contract
+  // violation by the adapter and is reported as one.
+  const declaredId = (capabilities as { adapterId?: unknown } | null | undefined)?.adapterId;
+  const adapterId = (typeof declaredId === "string" && declaredId) || adapter.id || "unknown-adapter";
+  const declaredKinds = (capabilities as { kinds?: unknown } | null | undefined)?.kinds;
+  if (!capabilities || typeof capabilities !== "object" || !Array.isArray(declaredKinds)) {
+    return failed(
+      kind,
+      typeof adapterId === "string" ? adapterId : undefined,
+      baseProvenance,
+      redactions,
+      new HonuaExportError(
+        "error",
+        `Export adapter "${String(adapterId)}" returned a malformed capability declaration; describeCapabilities() must return an object with a kinds array.`,
+      ),
+      "none",
+    );
+  }
 
-  if (!capabilities.kinds.includes(kind)) {
+  if (!declaredKinds.includes(kind)) {
     return unsupported(
       kind,
       adapterId,
@@ -682,10 +736,16 @@ export async function runHonuaExport<T>(request: HonuaExportRequest<T>): Promise
   }
 
   try {
-    const result = finalize(kind, adapterId, payload, baseProvenance, redactions, release, {
-      attribution: requiredAttribution,
-      licenseNotices: requiredLicenseNotices,
-    });
+    const result = finalize(
+      kind,
+      adapterId,
+      payload,
+      baseProvenance,
+      redactions,
+      release,
+      { attribution: requiredAttribution, licenseNotices: requiredLicenseNotices },
+      request.requireEmbeddedProvenance === true,
+    );
     return result;
   } catch (cause) {
     await release();
@@ -723,16 +783,42 @@ function finalize(
   redactions: readonly HonuaExportRedaction[],
   release: () => Promise<void>,
   required: { readonly attribution: readonly string[]; readonly licenseNotices: readonly string[] },
+  requireEmbeddedProvenance: boolean,
 ): HonuaExportResult {
-  const mediaType = typeof payload.mediaType === "string" ? payload.mediaType.slice(0, 128) : "";
+  const projectedMediaType = projectMediaType(payload.mediaType);
   const adapterWarnings = (payload.fidelityWarnings ?? []).map((warning) =>
     redactHonuaExportText(String(warning)).slice(0, 512),
   );
-  const provenance: HonuaExportProvenance = {
-    ...baseProvenance,
-    fidelityWarnings: [...new Set([...baseProvenance.fidelityWarnings, ...adapterWarnings])],
-  };
+  const warnings = new Set([...baseProvenance.fidelityWarnings, ...adapterWarnings]);
+  if (projectedMediaType.violation && projectedMediaType.mediaType.length > 0) {
+    warnings.add(`Export adapter "${adapterId}": ${projectedMediaType.violation}.`);
+  }
+
+  // REQ-003: whether the artifact's *bytes* carry the required attribution is a
+  // separate fact from whether the export knows the attribution, and conflating
+  // them is how an unattributed image ships. An adapter must say which it did;
+  // the safe default for an artifact that carries a body is "did not".
+  const requiresProvenance = required.attribution.length > 0 || required.licenseNotices.length > 0;
+  const provenanceEmbedded = payload.sideEffectOnly === true || payload.provenanceEmbedded === true;
+  if (requiresProvenance && !provenanceEmbedded) {
+    warnings.add(
+      `This artifact's bytes do not carry the attribution and licence notices its sources require (${[
+        ...required.attribution,
+        ...required.licenseNotices,
+      ].join("; ")}). The caller must present them alongside the artifact wherever it is published.`,
+    );
+  }
+
+  const provenance: HonuaExportProvenance = { ...baseProvenance, fidelityWarnings: [...warnings] };
   assertHonuaExportProvenanceComplete(provenance, required);
+
+  // The strict mode, for callers who cannot present provenance out of band.
+  if (requireEmbeddedProvenance && requiresProvenance && !provenanceEmbedded) {
+    throw new HonuaExportSafetyError(
+      `Export adapter "${adapterId}" cannot embed the required attribution into the ${kind} artifact, and requireEmbeddedProvenance was set. Refusing to emit an artifact whose bytes would travel without the attribution its sources require.`,
+      "unsupported-value",
+    );
+  }
 
   if (payload.sideEffectOnly === true) {
     return {
@@ -741,15 +827,20 @@ function finalize(
       adapterId,
       sideEffectOnly: true,
       provenance,
+      provenanceEmbedded,
       redactions,
-      ownership: "none",
+      // A side-effect export can still hold resources (a print stylesheet
+      // injected into the document, an off-screen render frame). Reporting
+      // "none" here told documented callers to skip cleanup and leaked it.
+      ownership: payload.release ? "caller-releases" : "none",
       release,
     };
   }
 
-  if (mediaType.length === 0) {
+  if (projectedMediaType.mediaType.length === 0) {
     throw new HonuaExportError("error", `Export adapter "${adapterId}" returned an artifact with no media type.`);
   }
+  const mediaType = projectedMediaType.mediaType;
 
   const result: {
     kind: HonuaExportKind;
@@ -760,6 +851,7 @@ function finalize(
     bytes?: Uint8Array;
     text?: string;
     provenance: HonuaExportProvenance;
+    provenanceEmbedded: boolean;
     redactions: readonly HonuaExportRedaction[];
     ownership: HonuaExportOwnership;
     release: () => Promise<void>;
@@ -773,19 +865,22 @@ function finalize(
     }),
     mediaType,
     provenance,
+    provenanceEmbedded,
     redactions,
     ownership: payload.release ? "caller-releases" : "none",
     release,
   };
 
   if (payload.bytes instanceof Uint8Array) {
-    // Binary artifacts are scanned as UTF-8 text where they decode as such
-    // (SVG, JSON, HTML wrapped in a byte payload are the realistic leak
-    // vectors); a genuinely binary PNG/PDF simply will not decode and is
-    // passed through. This is a best-effort scan on top of the fact that the
-    // adapter never saw credentials in the first place.
+    // Scanned two ways, because "binary" is not a security boundary. A buffer
+    // that decodes cleanly as UTF-8 (SVG, JSON, HTML) is scanned as text; every
+    // buffer, including a genuine PNG or PDF that will never decode, also has
+    // its printable runs extracted and scanned, so a token inside a PNG tEXt
+    // chunk, a JPEG comment, or PDF/XMP metadata cannot ride out under cover of
+    // the surrounding binary.
     const decoded = decodeUtf8Strict(payload.bytes);
     if (decoded !== undefined) assertCredentialFreeExportText(decoded, `${kind} export bytes`);
+    assertCredentialFreeExportBytes(payload.bytes, `${kind} export bytes`);
     result.bytes = adoptBytes(payload.bytes);
   } else if (typeof payload.text === "string") {
     assertCredentialFreeExportText(payload.text, `${kind} export text`);
@@ -800,6 +895,76 @@ function finalize(
     assertCredentialFreeExportText(warning, "export fidelity warning");
   }
   return result as HonuaExportResult;
+}
+
+/** Fallback for a media type the adapter got wrong; deliberately inert. */
+const SAFE_FALLBACK_MEDIA_TYPE = "application/octet-stream";
+
+/** RFC 9110 token characters, the only thing allowed in a type, subtype, or parameter name. */
+const MEDIA_TYPE_TOKEN = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$/;
+
+/**
+ * Parameters an export media type may carry. Everything else is dropped: a
+ * media type is echoed onto the result, onto the `honua-export` event, and into
+ * a `Content-Type` header by most callers, so an adapter-controlled parameter
+ * bag is a credential channel (`text/plain; token=...`) and a header-injection
+ * channel. `charset` is the only parameter an export artifact legitimately
+ * needs, and its value is checked against the same token grammar.
+ */
+const MEDIA_TYPE_PARAMETER_ALLOWLIST = new Set(["charset"]);
+
+/** A media type after validation, plus what was rejected. */
+interface MediaTypeProjection {
+  readonly mediaType: string;
+  /** Present when the adapter's value was not usable as given. */
+  readonly violation?: string;
+}
+
+/**
+ * Validates an adapter-supplied media type against a strict `type/subtype`
+ * grammar with an allowlisted parameter set, replacing anything else with
+ * {@link SAFE_FALLBACK_MEDIA_TYPE} and reporting the substitution.
+ *
+ * Truncation alone (the previous behavior) is not validation: it bounds length
+ * and nothing else, so a value carrying a token, a newline, or arbitrary
+ * parameters passed straight through to the result and the event detail.
+ */
+function projectMediaType(raw: unknown): MediaTypeProjection {
+  if (typeof raw !== "string" || raw.trim().length === 0) {
+    return { mediaType: "", violation: "no media type" };
+  }
+  const value = raw.slice(0, 255);
+  const [essence, ...parameters] = value.split(";");
+  const [type, subtype, ...extra] = essence.trim().toLowerCase().split("/");
+  if (extra.length > 0 || !MEDIA_TYPE_TOKEN.test(type ?? "") || !MEDIA_TYPE_TOKEN.test(subtype ?? "")) {
+    return {
+      mediaType: SAFE_FALLBACK_MEDIA_TYPE,
+      violation: `media type is not a valid type/subtype; substituted ${SAFE_FALLBACK_MEDIA_TYPE}`,
+    };
+  }
+  const kept: string[] = [];
+  let dropped = 0;
+  for (const parameter of parameters) {
+    const separator = parameter.indexOf("=");
+    if (separator < 0) {
+      dropped += 1;
+      continue;
+    }
+    const name = parameter.slice(0, separator).trim().toLowerCase();
+    const parameterValue = parameter
+      .slice(separator + 1)
+      .trim()
+      .replace(/^"|"$/g, "");
+    if (!MEDIA_TYPE_PARAMETER_ALLOWLIST.has(name) || !MEDIA_TYPE_TOKEN.test(parameterValue)) {
+      dropped += 1;
+      continue;
+    }
+    kept.push(`${name}=${parameterValue}`);
+  }
+  const mediaType = [`${type}/${subtype}`, ...kept].join("; ");
+  return dropped === 0
+    ? { mediaType }
+    : { mediaType, violation: `${dropped} disallowed media-type parameter(s) were dropped` };
 }
 
 function decodeUtf8Strict(bytes: Uint8Array): string | undefined {
@@ -841,6 +1006,13 @@ export interface HonuaSnapshotSource {
   readonly mediaType?: string;
   /** Fidelity caveats the application knows apply to its snapshots. */
   readonly fidelityWarnings?: readonly string[];
+  /**
+   * Set only if `getCanvas()` returns a canvas that already has the required
+   * attribution composited into its pixels (an application that draws a
+   * watermark or footer before handing the canvas over). Left `false`, the
+   * export reports honestly that the bytes do not carry attribution.
+   */
+  readonly provenanceEmbedded?: boolean;
 }
 
 export interface CreateHonuaExportAdapterOptions {
@@ -933,6 +1105,15 @@ export function createHonuaExportAdapter(options: CreateHonuaExportAdapterOption
         bytes: decoded.bytes,
         filenameHint: context.title ?? context.provenance.packageId ?? "snapshot",
         fidelityWarnings: source.fidelityWarnings ?? [],
+        // Reading a canvas captures the map's pixels and nothing else: MapLibre
+        // renders attribution as DOM siblings of the canvas, so it is provably
+        // absent from these bytes. Declaring `true` here would make the result
+        // claim an attribution guarantee the image does not carry, which is the
+        // licence-breaking failure REQ-003 exists to prevent. The runner turns
+        // this into an explicit fidelity warning naming what the caller must
+        // present, or a hard failure under `requireEmbeddedProvenance`.
+        // An adapter that composites a watermark or footer should declare true.
+        provenanceEmbedded: source.provenanceEmbedded === true,
       };
     };
   }

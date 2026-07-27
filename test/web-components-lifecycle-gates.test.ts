@@ -439,6 +439,134 @@ describe("text-field focus restoration", () => {
   });
 });
 
+describe("superseded exports cannot overwrite a newer one (issue #683 review)", () => {
+  /**
+   * An adapter that ignores its AbortSignal and settles only when told to —
+   * the realistic shape of a server-side renderer or a slow encoder. An
+   * `AbortSignal` is advisory, so aborting the first export does not stop this
+   * continuation from running; the element must discard it by generation.
+   */
+  function deferredAdapter(id: string): {
+    adapter: {
+      id: string;
+      describeCapabilities: () => { adapterId: string; kinds: string[]; cancellable: boolean };
+      exportState: () => Promise<{ mediaType: string; text: string; release: () => void }>;
+    };
+    settle: (text: string) => void;
+    release: ReturnType<typeof vi.fn>;
+  } {
+    let resolve: ((value: { mediaType: string; text: string; release: () => void }) => void) | undefined;
+    const release = vi.fn();
+    return {
+      adapter: {
+        id,
+        describeCapabilities: () => ({ adapterId: id, kinds: ["state"], cancellable: false }),
+        exportState: () =>
+          new Promise((resolveFn) => {
+            resolve = resolveFn;
+          }),
+      },
+      settle: (text: string) => resolve?.({ mediaType: "application/json", text, release }),
+      release,
+    };
+  }
+
+  it("discards a slow first export that completes after a newer one finished", async () => {
+    const tracked = trackedController();
+    const element = mount("honua-print-export", tracked.controller) as HTMLElement & {
+      exportAdapter?: unknown;
+      requestExport?: (kind: string) => Promise<{ status: string; text?: string }>;
+      lastExportResult?: { text?: string };
+    };
+    const events: unknown[] = [];
+    element.addEventListener("honua-export", (event) => events.push((event as CustomEvent).detail));
+
+    const slow = deferredAdapter("slow");
+    element.exportAdapter = slow.adapter;
+    const first = element.requestExport?.("state");
+    await settle();
+
+    // A second export supersedes the first while it is still outstanding.
+    const fast = deferredAdapter("fast");
+    element.exportAdapter = fast.adapter;
+    const second = element.requestExport?.("state");
+    await settle();
+    fast.settle('{"which":"second"}');
+    await second;
+
+    expect(element.lastExportResult?.text).toBe('{"which":"second"}');
+    expect(events).toHaveLength(1);
+
+    // Now the abort-ignoring first adapter finally settles.
+    slow.settle('{"which":"first"}');
+    await first;
+    await settle();
+
+    // The stale completion published nothing and dispatched nothing...
+    expect(element.lastExportResult?.text).toBe('{"which":"second"}');
+    expect(events).toHaveLength(1);
+    // ...and its adapter resource was released rather than leaked, since
+    // nothing else holds a reference to it.
+    expect(slow.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves the superseded caller with a cancelled result carrying no bytes", async () => {
+    const tracked = trackedController();
+    const element = mount("honua-print-export", tracked.controller) as HTMLElement & {
+      exportAdapter?: unknown;
+      requestExport?: (kind: string) => Promise<{ status: string; text?: string }>;
+    };
+    const slow = deferredAdapter("slow");
+    element.exportAdapter = slow.adapter;
+    const first = element.requestExport?.("state");
+    await settle();
+
+    const fast = deferredAdapter("fast");
+    element.exportAdapter = fast.adapter;
+    const second = element.requestExport?.("state");
+    await settle();
+    fast.settle('{"which":"second"}');
+    await second;
+
+    slow.settle('{"which":"first"}');
+    // Two layers agree here. The element discards the stale completion by
+    // generation, and the runner independently sees its AbortSignal already
+    // fired and reports `cancelled` with the payload dropped and released —
+    // so even an adapter that ignores the signal cannot hand the caller bytes
+    // from a superseded export.
+    const superseded = await first;
+    expect(superseded).toMatchObject({ status: "cancelled" });
+    expect((superseded as { text?: string }).text).toBeUndefined();
+    expect((superseded as { bytes?: Uint8Array }).bytes).toBeUndefined();
+    expect(slow.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not publish onto a detached element", async () => {
+    const tracked = trackedController();
+    const element = mount("honua-print-export", tracked.controller) as HTMLElement & {
+      exportAdapter?: unknown;
+      requestExport?: (kind: string) => Promise<unknown>;
+      lastExportResult?: unknown;
+    };
+    const events: unknown[] = [];
+    element.addEventListener("honua-export", (event) => events.push((event as CustomEvent).detail));
+
+    const slow = deferredAdapter("slow");
+    element.exportAdapter = slow.adapter;
+    const pending = element.requestExport?.("state");
+    await settle();
+
+    element.remove();
+    slow.settle('{"which":"detached"}');
+    await pending;
+    await settle();
+
+    expect(element.lastExportResult).toBeUndefined();
+    expect(events).toHaveLength(0);
+    expect(slow.release).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("print/export affordances and semantics", () => {
   it("renders snapshot and state export disabled with aria-disabled until an adapter is assigned (screen-reader-semantics)", () => {
     const tracked = trackedController();

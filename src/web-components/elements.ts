@@ -1664,6 +1664,8 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
   #exportAdapter: HonuaExportAdapter | undefined;
   #lastResult: HonuaExportResult | undefined;
   #inFlight: AbortController | undefined;
+  /** Monotonic request generation; only the newest export may publish. */
+  #exportGeneration = 0;
 
   static get observedAttributes(): string[] {
     return ["for", "label", "title"];
@@ -1699,6 +1701,9 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
     // alive (REQ-005 deterministic disposal).
     this.#inFlight?.abort();
     this.#inFlight = undefined;
+    // Bump the generation too: an abort-ignoring adapter's continuation must
+    // not publish onto a detached element either.
+    this.#exportGeneration += 1;
     super.disconnectedCallback();
   }
 
@@ -1721,6 +1726,14 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
     this.#inFlight?.abort();
     const controller = typeof AbortController === "function" ? new AbortController() : undefined;
     this.#inFlight = controller;
+    // An AbortSignal is advisory: an adapter is free to ignore it and settle
+    // later, so aborting the previous export does not guarantee it stays quiet.
+    // Ownership of the element's visible state therefore belongs to a
+    // generation, not to a controller — a completion that no longer owns the
+    // element neither publishes a result nor dispatches an event, so a slow
+    // first export cannot overwrite a newer one that already finished.
+    this.#exportGeneration += 1;
+    const generation = this.#exportGeneration;
     const title = this.getAttribute("title") ?? this.state?.packageId ?? undefined;
     const result = await runHonuaExport<T>({
       kind,
@@ -1730,6 +1743,14 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
       ...(controller ? { signal: controller.signal } : {}),
     });
     if (this.#inFlight === controller) this.#inFlight = undefined;
+    if (generation !== this.#exportGeneration) {
+      // Superseded. The caller still gets its own result — it asked for this
+      // export and is entitled to the outcome — but the element does not adopt
+      // it, and any resource the adapter handed back is released here, since
+      // nothing else now holds a reference to release it.
+      void result.release();
+      return result;
+    }
     this.#lastResult = result;
     this.dispatchTypedEvent<HonuaExportDetail>("honua-export", exportDetailFromResult(result, title));
     this.render();

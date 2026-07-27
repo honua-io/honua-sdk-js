@@ -216,12 +216,26 @@ document is an **allowlist projection** (a field nobody allowlisted has no path
 into the output, so upstream state growth cannot silently widen an export), and
 everything that survives is then scrubbed and re-scanned. A credential reaching
 the final scan is a hard failure, not a silent scrub. The same treatment applies
-to download filenames and to every message placed on a `honua-export` event or a
-log line — a token disclosed through a filename is exactly as disclosed as one
-in the payload. Attribution, licence notices, scale, export timestamp, data
-freshness, and fidelity warnings travel with every artifact, and an export that
-would drop attribution a source requires fails closed like a leak, because
-shipping an unattributed map is a licence violation.
+to download filenames, to the adapter-supplied media type (validated against a
+strict `type/subtype` grammar with an allowlisted parameter set, so
+`text/plain; token=…` cannot ride out on the result), and to every message
+placed on a `honua-export` event or a log line — a token disclosed through a
+filename is exactly as disclosed as one in the payload. Binary artifacts are
+scanned too: "binary" is not a security boundary, so printable runs are
+extracted from every byte payload and swept, catching a token inside a PNG
+`tEXt` chunk, a JPEG comment, or PDF/XMP metadata.
+
+Attribution, licence notices, scale, export timestamp, data freshness, and
+fidelity warnings travel with every artifact. Whether the artifact's **bytes**
+carry the attribution is tracked separately as `provenanceEmbedded`, because
+conflating the two is how an unattributed image ships: reading a WebGL canvas
+captures the map's pixels and nothing else, since MapLibre renders attribution
+as DOM outside the canvas. An adapter that does not composite attribution must
+not claim it did, so the result reports `provenanceEmbedded: false` and carries
+an explicit fidelity warning naming what the caller has to present alongside the
+artifact. Pass `requireEmbeddedProvenance: true` to turn that into a hard
+failure when the artifact will travel on its own with no surrounding surface to
+carry the notice.
 
 ## Production-Tier Feature Editing (`honua-feature-editor`)
 
