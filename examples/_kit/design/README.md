@@ -22,10 +22,17 @@ The kit's own diagnostics strip (`mountSamplePresentation`) is styled once in
 samples that have not adopted the language yet. Samples must not re-tint
 `.honua-sample-kit`.
 
-Samples on the language: `maplibre-quickstart` (First Map),
-`migration-workbench`, `service-explorer`, `imagery-cog-quickstart`. Still to
-convert: `planning-permitting-workbench`, `realtime-incident-dashboard`, and
-the non-kit examples.
+Samples on the language: every sample in the kit —
+`maplibre-quickstart` (First Map), `migration-workbench`, `service-explorer`,
+`imagery-cog-quickstart`, `planning-permitting-workbench`, and
+`realtime-incident-dashboard`. Still to convert: the non-kit examples and the
+sample gallery.
+
+A realtime sample keeps its stream instruments (connection, write authority,
+lag, reconnect, backoff, staleness, reconciliation) on a permanent strip above
+the workspace. They are chrome, not detail: never collapsed behind a
+disclosure, never scrolled out of a side column, and never signalled by color
+alone.
 
 A sample that offers a manual theme override stamps `<html data-theme>` from a
 three-state toggle (`auto → light → dark`) and re-keys its basemap background
