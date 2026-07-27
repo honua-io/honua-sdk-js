@@ -12,6 +12,13 @@ The complete subpath is experimental while the remaining compiler and columnar
 slices land. The stable root promotes only the reviewed plan/execution subset
 used by the managed connection and MapLibre source workflows.
 
+The managed example below deliberately omits attribute filtering. The stable
+`Source.query()` surface does not yet accept the semantic AST, while
+`Query.where` is deprecated source-native compatibility. Typed semantic filters
+are available only from this experimental subpath until that integration lands.
+Examples later in this guide that use `Query.where` document the v1 compatibility
+compiler; they are not the new-code filtering idiom.
+
 ## Managed connection workflow
 
 The reviewed planner subset is also wired into the lifecycle-owned root
@@ -28,7 +35,6 @@ const connection = await honua.connect({
   sourceId: "incidents",
 });
 const plan = await connection.explain({
-  where: "status = 'open'",
   pagination: { limit: 100 },
 });
 const result = await connection.query(plan);

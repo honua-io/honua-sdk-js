@@ -215,10 +215,11 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
   the canonical query family throws `HonuaCapabilityNotSupportedError` for utility-only services so
   mixed-source apps surface the limitation explicitly. The ImageServer adapter rejects `Query.spatialFilter` /
   `orderBy` / `outFields` rather than silently widening the catalog result. WMS surfaces `query` through
-  point-only `GetFeatureInfo`; WMTS is render-only (`Source.query()` throws). The WFS adapter compiles
-  `Query.where` / `Query.spatialFilter` to FES 2.0, prefers GeoJSON over GML via `OperationsMetadata`
-  negotiation, builds `<wfs:Transaction>` bodies for `applyEdits`, and reaches raw GML / `LockFeature` /
-  `GetPropertyValue` / stored queries through `Source.protocol("wfs")`. The OData adapter exposes
+  point-only `GetFeatureInfo`; WMTS is render-only (`Source.query()` throws). The WFS adapter compiles the
+  deprecated, source-native `Query.where` migration field and `Query.spatialFilter` to FES 2.0, prefers
+  GeoJSON over GML via `OperationsMetadata` negotiation, builds `<wfs:Transaction>` bodies for `applyEdits`,
+  and reaches raw GML / `LockFeature` / `GetPropertyValue` / stored queries through
+  `Source.protocol("wfs")`. The OData adapter exposes
   `query` / `queryObjectIds` / `stream` / `applyEdits` first-party
   (PATCH-with-full-body in place of PUT, per the parity matrix) and surfaces `$batch` / `$apply` /
   `$search` / `$deltatoken` through `Source.protocol("odata")` on a `HonuaOdataEntitySet`; it is also
@@ -263,8 +264,8 @@ const dataset = createDataset({
 });
 
 const parcels = dataset.source("parcels-fs")!;
-const result = await parcels.query({ where: "STATUS = 'ACTIVE'", pagination: { limit: 100 } });
-const { extent } = await parcels.queryExtent({ where: "STATUS = 'ACTIVE'" });
+const result = await parcels.query({ pagination: { limit: 100 } });
+const { extent } = await parcels.queryExtent();
 
 const ctx = createExplorationContext({
   datasetId: dataset.id,
@@ -289,7 +290,7 @@ applies geometry-appropriate default styling, wires optional click popups and ho
 returns one disposable handle whose `setFilter()`/`refresh()` diff-update in place.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { connect } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
 
@@ -320,7 +321,7 @@ that `honua-io/honua-sdk-js#22` and `#29` build on. The runtime never instantiat
 stays a peer dependency) and never issues edit writes.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { loadMapPackage } from "@honua/sdk-js/runtime";
 
@@ -744,6 +745,7 @@ const dataset = createDataset({
 });
 
 const wfs = dataset.source("parcels-wfs")!;
+// Deprecated WFS-native compatibility text retained for migrations.
 const result = await wfs.query({ where: "STATE = 'CA' AND ACRES > 10" });
 const ids = await wfs.queryObjectIds({ where: "STATUS = 'ACTIVE'" });
 
@@ -752,8 +754,9 @@ const root = wfs.protocol("wfs")!.root;
 const storedQueries = await root.storedQueries();
 ```
 
-`Query.where` compiles to FES 2.0 (comparison, `IN`, `BETWEEN`,
-`LIKE`, `IS NULL`, boolean combinators); `Query.spatialFilter`
+The deprecated, source-native `Query.where` migration field compiles to FES 2.0
+(comparison, `IN`, `BETWEEN`, `LIKE`, `IS NULL`, boolean combinators);
+`Query.spatialFilter`
 becomes a KVP `bbox=` for envelope-only requests or a `<fes:Filter>`
 otherwise. Filters that exceed the GET budget switch to POST
 GetFeature with the `<fes:Filter>` body. `applyEdits` builds a single
@@ -789,6 +792,7 @@ const dataset = createDataset({
 });
 
 const parcels = dataset.source("parcels-odata")!;
+// Deprecated OData-native compatibility text retained for migrations.
 const result = await parcels.query({ where: "STATE = 'CA' AND ACRES > 10" });
 const ids = await parcels.queryObjectIds({ where: "STATUS = 'ACTIVE'" });
 
@@ -853,11 +857,12 @@ composite components, so lossless composite deletes fail locally; use the
 native typed OData surface until the generic edit contract gains structured
 feature identity.
 
-`Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites
-the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` →
-`eq`, plus the SQL comparison operators `>=` / `<=` / `>` / `<` → `ge` /
-`le` / `gt` / `lt`) and rejects operators the parity matrix marks
-unsupported (`has`, `in`, `any`, `all`, `cast`, `isof`). `Query.outFields`
+The deprecated, source-native `Query.where` migration field accepts SQL-92 /
+OData `$filter` text; the adapter rewrites the documented intersection
+(`IS NULL` → `eq null`, `<>` → `ne`, `=` → `eq`, plus the SQL comparison
+operators `>=` / `<=` / `>` / `<` → `ge` / `le` / `gt` / `lt`) and rejects
+operators the parity matrix marks unsupported (`has`, `in`, `any`, `all`,
+`cast`, `isof`). `Query.outFields`
 splits onto `$select` for plain field names and `$expand` for navigation
 paths — `["Owner.name"]` lowers to `$expand=Owner($select=name)` so
 related properties round-trip through the canonical request envelope.
@@ -888,6 +893,7 @@ const parcelsLayer = client.service("transport").featureLayer(0);
 const parcelsOgc = client.ogcFeatures().collection("parcels");
 
 const [features, items] = await Promise.all([
+  // Low-level GeoServices calls use native ArcGIS SQL, not contract `Query.where`.
   parcelsLayer.queryFeatures({ where: "status = 'active'", outFields: ["OBJECTID"] }),
   parcelsOgc.items({ limit: 50 }),
 ]);
@@ -987,7 +993,8 @@ const slider = new TimeSliderCompat({
 // Connect slider to layer — time extent changes auto-filter queries
 const connection = slider.connectLayer(layer);
 
-// Queries now include the time parameter automatically
+// Esri compatibility APIs retain raw ArcGIS SQL during migration.
+// Queries now include the time parameter automatically.
 const features = await layer.queryFeatures({ where: "1=1" });
 
 // Disconnect when done

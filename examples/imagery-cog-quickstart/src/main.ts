@@ -1,4 +1,5 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../shared/maplibre-vite-worker.js";
 
 import { connect } from "@honua/sdk-js";
 import {
@@ -14,7 +15,8 @@ import {
   openStacCogAsset,
 } from "@honua/sdk-js/cog";
 import { type ElevationCoordinate, HonuaClient, HonuaImageService, type StacAssetCandidate } from "@honua/sdk-js/honua";
-import maplibregl, { type GeoJSONSource, type MapMouseEvent } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import type { GeoJSONSource, MapMouseEvent } from "maplibre-gl";
 
 import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
 import { mountSamplePresentation } from "../../_kit/presentation.js";

@@ -107,6 +107,8 @@ describe("First Map presentation contract", () => {
     });
 
     expect(code).toContain('from "./workflow"');
+    expect(code).toContain('maplibre-gl-worker.mjs?worker&url"');
+    expect(code).toContain("maplibregl.setWorkerUrl(maplibreWorkerUrl)");
     expect(code).toContain('"protocol": "ogc-features"');
     expect(code).toContain('result.state !== "ready"');
     expect(code).not.toContain("apiKey");

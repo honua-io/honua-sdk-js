@@ -1,9 +1,10 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../shared/maplibre-vite-worker.js";
 
 import { createTemporalPlayback } from "@honua/sdk-js/map";
 import type { TemporalPlayback, TemporalPlaybackTick } from "@honua/sdk-js/map";
 import { classBreaksRenderer } from "@honua/sdk-js/style";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 
 import "./styles.css";
 

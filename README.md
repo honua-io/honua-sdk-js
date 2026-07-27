@@ -14,8 +14,8 @@
 protocols your data already speaks (Esri GeoServices, OGC API Features / Tiles / Maps /
 Processes, STAC, WMS, WMTS, WFS 2.0, OData v4), a one-call data→map bridge and MapLibre
 runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatibility
-layer with a codemod — everything around the renderer, so MapLibre (2D) and Cesium (3D)
-can do what they do best.
+layer with a codemod. MapLibre is the stable renderer path; optional Cesium and Kepler.gl
+integration remains pre-1.0.
 
 **Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and is
 removed at 6.0 — planned for **Q1 2027**. If your app constructs one, that code stops
@@ -32,7 +32,7 @@ Atlas FeatureServer becomes a styled, interactive MapLibre map:
 ```ts doc-test=compile
 import { connect } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 
 const endpoint = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0";
 const map = new maplibregl.Map({ container: "map", style: "https://demotiles.maplibre.org/style.json", center: [-98, 39], zoom: 3 });
@@ -87,6 +87,11 @@ by an API-surface gate; 16 experimental subpaths may change before 1.0, and
 [`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
 site/sample consumer contract, and
 [the scope decision](./docs/decisions/scope-split-and-1.0.md).
+
+This README tracks the current development branch. The version above is its
+package baseline, not a claim that every capability described here is already
+present in the npm artifact with that version. For published behavior, use the
+[tagged release documentation](./docs/documentation-versions.md).
 <!-- support-manifest:release:end -->
 
 📚 **Hosted docs:** [honua-io.github.io/honua-sdk-js](https://honua-io.github.io/honua-sdk-js/) —
@@ -115,7 +120,9 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
   `HonuaCapabilityNotSupportedError` instead of returning empty results.
 - **Data to map in one call.** `connect()` + `mountSource()` turn a bare endpoint into a
   styled, interactive MapLibre layer; `loadMapPackage(...)` + `HonuaMapRuntime` render
-  server-authored `MapPackage`s. Cesium, kepler.gl, and OGC web-map sources are first-class.
+  server-authored `MapPackage`s. This is the stable renderer path. OGC web-map support
+  follows the generated capability matrix; Cesium integration lives on the pre-1.0
+  `@honua/app-platform/scene-workspace` path, and `@honua/sdk-js/kepler` is experimental.
 - **TypeScript first.** `strict` + `verbatimModuleSyntax`, exported types for every public
   symbol, declaration maps, and JSDoc on the public client surface.
 - **Migrate, don't rewrite.** `FeatureLayerCompat`, `MapImageLayerCompat`, `MapViewCompat`,
@@ -162,8 +169,9 @@ claim, execution mode, and evidence link.
 In the spirit of the [migration punch list](./docs/migration-punch-list.md), the
 non-goals are explicit rather than implied:
 
-- **It is not a rendering engine, on purpose.** 2D rendering rides
-  [MapLibre GL JS](https://maplibre.org/) and 3D rides [CesiumJS](https://cesium.com/platform/cesiumjs/);
+- **It is not a rendering engine, on purpose.** The stable 2D runtime rides
+  [MapLibre GL JS](https://maplibre.org/); optional pre-1.0 3D integration rides
+  [CesiumJS](https://cesium.com/platform/cesiumjs/).
   Honua does not fork, wrap-and-hide, or compete with either. If you need renderer
   features (custom shaders, globe projections, visual effects), take them from the
   renderer directly — Honua stays out of the way.
@@ -290,7 +298,6 @@ const dataset = createDataset({
 
 const states = dataset.source("apportionment")!;
 const result = await states.queryAll({
-  where: "Seats_2020 > 10",
   outFields: ["NAME", "Total_Pop_2020", "Seats_2020"],
   returnGeometry: true,
   pagination: { limit: 100 },
@@ -299,12 +306,26 @@ const result = await states.queryAll({
 console.log(`Loaded ${result.features.length} states`);
 ```
 
-The same code works against any GeoServices, OGC API Features, WFS, OData, or
-STAC endpoint. Migrating from `esri-leaflet`? The raw GeoServices shape and the
-`esri-compat` drop-in point at `services.arcgis.com`-style URLs unchanged:
+The starter deliberately omits an attribute filter. The protocol-neutral
+`Query.where` member remains operational only as deprecated, source-native v1
+compatibility; its grammar changes with the adapter. A stable semantic-filter
+builder is not yet wired into `Source.query()`. New code that can accept
+pre-1.0 API changes can use the typed semantic AST from the experimental
+[`@honua/sdk-js/query-planner`](./docs/query-planner.md), whose examples are
+compile-checked.
 
-```ts doc-test=skip reason="partial excerpt requires application host context"
-const { features } = await client.queryFeatures({
+The same unfiltered query envelope works against any GeoServices, OGC API
+Features, WFS, OData, or STAC endpoint. Migrating from `esri-leaflet`? The raw
+GeoServices API remains available, but its `where` member below is explicitly
+GeoServices SQL rather than the deprecated protocol-neutral `Query.where`:
+
+```ts doc-test=compile
+import { HonuaClient } from "@honua/sdk-js";
+
+const geoServicesClient = new HonuaClient({
+  baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis",
+});
+const { features } = await geoServicesClient.queryFeatures({
   serviceId: "2020_Census_State_Apportionment",
   layerId: 0,
   where: "1=1",

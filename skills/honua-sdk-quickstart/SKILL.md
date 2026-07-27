@@ -46,7 +46,6 @@ const dataset = createDataset({
 
 const parcels = dataset.source("parcels-fs")!;
 const result = await parcels.queryAll({
-  where: "STATUS = 'ACTIVE'",
   outFields: ["OBJECTID", "NAME"],
   returnGeometry: true,
   pagination: { limit: 500 },
@@ -64,14 +63,22 @@ Contract idioms to keep straight:
   completion, and `stream()` (an async generator) for streaming pages.
 - Method casing is per-language; the JS surface is `queryAll()` / `query()` /
   `stream()`. Semantics match the .NET / Python SDKs.
+- Do not generate `Query.where` for new protocol-neutral examples. It remains a
+  deprecated source-native compatibility string, and no stable semantic-filter
+  builder is wired into `Source.query()` yet. If filtering is required, either
+  use a typed raw protocol request or explicitly opt into the experimental
+  `@honua/sdk-js/query-planner` semantic AST and state that lifecycle.
 - For raw protocol operations the canonical surface does not cover, drop to the
   typed escape hatch `source.protocol(...)`.
 
 Prefer the raw GeoServices shape (for example during an ArcGIS migration)?
 `HonuaClient` ships the protocol-specific call directly:
 
-```ts doc-test=skip reason="partial excerpt requires application host context"
-const { features } = await client.queryFeatures({
+```ts doc-test=compile
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const geoServicesClient = new HonuaClient({ baseUrl: "https://your-honua-server.example" });
+const { features } = await geoServicesClient.queryFeatures({
   serviceId: "natural-earth",
   layerId: 0,
   where: "1=1",
@@ -100,7 +107,7 @@ the `isHonuaError` guard so unrelated exceptions propagate:
 import { HonuaCapabilityNotSupportedError, isHonuaError } from "@honua/sdk-js";
 
 try {
-  await dataset.source("parcels-fs")!.queryAll({ where: "1=1" });
+  await dataset.source("parcels-fs")!.queryAll({ pagination: { limit: 100 } });
 } catch (error) {
   if (!isHonuaError(error)) throw error;
   if (error instanceof HonuaCapabilityNotSupportedError) {

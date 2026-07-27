@@ -314,6 +314,7 @@ function createSdkPackage() {
       "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
       "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
       "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
+      "@mapbox/jsonlint-lines-primitives": rootPackageJson.dependencies["@mapbox/jsonlint-lines-primitives"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
     },
     peerDependencies: {
@@ -495,6 +496,7 @@ function createReactPackage() {
       "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
       "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
       "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
+      "@mapbox/jsonlint-lines-primitives": rootPackageJson.dependencies["@mapbox/jsonlint-lines-primitives"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
     },
     peerDependencies: {
@@ -596,6 +598,7 @@ function createAppPlatformPackage() {
       "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
       "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
       "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
+      "@mapbox/jsonlint-lines-primitives": rootPackageJson.dependencies["@mapbox/jsonlint-lines-primitives"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
       ...geometryRuntimeDependencies(),
     },

@@ -75,13 +75,13 @@ function Incidents() {
 
   const source = dataset.source("incidents");
   const { data, isLoading, error, refetch } = useQuery(source, {
-    where: "STATUS = 'OPEN'",
+    pagination: { limit: 100 },
     returnGeometry: true,
   });
 
   if (isLoading) return <p>Loading…</p>;
   if (error) return <p>Query failed: {String(error)}</p>;
-  return <p>{data?.features.length ?? 0} open incidents. <button onClick={refetch}>Refresh</button></p>;
+  return <p>{data?.features.length ?? 0} incidents. <button onClick={refetch}>Refresh</button></p>;
 }
 ```
 
@@ -136,7 +136,11 @@ function Rows() {
       },
     ],
   });
-  const { data } = useQuery(dataset.source("incidents"), { where: "1=1" }, { suspense: true, staleTimeMs: 30_000 });
+  const { data } = useQuery(
+    dataset.source("incidents"),
+    { pagination: { limit: 100 } },
+    { suspense: true, staleTimeMs: 30_000 },
+  );
   return <p>{data?.features.length ?? 0} rows</p>;
 }
 
@@ -158,6 +162,10 @@ add on mount and remove on unmount.
 ```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaMap, HonuaLayer, HonuaPopup } from "@honua/react";
 import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "@honua/sdk-js/runtime";
+import * as maplibregl from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 const mapPackage = {
   mapPackageId: "sites",
@@ -167,7 +175,7 @@ const mapPackage = {
   initialView: { center: [-157.84, 21.31], zoom: 10 },
 };
 
-<HonuaMap package={mapPackage} style={{ height: 480 }}>
+<HonuaMap package={mapPackage} mapLibre={maplibregl} style={{ height: 480 }}>
   <HonuaLayer
     source={{ id: "sites", spec: { type: "geojson", data: sitesGeoJson } }}
     layer={{ id: "sites-circles", type: "circle", source: "sites", paint: { "circle-radius": 8 } }}
@@ -177,8 +185,10 @@ const mapPackage = {
 ```
 
 By default `HonuaMap` creates and owns the MapLibre map (dynamically importing
-`maplibre-gl`). Pass `mapLibre={maplibregl}` to supply the module explicitly, or
-`mapOptions` to tune the constructor.
+`maplibre-gl`). MapLibre 6 bundler hosts must configure its ESM worker before
+the first map is created; the Vite form above uses `?worker&url`. Pass the
+configured module as `mapLibre={maplibregl}`, or use `mapOptions` to tune the
+constructor. Direct CDN ESM loading auto-detects the worker URL.
 
 ## External-map interop (`@vis.gl/react-maplibre`) — experimental
 
@@ -234,7 +244,7 @@ import type { DataToMapLibreMap } from "@honua/sdk-js/map";
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaSourceLayer, useDataset } from "@honua/react";
 
-export function OpenIncidents({ map }: { map: DataToMapLibreMap | null }) {
+export function IncidentLayer({ map }: { map: DataToMapLibreMap | null }) {
   const dataset = useDataset({
     id: "ops",
     sources: [
@@ -250,7 +260,7 @@ export function OpenIncidents({ map }: { map: DataToMapLibreMap | null }) {
     <HonuaSourceLayer
       map={map}
       source={dataset.source("incidents")}
-      query={{ where: "STATUS = 'OPEN'" }}
+      query={{ pagination: { limit: 500 } }}
       renderer={{ paint: { point: { "circle-color": "#38bdf8" } } }}
       hover
       onDiagnostics={(diagnostics) => console.log(diagnostics.strategy, diagnostics.featureCount)}

@@ -4,6 +4,7 @@ import {
   realtimeSubscriptionKey,
 } from "@honua/sdk-js/realtime";
 import type {
+  RealtimeConnectionStatus,
   RealtimeExternalResnapshotReason,
   RealtimeFeatureEvent,
   RealtimeFeatureStore,
@@ -58,6 +59,67 @@ export interface CreateIncidentRealtimeSessionOptions<TFeature> {
   readonly context: RealtimeResumeContextV1;
   readonly now?: () => number;
   readonly onReceipt?: (receipt: IncidentRealtimeReceipt) => void;
+}
+
+export interface WaitForIncidentRealtimeStatusOptions {
+  readonly signal?: AbortSignal;
+  readonly timeoutMs?: number;
+}
+
+/**
+ * Wait for a control-plane acknowledgement to become observable on the data
+ * stream. Fixture actions respond independently from SSE delivery, so callers
+ * must not release queued mutations until the store has seen the status event
+ * that changes write authority.
+ */
+export function waitForIncidentRealtimeStatus<TFeature>(
+  store: RealtimeFeatureStore<TFeature>,
+  expectedStatus: RealtimeConnectionStatus,
+  options: WaitForIncidentRealtimeStatusOptions = {},
+): Promise<void> {
+  if (store.state.status === expectedStatus) return Promise.resolve();
+  const timeoutMs = options.timeoutMs ?? 5_000;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) {
+    return Promise.reject(new TypeError("Incident realtime status timeout must be a positive safe integer."));
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let unsubscribe: () => void = () => undefined;
+    const cleanup = () => {
+      clearTimeout(timeout);
+      unsubscribe();
+      options.signal?.removeEventListener("abort", onAbort);
+    };
+    const complete = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const onAbort = () => {
+      fail(new DOMException("Incident realtime status observation was aborted.", "AbortError"));
+    };
+    const timeout = setTimeout(() => {
+      fail(new Error(`Timed out waiting for incident realtime status "${expectedStatus}".`));
+    }, timeoutMs);
+
+    if (options.signal?.aborted) {
+      onAbort();
+      return;
+    }
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    unsubscribe = store.subscribe((state) => {
+      if (state.status === expectedStatus) complete();
+    });
+    if (store.state.status === expectedStatus) complete();
+  });
 }
 
 export function createIncidentRealtimeResumeContext(

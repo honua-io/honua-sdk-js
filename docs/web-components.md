@@ -42,10 +42,18 @@ const controller = createHonuaWebComponentController({
 document.querySelector("honua-map")!.controller = controller;
 ```
 
-`honua-map` owns a MapLibre GL JS map for package and controller
-bindings. Import MapLibre's CSS in browser demos, then pass either an
-inline `MapPackage`, a hosted package URL, or a controller whose state
-contains a package.
+`honua-map` owns a MapLibre GL JS map for package and controller bindings.
+Import MapLibre's CSS in browser demos, then pass either an inline `MapPackage`,
+a hosted package URL, or a controller whose state contains a package. MapLibre
+6 bundler hosts must configure the ESM worker before the element creates its
+map; for Vite:
+
+```ts doc-test=skip reason="Vite worker URL import requires a browser build"
+import { setWorkerUrl } from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+
+setWorkerUrl(maplibreWorkerUrl);
+```
 
 ```html
 <honua-map id="map" package-url="/fixtures/response-map-package.json"></honua-map>

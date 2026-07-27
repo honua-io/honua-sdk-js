@@ -17,6 +17,7 @@ const tiledIncidents = defineQueryTileSource({
   id: "incidents-query-tiles",
   source: incidentsSourceDescriptor,
   endpoint: { baseUrl: "https://honua.example.com/query-tiles" },
+  // Deprecated source-native compatibility text; bind its grammar to the endpoint.
   query: { where: "severity >= 3", outFields: ["id", "severity"] },
   projection: { fields: ["id", "severity"] },
   cache: {

@@ -1,6 +1,9 @@
+import "../../shared/maplibre-vite-worker.js";
+
 import { type SelectionHandle, createHoverHandler, createSelectionHandler } from "@honua/sdk-js/honua";
 import { type SceneExtrusionPrimitive, toMapLibreExtrusionLayer } from "@honua/sdk-js/scene-workspace";
-import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 
 import {
   buildRouteMetrics,

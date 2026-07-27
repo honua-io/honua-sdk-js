@@ -97,12 +97,18 @@ function bundleRow(bundle, label, description) {
 
 export function measureMapLibre(rootDir = ROOT) {
   const manifest = JSON.parse(fs.readFileSync(path.join(rootDir, "node_modules", "maplibre-gl", "package.json"), "utf8"));
-  const dist = fs.readFileSync(path.join(rootDir, "node_modules", "maplibre-gl", "dist", "maplibre-gl.js"));
+  const files =
+    Number.parseInt(manifest.version, 10) >= 6
+      ? ["dist/maplibre-gl.mjs", "dist/maplibre-gl-shared.mjs", "dist/maplibre-gl-worker.mjs"]
+      : ["dist/maplibre-gl.js"];
+  const artifacts = files.map((file) => fs.readFileSync(path.join(rootDir, "node_modules", "maplibre-gl", file)));
   const kib = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
   return {
     version: manifest.version,
-    min: kib(dist.byteLength),
-    gzip: kib(gzipSync(dist, { level: 9 }).byteLength),
+    files,
+    min: kib(artifacts.reduce((total, artifact) => total + artifact.byteLength, 0)),
+    // Production servers compress ESM files as separate HTTP responses.
+    gzip: kib(artifacts.reduce((total, artifact) => total + gzipSync(artifact, { level: 9 }).byteLength, 0)),
   };
 }
 
@@ -337,6 +343,7 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
   ];
 
   const c = CITATIONS;
+  const maplibreFiles = maplibre.files.map((file) => `\`${file}\``).join(", ");
   const lines = [];
   const push = (...parts) => lines.push(...parts);
 
@@ -380,7 +387,8 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
   push(
     "",
     `For context, the rendering engine itself — \`maplibre-gl\` ${maplibre.version}, measured locally from`,
-    `this repo's pinned dependency (\`dist/maplibre-gl.js\`) — is ${maplibre.min} minified / **${maplibre.gzip} gzip**.`,
+    `this repo's pinned production distribution graph (${maplibreFiles}) — is ${maplibre.min} minified / **${maplibre.gzip} gzip**.`,
+    "The gzip figure compresses each distributed ESM file independently, as separate HTTP responses, then sums them.",
     "A complete Honua + MapLibre app therefore ships roughly the engine plus whichever Honua",
     "entrypoints it imports.",
     "",

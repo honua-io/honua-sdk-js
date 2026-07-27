@@ -1,7 +1,8 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../shared/maplibre-vite-worker.js";
 import "../../_kit/design/index.css";
 
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 
 import { resolveFirstMapConfig } from "./first-map-config.js";
 import type { FirstMapMode, FirstMapProtocol } from "./first-map-config.js";

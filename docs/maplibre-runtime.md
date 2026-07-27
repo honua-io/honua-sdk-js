@@ -18,6 +18,33 @@ writes, or duplicate query logic — `maplibre-gl` stays a peer
 dependency, edits flow through the existing adapters, and queries go
 through the contract's `Source` handles.
 
+## MapLibre 5 and 6 compatibility
+
+The optional `maplibre-gl` peer range is `^5.0.0 || ^6.0.0`. The compatibility
+gate renders the same Honua-generated style through the latest 5.x release and
+6.x; the development dependency and runnable examples target 6.x.
+
+MapLibre 6 is ESM-only, targets ES2022, and requires WebGL2. Use namespace or
+named imports (`import * as maplibregl from "maplibre-gl"`) rather than the v5
+default import or removed UMD bundle. Vite hosts must also configure the module
+worker; the examples share `examples/shared/maplibre-vite-worker.ts`, which uses
+Vite's `?worker&url` pipeline before creating a map. See MapLibre's official
+[v5-to-v6 migration guide](https://github.com/maplibre/maplibre-gl-js/blob/v6.0.0/docs/guides/v5-to-v6-migration-guide.md).
+
+The SDK keeps its direct style validator on style-spec 24.x so headless users
+are not coupled to MapLibre 6's style-spec 26 dependency. Renderer mounting,
+GeoJSON updates, events, controls, and PMTiles registration are covered on both
+renderer majors; v6-only style extensions should use `renderer-deferred`
+validation for now.
+
+MapLibre 6 itself declares Node `>=16.14.0`, and the compatibility checks pass
+under this repository's Node 20.19.0 baseline. The SDK pins
+`@mapbox/jsonlint-lines-primitives` 2.0.2 so its direct style-spec 24.x validator
+continues to honor that Node baseline. MapLibre 6's separate style-spec
+dependency currently carries transitive engine metadata that names Node 22, so
+an `engine-strict=true` install may reject v6 even though the exercised APIs run
+on Node 20; use v5 until that upstream metadata is corrected.
+
 ## Standalone data-to-map bridge
 
 For the shortest path — any contract `Source` to a styled, interactive
@@ -198,7 +225,7 @@ The application kernel can own discovery, accepted-plan execution, renderer
 resources, and disposal as one path while MapLibre remains caller-injected:
 
 ```ts doc-test=skip reason="requires a browser MapLibre peer and public endpoint"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { createHonua } from "@honua/sdk-js";
 import { maplibreRenderer } from "@honua/sdk-js/runtime";
 
@@ -222,7 +249,7 @@ unfiltered source. Use `mounted.raw("maplibre")` only for renderer-specific
 escape hatches.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
 import { loadMapPackage } from "@honua/sdk-js/runtime";
 

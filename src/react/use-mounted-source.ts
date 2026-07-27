@@ -226,7 +226,7 @@ function applyRendererDiff<T>(
  * @example
  * ```tsx
  * const { diagnostics, error } = useMountedSource(map, source, {
- *   query: { where: "STATUS = 'OPEN'" },
+ *   query: { pagination: { limit: 500 } },
  *   hover: true,
  *   onDiagnostics: (d) => console.log(d.strategy, d.featureCount),
  * });

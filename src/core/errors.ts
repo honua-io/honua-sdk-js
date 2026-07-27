@@ -15,7 +15,7 @@
  * } from "@honua/sdk-js";
  *
  * try {
- *   await dataset.source("parcels")!.queryAll({ where: "1=1" });
+ *   await dataset.source("parcels")!.queryAll({ pagination: { limit: 100 } });
  * } catch (error) {
  *   if (!isHonuaError(error)) throw error;
  *   if (error instanceof HonuaCapabilityNotSupportedError) return fallback();
