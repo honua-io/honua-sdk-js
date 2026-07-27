@@ -929,6 +929,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     }
     for (const row of root.querySelectorAll<HTMLTableRowElement>("tbody tr[data-feature-id]")) {
       row.addEventListener("click", () => this.selectRow(row));
+      row.addEventListener("keydown", (event) => this.#onRowKeydown(event as KeyboardEvent, row));
     }
     for (const cell of root.querySelectorAll<HTMLTableCellElement>('tbody [role="gridcell"]')) {
       cell.addEventListener("focus", () => this.#focusCell(cell));
@@ -945,6 +946,29 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
         });
       });
     }
+  }
+
+  /**
+   * Keys pressed while the **row** itself holds focus, rather than one of its
+   * cells. Cells handle their own keys and their events bubble through the row,
+   * so this bails unless the row is the actual target — no double handling.
+   *
+   * Enter/Space selects, matching the row-level activation the grid has always
+   * offered. Any navigation key hands focus to the row's first cell, which is
+   * where the roving-tabindex model takes over.
+   */
+  #onRowKeydown(event: KeyboardEvent, row: HTMLTableRowElement): void {
+    if (event.target !== row) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      this.selectRow(row);
+      return;
+    }
+    if (!featureTableFocusMoveForKey(event.key, { ctrl: event.ctrlKey, meta: event.metaKey })) return;
+    const cell = row.querySelector<HTMLTableCellElement>('[role="gridcell"]');
+    if (!cell) return;
+    event.preventDefault();
+    cell.focus();
   }
 
   #focusCell(cell: HTMLTableCellElement): void {

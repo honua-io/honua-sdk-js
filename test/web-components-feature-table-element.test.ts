@@ -506,6 +506,119 @@ describe("<honua-feature-table> review regressions (PR #801)", () => {
     expect(engine.snapshot.window.startIndex).toBe(0);
   });
 
+  it("selects when Enter is pressed while the row itself holds focus", async () => {
+    // The ARIA-grid rewrite moved focus from the row to its cells, which left
+    // rows unfocusable and broke `row.focus()` + Enter — the interaction the
+    // browser smoke suite drives. Rows are focusable again at `tabindex="-1"`.
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+
+    const row = shadow(element).querySelector<HTMLTableRowElement>("tbody tr[data-feature-id='2']");
+    if (!row) throw new Error("no row");
+    expect(row.getAttribute("tabindex")).toBe("-1");
+    row.focus();
+    expect(shadow(element).activeElement).toBe(row);
+    press(row, "Enter");
+
+    expect(engine.snapshot.selection).toEqual(["incidents:2"]);
+  });
+
+  it("keeps rows out of the tab sequence so the cells own the single tab stop", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+
+    const root = shadow(element);
+    expect(root.querySelectorAll("tbody tr[tabindex='0']")).toHaveLength(0);
+    expect(root.querySelectorAll("tbody [tabindex='0']")).toHaveLength(1);
+    expect(root.querySelector("tbody [tabindex='0']")?.getAttribute("role")).toBe("gridcell");
+  });
+
+  it("does not double-handle Enter when a cell inside the row is focused", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+    const events: HonuaSelectionChangeDetail<Row>[] = [];
+    element.addEventListener("honua-selection-change", (event) => {
+      events.push((event as CustomEvent<HonuaSelectionChangeDetail<Row>>).detail);
+    });
+
+    const cell = shadow(element).querySelector("tbody tr[data-feature-id='3'] [role='gridcell']");
+    if (!cell) throw new Error("no cell");
+    press(cell, "Enter");
+
+    // The cell handler fires once; the row handler must ignore the bubbled event.
+    expect(events).toHaveLength(1);
+    expect(engine.snapshot.selection).toEqual(["incidents:3"]);
+  });
+
+  it("hands focus to the first cell when a navigation key arrives on the row", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+
+    const row = shadow(element).querySelector<HTMLTableRowElement>("tbody tr[data-feature-id='2']");
+    if (!row) throw new Error("no row");
+    row.focus();
+    press(row, "ArrowDown");
+
+    const active = shadow(element).activeElement;
+    expect(active?.getAttribute("role")).toBe("gridcell");
+    expect(active?.closest("tr")?.getAttribute("data-feature-id")).toBe("2");
+  });
+
+  it("keeps the controller lane's rows focusable and selectable from the keyboard", async () => {
+    const element = mount();
+    element.setAttribute("source", "parcels");
+    element.controller = createHonuaWebComponentController({
+      featuresBySource: {
+        parcels: [
+          { id: 1, sourceId: "parcels", attributes: { OBJECTID: 1, NAME: "Alpha" } },
+          { id: 2, sourceId: "parcels", attributes: { OBJECTID: 2, NAME: "Beta" } },
+        ],
+      },
+    }) as never;
+    await element.refresh();
+    const events: HonuaSelectionChangeDetail[] = [];
+    element.addEventListener("honua-selection-change", (event) => {
+      events.push((event as CustomEvent<HonuaSelectionChangeDetail>).detail);
+    });
+
+    const row = shadow(element).querySelector<HTMLTableRowElement>("tbody tr[data-feature-id='2']");
+    if (!row) throw new Error("no row");
+    row.focus();
+    press(row, "Enter");
+
+    expect(events.at(-1)).toMatchObject({ sourceId: "parcels", featureId: "2" });
+  });
+
+  it("keeps focus on the exact cell that had it across the re-render focusing causes", async () => {
+    // Focusing a cell sets engine focus, which publishes and re-renders. The
+    // kit restores focus by matching the active element's first `data-`
+    // attribute, and `data-field` alone matched the same column in every row,
+    // dragging focus to row 1. Cells now carry a grid-unique `data-cell-key`.
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+
+    const cell = shadow(element).querySelector<HTMLTableCellElement>(
+      "tbody tr[data-feature-id='4'] [data-field='NAME']",
+    );
+    if (!cell) throw new Error("no cell");
+    cell.focus();
+
+    const active = shadow(element).activeElement;
+    expect(active?.getAttribute("data-field")).toBe("NAME");
+    expect(active?.closest("tr")?.getAttribute("data-feature-id")).toBe("4");
+    expect(engine.snapshot.focus).toEqual({ rowKey: "incidents:4", field: "NAME" });
+  });
+
   it("resubscribes to the engine after a detach and reinsert", async () => {
     // `disconnectedCallback` dropped the subscription permanently, so a
     // reinserted grid went dead (finding 5).

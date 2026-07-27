@@ -324,10 +324,16 @@ function bodyRowHtml(
   // Roving tabindex: exactly one cell in the grid is tabbable. When the focused
   // row scrolled out of the window, the first cell of the first row takes it so
   // the grid never becomes keyboard-unreachable.
+  //
+  // Rows carry `tabindex="-1"`: programmatically focusable (so a host app — or a
+  // test — can reveal and focus a whole row, which the pre-grid markup allowed
+  // via `tabindex="0"`) while staying out of the tab sequence, which the cells
+  // own. Row-level Enter/Space still selects; see `#bindGrid`.
   const rovingRow = hasFocus ? row.key === focusedRow : rowOffset === 0;
   return `
             <tr
               role="row"
+              tabindex="-1"
               aria-rowindex="${row.ariaRowIndex}"
               aria-selected="${String(row.selected)}"
               ${row.placeholder ? 'data-placeholder="true"' : `data-row-key="${escapeAttribute(row.key)}"`}
@@ -339,10 +345,17 @@ function bodyRowHtml(
                   const column = model.columns[cellIndex];
                   const field = column?.field ?? "";
                   const roving = rovingRow && (hasFocus ? field === focusedField : cellIndex === 0);
+                  // `data-cell-key` is grid-unique. The kit restores focus after
+                  // a re-render by matching the active element's first `data-`
+                  // attribute alphabetically, and `data-field` alone matches the
+                  // same column in *every* row — which silently dragged focus to
+                  // row 1. This sorts before `data-field`, so focus returns to
+                  // the exact cell that had it.
                   return `<td
                 role="gridcell"
                 aria-colindex="${cellIndex + 1}"
                 tabindex="${roving ? "0" : "-1"}"
+                data-cell-key="${escapeAttribute(`${row.key}::${field}`)}"
                 data-field="${escapeAttribute(field)}"
               >${escapeHtml(cell)}</td>`;
                 })
