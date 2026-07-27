@@ -1923,8 +1923,21 @@ export class HonuaClient {
   public async requestText(
     method: QueryMethod,
     path: string,
-    options?: { accept?: string; contentType?: string; body?: BodyInit; signal?: AbortSignal },
+    options?: {
+      accept?: string;
+      contentType?: string;
+      body?: BodyInit;
+      signal?: AbortSignal;
+      /** Maximum response-body bytes accepted before text decoding/parsing. */
+      maxResponseBytes?: number;
+    },
   ): Promise<{ text: string; contentType: string; status: number }> {
+    if (
+      options?.maxResponseBytes !== undefined &&
+      (!Number.isSafeInteger(options.maxResponseBytes) || options.maxResponseBytes <= 0)
+    ) {
+      throw new TypeError("maxResponseBytes must be a positive safe integer.");
+    }
     const acceptHeader = options?.accept ?? "*/*";
     const headers: Record<string, string> = { Accept: acceptHeader };
     if (options?.contentType) headers["Content-Type"] = options.contentType;
@@ -1941,14 +1954,27 @@ export class HonuaClient {
 
     return this.executeRequest<{ text: string; contentType: string; status: number }>(request, {
       callerSignal: options?.signal,
-      errorBody: async (response) => {
-        const text = await response.clone().text();
+      deadlineThroughFinalize: options?.maxResponseBytes !== undefined,
+      errorBody: async (response, deadlineSignal) => {
+        const clone = response.clone();
+        const text =
+          options?.maxResponseBytes === undefined
+            ? await clone.text()
+            : new TextDecoder().decode(await readBoundedResponseBytes(clone, options.maxResponseBytes, deadlineSignal));
         const contentType = response.headers.get("content-type") ?? acceptHeader;
         return text ? { raw: text, contentType } : {};
       },
-      finalize: async (response, _durationMs, _request, runAfter) => {
-        await runAfter();
-        const text = await response.text();
+      finalize: async (response, _durationMs, _request, runAfter, deadlineSignal) => {
+        if (options?.maxResponseBytes === undefined) {
+          await runAfter();
+          const text = await response.text();
+          const contentType = response.headers.get("content-type") ?? acceptHeader;
+          return { text, contentType, status: response.status };
+        }
+        const bytes = await readBoundedResponseBytes(response, options.maxResponseBytes, deadlineSignal);
+        const prepared = preserveResponseSemantics(bufferedResponse(response, bytes), response);
+        await runAfter(prepared);
+        const text = new TextDecoder().decode(bytes);
         const contentType = response.headers.get("content-type") ?? acceptHeader;
         return { text, contentType, status: response.status };
       },
@@ -2031,7 +2057,7 @@ export class HonuaClient {
         reason: "authentication" | "retry",
       ) => void | Promise<void>;
       deadlineThroughFinalize?: boolean;
-      errorBody?: (response: Response) => Promise<unknown>;
+      errorBody?: (response: Response, deadlineSignal: AbortSignal | undefined) => Promise<unknown>;
       shortCircuit?: (
         response: Response,
         durationMs: number,
@@ -2145,7 +2171,7 @@ export class HonuaClient {
 
         if (!response.ok && !options.okStatuses?.includes(response.status)) {
           const body = options.errorBody
-            ? await options.errorBody(response)
+            ? await options.errorBody(response, options.deadlineThroughFinalize ? timeout.signal : undefined)
             : await parseResponseBody(response.clone());
           const httpError = toHttpError(response.status, body);
           if (
@@ -2335,13 +2361,21 @@ async function parseResponseBody(response: Response, maxResponseBytes?: number):
   }
 }
 
-async function readBoundedResponseBytes(response: Response, maximum: number): Promise<Uint8Array> {
+async function readBoundedResponseBytes(
+  response: Response,
+  maximum: number,
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  if (signal?.aborted) {
+    void response.body?.cancel().catch(() => undefined);
+    throw new HonuaAbortError();
+  }
   const advertised = response.headers.get("content-length");
   if (advertised !== null) {
     const length = Number(advertised);
     if (Number.isFinite(length) && length > maximum) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new HonuaNetworkError(`Metadata response exceeds the configured ${maximum}-byte limit.`, undefined);
+      void response.body?.cancel().catch(() => undefined);
+      throw new HonuaNetworkError(`Response body exceeds the configured ${maximum}-byte limit.`, undefined);
     }
   }
 
@@ -2349,18 +2383,26 @@ async function readBoundedResponseBytes(response: Response, maximum: number): Pr
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
+  const abort = () => void reader.cancel().catch(() => undefined);
+  signal?.addEventListener("abort", abort, { once: true });
   try {
     for (;;) {
+      if (signal?.aborted) throw new HonuaAbortError();
       const { done, value } = await reader.read();
+      if (signal?.aborted) throw new HonuaAbortError();
       if (done) break;
       total += value.byteLength;
       if (total > maximum) {
-        await reader.cancel().catch(() => undefined);
-        throw new HonuaNetworkError(`Metadata response exceeds the configured ${maximum}-byte limit.`, undefined);
+        void reader.cancel().catch(() => undefined);
+        throw new HonuaNetworkError(`Response body exceeds the configured ${maximum}-byte limit.`, undefined);
       }
       chunks.push(value);
     }
+  } catch (error) {
+    if (signal?.aborted) throw new HonuaAbortError();
+    throw error;
   } finally {
+    signal?.removeEventListener("abort", abort);
     reader.releaseLock();
   }
   const bytes = new Uint8Array(total);
@@ -2370,6 +2412,15 @@ async function readBoundedResponseBytes(response: Response, maximum: number): Pr
     offset += chunk.byteLength;
   }
   return bytes;
+}
+
+function bufferedResponse(source: Response, bytes: Uint8Array): Response {
+  const body = source.status === 204 || source.status === 205 || source.status === 304 ? null : bytes.slice();
+  return new Response(body, {
+    status: source.status,
+    statusText: source.statusText,
+    headers: source.headers,
+  });
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

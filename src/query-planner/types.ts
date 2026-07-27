@@ -55,6 +55,12 @@ export interface QueryIrSourceIdentity {
   readonly protocol: Protocol;
   /** Credential-free endpoint identity: origin/path plus protocol locator ids. */
   readonly endpoint: string;
+  /**
+   * Secret-free digest binding the runtime endpoint authority (including any
+   * credential-bearing query/user-info) and structural authorization scopes.
+   * Present on WFS identities; raw authority material is never serialized.
+   */
+  readonly authorityFingerprint?: `sha256:${string}`;
   readonly serviceId?: string;
   readonly layerId?: number;
   readonly collectionId?: string | number;
@@ -313,6 +319,13 @@ export interface ExplainQueryOptions<T = Record<string, unknown>> {
   readonly sourceVersion?: string;
   /** Stable scope identifiers only. Never pass credentials or tokens. */
   readonly authorizationScope?: readonly string[];
+  /**
+   * Trusted persisted authority identity used only while rebuilding a
+   * previously validated plan. Normal callers omit this and derive it from
+   * the descriptor plus `authorizationScope`.
+   * @internal
+   */
+  readonly sourceAuthorityFingerprint?: `sha256:${string}` | null;
   /** Caller-supplied metadata estimates; explaining never reads result data. */
   readonly estimates?: QueryPlanningEstimates;
   /** Stable cache state only. Observation clocks never enter a plan fingerprint. */
@@ -380,6 +393,33 @@ export interface WfsCompiledQueryV1 {
   readonly sortBy?: string;
   readonly startIndex?: number;
   readonly count?: number;
+  readonly srsName?: string;
+}
+
+/**
+ * Operation- and source-identity-bound WFS 2.0 artifact used by query plans and the
+ * executable protocol-module seam. Output-format negotiation and transport
+ * authority remain on the discovered runtime handle.
+ */
+export interface WfsProtocolCompiledQueryV1 {
+  readonly compiler: "wfs-2.0-protocol-query-v1";
+  readonly operation: ProtocolModuleQueryOperation;
+  readonly sourceId: string;
+  /** Credential-free endpoint identity; never the request authority itself. */
+  readonly endpoint: string;
+  /** Secret-free binding to the runtime handle's endpoint authority and scope. */
+  readonly authorityFingerprint: `sha256:${string}`;
+  readonly typeName: string;
+  readonly method: "GET" | "POST";
+  readonly filter?: string;
+  readonly bbox?: string;
+  readonly propertyName?: readonly string[];
+  readonly sortBy?: string;
+  readonly startIndex?: number;
+  readonly count?: number;
+  /** CRS of the caller-supplied filter geometry, independent of response CRS. */
+  readonly filterSrsName?: string;
+  /** Requested response geometry CRS. */
   readonly srsName?: string;
 }
 
@@ -496,6 +536,7 @@ export type RemoteCompiledQueryV1 =
   | GeoServicesCompiledQueryV1
   | OgcApiFeaturesCompiledQueryV1
   | WfsCompiledQueryV1
+  | WfsProtocolCompiledQueryV1
   | OdataCompiledQueryV1
   | OdataProtocolCompiledQueryV1
   | DuckDbCompiledQueryV1

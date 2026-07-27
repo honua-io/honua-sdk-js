@@ -6,12 +6,29 @@
  * stored-query escape hatch, and the XXE defense.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { PROTOCOL_DEFAULT_CAPABILITIES, type SourceDescriptor, createDataset } from "../../src/contract/index.js";
-import { HonuaCapabilityNotSupportedError, HonuaWfsExceptionError } from "../../src/core/errors.js";
-import { parseWfsCapabilities } from "../../src/core/wfs-capabilities.js";
-import { UNSUPPORTED_FES, compileSpatialFilter, compileWhere, serializeFes } from "../../src/core/wfs-filter.js";
+import { serializeHonuaError } from "../../src/core/error-envelope.js";
+import {
+  HonuaAbortError,
+  HonuaCapabilityNotSupportedError,
+  HonuaNetworkError,
+  HonuaWfsExceptionError,
+} from "../../src/core/errors.js";
+import {
+  WFS_XML_LIMITS,
+  type WfsCapabilitiesFeatureType,
+  parseWfsCapabilities,
+} from "../../src/core/wfs-capabilities.js";
+import {
+  UNSUPPORTED_FES,
+  compileSpatialFilter,
+  compileWhere,
+  formatWfsBboxKvp,
+  serializeFes,
+} from "../../src/core/wfs-filter.js";
+import { HonuaWfsProtocolError } from "../../src/core/wfs-protocol-error.js";
 import { HonuaWfs, HonuaWfsFeatureType } from "../../src/core/wfs.js";
 
 import {
@@ -53,6 +70,18 @@ function buildWfsDataset(
 }
 
 describe("wfs / capabilities", () => {
+  it("keeps the added OtherCRS projection source-compatible with legacy snapshots", () => {
+    const legacyFeatureType = {
+      name: "legacy:parcels",
+      defaultCrs: "urn:ogc:def:crs:EPSG::4326",
+    } satisfies WfsCapabilitiesFeatureType;
+
+    expect(legacyFeatureType).toEqual({
+      name: "legacy:parcels",
+      defaultCrs: "urn:ogc:def:crs:EPSG::4326",
+    });
+  });
+
   it("parses operations, output formats, and feature-type bbox", () => {
     const snapshot = parseWfsCapabilities(wfsCapabilitiesXml());
     expect(snapshot.version).toBe("2.0.0");
@@ -66,11 +95,110 @@ describe("wfs / capabilities", () => {
       xmax: -120,
       ymax: 45,
     });
+    expect(snapshot.featureTypes[0].namespace).toEqual({
+      prefix: "parcels",
+      uri: "http://parcels.example.test/ns",
+    });
+  });
+
+  it("resolves QName namespaces at the Name element with ancestor scope and shadowing", () => {
+    const withoutRootBinding = wfsCapabilitiesXml().replace(' xmlns:parcels="http://parcels.example.test/ns"', "");
+    const elementScoped = withoutRootBinding.replace(
+      "<wfs:Name>parcels:lot</wfs:Name>",
+      '<wfs:Name xmlns:parcels="urn:element">parcels:lot</wfs:Name>',
+    );
+    expect(parseWfsCapabilities(elementScoped).featureTypes[0]?.namespace).toEqual({
+      prefix: "parcels",
+      uri: "urn:element",
+    });
+
+    const ancestorScoped = withoutRootBinding.replace(
+      "<wfs:FeatureType>",
+      '<wfs:FeatureType xmlns:parcels="urn:ancestor">',
+    );
+    expect(parseWfsCapabilities(ancestorScoped).featureTypes[0]?.namespace).toEqual({
+      prefix: "parcels",
+      uri: "urn:ancestor",
+    });
+
+    const shadowed = wfsCapabilitiesXml().replace(
+      "<wfs:Name>parcels:lot</wfs:Name>",
+      '<wfs:Name xmlns:parcels="urn:shadow">parcels:lot</wfs:Name>',
+    );
+    expect(parseWfsCapabilities(shadowed).featureTypes[0]?.namespace).toEqual({
+      prefix: "parcels",
+      uri: "urn:shadow",
+    });
+    expect(parseWfsCapabilities(withoutRootBinding).featureTypes[0]?.namespace).toEqual({
+      prefix: "parcels",
+      uri: "",
+    });
+    expect(
+      parseWfsCapabilities(
+        wfsCapabilitiesXml().replace(
+          "<wfs:Name>parcels:lot</wfs:Name>",
+          '<wfs:Name xmlns:parcels="">parcels:lot</wfs:Name>',
+        ),
+      ).featureTypes[0]?.namespace,
+    ).toEqual({
+      prefix: "parcels",
+      uri: "",
+    });
+    expect(
+      parseWfsCapabilities(withoutRootBinding.replace("<wfs:Name>parcels:lot</wfs:Name>", "<wfs:Name>a:b:c</wfs:Name>"))
+        .featureTypes[0]?.namespace,
+    ).toBeUndefined();
+  });
+
+  it("returns structurally immutable capability evidence", () => {
+    const snapshot = parseWfsCapabilities(wfsCapabilitiesXml());
+    const operation = snapshot.operations.get("GetFeature");
+    const featureType = snapshot.featureTypes[0];
+    expect(operation).toBeDefined();
+    expect(featureType).toBeDefined();
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(operation)).toBe(true);
+    expect(Object.isFrozen(operation?.methods)).toBe(true);
+    expect(Object.isFrozen(operation?.outputFormats)).toBe(true);
+    expect(Object.isFrozen(featureType)).toBe(true);
+    expect(Object.isFrozen(featureType?.namespace)).toBe(true);
+    expect(() =>
+      (snapshot.operations as unknown as Map<string, unknown>).set("GetFeature", {
+        methods: ["POST"],
+      }),
+    ).toThrow(TypeError);
+    expect(() => (operation?.methods as unknown as string[]).push("POST")).toThrow(TypeError);
+    expect(() => (operation?.outputFormats as unknown as string[]).push("application/json")).toThrow(TypeError);
+    expect(() =>
+      (snapshot.outputFormatsByOp as unknown as Map<string, readonly string[]>).set("GetFeature", ["application/json"]),
+    ).toThrow(TypeError);
+    expect(() => (snapshot.namespaces as unknown as Map<string, string>).set("parcels", "urn:evil")).toThrow(TypeError);
+    expect(() => {
+      (featureType as unknown as { defaultCrs: string }).defaultCrs = "EPSG:3857";
+    }).toThrow(TypeError);
   });
 
   it("rejects DOCTYPE / ENTITY declarations to defend against XXE", () => {
     const xxe = `<?xml version="1.0"?><!DOCTYPE root [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]><wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs/2.0"><wfs:Name>&xxe;</wfs:Name></wfs:WFS_Capabilities>`;
     expect(() => parseWfsCapabilities(xxe)).toThrow(/DOCTYPE|ENTITY/);
+  });
+
+  it("enforces WFS XML byte, node, depth, text, and attribute budgets", () => {
+    const root = (body: string, attributes = "") =>
+      `<wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs/2.0" version="2.0.0"${attributes}>${body}</wfs:WFS_Capabilities>`;
+    expect(() => parseWfsCapabilities(" ".repeat(WFS_XML_LIMITS.maxBytes + 1))).toThrow(/byte limit/);
+    expect(() => parseWfsCapabilities(root("<wfs:X/>".repeat(WFS_XML_LIMITS.maxElements)))).toThrow(/element limit/);
+    const nested = `${"<wfs:X>".repeat(WFS_XML_LIMITS.maxDepth)}${"</wfs:X>".repeat(WFS_XML_LIMITS.maxDepth)}`;
+    expect(() => parseWfsCapabilities(root(nested))).toThrow(/depth limit/);
+    expect(() => parseWfsCapabilities(root("x".repeat(WFS_XML_LIMITS.maxTextBytes + 1)))).toThrow(/text limit/);
+    const attributes = Array.from(
+      { length: WFS_XML_LIMITS.maxAttributesPerElement },
+      (_, index) => ` a${index}="x"`,
+    ).join("");
+    expect(() => parseWfsCapabilities(root("", attributes))).toThrow(/attribute count/);
+    expect(() =>
+      parseWfsCapabilities(root("", ` huge="${"x".repeat(WFS_XML_LIMITS.maxAttributeBytesPerElement)}"`)),
+    ).toThrow(/attribute-byte limit/);
   });
 
   it("treats an ExceptionReport at the GetCapabilities root as a typed error", () => {
@@ -102,6 +230,136 @@ describe("wfs / capabilities", () => {
     wfs.refresh();
     await wfs.capabilities();
     expect(hits).toBe(2);
+  });
+
+  it("fences an older in-flight capability response across refresh generations", async () => {
+    const responses: Array<(response: Response) => void> = [];
+    let requests = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/wfs",
+          () => {
+            requests += 1;
+            return new Promise<Response>((resolve) => responses.push(resolve));
+          },
+        ],
+      ],
+    });
+    const wfs = new HonuaWfs({ client, endpointUrl: WFS_LOCATOR.url });
+
+    const oldGeneration = wfs.capabilities();
+    await vi.waitFor(() => expect(requests).toBe(1));
+    const oldGenerationRejected = expect(oldGeneration).rejects.toBeInstanceOf(HonuaAbortError);
+    wfs.refresh();
+    const newGeneration = wfs.capabilities();
+    await vi.waitFor(() => expect(requests).toBe(2));
+
+    await oldGenerationRejected;
+    responses[0](
+      xmlResponse(wfsCapabilitiesXml().replace("<wfs:Title>Parcels</wfs:Title>", "<wfs:Title>Old</wfs:Title>")),
+    );
+    await Promise.resolve();
+    expect(wfs.rawCapabilities()).toBeUndefined();
+
+    responses[1](
+      xmlResponse(wfsCapabilitiesXml().replace("<wfs:Title>Parcels</wfs:Title>", "<wfs:Title>Fresh</wfs:Title>")),
+    );
+    await expect(newGeneration).resolves.toMatchObject({ featureTypes: [{ title: "Fresh" }] });
+    await expect(wfs.capabilities()).resolves.toMatchObject({ featureTypes: [{ title: "Fresh" }] });
+    expect(requests).toBe(2);
+  });
+
+  it("aborts orphaned and refreshed capability transports without poisoning a later generation", async () => {
+    let requests = 0;
+    let aborts = 0;
+    let active = 0;
+    let latestResolve: ((response: Response) => void) | undefined;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/wfs",
+          (_url, init) => {
+            requests += 1;
+            active += 1;
+            return new Promise<Response>((resolve, reject) => {
+              let settled = false;
+              const finish = () => {
+                if (settled) return false;
+                settled = true;
+                active -= 1;
+                init?.signal?.removeEventListener("abort", onAbort);
+                return true;
+              };
+              const onAbort = () => {
+                if (!finish()) return;
+                aborts += 1;
+                reject(new DOMException("aborted", "AbortError"));
+              };
+              init?.signal?.addEventListener("abort", onAbort, { once: true });
+              latestResolve = (response) => {
+                if (!finish()) return;
+                resolve(response);
+              };
+            });
+          },
+        ],
+      ],
+    });
+    const wfs = new HonuaWfs({ client, endpointUrl: WFS_LOCATOR.url });
+
+    const caller = new AbortController();
+    const orphaned = wfs.capabilities({ signal: caller.signal });
+    await vi.waitFor(() => expect(active).toBe(1));
+    caller.abort();
+    await expect(orphaned).rejects.toBeInstanceOf(HonuaAbortError);
+    expect({ requests, aborts, active }).toEqual({ requests: 1, aborts: 1, active: 0 });
+
+    for (let index = 0; index < 3; index += 1) {
+      const invalidated = wfs.capabilities();
+      await vi.waitFor(() => expect(active).toBe(1));
+      const invalidatedRejected = expect(invalidated).rejects.toBeInstanceOf(HonuaAbortError);
+      wfs.refresh();
+      await invalidatedRejected;
+      expect(active).toBe(0);
+    }
+    expect({ requests, aborts }).toEqual({ requests: 4, aborts: 4 });
+
+    const survivor = wfs.capabilities();
+    await vi.waitFor(() => expect(active).toBe(1));
+    latestResolve?.(
+      xmlResponse(wfsCapabilitiesXml().replace("<wfs:Title>Parcels</wfs:Title>", "<wfs:Title>Survivor</wfs:Title>")),
+    );
+    await expect(survivor).resolves.toMatchObject({ featureTypes: [{ title: "Survivor" }] });
+    expect(active).toBe(0);
+    await expect(wfs.capabilities()).resolves.toMatchObject({ featureTypes: [{ title: "Survivor" }] });
+    expect(requests).toBe(5);
+  });
+
+  it("closes the caller-abort race between starting and subscribing to capability discovery", async () => {
+    const client = makeMockClient({ routes: [] });
+    const wfs = new HonuaWfs({ client, endpointUrl: WFS_LOCATOR.url });
+    const caller = new AbortController();
+    let transportAborted = false;
+    const mutableWfs = wfs as unknown as {
+      fetchCapabilities(options?: { signal?: AbortSignal }): Promise<never>;
+    };
+    mutableWfs.fetchCapabilities = (options) => {
+      caller.abort();
+      const signal = options?.signal;
+      if (!signal) throw new Error("Expected an internal capability transport signal");
+      signal.addEventListener(
+        "abort",
+        () => {
+          transportAborted = true;
+        },
+        { once: true },
+      );
+      return new Promise<never>(() => undefined);
+    };
+
+    await expect(wfs.capabilities({ signal: caller.signal })).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(transportAborted).toBe(true);
   });
 });
 
@@ -169,7 +427,7 @@ describe("wfs / FES emission", () => {
     expect(xml).toContain("<gml:upperCorner>45 -120</gml:upperCorner>");
   });
 
-  it("keeps lon,lat corners for the legacy short EPSG form and CRS84", () => {
+  it("uses the same authority axis order for short EPSG aliases while preserving CRS84", () => {
     const short = compileSpatialFilter(
       {
         geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
@@ -180,7 +438,7 @@ describe("wfs / FES emission", () => {
     );
     expect(short).not.toBe(UNSUPPORTED_FES);
     if (short === UNSUPPORTED_FES) return;
-    expect(serializeFes([short])).toContain("<gml:lowerCorner>-123 37</gml:lowerCorner>");
+    expect(serializeFes([short])).toContain("<gml:lowerCorner>37 -123</gml:lowerCorner>");
 
     const crs84 = compileSpatialFilter(
       {
@@ -193,6 +451,44 @@ describe("wfs / FES emission", () => {
     expect(crs84).not.toBe(UNSUPPORTED_FES);
     if (crs84 === UNSUPPORTED_FES) return;
     expect(serializeFes([crs84])).toContain("<gml:lowerCorner>-123 37</gml:lowerCorner>");
+  });
+
+  it("resolves reviewed authority axes across EPSG aliases and fails closed without leaking an unknown CRS", () => {
+    const latitudeFirstAliases = [
+      "EPSG:4258",
+      "urn:ogc:def:crs:EPSG::4277",
+      "https://www.opengis.net/def/crs/EPSG/0/7844",
+      "http://www.opengis.net/gml/srs/epsg.xml#4326",
+    ];
+    for (const srsName of latitudeFirstAliases) {
+      expect(formatWfsBboxKvp(-8, 50, 2, 61, srsName)).toBe(`50,-8,61,2,${srsName}`);
+    }
+
+    const canonicalXyAliases = [
+      "CRS:84",
+      "urn:ogc:def:crs:OGC:1.3:CRS84",
+      "https://www.opengis.net/def/crs/OGC/1.3/CRS84",
+      "EPSG:3857",
+      "urn:ogc:def:crs:EPSG::32604",
+      "https://www.opengis.net/def/crs/EPSG/0/27700",
+    ];
+    for (const srsName of canonicalXyAliases) {
+      expect(formatWfsBboxKvp(-8, 50, 2, 61, srsName)).toBe(`-8,50,2,61,${srsName}`);
+    }
+
+    const secret = "axis-order-secret";
+    const unknown = `https://user:${secret}@www.opengis.net/def/crs/EPSG/0/999999?token=${secret}`;
+    let thrown: unknown;
+    try {
+      formatWfsBboxKvp(-8, 50, 2, 61, unknown);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(HonuaWfsProtocolError);
+    if (!(thrown instanceof HonuaWfsProtocolError)) throw thrown;
+    expect(thrown).toMatchObject({ reason: "unknown-axis-order" });
+    expect(thrown.message).not.toContain(secret);
+    expect(JSON.stringify(serializeHonuaError(thrown))).not.toContain(secret);
   });
 
   it("emits lat,lon for a URN-form geographic CRS in a <fes:Within> polygon", () => {
@@ -1409,6 +1705,34 @@ describe("wfs / protocol escape hatch", () => {
     const wfs = source.protocol("wfs") as HonuaWfsFeatureType;
     const ids = await wfs.root.storedQueries();
     expect(ids).toContain("byKey");
+  });
+
+  it("gives GetPropertyValue the feature-payload ceiling while retaining a hard upper bound", async () => {
+    let oversized = false;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          if (url.searchParams.get("request") !== "GetPropertyValue") {
+            return new Response("not found", { status: 404 });
+          }
+          return new Response("<wfs:ValueCollection/>", {
+            headers: {
+              "Content-Type": "application/xml",
+              "Content-Length": String((oversized ? 32 : 2) * 1024 * 1024 + 1),
+            },
+          });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const wfs = source.protocol("wfs") as HonuaWfsFeatureType;
+
+    await expect(wfs.getPropertyValue({ valueReference: "STATE" })).resolves.toMatchObject({
+      text: "<wfs:ValueCollection/>",
+    });
+    oversized = true;
+    await expect(wfs.getPropertyValue({ valueReference: "STATE" })).rejects.toBeInstanceOf(HonuaNetworkError);
   });
 
   it("storedQuery(id).execute returns canonical feature data when JSON output is available", async () => {

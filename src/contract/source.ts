@@ -60,17 +60,32 @@ import {
   UNSUPPORTED_FES,
   compileSpatialFilter,
   compileWhere,
+  formatWfsBboxKvp,
   geoJsonGeometryToGml,
   serializeFes,
 } from "../core/wfs-filter.js";
-import { HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
+import type { HonuaWfsFeatureType, OutputFormatChoice } from "../core/wfs.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
+import { createQueryIr } from "../query-planner/ir.js";
 import {
   createOdataProtocolCompiledQuery,
   odataProtocolModule,
   odataProtocolResultFromPage,
 } from "../query-planner/odata-protocol-module.js";
+import { type CanonicalQuery, HonuaQueryPlanningError } from "../query-planner/types.js";
+import {
+  HonuaWfsProtocolError,
+  assertWfsPageProgress,
+  buildWfsPostGetFeatureBody,
+  checkedWfsPageEnd,
+  wfsProtocolModule,
+} from "../query-planner/wfs-protocol-module.js";
+import {
+  wfsFilterSrsNameFromGeometry,
+  wfsProtocolMethodForFilter,
+  wfsSrsNameFromOutSr,
+} from "../query-planner/wfs-v1.js";
 import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive, PmtilesArchiveDescription } from "./pmtiles.js";
 import { pmtilesProtocolModule } from "./pmtiles.js";
 import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
@@ -1522,15 +1537,6 @@ export function stacSearchSource<T>(
 
 // ── WFS 2.0 ───────────────────────────────────────────────────
 
-/**
- * Threshold above which the WFS adapter switches to POST GetFeature with a
- * `<fes:Filter>` body. URL budget under 7000 chars stays GET-friendly; longer
- * filters are routed through POST so we do not stress middleboxes that
- * trim long query strings. The threshold is intentionally a single
- * constant we can revise after telemetry lands.
- */
-const WFS_GET_FILTER_BUDGET = 7000;
-
 const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
 
 /**
@@ -1565,10 +1571,15 @@ export function wfsSource<T>(
   policy: CapabilityPolicy,
 ): CapabilityAwareSource<T> {
   descriptor = normalizeCapabilityDescriptor(descriptor);
-  const { url, typeName, featureNamespace, srsName: wfsSrsName } = requireWfsLocator(descriptor);
-  const root = client.wfs(url);
-  const featureType = new HonuaWfsFeatureType({ root, typeName });
-  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wfs;
+  const { typeName, featureNamespace, srsName: wfsSrsName } = requireWfsLocator(descriptor);
+  const module = wfsProtocolModule(client);
+  const discovered = module.discover(descriptor);
+  if (discovered instanceof Promise) {
+    throw new Error("wfs: built-in source construction requires synchronous protocol-module discovery");
+  }
+  const featureType = discovered.adapter;
+  const root = featureType.root;
+  const caps = discovered.capabilities;
   void policy;
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
@@ -1599,6 +1610,32 @@ export function wfsSource<T>(
     return choice;
   }
 
+  function compileSourceQuery(request: Query<T> | undefined, operation: "query" | "queryAll") {
+    try {
+      const normalizedRequest = normalizeWfsModuleQuery(request);
+      const ir =
+        normalizedRequest === undefined
+          ? createQueryIr({ descriptor })
+          : createQueryIr({ descriptor, query: normalizedRequest });
+      // The legacy WFS Source accepted an explicitly empty `where`. Preserve
+      // its wire distinction from an omitted `where`: with a spatial filter,
+      // the former takes the FES path while the latter may use the bbox KVP.
+      const query: CanonicalQuery =
+        request?.where === ""
+          ? Object.freeze({
+              ...ir.query,
+              where: Object.freeze({ kind: "source-native" as const, expression: "" }),
+            })
+          : ir.query;
+      return module.compile({ source: ir.source, query, operation });
+    } catch (error) {
+      if (error instanceof HonuaQueryPlanningError && error.code === "unsupported-query") {
+        throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, `${descriptor.id} (${error.message})`);
+      }
+      throw error;
+    }
+  }
+
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
       ensureCapability(descriptor, caps, "query");
@@ -1607,46 +1644,25 @@ export function wfsSource<T>(
         // silent partial result.
         throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
       }
-      // `pagination.limit === 0` is an explicit zero cap, not "unbounded";
-      // short-circuit before the wire call so we do not silently widen to the
-      // server's default page size.
-      if (request?.pagination?.limit === 0) {
-        return { features: [], exceededTransferLimit: false } satisfies Result<T>;
-      }
-      const choice = await negotiateJsonOrThrow();
-      const json = await runGetFeatureJson(featureType, typeName, choice, request, request?.pagination?.limit);
-      return resultFromGeoJson<T>(json);
+      return module.execute<T>(discovered, {
+        compiled: compileSourceQuery(request, "query"),
+        operation: "query",
+        query: {},
+        ...(request?.signal ? { signal: request.signal } : {}),
+      });
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const choice = await negotiateJsonOrThrow();
-      const limit = request?.pagination?.limit;
-      const target = typeof limit === "number" && limit >= 0 ? limit + 1 : Number.POSITIVE_INFINITY;
-      const collected: HonuaTypedFeature<T>[] = [];
-      let totalCount: number | undefined;
-      let offset = request?.pagination?.offset ?? 0;
-      // Mirror `withPagingBounds`: a finite limit (including 0) sets the
-      // lookahead page size to `limit + 1` so we can stamp
-      // `exceededTransferLimit` without overfetching a full default page.
-      const pageSize = typeof limit === "number" && limit >= 0 ? Math.max(1, Math.min(limit + 1, 2000)) : 2000;
-      while (collected.length < target) {
-        const pageRequest: Query<T> = {
-          ...(request ?? {}),
-          pagination: { offset, limit: pageSize },
-        };
-        const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, pageSize);
-        const result = resultFromGeoJson<T>(json);
-        if (result.totalCount !== undefined) totalCount = result.totalCount;
-        collected.push(...result.features);
-        if (result.features.length < pageSize) break;
-        offset += result.features.length;
-      }
-      const { features, exceededTransferLimit } = applyQueryAllLimit(collected, limit);
-      return {
-        features,
-        exceededTransferLimit,
-        totalCount: totalCount ?? features.length,
-      } satisfies Result<T>;
+      const requestedLimit = request?.pagination?.limit;
+      const limit = typeof requestedLimit === "number" && requestedLimit >= 0 ? requestedLimit : undefined;
+      return module.execute<T>(discovered, {
+        compiled: compileSourceQuery(request, "queryAll"),
+        operation: "queryAll",
+        query: {
+          ...(limit !== undefined ? { logicalLimit: limit } : {}),
+        },
+        ...(request?.signal ? { signal: request.signal } : {}),
+      });
     },
     async queryAggregate() {
       throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
@@ -1681,7 +1697,15 @@ export function wfsSource<T>(
           ...extentRequest,
           pagination: { offset, limit: drainPageSize },
         };
-        const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, drainPageSize);
+        const json = await runGetFeatureJson(
+          featureType,
+          typeName,
+          choice,
+          pageRequest,
+          drainPageSize,
+          wfsSrsName,
+          featureNamespace,
+        );
         const page = computeExtentFromFeatureCollection(json);
         count += page.count;
         if (page.extent) {
@@ -1704,23 +1728,54 @@ export function wfsSource<T>(
       // `pagination.limit === 0` is an explicit zero cap; yield nothing
       // rather than silently fall back to the default 2000-row page size.
       if (limit === 0) return;
-      const choice = await negotiateJsonOrThrow();
       const pageSize = typeof limit === "number" && limit > 0 ? Math.max(1, limit) : 2000;
       let offset = request?.pagination?.offset ?? 0;
+      let totalCount: number | undefined;
+      const seenPages = new Set<string>();
       while (true) {
         const pageRequest: Query<T> = {
           ...(request ?? {}),
           pagination: { offset, limit: pageSize },
         };
-        const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, pageSize);
-        const result = resultFromGeoJson<T>(json);
-        if (result.features.length === 0) break;
+        const result = await module.execute<T>(discovered, {
+          compiled: compileSourceQuery(pageRequest, "query"),
+          operation: "query",
+          query: {},
+          ...(request?.signal ? { signal: request.signal } : {}),
+        });
+        if (result.totalCount !== undefined) {
+          if (totalCount !== undefined && totalCount !== result.totalCount) {
+            throw new HonuaWfsProtocolError(
+              "invalid-feature-response",
+              "WFS GetFeature numberMatched changed while streaming one query",
+            );
+          }
+          totalCount = result.totalCount;
+        }
+        const pageEnd = checkedWfsPageEnd(offset, result.features.length);
+        if (totalCount !== undefined && pageEnd > totalCount) {
+          throw new HonuaWfsProtocolError(
+            "invalid-feature-response",
+            "WFS GetFeature returned more rows than numberMatched permits",
+          );
+        }
+        if (result.features.length === 0) {
+          if (totalCount !== undefined && offset < totalCount) {
+            throw new HonuaWfsProtocolError(
+              "paging-stalled",
+              `WFS GetFeature returned no rows at startIndex ${offset} while numberMatched=${totalCount}`,
+            );
+          }
+          break;
+        }
+        assertWfsPageProgress(result, seenPages, offset);
         yield {
           features: result.features,
-          exceededTransferLimit: false,
+          exceededTransferLimit: totalCount !== undefined ? pageEnd < totalCount : result.exceededTransferLimit,
+          ...(totalCount !== undefined ? { totalCount } : {}),
         } satisfies Result<T>;
-        if (result.features.length < pageSize) break;
-        offset += result.features.length;
+        offset = pageEnd;
+        if (totalCount !== undefined && offset >= totalCount) break;
       }
     },
     async queryObjectIds(request) {
@@ -1748,7 +1803,15 @@ export function wfsSource<T>(
           ...idsRequest,
           pagination: { offset, limit: pageSize },
         };
-        const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, pageSize);
+        const json = await runGetFeatureJson(
+          featureType,
+          typeName,
+          choice,
+          pageRequest,
+          pageSize,
+          wfsSrsName,
+          featureNamespace,
+        );
         const collection = json as { features?: ReadonlyArray<{ id?: unknown }> };
         const features = collection.features ?? [];
         for (const feature of features) {
@@ -1805,6 +1868,31 @@ export function wfsSource<T>(
     },
     attachments: unsupportedAttachmentApi(descriptor),
   });
+}
+
+function normalizeWfsModuleQuery<T>(request: Query<T> | undefined): Query<T> | undefined {
+  if (request === undefined) return undefined;
+  const omitWhere = request.where === "";
+  const pagination = request.pagination;
+  const omitLimit = pagination?.limit !== undefined && pagination.limit < 0;
+  const omitOffset = pagination?.offset !== undefined && pagination.offset < 0;
+  if (!omitWhere && !omitLimit && !omitOffset) return request;
+
+  const { where: _where, pagination: _pagination, ...rest } = request;
+  void _where;
+  void _pagination;
+  const normalizedPagination =
+    pagination === undefined
+      ? undefined
+      : {
+          ...(!omitOffset && pagination.offset !== undefined ? { offset: pagination.offset } : {}),
+          ...(!omitLimit && pagination.limit !== undefined ? { limit: pagination.limit } : {}),
+        };
+  return {
+    ...rest,
+    ...(!omitWhere && request.where !== undefined ? { where: request.where } : {}),
+    ...(normalizedPagination !== undefined ? { pagination: normalizedPagination } : {}),
+  };
 }
 
 function requireWfsLocator(descriptor: SourceDescriptor): {
@@ -1885,6 +1973,8 @@ async function runGetFeatureJson<T>(
   choice: OutputFormatChoice,
   request: Query<T> | undefined,
   pageSize: number | undefined,
+  defaultFilterSrsName: string | undefined,
+  featureNamespace: string | undefined,
 ): Promise<unknown> {
   const filterNodes: FesNode[] = [];
   let needsPostBody = false;
@@ -1903,6 +1993,7 @@ async function runGetFeatureJson<T>(
     }
   }
   if (request?.spatialFilter) {
+    const filterSrsName = wfsFilterSrsNameFromGeometry(request.spatialFilter.geometry, defaultFilterSrsName);
     const spatialRel = request.spatialFilter.spatialRel;
     // The `bbox=` KVP and `<fes:BBOX>` both encode envelope-intersects
     // semantics (OGC 09-026r2). Only take the bbox shortcut when the caller
@@ -1931,10 +2022,9 @@ async function runGetFeatureJson<T>(
         typeof env.xmax === "number" &&
         typeof env.ymax === "number"
       ) {
-        bbox = `${env.xmin},${env.ymin},${env.xmax},${env.ymax}`;
+        bbox = formatWfsBboxKvp(env.xmin, env.ymin, env.xmax, env.ymax, filterSrsName);
       }
     } else {
-      const filterSrsName = wfsSrsNameFromOutSr(request.outSr);
       const compiled = compileSpatialFilter(request.spatialFilter, {
         geometryProperty: DEFAULT_WFS_GEOMETRY_PROPERTY,
         ...(filterSrsName !== undefined ? { srsName: filterSrsName } : {}),
@@ -1951,12 +2041,15 @@ async function runGetFeatureJson<T>(
   }
 
   const filterXml = filterNodes.length > 0 ? serializeFes(filterNodes, { typeName }) : undefined;
-  if (filterXml !== undefined) {
-    const encoded = encodeURIComponent(filterXml);
-    if (encoded.length > WFS_GET_FILTER_BUDGET) needsPostBody = true;
-  }
+  if (wfsProtocolMethodForFilter(filterXml) === "POST") needsPostBody = true;
 
   const params: Parameters<HonuaWfsFeatureType["getFeature"]>[0] = {};
+  const typePrefix = typeName.includes(":") ? typeName.slice(0, typeName.indexOf(":")) : undefined;
+  const namespace =
+    typePrefix !== undefined && featureNamespace !== undefined
+      ? { prefix: typePrefix, uri: featureNamespace }
+      : undefined;
+  if (namespace !== undefined) params.namespace = namespace;
   if (bbox !== undefined) params.bbox = bbox;
   if (filterXml !== undefined && !needsPostBody) params.filter = filterXml;
   // WFS `propertyName=` drops every property the caller does not list,
@@ -2007,7 +2100,7 @@ async function runGetFeatureJson<T>(
 
   if (needsPostBody && filterXml !== undefined) {
     params.method = "POST";
-    const postOptions: Parameters<typeof buildPostGetFeatureBody>[0] = {
+    const postOptions: Parameters<typeof buildWfsPostGetFeatureBody>[0] = {
       typeName,
       filter: filterXml,
       count: params.count,
@@ -2017,7 +2110,8 @@ async function runGetFeatureJson<T>(
     if (propertyNames) postOptions.propertyNames = propertyNames;
     if (sortBy !== undefined) postOptions.sortBy = sortBy;
     if (srsName !== undefined) postOptions.srsName = srsName;
-    params.body = buildPostGetFeatureBody(postOptions);
+    if (namespace !== undefined) postOptions.namespace = namespace;
+    params.body = buildWfsPostGetFeatureBody(postOptions);
   }
 
   const response = await featureType.getFeature(params);
@@ -2031,86 +2125,8 @@ async function runGetFeatureJson<T>(
   return response.data;
 }
 
-function buildPostGetFeatureBody(options: {
-  typeName: string;
-  filter: string;
-  count: number | undefined;
-  startIndex: number | undefined;
-  outputFormat: string;
-  propertyNames?: readonly string[];
-  sortBy?: string;
-  srsName?: string;
-}): string {
-  const countAttr = typeof options.count === "number" ? ` count="${options.count}"` : "";
-  const startAttr = typeof options.startIndex === "number" ? ` startIndex="${options.startIndex}"` : "";
-  const outputAttr = ` outputFormat="${escapeXmlAttr(options.outputFormat)}"`;
-  const queryAttrs = options.srsName !== undefined ? ` srsName="${escapeXmlAttr(options.srsName)}"` : "";
-  const propertyXml =
-    options.propertyNames && options.propertyNames.length > 0
-      ? options.propertyNames.map((name) => `<wfs:PropertyName>${escapeXmlText(name)}</wfs:PropertyName>`).join("")
-      : "";
-  const sortByXml = options.sortBy !== undefined ? buildSortByXml(options.sortBy) : "";
-  return `<wfs:GetFeature xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:fes="http://www.opengis.net/fes/2.0" service="WFS" version="2.0.0"${outputAttr}${countAttr}${startAttr}><wfs:Query typeNames="${escapeXmlAttr(options.typeName)}"${queryAttrs}>${propertyXml}${options.filter}${sortByXml}</wfs:Query></wfs:GetFeature>`;
-}
-
-/**
- * Build a `<fes:SortBy>` block from the same comma-separated `sortBy` string
- * the GET path emits (`FIELD A,OTHER D`). Empty entries are skipped.
- */
-function buildSortByXml(sortBy: string): string {
-  const entries = sortBy
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-  if (entries.length === 0) return "";
-  const properties = entries.map((entry) => {
-    const parts = entry.split(/\s+/);
-    const field = parts[0];
-    const direction = parts[1]?.toUpperCase() === "D" ? "DESC" : "ASC";
-    return `<fes:SortProperty><fes:ValueReference>${escapeXmlText(field)}</fes:ValueReference><fes:SortOrder>${direction}</fes:SortOrder></fes:SortProperty>`;
-  });
-  return `<fes:SortBy>${properties.join("")}</fes:SortBy>`;
-}
-
-/**
- * Translate a canonical `Query.outSr` (string CRS URI / EPSG token, or numeric
- * WKID) into the WFS `srsName` form. Numeric WKIDs become the OGC URN form
- * `urn:ogc:def:crs:EPSG::<wkid>` so cross-server interop matches the format
- * advertised in `OperationsMetadata` / `Filter_Capabilities`.
- */
-function wfsSrsNameFromOutSr(outSr: string | number | undefined): string | undefined {
-  if (typeof outSr === "string") return outSr.length > 0 ? outSr : undefined;
-  if (typeof outSr === "number" && Number.isFinite(outSr)) return `urn:ogc:def:crs:EPSG::${outSr}`;
-  return undefined;
-}
-
 function escapeXmlAttr(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-function resultFromGeoJson<T>(data: unknown): Result<T> {
-  if (typeof data !== "object" || data === null) {
-    return { features: [], exceededTransferLimit: false };
-  }
-  const collection = data as {
-    features?: ReadonlyArray<{ id?: unknown; properties?: Record<string, unknown>; geometry?: unknown }>;
-    numberMatched?: unknown;
-  };
-  const features: HonuaTypedFeature<T>[] = (collection.features ?? []).map((f) => ({
-    attributes: (f.properties ?? {}) as T,
-    geometry: f.geometry as Record<string, unknown> | null,
-  }));
-  const totalCount =
-    typeof collection.numberMatched === "number" && Number.isFinite(collection.numberMatched)
-      ? collection.numberMatched
-      : undefined;
-  const exceededTransferLimit = totalCount !== undefined && features.length < totalCount;
-  const out: Result<T> = {
-    features,
-    exceededTransferLimit,
-  };
-  if (totalCount !== undefined) out.totalCount = totalCount;
-  return out;
 }
 
 function computeExtentFromFeatureCollection(data: unknown): {

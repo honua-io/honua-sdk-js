@@ -286,7 +286,7 @@ export function gpJobStatusResponse(): { jobId: string; jobStatus: string } {
 /** Compact `wfs:WFS_Capabilities` document advertising GeoJSON output and one feature type. */
 export function wfsCapabilitiesXml(): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
-<wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:ows="http://www.opengis.net/ows/1.1" version="2.0.0">
+<wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:parcels="http://parcels.example.test/ns" version="2.0.0">
   <ows:OperationsMetadata>
     <ows:Operation name="GetFeature">
       <ows:DCP><ows:HTTP><ows:Get/><ows:Post/></ows:HTTP></ows:DCP>
@@ -309,6 +309,7 @@ export function wfsCapabilitiesXml(): string {
       <wfs:Name>parcels:lot</wfs:Name>
       <wfs:Title>Parcels</wfs:Title>
       <wfs:DefaultCRS>urn:ogc:def:crs:EPSG::4326</wfs:DefaultCRS>
+      <wfs:OtherCRS>urn:ogc:def:crs:EPSG::3857</wfs:OtherCRS>
       <ows:WGS84BoundingBox>
         <ows:LowerCorner>-123 37</ows:LowerCorner>
         <ows:UpperCorner>-120 45</ows:UpperCorner>
