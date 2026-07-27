@@ -30,6 +30,13 @@ name: Regenerate derived artifacts
 # digest, so it must land as its own commit *before* the real reseal that
 # binds evidence to it), and (4) the resealed evidence + regenerated dist.
 #
+# Release-matrix browser evidence (honua-io/honua-sdk-js#766) deliberately adds
+# NO fifth commit: a sealed receipt rides (4) from the
+# samples/evidence/<sample> paths that commit already stages, and its
+# establishment record (samples/contract/v2/release-matrix-lanes.v1.json, inside
+# the evidence-neutral digest) rides (3), which is already the commit for
+# digest-inside catalog refreshes that must precede pass two.
+#
 # (2) exists separately from (3), and lands *before* the first reseal pass,
 # because of an ordering deadlock (honua-io/honua-sdk-js#810): every reseal
 # pass validates the whole catalog through readInputs, and the catalog-level
@@ -105,6 +112,20 @@ on:
   schedule:
     - cron: "23 1,7,13,19 * * *"
   workflow_dispatch:
+    inputs:
+      # Release-matrix receipt persistence (honua-io/honua-sdk-js#766 REQ-002).
+      # first-map-release-smoke.yml dispatches this workflow with its own run ID
+      # after sealing samples/evidence/maplibre-quickstart/release-matrix.v1.json,
+      # green or red. The regenerate job below downloads that run's receipt
+      # artifact, installs the file, and the existing reseal + automation-PR
+      # path commits it like any other evidence change. No separate commit path
+      # exists for cross-browser evidence.
+      release_matrix_receipt_run_id:
+        description: >-
+          Workflow run ID of a First Map release smoke whose sealed
+          release-matrix receipt should be persisted with this regeneration.
+        required: false
+        type: string
 
 concurrency:
   group: derived-artifacts
@@ -121,9 +142,19 @@ jobs:
     name: Regenerate + reseal on trunk
     runs-on: ubuntu-latest
     permissions:
+      # actions: read downloads the release smoke's sealed release-matrix receipt
+      # artifact (#766); nothing here can write to Actions or contents.
+      actions: read
       contents: read
     outputs:
       changed: ${{ steps.bundle.outputs.changed }}
+    env:
+      # This workflow is the CHANNEL that publishes release-matrix outcomes, so
+      # it must not be blocked by the evidence it is publishing: a failing or
+      # lapsed matrix receipt is reported here and enforced everywhere else
+      # (trunk's post-regeneration strict CI, docs-site, publish, local runs).
+      # See scripts/lib/release-matrix-receipt.mjs.
+      HONUA_RELEASE_MATRIX_RECEIPT_RELAX: "1"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -141,8 +172,18 @@ jobs:
       - name: Skip if tip is a regeneration commit
         id: guard
         shell: bash
+        env:
+          RELEASE_MATRIX_RECEIPT_RUN_ID: ${{ inputs.release_matrix_receipt_run_id }}
         run: |
           set -euo pipefail
+          # A dispatch that carries a sealed release-matrix receipt always has
+          # work to do, even when trunk's tip is already a regeneration merge:
+          # the receipt is new content that no previous run could have committed.
+          if [[ -n "${RELEASE_MATRIX_RECEIPT_RUN_ID:-}" ]]; then
+            echo "Dispatch carries a release-matrix receipt from run $RELEASE_MATRIX_RECEIPT_RUN_ID; regenerating."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           subject="$(git log -1 --format=%s)"
           if [[ "$subject" == "$REGEN_MARKER"* ]]; then
             echo "Tip commit is a regeneration commit; nothing to regenerate."
@@ -326,6 +367,61 @@ jobs:
             git commit -m "$REGEN_MARKER (skip-attestation-expiry) for $(git rev-parse --short HEAD)"
           fi
 
+      # Install the sealed release-matrix receipt (#766) AFTER the two commits
+      # above -- both of their guards reject unexpected untracked content with no
+      # samples/evidence exemption, and a first-ever receipt is untracked -- and
+      # BEFORE the reseal passes below, so the reseal validates the tree that
+      # actually carries it and the existing evidence commit picks it up from the
+      # samples/evidence/maplibre-quickstart path it already stages. The receipt
+      # is verified against the dispatching run before it is trusted: right
+      # artifact, right sample, right lane, right run identity.
+      #
+      # This adds no commit to the chain: the receipt rides the existing resealed-
+      # evidence commit and its establishment record rides the existing
+      # golden-lane catalog commit, so the chain ceiling below stays at four.
+      - name: Install the sealed release-matrix receipt
+        if: steps.guard.outputs.skip == 'false' && inputs.release_matrix_receipt_run_id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_MATRIX_RECEIPT_RUN_ID: ${{ inputs.release_matrix_receipt_run_id }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_MATRIX_RECEIPT_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]; then
+            echo "release_matrix_receipt_run_id is not a workflow run ID."
+            exit 1
+          fi
+          run_workflow="$(gh run view "$RELEASE_MATRIX_RECEIPT_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" --json workflowName --jq .workflowName)"
+          if [[ "$run_workflow" != "First Map Release Smoke" ]]; then
+            echo "Run $RELEASE_MATRIX_RECEIPT_RUN_ID is not a First Map release smoke ($run_workflow)."
+            exit 1
+          fi
+          rm -rf .release-matrix-receipt
+          gh run download "$RELEASE_MATRIX_RECEIPT_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name honua-sdk-first-map-release-matrix \
+            --dir .release-matrix-receipt
+          downloaded=".release-matrix-receipt/samples/evidence/maplibre-quickstart/release-matrix.v1.json"
+          if [[ ! -f "$downloaded" ]]; then
+            echo "The release smoke artifact does not contain a release-matrix receipt."
+            exit 1
+          fi
+          format="$(jq -r .format "$downloaded")"
+          sample="$(jq -r .sampleId "$downloaded")"
+          lane="$(jq -r .lane "$downloaded")"
+          receipt_run="$(jq -r .run.runId "$downloaded")"
+          if [[ "$format" != "honua.sdk.sample-release-matrix-receipt.v1" ||
+                "$sample" != "maplibre-quickstart" ||
+                "$lane" != "release-matrix-browser" ||
+                "$receipt_run" != "$RELEASE_MATRIX_RECEIPT_RUN_ID" ]]; then
+            echo "The downloaded release-matrix receipt is not bound to the dispatching run."
+            exit 1
+          fi
+          install -m 644 "$downloaded" samples/evidence/maplibre-quickstart/release-matrix.v1.json
+          rm -rf .release-matrix-receipt
+          echo "Installed the $(jq -r .status "$downloaded") release-matrix receipt from run $RELEASE_MATRIX_RECEIPT_RUN_ID."
+
       # samples/catalog.v2.json's live.expiresAt is projected from this
       # migration overlay's sampleOverrides[id].live.expiresAt, a literal set
       # once at qualification time -- it is NOT derived from resealed
@@ -380,6 +476,18 @@ jobs:
           npm run samples:migrate:v1
           npm run samples:write-ci-selection
 
+      # Record release-matrix lane establishment (#766) in the same slot, and for
+      # the same reason: samples/contract/v2/release-matrix-lanes.v1.json is
+      # INSIDE the evidence-neutral digest, so it must land in the catalog commit
+      # below -- before pass two -- for pass two's receipts to bind to a tree that
+      # already contains it. Idempotent and receipt-driven: it writes nothing
+      # unless a sealed sidecar exists for a lane that is not yet established, so
+      # routine regenerations produce no diff. Once written, deleting the sealed
+      # sidecar can no longer relax the lane back to "not established".
+      - name: Record established release-matrix lanes
+        if: steps.guard.outputs.skip == 'false'
+        run: npm run samples:release-matrix:record -- --sample maplibre-quickstart
+
       # Commit the refreshed catalog before pass two below so that pass two's
       # own clean-checkout verification (and the receipts it writes) bind to
       # the tree the refresh actually produced, not the one from before it.
@@ -401,7 +509,8 @@ jobs:
           set -euo pipefail
           git add -A -- \
             samples/catalog.v2.json \
-            samples/contract/v2/migrations/catalog.v1-to-v2.json
+            samples/contract/v2/migrations/catalog.v1-to-v2.json \
+            samples/contract/v2/release-matrix-lanes.v1.json
           git add -f -A -- samples/dist/sample-ci-selection.v2.json
           if ! git diff --quiet -- . ':(exclude)samples/evidence'; then
             echo "Catalog live-expiry refresh modified unexpected tracked content:"
@@ -560,6 +669,7 @@ jobs:
               examples/migration-workbench/src/generated/* | \
               samples/catalog.v2.json | \
               samples/contract/v2/migrations/catalog.v1-to-v2.json | \
+              samples/contract/v2/release-matrix-lanes.v1.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
               samples/dist/* | samples/evidence/imagery-cog-quickstart/* | \
@@ -588,6 +698,13 @@ jobs:
       # Native pull_request CI deliberately relaxes shared derived-artifact
       # freshness for feature work. Dispatch separate strict CI against the
       # exact generated head and retain its ID so merge must wait for it.
+      #
+      # release_matrix_receipt_relax mirrors the regenerate job's env (#766):
+      # this PR may be the one that PUBLISHES a failing or lapsed release-matrix
+      # receipt, and the publication path cannot be gated on the outcome it is
+      # publishing. Every lane that is not part of this automation -- trunk's
+      # post-merge strict dispatch below, docs-site, publish-js-sdk, and local
+      # `npm run samples:verify` -- still fails on that receipt.
       - name: Dispatch strict CI for regeneration PR
         id: strict
         if: needs.regenerate.outputs.changed == 'true'
@@ -598,7 +715,8 @@ jobs:
           set -euo pipefail
           ci_run_url="$(gh workflow run ci.yml \
             --repo "$GITHUB_REPOSITORY" \
-            --ref "$BRANCH")"
+            --ref "$BRANCH" \
+            -f release_matrix_receipt_relax=true)"
           if [[ ! "$ci_run_url" =~ /actions/runs/([0-9]+)$ ]]; then
             echo "Could not identify strict CI run from: $ci_run_url"
             exit 1
