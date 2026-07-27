@@ -1,0 +1,314 @@
+{
+  "kind": "honua.realtime-cross-transport-conformance",
+  "version": 1,
+  "baseContract": {
+    "kind": "honua.realtime-contract-fixtures",
+    "version": 1,
+    "fixture": "snapshot-delta-cursor-resume-contract.v1.json"
+  },
+  "scenario": "snapshot-create-update-delete",
+  "coverage": [
+    "snapshot",
+    "create",
+    "update",
+    "delete",
+    "transport-duplicate",
+    "reorder",
+    "sequence-gap",
+    "slow-consumer-backpressure",
+    "forced-disconnect",
+    "cursor-expiry",
+    "explicit-resnapshot",
+    "authorization-scoped-resume",
+    "persisted-same-scope-replay",
+    "redacted-checkpoint-telemetry",
+    "cursor-watermark-delta-token-redaction",
+    "pull-freshness",
+    "cancellation",
+    "terminal-repeated-disposal"
+  ],
+  "clock": 1785124800000,
+  "pollIntervalMs": 1,
+  "timing": {
+    "serverEventTime": "2026-07-27T03:59:59.500Z",
+    "receivedAt": 1785124800000,
+    "lagMs": 500
+  },
+  "request": {
+    "sourceId": "incidents",
+    "mode": "snapshot-then-delta"
+  },
+  "context": {
+    "kind": "honua.realtime-resume-context",
+    "version": 1,
+    "sourceId": "incidents",
+    "queryFingerprint": "sha256:accepted-plan-v1",
+    "sourceVersion": "incidents-snapshot-v7",
+    "schemaVersion": "incident-schema-v3",
+    "authorizationScopeFingerprint": "sha256:dispatch-read-v2"
+  },
+  "positions": {
+    "snapshot": {
+      "sequence": 1,
+      "cursor": "fixture-cursor-v1",
+      "watermark": "fixture-watermark-v1",
+      "deltaToken": "https://honua.example/odata/Incidents?$deltatoken=fixture-v1"
+    },
+    "delta": {
+      "sequence": 2,
+      "cursor": "fixture-cursor-v2",
+      "watermark": "fixture-watermark-v2",
+      "deltaToken": "https://honua.example/odata/Incidents?$deltatoken=fixture-v2"
+    },
+    "gap": {
+      "sequence": 4,
+      "cursor": "fixture-cursor-v4",
+      "watermark": "fixture-watermark-v4",
+      "deltaToken": "https://honua.example/odata/Incidents?$deltatoken=fixture-v4"
+    },
+    "recoverySnapshot": {
+      "sequence": 100,
+      "cursor": "fixture-cursor-v100",
+      "watermark": "fixture-watermark-v100",
+      "deltaToken": "https://honua.example/odata/Incidents?$deltatoken=fixture-v100"
+    },
+    "recoveryDelta": {
+      "sequence": 101,
+      "cursor": "fixture-cursor-v101",
+      "watermark": "fixture-watermark-v101",
+      "deltaToken": "https://honua.example/odata/Incidents?$deltatoken=fixture-v101"
+    }
+  },
+  "initial": [
+    {
+      "id": 1,
+      "status": "open"
+    },
+    {
+      "id": 2,
+      "status": "monitoring"
+    }
+  ],
+  "changes": [
+    {
+      "op": "upsert",
+      "entity": {
+        "id": 3,
+        "status": "new"
+      }
+    },
+    {
+      "op": "upsert",
+      "entity": {
+        "id": 1,
+        "status": "assigned"
+      }
+    },
+    {
+      "op": "upsert",
+      "entity": {
+        "id": 3,
+        "status": "new"
+      }
+    },
+    {
+      "op": "delete",
+      "id": 2
+    }
+  ],
+  "resumeScopeProbe": {
+    "authorizationScopeFingerprint": "sha256:dispatch-read-other",
+    "expectedCode": "authorization-scope-changed"
+  },
+  "recovery": {
+    "snapshot": [
+      {
+        "id": 1,
+        "status": "assigned"
+      },
+      {
+        "id": 3,
+        "status": "new"
+      }
+    ],
+    "changes": [
+      {
+        "op": "upsert",
+        "entity": {
+          "id": 3,
+          "status": "resolved"
+        }
+      },
+      {
+        "op": "upsert",
+        "entity": {
+          "id": 4,
+          "status": "staged"
+        }
+      },
+      {
+        "op": "delete",
+        "id": 2
+      }
+    ]
+  },
+  "expected": {
+    "eventTypes": [
+      "snapshot",
+      "delta"
+    ],
+    "acceptedEventCount": 2,
+    "records": [
+      {
+        "id": 1,
+        "status": "assigned"
+      },
+      {
+        "id": 3,
+        "status": "new"
+      }
+    ],
+    "tombstones": [
+      2
+    ],
+    "recoveredRecords": [
+      {
+        "id": 1,
+        "status": "assigned"
+      },
+      {
+        "id": 3,
+        "status": "resolved"
+      },
+      {
+        "id": 4,
+        "status": "staged"
+      }
+    ],
+    "recoveredTombstones": [
+      2
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "steady-state",
+      "fault": "none",
+      "acceptedEventIds": ["snapshot-1", "delta-2"],
+      "sequences": [1, 2],
+      "finalState": "base",
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "overflowCount": 0,
+      "resnapshotCount": 0,
+      "termination": "complete"
+    },
+    {
+      "id": "transport-duplicate",
+      "fault": "duplicate-delta",
+      "acceptedEventIds": ["snapshot-1", "delta-2"],
+      "sequences": [1, 2],
+      "finalState": "base",
+      "duplicateCount": 1,
+      "gapCount": 0,
+      "overflowCount": 0,
+      "resnapshotCount": 0,
+      "termination": "complete"
+    },
+    {
+      "id": "reorder",
+      "fault": "late-snapshot",
+      "acceptedEventIds": ["snapshot-1", "delta-2"],
+      "sequences": [1, 2],
+      "finalState": "base",
+      "duplicateCount": 1,
+      "gapCount": 0,
+      "overflowCount": 0,
+      "resnapshotCount": 0,
+      "termination": "complete"
+    },
+    {
+      "id": "sequence-gap",
+      "fault": "sequence-gap",
+      "acceptedEventIds": ["snapshot-1", "snapshot-100", "delta-101"],
+      "sequences": [1, 100, 101],
+      "finalState": "recovered",
+      "duplicateCount": 0,
+      "gapCount": 1,
+      "overflowCount": 0,
+      "resnapshotCount": 1,
+      "termination": "complete"
+    },
+    {
+      "id": "forced-disconnect",
+      "fault": "transport-gap",
+      "acceptedEventIds": ["snapshot-1", "delta-2", "snapshot-100", "delta-101"],
+      "sequences": [1, 2, 100, 101],
+      "finalState": "recovered",
+      "duplicateCount": 0,
+      "gapCount": 1,
+      "overflowCount": 0,
+      "resnapshotCount": 1,
+      "termination": "complete"
+    },
+    {
+      "id": "slow-consumer-backpressure",
+      "fault": "buffer-overflow",
+      "acceptedEventIds": ["snapshot-1", "delta-2", "snapshot-100", "delta-101"],
+      "sequences": [1, 2, 100, 101],
+      "finalState": "recovered",
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "overflowCount": 1,
+      "resnapshotCount": 1,
+      "termination": "complete"
+    },
+    {
+      "id": "cursor-expiry",
+      "fault": "cursor-expired",
+      "acceptedEventIds": ["snapshot-1", "delta-2", "snapshot-100", "delta-101"],
+      "sequences": [1, 2, 100, 101],
+      "finalState": "recovered",
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "overflowCount": 0,
+      "resnapshotCount": 1,
+      "termination": "complete"
+    },
+    {
+      "id": "explicit-resnapshot",
+      "fault": "resume-unsupported",
+      "acceptedEventIds": ["snapshot-1", "delta-2", "snapshot-100", "delta-101"],
+      "sequences": [1, 2, 100, 101],
+      "finalState": "recovered",
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "overflowCount": 0,
+      "resnapshotCount": 1,
+      "termination": "complete"
+    },
+    {
+      "id": "cancellation",
+      "fault": "cancel",
+      "acceptedEventIds": ["snapshot-1"],
+      "sequences": [1],
+      "finalState": "initial",
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "overflowCount": 0,
+      "resnapshotCount": 0,
+      "termination": "complete"
+    },
+    {
+      "id": "terminal-repeated-disposal",
+      "fault": "terminal-error",
+      "acceptedEventIds": ["snapshot-1", "delta-2"],
+      "sequences": [1, 2],
+      "finalState": "base",
+      "duplicateCount": 0,
+      "gapCount": 0,
+      "overflowCount": 0,
+      "resnapshotCount": 0,
+      "termination": "error"
+    }
+  ]
+}

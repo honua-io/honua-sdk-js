@@ -825,10 +825,22 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "realtime-cross-transport-fixtures",
+      "kind": "fixture",
+      "path": "test/realtime-cross-transport-conformance.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "realtime-integration",
       "kind": "integration",
       "path": "test/integration/surfaces/realtime.integration.ts",
       "freshnessPolicy": "nightly"
+    },
+    {
+      "id": "realtime-live-conformance",
+      "kind": "live",
+      "path": "scripts/realtime-conformance-evidence.mjs",
+      "freshnessPolicy": "scheduled-live"
     },
     {
       "id": "agent-tools-fixtures",
@@ -1912,9 +1924,11 @@
       "status": "facade-required",
       "backendNeeded": "Honua Server",
       "api": "@honua/sdk-js/realtime",
-      "notes": "Subscription-backed live updates depend on the Honua realtime contract.",
+      "notes": "SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately.",
       "evidence": [
-        "realtime-integration"
+        "realtime-cross-transport-fixtures",
+        "realtime-integration",
+        "realtime-live-conformance"
       ]
     },
     {

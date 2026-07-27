@@ -160,6 +160,58 @@ try {
   run("installed runtime imports", process.execPath, ["runtime-smoke.mjs"], {
     cwd: consumerRoot,
   });
+  const realtimeHarness = path.join(
+    projectRoot,
+    "dist",
+    "test",
+    "helpers",
+    "realtime-cross-transport-conformance.js",
+  );
+  if (!fs.existsSync(realtimeHarness)) {
+    throw new Error("built realtime cross-transport conformance harness is missing");
+  }
+  const realtimeMatrixHarness = path.join(
+    projectRoot,
+    "dist",
+    "test",
+    "helpers",
+    "realtime-cross-transport-matrix.js",
+  );
+  if (!fs.existsSync(realtimeMatrixHarness)) {
+    throw new Error("built realtime cross-transport matrix harness is missing");
+  }
+  fs.copyFileSync(realtimeHarness, path.join(consumerRoot, "realtime-cross-transport-conformance.mjs"));
+  fs.copyFileSync(realtimeMatrixHarness, path.join(consumerRoot, "realtime-cross-transport-matrix.mjs"));
+  fs.copyFileSync(
+    path.join(projectRoot, "test", "fixtures", "realtime", "cross-transport-conformance.v1.json"),
+    path.join(consumerRoot, "cross-transport-conformance.v1.json"),
+  );
+  fs.copyFileSync(
+    path.join(projectRoot, "test", "fixtures", "realtime", "snapshot-delta-cursor-resume-contract.v1.json"),
+    path.join(consumerRoot, "snapshot-delta-cursor-resume-contract.v1.json"),
+  );
+  fs.writeFileSync(
+    path.join(consumerRoot, "realtime-conformance-smoke.mjs"),
+    `import fs from "node:fs";
+import * as realtime from "@honua/sdk-js/realtime";
+import { runRealtimeCrossTransportMatrix } from "./realtime-cross-transport-matrix.mjs";
+
+const corpus = JSON.parse(fs.readFileSync(new URL("./cross-transport-conformance.v1.json", import.meta.url), "utf8"));
+const baseContract = JSON.parse(
+  fs.readFileSync(new URL("./snapshot-delta-cursor-resume-contract.v1.json", import.meta.url), "utf8"),
+);
+if (JSON.stringify(corpus.context) !== JSON.stringify(baseContract.context)) {
+  throw new Error("packed realtime conformance corpus drifted from the shared v1 contract context");
+}
+const evidence = await runRealtimeCrossTransportMatrix({ sdk: realtime, corpus });
+if (evidence.scenarioCount !== 10 || evidence.transportCount !== 3 || evidence.executionCount !== 30) {
+  throw new Error("packed realtime conformance did not execute the full 10-scenario, three-transport matrix");
+}
+`,
+  );
+  run("installed full realtime cross-transport matrix", process.execPath, ["realtime-conformance-smoke.mjs"], {
+    cwd: consumerRoot,
+  });
   fs.writeFileSync(
     path.join(consumerRoot, "geocoding-smoke.mjs"),
     `import { HonuaGeocodingClient } from "@honua/sdk-js/geocoding";
@@ -372,7 +424,7 @@ if (described?.tileKind !== "mvt" || ranges.length !== 1) {
   );
 
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} geocoding=runtime pmtilesConnect=bounded-range rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal registryInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} realtimeConformance=full-10-scenario-matrix:sse+websocket+odata geocoding=runtime pmtilesConnect=bounded-range rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal registryInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(
