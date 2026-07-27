@@ -555,8 +555,7 @@
           "maxItems": 9,
           "items": { "type": "object", "maxProperties": 16 }
         },
-        "liveEvidence": { "type": "object", "maxProperties": 16 },
-        "releaseMatrix": { "type": "object", "maxProperties": 16 }
+        "liveEvidence": { "type": "object", "maxProperties": 16 }
       },
       "additionalProperties": false
     },
