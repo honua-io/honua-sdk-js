@@ -238,7 +238,7 @@ authorities the samples request, so the security boundary stays honest: the
 `cache` sample only writes through scoped storage, and the `protocol` sample's
 network calls are restricted to its declared origin.
 
-## First-party protocol dogfooding (issue #538)
+## First-party protocol dogfooding (issues #538 and #655)
 
 The renderer kind proved the plugin seam is real for an out-of-tree module
 (OpenLayers, issue #566): third-party and first-party (`maplibreRenderer`)
@@ -250,9 +250,16 @@ protocol adapter was constructed by privileged code paths inside
 
 `ProtocolModule` (`src/contract/protocol-module.ts`) is the minimal
 discovery/capability/diagnostics/disposal seam for a `Source.protocol(...)`
-escape-hatch adapter, mirroring `RendererAdapter`. The first bounded built-in
-migrated onto it is PMTiles (tiles-only; no query-family capability, so
-`compile`/`execute` are honestly absent from this first slice):
+escape-hatch adapter, mirroring `RendererAdapter`.
+`QueryCapableProtocolModule` is its atomic query extension: query-capable
+modules must implement both typed `compile` / `execute` hooks, while
+discovery-only modules implement neither. Compiler input uses a
+credential-free identity and deterministic query representation; runtime
+authority stays on the discovered handle and explicitly injected
+dependencies.
+
+The first bounded built-in migrated onto the seam was PMTiles (tiles-only, so
+it honestly omits the query pair):
 
 - `pmtilesProtocolModule()` (`src/contract/pmtiles.ts`) is the seam-shaped
   factory. `pmtilesSource()` builds its `Source.protocol("pmtiles")` escape
@@ -272,13 +279,52 @@ migrated onto it is PMTiles (tiles-only; no query-family capability, so
   (`test/plugin-cloud-tiles-certification.test.ts`), closing REQ-004: the
   same conformance harness runs in-tree and against an independent module.
 
-Every other built-in protocol adapter (GeoServices, OGC API Features/Tiles/
-Maps/Records/Processes, WFS 2.0, WMS, WMTS, OData v4, STAC, GeoParquet, and
-the gRPC `FeatureService` transport, plus the deterministic query-compiler
-switch in `src/query-planner/planner.ts`) still bypasses this seam; migrating
-the query-compiler pipeline onto a versioned module contract is tracked as a
-separate follow-up so it can be reviewed at the same bounded scope as this
-first slice.
+Issue #655 adds the first query-capable built-in:
+
+- `odataProtocolModule(client)` binds OData discovery, the typed
+  `HonuaOdataEntitySet` escape hatch, deterministic compilation, and
+  `query` / `queryAll` execution. Discovery remains synchronous and performs
+  no I/O; `$metadata` is still loaded lazily by the entity-set adapter. The
+  OData-specific factory and planner types are exported from the experimental
+  `@honua/sdk-js/query-planner` subpath; only the protocol-neutral module
+  contracts are exported from stable `@honua/sdk-js/contract`.
+- `odataSource()` discovers through that module and routes its existing wire
+  behavior through the module executor. The planner dispatches through the
+  exact `odataProtocolQueryCompiler` hook installed on the module, so module
+  consumers and built-in planning cannot drift onto separate compilers.
+- Executable OData artifacts use the operation-bound
+  `odata-v4-protocol-query-v1` identity and contain the exact operation plus an
+  entity-set identity, but no origin, credentials, or signal. Execution rejects
+  an artifact whose operation or entity set does not match the requested
+  execution and discovered handle before I/O, keeping the injected client's
+  authority boundary explicit. The operation-neutral `odata-v4-query-v1`
+  artifact remains the unchanged output of the legacy experimental
+  `compileOdataQuery()` helper.
+- `test/fixtures/plugins/portable-query/` is an independent, out-of-tree-style
+  query module. It imports only the public contract and plugin entrypoints,
+  certifies through `HonuaPluginRegistry`, and proves deterministic compile,
+  handle-bound execution, and idempotent disposal without sharing OData or SDK
+  internal implementation.
+
+### Remaining protocol-module migration assessment
+
+Issue #655 proves the versioned query seam; it does not turn the remainder into
+one mechanical migration. Future work should stay in bounded Specifica
+children of the adapter-extensibility epic:
+
+| Recommended child scope | Remaining adapters | Why it stays separate |
+| --- | --- | --- |
+| Filter-encoding query adapter | WFS 2.0 | FES, output negotiation, namespace and semantic-compiler evidence need one parity review |
+| HTTP feature query adapters | OGC API Features; GeoServices feature/map/image | Pagination, aggregation, edits, and capability negotiation are wider than the OData proof |
+| Opaque/local execution adapters | GeoParquet | Resource-handle authority, optional DuckDB peer loading, worker lifecycle, and v1/v2 compiled artifacts must move together |
+| RPC query adapter | gRPC FeatureService | Generated protobuf/connect peers and transport disposal have distinct bundle and authority constraints |
+| Discovery/render/catalog adapters | OGC Tiles/Maps/Records/Processes, WMS, WMTS, STAC | These need discovery or render/search hooks rather than reusing the query executor blindly |
+| Utility-only adapters | GeoServices Geometry Service and GP Service | Job/utility lifecycles are not feature-query execution and require their own module capability contract |
+
+Each child should migrate one coherent adapter family, retain the current
+escape-hatch identity, and carry its existing protocol conformance suite plus
+bundle-budget evidence. This avoids reopening the public hook shape while also
+avoiding a high-risk all-protocol rewrite.
 
 ## Running the certification kit independently
 

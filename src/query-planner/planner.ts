@@ -19,7 +19,7 @@ import { compileDuckDbQuery, compileDuckDbQueryV2 } from "./duckdb.js";
 import { compileGeoServicesQuery } from "./geoservices.js";
 import { compileGrpcQuery } from "./grpc.js";
 import { createGeoParquetQueryIr, createQueryIr, deepFreeze, queryFromCanonical } from "./ir.js";
-import { compileOdataQuery } from "./odata.js";
+import { compileOdataQuery, odataProtocolQueryCompiler } from "./odata-v1.js";
 import { compileOgcApiFeaturesQuery } from "./ogc-features.js";
 import { type GeoParquetResourceHandleV1, parseGeoParquetResourceHandle } from "./resource.js";
 import {
@@ -42,6 +42,7 @@ import {
   type QueryFallbackPolicy,
   type QueryIrSourceIdentity,
   type QueryIrSourceIdentityV2,
+  type QueryPlanStep,
   type RemoteCompiledQueryV1,
   type RemoteQueryPlanStep,
 } from "./types.js";
@@ -78,12 +79,13 @@ export function explainQuery<T>(
     }
     rejectUnsafeEstimate(fallback, estimates.rows, estimates.bytes);
     const ogcFallback = ir.source.protocol === "ogc-features";
+    const adapterOwnsLookahead = ogcFallback || ir.source.protocol === "odata";
     const inputQuery = localAggregateInputQuery(
       ir.query,
       ir.query.aggregation,
       fallback.maxRows,
       options.descriptor.schema?.primaryKey,
-      { preserveGeometry: ogcFallback, adapterOwnsLookahead: ogcFallback },
+      { preserveGeometry: ogcFallback, adapterOwnsLookahead },
     );
     baseSteps = [
       {
@@ -188,7 +190,7 @@ function compileRemoteQuery(
     case "wfs":
       return compileWfsQuery(source, query);
     case "odata":
-      return compileOdataQuery(source, query);
+      return odataProtocolQueryCompiler.compile({ source, query, operation });
     case "geoparquet":
       return isGeoParquetV2Source(source)
         ? compileDuckDbQueryV2(source, query)
@@ -211,6 +213,9 @@ type VersionedRemoteQueryPlanStepBase = Omit<
 };
 type LocalAggregatePlanStepBase = Omit<LocalAggregatePlanStep, "fidelity" | "losses" | "bounds" | "provenance">;
 type VersionedQueryPlanStepBase = VersionedRemoteQueryPlanStepBase | LocalAggregatePlanStepBase;
+type QueryPlanStepBaseV1 =
+  | Omit<RemoteQueryPlanStep, "fidelity" | "losses" | "bounds" | "provenance">
+  | LocalAggregatePlanStepBase;
 
 function isGeoParquetV2Source(
   source: QueryIrSourceIdentity | QueryIrSourceIdentityV2,
@@ -277,14 +282,14 @@ export function validateQueryPlanSnapshot(plan: QueryExecutionPlan): QueryExecut
   return snapshot.plan;
 }
 
-/** Canonical persistence boundary for accepted v1/v2 query plans. */
+/** Canonical persistence boundary; validated legacy OData v1 artifacts are upgraded before serialization. */
 export function serializeQueryPlan(plan: QueryExecutionPlan): string {
   const snapshot = persistedPlanSnapshot(plan);
   if (snapshot.hash !== snapshot.plan.fingerprint) throw invalidPersistedPlan();
   return canonicalStringify(toJsonValue(snapshot.plan));
 }
 
-/** Parse a persisted plan without retaining invalid JSON or credential-bearing v1 locators. */
+/** Parse a persisted plan, upgrading validated legacy OData v1 artifacts without retaining unsafe input. */
 export function parseQueryPlan(serialized: string): QueryExecutionPlan {
   if (typeof serialized !== "string") throw invalidPersistedPlan();
   let value: unknown;
@@ -383,14 +388,7 @@ function assertPlanPersistenceSafe(plan: QueryExecutionPlan): void {
         throw invalidPersistedPlan();
       }
     }
-    for (const step of plan.steps) {
-      if (step.engine !== "remote") continue;
-      const expected = compileRemoteQuery(plan.ir.source, step.query, step.operation);
-      if (!sameCanonicalValue(step.compiled, expected)) {
-        throw invalidPersistedPlan();
-      }
-    }
-    const expected = rebuildQueryPlanV1(plan);
+    const expected = isLegacyOdataQueryPlanV1(plan) ? rebuildLegacyOdataQueryPlanV1(plan) : rebuildQueryPlanV1(plan);
     if (canonicalStringify(toJsonValue(plan)) !== canonicalStringify(toJsonValue(expected))) {
       throw invalidPersistedPlan();
     }
@@ -581,6 +579,85 @@ function rebuildQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
   });
 }
 
+/**
+ * Rebuild the exact OData plan representation emitted before operation-bound
+ * protocol artifacts were introduced. The persisted plan version remains
+ * 1.0, so those integrity-checked snapshots must be validated against their
+ * original compiler semantics before they can be migrated.
+ */
+function rebuildLegacyOdataQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
+  const modern = rebuildQueryPlanV1(plan);
+  if (modern.ir.source.protocol !== "odata") throw invalidPersistedPlan();
+
+  const baseSteps = modern.steps.map((step): QueryPlanStepBaseV1 => {
+    const { fidelity: _fidelity, losses: _losses, bounds: _bounds, provenance: _provenance, ...base } = step;
+    if (base.engine !== "remote") return base;
+
+    const query = base.operation === "queryAll" ? legacyOdataQueryAllInput(base.query, modern.fallback) : base.query;
+    return {
+      ...base,
+      query,
+      compiled: compileOdataQuery(modern.ir.source, query),
+    };
+  });
+  const steps = baseSteps.map((step): QueryPlanStep => {
+    const diagnostics = createStepDiagnostics(step, modern.estimates, modern.provenance);
+    return step.engine === "client" ? { ...step, ...diagnostics, fidelity: "equivalent" } : { ...step, ...diagnostics };
+  });
+  const { fidelity, losses } = summarizeFidelity(steps);
+  const bounds = summarizePlanBounds(steps);
+  const warnings = createPlanWarnings(baseSteps, modern.ir.source);
+  const {
+    id: _id,
+    fingerprint: _fingerprint,
+    fidelity: _modernFidelity,
+    losses: _modernLosses,
+    bounds: _modernBounds,
+    steps: _modernSteps,
+    warnings: _modernWarnings,
+    ...shared
+  } = modern;
+  const unsigned = {
+    ...shared,
+    fidelity,
+    losses,
+    bounds,
+    steps,
+    warnings,
+  };
+  const fingerprint = sha256(canonicalStringify(toJsonValue(unsigned)));
+  return deepFreeze({
+    ...unsigned,
+    id: `plan_${fingerprint.slice("sha256:".length, "sha256:".length + 16)}`,
+    fingerprint,
+  });
+}
+
+function legacyOdataQueryAllInput(query: CanonicalQuery, fallback: QueryFallbackPolicy): CanonicalQuery {
+  if (fallback.mode !== "bounded-local") throw invalidPersistedPlan();
+  const pagination = query.pagination;
+  if (
+    !pagination ||
+    pagination.offset !== 0 ||
+    pagination.limit !== fallback.maxRows ||
+    fallback.maxRows >= Number.MAX_SAFE_INTEGER
+  ) {
+    throw invalidPersistedPlan();
+  }
+  return deepFreeze({
+    ...query,
+    pagination: { offset: 0, limit: fallback.maxRows + 1 },
+  });
+}
+
+function isLegacyOdataQueryPlanV1(plan: QueryExecutionPlan): plan is QueryExecutionPlanV1 {
+  if (plan.version !== QUERY_PLAN_VERSION || plan.ir.version !== "1.0" || plan.ir.source.protocol !== "odata") {
+    return false;
+  }
+  const remoteSteps = plan.steps.filter((step) => step.engine === "remote");
+  return remoteSteps.length > 0 && remoteSteps.every((step) => step.compiled.compiler === "odata-v4-query-v1");
+}
+
 function persistedV1FallbackPrimaryKey(plan: QueryExecutionPlanV1): string | undefined {
   const aggregation = plan.ir.query.aggregation;
   if (!aggregation) return undefined;
@@ -759,8 +836,9 @@ function persistedPlanSnapshot(value: unknown): PersistedPlanSnapshot {
     if (!isPlanEnvelope(plan)) throw invalidPersistedPlan();
     assertPlanPersistenceSafe(plan);
     if (containsCredentialBearingPlanMaterial(plan)) throw invalidPersistedPlan();
-    const { id: _id, fingerprint: _fingerprint, ...unsigned } = plan;
-    return { plan, hash: sha256(canonicalStringify(toJsonValue(unsigned))) };
+    const acceptedPlan = isLegacyOdataQueryPlanV1(plan) ? rebuildQueryPlanV1(plan) : plan;
+    const { id: _id, fingerprint: _fingerprint, ...unsigned } = acceptedPlan;
+    return { plan: acceptedPlan, hash: sha256(canonicalStringify(toJsonValue(unsigned))) };
   } catch {
     throw invalidPersistedPlan();
   }
@@ -937,7 +1015,7 @@ function localAggregateInputQuery(
     ...base,
     ...(requiredFields.size > 0 ? { outFields: [...requiredFields].sort() } : {}),
     ...(!options.preserveGeometry ? { returnGeometry: false } : {}),
-    // The OGC Source.queryAll adapter owns the overflow sentinel: a logical
+    // The OGC and OData queryAll adapters own the overflow sentinel: a logical
     // N-row ceiling becomes an N + 1 wire request and is reported through
     // exceededTransferLimit. GeoServices retains its established explicit
     // sentinel in the canonical step for backward-compatible plan output.

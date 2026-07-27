@@ -1,3 +1,4 @@
+import type { ProtocolModuleQueryOperation } from "../contract/protocol-module.js";
 import type {
   AggregationSpec,
   Capability,
@@ -382,9 +383,29 @@ export interface WfsCompiledQueryV1 {
   readonly srsName?: string;
 }
 
-/** Inspectable OData v4 entity-set query produced without I/O. */
+/**
+ * Legacy, operation-neutral OData v4 entity-set request produced by
+ * `compileOdataQuery()`. Executable protocol modules use the distinct
+ * operation-bound {@link OdataProtocolCompiledQueryV1} artifact.
+ */
 export interface OdataCompiledQueryV1 {
   readonly compiler: "odata-v4-query-v1";
+  readonly entitySet: string;
+  readonly filter?: string;
+  readonly select?: readonly string[];
+  readonly expand?: readonly string[];
+  readonly orderBy?: readonly string[];
+  readonly skip?: number;
+  readonly top?: number;
+}
+
+/**
+ * Operation-bound OData v4 protocol artifact used by query plans and the
+ * executable protocol-module seam.
+ */
+export interface OdataProtocolCompiledQueryV1 {
+  readonly compiler: "odata-v4-protocol-query-v1";
+  readonly operation: ProtocolModuleQueryOperation;
   readonly entitySet: string;
   readonly filter?: string;
   readonly select?: readonly string[];
@@ -476,6 +497,7 @@ export type RemoteCompiledQueryV1 =
   | OgcApiFeaturesCompiledQueryV1
   | WfsCompiledQueryV1
   | OdataCompiledQueryV1
+  | OdataProtocolCompiledQueryV1
   | DuckDbCompiledQueryV1
   | GrpcCompiledQueryV1;
 
