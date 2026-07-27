@@ -152,7 +152,6 @@ import {
  *
  * const parcels = dataset.source("parcels-fs")!;
  * const result = await parcels.queryAll({
- *   where: "STATUS = 'ACTIVE'",
  *   outFields: ["OBJECTID", "NAME"],
  *   returnGeometry: true,
  *   pagination: { limit: 500 },
@@ -293,8 +292,8 @@ function buildBuiltInSource<T>(
  *   }],
  * });
  * const result = await dataset.source("parcels-fs")!.queryAll({
- *   where: "STATUS = 'ACTIVE'",
  *   outFields: ["OBJECTID", "NAME"],
+ *   pagination: { limit: 500 },
  * });
  * ```
  */
@@ -509,7 +508,6 @@ export function geoServicesMapServiceSource<T>(
  *   }],
  * });
  * const result = await dataset.source("addresses-ogc")!.queryAll({
- *   where: "city = 'Honolulu'",
  *   pagination: { limit: 200 },
  * });
  * ```
@@ -1054,7 +1052,7 @@ export function ogcMapsSource<T>(
  * @example
  * ```ts
  * const records = dataset.source("catalog")!;
- * const result = await records.query({ where: "type = 'dataset' AND q = 'parcels'" });
+ * const result = await records.query({ pagination: { limit: 100 } });
  * ```
  */
 export function ogcRecordsSource<T>(
@@ -1347,9 +1345,9 @@ export function wmtsSource<T>(
  * Adapter factory for a STAC API search endpoint.
  *
  * The canonical `Source.query()` runs a `POST /search` against the STAC root,
- * with `Query.spatialFilter` (e.g. an `envelope(...)` bounding box) and
- * `Query.where` translated into STAC's `bbox` / `datetime` / `filter`
- * parameters.
+ * with `Query.spatialFilter` (e.g. an `envelope(...)` bounding box) translated
+ * into STAC's `bbox` parameter. The deprecated source-native `Query.where`
+ * migration member maps to STAC `datetime` / `filter` parameters.
  *
  * @example
  * ```ts
@@ -1366,8 +1364,8 @@ export function wmtsSource<T>(
  *   }],
  * });
  * const result = await dataset.source("stac-search")!.query({
- *   where: "collections IN ('landsat-c2-l2')",
  *   spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7),
+ *   pagination: { limit: 100 },
  * });
  * ```
  */
@@ -1515,10 +1513,11 @@ const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
 /**
  * Adapter factory for a WFS 2.0 endpoint.
  *
- * `Query.where` and `Query.spatialFilter` compile to FES 2.0; GeoJSON is
- * preferred over GML via `OperationsMetadata` negotiation. `applyEdits()`
- * builds `<wfs:Transaction>` bodies. Reach `Source.protocol("wfs")` for raw
- * GML / `LockFeature` / stored-query access.
+ * `Query.spatialFilter` and the deprecated source-native `Query.where`
+ * migration member compile to FES 2.0; GeoJSON is preferred over GML via
+ * `OperationsMetadata` negotiation. `applyEdits()` builds
+ * `<wfs:Transaction>` bodies. Reach `Source.protocol("wfs")` for raw GML /
+ * `LockFeature` / stored-query access.
  *
  * @example
  * ```ts
@@ -1533,7 +1532,6 @@ const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
  *   }],
  * });
  * const result = await dataset.source("parcels")!.queryAll({
- *   where: "STATUS = 'ACTIVE'",
  *   pagination: { limit: 500 },
  * });
  * ```
@@ -1854,9 +1852,10 @@ function toWfsObjectIdsDrainRequest<T>(request: Query<T> | undefined): Query<T> 
 }
 
 /**
- * Compile `Query.where` and `Query.spatialFilter` into a (possibly empty)
- * FES filter and route the request through GET or POST GetFeature based on
- * the URL budget. Returns the decoded GeoJSON FeatureCollection.
+ * Compile `Query.spatialFilter` and the deprecated source-native
+ * `Query.where` migration member into a (possibly empty) FES filter and route
+ * the request through GET or POST GetFeature based on the URL budget. Returns
+ * the decoded GeoJSON FeatureCollection.
  */
 async function runGetFeatureJson<T>(
   featureType: HonuaWfsFeatureType,
@@ -2352,10 +2351,11 @@ function loadOdataWriteCodec(): Promise<OdataWriteCodec> {
 /**
  * Adapter factory for an OData v4 entity set.
  *
- * `Query.where` compiles to OData `$filter`, `Query.outFields` becomes
- * `$select`, `Query.orderBy` becomes `$orderby`, and `Query.pagination`
- * becomes `$top`/`$skip`. Geospatial filters translate to OData's
- * `geo.intersects` / `geo.distance` family.
+ * The deprecated source-native `Query.where` migration member compiles to
+ * OData `$filter`, `Query.outFields` becomes `$select`, `Query.orderBy`
+ * becomes `$orderby`, and `Query.pagination` becomes `$top`/`$skip`.
+ * Geospatial filters translate to OData's `geo.intersects` /
+ * `geo.distance` family.
  *
  * @example
  * ```ts
@@ -2370,7 +2370,6 @@ function loadOdataWriteCodec(): Promise<OdataWriteCodec> {
  *   }],
  * });
  * const result = await dataset.source("incidents")!.queryAll({
- *   where: "Severity ge 3",
  *   orderBy: [{ field: "ReportedAt", direction: "desc" }],
  *   pagination: { limit: 100 },
  * });
@@ -3676,7 +3675,7 @@ function requireImageServerCompatibleQuery<T>(request?: Query<T>): void {
   if (!request) return;
   if (request.spatialFilter) {
     throw new Error(
-      "geoservices-image-service: Query.spatialFilter is not supported on the raster catalog; the ImageServer catalog endpoint does not accept geometry / geometryType / spatialRel filters. Use Query.where to constrain the catalog or call protocol().identify() / exportImage() on the typed escape hatch.",
+      "geoservices-image-service: Query.spatialFilter is not supported on the raster catalog; the ImageServer catalog endpoint does not accept geometry / geometryType / spatialRel filters. During migration, the deprecated source-native Query.where member can constrain the catalog; otherwise call protocol().identify() / exportImage() on the typed escape hatch.",
     );
   }
   if (request.orderBy && request.orderBy.length > 0) {

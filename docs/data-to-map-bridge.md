@@ -23,7 +23,7 @@ The module never imports `maplibre-gl`. The map parameter is duck-typed
 test doubles used by the SDK's own suites.
 
 ```ts doc-test=skip reason="requires a browser MapLibre host"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { connect } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
 
@@ -179,7 +179,9 @@ than tearing down:
 are serialized: concurrent calls run in order, never interleaved.
 
 ```ts doc-test=skip reason="requires a mounted handle"
-await mounted.setFilter({ where: "STATUS = 'ACTIVE'" });
+import { envelope } from "@honua/sdk-js";
+
+await mounted.setFilter({ spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7) });
 await mounted.refresh();
 await mounted.setFilter(undefined);   // clear
 ```

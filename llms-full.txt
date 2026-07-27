@@ -24,8 +24,8 @@ This file concatenates the documents indexed in `llms.txt` for single-fetch inge
 protocols your data already speaks (Esri GeoServices, OGC API Features / Tiles / Maps /
 Processes, STAC, WMS, WMTS, WFS 2.0, OData v4), a one-call data→map bridge and MapLibre
 runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatibility
-layer with a codemod — everything around the renderer, so MapLibre (2D) and Cesium (3D)
-can do what they do best.
+layer with a codemod. MapLibre is the stable renderer path; optional Cesium and Kepler.gl
+integration remains pre-1.0.
 
 **Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and is
 removed at 6.0 — planned for **Q1 2027**. If your app constructs one, that code stops
@@ -42,7 +42,7 @@ Atlas FeatureServer becomes a styled, interactive MapLibre map:
 ```ts doc-test=compile
 import { connect } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 
 const endpoint = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0";
 const map = new maplibregl.Map({ container: "map", style: "https://demotiles.maplibre.org/style.json", center: [-98, 39], zoom: 3 });
@@ -97,6 +97,11 @@ by an API-surface gate; 16 experimental subpaths may change before 1.0, and
 [`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
 site/sample consumer contract, and
 [the scope decision](./docs/decisions/scope-split-and-1.0.md).
+
+This README tracks the current development branch. The version above is its
+package baseline, not a claim that every capability described here is already
+present in the npm artifact with that version. For published behavior, use the
+[tagged release documentation](./docs/documentation-versions.md).
 <!-- support-manifest:release:end -->
 
 📚 **Hosted docs:** [honua-io.github.io/honua-sdk-js](https://honua-io.github.io/honua-sdk-js/) —
@@ -125,7 +130,9 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
   `HonuaCapabilityNotSupportedError` instead of returning empty results.
 - **Data to map in one call.** `connect()` + `mountSource()` turn a bare endpoint into a
   styled, interactive MapLibre layer; `loadMapPackage(...)` + `HonuaMapRuntime` render
-  server-authored `MapPackage`s. Cesium, kepler.gl, and OGC web-map sources are first-class.
+  server-authored `MapPackage`s. This is the stable renderer path. OGC web-map support
+  follows the generated capability matrix; Cesium integration lives on the pre-1.0
+  `@honua/app-platform/scene-workspace` path, and `@honua/sdk-js/kepler` is experimental.
 - **TypeScript first.** `strict` + `verbatimModuleSyntax`, exported types for every public
   symbol, declaration maps, and JSDoc on the public client surface.
 - **Migrate, don't rewrite.** `FeatureLayerCompat`, `MapImageLayerCompat`, `MapViewCompat`,
@@ -172,8 +179,9 @@ claim, execution mode, and evidence link.
 In the spirit of the [migration punch list](./docs/migration-punch-list.md), the
 non-goals are explicit rather than implied:
 
-- **It is not a rendering engine, on purpose.** 2D rendering rides
-  [MapLibre GL JS](https://maplibre.org/) and 3D rides [CesiumJS](https://cesium.com/platform/cesiumjs/);
+- **It is not a rendering engine, on purpose.** The stable 2D runtime rides
+  [MapLibre GL JS](https://maplibre.org/); optional pre-1.0 3D integration rides
+  [CesiumJS](https://cesium.com/platform/cesiumjs/).
   Honua does not fork, wrap-and-hide, or compete with either. If you need renderer
   features (custom shaders, globe projections, visual effects), take them from the
   renderer directly — Honua stays out of the way.
@@ -300,7 +308,6 @@ const dataset = createDataset({
 
 const states = dataset.source("apportionment")!;
 const result = await states.queryAll({
-  where: "Seats_2020 > 10",
   outFields: ["NAME", "Total_Pop_2020", "Seats_2020"],
   returnGeometry: true,
   pagination: { limit: 100 },
@@ -309,12 +316,26 @@ const result = await states.queryAll({
 console.log(`Loaded ${result.features.length} states`);
 ```
 
-The same code works against any GeoServices, OGC API Features, WFS, OData, or
-STAC endpoint. Migrating from `esri-leaflet`? The raw GeoServices shape and the
-`esri-compat` drop-in point at `services.arcgis.com`-style URLs unchanged:
+The starter deliberately omits an attribute filter. The protocol-neutral
+`Query.where` member remains operational only as deprecated, source-native v1
+compatibility; its grammar changes with the adapter. A stable semantic-filter
+builder is not yet wired into `Source.query()`. New code that can accept
+pre-1.0 API changes can use the typed semantic AST from the experimental
+[`@honua/sdk-js/query-planner`](./docs/query-planner.md), whose examples are
+compile-checked.
 
-```ts doc-test=skip reason="partial excerpt requires application host context"
-const { features } = await client.queryFeatures({
+The same unfiltered query envelope works against any GeoServices, OGC API
+Features, WFS, OData, or STAC endpoint. Migrating from `esri-leaflet`? The raw
+GeoServices API remains available, but its `where` member below is explicitly
+GeoServices SQL rather than the deprecated protocol-neutral `Query.where`:
+
+```ts doc-test=compile
+import { HonuaClient } from "@honua/sdk-js";
+
+const geoServicesClient = new HonuaClient({
+  baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis",
+});
+const { features } = await geoServicesClient.queryFeatures({
   serviceId: "2020_Census_State_Apportionment",
   layerId: 0,
   where: "1=1",
@@ -631,6 +652,15 @@ evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
+
+The reviewed package-root ceilings are 45 runtime
+exports and 165 declaration exports. The exact inventory
+and generated migration table come from
+[`config/root-surface.json`](./config/root-surface.json). This guide tracks the
+current development branch; its package baseline can match the latest release
+while the branch contains unreleased work. Use the
+[tagged release documentation](./docs/documentation-versions.md) for the
+published artifact.
 <!-- support-manifest:install-status:end -->
 
 ## Stable subpath entrypoints
@@ -640,7 +670,7 @@ entrypoints are stable across minor versions.
 
 | Subpath | What it gives you |
 |---------|-------------------|
-| `@honua/sdk-js` | Reviewed common `connect → query → explain → mount` surface (37 runtime / 123 declarations) |
+| `@honua/sdk-js` | Reviewed common `connect → query → explain → mount` surface ([exact inventory](./config/root-surface.json)) |
 | `@honua/sdk-js/browser` | Prebuilt browser ESM build of the default barrel (same API as `@honua/sdk-js`) |
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
@@ -813,6 +843,10 @@ const featureCount = result.features?.length ?? 0;
 console.log(`Found ${featureCount} feature(s)`);
 ```
 
+This quick start uses the raw GeoServices `queryFeatures()` request. Its `where`
+member is GeoServices SQL and is not the deprecated, source-native
+protocol-neutral `Query.where` compatibility member.
+
 Use focused stable subpaths for advanced APIs. The generated
 [`root import migration table`](./docs/root-surface-migration.md) maps every
 symbol removed from the transition-era root to its supported replacement; the
@@ -896,6 +930,9 @@ You are reading the documentation for `@honua/sdk-js` **trunk development (packa
 Hosted pages are development documentation built from `trunk`, not immutable
 documentation for the package baseline. Every built page and the deployed
 `versions.json` identify the exact 40-character source commit.
+The package baseline can equal the latest published version while `trunk`
+already contains unreleased capabilities; a matching version string alone is
+therefore not proof that development documentation describes the npm artifact.
 The version navigation in every hosted guide is generated from
 [`docs/versions.json`](https://honua-io.github.io/honua-sdk-js/versions.json), which is derived from `package.json`,
 `.release-please-manifest.json`, and released `CHANGELOG.md` entries. A version
@@ -1536,22 +1573,23 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-25 at commit `41915999`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-27 at commit `91a9499a`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 615.5 KiB | 163.3 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 217.9 KiB | 55.8 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 42.4 KiB | 13.0 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 289.4 KiB | 76.8 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 985.4 KiB | 245.7 KiB |
-| Geocoding client | 26.7 KiB | 7.6 KiB |
-| Routing client | 20.3 KiB | 6.3 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 615.8 KiB | 163.3 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 218.0 KiB | 55.8 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 42.4 KiB | 13.1 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 289.5 KiB | 76.9 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 985.5 KiB | 245.8 KiB |
+| Geocoding client | 26.8 KiB | 7.6 KiB |
+| Routing client | 20.4 KiB | 6.3 KiB |
 
-For context, the rendering engine itself — `maplibre-gl` 5.21.1, measured locally from
-this repo's pinned dependency (`dist/maplibre-gl.js`) — is 1024.9 KiB minified / **267.9 KiB gzip**.
+For context, the rendering engine itself — `maplibre-gl` 6.0.0, measured locally from
+this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1036.3 KiB minified / **273.8 KiB gzip**.
+The gzip figure compresses each distributed ESM file independently, as separate HTTP responses, then sums them.
 A complete Honua + MapLibre app therefore ships roughly the engine plus whichever Honua
 entrypoints it imports.
 
@@ -1565,10 +1603,10 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 615.5 KiB ≈
-1.60 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1036.3 KiB + Honua root 615.8 KiB ≈
+1.61 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
-0.42 MB over the wire with gzip. Esri's totals also grow with widgets;
+0.43 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.
 
 **`@esri/arcgis-rest-js`** (<https://developers.arcgis.com/arcgis-rest-js/>, retrieved 2026-07-13).
@@ -1708,7 +1746,8 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
   `wfsSource`, `odataSource`).
 - **Non-goal:** replacing the v1 `Query` envelope while protocol compilers
   migrate. `Query.where` is a deprecated, source-native compatibility string;
-  new filters use the typed semantic AST from `@honua/sdk-js/query-planner`.
+  the experimental typed semantic AST in `@honua/sdk-js/query-planner` follows
+  separate compiler/execution workflows and is not accepted by `Source.query()`.
 
 ## Module layout
 
@@ -1748,7 +1787,7 @@ unsupported-capability, and degraded-result scenarios.
 | `SourceDescriptor` | `{ id, protocol, locator, capabilities, schema?, attribution? }`. The serializable identity of one source. |
 | `Source<T>` | Runtime handle. Methods: `query`, `queryAll`, `queryAggregate`, `queryExtent`, `stream`, `queryObjectIds`, `applyEdits`, `queryRelated`, `attachments` (namespace), `protocol` (typed escape hatch; `adapter` is the legacy alias). |
 | `Dataset` | Logical grouping of sources sharing identity. Methods: `source(id)`, `sourceIds()`, `isCompatible()`, `supportsFeature()`. |
-| `Query<T>` | The v1 compatibility envelope `{ where?, spatialFilter?, outFields?, orderBy?, pagination?, aggregation?, returnGeometry?, outSr?, signal? }`; `where` is deprecated and source-native. New filters use the typed query-planner AST. |
+| `Query<T>` | The v1 compatibility envelope `{ where?, spatialFilter?, outFields?, orderBy?, pagination?, aggregation?, returnGeometry?, outSr?, signal? }`; `where` is deprecated, source-native migration compatibility. The experimental typed planner AST uses separate compiler/execution workflows and is not accepted by `Source.query()`. |
 | `Result<T>` | `{ features, exceededTransferLimit, totalCount?, aggregateRows?, extent?, fields?, degraded? }`. |
 | `SpatialAggregationRequest` / `SpatialAggregationResult` | Indexed spatial aggregation contract for large result sets. Requests carry `where`, `spatialFilter`, `viewport`, zoom/index-resolution hints, opaque index selection, summary specs (`category`, `histogram`, `range`, `count`, `sum`, `avg`, `min`, `max`), and optional `groupBy`. Results carry opaque indexed cells, grouped/totals summaries, backend index metadata, widget metadata, and progressive loading state. |
 | `EditEnvelope<T>` | `{ adds?, updates?, deletes?, rollbackOnFailure?, signal? }`. Each add / update is a `CanonicalFeature<T>` (attributes + optional geometry + optional id). |
@@ -1840,9 +1879,14 @@ const dataset = createDataset({
 });
 
 const parcels = dataset.source("parcels-fs")!;
-// Deprecated source-native compatibility text during semantic compiler adoption.
-const result = await parcels.query({ where: "STATE = 'CA'", pagination: { limit: 100 } });
+const result = await parcels.query({ pagination: { limit: 100 } });
 ```
+
+`Source.query()` accepts the stable protocol-neutral `Query` envelope. Its
+deprecated `where` string is retained only for source-native migration
+compatibility. The experimental typed semantic AST follows separate
+compiler/execution workflows in `@honua/sdk-js/query-planner`; it is not
+accepted by `Source.query()`.
 
 The built-in resolver handles `geoservices-feature-service`,
 `geoservices-map-service`, `geoservices-image-service`,
@@ -1899,9 +1943,9 @@ The WMS / WMTS factories cover the OGC web-map services per
 `docs/wfs.md` documents the WFS 2.0 factory in the same shape:
 
 - `wfsSource` — WFS 2.0 (query, queryAll, queryExtent, queryObjectIds,
-  applyEdits, stream; FES 2.0 emission for `Query.where` /
-  `Query.spatialFilter`; raw GML / `<wfs:Transaction>` payloads via
-  `protocol("wfs")`).
+  applyEdits, stream; FES 2.0 emission for `Query.spatialFilter` and the
+  deprecated, source-native `Query.where` migration field; raw GML /
+  `<wfs:Transaction>` payloads via `protocol("wfs")`).
 
 The OData factory wraps an OData v4 entity set behind the canonical
 surface:
@@ -2203,6 +2247,13 @@ The complete subpath is experimental while the remaining compiler and columnar
 slices land. The stable root promotes only the reviewed plan/execution subset
 used by the managed connection and MapLibre source workflows.
 
+The managed example below deliberately omits attribute filtering. The stable
+`Source.query()` surface does not yet accept the semantic AST, while
+`Query.where` is deprecated source-native compatibility. Typed semantic filters
+are available only from this experimental subpath until that integration lands.
+Examples later in this guide that use `Query.where` document the v1 compatibility
+compiler; they are not the new-code filtering idiom.
+
 ## Managed connection workflow
 
 The reviewed planner subset is also wired into the lifecycle-owned root
@@ -2219,7 +2270,6 @@ const connection = await honua.connect({
   sourceId: "incidents",
 });
 const plan = await connection.explain({
-  where: "status = 'open'",
   pagination: { limit: 100 },
 });
 const result = await connection.query(plan);
@@ -5684,7 +5734,7 @@ This is the normative basic workflow: nine application lines including imports,
 inspection, first-frame readiness, and cleanup; no key or Honua account.
 
 ```ts doc-test=skip reason="normative future API; compile fixture lives under test/design"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { createHonua } from "@honua/sdk-js";
 import { maplibreRenderer } from "@honua/sdk-js/runtime";
 const honua = createHonua();
@@ -5783,7 +5833,10 @@ decision PR intentionally does not edit `honua-site`.
 The root stays ESM-only, NodeNext-compatible, strict, and side-effect free.
 Renderer and analytics adapters declare peers and carry their own bundle
 budgets. `createHonua()` and built-in lightweight discovery must preserve the
-one-lightweight-runtime-dependency posture established by #357.
+one-lightweight-stable-core-capability posture established by #357. The other
+direct dependencies are bounded compatibility plumbing:
+`@honua/honua-migrate` backs deprecated migration forwarders, and the temporary
+style-spec parser pin preserves Node 20 engine compatibility.
 
 ## Mapping to the current SDK
 
@@ -7613,7 +7666,7 @@ in callbacks) propagate normally:
 import { HonuaHttpError, HonuaTimeoutError, HonuaCapabilityNotSupportedError, isHonuaError } from "@honua/sdk-js";
 
 try {
-  await dataset.source("parcels")!.queryAll({ where: "1=1" });
+  await dataset.source("parcels")!.queryAll({ pagination: { limit: 100 } });
 } catch (error) {
   if (!isHonuaError(error)) throw error;
 
@@ -7979,13 +8032,13 @@ function Incidents() {
 
   const source = dataset.source("incidents");
   const { data, isLoading, error, refetch } = useQuery(source, {
-    where: "STATUS = 'OPEN'",
+    pagination: { limit: 100 },
     returnGeometry: true,
   });
 
   if (isLoading) return <p>Loading…</p>;
   if (error) return <p>Query failed: {String(error)}</p>;
-  return <p>{data?.features.length ?? 0} open incidents. <button onClick={refetch}>Refresh</button></p>;
+  return <p>{data?.features.length ?? 0} incidents. <button onClick={refetch}>Refresh</button></p>;
 }
 ```
 
@@ -8040,7 +8093,11 @@ function Rows() {
       },
     ],
   });
-  const { data } = useQuery(dataset.source("incidents"), { where: "1=1" }, { suspense: true, staleTimeMs: 30_000 });
+  const { data } = useQuery(
+    dataset.source("incidents"),
+    { pagination: { limit: 100 } },
+    { suspense: true, staleTimeMs: 30_000 },
+  );
   return <p>{data?.features.length ?? 0} rows</p>;
 }
 
@@ -8062,6 +8119,10 @@ add on mount and remove on unmount.
 ```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaMap, HonuaLayer, HonuaPopup } from "@honua/react";
 import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "@honua/sdk-js/runtime";
+import * as maplibregl from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 const mapPackage = {
   mapPackageId: "sites",
@@ -8071,7 +8132,7 @@ const mapPackage = {
   initialView: { center: [-157.84, 21.31], zoom: 10 },
 };
 
-<HonuaMap package={mapPackage} style={{ height: 480 }}>
+<HonuaMap package={mapPackage} mapLibre={maplibregl} style={{ height: 480 }}>
   <HonuaLayer
     source={{ id: "sites", spec: { type: "geojson", data: sitesGeoJson } }}
     layer={{ id: "sites-circles", type: "circle", source: "sites", paint: { "circle-radius": 8 } }}
@@ -8081,8 +8142,10 @@ const mapPackage = {
 ```
 
 By default `HonuaMap` creates and owns the MapLibre map (dynamically importing
-`maplibre-gl`). Pass `mapLibre={maplibregl}` to supply the module explicitly, or
-`mapOptions` to tune the constructor.
+`maplibre-gl`). MapLibre 6 bundler hosts must configure its ESM worker before
+the first map is created; the Vite form above uses `?worker&url`. Pass the
+configured module as `mapLibre={maplibregl}`, or use `mapOptions` to tune the
+constructor. Direct CDN ESM loading auto-detects the worker URL.
 
 ## External-map interop (`@vis.gl/react-maplibre`) — experimental
 
@@ -8138,7 +8201,7 @@ import type { DataToMapLibreMap } from "@honua/sdk-js/map";
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaSourceLayer, useDataset } from "@honua/react";
 
-export function OpenIncidents({ map }: { map: DataToMapLibreMap | null }) {
+export function IncidentLayer({ map }: { map: DataToMapLibreMap | null }) {
   const dataset = useDataset({
     id: "ops",
     sources: [
@@ -8154,7 +8217,7 @@ export function OpenIncidents({ map }: { map: DataToMapLibreMap | null }) {
     <HonuaSourceLayer
       map={map}
       source={dataset.source("incidents")}
-      query={{ where: "STATUS = 'OPEN'" }}
+      query={{ pagination: { limit: 500 } }}
       renderer={{ paint: { point: { "circle-color": "#38bdf8" } } }}
       hover
       onDiagnostics={(diagnostics) => console.log(diagnostics.strategy, diagnostics.featureCount)}
@@ -8453,52 +8516,54 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-27 at commit `5e2ad58d`._
+_Generated 2026-07-27 at commit `91a9499a`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 615.5 KiB | 661.1 KiB | 163.3 KiB | 168.9 KiB |
-| `/honua` | 782.2 KiB | 849.0 KiB | 208.6 KiB | 226.0 KiB |
-| `/contract` | 289.4 KiB | 317.1 KiB | 76.8 KiB | 83.7 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 762.6 KiB | 829.5 KiB | 165.2 KiB | 179.5 KiB |
+| `.` (root) | 615.8 KiB | 661.1 KiB | 163.3 KiB | 168.9 KiB |
+| `/honua` | 782.5 KiB | 849.0 KiB | 208.7 KiB | 226.0 KiB |
+| `/contract` | 289.5 KiB | 317.1 KiB | 76.9 KiB | 83.7 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 762.7 KiB | 829.5 KiB | 165.2 KiB | 179.5 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.0 KiB | 257.5 KiB | 31.3 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 795.6 KiB | 865.8 KiB | 173.9 KiB | 189.2 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 795.7 KiB | 865.8 KiB | 173.9 KiB | 189.2 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 58.7 KiB | 62.6 KiB | 18.1 KiB | 19.3 KiB |
-| `/agent-tools` | 34.9 KiB | 38.2 KiB | 9.9 KiB | 10.9 KiB |
-| `/agent-safety` | 66.6 KiB | 73.2 KiB | 18.6 KiB | 20.5 KiB |
-| `/nl-map-control` | 76.5 KiB | 84.5 KiB | 22.7 KiB | 25.3 KiB |
-| `/runtime` | 533.5 KiB | 550.7 KiB | 143.6 KiB | 147.5 KiB |
-| `/realtime` | 66.0 KiB | 67.3 KiB | 19.1 KiB | 19.5 KiB |
+| `/agent-tools` | 34.9 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
+| `/agent-safety` | 66.7 KiB | 73.2 KiB | 18.6 KiB | 20.5 KiB |
+| `/nl-map-control` | 76.6 KiB | 84.5 KiB | 22.7 KiB | 25.3 KiB |
+| `/runtime` | 533.6 KiB | 550.7 KiB | 143.6 KiB | 147.5 KiB |
+| `/realtime` | 66.1 KiB | 67.3 KiB | 19.1 KiB | 19.5 KiB |
 | `/offline` | 38.3 KiB | 44.3 KiB | 11.4 KiB | 13.2 KiB |
 | `/query-planner` (worker runtime injected) | 582.9 KiB | 638.9 KiB | 118.7 KiB | 129.9 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 94.4 KiB | 100.0 KiB | 29.0 KiB | 30.8 KiB |
-| `/esri-compat` | 985.4 KiB | 1026.2 KiB | 245.7 KiB | 253.6 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 94.4 KiB | 100.0 KiB | 29.1 KiB | 30.8 KiB |
+| `/esri-compat` | 985.5 KiB | 1026.2 KiB | 245.8 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
-| `/geocoding` | 26.7 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
-| `/routing` | 20.3 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
+| `/geocoding` | 26.8 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
+| `/routing` | 20.4 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
 | `/auth` | 25.8 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
-| `/style` | 61.2 KiB | 69.0 KiB | 15.3 KiB | 17.2 KiB |
-| `/map` | 178.0 KiB | 182.2 KiB | 50.3 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 125.5 KiB | 137.8 KiB | 37.2 KiB | 40.9 KiB |
+| `/style` | 61.3 KiB | 69.0 KiB | 15.3 KiB | 17.2 KiB |
+| `/map` | 178.1 KiB | 182.2 KiB | 50.3 KiB | 50.7 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 125.6 KiB | 137.8 KiB | 37.2 KiB | 40.9 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 63.2 KiB | 68.3 KiB | 16.8 KiB | 18.3 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 853.3 KiB | 920.3 KiB | 232.4 KiB | 249.7 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 927.9 KiB | 973.5 KiB | 255.2 KiB | 265.0 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 55.3 KiB | 60.8 KiB | 16.5 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 33.1 KiB | 35.2 KiB | 10.8 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 9.3 KiB | 10.3 KiB | 3.8 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 463.2 KiB | 506.7 KiB | 123.0 KiB | 134.6 KiB |
+| `/react` (react/react-dom external) | 463.3 KiB | 506.7 KiB | 123.0 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 616.1 KiB | 661.8 KiB | 163.5 KiB | 176.3 KiB |
-| browser ESM (`./browser`) | 614.8 KiB | 660.4 KiB | 163.2 KiB | 176.0 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 217.9 KiB | 229.7 KiB | 55.8 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 476.8 KiB | 515.1 KiB | 124.7 KiB | 135.1 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 616.4 KiB | 661.8 KiB | 163.6 KiB | 176.3 KiB |
+| browser ESM (`./browser`) | 615.1 KiB | 660.4 KiB | 163.3 KiB | 176.0 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 218.0 KiB | 229.7 KiB | 55.8 KiB | 57.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 476.9 KiB | 515.1 KiB | 124.7 KiB | 135.1 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.2 KiB | 15.5 KiB | 4.0 KiB | 4.1 KiB |
-| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.5 KiB | 14.6 KiB | 2.9 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 582.3 KiB | 627.9 KiB | 154.5 KiB | 167.0 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 232.5 KiB | 245.9 KiB | 59.0 KiB | 61.4 KiB |
+| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.3 KiB | 15.5 KiB | 4.0 KiB | 4.1 KiB |
+| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.7 KiB | 14.6 KiB | 2.9 KiB | 3.1 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 582.4 KiB | 627.9 KiB | 154.5 KiB | 167.0 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 232.6 KiB | 245.9 KiB | 59.0 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 42.4 KiB | 44.7 KiB | 13.0 KiB | 14.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 42.4 KiB | 44.7 KiB | 13.1 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
 | tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 24.9 KiB | 26.3 KiB | 8.6 KiB | 9.2 KiB |
 
@@ -8723,10 +8788,11 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
   the canonical query family throws `HonuaCapabilityNotSupportedError` for utility-only services so
   mixed-source apps surface the limitation explicitly. The ImageServer adapter rejects `Query.spatialFilter` /
   `orderBy` / `outFields` rather than silently widening the catalog result. WMS surfaces `query` through
-  point-only `GetFeatureInfo`; WMTS is render-only (`Source.query()` throws). The WFS adapter compiles
-  `Query.where` / `Query.spatialFilter` to FES 2.0, prefers GeoJSON over GML via `OperationsMetadata`
-  negotiation, builds `<wfs:Transaction>` bodies for `applyEdits`, and reaches raw GML / `LockFeature` /
-  `GetPropertyValue` / stored queries through `Source.protocol("wfs")`. The OData adapter exposes
+  point-only `GetFeatureInfo`; WMTS is render-only (`Source.query()` throws). The WFS adapter compiles the
+  deprecated, source-native `Query.where` migration field and `Query.spatialFilter` to FES 2.0, prefers
+  GeoJSON over GML via `OperationsMetadata` negotiation, builds `<wfs:Transaction>` bodies for `applyEdits`,
+  and reaches raw GML / `LockFeature` / `GetPropertyValue` / stored queries through
+  `Source.protocol("wfs")`. The OData adapter exposes
   `query` / `queryObjectIds` / `stream` / `applyEdits` first-party
   (PATCH-with-full-body in place of PUT, per the parity matrix) and surfaces `$batch` / `$apply` /
   `$search` / `$deltatoken` through `Source.protocol("odata")` on a `HonuaOdataEntitySet`; it is also
@@ -8771,8 +8837,8 @@ const dataset = createDataset({
 });
 
 const parcels = dataset.source("parcels-fs")!;
-const result = await parcels.query({ where: "STATUS = 'ACTIVE'", pagination: { limit: 100 } });
-const { extent } = await parcels.queryExtent({ where: "STATUS = 'ACTIVE'" });
+const result = await parcels.query({ pagination: { limit: 100 } });
+const { extent } = await parcels.queryExtent();
 
 const ctx = createExplorationContext({
   datasetId: dataset.id,
@@ -8797,7 +8863,7 @@ applies geometry-appropriate default styling, wires optional click popups and ho
 returns one disposable handle whose `setFilter()`/`refresh()` diff-update in place.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { connect } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
 
@@ -8828,7 +8894,7 @@ that `honua-io/honua-sdk-js#22` and `#29` build on. The runtime never instantiat
 stays a peer dependency) and never issues edit writes.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { loadMapPackage } from "@honua/sdk-js/runtime";
 
@@ -9252,6 +9318,7 @@ const dataset = createDataset({
 });
 
 const wfs = dataset.source("parcels-wfs")!;
+// Deprecated WFS-native compatibility text retained for migrations.
 const result = await wfs.query({ where: "STATE = 'CA' AND ACRES > 10" });
 const ids = await wfs.queryObjectIds({ where: "STATUS = 'ACTIVE'" });
 
@@ -9260,8 +9327,9 @@ const root = wfs.protocol("wfs")!.root;
 const storedQueries = await root.storedQueries();
 ```
 
-`Query.where` compiles to FES 2.0 (comparison, `IN`, `BETWEEN`,
-`LIKE`, `IS NULL`, boolean combinators); `Query.spatialFilter`
+The deprecated, source-native `Query.where` migration field compiles to FES 2.0
+(comparison, `IN`, `BETWEEN`, `LIKE`, `IS NULL`, boolean combinators);
+`Query.spatialFilter`
 becomes a KVP `bbox=` for envelope-only requests or a `<fes:Filter>`
 otherwise. Filters that exceed the GET budget switch to POST
 GetFeature with the `<fes:Filter>` body. `applyEdits` builds a single
@@ -9297,6 +9365,7 @@ const dataset = createDataset({
 });
 
 const parcels = dataset.source("parcels-odata")!;
+// Deprecated OData-native compatibility text retained for migrations.
 const result = await parcels.query({ where: "STATE = 'CA' AND ACRES > 10" });
 const ids = await parcels.queryObjectIds({ where: "STATUS = 'ACTIVE'" });
 
@@ -9361,11 +9430,12 @@ composite components, so lossless composite deletes fail locally; use the
 native typed OData surface until the generic edit contract gains structured
 feature identity.
 
-`Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites
-the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` →
-`eq`, plus the SQL comparison operators `>=` / `<=` / `>` / `<` → `ge` /
-`le` / `gt` / `lt`) and rejects operators the parity matrix marks
-unsupported (`has`, `in`, `any`, `all`, `cast`, `isof`). `Query.outFields`
+The deprecated, source-native `Query.where` migration field accepts SQL-92 /
+OData `$filter` text; the adapter rewrites the documented intersection
+(`IS NULL` → `eq null`, `<>` → `ne`, `=` → `eq`, plus the SQL comparison
+operators `>=` / `<=` / `>` / `<` → `ge` / `le` / `gt` / `lt`) and rejects
+operators the parity matrix marks unsupported (`has`, `in`, `any`, `all`,
+`cast`, `isof`). `Query.outFields`
 splits onto `$select` for plain field names and `$expand` for navigation
 paths — `["Owner.name"]` lowers to `$expand=Owner($select=name)` so
 related properties round-trip through the canonical request envelope.
@@ -9396,6 +9466,7 @@ const parcelsLayer = client.service("transport").featureLayer(0);
 const parcelsOgc = client.ogcFeatures().collection("parcels");
 
 const [features, items] = await Promise.all([
+  // Low-level GeoServices calls use native ArcGIS SQL, not contract `Query.where`.
   parcelsLayer.queryFeatures({ where: "status = 'active'", outFields: ["OBJECTID"] }),
   parcelsOgc.items({ limit: 50 }),
 ]);
@@ -9495,7 +9566,8 @@ const slider = new TimeSliderCompat({
 // Connect slider to layer — time extent changes auto-filter queries
 const connection = slider.connectLayer(layer);
 
-// Queries now include the time parameter automatically
+// Esri compatibility APIs retain raw ArcGIS SQL during migration.
+// Queries now include the time parameter automatically.
 const features = await layer.queryFeatures({ where: "1=1" });
 
 // Disconnect when done
@@ -10044,9 +10116,9 @@ const dataset = createDataset({
   ],
 });
 
-const features = await dataset.source("parcels-ogc")!.query({ where: "STATUS = 'ACTIVE'" });
-const stacItems = await dataset.source("parcels-stac")!.query({ where: "cloud_cover < 10" });
-const catalogRecords = await dataset.source("catalog-records")!.query({ where: "type = 'service'" });
+const features = await dataset.source("parcels-ogc")!.query({ pagination: { limit: 100 } });
+const stacItems = await dataset.source("parcels-stac")!.query({ pagination: { limit: 100 } });
+const catalogRecords = await dataset.source("catalog-records")!.query({ pagination: { limit: 100 } });
 const tileset = dataset.source("parcels-tiles")!.adapter("ogc-tiles"); // HonuaOgcTileset
 const map = dataset.source("parcels-map")!.adapter("ogc-maps"); // HonuaOgcCollectionMap
 const recordsCatalog = dataset.source("catalog-records")!.adapter("ogc-records"); // HonuaOgcRecordCollection
@@ -10129,6 +10201,7 @@ const dataset = createDataset({
 });
 
 const source = dataset.source("parcels-wfs")!;
+// Deprecated WFS-native compatibility text retained for migrations.
 const result = await source.query({ where: "STATE = 'CA' AND ACRES > 10" });
 ```
 
@@ -10543,9 +10616,8 @@ const dataset = createDataset({
 
 const places = dataset.source("places")!;
 
-// The SAME Query object shape that runs against a FeatureServer source:
+// The same stable Query envelope runs against a FeatureServer source:
 const result = await places.query({
-  where: "categories.primary = 'restaurant'",
   spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7),
   outFields: ["id", "names", "categories"],
   pagination: { limit: 500 },
@@ -11066,6 +11138,33 @@ writes, or duplicate query logic — `maplibre-gl` stays a peer
 dependency, edits flow through the existing adapters, and queries go
 through the contract's `Source` handles.
 
+## MapLibre 5 and 6 compatibility
+
+The optional `maplibre-gl` peer range is `^5.0.0 || ^6.0.0`. The compatibility
+gate renders the same Honua-generated style through the latest 5.x release and
+6.x; the development dependency and runnable examples target 6.x.
+
+MapLibre 6 is ESM-only, targets ES2022, and requires WebGL2. Use namespace or
+named imports (`import * as maplibregl from "maplibre-gl"`) rather than the v5
+default import or removed UMD bundle. Vite hosts must also configure the module
+worker; the examples share `examples/shared/maplibre-vite-worker.ts`, which uses
+Vite's `?worker&url` pipeline before creating a map. See MapLibre's official
+[v5-to-v6 migration guide](https://github.com/maplibre/maplibre-gl-js/blob/v6.0.0/docs/guides/v5-to-v6-migration-guide.md).
+
+The SDK keeps its direct style validator on style-spec 24.x so headless users
+are not coupled to MapLibre 6's style-spec 26 dependency. Renderer mounting,
+GeoJSON updates, events, controls, and PMTiles registration are covered on both
+renderer majors; v6-only style extensions should use `renderer-deferred`
+validation for now.
+
+MapLibre 6 itself declares Node `>=16.14.0`, and the compatibility checks pass
+under this repository's Node 20.19.0 baseline. The SDK pins
+`@mapbox/jsonlint-lines-primitives` 2.0.2 so its direct style-spec 24.x validator
+continues to honor that Node baseline. MapLibre 6's separate style-spec
+dependency currently carries transitive engine metadata that names Node 22, so
+an `engine-strict=true` install may reject v6 even though the exercised APIs run
+on Node 20; use v5 until that upstream metadata is corrected.
+
 ## Standalone data-to-map bridge
 
 For the shortest path — any contract `Source` to a styled, interactive
@@ -11246,7 +11345,7 @@ The application kernel can own discovery, accepted-plan execution, renderer
 resources, and disposal as one path while MapLibre remains caller-injected:
 
 ```ts doc-test=skip reason="requires a browser MapLibre peer and public endpoint"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { createHonua } from "@honua/sdk-js";
 import { maplibreRenderer } from "@honua/sdk-js/runtime";
 
@@ -11270,7 +11369,7 @@ unfiltered source. Use `mounted.raw("maplibre")` only for renderer-specific
 escape hatches.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
 import { loadMapPackage } from "@honua/sdk-js/runtime";
 
@@ -12075,7 +12174,7 @@ across every map you attach.
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, loadMapPackage } from "@honua/sdk-js/runtime";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 
 const map = new maplibregl.Map({ container: "map", style: { version: 8, sources: {}, layers: [] } });
 await new Promise((resolve) => map.on("load", resolve));
@@ -12170,11 +12269,12 @@ PMTiles works from a plain HTML page with no bundler — load `maplibre-gl` and
 `pmtiles` from a CDN and register the protocol:
 
 ```html
-<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/pmtiles@4/dist/pmtiles.js"></script>
-<link href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="https://unpkg.com/maplibre-gl@6/dist/maplibre-gl.css" rel="stylesheet" />
 <div id="map" style="position:absolute;inset:0"></div>
-<script>
+<script type="module">
+  import * as maplibregl from "https://unpkg.com/maplibre-gl@6/dist/maplibre-gl.mjs";
+
   const protocol = new pmtiles.Protocol();
   maplibregl.addProtocol("pmtiles", protocol.tile);
   new maplibregl.Map({
@@ -12264,8 +12364,13 @@ unpkg works the same way:
 ## What's bundled vs. external
 
 The bundle is focused on the **core SDK public API** (everything re-exported
-from `src/index.ts`). The sole real runtime dependency,
-`@maplibre/maplibre-gl-style-spec`, is bundled in.
+from `src/index.ts`). Its stable-core runtime dependency,
+`@maplibre/maplibre-gl-style-spec`, is bundled in. The package manifest has two
+other bounded direct dependencies: `@honua/honua-migrate` backs deprecated
+migration forwarders outside the browser graph, and
+`@mapbox/jsonlint-lines-primitives@2.0.2` temporarily pins style-spec's
+existing parser so its new Node 22 engine metadata does not reject the
+published Node 20 contract.
 
 The heavy runtime *peers* are kept **external** so the artifact stays small and
 does not inline multi-megabyte map/protobuf runtimes:
@@ -12606,7 +12711,7 @@ SDK query path and produces a standard `geojson` source MapLibre renders
 natively:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
 import {
   createHonuaFeatureServiceLayer,

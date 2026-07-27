@@ -584,10 +584,9 @@ export interface AggregationMetric {
  *
  * @example
  * ```ts
- * import { envelope } from "@honua/sdk-js";
+ * import { envelope, type Query } from "@honua/sdk-js";
  *
- * const query: Query = {
- *   where: "STATUS = 'ACTIVE'",
+ * const query: Query<{ OBJECTID: number; NAME: string }> = {
  *   outFields: ["OBJECTID", "NAME"],
  *   spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7),
  *   orderBy: [{ field: "REPORTED_AT", direction: "desc" }],
@@ -602,9 +601,11 @@ export interface Query<_T = Record<string, unknown>> {
    * selected by the source adapter (for example GeoServices SQL-92, CQL2 text,
    * OData, or DuckDB SQL) and is never protocol neutral.
    *
-   * @deprecated Build a typed semantic filter through
-   * `@honua/sdk-js/query-planner`; use `legacyWhereToNativeFilter` only while
-   * migrating existing protocol-bound text.
+   * @deprecated Retained only for raw, source-native migration compatibility.
+   * The experimental semantic planner has a separate compiler/execution path,
+   * and its AST is not accepted by `Source.query()`. Use
+   * `legacyWhereToNativeFilter` only while migrating existing protocol-bound
+   * text.
    */
   where?: string;
   /** Spatial constraint. Reuses `core/spatial-filter.ts`. */
@@ -660,7 +661,7 @@ export interface DegradedReason {
  *
  * @example
  * ```ts
- * const result: Result<{ name: string }> = await source.query({ where: "1=1" });
+ * const result: Result<{ name: string }> = await source.query({ pagination: { limit: 100 } });
  * for (const feature of result.features) {
  *   console.log(feature.attributes.name, feature.geometry?.type);
  * }
@@ -908,19 +909,21 @@ export type AdapterFor<K extends AdapterKind> = K extends keyof AdapterTypeMap ?
  * (alias `adapter()`).
  *
  * The canonical surface covers the query family plus edit / related /
- * attachment operations. Operations that are protocol-specific (raw
- * `where`, raw `outFields`, GeoServices `calculate` / `validateSQL` /
- * `replica` etc.) live behind `protocol()` so the top-level API stays
- * free of ArcGIS-typed structures.
+ * attachment operations. Protocol-specific operations (GeoServices
+ * `calculate` / `validateSQL` / `replica`, for example) live behind
+ * `protocol()` so the top-level API stays free of ArcGIS-typed structures.
+ * The deprecated `Query.where` member is a source-native migration exception;
+ * it is not a protocol-neutral filter.
  *
  * @example
  * ```ts
  * const parcels = dataset.source<{ NAME: string }>("parcels")!;
- * const result = await parcels.queryAll({ where: "STATUS = 'ACTIVE'" });
- * for await (const page of parcels.stream({ where: "1=1" })) {
+ * const result = await parcels.queryAll({ pagination: { limit: 500 } });
+ * for await (const page of parcels.stream({ pagination: { limit: 100 } })) {
  *   console.log(page.features.length);
  * }
  * const fs = parcels.protocol("geoservices-feature-service");
+ * // `where` is raw GeoServices SQL on this protocol-specific escape hatch.
  * await fs?.calculate({ where: "1=1", calcExpression: { field: "AREA", sqlExpression: "ST_Area(SHAPE)" } });
  * ```
  */

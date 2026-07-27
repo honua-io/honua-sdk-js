@@ -15,6 +15,15 @@ evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
+
+The reviewed package-root ceilings are 45 runtime
+exports and 165 declaration exports. The exact inventory
+and generated migration table come from
+[`config/root-surface.json`](./config/root-surface.json). This guide tracks the
+current development branch; its package baseline can match the latest release
+while the branch contains unreleased work. Use the
+[tagged release documentation](./docs/documentation-versions.md) for the
+published artifact.
 <!-- support-manifest:install-status:end -->
 
 ## Stable subpath entrypoints
@@ -24,7 +33,7 @@ entrypoints are stable across minor versions.
 
 | Subpath | What it gives you |
 |---------|-------------------|
-| `@honua/sdk-js` | Reviewed common `connect → query → explain → mount` surface (37 runtime / 123 declarations) |
+| `@honua/sdk-js` | Reviewed common `connect → query → explain → mount` surface ([exact inventory](./config/root-surface.json)) |
 | `@honua/sdk-js/browser` | Prebuilt browser ESM build of the default barrel (same API as `@honua/sdk-js`) |
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
@@ -196,6 +205,10 @@ const result = await client.queryFeatures({
 const featureCount = result.features?.length ?? 0;
 console.log(`Found ${featureCount} feature(s)`);
 ```
+
+This quick start uses the raw GeoServices `queryFeatures()` request. Its `where`
+member is GeoServices SQL and is not the deprecated, source-native
+protocol-neutral `Query.where` compatibility member.
 
 Use focused stable subpaths for advanced APIs. The generated
 [`root import migration table`](./docs/root-surface-migration.md) maps every

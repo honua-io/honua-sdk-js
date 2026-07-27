@@ -163,10 +163,12 @@ export function createFirstMapCode(options: {
   readonly protocol: "auto" | "geoservices-feature-service" | "ogc-features";
   readonly maxFeatures: number;
 }): string {
-  return `import maplibregl from "maplibre-gl";
+  return `import * as maplibregl from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { resolveFirstMapConfig } from "./first-map-config";
 import { runFirstMapWorkflow } from "./workflow";
 
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 const map = new maplibregl.Map({
   container: "map",
   style: { version: 8, sources: {}, layers: [] },

@@ -42,6 +42,19 @@ export interface MapLibreGlModule {
   Popup: new (options?: Record<string, unknown>) => unknown;
 }
 
+function normalizeMapLibreGlModule(imported: unknown): MapLibreGlModule {
+  const module = imported as Partial<MapLibreGlModule> & {
+    readonly default?: Partial<MapLibreGlModule>;
+  };
+  if (typeof module.Map === "function" && typeof module.Popup === "function") {
+    return module as MapLibreGlModule;
+  }
+  if (typeof module.default?.Map === "function" && typeof module.default.Popup === "function") {
+    return module.default as MapLibreGlModule;
+  }
+  throw new Error("maplibre-gl does not expose Map and Popup constructors; install maplibre-gl 5.x or 6.x.");
+}
+
 const EMPTY_STYLE = { version: 8 as const, sources: {}, layers: [] };
 
 /** Props for {@link HonuaMap}. */
@@ -56,7 +69,9 @@ export interface HonuaMapProps {
   map?: MaplibreMap;
   /**
    * The `maplibre-gl` module. Provide it to avoid a dynamic import (and to pin
-   * the exact version). Ignored when {@link map} is supplied.
+   * the exact version). MapLibre 6 bundler hosts must call the module's
+   * `setWorkerUrl` before rendering; see `docs/react.md`. Ignored when
+   * {@link map} is supplied.
    */
   mapLibre?: MapLibreGlModule;
   /**
@@ -123,7 +138,7 @@ export function HonuaMap(props: HonuaMapProps): ReactNode {
       if (!map) {
         const container = containerRef.current;
         if (!container) return;
-        gl = mapLibre ?? ((await import("maplibre-gl")).default as unknown as MapLibreGlModule);
+        gl = mapLibre ?? normalizeMapLibreGlModule(await import("maplibre-gl"));
         if (cancelled) return;
         ownedMap = new gl.Map({
           container,

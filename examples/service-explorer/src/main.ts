@@ -1,4 +1,5 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../shared/maplibre-vite-worker.js";
 
 import {
   type ConnectProtocolHint,
@@ -8,7 +9,7 @@ import {
   isHonuaError,
 } from "@honua/sdk-js";
 import { type AutomaticMapLibrePlan, projectSourceToMapLibre } from "@honua/sdk-js/map";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 
 import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
 import { mountSamplePresentation } from "../../_kit/presentation.js";

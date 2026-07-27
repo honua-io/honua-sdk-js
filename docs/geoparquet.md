@@ -59,9 +59,8 @@ const dataset = createDataset({
 
 const places = dataset.source("places")!;
 
-// The SAME Query object shape that runs against a FeatureServer source:
+// The same stable Query envelope runs against a FeatureServer source:
 const result = await places.query({
-  where: "categories.primary = 'restaurant'",
   spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7),
   outFields: ["id", "names", "categories"],
   pagination: { limit: 500 },

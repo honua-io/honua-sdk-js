@@ -141,6 +141,7 @@ const grid = ctx.connectView({ id: "grid", role: "grid" });
 grid.subscribe(["extent", "selection", "filters"], async ({ state }) => {
   const result = await dataset.source("incidents")!.query({
     spatialFilter: state.spatialFilter,
+    // Deprecated adapter-native bridge until semantic planner execution is wired.
     where: assembleWhere(state.filters),
   });
   renderGrid(result, state.selection);
@@ -323,6 +324,7 @@ gridView.subscribe("extent", async ({ state }) => {
   // Only the map propagates extent in mapDriven; this fires for map-origin extent intents.
   const result = await dataset.source("parcels-fs")!.query({
     spatialFilter: state.spatialFilter,
+    // Deprecated GeoServices-native bridge until semantic planner execution is wired.
     where: assembleWhere(state.filters),
   });
   renderGrid(result);

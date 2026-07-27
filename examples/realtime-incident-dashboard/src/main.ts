@@ -1,6 +1,8 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../shared/maplibre-vite-worker.js";
 
-import maplibregl, { type GeoJSONSource } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import type { GeoJSONSource } from "maplibre-gl";
 
 import {
   createExplorationContext,
@@ -54,7 +56,11 @@ import {
   incidentRecords,
   statusLabel,
 } from "./projection.js";
-import { createIncidentRealtimeResumeContext, createIncidentRealtimeSession } from "./realtime-session.js";
+import {
+  createIncidentRealtimeResumeContext,
+  createIncidentRealtimeSession,
+  waitForIncidentRealtimeStatus,
+} from "./realtime-session.js";
 import {
   createIncidentDashboardTransport,
   readIncidentTransportConfig,
@@ -758,6 +764,8 @@ async function bootstrap(): Promise<void> {
     let lastSubmittedEdit: IncidentEditRequest | undefined;
     let idempotencySequence = 0;
     let controlQueue: Promise<void> = Promise.resolve();
+    const controlStatusObservation = new AbortController();
+    lifecycle.own(() => controlStatusObservation.abort());
 
     function enqueueControl<T>(operation: () => Promise<T>, disposedValue: T): Promise<T> {
       const result = controlQueue.then(() => (lifecycle.disposed ? disposedValue : operation()));
@@ -903,6 +911,18 @@ async function bootstrap(): Promise<void> {
       }, undefined);
     }
 
+    function runScenarioStatusAction(
+      action: () => Promise<void>,
+      expectedStatus: RealtimeFeatureState["status"],
+    ): Promise<void> {
+      return enqueueControl(async () => {
+        await action();
+        await waitForIncidentRealtimeStatus(store, expectedStatus, {
+          signal: controlStatusObservation.signal,
+        });
+      }, undefined);
+    }
+
     function simulateConflict(): Promise<void> {
       return enqueueControl(async () => {
         if (!admitMutation()) return;
@@ -1018,12 +1038,12 @@ async function bootstrap(): Promise<void> {
     );
     reconnectButton.addEventListener(
       "click",
-      () => startControl(runScenarioAction(() => incidentTransport.controls.reconnect())),
+      () => startControl(runScenarioStatusAction(() => incidentTransport.controls.reconnect(), "reconnecting")),
       controlListenerOptions,
     );
     resumeButton.addEventListener(
       "click",
-      () => startControl(runScenarioAction(() => incidentTransport.controls.resume())),
+      () => startControl(runScenarioStatusAction(() => incidentTransport.controls.resume(), "live")),
       controlListenerOptions,
     );
     staleButton.addEventListener(
@@ -1082,8 +1102,8 @@ async function bootstrap(): Promise<void> {
     }
 
     runtime.step = stepScenario;
-    runtime.reconnect = () => runScenarioAction(() => incidentTransport.controls.reconnect());
-    runtime.resume = () => runScenarioAction(() => incidentTransport.controls.resume());
+    runtime.reconnect = () => runScenarioStatusAction(() => incidentTransport.controls.reconnect(), "reconnecting");
+    runtime.resume = () => runScenarioStatusAction(() => incidentTransport.controls.resume(), "live");
     runtime.markStale = () => {
       const lastLiveAt = store.state.lastHeartbeatAt ?? store.state.lastEventAt ?? Date.now();
       store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });

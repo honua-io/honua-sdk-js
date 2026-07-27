@@ -25,6 +25,7 @@ import {
   type IncidentRealtimeReceipt,
   createIncidentRealtimeResumeContext,
   createIncidentRealtimeSession,
+  waitForIncidentRealtimeStatus,
 } from "../examples/realtime-incident-dashboard/src/realtime-session.js";
 import {
   createIncidentDashboardTransport,
@@ -737,6 +738,35 @@ describe("realtime incident dashboard fixture", () => {
     transport.resume();
     expect(store.state.status).toBe("live");
     expect(store.state.cursor).toContain("heartbeat");
+  });
+
+  it("does not release an acknowledged reconnect until its SSE status is observable", async () => {
+    const store = createRealtimeFeatureStore<IncidentFeature>();
+    store.apply({ type: "status", status: "live" });
+    let queuedMutationReleased = false;
+
+    const reconnect = waitForIncidentRealtimeStatus(store, "reconnecting");
+    const queuedMutation = reconnect.then(() => {
+      queuedMutationReleased = true;
+    });
+    await Promise.resolve();
+    expect(queuedMutationReleased).toBe(false);
+
+    store.apply({
+      type: "status",
+      status: "reconnecting",
+      reason: "fixture-network-interruption",
+      reconnectAttempt: 1,
+      retryAfterMs: 0,
+    });
+    await queuedMutation;
+    expect(queuedMutationReleased).toBe(true);
+    expect(store.state).toMatchObject({
+      status: "reconnecting",
+      statusReason: "fixture-network-interruption",
+      reconnectAttempt: 1,
+      retryAfterMs: 0,
+    });
   });
 
   it("gates snapshot and delta delivery with deterministic duplicate, reorder, recovery, and cancellation receipts", async () => {
