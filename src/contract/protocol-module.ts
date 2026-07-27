@@ -9,10 +9,10 @@
  * equivalent minimal
  * seam for a `Source.protocol(...)` escape-hatch adapter: discovery, the
  * capability set it advertises for a descriptor, diagnostics, and
- * disposal. `compile`/`execute` are intentionally absent from this first
- * bounded slice — no first-party module has migrated its query-compiler
- * pipeline onto the seam yet (see `docs/plugin-manifest-certification.md`
- * for the tracked follow-up).
+ * disposal. Query-capable modules implement the atomic
+ * {@link QueryCapableProtocolModule} extension, whose deterministic `compile`
+ * and explicitly-authorized `execute` hooks are always present together.
+ * Tiles-only modules such as PMTiles implement only this base interface.
  *
  * This module has no dependency on `src/plugin` or any global registry: a
  * `ProtocolModule` is a plain value object. SDK-internal `Source`
@@ -24,7 +24,7 @@
  *
  * @module
  */
-import type { Capabilities, Protocol, SourceDescriptor } from "./types.js";
+import type { Capabilities, Protocol, Result, SourceDescriptor } from "./types.js";
 
 /** Runtime environments a protocol module can execute in. Mirrors `RendererEnvironment`. */
 export type ProtocolModuleEnvironment = "browser" | "node" | "worker";
@@ -37,6 +37,47 @@ export interface ProtocolModuleDiagnostic {
 }
 
 export interface ProtocolModuleDiscoverOptions {
+  readonly signal?: AbortSignal;
+}
+
+/** Canonical query-family operations a protocol module may compile and execute. */
+export type ProtocolModuleQueryOperation = "query" | "queryAll" | "queryAggregate";
+
+/**
+ * Type binding for one module's query seam.
+ *
+ * The compiler source identity is deliberately separate from
+ * {@link SourceDescriptor}: deterministic compilers receive a
+ * credential-free, serializable identity rather than a runtime descriptor
+ * or client. The execution query may carry runtime-only values such as an
+ * `AbortSignal`; those values never enter the compiled artifact.
+ */
+export interface ProtocolModuleQueryBinding {
+  readonly source: unknown;
+  readonly compileQuery: unknown;
+  readonly compiled: unknown;
+  readonly executeQuery: unknown;
+}
+
+/** Pure input to a protocol module's deterministic compiler. */
+export interface ProtocolModuleQueryCompileInput<TSource = unknown, TQuery = unknown> {
+  readonly source: TSource;
+  readonly query: TQuery;
+  readonly operation: ProtocolModuleQueryOperation;
+}
+
+/**
+ * Runtime input to a protocol module executor.
+ *
+ * `compiled` is the inspectable, credential-free artifact. Runtime authority
+ * stays on the discovered handle and on dependencies explicitly injected into
+ * the module factory. `signal` is execution state and is never part of the
+ * artifact's deterministic identity.
+ */
+export interface ProtocolModuleQueryExecuteInput<TCompiled = unknown, TQuery = unknown> {
+  readonly compiled: TCompiled;
+  readonly query: TQuery;
+  readonly operation: ProtocolModuleQueryOperation;
   readonly signal?: AbortSignal;
 }
 
@@ -88,4 +129,32 @@ export interface ProtocolModule<TKind extends string = string, TAdapter = unknow
     descriptor: SourceDescriptor<TKind | Protocol>,
     options?: ProtocolModuleDiscoverOptions,
   ): ProtocolModuleHandle<TAdapter, TKind | Protocol> | Promise<ProtocolModuleHandle<TAdapter, TKind | Protocol>>;
+}
+
+/**
+ * Atomic query-capable extension of {@link ProtocolModule}.
+ *
+ * A module either implements this interface and therefore provides both
+ * hooks, or implements the discovery-only base interface and provides
+ * neither. Keeping the pair in a separate required interface prevents
+ * partially executable modules from satisfying the public contract.
+ */
+export interface QueryCapableProtocolModule<
+  TKind extends string = string,
+  TAdapter = unknown,
+  TQueryBinding extends ProtocolModuleQueryBinding = ProtocolModuleQueryBinding,
+> extends ProtocolModule<TKind, TAdapter> {
+  /** Deterministic, synchronous, and I/O-free query compiler. */
+  compile(
+    input: ProtocolModuleQueryCompileInput<TQueryBinding["source"], TQueryBinding["compileQuery"]>,
+  ): TQueryBinding["compiled"];
+  /**
+   * Explicitly-authorized executor paired with {@link compile}.
+   * Implementations execute only against the supplied discovered handle and
+   * must not consult or mutate an ambient registry.
+   */
+  execute<TRecord = Record<string, unknown>>(
+    handle: ProtocolModuleHandle<TAdapter, TKind | Protocol>,
+    input: ProtocolModuleQueryExecuteInput<TQueryBinding["compiled"], TQueryBinding["executeQuery"]>,
+  ): Promise<Result<TRecord>>;
 }

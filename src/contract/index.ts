@@ -481,6 +481,11 @@ export type {
   ProtocolModuleDiscoverOptions,
   ProtocolModuleEnvironment,
   ProtocolModuleHandle,
+  ProtocolModuleQueryBinding,
+  ProtocolModuleQueryCompileInput,
+  ProtocolModuleQueryExecuteInput,
+  ProtocolModuleQueryOperation,
+  QueryCapableProtocolModule,
 } from "./protocol-module.js";
 
 export {

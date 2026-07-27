@@ -17,7 +17,14 @@ export { executeQueryPlan } from "./executor.js";
 export { compileGeoServicesQuery, compileSemanticGeoServicesQuery } from "./geoservices.js";
 export { compileGrpcQuery, compileSemanticGrpcQuery } from "./grpc.js";
 export { compileOgcApiFeaturesQuery, compileSemanticOgcApiFeaturesQuery } from "./ogc-features.js";
-export { compileOdataQuery, compileSemanticOdataQuery } from "./odata.js";
+export { odataProtocolModule } from "./odata-protocol-module.js";
+export type {
+  OdataProtocolExecutionQuery,
+  OdataProtocolModule,
+  OdataProtocolQueryBinding,
+} from "./odata-protocol-module.js";
+export { compileOdataQuery } from "./odata-v1.js";
+export { compileSemanticOdataQuery } from "./odata.js";
 export { compileSemanticWfsQuery, compileWfsQuery } from "./wfs.js";
 export {
   canonicalizeQuery,
@@ -329,6 +336,7 @@ export type {
   LocalAggregatePlanStep,
   OgcApiFeaturesCompiledQueryV1,
   OdataCompiledQueryV1,
+  OdataProtocolCompiledQueryV1,
   QueryExecutionPlan,
   QueryExecutionPlanV1,
   QueryExecutionPlanV2,
