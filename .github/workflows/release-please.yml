@@ -120,6 +120,7 @@ jobs:
                 examples/migration-workbench/src/generated/* | \
                 samples/catalog.v2.json | \
                 samples/contract/v2/migrations/catalog.v1-to-v2.json | \
+                samples/contract/v2/release-matrix-lanes.v1.json | \
                 samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json | \
                 samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
                 samples/dist/* | samples/evidence/imagery-cog-quickstart/* | \
