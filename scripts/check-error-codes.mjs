@@ -44,6 +44,7 @@ const MIGRATED_PUBLIC_CLASSES = [
   "HonuaCapabilityNotSupportedError",
   "HonuaExplorationContextError",
   "HonuaWfsExceptionError",
+  "HonuaWfsProtocolError",
   "HonuaJobFailedError",
   "HonuaWmsCapabilitiesParseError",
   "HonuaWmtsCapabilitiesParseError",

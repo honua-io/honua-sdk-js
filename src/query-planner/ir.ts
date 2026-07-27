@@ -131,7 +131,10 @@ export function queryFromCanonical<T>(query: CanonicalQuery, signal?: AbortSigna
 
 export function queryIrSourceIdentity(
   descriptor: SourceDescriptor,
-  context: Pick<ExplainQueryOptions, "authorizationScope" | "schemaVersion" | "sourceVersion"> = {},
+  context: Pick<
+    ExplainQueryOptions,
+    "authorizationScope" | "schemaVersion" | "sourceVersion" | "sourceAuthorityFingerprint"
+  > = {},
 ): QueryIrSourceIdentity {
   const authorizationScope = [...new Set(context.authorizationScope ?? [])].sort();
   if (authorizationScope.some((scope) => !isStableAuthorizationScope(scope))) {
@@ -142,10 +145,25 @@ export function queryIrSourceIdentity(
     descriptor.protocol === "geoparquet" ? geoparquetIdentity(descriptor, geometryProperty) : undefined;
   const schemaVersion = optionalPlanMetadata(context.schemaVersion, "schema version");
   const sourceVersion = optionalPlanMetadata(context.sourceVersion, "source version");
+  const authorityFingerprint =
+    descriptor.protocol === "wfs"
+      ? context.sourceAuthorityFingerprint === null
+        ? undefined
+        : (context.sourceAuthorityFingerprint ??
+          queryIrAuthorityFingerprint(descriptor.locator.url, authorizationScope))
+      : undefined;
+  if (
+    context.sourceAuthorityFingerprint !== undefined &&
+    context.sourceAuthorityFingerprint !== null &&
+    !/^sha256:[0-9a-f]{64}$/.test(context.sourceAuthorityFingerprint)
+  ) {
+    throw new HonuaQueryPlanningError("invalid-query", "source authority fingerprint is invalid");
+  }
   return deepFreeze({
     id: descriptor.id,
     protocol: descriptor.protocol,
     endpoint: credentialFreeEndpoint(descriptor.locator.url),
+    ...(authorityFingerprint ? { authorityFingerprint } : {}),
     ...(descriptor.locator.serviceId !== undefined ? { serviceId: descriptor.locator.serviceId } : {}),
     ...(descriptor.locator.layerId !== undefined ? { layerId: descriptor.locator.layerId } : {}),
     ...(descriptor.locator.collectionId !== undefined ? { collectionId: descriptor.locator.collectionId } : {}),
@@ -159,6 +177,30 @@ export function queryIrSourceIdentity(
     authorizationScope,
     capabilities: [...descriptor.capabilities].sort(),
   });
+}
+
+/**
+ * Derive a stable WFS authority binding without retaining endpoint
+ * credentials, signed-query values, fragments, or authorization material.
+ */
+export function queryIrAuthorityFingerprint(
+  rawUrl: string,
+  authorizationScope: readonly string[] = [],
+): `sha256:${string}` {
+  const scopes = [...new Set(authorizationScope)].sort();
+  if (scopes.some((scope) => !isStableAuthorizationScope(scope))) {
+    throw new HonuaQueryPlanningError("invalid-query", "authorization scope identity is invalid");
+  }
+  const authority = canonicalAuthorityMaterial(rawUrl);
+  return sha256(
+    canonicalStringify(
+      toJsonValue({
+        domain: "honua:wfs-authority:v1",
+        authority,
+        authorizationScope: scopes,
+      }),
+    ),
+  );
 }
 
 /** Rebuild the exact credential-free source identity used by a GeoParquet v2 plan. */
@@ -384,6 +426,29 @@ function asJsonObject(value: unknown, path: string): { readonly [key: string]: J
     throw new TypeError(`${path} must be an object`);
   }
   return json as { readonly [key: string]: JsonValue };
+}
+
+function canonicalAuthorityMaterial(rawUrl: string): string {
+  if (typeof rawUrl !== "string" || rawUrl.length === 0) {
+    throw new HonuaQueryPlanningError("invalid-query", "source authority endpoint is invalid");
+  }
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.hash = "";
+    const search = parsed.search;
+    parsed.search = "";
+    return `${parsed.toString().replace(/\/$/, "")}${search}`;
+  } catch {
+    const withoutFragment = rawUrl.split("#", 1)[0] ?? rawUrl;
+    const queryIndex = withoutFragment.indexOf("?");
+    const path = queryIndex >= 0 ? withoutFragment.slice(0, queryIndex) : withoutFragment;
+    const search = queryIndex >= 0 ? withoutFragment.slice(queryIndex) : "";
+    const normalized = path === "/" ? "/" : path.replace(/\/$/, "");
+    if (normalized.length === 0 || hasSchemeAuthorityPrefix(rawUrl) || startsWithDoubleSlash(rawUrl)) {
+      throw new HonuaQueryPlanningError("invalid-query", "source authority endpoint is invalid");
+    }
+    return `${normalized}${search}`;
+  }
 }
 
 function credentialFreeEndpoint(rawUrl: string): string {
