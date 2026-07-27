@@ -25,7 +25,15 @@ export type {
 } from "./odata-protocol-module.js";
 export { compileOdataQuery } from "./odata-v1.js";
 export { compileSemanticOdataQuery } from "./odata.js";
-export { compileSemanticWfsQuery, compileWfsQuery } from "./wfs.js";
+export { HonuaWfsProtocolError, wfsProtocolModule } from "./wfs-protocol-module.js";
+export type {
+  WfsProtocolErrorReason,
+  WfsProtocolExecutionQuery,
+  WfsProtocolModule,
+  WfsProtocolQueryBinding,
+} from "./wfs-protocol-module.js";
+export { compileWfsQuery } from "./wfs-v1.js";
+export { compileSemanticWfsQuery } from "./wfs.js";
 export {
   canonicalizeQuery,
   createGeoParquetQueryIr,
@@ -379,6 +387,7 @@ export type {
   QueryPlanStepV2,
   RemoteQueryPlanStep,
   WfsCompiledQueryV1,
+  WfsProtocolCompiledQueryV1,
 } from "./types.js";
 export type {
   CreateGeoParquetResourceHandleInput,

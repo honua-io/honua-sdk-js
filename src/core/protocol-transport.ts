@@ -43,7 +43,14 @@ export interface HonuaProtocolTransport {
   requestText(
     method: QueryMethod,
     path: string,
-    options?: { accept?: string; contentType?: string; body?: BodyInit; signal?: AbortSignal },
+    options?: {
+      accept?: string;
+      contentType?: string;
+      body?: BodyInit;
+      signal?: AbortSignal;
+      /** Maximum response-body bytes accepted before text decoding/parsing. */
+      maxResponseBytes?: number;
+    },
   ): Promise<{ text: string; contentType: string; status: number }>;
 
   /**

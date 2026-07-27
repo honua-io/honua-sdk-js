@@ -47,7 +47,7 @@ import {
   type RemoteCompiledQueryV1,
   type RemoteQueryPlanStep,
 } from "./types.js";
-import { compileWfsQuery } from "./wfs.js";
+import { compileWfsQuery, wfsProtocolQueryCompiler } from "./wfs-v1.js";
 
 export function explainQuery<T>(options: ExplainGeoParquetQueryOptions<T>): QueryExecutionPlanV2;
 export function explainQuery<T>(options: ExplainQueryOptions<T>): QueryExecutionPlanV1;
@@ -80,7 +80,7 @@ export function explainQuery<T>(
     }
     rejectUnsafeEstimate(fallback, estimates.rows, estimates.bytes);
     const ogcFallback = ir.source.protocol === "ogc-features";
-    const adapterOwnsLookahead = ogcFallback || ir.source.protocol === "odata";
+    const adapterOwnsLookahead = ogcFallback || ir.source.protocol === "odata" || ir.source.protocol === "wfs";
     const inputQuery = localAggregateInputQuery(
       ir.query,
       ir.query.aggregation,
@@ -189,7 +189,7 @@ function compileRemoteQuery(
     case "ogc-features":
       return ogcQueryAllWireRequest(compileOgcApiFeaturesQuery(source, query), operation);
     case "wfs":
-      return compileWfsQuery(source, query);
+      return wfsProtocolQueryCompiler.compile({ source, query, operation });
     case "odata":
       return odataProtocolQueryCompiler.compile({ source, query, operation });
     case "geoparquet":
@@ -283,14 +283,14 @@ export function validateQueryPlanSnapshot(plan: QueryExecutionPlan): QueryExecut
   return snapshot.plan;
 }
 
-/** Canonical persistence boundary; validated legacy OData v1 artifacts are upgraded before serialization. */
+/** Canonical persistence boundary; validated legacy protocol artifacts are upgraded before serialization. */
 export function serializeQueryPlan(plan: QueryExecutionPlan): string {
   const snapshot = persistedPlanSnapshot(plan);
   if (snapshot.hash !== snapshot.plan.fingerprint) throw invalidPersistedPlan();
   return canonicalStringify(toJsonValue(snapshot.plan));
 }
 
-/** Parse a persisted plan, upgrading validated legacy OData v1 artifacts without retaining unsafe input. */
+/** Parse a persisted plan, upgrading validated legacy protocol artifacts without retaining unsafe input. */
 export function parseQueryPlan(serialized: string): QueryExecutionPlan {
   if (typeof serialized !== "string") throw invalidPersistedPlan();
   let value: unknown;
@@ -390,7 +390,11 @@ function assertPlanPersistenceSafe(plan: QueryExecutionPlan): void {
         throw invalidPersistedPlan();
       }
     }
-    const expected = isLegacyOdataQueryPlanV1(plan) ? rebuildLegacyOdataQueryPlanV1(plan) : rebuildQueryPlanV1(plan);
+    const expected = isLegacyOdataQueryPlanV1(plan)
+      ? rebuildLegacyOdataQueryPlanV1(plan)
+      : isLegacyWfsQueryPlanV1(plan)
+        ? rebuildLegacyWfsQueryPlanV1(plan)
+        : rebuildQueryPlanV1(plan);
     if (canonicalStringify(toJsonValue(plan)) !== canonicalStringify(toJsonValue(expected))) {
       throw invalidPersistedPlan();
     }
@@ -503,8 +507,12 @@ function rebuildPersistedProvenance(plan: QueryExecutionPlan): QueryExecutionPla
 }
 
 /** Rebuild legacy plans through the same pure planner to bind every persisted step to the IR. */
-function rebuildQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
+function rebuildQueryPlanV1(
+  plan: QueryExecutionPlanV1,
+  options: { readonly legacyWfsAuthority?: boolean } = {},
+): QueryExecutionPlanV1 {
   const source = plan.ir.source;
+  const sourceAuthorityFingerprint = parseSourceAuthorityFingerprint(source.authorityFingerprint);
   const capabilitiesValue = parsePlanCapabilities(source.capabilities);
   const geometryProperty = parseOptionalPlanMetadata(source.geometryProperty);
   const primaryKey = persistedV1FallbackPrimaryKey(plan);
@@ -568,11 +576,24 @@ function rebuildQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
     ...(source.schemaVersion !== undefined ? { schemaVersion: source.schemaVersion } : {}),
     ...(source.sourceVersion !== undefined ? { sourceVersion: source.sourceVersion } : {}),
     authorizationScope: source.authorizationScope,
+    ...(sourceAuthorityFingerprint
+      ? { sourceAuthorityFingerprint }
+      : options.legacyWfsAuthority
+        ? { sourceAuthorityFingerprint: null }
+        : {}),
     estimates: plan.estimates,
     cache: persistedCacheOptions(plan.cache),
     discovery: persistedDiscoveryContext(plan.provenance.discovery),
     executionMode: plan.validity.executionMode,
   });
+}
+
+function parseSourceAuthorityFingerprint(value: unknown): `sha256:${string}` | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !/^sha256:[0-9a-f]{64}$/.test(value)) {
+    throw invalidPersistedPlan();
+  }
+  return value as `sha256:${string}`;
 }
 
 /**
@@ -582,18 +603,53 @@ function rebuildQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
  * original compiler semantics before they can be migrated.
  */
 function rebuildLegacyOdataQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
-  const modern = rebuildQueryPlanV1(plan);
-  if (modern.ir.source.protocol !== "odata") throw invalidPersistedPlan();
+  return rebuildLegacyProtocolQueryPlanV1(plan, "odata", compileOdataQuery);
+}
+
+function isLegacyOdataQueryPlanV1(plan: QueryExecutionPlan): plan is QueryExecutionPlanV1 {
+  if (plan.version !== QUERY_PLAN_VERSION || plan.ir.version !== "1.0" || plan.ir.source.protocol !== "odata") {
+    return false;
+  }
+  const remoteSteps = plan.steps.filter((step) => step.engine === "remote");
+  return remoteSteps.length > 0 && remoteSteps.every((step) => step.compiled.compiler === "odata-v4-query-v1");
+}
+
+/**
+ * Rebuild the exact WFS plan representation emitted before operation-bound
+ * protocol artifacts were introduced. This validates the old artifact against
+ * the old compiler before the same-version plan is migrated.
+ */
+function rebuildLegacyWfsQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecutionPlanV1 {
+  return rebuildLegacyProtocolQueryPlanV1(plan, "wfs", compileWfsQuery);
+}
+
+function isLegacyWfsQueryPlanV1(plan: QueryExecutionPlan): plan is QueryExecutionPlanV1 {
+  if (plan.version !== QUERY_PLAN_VERSION || plan.ir.version !== "1.0" || plan.ir.source.protocol !== "wfs") {
+    return false;
+  }
+  const remoteSteps = plan.steps.filter((step) => step.engine === "remote");
+  return remoteSteps.length > 0 && remoteSteps.every((step) => step.compiled.compiler === "wfs-2.0-get-feature-v1");
+}
+
+function rebuildLegacyProtocolQueryPlanV1(
+  plan: QueryExecutionPlanV1,
+  protocol: "odata" | "wfs",
+  compile: (source: QueryIrSourceIdentity, query: CanonicalQuery) => RemoteCompiledQueryV1,
+): QueryExecutionPlanV1 {
+  const modern = rebuildQueryPlanV1(plan, {
+    legacyWfsAuthority: protocol === "wfs" && plan.ir.source.authorityFingerprint === undefined,
+  });
+  if (modern.ir.source.protocol !== protocol) throw invalidPersistedPlan();
 
   const baseSteps = modern.steps.map((step): QueryPlanStepBaseV1 => {
     const { fidelity: _fidelity, losses: _losses, bounds: _bounds, provenance: _provenance, ...base } = step;
     if (base.engine !== "remote") return base;
 
-    const query = base.operation === "queryAll" ? legacyOdataQueryAllInput(base.query, modern.fallback) : base.query;
+    const query = base.operation === "queryAll" ? legacyProtocolQueryAllInput(base.query, modern.fallback) : base.query;
     return {
       ...base,
       query,
-      compiled: compileOdataQuery(modern.ir.source, query),
+      compiled: compile(modern.ir.source, query),
     };
   });
   const steps = baseSteps.map((step): QueryPlanStep => {
@@ -629,7 +685,7 @@ function rebuildLegacyOdataQueryPlanV1(plan: QueryExecutionPlanV1): QueryExecuti
   });
 }
 
-function legacyOdataQueryAllInput(query: CanonicalQuery, fallback: QueryFallbackPolicy): CanonicalQuery {
+function legacyProtocolQueryAllInput(query: CanonicalQuery, fallback: QueryFallbackPolicy): CanonicalQuery {
   if (fallback.mode !== "bounded-local") throw invalidPersistedPlan();
   const pagination = query.pagination;
   if (
@@ -644,14 +700,6 @@ function legacyOdataQueryAllInput(query: CanonicalQuery, fallback: QueryFallback
     ...query,
     pagination: { offset: 0, limit: fallback.maxRows + 1 },
   });
-}
-
-function isLegacyOdataQueryPlanV1(plan: QueryExecutionPlan): plan is QueryExecutionPlanV1 {
-  if (plan.version !== QUERY_PLAN_VERSION || plan.ir.version !== "1.0" || plan.ir.source.protocol !== "odata") {
-    return false;
-  }
-  const remoteSteps = plan.steps.filter((step) => step.engine === "remote");
-  return remoteSteps.length > 0 && remoteSteps.every((step) => step.compiled.compiler === "odata-v4-query-v1");
 }
 
 function persistedV1FallbackPrimaryKey(plan: QueryExecutionPlanV1): string | undefined {
@@ -850,7 +898,8 @@ function persistedPlanSnapshot(value: unknown): PersistedPlanSnapshot {
     if (!isPlanEnvelope(plan)) throw invalidPersistedPlan();
     assertPlanPersistenceSafe(plan);
     if (containsCredentialBearingPlanMaterial(plan)) throw invalidPersistedPlan();
-    const acceptedPlan = isLegacyOdataQueryPlanV1(plan) ? rebuildQueryPlanV1(plan) : plan;
+    const acceptedPlan =
+      isLegacyOdataQueryPlanV1(plan) || isLegacyWfsQueryPlanV1(plan) ? rebuildQueryPlanV1(plan) : plan;
     const { id: _id, fingerprint: _fingerprint, ...unsigned } = acceptedPlan;
     return { plan: acceptedPlan, hash: sha256(canonicalStringify(toJsonValue(unsigned))) };
   } catch {
@@ -1029,10 +1078,10 @@ function localAggregateInputQuery(
     ...base,
     ...(requiredFields.size > 0 ? { outFields: [...requiredFields].sort() } : {}),
     ...(!options.preserveGeometry ? { returnGeometry: false } : {}),
-    // The OGC and OData queryAll adapters own the overflow sentinel: a logical
-    // N-row ceiling becomes an N + 1 wire request and is reported through
-    // exceededTransferLimit. GeoServices retains its established explicit
-    // sentinel in the canonical step for backward-compatible plan output.
+    // The OGC, OData, and WFS queryAll adapters own the overflow sentinel: a
+    // logical N-row ceiling becomes an N + 1 wire request and is reported
+    // through exceededTransferLimit. GeoServices retains its established
+    // explicit sentinel in the canonical step for backward-compatible output.
     pagination: { offset: 0, limit: maxRows + (options.adapterOwnsLookahead ? 0 : 1) },
   });
 }

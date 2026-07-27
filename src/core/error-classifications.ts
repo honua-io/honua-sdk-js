@@ -50,6 +50,7 @@ export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = Object.freeze({
   "query.planning.fallback-disabled": runtimeClassification("query", "capability", false),
   "query.planning.unsafe-materialization": runtimeClassification("query", "validation", false),
   "query.execution.invalid-plan": runtimeClassification("query", "validation", false),
+  "query.execution.wfs-protocol": runtimeClassification("query", "protocol", false),
   "query.execution.plan-context-mismatch": runtimeClassification("query", "validation", false),
   "query.execution.unsafe-materialization": runtimeClassification("query", "validation", false),
   "query.execution.invalid-resource-handle": runtimeClassification("query", "validation", false),

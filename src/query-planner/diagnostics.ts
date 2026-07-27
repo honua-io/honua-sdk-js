@@ -404,7 +404,7 @@ function compiledRowLimit(compiled: object | undefined): number | undefined {
   const field =
     artifact.compiler === "ogc-api-features-query-v1"
       ? "limit"
-      : artifact.compiler === "wfs-2.0-get-feature-v1"
+      : artifact.compiler === "wfs-2.0-get-feature-v1" || artifact.compiler === "wfs-2.0-protocol-query-v1"
         ? "count"
         : artifact.compiler === "odata-v4-query-v1" || artifact.compiler === "odata-v4-protocol-query-v1"
           ? "top"
