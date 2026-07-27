@@ -249,6 +249,38 @@
               </div>
               <ul id="edit-readiness-list" class="stack-list"></ul>
             </section>
+
+            <section class="panel source-editor-panel" id="source-editor-panel" aria-labelledby="source-editor-heading">
+              <div class="panel-heading">
+                <h3 id="source-editor-heading">Applications on file</h3>
+                <span id="source-editor-state" role="status" aria-live="polite">connecting</span>
+              </div>
+              <p class="hint">Records read back from the metadata-discovered planning layer. Selecting one opens the production feature editor over the same public source; create and update both travel the contract apply-edits seam.</p>
+              <ul id="application-list" class="stack-list edit-list" aria-label="Planning applications on file"></ul>
+              <div class="button-row">
+                <button id="application-new" type="button" disabled>New application for this parcel</button>
+                <button id="application-refresh" type="button" disabled>Re-read from source</button>
+              </div>
+
+              <honua-feature-editor id="application-editor" label="Planning application"></honua-feature-editor>
+
+              <div class="panel-heading">
+                <h3 id="reconciliation-heading">Reconciliation</h3>
+                <span id="reconciliation-state" role="status" aria-live="polite">no submission</span>
+              </div>
+              <dl id="reconciliation-list" class="metric-list" aria-labelledby="reconciliation-heading"></dl>
+              <p id="reconciliation-message" class="edit-message" role="status" aria-live="polite">Select an application to edit, or start a new one for the searched parcel.</p>
+
+              <fieldset class="rehearsal-fieldset">
+                <legend>Deterministic fixture rehearsal</legend>
+                <p class="hint">Asks the fixture service to behave like a contested or briefly degraded system. Nothing is simulated in the browser.</p>
+                <div class="button-row">
+                  <button id="rehearse-concurrent-edit" type="button" disabled>Simulate concurrent reviewer edit</button>
+                  <button id="rehearse-service-outage" type="button" disabled>Arm one-shot service outage</button>
+                </div>
+                <p id="rehearsal-status" class="hint" role="status" aria-live="polite">No rehearsal armed.</p>
+              </fieldset>
+            </section>
           </div>
         </section>
       </section>

@@ -16,6 +16,7 @@ const expectedEntrypoints = [
   "@honua/sdk-js/geometry",
   "@honua/sdk-js/honua",
   "@honua/sdk-js/interactions",
+  "@honua/sdk-js/web-components",
 ];
 
 test.setTimeout(90_000);

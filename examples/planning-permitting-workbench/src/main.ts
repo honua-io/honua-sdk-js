@@ -4,6 +4,13 @@ import {
   bindDetailToSelection,
   bindQueryProjectionToExploration,
 } from "@honua/sdk-js/interactions";
+import {
+  type HonuaFeatureEditCommitDetail,
+  type HonuaFeatureEditorCommit,
+  type HonuaFeatureEditorElement,
+  type HonuaFeatureEditorWorkflow,
+  createFeatureEditorWorkflow,
+} from "@honua/sdk-js/web-components";
 
 import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
 import { announceSampleStatus, mountSamplePresentation } from "../../_kit/presentation.js";
@@ -11,7 +18,9 @@ import { FLOOD_CLASSES, MAP_PRESETS, PARCELS, ZONING_CLASSES } from "./fixtures.
 import {
   DEFAULT_PROPOSAL,
   type PlanningAnalysisResult,
+  type PlanningApplication,
   type PlanningPermittingJourney,
+  type PlanningRecordAttributes,
   type PlanningScenario,
   type PlanningSearchResult,
   type PlanningSubmissionResult,
@@ -77,6 +86,16 @@ interface WorkbenchRuntime {
   lastEditDegraded: boolean;
   sketchAcres: number;
   printId: string | null;
+  /** Fixture-backed editor observability (issue #680 slice 2). */
+  applicationCount: number;
+  selectedApplicationId: number | null;
+  editorStatus: string | null;
+  editorOperation: string | null;
+  editorConflict: boolean;
+  lastCommitStatus: string | null;
+  lastCommitTransported: boolean | null;
+  lastCommittedFeatureId: number | null;
+  reconciledVersion: number | null;
 }
 
 declare global {
@@ -113,6 +132,16 @@ let searchInFlight = false;
 let analysisInFlight = false;
 let submissionInFlight = false;
 
+let editorWorkflow: HonuaFeatureEditorWorkflow<PlanningRecordAttributes> | undefined;
+let applications: readonly PlanningApplication[] = [];
+let selectedApplicationId: number | undefined;
+let applicationsInFlight = false;
+let lastEditorCommit: HonuaFeatureEditorCommit | undefined;
+let reconciledApplication: PlanningApplication | undefined;
+let reconciliationMessage = "Select an application to edit, or start a new one for the searched parcel.";
+let reconciliationDegraded = false;
+let rehearsalMessage = "No rehearsal armed.";
+
 const runtime: WorkbenchRuntime = {
   ready: false,
   sdkMode: __HONUA_SAMPLE_SDK_MODE__,
@@ -131,6 +160,15 @@ const runtime: WorkbenchRuntime = {
   lastEditDegraded: false,
   sketchAcres: 0,
   printId: null,
+  applicationCount: 0,
+  selectedApplicationId: null,
+  editorStatus: null,
+  editorOperation: null,
+  editorConflict: false,
+  lastCommitStatus: null,
+  lastCommitTransported: null,
+  lastCommittedFeatureId: null,
+  reconciledVersion: null,
 };
 window.__HONUA_PLANNING_WORKBENCH_RUNTIME__ = runtime;
 
@@ -238,6 +276,7 @@ function renderAll(): void {
   renderSketch(query);
   renderAnalysisTruth();
   renderPermitEditing();
+  renderApplicationEditor();
   renderWorkflowTruth();
   renderDetail();
   renderContext(query);
@@ -638,6 +677,210 @@ function renderPermitEditing(): void {
     .join("");
 }
 
+/**
+ * Fixture-backed editing surface: the production `<honua-feature-editor>` bound
+ * to the same metadata-discovered writable `Source` the journey inspects. The
+ * shell owns selection, prefill, and reconciliation; the widget owns the
+ * schema-derived form, geometry, attachments, validation, and failure truth.
+ */
+function renderApplicationEditor(): void {
+  const list = getElement<HTMLElement>("#application-list");
+  list.innerHTML =
+    applications.length === 0
+      ? `<li><strong>${escapeHtml(applicationsInFlight ? "Reading applications" : "No applications on file")}</strong><span>-</span></li>`
+      : applications
+          .map((application) => {
+            const attributes = application.attributes;
+            return `
+              <li data-active="${String(selectedApplicationId === application.id)}">
+                <button type="button" data-application="${escapeHtml(String(application.id))}">
+                  <strong>${escapeHtml(attributes.permit_no)}</strong>
+                  <span>${escapeHtml(attributes.status)} / v${escapeHtml(attributes.version ?? "-")} / ${escapeHtml(attributes.address)}</span>
+                </button>
+              </li>`;
+          })
+          .join("");
+  list.querySelectorAll<HTMLButtonElement>("[data-application]").forEach((button) => {
+    button.addEventListener("click", () => selectApplication(Number(button.dataset.application)));
+  });
+
+  const snapshot = editorWorkflow?.snapshot();
+  const editorReady = workflowState === "ready" && editorWorkflow !== undefined;
+  setText(
+    "#source-editor-state",
+    editorReady
+      ? applicationsInFlight
+        ? "re-reading"
+        : `${applications.length} on file`
+      : workflowState === "connecting"
+        ? "connecting"
+        : "unavailable",
+  );
+  getElement<HTMLButtonElement>("#application-new").disabled = !editorReady || planningSearch === undefined;
+  getElement<HTMLButtonElement>("#application-refresh").disabled = !editorReady || applicationsInFlight;
+  getElement<HTMLButtonElement>("#rehearse-concurrent-edit").disabled =
+    !editorReady || selectedApplicationId === undefined;
+  getElement<HTMLButtonElement>("#rehearse-service-outage").disabled = !editorReady;
+  getElement<HTMLElement>("#rehearsal-status").textContent = rehearsalMessage;
+
+  setText(
+    "#reconciliation-state",
+    lastEditorCommit === undefined ? "no submission" : `${lastEditorCommit.operation}: ${lastEditorCommit.status}`,
+  );
+  const reconciled = reconciledApplication;
+  getElement<HTMLElement>("#reconciliation-list").innerHTML = (
+    [
+      ["Editor state", snapshot?.status ?? "not attached"],
+      ["Draft operation", snapshot?.operation ?? "none"],
+      ["Transported", lastEditorCommit === undefined ? "n/a" : String(lastEditorCommit.transported)],
+      ["Committed id", lastEditorCommit?.committedFeatureId ?? "none"],
+      ["Re-read version", reconciled?.attributes.version ?? "none"],
+      ["Re-read status", reconciled?.attributes.status ?? "none"],
+    ] as ReadonlyArray<readonly [string, unknown]>
+  )
+    .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`)
+    .join("");
+  const message = getElement<HTMLElement>("#reconciliation-message");
+  message.textContent = reconciliationMessage;
+  message.dataset.degraded = String(reconciliationDegraded);
+}
+
+function selectApplication(featureId: number): void {
+  const application = applications.find((candidate) => candidate.id === featureId);
+  if (!application || !editorWorkflow) return;
+  const snapshot = editorWorkflow.snapshot();
+  // An open draft owns its identity: never switch the selection out from under
+  // unsaved work, and never silently discard it.
+  if (snapshot.form !== undefined && snapshot.dirty && snapshot.status !== "committed") {
+    reconciliationMessage = "Submit or cancel the open draft before switching to another application.";
+    reconciliationDegraded = true;
+    scheduleRender();
+    return;
+  }
+  if (snapshot.form !== undefined) editorWorkflow.cancel();
+  selectedApplicationId = featureId;
+  reconciledApplication = application;
+  editorWorkflow.setSelection(application);
+  reconciliationMessage = `Selected ${application.attributes.permit_no}. Choose Edit in the feature editor to open a draft.`;
+  reconciliationDegraded = false;
+  announceSampleStatus(`Selected planning application ${application.attributes.permit_no}.`);
+  scheduleRender();
+}
+
+function startApplicationDraft(): void {
+  if (!planningJourney || !editorWorkflow || !planningSearch) return;
+  const base = planningJourney.createDraft(DEFAULT_PROPOSAL);
+  editorWorkflow.begin("create");
+  editorWorkflow.setValues({ ...base.values });
+  editorWorkflow.setGeometry("point", { ...base.geometry });
+  reconciliationMessage = `New application drafted for parcel ${planningSearch.attributes.parcel_tmk}; review the metadata-derived form, then submit.`;
+  reconciliationDegraded = false;
+  scheduleRender();
+}
+
+async function refreshApplications(focusFeatureId?: number): Promise<void> {
+  if (!planningJourney) return;
+  applicationsInFlight = true;
+  scheduleRender();
+  try {
+    const next = await planningJourney.listApplications();
+    workflowController.signal.throwIfAborted();
+    applications = next;
+    const focus = focusFeatureId ?? selectedApplicationId;
+    reconciledApplication = focus === undefined ? undefined : next.find((candidate) => candidate.id === focus);
+    if (focusFeatureId !== undefined) selectedApplicationId = focusFeatureId;
+  } catch (error) {
+    if (workflowController.signal.aborted) return;
+    reconciliationMessage = safeErrorMessage(error);
+    reconciliationDegraded = true;
+    presentation.showError(error);
+  } finally {
+    applicationsInFlight = false;
+    scheduleRender();
+  }
+}
+
+async function handleEditorCommit(commit: HonuaFeatureEditorCommit): Promise<void> {
+  lastEditorCommit = commit;
+  if (commit.status === "committed") {
+    const committedId = Number(commit.committedFeatureId);
+    await refreshApplications(Number.isFinite(committedId) ? committedId : undefined);
+    const reconciled = reconciledApplication;
+    reconciliationMessage = reconciled
+      ? `Service re-read confirms ${reconciled.attributes.permit_no} at version ${String(reconciled.attributes.version)} with status ${reconciled.attributes.status}.`
+      : "The service accepted the edit; the re-read did not return the committed record.";
+    reconciliationDegraded = reconciled === undefined;
+    presentation.clearStatus();
+    announceSampleStatus(`Planning application ${commit.operation} committed and reconciled from the source.`);
+  } else {
+    reconciliationMessage = editorRecovery(commit);
+    reconciliationDegraded = true;
+    presentation.showDegradation([reconciliationMessage]);
+    announceSampleStatus(`Planning application ${commit.operation} did not commit: ${commit.status}.`);
+  }
+  scheduleRender();
+}
+
+/** Explicit, non-optimistic recovery guidance for every rejected editor commit. */
+function editorRecovery(commit: HonuaFeatureEditorCommit): string {
+  if (!commit.transported) {
+    return `Nothing was sent to the service: ${commit.failures[0]?.description ?? "the draft was refused before transport"}.`;
+  }
+  if (commit.status === "conflict") {
+    return "The service reported a version conflict. Resolve it in the editor, then retry or reload the feature.";
+  }
+  const attachmentFailure = commit.attachments.find((attachment) => attachment.status === "failed");
+  if (attachmentFailure) {
+    return `The feature edit reached the service but ${attachmentFailure.name} was rejected (${attachmentFailure.error ?? "no reason given"}). Retry the attachment separately.`;
+  }
+  return `The service rejected the ${commit.operation}: ${commit.failures[0]?.description ?? "no reason given"}.`;
+}
+
+async function rehearseConcurrentEdit(): Promise<void> {
+  if (!planningJourney || !editorWorkflow) return;
+  const identity = editorWorkflow.snapshot().identity?.featureId;
+  const featureId = Number(identity ?? selectedApplicationId);
+  if (!Number.isFinite(featureId)) {
+    rehearsalMessage = "Select an application before rehearsing a concurrent reviewer edit.";
+    scheduleRender();
+    return;
+  }
+  try {
+    const response = await planningFetch(`${window.location.origin}/__fixture__/concurrent-edit?objectId=${featureId}`, {
+      method: "POST",
+    });
+    if (!response.ok) throw new Error(`The fixture refused the concurrent edit (${response.status}).`);
+    const fresh = await planningJourney.loadApplication(featureId);
+    workflowController.signal.throwIfAborted();
+    if (!fresh) throw new Error("The concurrently edited application could not be re-read.");
+    const outcome = editorWorkflow.applyExternalChange(fresh);
+    rehearsalMessage = `Another reviewer saved version ${String(fresh.attributes.version)}; the open draft reconciled as “${outcome}”.`;
+    await refreshApplications();
+    announceSampleStatus(`Concurrent reviewer edit reconciled as ${outcome}.`);
+  } catch (error) {
+    if (workflowController.signal.aborted) return;
+    rehearsalMessage = safeErrorMessage(error);
+    presentation.showError(error);
+  } finally {
+    scheduleRender();
+  }
+}
+
+async function rehearseServiceOutage(): Promise<void> {
+  try {
+    const response = await planningFetch(`${window.location.origin}/__fixture__/arm-update-fault`, { method: "POST" });
+    if (!response.ok) throw new Error(`The fixture refused to arm the outage (${response.status}).`);
+    rehearsalMessage = "A one-shot service outage is armed: the next update is rejected and a retry can still succeed.";
+    announceSampleStatus("Armed a one-shot planning service outage.");
+  } catch (error) {
+    if (workflowController.signal.aborted) return;
+    rehearsalMessage = safeErrorMessage(error);
+    presentation.showError(error);
+  } finally {
+    scheduleRender();
+  }
+}
+
 function renderDetail(): void {
   const parcelId = selectedParcelId(latestProjection.selection);
   const parcel = findParcel(parcelId);
@@ -711,6 +954,22 @@ function updateRuntime(query: WorkbenchQueryResult): void {
   runtime.lastEditDegraded = lastEditDegraded;
   runtime.sketchAcres = activeSketch?.areaAcres ?? 0;
   runtime.printId = lastPrintId;
+
+  const editorSnapshot = editorWorkflow?.snapshot();
+  runtime.applicationCount = applications.length;
+  runtime.selectedApplicationId = selectedApplicationId ?? null;
+  runtime.editorStatus = editorSnapshot?.status ?? null;
+  runtime.editorOperation = editorSnapshot?.operation ?? null;
+  runtime.editorConflict = editorSnapshot?.conflict !== undefined;
+  runtime.lastCommitStatus = lastEditorCommit?.status ?? null;
+  runtime.lastCommitTransported = lastEditorCommit?.transported ?? null;
+  runtime.lastCommittedFeatureId = numberOrNull(lastEditorCommit?.committedFeatureId);
+  runtime.reconciledVersion = numberOrNull(reconciledApplication?.attributes.version);
+}
+
+function numberOrNull(value: unknown): number | null {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 function renderSearchResults(term: string): void {
@@ -976,6 +1235,17 @@ function bindControls(): void {
     void handleSavePermit();
   });
 
+  cleanup.listen(getElement<HTMLButtonElement>("#application-new"), "click", () => startApplicationDraft());
+  cleanup.listen(getElement<HTMLButtonElement>("#application-refresh"), "click", () => {
+    void refreshApplications();
+  });
+  cleanup.listen(getElement<HTMLButtonElement>("#rehearse-concurrent-edit"), "click", () => {
+    void rehearseConcurrentEdit();
+  });
+  cleanup.listen(getElement<HTMLButtonElement>("#rehearse-service-outage"), "click", () => {
+    void rehearseServiceOutage();
+  });
+
   cleanup.add(
     bindQueryProjectionToExploration(
       shell.views.table,
@@ -1073,6 +1343,36 @@ function populatePlanningDomains(journey: PlanningPermittingJourney): void {
   }
 }
 
+/**
+ * Binds `<honua-feature-editor>` to the journey's writable source. The widget
+ * derives its own form from the advertised field metadata; the shell only
+ * supplies selection, prefill, and the post-commit re-read.
+ */
+function attachApplicationEditor(journey: PlanningPermittingJourney): void {
+  const element = getElement<HonuaFeatureEditorElement<PlanningRecordAttributes>>("#application-editor");
+  const workflow = createFeatureEditorWorkflow<PlanningRecordAttributes>({
+    source: journey.editableSource(),
+    metadata: {
+      fields: journey.metadataFields(),
+      primaryKey: "OBJECTID",
+      conflict: { state: "supported", versionField: "version" },
+    },
+    rollbackOnFailure: true,
+  });
+  editorWorkflow = workflow;
+  element.workflow = workflow;
+  cleanup.add(() => {
+    element.workflow = undefined;
+    element.remove();
+    editorWorkflow = undefined;
+  });
+  cleanup.listen(element, "honua-feature-edit-change", () => scheduleRender());
+  cleanup.listen(element, "honua-feature-edit-commit", (event) => {
+    const detail = (event as CustomEvent<HonuaFeatureEditCommitDetail>).detail;
+    void handleEditorCommit(detail.commit);
+  });
+}
+
 function safeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Planning workflow failed without a structured error.";
 }
@@ -1101,6 +1401,7 @@ async function bootstrap(): Promise<void> {
     planningJourney = journey;
     cleanup.add(() => journey.dispose());
     populatePlanningDomains(journey);
+    attachApplicationEditor(journey);
     workflowState = "ready";
     workflowError = undefined;
     setText("#search-status", "ready");
@@ -1113,6 +1414,7 @@ async function bootstrap(): Promise<void> {
     });
     presentation.clearStatus();
     announceSampleStatus("Planning metadata loaded; address search is ready.");
+    await refreshApplications();
   } catch (error) {
     if (workflowController.signal.aborted) return;
     workflowState = "unavailable";
