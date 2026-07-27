@@ -102,6 +102,7 @@
       ],
       "evidence": [
         "scripts/first-map-live-evidence.mjs",
+        "scripts/live-conformance-evidence.mjs",
         "test/connect.test.ts",
         "test/contract/conformance.test.ts",
         "test/contract/geoservices-conformance.test.ts",
@@ -282,6 +283,7 @@
       ],
       "evidence": [
         "scripts/first-map-live-evidence.mjs",
+        "scripts/live-conformance-evidence.mjs",
         "test/connect.test.ts",
         "test/contract/conformance.test.ts",
         "test/contract/geoservices-conformance.test.ts",
@@ -347,6 +349,7 @@
         "connect()"
       ],
       "evidence": [
+        "scripts/live-conformance-evidence.mjs",
         "test/contract/odata-backend-agnostic.test.ts"
       ],
       "source": "support-manifest"
@@ -360,6 +363,7 @@
         "connect()"
       ],
       "evidence": [
+        "scripts/live-conformance-evidence.mjs",
         "test/contract/ogc-features-backend-agnostic.test.ts"
       ],
       "source": "support-manifest"
@@ -415,6 +419,7 @@
         "connect()"
       ],
       "evidence": [
+        "scripts/live-conformance-evidence.mjs",
         "test/contract/stac-backend-agnostic.test.ts"
       ],
       "source": "support-manifest"
@@ -441,6 +446,7 @@
         "connect()"
       ],
       "evidence": [
+        "scripts/live-conformance-evidence.mjs",
         "test/contract/wfs-backend-agnostic.test.ts"
       ],
       "source": "support-manifest"
@@ -455,6 +461,7 @@
         "connect()"
       ],
       "evidence": [
+        "scripts/live-conformance-evidence.mjs",
         "test/connect-wms-wmts.test.ts",
         "test/raster-source-strategy.test.ts"
       ],
@@ -470,6 +477,7 @@
         "connect()"
       ],
       "evidence": [
+        "scripts/live-conformance-evidence.mjs",
         "test/connect-wms-wmts.test.ts",
         "test/raster-source-strategy.test.ts"
       ],

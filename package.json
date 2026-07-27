@@ -429,6 +429,7 @@
     "demo:imagery-cog:typecheck": "tsc -p examples/imagery-cog-quickstart/tsconfig.json --noEmit",
     "evidence:cog:live": "npm run build --silent && node scripts/cog-live-evidence.mjs --output test-results/cog-live-evidence.json --strict",
     "evidence:planning:live": "npm run build --silent && node scripts/planning-live-evidence.mjs --output test-results/planning-live-evidence.json --strict",
+    "evidence:live-conformance": "npm run build --silent && node scripts/live-conformance-evidence.mjs --output test-results/live-conformance-evidence.json --strict",
     "demo:geocoding": "vite --config examples/geocoding-quickstart/vite.config.ts",
     "demo:geocoding:build": "vite build --config examples/geocoding-quickstart/vite.config.ts",
     "demo:geocoding:preview": "vite preview --config examples/geocoding-quickstart/vite.config.ts --host 127.0.0.1",
