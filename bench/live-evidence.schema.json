@@ -49,6 +49,16 @@
           "endpoint": { "type": "string", "format": "uri" },
           "authMode": { "enum": ["anonymous", "api-key", "bearer"] },
           "skipReason": { "type": "string" },
+          "skipReasonCode": {
+            "description": "Typed skip taxonomy. Only a probe that positively established the live environment cannot demonstrate the journey may skip; transport, status, timeout, and schema problems stay failed.",
+            "enum": [
+              "live-probes-disabled",
+              "operator-requested-skip",
+              "realtime-capability-probe-unavailable",
+              "realtime-capability-disabled",
+              "incident-demo-dataset-empty"
+            ]
+          },
           "error": { "type": "string" },
           "startedAt": { "type": "string", "format": "date-time" },
           "completedAt": { "type": "string", "format": "date-time" },
@@ -119,6 +129,18 @@
                 "type": "array",
                 "items": { "type": "string", "format": "uri" }
               }
+            },
+            "additionalProperties": false
+          },
+          "realtime": {
+            "type": "object",
+            "required": ["snapshotAt", "cursor", "lagMs", "observationWindowMs", "reconnectOutcome"],
+            "properties": {
+              "snapshotAt": { "type": ["string", "null"] },
+              "cursor": { "type": ["string", "null"] },
+              "lagMs": { "type": ["number", "null"], "minimum": 0 },
+              "observationWindowMs": { "type": "number", "minimum": 0 },
+              "reconnectOutcome": { "type": ["string", "null"] }
             },
             "additionalProperties": false
           },
