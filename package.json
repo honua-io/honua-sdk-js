@@ -540,6 +540,7 @@
     "test:playwright:edit-workflow": "playwright test test/playwright/edit-workflow-demo.spec.mjs",
     "test:playwright:sketch-editing": "playwright test test/playwright/sketch-editing.spec.mjs",
     "test:playwright:planning-workbench": "playwright test test/playwright/planning-permitting-workbench.spec.mjs",
+    "test:playwright:planning-editing": "playwright test test/playwright/planning-permitting-editing.spec.mjs",
     "test:playwright:web-components": "playwright test test/playwright/web-components-basic.spec.mjs",
     "test:playwright:app-bootstrap": "playwright test test/playwright/app-bootstrap-basic.spec.mjs",
     "test:playwright:oauth-signin": "playwright test test/playwright/oauth-signin.spec.mjs",

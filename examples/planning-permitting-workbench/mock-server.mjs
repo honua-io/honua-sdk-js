@@ -128,6 +128,13 @@ function createState() {
     nextAttachmentId: 9001,
     attachments: new Map(),
     requests: [],
+    /**
+     * One-shot deterministic update fault. Armed through
+     * `POST /__fixture__/arm-update-fault` so a browser test can prove the
+     * editor's retry path against a transport that really did reject the first
+     * attempt and really does accept the second.
+     */
+    armedUpdateFault: false,
   };
 }
 
@@ -219,8 +226,12 @@ function queryFeatures(state, requestUrl) {
   const where = requestUrl.searchParams.get("where") ?? "1=1";
   const tmkMatch = /parcel_tmk\s*=\s*'((?:''|[^'])*)'/iu.exec(where);
   const targetTmk = tmkMatch?.[1]?.replaceAll("''", "'");
+  const oidMatch = /OBJECTID\s*=\s*(\d{1,12})/iu.exec(where);
+  const targetOid = oidMatch ? Number(oidMatch[1]) : undefined;
   let features = [...state.features.values()].filter(
-    (entry) => targetTmk === undefined || entry.attributes.parcel_tmk === targetTmk,
+    (entry) =>
+      (targetTmk === undefined || entry.attributes.parcel_tmk === targetTmk) &&
+      (targetOid === undefined || entry.attributes.OBJECTID === targetOid),
   );
   const geometryText = requestUrl.searchParams.get("geometry");
   if (geometryText) {
@@ -284,8 +295,24 @@ function applyEdits(state, body) {
     if (String(candidate.attributes?.description ?? "").includes("fixture:conflict")) {
       return editOutcome(id, false, { code: 409, description: "version conflict: fixture record changed" });
     }
+    if (state.armedUpdateFault) {
+      state.armedUpdateFault = false;
+      return editOutcome(id, false, {
+        code: 503,
+        description: "planning review service is temporarily unavailable; retry the same edit",
+      });
+    }
     const existing = state.features.get(id);
     if (!existing) return editOutcome(id, false, { code: 404, description: "planning application not found" });
+    const submittedVersion = Number(candidate.attributes?.version);
+    const storedVersion = Number(existing.attributes.version);
+    // Optimistic concurrency: an update carrying a stale token never wins.
+    if (Number.isFinite(submittedVersion) && Number.isFinite(storedVersion) && submittedVersion !== storedVersion) {
+      return editOutcome(id, false, {
+        code: 409,
+        description: `version conflict: planning application ${id} is at version ${storedVersion}, submitted ${submittedVersion}`,
+      });
+    }
     state.features.set(id, {
       attributes: {
         ...existing.attributes,
@@ -326,6 +353,7 @@ async function serveApi(state, req, res, requestUrl, metadataMode) {
     state.nextAttachmentId = reset.nextAttachmentId;
     state.attachments = reset.attachments;
     state.requests = [];
+    state.armedUpdateFault = false;
     json(res, { reset: true, fixtureVersion: "planning-permitting.v1" });
     return true;
   }
@@ -338,7 +366,45 @@ async function serveApi(state, req, res, requestUrl, metadataMode) {
       featureCount: state.features.size,
       attachmentCount: [...state.attachments.values()].flat().length,
       nextObjectId: state.nextObjectId,
+      armedUpdateFault: state.armedUpdateFault,
+      features: [...state.features.values()].map((entry) => ({
+        objectId: entry.attributes.OBJECTID,
+        permit_no: entry.attributes.permit_no,
+        status: entry.attributes.status,
+        description: entry.attributes.description,
+        proposed_height_ft: entry.attributes.proposed_height_ft,
+        version: entry.attributes.version,
+      })),
     });
+    return true;
+  }
+  // Deterministic rehearsal seams. Both are server-side only: the sample never
+  // fabricates a failure in the browser, it asks the fixture to behave like a
+  // service that another reviewer just wrote to, or that is briefly degraded.
+  if (pathname === "/__fixture__/concurrent-edit" && req.method === "POST") {
+    const id = Number(requestUrl.searchParams.get("objectId"));
+    const existing = state.features.get(id);
+    if (!existing) {
+      json(res, { error: { code: 404, message: "planning application not found" } }, 404);
+      return true;
+    }
+    const version = Number(existing.attributes.version) + 1;
+    state.features.set(id, {
+      ...existing,
+      attributes: {
+        ...existing.attributes,
+        status: "approved",
+        description: "Concurrent reviewer decision recorded by the permit counter.",
+        version,
+        last_edited_date: generatedAt,
+      },
+    });
+    json(res, { objectId: id, version, status: "approved" });
+    return true;
+  }
+  if (pathname === "/__fixture__/arm-update-fault" && req.method === "POST") {
+    state.armedUpdateFault = true;
+    json(res, { armedUpdateFault: true });
     return true;
   }
 

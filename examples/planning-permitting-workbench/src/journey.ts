@@ -1,4 +1,5 @@
 import {
+  type CanonicalFeature,
   type EditWorkflowField,
   type EditWorkflowStatus,
   type EditWorkflowSubmitResult,
@@ -30,6 +31,11 @@ export const PLANNING_SERVICE_PATH = "/rest/services/Maui/Planning/FeatureServer
 export const PLANNING_WRITABLE_LAYER = 0;
 export const PLANNING_READONLY_LAYER = 1;
 export const PLANNING_CANDIDATE_LIMIT = 25;
+/** Upper bound on the fixture-backed application list the editor selects from. */
+export const PLANNING_APPLICATION_LIMIT = 25;
+
+/** A planning application as the editor consumes it: contract-canonical, id-bearing. */
+export type PlanningApplication = CanonicalFeature<PlanningRecordAttributes>;
 
 export type PlanningScenario = "success" | "invalid-domain" | "conflict" | "attachment-failure" | "unsupported";
 
@@ -241,6 +247,47 @@ export class PlanningPermittingJourney {
 
   public metadataFields(): readonly EditWorkflowField[] {
     return this.#editFields;
+  }
+
+  /**
+   * The metadata-discovered writable source. Handed straight to the production
+   * editor widget so create and update travel the same public `applyEdits`
+   * seam this journey already validates capability truth against.
+   */
+  public editableSource(): Source<PlanningRecordAttributes> {
+    return this.#source;
+  }
+
+  /** Bounded re-read of the applications on file, canonical and id-bearing. */
+  public async listApplications(limit = PLANNING_APPLICATION_LIMIT): Promise<readonly PlanningApplication[]> {
+    const result = await this.#source.query({
+      where: "1=1",
+      outFields: [...REQUIRED_EDIT_FIELDS, "last_edited_date"],
+      pagination: { limit },
+      returnGeometry: true,
+      outSr: 4326,
+    });
+    return result.features.flatMap((feature) => {
+      const id = Number(feature.attributes.OBJECTID);
+      if (!Number.isFinite(id)) return [];
+      return [toPlanningApplication(id, feature.attributes, feature.geometry)];
+    });
+  }
+
+  /** Re-reads a single application so a commit or conflict can be reconciled. */
+  public async loadApplication(featureId: number): Promise<PlanningApplication | undefined> {
+    const result = await this.#source.query({
+      where: `OBJECTID = ${Math.trunc(featureId)}`,
+      outFields: [...REQUIRED_EDIT_FIELDS, "last_edited_date"],
+      pagination: { limit: 1 },
+      returnGeometry: true,
+      outSr: 4326,
+    });
+    const feature = result.features[0];
+    if (!feature) return undefined;
+    const id = Number(feature.attributes.OBJECTID);
+    if (!Number.isFinite(id)) return undefined;
+    return toPlanningApplication(id, feature.attributes, feature.geometry);
   }
 
   public async search(address: string): Promise<PlanningSearchResult> {
@@ -471,6 +518,19 @@ export function createPlanningPermittingJourney(
   options: CreatePlanningJourneyOptions,
 ): Promise<PlanningPermittingJourney> {
   return PlanningPermittingJourney.connect(options);
+}
+
+function toPlanningApplication(
+  id: number,
+  attributes: PlanningRecordAttributes,
+  geometry: unknown,
+): PlanningApplication {
+  const point = typeof geometry === "object" && geometry !== null ? (geometry as Record<string, unknown>) : undefined;
+  return {
+    id,
+    attributes: { ...attributes },
+    ...(point ? { geometry: { ...point } } : {}),
+  };
 }
 
 function normalizeFixtureOrigin(input: string): string {

@@ -56,7 +56,8 @@
         "@honua/sdk-js/geocoding",
         "@honua/sdk-js/geometry",
         "@honua/sdk-js/honua",
-        "@honua/sdk-js/interactions"
+        "@honua/sdk-js/interactions",
+        "@honua/sdk-js/web-components"
       ],
       "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
       "workflowSelectors": ["#planning-search-form", "#workflow-truth", "#search-status", "#layer-permits"]

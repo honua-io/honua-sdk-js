@@ -23,6 +23,16 @@ anonymous reads against the public Nominatim and Hawaii Statewide GIS services.
 - `createEditSession` exposes successful attachment commit, invalid-domain,
   version-conflict, attachment-failure, and unsupported-source outcomes with
   optimistic commit or rollback transitions and explicit recovery guidance.
+- The production `<honua-feature-editor>` widget (from
+  `@honua/sdk-js/web-components`) creates and updates real fixture-backed
+  planning applications over the same metadata-discovered writable `Source`.
+  The widget derives its own form from the advertised field metadata and
+  domains; the shell contributes only selection, prefill, and the post-commit
+  re-read that makes reconciliation visible.
+- The fixture service enforces optimistic concurrency on `applyEdits`, so a
+  stale concurrency token is rejected rather than silently overwritten, and the
+  deterministic conflict, attachment-failure, cancellation, and retry paths are
+  proven in a real browser.
 - The exported `honua.planning-permitting-review` model carries deterministic
   provenance and fidelity notes from the same public workflow.
 - The browser shell exercises keyboard tabs, mobile layouts, accessibility,
@@ -47,6 +57,7 @@ npm run demo:planning-workbench
 npm run demo:planning-workbench:typecheck
 npm run demo:planning-workbench:build
 npm run test:playwright:planning-workbench
+npm run test:playwright:planning-editing
 
 npm run samples:run -- verify --sample planning-permitting-workbench --sdk-mode source
 npm run samples:run -- verify --sample planning-permitting-workbench --sdk-mode packed
@@ -69,9 +80,14 @@ rather than implying that public data was mutated.
 ## Layout
 
 - `src/journey.ts` — copyable public-SDK search, analysis, edit, attachment,
-  failure, and export workflow.
+  failure, and export workflow, plus the writable `Source` and bounded
+  application re-reads the feature editor is bound to.
 - `mock-server.mjs` — same-origin deterministic GeoServices and geocoding
-  fixture with bounded request logging and idempotent shutdown.
+  fixture with bounded request logging and idempotent shutdown. Its
+  `applyEdits` enforces an optimistic-concurrency precondition, and two
+  rehearsal seams (`POST /__fixture__/concurrent-edit`,
+  `POST /__fixture__/arm-update-fault`) let the browser tests reproduce a
+  contested or briefly degraded service without simulating anything client-side.
 - `src/main.ts` — accessible browser presentation and fail-closed workflow
   state.
 - `src/model.ts`, `src/fixtures.ts`, and `src/types.ts` — linked planning-shell
@@ -83,3 +99,17 @@ If metadata discovery fails or required query/edit/attachment capabilities are
 absent, search, analysis, export, and mutation controls stay disabled with an
 explicit reason. Unsupported edits do not mutate the local shell, and fixture
 success is never presented as live-service evidence.
+
+A cancelled draft sends nothing, and neither switching applications nor
+starting a new one discards unsaved work. A conflicting draft is parked until a
+reviewer chooses to overwrite, discard, or reload, and a stale token that still
+reaches the service is refused there too. A partly applied edit — feature
+committed, attachment rejected — is reported as rejected with the attachment
+named, never as a success.
+
+Because a GeoServices `applyEdits` response carries no new concurrency token,
+every write is followed by a re-read: a committed draft rebinds the editor
+selection to the record on file, and a partly applied one adopts the new token
+into the still-open draft. Either way the next submit or retry travels against
+the version the service actually holds instead of the one the accepted write
+already consumed.
