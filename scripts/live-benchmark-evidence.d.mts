@@ -8,6 +8,23 @@ export declare const LIVE_SKIP_REASON_CODES: {
 
 export type LiveSkipReasonCode = (typeof LIVE_SKIP_REASON_CODES)[keyof typeof LIVE_SKIP_REASON_CODES];
 
+/**
+ * One distinct reconnect outcome per skip condition. Consumers branch on this
+ * string, so no condition may borrow another's outcome.
+ */
+export declare const INCIDENT_SKIP_RECONNECT_OUTCOMES: {
+  readonly "live-probes-disabled": "not-attempted-live-probes-disabled";
+  readonly "operator-requested-skip": "not-attempted-operator-skip";
+  readonly "realtime-capability-probe-unavailable": "not-attempted-capability-unavailable";
+  readonly "realtime-capability-disabled": "not-attempted-capability-unavailable";
+  readonly "incident-demo-dataset-empty": "not-attempted-demo-dataset-empty";
+};
+
+export type IncidentReconnectOutcome =
+  | "resumed-from-cursor-and-observed-delta"
+  | (typeof INCIDENT_SKIP_RECONNECT_OUTCOMES)[keyof typeof INCIDENT_SKIP_RECONNECT_OUTCOMES]
+  | "not-attempted";
+
 export interface LiveEvidenceReport {
   format: "honua.sdk.benchmark-live-evidence.v1";
   schemaVersion: 1;
@@ -30,7 +47,7 @@ export interface LiveEvidenceReport {
       cursor: string | null;
       lagMs: number | null;
       observationWindowMs: number;
-      reconnectOutcome: string | null;
+      reconnectOutcome: IncidentReconnectOutcome | null;
     };
     sampleEvidence: Record<string, unknown>;
   }>;

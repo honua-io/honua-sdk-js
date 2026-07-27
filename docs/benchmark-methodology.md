@@ -136,13 +136,16 @@ report `skipped` when the probe established that the live environment cannot
 demonstrate the journey, and it must publish the reason code that says which
 condition applied:
 
-| `skipReasonCode` | Condition |
-| --- | --- |
-| `live-probes-disabled` | The lane was not enabled, so nothing was contacted |
-| `operator-requested-skip` | An operator supplied an explicit skip reason for the target |
-| `realtime-capability-probe-unavailable` | The realtime capability endpoint answered 403 or 404 |
-| `realtime-capability-disabled` | The capability probe succeeded and reported the stream as not enabled |
-| `incident-demo-dataset-empty` | The capability is enabled, but the demo incident feature service returned a well-formed, zero-feature snapshot |
+| `skipReasonCode` | Condition | Incident `realtime.reconnectOutcome` |
+| --- | --- | --- |
+| `live-probes-disabled` | The lane was not enabled, so nothing was contacted | `not-attempted-live-probes-disabled` |
+| `operator-requested-skip` | An operator supplied an explicit skip reason for the target | `not-attempted-operator-skip` |
+| `realtime-capability-probe-unavailable` | The realtime capability endpoint answered 403 or 404 | `not-attempted-capability-unavailable` |
+| `realtime-capability-disabled` | The capability probe succeeded and reported the stream as not enabled | `not-attempted-capability-unavailable` |
+| `incident-demo-dataset-empty` | The capability is enabled, but the demo incident feature service returned a well-formed, zero-feature snapshot | `not-attempted-demo-dataset-empty` |
+
+The schema requires `skipReasonCode` on every skipped target and forbids it on
+any other status, so an untyped skip cannot be published.
 
 Every other outcome stays `failed`: a transport error, a non-2xx status, a
 timeout, a GeoServices error payload behind HTTP 200, or a response whose shape
@@ -156,8 +159,10 @@ lands, the skip is the truthful attestation.
 
 The sample evidence envelope has no free-form code field, so the reason code is
 republished there as an additional `degradation.reasons` entry, and the incident
-target's `realtime.reconnectOutcome` distinguishes
-`not-attempted-demo-dataset-empty` from `not-attempted-capability-unavailable`.
+target's `realtime.reconnectOutcome` carries a distinct value per condition, as
+above. A condition never borrows another's outcome: an operator skip reports
+`not-attempted-operator-skip` rather than implying a capability finding it never
+made.
 
 These HTTP probes explicitly mark browser console and accessibility evidence as
 not applicable. Browser rendering and interaction evidence is recorded only by

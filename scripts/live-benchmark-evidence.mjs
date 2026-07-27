@@ -37,13 +37,21 @@ export const LIVE_SKIP_REASON_CODES = Object.freeze({
  * Reconnect outcomes carried by the incident sample evidence envelope when the
  * journey is skipped. The envelope has no free-form code field, so the outcome
  * string is the machine-readable discriminator a consumer can branch on.
+ *
+ * Every skip code must appear here. A code that falls through to the default
+ * would publish a vaguer outcome than the producer actually knows, and mapping
+ * one onto another condition's outcome would state something untrue.
  */
-const INCIDENT_SKIP_RECONNECT_OUTCOMES = Object.freeze({
+export const INCIDENT_SKIP_RECONNECT_OUTCOMES = Object.freeze({
   [LIVE_SKIP_REASON_CODES.liveProbesDisabled]: "not-attempted-live-probes-disabled",
+  [LIVE_SKIP_REASON_CODES.operatorRequested]: "not-attempted-operator-skip",
+  [LIVE_SKIP_REASON_CODES.realtimeCapabilityProbeUnavailable]: "not-attempted-capability-unavailable",
+  [LIVE_SKIP_REASON_CODES.realtimeCapabilityDisabled]: "not-attempted-capability-unavailable",
   [LIVE_SKIP_REASON_CODES.incidentDemoDatasetEmpty]: "not-attempted-demo-dataset-empty",
 });
 
-const INCIDENT_DEFAULT_SKIP_RECONNECT_OUTCOME = "not-attempted-capability-unavailable";
+/** Only reachable if a new skip code is added without mapping it; says no more than it knows. */
+const INCIDENT_DEFAULT_SKIP_RECONNECT_OUTCOME = "not-attempted";
 
 class SkipTargetError extends Error {
   constructor(reasonCode, message) {

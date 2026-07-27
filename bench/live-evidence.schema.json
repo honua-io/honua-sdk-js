@@ -42,6 +42,14 @@
       "items": {
         "type": "object",
         "required": ["id", "status", "provider", "endpoint", "authMode", "sampleEvidence"],
+        "allOf": [
+          {
+            "$comment": "A skip must be typed. An untyped skip is indistinguishable from a swallowed failure, which is exactly what this lane must never publish.",
+            "if": { "properties": { "status": { "const": "skipped" } }, "required": ["status"] },
+            "then": { "required": ["skipReason", "skipReasonCode"] },
+            "else": { "not": { "required": ["skipReasonCode"] } }
+          }
+        ],
         "properties": {
           "id": { "type": "string" },
           "status": { "enum": ["passed", "failed", "skipped"] },
@@ -140,7 +148,18 @@
               "cursor": { "type": ["string", "null"] },
               "lagMs": { "type": ["number", "null"], "minimum": 0 },
               "observationWindowMs": { "type": "number", "minimum": 0 },
-              "reconnectOutcome": { "type": ["string", "null"] }
+              "reconnectOutcome": {
+                "description": "Machine-readable discriminator for why the journey did or did not reconnect. Each skip condition owns a distinct outcome so a consumer is never told the capability was unavailable when it was not.",
+                "enum": [
+                  "resumed-from-cursor-and-observed-delta",
+                  "not-attempted-live-probes-disabled",
+                  "not-attempted-operator-skip",
+                  "not-attempted-capability-unavailable",
+                  "not-attempted-demo-dataset-empty",
+                  "not-attempted",
+                  null
+                ]
+              }
             },
             "additionalProperties": false
           },
