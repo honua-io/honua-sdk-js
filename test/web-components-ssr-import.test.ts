@@ -65,6 +65,18 @@ describe("component kits are SSR-safe to import", () => {
     expect(typeof model.buildEditorFormModel).toBe("function");
   });
 
+  it("imports the bounded feature table's own modules and renders grid HTML with no DOM", async () => {
+    // Named explicitly for the same reason as the feature editor above: the
+    // bounded table ships its own engine and view modules, and the view module
+    // exists precisely to produce markup as a string, which is a server-render
+    // capability worth asserting rather than assuming.
+    const engine = await import("../src/web-components/feature-table-engine.js");
+    const view = await import("../src/web-components/feature-table-view.js");
+    expect(typeof engine.createHonuaFeatureTable).toBe("function");
+    expect(typeof view.featureTableGridHtml).toBe("function");
+    expect(typeof engine.featureTableRowKey).toBe("function");
+  });
+
   it("imports the export contract and sanitizes state with no DOM", async () => {
     const { runHonuaExport, sanitizeHonuaExportState, createBrowserPrintExportAdapter } = await import(
       "../src/web-components/index.js"

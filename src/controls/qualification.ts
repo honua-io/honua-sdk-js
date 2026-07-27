@@ -294,6 +294,15 @@ const FEATURE_EDITOR = "web-components.feature-editor";
 const FEATURE_EDITOR_SUITE = "test/web-components-feature-editor-element.test.ts";
 
 /**
+ * `<honua-feature-table>`'s bounded production lane (issue #681) brought the
+ * kit's most complete ARIA-grid contract and its only two-lane keyboard suite,
+ * so several of its rows are re-seeded from that evidence rather than from the
+ * cross-cutting harness alone.
+ */
+const FEATURE_TABLE = "web-components.feature-table";
+const FEATURE_TABLE_SUITE = "test/web-components-feature-table-element.test.ts";
+
+/**
  * The web-components tags covered by the cross-cutting lifecycle harness
  * `test/web-components-lifecycle-gates.test.ts`. `web-components.map` is
  * excluded because mounting it requires a real MapLibre renderer (its disposal
@@ -398,9 +407,9 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "ArrowLeft/ArrowRight (with and without Shift), Home, and End step the divider and emit change.",
       },
       {
-        ids: ["web-components.feature-table"],
-        evidence: [BROWSER_SPEC],
-        note: "Focusing a row and pressing Enter selects the feature, asserted in a real browser. Unit-level coverage is still absent.",
+        ids: [FEATURE_TABLE],
+        evidence: [FEATURE_TABLE_SUITE, BROWSER_SPEC],
+        note: "The kit's strongest keyboard coverage: ArrowDown/Enter/Tab dispatched as real KeyboardEvents against both the controller lane and the bounded engine lane, asserting the resulting focus move, selection, and — for Tab — that the grid does not preventDefault a key the page owns. Also verified end to end in a real browser. Not yet dispatched as DOM events: Home/End, Ctrl+Home/Ctrl+End, PageUp/PageDown, Space, and Shift+click additive sort; the key-to-move mapping behind the paging keys is unit-tested separately, so the gap is the DOM delivery path rather than the behavior.",
       },
       {
         ids: [FEATURE_EDITOR],
@@ -442,12 +451,17 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
       {
         ids: ["web-components.print-export"],
         evidence: [LIFECYCLE_HARNESS],
-        note: "Export buttons carry aria-disabled when no adapter is assigned, and the outcome readout is a role=status aria-live=polite region.",
+        note: "The outcome readout is a role=status aria-live=polite region that names the adapter requirement, and an export with no adapter carries an explanatory title. Deliberately neither disabled nor aria-disabled: both suppress activation, and activation is how an application discovers it must supply an adapter — the asserted behavior is that activating an unavailable export still reports the unsupported outcome through honua-export.",
       },
       {
         ids: [FEATURE_EDITOR],
         evidence: [FEATURE_EDITOR_SUITE],
         note: "The kit's most complete accessibility contract: per-field label association, aria-required, aria-invalid with aria-describedby resolving to the validation text, role=alert on validation/conflict/failure regions, aria-pressed on operation and sketch-tool toggles, aria-disabled on unavailable actions, role=group with an accessible name on the tool groups, and a role=status aria-live=polite readout.",
+      },
+      {
+        ids: [FEATURE_TABLE],
+        evidence: [FEATURE_TABLE_SUITE],
+        note: "A full WAI-ARIA grid contract: role=grid/row/columnheader/gridcell with absolute aria-rowcount, aria-colcount, aria-rowindex, and aria-colindex across a virtualized window, aria-rowcount=-1 when the true total is genuinely unknown rather than a fabricated number, aria-sort, aria-selected, aria-busy, a role=status aria-live=polite readout, and placeholder rows that announce nothing they cannot substantiate. The grid's own accessible name (aria-labelledby) is emitted but not asserted.",
       },
     ],
     pendingNote:
@@ -465,6 +479,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: ["web-components.search"],
         evidence: ["test/web-components-search-element.test.ts", BROWSER_SPEC],
         note: "Also verified end to end in a real browser: the search input keeps focus across the re-render that follows a suggestion commit.",
+      },
+      {
+        ids: [FEATURE_TABLE],
+        evidence: [FEATURE_TABLE_SUITE],
+        note: "Stronger than the harness's generic check: the exact cell keeps focus across the re-render that focusing itself causes, via a data-cell-key attribute deliberately ordered ahead of data-field so the base class's alphabetical data-* scan selects the cell rather than the column. The roving tabindex is restored with it, and rows are asserted to stay out of the tab sequence so the grid keeps a single tab stop.",
       },
       {
         ids: [FEATURE_EDITOR],
@@ -571,6 +590,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [LIFECYCLE_HARNESS],
         note: "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called.",
       },
+      {
+        ids: [FEATURE_TABLE],
+        evidence: [LIFECYCLE_HARNESS],
+        note: "Covered for the controller lane only. The bounded engine lane is not driven by the harness and no feature-table suite spies on the console, so its query, paging, and conflict paths are unswept.",
+      },
     ],
     pendingNote:
       "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec.",
@@ -604,6 +628,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "Removing the element tears down canvas, map, and runtime, asserted in a real browser. Unit-level coverage is not possible without a renderer.",
       },
       {
+        ids: [FEATURE_TABLE],
+        evidence: [FEATURE_TABLE_SUITE, LIFECYCLE_HARNESS],
+        note: "Both lanes are covered: the controller subscription and root controller-ready listener (harness), and the bounded engine subscription — released on detach, re-taken exactly once on reconnect, with a re-assignment asserted not to double-subscribe and a reconnect asserted not to re-query. Its grid listeners are bound to nodes that the next innerHTML render replaces, so unlike the feature editor's former shadow-root binding they neither accumulate nor survive as a live handler. Still uncovered: the element does not cancel an in-flight engine refresh on disconnect (the engine is host-owned and cancels on its own dispose), and no test asserts that.",
+      },
+      {
         ids: [FEATURE_EDITOR],
         evidence: [FEATURE_EDITOR_SUITE],
         note: "Complete for what this element owns: the workflow subscription is released on disconnect and re-taken on reconnect, and the shadow-root keydown listener is released too — asserted by dispatching at the detached element's still-live shadow root and counting zero workflow calls, then exactly one after reconnect, and still exactly one after three detach/reattach cycles (issue #809). The element holds no timers and no AbortController of its own, so there is nothing further to release.",
@@ -618,6 +647,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: INTERACTIVE_HARNESS_IDS,
         evidence: [LIFECYCLE_HARNESS],
         note: "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones.",
+      },
+      {
+        ids: [FEATURE_TABLE],
+        evidence: [LIFECYCLE_HARNESS, FEATURE_TABLE_SUITE],
+        note: "Covered through the controller lane by the harness, and the bounded lane binds every grid handler to nodes the next render replaces rather than to the persistent shadow root, which is the arrangement that makes accumulation impossible. The bounded lane's scroll, cell-focus, and sort-button handlers are not themselves swept across repeated renders.",
       },
       {
         ids: [FEATURE_EDITOR],

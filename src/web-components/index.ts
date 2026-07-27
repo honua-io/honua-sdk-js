@@ -99,6 +99,7 @@ export {
   defineHonuaWebComponents,
   honuaExportKindFromFormat,
 } from "./elements.js";
+export type { HonuaFeatureTableConflictDetail } from "./elements.js";
 
 export { HonuaMeasurementElement, defineHonuaMeasurement } from "./measurement.js";
 
@@ -182,6 +183,67 @@ export type {
   HonuaComponentQualificationSummary,
   HonuaComponentQualificationCell,
 } from "../controls/qualification.js";
+
+// Bounded production feature table (issue #681).
+export {
+  DEFAULT_FEATURE_TABLE_BUDGETS,
+  createHonuaFeatureTable,
+  describeFeatureTableCount,
+  explorationClauseToFilterClause,
+  featureTableAriaRowCount,
+  featureTableAriaSort,
+  featureTablePageCacheKey,
+  featureTableRowKey,
+  featureTableWindow,
+  featureTableWorkByTier,
+  formatFeatureTableCell,
+  linkFeatureTableToExploration,
+} from "./feature-table-engine.js";
+export type {
+  CreateHonuaFeatureTableOptions,
+  HonuaFeatureTable,
+  HonuaFeatureTableBudgetKind,
+  HonuaFeatureTableBudgetLedger,
+  HonuaFeatureTableBudgets,
+  HonuaFeatureTableColumn,
+  HonuaFeatureTableColumnType,
+  HonuaFeatureTableConflict,
+  HonuaFeatureTableConflictCode,
+  HonuaFeatureTableCount,
+  HonuaFeatureTableCountEvidence,
+  HonuaFeatureTableExport,
+  HonuaFeatureTableExportRequest,
+  HonuaFeatureTableFocus,
+  HonuaFeatureTableFocusMove,
+  HonuaFeatureTablePageIdentity,
+  HonuaFeatureTablePaging,
+  HonuaFeatureTablePagingMode,
+  HonuaFeatureTablePlanner,
+  HonuaFeatureTableQueryEvidence,
+  HonuaFeatureTableQuerySource,
+  HonuaFeatureTableRealtimeDiff,
+  HonuaFeatureTableRealtimeOutcome,
+  HonuaFeatureTableResolvedColumn,
+  HonuaFeatureTableRow,
+  HonuaFeatureTableRowKey,
+  HonuaFeatureTableScrollMetrics,
+  HonuaFeatureTableSnapshot,
+  HonuaFeatureTableState,
+  HonuaFeatureTableWindow,
+  HonuaFeatureTableWorkConcern,
+  HonuaFeatureTableWorkItem,
+  HonuaFeatureTableWorkTier,
+  LinkFeatureTableToExplorationOptions,
+} from "./feature-table-engine.js";
+export {
+  describeFeatureTableState,
+  featureTableFocusMoveForKey,
+  featureTableGridHtml,
+  featureTableGridStyles,
+  featureTableViewModel,
+  legacyFeatureTableViewModel,
+} from "./feature-table-view.js";
+export type { HonuaFeatureTableViewModel, HonuaFeatureTableViewRow } from "./feature-table-view.js";
 
 // ── production-tier feature editor (issue #680) ──────────────────────────
 export { HonuaFeatureEditorElement, defineHonuaFeatureEditor } from "./feature-editor.js";

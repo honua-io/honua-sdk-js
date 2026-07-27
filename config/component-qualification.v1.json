@@ -127,9 +127,9 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 114,
+    "passing": 115,
     "failing": 131,
-    "pending": 91,
+    "pending": 90,
     "notApplicable": 21,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
@@ -1153,7 +1153,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "screen-reader-semantics",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -1164,9 +1163,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 7,
+        "passing": 8,
         "failing": 6,
-        "pending": 3,
+        "pending": 2,
         "notApplicable": 1
       },
       "gates": [
@@ -1175,24 +1174,29 @@
           "requirement": "REQ-004",
           "status": "passing",
           "evidence": [
-            "test/playwright/web-components-basic.spec.mjs"
+            "test/playwright/web-components-basic.spec.mjs",
+            "test/web-components-feature-table-element.test.ts"
           ],
-          "note": "Focusing a row and pressing Enter selects the feature, asserted in a real browser. Unit-level coverage is still absent."
+          "note": "The kit's strongest keyboard coverage: ArrowDown/Enter/Tab dispatched as real KeyboardEvents against both the controller lane and the bounded engine lane, asserting the resulting focus move, selection, and — for Tab — that the grid does not preventDefault a key the page owns. Also verified end to end in a real browser. Not yet dispatched as DOM events: Home/End, Ctrl+Home/Ctrl+End, PageUp/PageDown, Space, and Shift+click additive sort; the key-to-move mapping behind the paging keys is unit-tested separately, so the gap is the DOM delivery path rather than the behavior."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-table-element.test.ts"
+          ],
+          "note": "A full WAI-ARIA grid contract: role=grid/row/columnheader/gridcell with absolute aria-rowcount, aria-colcount, aria-rowindex, and aria-colindex across a virtualized window, aria-rowcount=-1 when the true total is genuinely unknown rather than a fabricated number, aria-sort, aria-selected, aria-busy, a role=status aria-live=polite readout, and placeholder rows that announce nothing they cannot substantiate. The grid's own accessible name (aria-labelledby) is emitted but not asserted."
         },
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
           "status": "passing",
           "evidence": [
+            "test/web-components-feature-table-element.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "The shared setShadowHtml() capture/restore path is asserted per tag: the focused control survives a controller-driven re-render. For the search element the covered case is its text input, which additionally keeps its typed value and selection range."
+          "note": "The shared setShadowHtml() capture/restore path is asserted per tag: the focused control survives a controller-driven re-render. For the search element the covered case is its text input, which additionally keeps its typed value and selection range. Stronger than the harness's generic check: the exact cell keeps focus across the re-render that focusing itself causes, via a data-cell-key attribute deliberately ordered ahead of data-field so the base class's alphabetical data-* scan selects the cell rather than the column. The roving tabindex is restored with it, and rows are asserted to stay out of the tab sequence so the grid keeps a single tab stop."
         },
         {
           "gate": "reduced-motion",
@@ -1249,25 +1253,27 @@
           "evidence": [
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Covered for the controller lane only. The bounded engine lane is not driven by the harness and no feature-table suite spies on the console, so its query, paging, and conflict paths are unswept."
         },
         {
           "gate": "deterministic-disposal",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-feature-table-element.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "Removing the element drops its controller state subscription and its root honua-controller-ready listener to zero, and a subsequent controller update reaches no detached element."
+          "note": "Removing the element drops its controller state subscription and its root honua-controller-ready listener to zero, and a subsequent controller update reaches no detached element. Both lanes are covered: the controller subscription and root controller-ready listener (harness), and the bounded engine subscription — released on detach, re-taken exactly once on reconnect, with a re-assignment asserted not to double-subscribe and a reconnect asserted not to re-query. Its grid listeners are bound to nodes that the next innerHTML render replaces, so unlike the feature editor's former shadow-root binding they neither accumulate nor survive as a live handler. Still uncovered: the element does not cancel an in-flight engine refresh on disconnect (the engine is host-owned and cancels on its own dispose), and no test asserts that."
         },
         {
           "gate": "duplicate-listener",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-feature-table-element.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones."
+          "note": "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones. Covered through the controller lane by the harness, and the bounded lane binds every grid handler to nodes the next render replaces rather than to the persistent shadow root, which is the arrangement that makes accumulation impossible. The bounded lane's scroll, cell-focus, and sort-button handlers are not themselves swept across repeated renders."
         },
         {
           "gate": "memory-leak",
@@ -2818,7 +2824,7 @@
           "evidence": [
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "Export buttons carry aria-disabled when no adapter is assigned, and the outcome readout is a role=status aria-live=polite region."
+          "note": "The outcome readout is a role=status aria-live=polite region that names the adapter requirement, and an export with no adapter carries an explanatory title. Deliberately neither disabled nor aria-disabled: both suppress activation, and activation is how an application discovers it must supply an adapter — the asserted behavior is that activating an unavailable export still reports the unsupported outcome through honua-export."
         },
         {
           "gate": "focus-restoration",
