@@ -203,6 +203,13 @@ const TARGETS = [
     forbiddenInputs: COMPONENT_KIT_FORBIDDEN_INPUTS,
   },
   {
+    key: "/kepler",
+    kind: "bundle",
+    entry: "dist/src/kepler/index.js",
+    label: "`/kepler` (kepler.gl/react/redux absent — dynamic optional peer)",
+    forbiddenInputs: ["node_modules/@kepler.gl/", "node_modules/react/", "node_modules/react-dom/", "node_modules/redux/"],
+  },
+  {
     key: "/analytics",
     kind: "bundle",
     entry: "dist/src/analytics/index.js",
