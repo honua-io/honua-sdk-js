@@ -205,7 +205,7 @@ describe("keplerSelectionFilterValue", () => {
 
 describe("createKeplerLinkedStateSync", () => {
   it("applies a Kepler map move to the shared exploration extent", () => {
-    const { kepler: controller, peer } = workspace();
+    const { kepler: controller } = workspace();
     const sync = createKeplerLinkedStateSync({
       view: controller,
       sourceId: "incidents",
@@ -272,8 +272,93 @@ describe("createKeplerLinkedStateSync", () => {
     sync.dispose();
   });
 
-  it("does not re-emit an identical Kepler map state", () => {
+  it("re-applies a Kepler viewport that returns to an earlier value (A -> B -> A)", () => {
+    const { kepler: controller } = workspace();
+    const sync = createKeplerLinkedStateSync({
+      view: controller,
+      sourceId: "incidents",
+      viewportSize: VIEWPORT,
+      applyToKepler: () => undefined,
+    });
+
+    const a = mapState({ zoom: 11 });
+    const b = mapState({ zoom: 13 });
+
+    // Kepler reports A, then B, then returns to A. Every step is a real user
+    // move and must reach the shared extent; a retained echo marker for A would
+    // drop the third step and leave Honua stuck on B.
+    sync.receiveMapState(a);
+    expect(controller.state.extent).toEqual(keplerMapStateToExtent(a, VIEWPORT));
+    sync.receiveMapState(b);
+    expect(controller.state.extent).toEqual(keplerMapStateToExtent(b, VIEWPORT));
+    sync.receiveMapState(a);
+
+    expect(controller.state.extent).toEqual(keplerMapStateToExtent(a, VIEWPORT));
+    expect(sync.appliedToHonua).toBe(3);
+    expect(sync.suppressedEchoes).toBe(0);
+    sync.dispose();
+  });
+
+  it("re-applies a Kepler temporal window that returns to an earlier value (A -> B -> A)", () => {
+    const { kepler: controller } = workspace();
+    const sync = createKeplerLinkedStateSync({
+      view: controller,
+      sourceId: "incidents",
+      temporalField: "reported_at",
+      applyToKepler: () => undefined,
+    });
+
+    sync.receiveTimeRange([10, 20]);
+    sync.receiveTimeRange([30, 40]);
+    sync.receiveTimeRange([10, 20]);
+
+    expect(controller.state.filters["kepler-temporal-window"]).toEqual({
+      field: "reported_at",
+      operator: "between",
+      value: [10, 20],
+    });
+    expect(sync.appliedToHonua).toBe(3);
+    expect(sync.suppressedEchoes).toBe(0);
+    sync.dispose();
+  });
+
+  it("consumes an outbound echo marker once, so the same value can come back from Kepler later", async () => {
     const { kepler: controller, peer } = workspace();
+    const updates: KeplerLinkedStateUpdate[] = [];
+    const sync = createKeplerLinkedStateSync({
+      view: controller,
+      sourceId: "incidents",
+      temporalField: "reported_at",
+      applyToKepler: (update) => {
+        updates.push(update);
+        // Kepler echoes the value it was just handed.
+        if (update.kind === "time-range") sync.receiveTimeRange(update.value);
+      },
+    });
+
+    // Honua -> Kepler (A), echoed back and suppressed exactly once.
+    peer.setFilter("kepler-temporal-window", { field: "reported_at", operator: "between", value: [10, 20] });
+    await flush();
+    expect(updates).toHaveLength(1);
+    expect(sync.suppressedEchoes).toBe(1);
+    expect(sync.appliedToHonua).toBe(0);
+
+    // The user moves Kepler to B and then back to A. A is no longer a pending
+    // echo, so it must be applied rather than dropped.
+    sync.receiveTimeRange([30, 40]);
+    sync.receiveTimeRange([10, 20]);
+
+    expect(controller.state.filters["kepler-temporal-window"]).toEqual({
+      field: "reported_at",
+      operator: "between",
+      value: [10, 20],
+    });
+    expect(sync.appliedToHonua).toBe(2);
+    sync.dispose();
+  });
+
+  it("does not re-emit an identical Kepler map state", () => {
+    const { kepler: controller } = workspace();
     const sync = createKeplerLinkedStateSync({
       view: controller,
       sourceId: "incidents",
@@ -290,7 +375,7 @@ describe("createKeplerLinkedStateSync", () => {
   });
 
   it("maps a Kepler pick onto a source-qualified selection and clears it deterministically", () => {
-    const { kepler: controller, peer } = workspace();
+    const { kepler: controller } = workspace();
     const sync = createKeplerLinkedStateSync({
       view: controller,
       sourceId: "incidents",
@@ -326,7 +411,7 @@ describe("createKeplerLinkedStateSync", () => {
   });
 
   it("reports the unsupported viewport mapping when no viewport size is available", () => {
-    const { kepler: controller, peer } = workspace();
+    const { kepler: controller } = workspace();
     const sync = createKeplerLinkedStateSync({
       view: controller,
       sourceId: "incidents",
@@ -348,7 +433,7 @@ describe("createKeplerLinkedStateSync", () => {
   });
 
   it("stops applying state after dispose", () => {
-    const { kepler: controller, peer } = workspace();
+    const { kepler: controller } = workspace();
     const sync = createKeplerLinkedStateSync({
       view: controller,
       sourceId: "incidents",

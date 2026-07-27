@@ -12,6 +12,7 @@ import {
   createKeplerWorkspaceBridge,
   evaluateKeplerCompatibility,
   loadKeplerPeers,
+  projectResultToKeplerDataset,
 } from "../src/kepler/index.js";
 
 const provenance = {
@@ -169,6 +170,90 @@ describe("createKeplerWorkspaceBridge", () => {
     expect(bridge.datasetState("incidents").cursor).toBe("cursor-2");
     expect(bridge.materializeDataset("incidents").data.rows).toHaveLength(3);
     expect(bridge.materializeDataset("incidents").metadata.provenance.planId).toBe("plan-1");
+  });
+
+  it("re-measures retained bytes after a delta so workspace metrics do not go stale", () => {
+    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    bridge.openResult(resultRequest());
+    const openedBytes = bridge.metrics.estimatedRowBytes;
+
+    bridge.reconcile("incidents", {
+      type: "delta",
+      upserts: [
+        { id: 3, attributes: { objectid: 3, status: "new" }, geometry: { x: -122.6, y: 38 } },
+        { id: 4, attributes: { objectid: 4, status: "new" }, geometry: { x: -122.7, y: 38.1 } },
+      ],
+    });
+
+    expect(bridge.metrics.rows).toBe(4);
+    expect(bridge.metrics.estimatedRowBytes).toBeGreaterThan(openedBytes);
+  });
+
+  it("shrinks retained bytes when a delta removes rows", () => {
+    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    bridge.openResult(resultRequest());
+    const openedBytes = bridge.metrics.estimatedRowBytes;
+
+    bridge.reconcile("incidents", { type: "delta", deletes: [{ id: 1 }] });
+
+    expect(bridge.metrics.rows).toBe(1);
+    expect(bridge.metrics.estimatedRowBytes).toBeLessThan(openedBytes);
+  });
+
+  it("re-measures retained bytes after a snapshot replacement", () => {
+    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    bridge.openResult(resultRequest());
+    const openedBytes = bridge.metrics.estimatedRowBytes;
+
+    const base = resultRequest();
+    bridge.reconcile("incidents", {
+      type: "snapshot",
+      projection: projectResultToKeplerDataset({
+        ...base,
+        result: { ...base.result, features: base.result.features.slice(0, 1) },
+      }),
+    });
+
+    expect(bridge.metrics.rows).toBe(1);
+    expect(bridge.metrics.estimatedRowBytes).toBeLessThan(openedBytes);
+  });
+
+  it("enforces the global retained-byte budget against a dataset grown by a delta", () => {
+    // Budget sized to admit the opening projection but not a grown one, so the
+    // ceiling can only hold if retained bytes are re-measured after the delta.
+    const probe = createKeplerWorkspaceBridge({ peers: peers() });
+    probe.openResult(resultRequest());
+    const openedBytes = probe.metrics.estimatedRowBytes;
+
+    const bridge = createKeplerWorkspaceBridge({
+      peers: peers(),
+      limits: { maxRetainedRowBytes: openedBytes + 8 },
+    });
+    bridge.openResult(resultRequest());
+
+    const plan = bridge.reconcile("incidents", {
+      type: "delta",
+      upserts: [
+        { id: 3, attributes: { objectid: 3, status: "new" }, geometry: { x: -122.6, y: 38 } },
+        { id: 4, attributes: { objectid: 4, status: "new" }, geometry: { x: -122.7, y: 38.1 } },
+      ],
+    });
+
+    expect(plan.diagnostic.mode).toBe("rebuild-required");
+    expect(plan.diagnostic.rebuildReason).toBe("row-budget-exceeded");
+    // The over-budget growth must not be committed.
+    expect(bridge.datasetState("incidents").rows).toHaveLength(2);
+    expect(bridge.metrics.estimatedRowBytes).toBe(openedBytes);
+  });
+
+  it("frees a closed dataset's retained bytes", () => {
+    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    bridge.openResult(resultRequest());
+    expect(bridge.metrics.estimatedRowBytes).toBeGreaterThan(0);
+
+    bridge.close("incidents");
+
+    expect(bridge.metrics).toEqual({ datasets: 0, rows: 0, estimatedRowBytes: 0 });
   });
 
   it("does not advance tracked state when a rebuild is required", () => {

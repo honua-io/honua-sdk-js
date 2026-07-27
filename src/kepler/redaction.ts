@@ -145,7 +145,7 @@ const CREDENTIAL_VALUE_PREFIXES: readonly string[] = [
   "xoxp-",
 ];
 
-export type KeplerRedactionKind = "sensitive-key" | "signed-url-parameter" | "embedded-credential";
+export type KeplerRedactionKind = "sensitive-key" | "signed-url-parameter" | "url-userinfo" | "embedded-credential";
 
 export interface KeplerRedaction {
   /** JSON pointer-ish path of the redacted value, for example `mapStyle.mapStyles.custom.accessToken`. */
@@ -230,6 +230,27 @@ export function credentialQueryParameters(value: string): readonly string[] {
     if (CREDENTIAL_QUERY_PARAMS.has(name.toLowerCase())) found.push(name);
   }
   return found.sort();
+}
+
+/**
+ * True when `value` is an absolute HTTP(S) URL carrying userinfo credentials
+ * (`https://user:password@host/...`). Ingestion refuses these outright; export
+ * has to strip them from state that predates the bridge or was assembled by the
+ * host, where neither the query-parameter scan nor the opaque-value scan sees
+ * them — the string starts with a plain `https://` scheme.
+ */
+export function hasUrlUserinfo(value: string): boolean {
+  const url = parseUrl(value);
+  return url !== undefined && (url.username.length > 0 || url.password.length > 0);
+}
+
+/** Remove userinfo from an absolute HTTP(S) URL, preserving the rest verbatim. */
+function redactUrlUserinfo(value: string): string {
+  const url = parseUrl(value);
+  if (!url) return KEPLER_REDACTED;
+  url.username = "";
+  url.password = "";
+  return url.toString();
 }
 
 function redactUrlParameters(value: string, offenders: readonly string[]): string {
@@ -321,20 +342,37 @@ export function redactKeplerExportState<T>(
       );
     }
     if (typeof value === "string") {
-      const offenders = credentialQueryParameters(value);
+      let current = value;
+      let rewritten = false;
+      // Userinfo first: ingestion refuses `https://user:password@host/...`
+      // outright, but state assembled by the host (or predating the bridge) can
+      // still carry it, and neither the query-parameter scan nor the
+      // opaque-value scan sees it — the string just starts with `https://`.
+      if (hasUrlUserinfo(current)) {
+        redactions.push({
+          path,
+          kind: "url-userinfo",
+          detail: "Removed userinfo credentials embedded in a URL.",
+        });
+        current = redactUrlUserinfo(current);
+        rewritten = true;
+      }
+      const offenders = credentialQueryParameters(current);
       if (offenders.length > 0) {
         redactions.push({
           path,
           kind: "signed-url-parameter",
           detail: `Redacted credential-bearing query parameters: ${offenders.join(", ")}.`,
         });
-        return redactUrlParameters(value, offenders);
+        current = redactUrlParameters(current, offenders);
+        rewritten = true;
       }
-      if (looksLikeCredentialValue(value)) {
+      if (rewritten) return current;
+      if (looksLikeCredentialValue(current)) {
         redactions.push({ path, kind: "embedded-credential", detail: "Redacted an opaque credential value." });
         return KEPLER_REDACTED;
       }
-      return value;
+      return current;
     }
     if (value === null || typeof value !== "object") return value;
     if (Array.isArray(value)) return value.map((item, index) => walk(item, joinPath(path, String(index)), depth + 1));

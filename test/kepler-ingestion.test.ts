@@ -9,6 +9,15 @@ import {
   projectResultToKeplerDataset,
 } from "../src/kepler/index.js";
 
+/** Shoelace signed area; positive is counter-clockwise (GeoJSON exterior). */
+function signedArea(ring: readonly number[][]): number {
+  let total = 0;
+  for (let index = 0; index < ring.length - 1; index += 1) {
+    total += ring[index][0] * ring[index + 1][1] - ring[index + 1][0] * ring[index][1];
+  }
+  return total / 2;
+}
+
 const provenance = {
   sourceId: "incidents",
   sourceVersion: "2026-07-01T00:00:00Z",
@@ -160,6 +169,146 @@ describe("projectResultToKeplerDataset — measured GeoJSON fallback", () => {
         ],
       },
     });
+  });
+
+  it("emits a MultiPolygon for an Esri polygon with several exterior rings", () => {
+    // Two clockwise exterior rings (Esri convention). Emitting one Polygon would
+    // silently demote the second exterior ring to a hole of the first.
+    const projection = projectResultToKeplerDataset(
+      resultRequest({
+        rowIdentityField: undefined,
+        result: {
+          features: [
+            {
+              attributes: { objectid: 1 },
+              geometry: {
+                rings: [
+                  [
+                    [0, 0],
+                    [0, 2],
+                    [2, 2],
+                    [2, 0],
+                    [0, 0],
+                  ],
+                  [
+                    [10, 10],
+                    [10, 12],
+                    [12, 12],
+                    [12, 10],
+                    [10, 10],
+                  ],
+                ],
+              },
+            },
+          ],
+          exceededTransferLimit: false,
+        },
+      }),
+    );
+
+    const feature = projection.dataset.data.rows[0].at(-1) as {
+      geometry: { type: string; coordinates: number[][][][] };
+    };
+    expect(feature.geometry.type).toBe("MultiPolygon");
+    expect(feature.geometry.coordinates).toHaveLength(2);
+    // Each polygon keeps exactly one exterior ring; neither became a hole.
+    expect(feature.geometry.coordinates[0]).toHaveLength(1);
+    expect(feature.geometry.coordinates[1]).toHaveLength(1);
+  });
+
+  it("rewinds Esri rings to the RFC 7946 right-hand rule", () => {
+    const projection = projectResultToKeplerDataset(
+      resultRequest({
+        rowIdentityField: undefined,
+        result: {
+          features: [
+            {
+              attributes: { objectid: 1 },
+              geometry: {
+                // Clockwise exterior ring with a counter-clockwise hole.
+                rings: [
+                  [
+                    [0, 0],
+                    [0, 4],
+                    [4, 4],
+                    [4, 0],
+                    [0, 0],
+                  ],
+                  [
+                    [1, 1],
+                    [2, 1],
+                    [2, 2],
+                    [1, 2],
+                    [1, 1],
+                  ],
+                ],
+              },
+            },
+          ],
+          exceededTransferLimit: false,
+        },
+      }),
+    );
+
+    const feature = projection.dataset.data.rows[0].at(-1) as {
+      geometry: { type: string; coordinates: number[][][] };
+    };
+    expect(feature.geometry.type).toBe("Polygon");
+    expect(feature.geometry.coordinates).toHaveLength(2);
+    expect(signedArea(feature.geometry.coordinates[0])).toBeGreaterThan(0);
+    expect(signedArea(feature.geometry.coordinates[1])).toBeLessThan(0);
+  });
+
+  it("still converts single-ring polygons, polylines, multipoints, and envelopes", () => {
+    const cases: Array<{ readonly geometry: unknown; readonly type: string }> = [
+      {
+        geometry: {
+          paths: [
+            [
+              [0, 0],
+              [1, 1],
+            ],
+          ],
+        },
+        type: "LineString",
+      },
+      {
+        geometry: {
+          paths: [
+            [
+              [0, 0],
+              [1, 1],
+            ],
+            [
+              [5, 5],
+              [6, 6],
+            ],
+          ],
+        },
+        type: "MultiLineString",
+      },
+      {
+        geometry: {
+          points: [
+            [0, 0],
+            [1, 1],
+          ],
+        },
+        type: "MultiPoint",
+      },
+      { geometry: { xmin: 0, ymin: 0, xmax: 1, ymax: 1 }, type: "Polygon" },
+    ];
+
+    for (const { geometry, type } of cases) {
+      const projection = projectResultToKeplerDataset(
+        resultRequest({
+          rowIdentityField: undefined,
+          result: { features: [{ attributes: { objectid: 1 }, geometry }], exceededTransferLimit: false },
+        }),
+      );
+      const feature = projection.dataset.data.rows[0].at(-1) as { geometry: { type: string } };
+      expect(feature.geometry.type, type).toBe(type);
+    }
   });
 
   it("honors forceGeoJsonColumn for point geometry so an existing layer binding keeps working", () => {

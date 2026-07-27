@@ -464,6 +464,38 @@ function sameIdList(left: readonly (string | number)[] | undefined, right: reado
 }
 
 /**
+ * A single-slot, one-shot echo marker for one direction of one channel.
+ *
+ * `expect(value)` records what this side just handed the other side.
+ * `consume(value)` returns `true` for the first echo that matches and then
+ * clears the slot, so a later, genuine change back to the same value is no
+ * longer mistaken for an echo. Holding the marker indefinitely is what breaks
+ * an A -> B -> A sequence.
+ */
+interface EchoGuard<T> {
+  expect(value: T): void;
+  consume(value: T): boolean;
+  readonly pending: T | undefined;
+}
+
+function createEchoGuard<T>(equals: (left: T | undefined, right: T) => boolean): EchoGuard<T> {
+  let pending: T | undefined;
+  return {
+    expect(value: T): void {
+      pending = value;
+    },
+    consume(value: T): boolean {
+      if (!equals(pending, value)) return false;
+      pending = undefined;
+      return true;
+    },
+    get pending() {
+      return pending;
+    },
+  };
+}
+
+/**
  * Wire an exploration view controller to a Kepler workspace over the declared
  * channels only. Deterministic and loop-free: an echo of an already-applied
  * value is counted in `suppressedEchoes` and dropped.
@@ -498,11 +530,32 @@ export function createKeplerLinkedStateSync(options: CreateKeplerLinkedStateSync
   let disposed = false;
   let pushingToKepler = false;
 
-  let lastMapStateToKepler: KeplerMapState | undefined;
-  let lastMapStateFromKepler: KeplerMapState | undefined;
-  let lastWindowToKepler: readonly [number, number] | undefined;
-  let lastWindowFromKepler: readonly [number, number] | undefined;
-  let lastSelectionToKepler: readonly (string | number)[] | undefined;
+  // One echo guard per direction per channel. A guard holds at most one pending
+  // value — the thing this side just handed the other side — and is CONSUMED by
+  // the first matching echo. Retaining the marker instead desynchronizes the
+  // views on an A -> B -> A sequence: after Honua sends A and Kepler moves to B,
+  // Kepler returning to A would match the stale A marker and be dropped, leaving
+  // Honua stuck on B.
+  const mapStateToKepler = createEchoGuard<KeplerMapState>(sameMapState);
+  const mapStateFromKepler = createEchoGuard<KeplerMapState>(sameMapState);
+  const windowToKepler = createEchoGuard<readonly [number, number]>(sameNumericPair);
+  const windowFromKepler = createEchoGuard<readonly [number, number]>(sameNumericPair);
+  const selectionToKepler = createEchoGuard<readonly (string | number)[]>(sameIdList);
+  const selectionFromKepler = createEchoGuard<readonly (string | number)[]>(sameIdList);
+  /**
+   * Last camera Kepler reported. Distinct from the echo guards: it is the
+   * bearing/pitch source an extent cannot express, so it must survive echo
+   * consumption.
+   */
+  let lastKeplerCamera: KeplerMapState | undefined;
+  /**
+   * Last temporal window accepted from Kepler. Together with
+   * {@link lastKeplerCamera} these dedupe a *consecutive repeat* of the value
+   * Kepler already reported, which is idempotent, without the staleness of a
+   * retained echo marker: any different value in between clears them, so a
+   * genuine return to an earlier value still applies.
+   */
+  let lastKeplerWindow: readonly [number, number] | undefined;
 
   function record(diagnostic: KeplerLinkedStateDiagnostic): KeplerLinkedStateDiagnostic {
     diagnostics.push(diagnostic);
@@ -531,18 +584,18 @@ export function createKeplerLinkedStateSync(options: CreateKeplerLinkedStateSync
     }
     const extent = view.state.extent;
     if (extent === undefined) return;
-    const mapState = extentToKeplerMapState(extent, options.viewportSize, lastMapStateFromKepler);
-    if (sameMapState(lastMapStateToKepler, mapState) || sameMapState(lastMapStateFromKepler, mapState)) {
+    const mapState = extentToKeplerMapState(extent, options.viewportSize, lastKeplerCamera);
+    if (mapStateFromKepler.consume(mapState)) {
       suppressedEchoes += 1;
       record({
         channel: "viewport",
         direction: "honua-to-kepler",
         outcome: "echo-suppressed",
-        detail: "The derived Kepler map state matches the last applied value.",
+        detail: "The derived Kepler map state is the round trip of the camera Kepler just reported.",
       });
       return;
     }
-    lastMapStateToKepler = mapState;
+    mapStateToKepler.expect(mapState);
     push({ kind: "map-state", mapState });
     record({
       channel: "viewport",
@@ -568,17 +621,17 @@ export function createKeplerLinkedStateSync(options: CreateKeplerLinkedStateSync
       return;
     }
     const value: readonly [number, number] = [window.start, window.end];
-    if (sameNumericPair(lastWindowToKepler, value) || sameNumericPair(lastWindowFromKepler, value)) {
+    if (windowFromKepler.consume(value)) {
       suppressedEchoes += 1;
       record({
         channel: "temporal-window",
         direction: "honua-to-kepler",
         outcome: "echo-suppressed",
-        detail: "The derived Kepler time range matches the last applied value.",
+        detail: "The derived Kepler time range is the round trip of the window Kepler just reported.",
       });
       return;
     }
-    lastWindowToKepler = value;
+    windowToKepler.expect(value);
     push({ kind: "time-range", field, value });
     record({
       channel: "temporal-window",
@@ -600,17 +653,17 @@ export function createKeplerLinkedStateSync(options: CreateKeplerLinkedStateSync
       return;
     }
     const value = keplerSelectionFilterValue(view.state.selection, sourceId);
-    if (sameIdList(lastSelectionToKepler, value)) {
+    if (selectionFromKepler.consume(value)) {
       suppressedEchoes += 1;
       record({
         channel: "selection-as-filter",
         direction: "honua-to-kepler",
         outcome: "echo-suppressed",
-        detail: "The derived Kepler selection filter matches the last applied value.",
+        detail: "The derived Kepler selection filter is the round trip of the pick Kepler just reported.",
       });
       return;
     }
-    lastSelectionToKepler = value;
+    selectionToKepler.expect(value);
     push({ kind: "selection-filter", field, value });
     record({
       channel: "selection-as-filter",
@@ -647,17 +700,28 @@ export function createKeplerLinkedStateSync(options: CreateKeplerLinkedStateSync
     receiveMapState(mapState) {
       if (disposed) return;
       const state = requireMapState(mapState);
-      if (sameMapState(lastMapStateFromKepler, state) || sameMapState(lastMapStateToKepler, state)) {
+      if (mapStateToKepler.consume(state)) {
         suppressedEchoes += 1;
         record({
           channel: "viewport",
           direction: "kepler-to-honua",
           outcome: "echo-suppressed",
-          detail: "The incoming Kepler map state matches the last exchanged value.",
+          detail: "The incoming Kepler map state is the echo of the camera this sync just pushed.",
         });
         return;
       }
-      lastMapStateFromKepler = Object.freeze({ ...state });
+      if (sameMapState(lastKeplerCamera, state)) {
+        suppressedEchoes += 1;
+        record({
+          channel: "viewport",
+          direction: "kepler-to-honua",
+          outcome: "echo-suppressed",
+          detail: "Kepler repeated the camera it already reported; the shared extent is already this value.",
+        });
+        return;
+      }
+      lastKeplerCamera = Object.freeze({ ...state });
+      mapStateFromKepler.expect(lastKeplerCamera);
       if (options.viewportSize === undefined) {
         record({
           channel: "viewport",
@@ -693,17 +757,28 @@ export function createKeplerLinkedStateSync(options: CreateKeplerLinkedStateSync
         return;
       }
       const pair: readonly [number, number] = [value[0], value[1]];
-      if (sameNumericPair(lastWindowFromKepler, pair) || sameNumericPair(lastWindowToKepler, pair)) {
+      if (windowToKepler.consume(pair)) {
         suppressedEchoes += 1;
         record({
           channel: "temporal-window",
           direction: "kepler-to-honua",
           outcome: "echo-suppressed",
-          detail: "The incoming Kepler time range matches the last exchanged value.",
+          detail: "The incoming Kepler time range is the echo of the window this sync just pushed.",
         });
         return;
       }
-      lastWindowFromKepler = pair;
+      if (sameNumericPair(lastKeplerWindow, pair)) {
+        suppressedEchoes += 1;
+        record({
+          channel: "temporal-window",
+          direction: "kepler-to-honua",
+          outcome: "echo-suppressed",
+          detail: "Kepler repeated the time range it already reported; the shared window is already this value.",
+        });
+        return;
+      }
+      lastKeplerWindow = pair;
+      windowFromKepler.expect(pair);
       view.setFilter(temporalFilterId, temporalWindowToHonuaClause({ field, start: pair[0], end: pair[1] }));
       appliedToHonua += 1;
       record({
@@ -716,7 +791,7 @@ export function createKeplerLinkedStateSync(options: CreateKeplerLinkedStateSync
     receiveSelection(rowIdentity) {
       if (disposed) return;
       if (rowIdentity === undefined) {
-        lastSelectionToKepler = undefined;
+        selectionFromKepler.expect(Object.freeze([]));
         view.deselect();
         appliedToHonua += 1;
         record({
@@ -728,7 +803,7 @@ export function createKeplerLinkedStateSync(options: CreateKeplerLinkedStateSync
         return;
       }
       const target: SourceQualifiedFeatureSelectionTarget = sourceFeatureSelectionTarget(sourceId, rowIdentity);
-      lastSelectionToKepler = Object.freeze([rowIdentity]);
+      selectionFromKepler.expect(Object.freeze([rowIdentity]));
       view.select([target], { replace: true });
       appliedToHonua += 1;
       record({

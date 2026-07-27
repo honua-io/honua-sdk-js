@@ -203,6 +203,49 @@ describe("redactKeplerExportState", () => {
     expect(byPath.get("honua.transport.headers")?.kind).toBe("sensitive-key");
   });
 
+  it("strips URL userinfo credentials that the query and value scans cannot see", () => {
+    const result = redactKeplerExportState({
+      config: { mapStyle: { mapStyles: { custom: { url: "https://user:password@tiles.example.com/style.json" } } } },
+    });
+    const state = result.state as { config: { mapStyle: { mapStyles: { custom: { url: string } } } } };
+
+    expect(state.config.mapStyle.mapStyles.custom.url).toBe("https://tiles.example.com/style.json");
+    expect(result.redactions).toEqual([
+      {
+        path: "config.mapStyle.mapStyles.custom.url",
+        kind: "url-userinfo",
+        detail: "Removed userinfo credentials embedded in a URL.",
+      },
+    ]);
+  });
+
+  it("strips userinfo when only a password or only a username is present", () => {
+    expect(redactKeplerExportState({ url: "https://:password@tiles.example.com/style.json" }).state).toEqual({
+      url: "https://tiles.example.com/style.json",
+    });
+    expect(redactKeplerExportState({ url: "https://token@tiles.example.com/style.json" }).state).toEqual({
+      url: "https://tiles.example.com/style.json",
+    });
+  });
+
+  it("strips userinfo and signed parameters from the same URL", () => {
+    const result = redactKeplerExportState({
+      url: "https://user:password@tiles.example.com/{z}/{x}/{y}.png?X-Amz-Signature=deadbeef",
+    });
+    const state = result.state as { url: string };
+
+    expect(state.url).not.toContain("user:password@");
+    expect(state.url).toContain(`X-Amz-Signature=${encodeURIComponent(KEPLER_REDACTED)}`);
+    expect(result.redactions.map((entry) => entry.kind)).toEqual(["url-userinfo", "signed-url-parameter"]);
+  });
+
+  it("leaves a credential-free URL untouched", () => {
+    const result = redactKeplerExportState({ url: "https://tiles.example.com/{z}/{x}/{y}.png" });
+
+    expect(result.redacted).toBe(false);
+    expect((result.state as { url: string }).url).toBe("https://tiles.example.com/{z}/{x}/{y}.png");
+  });
+
   it("does not mutate the caller's state", () => {
     const original = savedMap();
     redactKeplerExportState(original);

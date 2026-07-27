@@ -109,6 +109,19 @@ export type KeplerReconciliationOperation =
       readonly detail: string;
     };
 
+/**
+ * A delta record whose `attributes` disagree with the envelope `id` it was
+ * addressed by. The envelope wins (it is the producer's addressing key), and
+ * the disagreement is surfaced rather than silently resolved.
+ */
+export interface KeplerIdentityMismatch {
+  /** Envelope id the row was addressed by and stored under. */
+  readonly id: string | number;
+  /** Conflicting value the record's attributes carried for the identity field. */
+  readonly attributeValue: unknown;
+  readonly field: string;
+}
+
 export interface KeplerReconciliationDiagnostic {
   readonly mode: "snapshot-replace" | "bounded-delta" | "rebuild-required";
   readonly bounded: boolean;
@@ -116,6 +129,8 @@ export interface KeplerReconciliationDiagnostic {
   readonly rowsUpdated: number;
   readonly rowsRemoved: number;
   readonly rowsUnmatchedDeletes: number;
+  /** Records whose attribute identity disagreed with the envelope id. */
+  readonly identityMismatches: readonly KeplerIdentityMismatch[];
   readonly rebuildReason?: KeplerRebuildReason;
   readonly detail: string;
 }
@@ -150,6 +165,7 @@ function rebuild(
       rowsUpdated: counts?.rowsUpdated ?? 0,
       rowsRemoved: counts?.rowsRemoved ?? 0,
       rowsUnmatchedDeletes: 0,
+      identityMismatches: Object.freeze([]),
       rebuildReason: reason,
       detail,
     }),
@@ -167,8 +183,22 @@ function rowIndexById(state: KeplerWorkspaceDatasetState, identityIndex: number)
   return index;
 }
 
-/** Project one delta record through the dataset's already-fixed field plan. */
-function buildRow(state: KeplerWorkspaceDatasetState, upsert: KeplerDeltaUpsert): unknown[] {
+/**
+ * Project one delta record through the dataset's already-fixed field plan.
+ *
+ * The identity column is written from the envelope's `id`, never from
+ * `attributes`. A delta whose attributes omit the identity field (a common
+ * sparse-patch shape) would otherwise land a `null` identity cell, and the next
+ * delta for the same row would fail to find it and append a duplicate. When
+ * `attributes` carries a *different* identity the envelope still wins — it is
+ * the addressing key the producer used for the delete/upsert — and the
+ * disagreement is reported through `identityMismatches`.
+ */
+function buildRow(
+  state: KeplerWorkspaceDatasetState,
+  upsert: KeplerDeltaUpsert,
+  identityMismatches: KeplerIdentityMismatch[],
+): unknown[] {
   const point = state.pointColumns === undefined ? undefined : pointCoordinates(upsert.geometry);
   const row: unknown[] = [];
   for (const field of state.fields) {
@@ -185,12 +215,34 @@ function buildRow(state: KeplerWorkspaceDatasetState, upsert: KeplerDeltaUpsert)
       row.push(geometry === null ? null : { type: "Feature", geometry, properties: {} });
       continue;
     }
+    if (field.name === state.rowIdentityField) {
+      const declared = upsert.attributes[field.name];
+      const identity = normalizeKeplerValue(upsert.id, field.type);
+      if (declared !== undefined && declared !== null) {
+        const normalizedDeclared = normalizeKeplerValue(declared, field.type);
+        if (normalizedDeclared !== identity) {
+          identityMismatches.push({
+            id: upsert.id,
+            attributeValue: declared,
+            field: field.name,
+          });
+        }
+      }
+      row.push(identity);
+      continue;
+    }
     row.push(normalizeKeplerValue(upsert.attributes[field.name], field.type));
   }
   return row;
 }
 
-function estimateRowBytes(rows: ReadonlyArray<readonly unknown[]>): number {
+/**
+ * Approximate retained bytes for a set of projected rows, using the same
+ * accounting the ingestion path reports as `metrics.estimatedRowBytes`. The
+ * workspace re-runs this after every accepted reconciliation so a grown dataset
+ * cannot keep being charged its original size against the global budget.
+ */
+export function estimateKeplerRowBytes(rows: ReadonlyArray<readonly unknown[]>): number {
   let bytes = 0;
   for (const row of rows) {
     for (const value of row) {
@@ -281,6 +333,7 @@ export function reconcileKeplerDataset(
         rowsUpdated: projection.dataset.data.rows.length,
         rowsRemoved: state.rows.length,
         rowsUnmatchedDeletes: 0,
+        identityMismatches: Object.freeze([]),
         detail:
           "The field plan is unchanged, so the snapshot replaces the dataset rows in place without rebuilding the workspace.",
       }),
@@ -355,6 +408,7 @@ export function reconcileKeplerDataset(
   const rows = state.rows.map((row) => row);
   const updates: Array<{ rowIndex: number; row: readonly unknown[] }> = [];
   const appends: Array<readonly unknown[]> = [];
+  const identityMismatches: KeplerIdentityMismatch[] = [];
 
   for (const upsert of upserts) {
     if (
@@ -370,7 +424,7 @@ export function reconcileKeplerDataset(
         `Delta upsert "${String(upsert.id)}" requires an attributes object.`,
       );
     }
-    const row = buildRow(state, upsert);
+    const row = buildRow(state, upsert, identityMismatches);
     const existing = index.get(String(upsert.id));
     if (existing === undefined) {
       index.set(String(upsert.id), rows.length);
@@ -403,7 +457,7 @@ export function reconcileKeplerDataset(
       { rowsAppended: appends.length, rowsUpdated: updates.length, rowsRemoved: removedIndexes.length },
     );
   }
-  const bytes = estimateRowBytes(rows);
+  const bytes = estimateKeplerRowBytes(rows);
   if (bytes > limits.maxRetainedRowBytes) {
     return rebuild(
       state.datasetId,
@@ -443,6 +497,7 @@ export function reconcileKeplerDataset(
       rowsUpdated: updates.length,
       rowsRemoved: removedIndexes.length,
       rowsUnmatchedDeletes: unmatched,
+      identityMismatches: Object.freeze([...identityMismatches]),
       detail:
         unmatched === 0
           ? "The delta was applied as bounded row operations against the loaded dataset."

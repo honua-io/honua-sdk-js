@@ -89,6 +89,11 @@ record (source id and version, schema version, plan id and fingerprint,
 authorization scope, attribution, freshness validators, and any source
 degradations), plus the ingestion diagnostic and its fidelity losses.
 
+Esri-JSON geometry is converted by the repository's canonical converter
+(`src/core/esri-geojson.ts`), so a polygon with several clockwise exterior rings
+becomes a `MultiPolygon` instead of one `Polygon` whose later exterior rings are
+misread as holes, and every ring is rewound to the RFC 7946 right-hand rule.
+
 Kepler renders WGS84 lon/lat only, so the bridge never silently reprojects: a
 non-WGS84 input throws `unsupported-crs` and tells the caller to reproject
 first. A declared field type with no Kepler equivalent is dropped with an
@@ -111,10 +116,21 @@ a direction (`bidirectional`, `honua-to-kepler`, `kepler-to-honua`,
 | `spatial-filter` | unsupported | Kepler's polygon filter is a client-side mask, not a server predicate |
 | `sort`, `pagination`, `grouping`, `aggregation`, `visible-fields` | unsupported | Honua query concerns with no Kepler workspace equivalent |
 
-`createKeplerLinkedStateSync()` is loop-free by construction. Two independent
-guards apply: the exploration view controller ignores its own notifications, and
-every channel memoizes the last value exchanged in each direction, so a Kepler
-store that echoes an update back is counted in `suppressedEchoes` and dropped.
+`createKeplerLinkedStateSync()` is loop-free by construction, without going
+stale. Three guards apply:
+
+1. The exploration view controller ignores its own notifications, so a
+   Kepler-originated intent never bounces straight back out.
+2. Each direction of each channel holds a **one-shot** echo marker: the value
+   this side just handed the other side, *consumed by the first matching echo*.
+   Retaining it instead would desynchronize the views on an `A → B → A`
+   sequence — after Honua sends `A` and Kepler moves to `B`, Kepler returning to
+   `A` would match the stale marker and be dropped, leaving Honua on `B`.
+3. A consecutive repeat of the value Kepler already reported is deduped
+   separately, since re-applying it is a no-op.
+
+Suppressed values are counted in `suppressedEchoes` and reported in
+`diagnostics`.
 
 ## Snapshot and bounded delta reconciliation
 
@@ -123,9 +139,50 @@ workspace. It returns bounded `replace-rows` / `update-rows` / `append-rows` /
 `remove-rows` operations, or a single `rebuild-workspace` operation carrying an
 explicit reason: `schema-changed`, `plan-identity-changed`,
 `authorization-scope-changed`, `missing-row-identity`, `resume-gap`,
-`delta-budget-exceeded`, or `row-budget-exceeded`. The delta event shape is
-structurally compatible with `@honua/sdk-js/realtime` snapshot and delta events,
-so a resumable subscription can drive it directly.
+`delta-budget-exceeded`, or `row-budget-exceeded`.
+
+A delta upsert addresses its row by the envelope's `id`, and that id — not
+`attributes` — is what lands in the identity column. Sparse patches that omit
+the identity field therefore stay addressable, and a patch whose attributes
+carry a *different* identity is reported in `diagnostic.identityMismatches`
+rather than silently splitting into a duplicate row.
+
+### Driving it from a realtime subscription
+
+The realtime and reconciliation models are close but not identical:
+`RealtimeFeaturePatch` carries the row under `feature`, and a
+`RealtimeSnapshotEvent` carries `features` rather than an already-projected
+dataset. Two adapters close that gap explicitly:
+
+- `keplerDeltaFromRealtimeEvent(event, options?)` accepts a `delta`, `upsert`,
+  or `delete` event and projects each patch's `feature` payload into
+  `{ attributes, geometry }`. The default projector understands a canonical
+  `HonuaTypedFeature`, a GeoJSON `Feature`, and a flat attribute record; supply
+  `projectFeature` for anything adapter-specific. `expectedPreviousCursor`,
+  `planId`, `schemaVersion`, and `authorizationScope` are supplied here because
+  realtime events do not carry them.
+- `keplerSnapshotFromRealtimeEvent(event, request, options?)` re-projects a
+  snapshot's `features` through the same ingestion mapping `openResult()` uses.
+
+```ts doc-test=compile
+import type { RealtimeDeltaEvent } from "@honua/sdk-js/realtime";
+import { keplerDeltaFromRealtimeEvent } from "@honua/sdk-js/kepler";
+
+interface Incident {
+  readonly attributes: { readonly objectid: number; readonly status: string };
+  readonly geometry?: { readonly x: number; readonly y: number };
+}
+
+const event: RealtimeDeltaEvent<Incident> = {
+  type: "delta",
+  upserts: [{ id: 1, feature: { attributes: { objectid: 1, status: "resolved" } } }],
+  deletes: [{ id: 2 }],
+  cursor: "cursor-2",
+};
+
+const delta = keplerDeltaFromRealtimeEvent(event, { expectedPreviousCursor: "cursor-1" });
+console.log(delta.upserts?.[0].attributes);
+```
 
 ## Credential safety
 
@@ -139,8 +196,10 @@ Two enforcement points, both on by default:
 2. **Export** redacts a Kepler saved map before it is persisted or shared:
    `redactKeplerExportState()` (also `bridge.exportState()`) removes
    credential-bearing config keys (`accessToken`, `mapboxApiAccessToken`,
-   `headers`, `cookie`, …), rewrites signed-URL parameters, and blanks opaque
-   token values, returning a per-path redaction report. Matching is fail-closed
+   `headers`, `cookie`, …), rewrites signed-URL parameters, strips URL userinfo
+   (`https://user:password@host/...`, which neither the parameter scan nor the
+   opaque-value scan can see), and blanks opaque token values, returning a
+   per-path redaction report. Matching is fail-closed
    and the walk is bounded — an over-budget state throws rather than silently
    truncating. The non-secret `authorizationScope` is preserved so provenance
    stays traceable.

@@ -283,6 +283,61 @@ describe("reconcileKeplerDataset — bounded delta", () => {
     });
   });
 
+  it("populates the identity column from the envelope id when attributes omit it", () => {
+    // A sparse patch that carries only the changed attribute. The identity cell
+    // must still be written, or the next delta cannot find the row.
+    const first = reconcileKeplerDataset(baseState(), {
+      type: "delta",
+      upserts: [{ id: 1, attributes: { status: "resolved" }, geometry: { x: -122.45, y: 37.85 } }],
+    });
+
+    expect(first.diagnostic.rowsUpdated).toBe(1);
+    expect(first.diagnostic.rowsAppended).toBe(0);
+    expect(first.nextState?.rows[0][0]).toBe(1);
+    expect(first.diagnostic.identityMismatches).toEqual([]);
+
+    // The follow-up delta for the same row must update it, not append a duplicate.
+    const second = reconcileKeplerDataset(first.nextState as KeplerWorkspaceDatasetState, {
+      type: "delta",
+      upserts: [{ id: 1, attributes: { status: "closed" } }],
+    });
+
+    expect(second.diagnostic.rowsAppended).toBe(0);
+    expect(second.diagnostic.rowsUpdated).toBe(1);
+    expect(second.nextState?.rows).toHaveLength(2);
+    expect(second.nextState?.rows[0][0]).toBe(1);
+    expect(second.nextState?.rows[0][1]).toBe("closed");
+  });
+
+  it("prefers the envelope id over a conflicting attribute identity and reports the mismatch", () => {
+    const plan = reconcileKeplerDataset(baseState(), {
+      type: "delta",
+      upserts: [{ id: 1, attributes: { objectid: 999, status: "resolved" } }],
+    });
+
+    expect(plan.diagnostic.rowsUpdated).toBe(1);
+    expect(plan.diagnostic.rowsAppended).toBe(0);
+    expect(plan.nextState?.rows[0][0]).toBe(1);
+    expect(plan.diagnostic.identityMismatches).toEqual([{ id: 1, attributeValue: 999, field: "objectid" }]);
+
+    // The row stays addressable under the envelope id.
+    const followUp = reconcileKeplerDataset(plan.nextState as KeplerWorkspaceDatasetState, {
+      type: "delta",
+      deletes: [{ id: 1 }],
+    });
+    expect(followUp.diagnostic.rowsRemoved).toBe(1);
+    expect(followUp.diagnostic.rowsUnmatchedDeletes).toBe(0);
+  });
+
+  it("keeps an agreeing attribute identity out of the mismatch report", () => {
+    const plan = reconcileKeplerDataset(baseState(), {
+      type: "delta",
+      upserts: [{ id: 1, attributes: { objectid: 1, status: "resolved" } }],
+    });
+
+    expect(plan.diagnostic.identityMismatches).toEqual([]);
+  });
+
   it("rejects a delta upsert without a usable identity", () => {
     expect(() =>
       reconcileKeplerDataset(baseState(), {

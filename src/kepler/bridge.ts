@@ -28,7 +28,7 @@ import type {
   KeplerReconciliationPlan,
   KeplerWorkspaceDatasetState,
 } from "./reconciliation.js";
-import { keplerDatasetStateFromProjection, reconcileKeplerDataset } from "./reconciliation.js";
+import { estimateKeplerRowBytes, keplerDatasetStateFromProjection, reconcileKeplerDataset } from "./reconciliation.js";
 import type { KeplerRedactionResult, RedactKeplerExportStateOptions } from "./redaction.js";
 import { redactKeplerExportState } from "./redaction.js";
 import type {
@@ -292,6 +292,8 @@ export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridge
   }
   const states = new Map<string, KeplerWorkspaceDatasetState>();
   const projections = new Map<string, KeplerDatasetProjection>();
+  /** Current approximate retained row bytes per open dataset. */
+  const retained = new Map<string, number>();
   const syncs = new Set<KeplerLinkedStateSync>();
   let disposed = false;
 
@@ -318,9 +320,19 @@ export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridge
     return state;
   }
 
-  function retainedBytes(): number {
+  /**
+   * Live retained-byte total. Read from `retained`, which is re-measured after
+   * every accepted reconciliation — the opening projection's
+   * `metrics.estimatedRowBytes` only describes the dataset as first loaded, so
+   * charging that forever would let deltas grow a workspace past the global
+   * budget while metrics reported the original size.
+   */
+  function retainedBytes(excludeDatasetId?: string): number {
     let bytes = 0;
-    for (const projection of projections.values()) bytes += projection.metrics.estimatedRowBytes;
+    for (const [datasetId, datasetBytes] of retained) {
+      if (datasetId === excludeDatasetId) continue;
+      bytes += datasetBytes;
+    }
     return bytes;
   }
 
@@ -360,6 +372,7 @@ export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridge
     }
     states.set(datasetId, keplerDatasetStateFromProjection(projection));
     projections.set(datasetId, projection);
+    retained.set(datasetId, projection.metrics.estimatedRowBytes);
     const payload = Object.freeze({
       datasets: [projection.dataset],
       options: Object.freeze({ centerMap: false, readOnly: false }),
@@ -414,7 +427,37 @@ export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridge
       assertLive("reconcile");
       const state = requireState(datasetId);
       const plan = reconcileKeplerDataset(state, event, limits);
-      if (plan.nextState !== undefined) states.set(datasetId, plan.nextState);
+      if (plan.nextState === undefined) return plan;
+      // The per-dataset ceilings were already enforced by the reconciler; the
+      // workspace still owns the global one, and a grown dataset must be
+      // re-measured before it is accepted or the total silently drifts.
+      const nextDatasetBytes = estimateKeplerRowBytes(plan.nextState.rows);
+      const nextTotal = retainedBytes(datasetId) + nextDatasetBytes;
+      if (nextTotal > limits.maxRetainedRowBytes) {
+        return Object.freeze({
+          operations: Object.freeze([
+            Object.freeze({
+              kind: "rebuild-workspace" as const,
+              datasetId,
+              reason: "row-budget-exceeded" as const,
+              detail: `Applying the update would retain approximately ${nextTotal} bytes across the workspace, over the ${limits.maxRetainedRowBytes}-byte budget.`,
+            }),
+          ]),
+          diagnostic: Object.freeze({
+            mode: "rebuild-required" as const,
+            bounded: false,
+            rowsAppended: 0,
+            rowsUpdated: 0,
+            rowsRemoved: 0,
+            rowsUnmatchedDeletes: 0,
+            identityMismatches: Object.freeze([]),
+            rebuildReason: "row-budget-exceeded" as const,
+            detail: `Applying the update would retain approximately ${nextTotal} bytes across the workspace, over the ${limits.maxRetainedRowBytes}-byte budget.`,
+          }),
+        });
+      }
+      states.set(datasetId, plan.nextState);
+      retained.set(datasetId, nextDatasetBytes);
       return plan;
     },
     linkState(linkOptions) {
@@ -441,6 +484,7 @@ export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridge
       requireState(datasetId);
       states.delete(datasetId);
       projections.delete(datasetId);
+      retained.delete(datasetId);
       if (typeof peers.removeDataset === "function") dispatch(peers.removeDataset(datasetId));
     },
     dispose() {
@@ -450,6 +494,7 @@ export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridge
       syncs.clear();
       states.clear();
       projections.clear();
+      retained.clear();
     },
   };
 }

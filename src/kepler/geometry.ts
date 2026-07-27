@@ -1,16 +1,24 @@
 /**
- * Dependency-free geometry classification for the Kepler bridge.
+ * Geometry classification for the Kepler bridge.
  *
- * The MapLibre adapters' converter (`src/map/geojson-projection.ts`) sits on
- * the `HonuaClient`/`HonuaFeatureLayer` graph, which the `/kepler` bundle
- * budget forbids. This module therefore keeps a minimal, self-contained
- * classifier whose only job is to answer two questions the ingestion mapping
- * needs: "is this geometry a single point?" (direct lon/lat columns, no GeoJSON)
- * and "what GeoJSON geometry does it become?" (the measured fallback).
+ * Esri-JSON to GeoJSON conversion is delegated to the repository's canonical
+ * converter (`src/core/esri-geojson.ts`), which groups clockwise exterior rings
+ * into a `MultiPolygon` and rewinds every ring to the RFC 7946 right-hand rule.
+ * A local reimplementation emitted a single `Polygon`, which silently turned
+ * later exterior rings into holes of the first. The canonical module is
+ * dependency-free (its only imports are type-only), so reusing it costs the
+ * `/kepler` bundle nothing beyond its own code — unlike the MapLibre adapters'
+ * converter, which sits on the `HonuaClient`/`HonuaFeatureLayer` graph.
+ *
+ * What stays local is only what the ingestion mapping itself needs: "is this
+ * geometry a single point?" (direct lon/lat columns, no GeoJSON) and the
+ * pass-through for geometry that already arrived as GeoJSON.
  *
  * @experimental
  * @module
  */
+
+import { esriGeometryToGeoJSON } from "../core/esri-geojson.js";
 
 export interface KeplerGeoJsonGeometry {
   readonly type: string;
@@ -37,16 +45,6 @@ function coordinatePair(value: unknown): readonly [number, number] | undefined {
   return x === undefined || y === undefined ? undefined : [x, y];
 }
 
-function coordinateArray(value: unknown): Array<readonly [number, number]> {
-  if (!Array.isArray(value)) return [];
-  const output: Array<readonly [number, number]> = [];
-  for (const entry of value) {
-    const pair = coordinatePair(entry);
-    if (pair) output.push(pair);
-  }
-  return output;
-}
-
 /**
  * Longitude/latitude of a single-point geometry, or `undefined` when the
  * geometry is absent, multi-vertex, or unrecognized. Accepts Esri `{x, y}` and
@@ -65,6 +63,12 @@ export function pointCoordinates(geometry: unknown): readonly [number, number] |
  * Convert a canonical Honua geometry (GeoJSON or Esri JSON) into GeoJSON.
  * Returns `null` for absent or unrecognized geometry so the row still projects
  * attribute-only.
+ *
+ * Geometry that already arrived as GeoJSON passes through untouched; Esri-JSON
+ * is delegated to {@link esriGeometryToGeoJSON}, so multi-exterior-ring
+ * polygons become a `MultiPolygon` (not one `Polygon` whose later exterior
+ * rings are misread as holes) and every ring is rewound to the RFC 7946
+ * right-hand rule Kepler's GeoJSON layer expects.
  */
 export function toKeplerGeoJsonGeometry(geometry: unknown): KeplerGeoJsonGeometry | null {
   if (!geometry || typeof geometry !== "object") return null;
@@ -73,41 +77,7 @@ export function toKeplerGeoJsonGeometry(geometry: unknown): KeplerGeoJsonGeometr
   if (typeof declaredType === "string" && GEOJSON_GEOMETRY_TYPES.has(declaredType) && "coordinates" in record) {
     return { type: declaredType, coordinates: record["coordinates"] };
   }
-  const point = pointCoordinates(record);
-  if (point) return { type: "Point", coordinates: [point[0], point[1]] };
-  if (Array.isArray(record["points"])) {
-    return { type: "MultiPoint", coordinates: coordinateArray(record["points"]) };
-  }
-  if (Array.isArray(record["paths"])) {
-    const paths = (record["paths"] as unknown[]).map(coordinateArray).filter((path) => path.length > 0);
-    if (paths.length === 0) return null;
-    return paths.length === 1
-      ? { type: "LineString", coordinates: paths[0] }
-      : { type: "MultiLineString", coordinates: paths };
-  }
-  if (Array.isArray(record["rings"])) {
-    const rings = (record["rings"] as unknown[]).map(coordinateArray).filter((ring) => ring.length > 0);
-    return rings.length === 0 ? null : { type: "Polygon", coordinates: rings };
-  }
-  const xmin = finite(record["xmin"]);
-  const ymin = finite(record["ymin"]);
-  const xmax = finite(record["xmax"]);
-  const ymax = finite(record["ymax"]);
-  if (xmin !== undefined && ymin !== undefined && xmax !== undefined && ymax !== undefined) {
-    return {
-      type: "Polygon",
-      coordinates: [
-        [
-          [xmin, ymin],
-          [xmax, ymin],
-          [xmax, ymax],
-          [xmin, ymax],
-          [xmin, ymin],
-        ],
-      ],
-    };
-  }
-  return null;
+  return esriGeometryToGeoJSON(record);
 }
 
 /** UTF-8 byte length of a JSON value, used as the GeoJSON round-trip metric. */

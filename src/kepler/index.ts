@@ -93,10 +93,27 @@ export type {
   KeplerViewportSize,
 } from "./linked-state.js";
 
-export { keplerDatasetStateFromProjection, reconcileKeplerDataset } from "./reconciliation.js";
+export {
+  defaultKeplerRealtimeFeatureProjector,
+  keplerDeltaFromRealtimeEvent,
+  keplerSnapshotFromRealtimeEvent,
+} from "./realtime-bridge.js";
+export type {
+  KeplerFeatureShape,
+  KeplerRealtimeAdapterOptions,
+  KeplerRealtimeFeatureProjector,
+  KeplerRealtimeSnapshotOptions,
+} from "./realtime-bridge.js";
+
+export {
+  estimateKeplerRowBytes,
+  keplerDatasetStateFromProjection,
+  reconcileKeplerDataset,
+} from "./reconciliation.js";
 export type {
   KeplerDeltaDelete,
   KeplerDeltaUpsert,
+  KeplerIdentityMismatch,
   KeplerRebuildReason,
   KeplerReconciliationDiagnostic,
   KeplerReconciliationEvent,
