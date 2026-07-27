@@ -335,10 +335,23 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   /**
    * Records the host's current selection (table row, map click, search result)
    * so `update` / `delete` availability reflects it before a draft is opened.
-   * Ignored while a draft is open — an open draft owns its identity.
+   *
+   * Ignored while a draft is open — an open draft owns its identity. A
+   * *committed* draft is the one exception: it is finished, and the host's
+   * re-read of the record it just wrote carries the only fresh concurrency
+   * token there is. Refusing it would leave `selection()` on the pre-commit
+   * feature, so the next `update` would reopen on a stale token the service has
+   * to reject. Accepting it closes the finished draft without touching the
+   * committed status or message — nothing about the commit is retracted.
    */
   public setSelection(feature: CanonicalFeature<T> | undefined): HonuaFeatureEditorSnapshot {
-    if (this.#model) return this.snapshot();
+    if (this.#model && this.#status !== "committed") return this.snapshot();
+    if (this.#model) {
+      this.#model = undefined;
+      this.#operation = undefined;
+      this.#baseline = undefined;
+      this.#attachments = [];
+    }
     this.#selection = feature ? cloneFeature(feature) : undefined;
     this.#identity = this.#identityFor(feature);
     return this.#notify();
@@ -686,6 +699,42 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     this.#failures = [];
     this.#message = "Keeping your changes. Submitting again will overwrite the other edit.";
     return this.#notify();
+  }
+
+  /**
+   * Adopts the service's post-write concurrency token into a draft that stays
+   * open on purpose — the partial outcome where the feature edit applied and
+   * only an attachment was refused (issue #680).
+   *
+   * A protocol like GeoServices returns nothing but `objectId` and `success`
+   * from `applyEdits`, so the new token exists only in the host's re-read of the
+   * record. Feeding that back through {@link setValue} would read as a user
+   * revision and clear the rejected status and the recorded failures — erasing
+   * exactly the truth about what the service refused. This does not: status,
+   * failures, and staged-attachment outcomes all survive, so {@link retry}
+   * re-transports the same recovery against the version now on file instead of
+   * the one the accepted write already consumed.
+   *
+   * The draft's own baseline is deliberately left alone: it is still the values
+   * this draft opened on, and moving it could make an unrelated server-assigned
+   * field look like a read-only edit the user made.
+   *
+   * Returns `false` — changing nothing — when no draft is open, when the record
+   * is a different feature, or when the source publishes no concurrency token.
+   */
+  public adoptServerState(feature: CanonicalFeature<T>): boolean {
+    const model = this.#model;
+    const identity = this.#identity;
+    if (!model || identity?.featureId === undefined) return false;
+    if (feature.id === undefined || String(feature.id) !== String(identity.featureId)) return false;
+    const field = identity.versionField;
+    if (field === undefined) return false;
+    const token = (feature.attributes as Record<string, unknown>)[field];
+    if (token === undefined) return false;
+    model.setValue(field, token);
+    this.#identity = { ...identity, version: token };
+    this.#notify();
+    return true;
   }
 
   // ── realtime reconciliation ────────────────────────────────────────────

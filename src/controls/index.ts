@@ -61,6 +61,26 @@ export { HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js"
 export type { HonuaLegendDeriveErrorCode } from "./legend-derive.js";
 export { HonuaLegendElement, defineHonuaLegend } from "./legend.js";
 export {
+  HONUA_COMPONENT_QUALIFICATION_DATA_VERSION,
+  HONUA_COMPONENT_QUALIFICATION_GATES,
+  HONUA_COMPONENT_QUALIFICATION_STATUSES,
+  describeComponentQualificationGate,
+  getComponentQualification,
+  isComponentProductionQualified,
+  listOpenQualificationGates,
+  listComponentQualifications,
+  summarizeComponentQualification,
+} from "./qualification.js";
+export type {
+  HonuaComponentQualification,
+  HonuaComponentQualificationCell,
+  HonuaComponentQualificationGate,
+  HonuaComponentQualificationGateId,
+  HonuaComponentQualificationRequirement,
+  HonuaComponentQualificationStatus,
+  HonuaComponentQualificationSummary,
+} from "./qualification.js";
+export {
   HonuaComponentCatalogError,
   createComponentRegistry,
   registerAllComponents,

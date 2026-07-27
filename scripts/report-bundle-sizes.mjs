@@ -65,6 +65,29 @@ const SHARED_ESBUILD_OPTIONS = {
 };
 
 /**
+ * Static inputs the app-platform component kits must never retain (issue #683
+ * NFR-001). Renderers, document/image encoders, and localization frameworks all
+ * belong on the application side of the export-adapter seam; a test-only peer in
+ * a shipped component bundle is always a packaging mistake.
+ */
+const COMPONENT_KIT_FORBIDDEN_INPUTS = [
+  "node_modules/maplibre-gl/",
+  "node_modules/cesium/",
+  "node_modules/@deck.gl/",
+  "node_modules/geotiff/",
+  "node_modules/jspdf/",
+  "node_modules/pdfkit/",
+  "node_modules/html2canvas/",
+  "node_modules/canvas/",
+  "node_modules/i18next/",
+  "node_modules/intl-messageformat/",
+  "node_modules/@formatjs/",
+  "node_modules/vitest/",
+  "node_modules/jsdom/",
+  "node_modules/@playwright/",
+];
+
+/**
  * The measurable surface. Keys match `bundle-budgets.json`.
  *   - kind "bundle": bundled from a dist entry file.
  *   - kind "prebuilt": measured directly from an already-built artifact.
@@ -149,6 +172,42 @@ const TARGETS = [
     kind: "bundle",
     entry: "dist/src/deckgl/index.js",
     label: "`/deckgl` (deck.gl external — lazy peer)",
+  },
+  // The two app-platform component kits (issue #683 NFR-001). Both are budgeted
+  // and both forbid a renderer, PDF writer, image encoder, localization
+  // framework, or test-only peer in the static graph: secure export reaches all
+  // of those through the application-supplied adapter seam, never through the
+  // component bundle.
+  //
+  // Note on `/controls`: this measurement is deliberately the *pessimistic* one.
+  // `src/controls/registry.ts` reaches the web-components kit through a dynamic
+  // `import()` precisely so a controls-only consumer never pays for it, and a
+  // real Rollup/Vite build emits that as a separate lazily-fetched chunk. The
+  // measurement here bundles dynamic imports into the same graph, so the
+  // reported size is the worst case in which a consumer registers a
+  // web-components-sourced tag and pays for both kits. That is the honest
+  // ceiling to budget against; it is not evidence that the eager controls path
+  // retains the SDK core.
+  {
+    key: "/controls",
+    kind: "bundle",
+    entry: "dist/src/controls/index.js",
+    label: "`/controls` (framework-free control kit; includes the lazy web-components registration chunk)",
+    forbiddenInputs: COMPONENT_KIT_FORBIDDEN_INPUTS,
+  },
+  {
+    key: "/web-components",
+    kind: "bundle",
+    entry: "dist/src/web-components/index.js",
+    label: "`/web-components` (custom-element kit; maplibre-gl external, export adapters injected)",
+    forbiddenInputs: COMPONENT_KIT_FORBIDDEN_INPUTS,
+  },
+  {
+    key: "/kepler",
+    kind: "bundle",
+    entry: "dist/src/kepler/index.js",
+    label: "`/kepler` (kepler.gl/react/redux absent — dynamic optional peer)",
+    forbiddenInputs: ["node_modules/@kepler.gl/", "node_modules/react/", "node_modules/react-dom/", "node_modules/redux/"],
   },
   {
     key: "/analytics",

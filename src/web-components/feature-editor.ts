@@ -586,24 +586,23 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
       this.render();
       return;
     }
-    if (typeof parsed !== "object" || parsed === null || typeof (parsed as { type?: unknown }).type !== "string") {
-      this.#geometryError = 'A geometry needs a "type" (for example {"type":"Point","coordinates":[0,0]}).';
+    if (!isEditableGeometry(parsed)) {
+      this.#geometryError =
+        'A geometry needs a GeoJSON "type" (for example {"type":"Point","coordinates":[0,0]}) or an Esri x/y, rings, or paths shape.';
       this.render();
       return;
     }
     this.#geometryError = undefined;
     this.#geometryDraft = undefined;
-    workflow.setGeometry(this.#activeTool(parsed as Record<string, unknown>), parsed as Record<string, unknown>);
+    workflow.setGeometry(this.#activeTool(parsed), parsed);
   }
 
   #activeTool(geometry?: Record<string, unknown>): EditSketchTool {
     const snapshot = this.#snapshot;
     const active = snapshot?.sketch?.activeTool;
     if (active) return active;
-    const type = typeof geometry?.type === "string" ? (geometry.type as string).toLowerCase() : "";
-    if (type.includes("polygon")) return "polygon";
-    if (type.includes("line")) return "line";
-    if (type.includes("point")) return "point";
+    const inferred = geometry ? inferSketchTool(geometry) : undefined;
+    if (inferred) return inferred;
     const supported = snapshot?.sketch?.tools.find((capability) => capability.state === "supported");
     return supported?.tool ?? "point";
   }
@@ -636,6 +635,37 @@ const CONFLICT_LABELS: Readonly<Record<HonuaFeatureEditorConflictChoice, string>
 
 function toolLabel(tool: EditSketchTool): string {
   return tool.charAt(0).toUpperCase() + tool.slice(1);
+}
+
+/**
+ * Whether a parsed geometry may be handed back to the workflow.
+ *
+ * The contract carries protocol-shaped geometry (`Record<string, unknown>`), so
+ * a GeoServices source round-trips Esri geometry, not GeoJSON. Requiring a
+ * GeoJSON `type` here would make the element render a geometry in the textarea
+ * that **Apply geometry** then refuses — which also strands the keyboard-only
+ * geometry path (NFR-001) on every Esri-backed source.
+ */
+function isEditableGeometry(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.type === "string") return true;
+  if (typeof candidate.x === "number" && typeof candidate.y === "number") return true;
+  return Array.isArray(candidate.rings) || Array.isArray(candidate.paths) || Array.isArray(candidate.points);
+}
+
+/** Best-effort tool for a geometry, across GeoJSON and Esri shapes. */
+function inferSketchTool(geometry: Record<string, unknown>): EditSketchTool | undefined {
+  const type = typeof geometry.type === "string" ? geometry.type.toLowerCase() : "";
+  if (type.includes("polygon")) return "polygon";
+  if (type.includes("line")) return "line";
+  if (type.includes("point")) return "point";
+  if (Array.isArray(geometry.rings)) return "polygon";
+  if (Array.isArray(geometry.paths)) return "line";
+  if (Array.isArray(geometry.points) || (typeof geometry.x === "number" && typeof geometry.y === "number")) {
+    return "point";
+  }
+  return undefined;
 }
 
 function geometryStateText(sketch: NonNullable<HonuaFeatureEditorSnapshot["sketch"]>): string {

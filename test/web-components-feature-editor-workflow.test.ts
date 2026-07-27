@@ -52,6 +52,14 @@ const SCHEMA_FIELDS = [
   { name: "version", type: "esriFieldTypeInteger", alias: "Version", editable: false },
 ];
 
+/**
+ * Same schema with a writable concurrency token — the shape a GeoServices
+ * layer publishes when the host is expected to pass the version back on update.
+ */
+const EDITABLE_VERSION_FIELDS = SCHEMA_FIELDS.map((field) =>
+  field.name === "version" ? { ...field, editable: true } : field,
+);
+
 const SUBTYPES: HonuaEditorSubtypeConfig = {
   field: "permit_kind",
   defaultCode: 1,
@@ -252,6 +260,35 @@ describe("HonuaFeatureEditorWorkflow — capability gating", () => {
     workflow.setSelection(existing({ OBJECTID: 42 }));
     expect(workflow.snapshot().identity?.featureId).toBe(1);
     expect(workflow.snapshot().form?.controls.find((c) => c.name === "status")?.value).toBe("closed");
+  });
+
+  // Regression (issue #680): a committed draft used to keep owning the
+  // selection, so the next `update` reopened on the token the commit already
+  // consumed and the service had to reject it.
+  it("rebinds a committed draft to the host's re-read so the next update carries the fresh token", async () => {
+    const { source, applyEdits } = makeSource({ fields: EDITABLE_VERSION_FIELDS });
+    const workflow = createFeatureEditorWorkflow({ source });
+    workflow.setSelection(existing({ version: 7 }));
+    workflow.begin("update");
+    workflow.setValue("status", "closed");
+    expect((await workflow.submit()).status).toBe("committed");
+
+    // The host re-reads the record it just wrote; the service moved to 8.
+    workflow.setSelection(existing({ version: 8, status: "closed" }));
+
+    const reconciled = workflow.snapshot();
+    // Nothing about the commit is retracted, but the finished draft is closed.
+    expect(reconciled.status).toBe("committed");
+    expect(reconciled.message).toMatch(/updated/i);
+    expect(reconciled.form).toBeUndefined();
+    expect(workflow.selection()?.attributes.version).toBe(8);
+    expect(reconciled.identity?.version).toBe(8);
+
+    applyEdits.mockClear();
+    workflow.begin("update");
+    workflow.setValue("status", "open");
+    expect((await workflow.submit()).status).toBe("committed");
+    expect(applyEdits.mock.calls[0]?.[0].updates?.[0]?.attributes.version).toBe(8);
   });
 });
 
@@ -488,6 +525,64 @@ describe("HonuaFeatureEditorWorkflow — submit outcomes", () => {
     expect(commit.snapshot.message).toMatch(/only partly applied/i);
     expect(commit.attachments[0]).toMatchObject({ name: "plan.pdf", status: "failed" });
     expect(JSON.stringify(commit)).not.toContain("SECRET");
+  });
+
+  // Regression (issue #680): the feature write really did land, so the record
+  // on file moved. Without adopting the new token the enabled Retry would
+  // re-transport the version the accepted write already consumed and the
+  // service would answer with a version conflict the reviewer never caused.
+  it("adopts the post-write token after a partial outcome without erasing the failure it follows", async () => {
+    const { source, applyEdits } = makeSource({
+      capabilities: ["query", "applyEdits", "attachments"],
+      fields: EDITABLE_VERSION_FIELDS,
+      attachments: {
+        add: async () => ({
+          parentId: 1,
+          attachmentId: 0,
+          success: false,
+          error: { code: 413, description: "site plan exceeds the upload limit" },
+        }),
+      },
+    });
+    const workflow = createFeatureEditorWorkflow({ source });
+    workflow.setSelection(existing({ version: 7 }));
+    workflow.begin("update");
+    workflow.setValue("status", "closed");
+    workflow.stageAttachment("blob://plan", { name: "plan.pdf" });
+
+    const commit = await workflow.submit();
+    expect(commit.status).toBe("rejected");
+    expect(commit.transported).toBe(true);
+    expect(commit.attachments[0]).toMatchObject({ name: "plan.pdf", status: "failed" });
+    expect(workflow.snapshot().identity?.versionField).toBe("version");
+
+    // The host re-reads: the feature write landed and the service is at 8.
+    expect(workflow.adoptServerState(existing({ version: 8, status: "closed" }))).toBe(true);
+
+    const after = workflow.snapshot();
+    // The rejected truth survives the reconciliation.
+    expect(after.status).toBe("rejected");
+    expect(after.message).toMatch(/only partly applied/i);
+    expect(after.failures.length).toBeGreaterThan(0);
+    expect(after.attachments[0]).toMatchObject({ name: "plan.pdf", status: "failed" });
+    expect(after.form?.controls.find((control) => control.name === "status")?.value).toBe("closed");
+    expect(after.identity?.version).toBe(8);
+
+    applyEdits.mockClear();
+    await workflow.retry();
+    expect(applyEdits.mock.calls[0]?.[0].updates?.[0]?.attributes.version).toBe(8);
+  });
+
+  it("refuses to adopt server state for a different feature, or with no draft open", async () => {
+    const { source } = makeSource({ fields: EDITABLE_VERSION_FIELDS });
+    const workflow = createFeatureEditorWorkflow({ source });
+    workflow.setSelection(existing({ version: 7 }));
+    // No draft open yet.
+    expect(workflow.adoptServerState(existing({ version: 8 }))).toBe(false);
+
+    workflow.begin("update");
+    expect(workflow.adoptServerState({ ...existing({ version: 9 }), id: 42 })).toBe(false);
+    expect(workflow.snapshot().identity?.version).toBe(7);
   });
 
   it("refuses to stage an attachment for a source without attachment support", async () => {

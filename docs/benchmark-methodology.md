@@ -120,13 +120,49 @@ The shared schema is published at
 [`samples/contract/v1/schemas/sample-evidence.schema.json`](../samples/contract/v1/schemas/sample-evidence.schema.json).
 Every target records:
 
-- passed, failed, or skipped status, with a reason for skips
+- passed, failed, or skipped status, with a reason and a typed
+  `skipReasonCode` for skips
 - sanitized endpoint and provider identity
 - endpoint/protocol version when advertised
 - observation time, response date, source timestamp, ETag, and Last-Modified
 - authentication mode (`anonymous` or `api-key`), never the credential
 - requested-URL provenance, latency, and result-shape checks
 - journey time to the first successful query and its visible data outcome
+
+### Skip taxonomy
+
+A skip must be a positive finding, never a swallowed error. A target may only
+report `skipped` when the probe established that the live environment cannot
+demonstrate the journey, and it must publish the reason code that says which
+condition applied:
+
+| `skipReasonCode` | Condition | Incident `realtime.reconnectOutcome` |
+| --- | --- | --- |
+| `live-probes-disabled` | The lane was not enabled, so nothing was contacted | `not-attempted-live-probes-disabled` |
+| `operator-requested-skip` | An operator supplied an explicit skip reason for the target | `not-attempted-operator-skip` |
+| `realtime-capability-probe-unavailable` | The realtime capability endpoint answered 403 or 404 | `not-attempted-capability-unavailable` |
+| `realtime-capability-disabled` | The capability probe succeeded and reported the stream as not enabled | `not-attempted-capability-unavailable` |
+| `incident-demo-dataset-empty` | The capability is enabled, but the demo incident feature service returned a well-formed, zero-feature snapshot | `not-attempted-demo-dataset-empty` |
+
+The schema requires `skipReasonCode` on every skipped target and forbids it on
+any other status, so an untyped skip cannot be published.
+
+Every other outcome stays `failed`: a transport error, a non-2xx status, a
+timeout, a GeoServices error payload behind HTTP 200, or a response whose shape
+does not match the protocol. In particular, an empty incident snapshot is a skip
+only when the response was authenticated and schema-valid and simply carried no
+features; a snapshot-plus-delta journey cannot be demonstrated against an empty
+dataset, so claiming an execution would be dishonest. Seeding the demo incident
+dataset is tracked in
+[honua-sdk-js#812](https://github.com/honua-io/honua-sdk-js/issues/812); until it
+lands, the skip is the truthful attestation.
+
+The sample evidence envelope has no free-form code field, so the reason code is
+republished there as an additional `degradation.reasons` entry, and the incident
+target's `realtime.reconnectOutcome` carries a distinct value per condition, as
+above. A condition never borrows another's outcome: an operator skip reports
+`not-attempted-operator-skip` rather than implying a capability finding it never
+made.
 
 These HTTP probes explicitly mark browser console and accessibility evidence as
 not applicable. Browser rendering and interaction evidence is recorded only by

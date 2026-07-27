@@ -19,6 +19,21 @@ import {
 } from "./lib/sample-gates.mjs";
 import { loadCapabilityKeyList } from "./lib/capability-key-list.mjs";
 import {
+  readReleaseMatrixLaneRegistry,
+  readReleaseMatrixReceipt,
+  recordedReleaseMatrixLaneRegistry,
+  RELEASE_MATRIX_LANES_PATH,
+  RELEASE_MATRIX_RECEIPT_FILE_NAME,
+  RELEASE_MATRIX_SAMPLE_IDS,
+  releaseMatrixEvidenceProjection,
+  releaseMatrixGateOutcome,
+  releaseMatrixLaneEstablished,
+  releaseMatrixMissingReceiptMessage,
+  releaseMatrixReceiptRelativePath,
+  releaseMatrixReceiptRelaxed,
+  validateReleaseMatrixLaneRegistry,
+} from "./lib/release-matrix-receipt.mjs";
+import {
   readCanonicalBoundedFile,
   requiredReceiptGates,
   validateGateReceipt,
@@ -3240,6 +3255,20 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     );
   }
 
+  // Release-matrix browser evidence (honua-io/honua-sdk-js#766, split from
+  // #687). The per-gate `browser` receipt only ever proves the Chromium-only
+  // default Playwright lane, so a Firefox or WebKit regression observed by the
+  // release smoke has to bind the golden qualification through its own sealed
+  // receipt. This runs outside the qualification-bootstrap exemption above: the
+  // matrix lane is independent of the reseal circularity, and a bootstrap pass
+  // must not be able to launder a failing engine.
+  await validateReleaseMatrixEvidence(goldenSamples, {
+    receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT)),
+    now: new Date(currentTime).toISOString(),
+    relaxDerivedArtifacts: options.relaxDerivedArtifacts === true || derivedArtifactsRelaxed(),
+    laneRegistryPath: options.releaseMatrixLaneRegistryPath,
+  });
+
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
     .filter((sample) => sample.sourceKind === "root-example")
@@ -3718,7 +3747,118 @@ function exactEvidenceDirectoryNames(entries, expectedNames, label, options = {}
   );
 }
 
-async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds, legacyLiveEvidenceFileBySample = new Map()) {
+/**
+ * Samples whose golden qualification is bound to the release-only cross-browser
+ * matrix, restricted to catalog-golden candidates so an orphan sidecar can never
+ * declare a lane for itself.
+ */
+function releaseMatrixGatedSampleIds(goldenSamples) {
+  return goldenSamples
+    .map((sample) => sample.id)
+    .filter((sampleId) => RELEASE_MATRIX_SAMPLE_IDS.includes(sampleId))
+    .sort();
+}
+
+/**
+ * Maps every release-matrix sample whose sidecar the strict evidence-root
+ * inventory must account for.
+ *
+ * A sample is included when the establishment registry names it -- and then the
+ * file is REQUIRED, so a deleted receipt fails here too and not only in the
+ * staleness gate -- or when a sidecar exists (the pre-establishment window
+ * between the first seal and the automation commit that records the lane). A
+ * sample with neither is legitimately not established.
+ *
+ * This requirement is not relaxed for the publication automation. That relaxation
+ * exists so a FAILING receipt can be committed; it must never let a generator
+ * publish a qualified projection for an established lane whose sealed evidence
+ * has been removed.
+ */
+async function releaseMatrixSidecarFileBySample(receiptRoot, sampleIds, laneRegistry) {
+  const sidecars = new Map();
+  for (const sampleId of sampleIds) {
+    if (!RELEASE_MATRIX_SAMPLE_IDS.includes(sampleId)) continue;
+    if (releaseMatrixLaneEstablished(laneRegistry, sampleId)) {
+      const established = path.join(receiptRoot, sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME);
+      try {
+        await lstat(established);
+      } catch (error) {
+        if (error?.code === "ENOENT") throw new Error(releaseMatrixMissingReceiptMessage(sampleId));
+        throw error;
+      }
+      sidecars.set(sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME);
+      continue;
+    }
+    try {
+      const metadata = await lstat(path.join(receiptRoot, sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME));
+      invariant(
+        metadata.isFile() && !metadata.isSymbolicLink(),
+        `${sampleId}: release-matrix receipt must be a regular non-symlink file`,
+      );
+      sidecars.set(sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  return sidecars;
+}
+
+/**
+ * Gates golden qualification staleness on the release-matrix receipt (REQ-003).
+ * Severity policy lives in scripts/lib/release-matrix-receipt.mjs: a failing
+ * receipt -- or a receipt that has been DELETED after the lane was established
+ * in samples/contract/v2/release-matrix-lanes.v1.json -- is an error everywhere
+ * except the persistence automation; a lapsed one is an error in strict lanes;
+ * and a lane that has never been established is a note, so merging the gate
+ * cannot redden CI before the first matrix run.
+ */
+const reportedReleaseMatrixNotes = new Set();
+
+async function validateReleaseMatrixEvidence(goldenSamples, options = {}) {
+  const relaxed = releaseMatrixReceiptRelaxed();
+  const notes = [];
+  // options.laneRegistryPath exists so adversarial tests can point the gate at a
+  // fixture registry under test/fixtures without writing to the real contract
+  // tree. Production callers always read the canonical committed path.
+  const laneRegistry = await readReleaseMatrixLaneRegistry({
+    projectRoot: PROJECT_ROOT,
+    registryPath: options.laneRegistryPath,
+    now: options.now,
+  });
+  for (const sampleId of releaseMatrixGatedSampleIds(goldenSamples)) {
+    const record = await readReleaseMatrixReceipt({
+      sampleId,
+      projectRoot: PROJECT_ROOT,
+      receiptRoot: options.receiptRoot,
+      now: options.now,
+    });
+    const outcome = releaseMatrixGateOutcome(record, {
+      sampleId,
+      now: options.now,
+      relaxed,
+      derivedArtifactsRelaxed: options.relaxDerivedArtifacts === true,
+      established: releaseMatrixLaneEstablished(laneRegistry, sampleId),
+    });
+    if (outcome.severity === "error") throw new Error(outcome.message);
+    if (outcome.message) notes.push(`${outcome.severity}: ${outcome.message}`);
+  }
+  // validateCatalog runs several times per process (migrate, write, check,
+  // runner input validation); report each distinct lane state once so the
+  // signal stays readable.
+  for (const note of notes) {
+    if (reportedReleaseMatrixNotes.has(note)) continue;
+    reportedReleaseMatrixNotes.add(note);
+    process.stdout.write(`${note}\n`);
+  }
+  return notes;
+}
+
+async function validateQualificationEvidenceRoot(
+  receiptRoot,
+  qualifiedSampleIds,
+  legacyLiveEvidenceFileBySample = new Map(),
+  releaseMatrixFileBySample = new Map(),
+) {
   const rootEntries = await evidenceDirectoryEntries(receiptRoot, "qualification evidence root", {
     optional: qualifiedSampleIds.length === 0,
     maxEntries: qualifiedSampleIds.length,
@@ -3733,16 +3873,20 @@ async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds
     // path via sample.evidence.live.evidencePath, so it is an honest,
     // declared artifact rather than an orphan.
     const legacyLiveEvidenceFile = legacyLiveEvidenceFileBySample.get(sampleId);
-    const expectedNames = legacyLiveEvidenceFile
-      ? ["receipts", "runs", legacyLiveEvidenceFile]
-      : ["receipts", "runs"];
+    // The release-matrix receipt (honua-io/honua-sdk-js#766) is a second
+    // declared top-level sidecar. It lives beside `receipts/` rather than inside
+    // it because validateQualificationReceiptSet requires that directory to
+    // contain exactly the quality profile's per-gate receipts.
+    const releaseMatrixFile = releaseMatrixFileBySample.get(sampleId);
+    const allowedFiles = [legacyLiveEvidenceFile, releaseMatrixFile].filter(Boolean);
+    const expectedNames = ["receipts", "runs", ...allowedFiles];
     const sampleEntries = await evidenceDirectoryEntries(
       path.join(receiptRoot, sampleId),
       `${sampleId}: qualification evidence directory`,
       { maxEntries: expectedNames.length, containmentRoot: receiptRoot },
     );
     exactEvidenceDirectoryNames(sampleEntries, expectedNames, `${sampleId}: qualification evidence directory`, {
-      allowedFiles: legacyLiveEvidenceFile ? [legacyLiveEvidenceFile] : [],
+      allowedFiles,
     });
   }
 }
@@ -3881,10 +4025,20 @@ export async function collectQualificationEvidence(catalog, options = {}) {
       legacyLiveEvidenceFileBySample.set(journey.candidateSampleId, evidencePath.slice(samplePrefix.length));
     }
   }
+  const qualifiedSampleIds = qualifiedJourneys.map((journey) => journey.candidateSampleId);
   await validateQualificationEvidenceRoot(
     receiptRoot,
-    qualifiedJourneys.map((journey) => journey.candidateSampleId),
+    qualifiedSampleIds,
     legacyLiveEvidenceFileBySample,
+    await releaseMatrixSidecarFileBySample(
+      receiptRoot,
+      qualifiedSampleIds,
+      await readReleaseMatrixLaneRegistry({
+        projectRoot: PROJECT_ROOT,
+        registryPath: options.releaseMatrixLaneRegistryPath,
+        now: options.now,
+      }),
+    ),
   );
   const samples = [];
   for (const journey of qualifiedJourneys) {
@@ -6556,7 +6710,49 @@ function generateSiteConsumerFixture(projection) {
   };
 }
 
-function generatedCatalogMarkdown(catalog, packageJson) {
+/**
+ * Release-matrix section of the generated catalog (honua-io/honua-sdk-js#766
+ * REQ-004). This is the qualification record's human-readable projection of the
+ * cross-browser lane: which samples are established, what the last sealed
+ * three-engine run observed, and where the receipt lives.
+ *
+ * It is emitted here, and not into samples/dist/golden-journey-visual-evidence.v1.json,
+ * because that artifact's schema is content-addressed by the committed consumer
+ * handoff (schemaBytes/schemaSha256, honua-io/honua-sdk-js#791): adding even an
+ * optional property to it is a versioned contract change that has to be bumped
+ * and regenerated together with the committed projections, which only the
+ * derived-artifact automation can do. See samples/contract/v2/README.md.
+ *
+ * Rendered only for established or sealed lanes, so the generated bytes are
+ * unchanged until the first release smoke lands a receipt.
+ */
+export function releaseMatrixCatalogSection(lanes) {
+  if (!lanes || lanes.length === 0) return [];
+  const rows = lanes.map((lane) => {
+    const engines = lane.projection
+      ? lane.projection.engines.map((engine) => `${engine.name}: ${engine.status}`).join("<br>")
+      : "receipt missing";
+    const observedAt = lane.projection?.observedAt ?? "-";
+    const expiresAt = lane.projection?.expiresAt ?? "-";
+    const status = lane.projection?.status ?? "missing";
+    const receipt = lane.projection
+      ? `[\`${lane.projection.receiptPath}\`](../../${lane.projection.receiptPath})`
+      : `\`${lane.receiptPath}\``;
+    return `| [\`${lane.sampleId}\`](#${lane.sampleId}) | ${status} | ${engines} | ${observedAt} | ${expiresAt} | ${receipt} |`;
+  });
+  return [
+    "## Release-matrix browser evidence",
+    "",
+    "Per-gate `browser` receipts prove the default Chromium-only Playwright lane. These samples additionally bind their golden qualification to the release-only three-engine smoke (Chromium, headed Firefox, WebKit); a failing or lapsed lane makes the qualification stale. Establishment is recorded in [`samples/contract/v2/release-matrix-lanes.v1.json`](../../samples/contract/v2/release-matrix-lanes.v1.json).",
+    "",
+    "| Sample | Last sealed run | Engines | Observed | Expires | Receipt |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...rows,
+    "",
+  ];
+}
+
+function generatedCatalogMarkdown(catalog, packageJson, releaseMatrixLanes = []) {
   const journeyRows = catalog.goldenJourneys.map(
     (journey) =>
       `| \`${journey.id}\` | ${journey.status} | [\`${journey.candidateSampleId}\`](#${journey.candidateSampleId}) |`,
@@ -6580,6 +6776,7 @@ function generatedCatalogMarkdown(catalog, packageJson) {
     "| --- | --- | --- |",
     ...journeyRows,
     "",
+    ...releaseMatrixCatalogSection(releaseMatrixLanes),
     "## Executable samples",
     "",
     "| Sample | Track | Journey candidate | Support | Lifecycle | Quality profile | Data | Configuration | Demonstration |",
@@ -6615,6 +6812,40 @@ function replaceReadmeFragment(readme, fragment) {
 
 function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+/**
+ * Release-matrix lanes worth projecting into the generated catalog: every
+ * established lane (so a deleted receipt is visible as `missing` rather than
+ * disappearing) plus any sample that already carries a sealed receipt before the
+ * automation records it. Empty until the first release smoke lands, which keeps
+ * the generated docs byte-identical today.
+ */
+export async function collectReleaseMatrixLanes(catalog, options = {}) {
+  const laneRegistry = await readReleaseMatrixLaneRegistry({
+    projectRoot: PROJECT_ROOT,
+    registryPath: options.releaseMatrixLaneRegistryPath,
+    now: options.now,
+  });
+  const lanes = [];
+  for (const sampleId of RELEASE_MATRIX_SAMPLE_IDS) {
+    if (!catalog.samples.some((sample) => sample.id === sampleId && sample.track === "golden")) continue;
+    const record = await readReleaseMatrixReceipt({
+      sampleId,
+      projectRoot: PROJECT_ROOT,
+      receiptRoot: options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT),
+      now: options.now,
+    });
+    const established = releaseMatrixLaneEstablished(laneRegistry, sampleId);
+    if (!record && !established) continue;
+    lanes.push({
+      sampleId,
+      established,
+      receiptPath: releaseMatrixReceiptRelativePath(sampleId),
+      projection: releaseMatrixEvidenceProjection(record),
+    });
+  }
+  return lanes;
 }
 
 export async function generatedOutputs(catalog, packageJson, options = {}) {
@@ -6653,7 +6884,10 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     verifyCheckout: options.verifyCheckout,
   });
   return new Map([
-    [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
+    [
+      GENERATED_CATALOG_PATH,
+      generatedCatalogMarkdown(catalog, packageJson, await collectReleaseMatrixLanes(catalog, options)),
+    ],
     [SITE_PROJECTION_PATH, stableJson(projection)],
     [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
     [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
@@ -7009,6 +7243,49 @@ async function main(argv) {
       process.stdout.write(
         `${entry.sampleId}: live.expiresAt ${entry.previousExpiresAt ?? "(none)"} -> ${entry.expiresAt} (observedAt ${entry.observedAt})\n`,
       );
+    }
+    return;
+  }
+  // Establishment recording (honua-io/honua-sdk-js#766). Runs in the same slot
+  // as refresh-live-expiry above -- after a reseal pass has observed the tree,
+  // before the automation's catalog commit -- because
+  // samples/contract/v2/release-matrix-lanes.v1.json is INSIDE the
+  // evidence-neutral digest and must therefore be committed before the reseal
+  // pass whose receipts bind to it. Idempotent: an already-established lane
+  // writes no bytes, so routine regenerations cause no digest churn.
+  if (command === "record-release-matrix-lane") {
+    invariant(
+      args.length === 2 && args[0] === "--sample",
+      "record-release-matrix-lane requires --sample <comma-separated-ids>",
+    );
+    const sampleIds = args[1].split(",").map((id) => id.trim());
+    let registry;
+    const existing = await readReleaseMatrixLaneRegistry({ projectRoot: PROJECT_ROOT });
+    if (existing) registry = existing.registry;
+    let changedAny = false;
+    for (const sampleId of sampleIds) {
+      invariant(
+        RELEASE_MATRIX_SAMPLE_IDS.includes(sampleId),
+        `${sampleId}: sample does not declare the release-matrix browser lane`,
+      );
+      const record = await readReleaseMatrixReceipt({ sampleId, projectRoot: PROJECT_ROOT });
+      if (!record) {
+        process.stdout.write(`${sampleId}: no sealed release-matrix receipt to establish\n`);
+        continue;
+      }
+      const { registry: next, changed } = recordedReleaseMatrixLaneRegistry(registry, record.receipt);
+      registry = next;
+      changedAny ||= changed;
+      process.stdout.write(
+        changed
+          ? `${sampleId}: release-matrix browser lane established from run ${record.receipt.run.runId}\n`
+          : `${sampleId}: release-matrix browser lane already established\n`,
+      );
+    }
+    if (changedAny) {
+      await validateReleaseMatrixLaneRegistry(registry, { projectRoot: PROJECT_ROOT });
+      await writeFile(path.join(PROJECT_ROOT, RELEASE_MATRIX_LANES_PATH), stableJson(registry), "utf8");
+      process.stdout.write(`Wrote ${RELEASE_MATRIX_LANES_PATH}\n`);
     }
     return;
   }

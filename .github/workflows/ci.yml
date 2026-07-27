@@ -10,6 +10,20 @@ on:
       - trunk
       - "release/**"
   workflow_dispatch:
+    inputs:
+      # Set only by regenerate-derived-artifacts.yml for its own artifacts PR
+      # (honua-io/honua-sdk-js#766): that PR can be the one publishing a failing
+      # or lapsed First Map release-matrix receipt, and the publication path
+      # cannot be gated on the outcome it publishes. Trunk pushes, feature PRs,
+      # and every manual dispatch leave this false, so the release-matrix gate
+      # stays enforced. See scripts/lib/release-matrix-receipt.mjs.
+      release_matrix_receipt_relax:
+        description: >-
+          Report, but do not enforce, a failing or expired release-matrix
+          browser receipt. Reserved for the evidence-publication automation.
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -125,6 +139,9 @@ jobs:
       # qualification from source and packed SDK, verify:bundle-budgets) are
       # unaffected and still fail a PR that genuinely breaks a sample.
       HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk') && '1' || '' }}
+      # Release-matrix receipt gate (#766): enforced unless the evidence
+      # publication automation asked for report-only mode.
+      HONUA_RELEASE_MATRIX_RECEIPT_RELAX: ${{ inputs.release_matrix_receipt_relax && '1' || '' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -295,6 +312,13 @@ jobs:
 
       - name: Validate documentation snippets
         run: npm run docs:snippets:check
+
+      - name: Component qualification matrix
+        # Runs against the already-built dist/, so it does not rebuild. Fails on
+        # an unrecorded catalog component, a `passing` gate whose evidence file
+        # no longer exists, a missing justification, a support-tier claim that
+        # disagrees with the evidence, or manifest/doc drift (issue #683).
+        run: node scripts/component-qualification.mjs check
 
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets

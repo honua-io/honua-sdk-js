@@ -100,6 +100,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "kernel"), path.join(packageRoot, "kernel"));
   copyDirectory(path.join(DIST_SRC_ROOT, "deckgl"), path.join(packageRoot, "deckgl"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "kepler"), path.join(packageRoot, "kepler"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-safety"), path.join(packageRoot, "agent-safety"));
   copyDirectory(path.join(DIST_SRC_ROOT, "nl-map-control"), path.join(packageRoot, "nl-map-control"));
@@ -236,6 +237,10 @@ function createSdkPackage() {
         types: "./deckgl/index.d.ts",
         default: "./deckgl/index.js",
       },
+      "./kepler": {
+        types: "./kepler/index.d.ts",
+        default: "./kepler/index.js",
+      },
       "./agent-tools": {
         types: "./agent-tools/index.d.ts",
         default: "./agent-tools/index.js",
@@ -313,10 +318,12 @@ function createSdkPackage() {
     },
     peerDependencies: {
       "@deck.gl/layers": rootPackageJson.peerDependencies["@deck.gl/layers"],
+      "@kepler.gl/actions": rootPackageJson.peerDependencies["@kepler.gl/actions"],
       "apache-arrow": rootPackageJson.peerDependencies["apache-arrow"],
     },
     peerDependenciesMeta: {
       "@deck.gl/layers": { optional: true },
+      "@kepler.gl/actions": { optional: true },
       "apache-arrow": { optional: true },
     },
   });

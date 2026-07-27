@@ -116,6 +116,10 @@
       "types": "./dist/src/deckgl/index.d.ts",
       "default": "./dist/src/deckgl/index.js"
     },
+    "./kepler": {
+      "types": "./dist/src/kepler/index.d.ts",
+      "default": "./dist/src/kepler/index.js"
+    },
     "./analytics": {
       "types": "./dist/src/analytics/index.d.ts",
       "default": "./dist/src/analytics/index.js"
@@ -329,11 +333,15 @@
     "samples:refresh-live-expiry": "node scripts/sample-contract.mjs refresh-live-expiry",
     "samples:write-ci-selection": "node scripts/sample-contract.mjs write-ci-selection",
     "samples:verify": "node scripts/sample-contract.mjs check",
+    "qualification:components": "npm run build --silent && node scripts/component-qualification.mjs write",
+    "qualification:components:check": "npm run build --silent && node scripts/component-qualification.mjs check",
     "samples:fixtures:verify": "node samples/fixtures/verify.mjs && biome check samples/scenarios/ samples/fixtures/",
     "samples:verify:flagships": "node scripts/verify-flagship-evidence.mjs",
     "samples:run": "node scripts/sample-runner.mjs",
     "samples:list": "node scripts/sample-runner.mjs list",
-    "samples:runner:test": "node --test test/scripts/sample-runner.test.mjs test/scripts/sample-gate-receipt.test.mjs",
+    "samples:release-matrix:seal": "node scripts/seal-release-matrix-receipt.mjs",
+    "samples:release-matrix:record": "node scripts/sample-contract.mjs record-release-matrix-lane",
+    "samples:runner:test": "node --test test/scripts/sample-runner.test.mjs test/scripts/sample-gate-receipt.test.mjs test/scripts/release-matrix-receipt.test.mjs",
     "release:seal:check": "node scripts/release-seal.mjs check",
     "release:seal:test": "node --test test/scripts/release-seal.test.mjs",
     "samples:bundles:build": "node scripts/build-sample-bundles.mjs build",
@@ -532,6 +540,7 @@
     "test:playwright:edit-workflow": "playwright test test/playwright/edit-workflow-demo.spec.mjs",
     "test:playwright:sketch-editing": "playwright test test/playwright/sketch-editing.spec.mjs",
     "test:playwright:planning-workbench": "playwright test test/playwright/planning-permitting-workbench.spec.mjs",
+    "test:playwright:planning-editing": "playwright test test/playwright/planning-permitting-editing.spec.mjs",
     "test:playwright:web-components": "playwright test test/playwright/web-components-basic.spec.mjs",
     "test:playwright:app-bootstrap": "playwright test test/playwright/app-bootstrap-basic.spec.mjs",
     "test:playwright:oauth-signin": "playwright test test/playwright/oauth-signin.spec.mjs",
@@ -693,6 +702,7 @@
     "@connectrpc/connect-web": "^2.0.0",
     "@deck.gl/layers": "^9.0.0",
     "@duckdb/duckdb-wasm": "^1.29.0",
+    "@kepler.gl/actions": "^3.0.0",
     "@turf/area": "^7.0.0",
     "@turf/bbox": "^7.0.0",
     "@turf/boolean-contains": "^7.0.0",
@@ -779,6 +789,9 @@
       "optional": true
     },
     "@duckdb/duckdb-wasm": {
+      "optional": true
+    },
+    "@kepler.gl/actions": {
       "optional": true
     },
     "apache-arrow": {

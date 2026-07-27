@@ -161,11 +161,12 @@ describe("capability-to-sample matrix contract", () => {
     // 26 = 25 pre-existing support claims + "grpc-connect-discovery" (the
     // Honua gRPC connect() discovery adapter registered in issue #554).
     expect(matrix.supportClaims).toHaveLength(26);
-    // 55 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
+    // 56 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
     // manifest-advertised PMTiles plugin entrypoint published in issue #671)
     // + "./analytics" and "./analytics/uplot" (the linked-analytics contract
-    // and its reference third-party chart adapter, issue #682).
-    expect(matrix.packageEntrypoints).toHaveLength(55);
+    // and its reference third-party chart adapter, issue #682)
+    // + "./kepler" (the optional Kepler.gl workspace bridge from issue #684).
+    expect(matrix.packageEntrypoints).toHaveLength(56);
     // imagery-cog-quickstart, maplibre-quickstart, migration-workbench, and
     // service-explorer are the four real, evidence-backed qualified samples
     // (the Imagery and Terrain, First Map, ArcGIS Migration Workbench, and
