@@ -988,7 +988,8 @@
           "executionMode": "native",
           "status": "supported",
           "evidence": [
-            "ogc-tiles-fixtures"
+            "ogc-tiles-fixtures",
+            "live-conformance"
           ]
         }
       ]
@@ -1006,7 +1007,8 @@
           "executionMode": "native",
           "status": "supported",
           "evidence": [
-            "ogc-maps-fixtures"
+            "ogc-maps-fixtures",
+            "live-conformance"
           ]
         }
       ]
@@ -1018,7 +1020,18 @@
       "operationClaims": [
         {
           "operations": [
-            "query",
+            "query"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "ogc-records-fixtures",
+            "live-conformance"
+          ]
+        },
+        {
+          "operations": [
             "queryObjectIds",
             "stream"
           ],
@@ -1577,9 +1590,10 @@
       "status": "beta",
       "backendNeeded": "Any link-driven OGC API Tiles server",
       "api": "connect(), Source protocol ogc-tiles",
-      "notes": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles.",
+      "notes": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile.",
       "evidence": [
-        "ogc-tiles-fixtures"
+        "ogc-tiles-fixtures",
+        "live-conformance"
       ]
     },
     {
@@ -1595,9 +1609,10 @@
       "status": "beta",
       "backendNeeded": "Any link-driven OGC API Maps server",
       "api": "connect(), Source protocol ogc-maps",
-      "notes": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps.",
+      "notes": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render.",
       "evidence": [
-        "ogc-maps-fixtures"
+        "ogc-maps-fixtures",
+        "live-conformance"
       ]
     },
     {
@@ -1615,9 +1630,10 @@
       "status": "beta",
       "backendNeeded": "Any link-driven OGC API Records server",
       "api": "connect(), Source protocol ogc-records",
-      "notes": "Discovers and queries the raw records path advertised by the service; does not require /ogc/records.",
+      "notes": "Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page.",
       "evidence": [
-        "ogc-records-fixtures"
+        "ogc-records-fixtures",
+        "live-conformance"
       ]
     },
     {
@@ -1632,9 +1648,10 @@
       "status": "experimental",
       "backendNeeded": "Any link-driven OGC API Processes server",
       "api": "discoverOgcProcesses()",
-      "notes": "Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source.",
+      "notes": "Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection.",
       "evidence": [
-        "ogc-processes-fixtures"
+        "ogc-processes-fixtures",
+        "live-conformance"
       ]
     },
     {

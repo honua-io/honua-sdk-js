@@ -377,10 +377,11 @@
         "connect()"
       ],
       "evidence": [
+        "scripts/live-conformance-evidence.mjs",
         "test/connect-ogc-maps.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps."
+      "note": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render."
     },
     {
       "key": "serve.ogc-api-records",
@@ -391,10 +392,11 @@
         "connect()"
       ],
       "evidence": [
+        "scripts/live-conformance-evidence.mjs",
         "test/connect-ogc.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers and queries the raw records path advertised by the service; does not require /ogc/records."
+      "note": "Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page."
     },
     {
       "key": "serve.ogc-api-tiles",
@@ -405,10 +407,11 @@
         "connect()"
       ],
       "evidence": [
+        "scripts/live-conformance-evidence.mjs",
         "test/connect-ogc-tiles.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles."
+      "note": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile."
     },
     {
       "key": "serve.stac",

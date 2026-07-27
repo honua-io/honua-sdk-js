@@ -4,7 +4,7 @@
  * `schemas/live-conformance-evidence.v1.json`.
  */
 
-export type LiveConformanceJourney = "query" | "raster-tiles";
+export type LiveConformanceJourney = "query" | "raster-tiles" | "ogc-tile" | "ogc-map" | "process-discovery";
 export type LiveConformanceTargetStatus = "executed" | "degraded" | "failed" | "skipped";
 export type LiveConformanceDegradationState =
   | "none"
@@ -49,7 +49,7 @@ export interface LiveConformanceEndpointTarget {
     readonly styleId?: string;
     readonly tileMatrixSetId?: string;
   };
-  readonly sourceId: string;
+  readonly sourceId?: string;
   readonly journey: LiveConformanceJourney;
   readonly expect: {
     readonly capabilities: readonly string[];
@@ -59,7 +59,16 @@ export interface LiveConformanceEndpointTarget {
     readonly minItemCount?: number;
     readonly geometry?: boolean;
     readonly tileFormats?: readonly string[];
-    readonly tile?: { readonly z: number; readonly x: number; readonly y: number };
+    readonly operationMediaTypes?: readonly string[];
+    readonly tile?: {
+      readonly tileMatrixSetId?: string;
+      readonly z: number;
+      readonly x: number;
+      readonly y: number;
+      readonly format?: string;
+    };
+    readonly map?: { readonly format: string; readonly width: number; readonly height: number };
+    readonly processId?: string;
   };
   readonly notes: string;
 }
@@ -126,7 +135,7 @@ export interface LiveConformanceTargetEvidence {
   readonly discovery: {
     readonly protocol: string;
     readonly cacheStatus: string;
-    readonly sourceId: string;
+    readonly sourceId: string | null;
     readonly sourceCount: number;
     readonly discoveryState: string;
     readonly protocolVersion?: string | null;
@@ -151,7 +160,7 @@ export interface LiveConformanceTargetEvidence {
     readonly partialReasons?: readonly string[];
   } | null;
   readonly operation: {
-    readonly kind: "source-query" | "maplibre-raster-tile";
+    readonly kind: "source-query" | "maplibre-raster-tile" | "ogc-tile" | "ogc-map" | "process-discovery";
     readonly capability: string;
     readonly outcome: string;
     readonly itemCount?: number | null;
@@ -159,6 +168,15 @@ export interface LiveConformanceTargetEvidence {
     readonly geometryPresent?: boolean | null;
     readonly exceededTransferLimit?: boolean | null;
     readonly requestedLimit?: number | null;
+    readonly mediaType?: string;
+    readonly bytes?: number;
+    readonly signature?: "png" | "jpeg" | "webp" | "unknown";
+    readonly tileMatrixSetId?: string;
+    readonly tile?: { readonly z: number; readonly x: number; readonly y: number };
+    readonly width?: number;
+    readonly height?: number;
+    readonly processCount?: number;
+    readonly processId?: string;
     readonly degradedReasons?: readonly string[];
     readonly plan?: {
       readonly available: boolean;
@@ -181,6 +199,11 @@ export interface LiveConformanceTargetEvidence {
       readonly capability: string;
       readonly errorName: string;
       readonly sdkCode: string;
+    } | null;
+    readonly sourceBoundary?: {
+      readonly errorName: string;
+      readonly sdkCode: string;
+      readonly requestDelta: number;
     } | null;
   } | null;
   readonly assertions: readonly LiveConformanceAssertion[];
@@ -231,6 +254,7 @@ export interface LiveConformanceEvidence {
  */
 export interface LiveConformanceSdk {
   readonly connect: (options: any) => Promise<any>;
+  readonly discoverOgcProcesses: (options: any) => Promise<any>;
   readonly explainQuery: (options: any) => any;
   readonly HonuaClient: new (options: any) => any;
   readonly projectRasterSourceToMapLibre: (descriptor: any, options?: any) => any;
@@ -290,6 +314,7 @@ export function createBoundedLiveConformanceFetch(options: {
   producerSignal?: AbortSignal;
   allowLoopback?: boolean;
   allowImages?: boolean;
+  allowedMediaTypes?: readonly string[];
   ledger?: unknown[];
   /** Per-target byte and request accounting. */
   state?: { requests: number; responseBytes: number };
@@ -300,6 +325,11 @@ export function availabilityStatusCode(
   status: number,
 ): "endpoint-rate-limited" | "endpoint-timeout" | "endpoint-server-error" | null;
 export function imageSignatureOf(bytes: Uint8Array): "png" | "jpeg" | "webp" | "unknown";
+export function imageSignatureMatchesMediaType(
+  signature: "png" | "jpeg" | "webp" | "unknown",
+  mediaType: string,
+): boolean;
+export function isStructurallyValidMvt(bytes: Uint8Array): boolean;
 export function classifyLiveConformanceFailure(error: unknown): { readonly code: string; readonly message: string };
 export function runLiveConformanceTarget(context: {
   target: LiveConformanceEndpointTarget;

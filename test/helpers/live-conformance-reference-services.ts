@@ -60,6 +60,9 @@ export const REFERENCE_TILE_JPEG: Uint8Array = new Uint8Array([
   0x00, 0xff, 0xd9,
 ]);
 
+/** Minimal non-empty Mapbox Vector Tile payload for protocol-operation evidence. */
+export const REFERENCE_TILE_MVT: Uint8Array = new Uint8Array([0x1a, 0x05, 0x78, 0x02, 0x0a, 0x01, 0x6e]);
+
 // ── GeoServices (Esri sample server 6) ────────────────────────
 
 const GEOSERVICES_LAYER = Object.freeze({
@@ -119,6 +122,51 @@ const PYGEOAPI_LANDING = readRecordedFixture("backend-agnostic/pygeoapi/landing.
 const PYGEOAPI_CONFORMANCE = readRecordedFixture("backend-agnostic/pygeoapi/conformance.json");
 const PYGEOAPI_COLLECTION = readRecordedFixture("backend-agnostic/pygeoapi/collection-lakes.json");
 const PYGEOAPI_ITEMS = readRecordedFixture("backend-agnostic/pygeoapi/items-lakes.json");
+const PYGEOAPI_RECORD_COLLECTION = Object.freeze({
+  id: "dutch-metadata",
+  title: "Dutch metadata records",
+  description: "Metadata catalog published by the pygeoapi demo.",
+  itemType: "record",
+  crs: ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"],
+});
+const PYGEOAPI_RECORD_ITEMS = Object.freeze({
+  type: "FeatureCollection",
+  numberMatched: 1,
+  features: [
+    {
+      type: "Feature",
+      id: "dutch-metadata-1",
+      geometry: { type: "Point", coordinates: [5.12, 52.09] },
+      properties: {
+        created: "2025-01-01T00:00:00Z",
+        updated: "2026-01-01T00:00:00Z",
+        type: "dataset",
+        title: "Dutch reference dataset",
+        description: "Deterministic catalog record for the live runner.",
+      },
+    },
+  ],
+  links: [],
+});
+const PYGEOAPI_MAP_COLLECTION = Object.freeze({
+  id: "mapserver_world_map",
+  title: "MapServer world map",
+  description: "World map rendered through pygeoapi's OGC API Maps provider.",
+  itemType: "map",
+  crs: ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"],
+});
+const PYGEOAPI_PROCESSES = Object.freeze({
+  processes: [
+    {
+      id: "hello-world",
+      title: "Hello World",
+      description: "Deterministic process-discovery reference.",
+      version: "0.2.0",
+    },
+  ],
+  links: [],
+});
+const PYGEOAPI_COLLECTIONS = Object.freeze([PYGEOAPI_COLLECTION, PYGEOAPI_RECORD_COLLECTION, PYGEOAPI_MAP_COLLECTION]);
 
 const LDPROXY_LANDING = readRecordedFixture("backend-agnostic/ldproxy/landing.json");
 const LDPROXY_ITEMS = readRecordedFixture("backend-agnostic/ldproxy/items-vineyards.json");
@@ -460,8 +508,8 @@ const ODATA_CUSTOMERS = Object.freeze({
   ],
 });
 
-function ogcCollections(collection: unknown, self: string): Response {
-  return json({ collections: [collection], links: [{ rel: "self", type: "application/json", href: self }] });
+function ogcCollections(collections: readonly unknown[], self: string): Response {
+  return json({ collections, links: [{ rel: "self", type: "application/json", href: self }] });
 }
 
 /** Honour the page size the SDK asked for, exactly like the live services. */
@@ -510,12 +558,22 @@ function defaultRoutes(): Map<string, RouteHandler> {
   routes.set("demo.pygeoapi.io/master", () => json(PYGEOAPI_LANDING));
   routes.set("demo.pygeoapi.io/master/conformance", () => json(PYGEOAPI_CONFORMANCE));
   routes.set("demo.pygeoapi.io/master/collections", () =>
-    ogcCollections(PYGEOAPI_COLLECTION, "https://demo.pygeoapi.io/master/collections"),
+    ogcCollections(PYGEOAPI_COLLECTIONS, "https://demo.pygeoapi.io/master/collections"),
   );
   routes.set("demo.pygeoapi.io/master/collections/lakes", () => json(PYGEOAPI_COLLECTION));
   routes.set("demo.pygeoapi.io/master/collections/lakes/items", (url) =>
     json(paginateFeatureCollection(PYGEOAPI_ITEMS, requestedLimit(url, "limit")), 200, "application/geo+json"),
   );
+  routes.set("demo.pygeoapi.io/master/collections/dutch-metadata/items", (url) =>
+    json(paginateFeatureCollection(PYGEOAPI_RECORD_ITEMS, requestedLimit(url, "limit")), 200, "application/geo+json"),
+  );
+  routes.set("demo.pygeoapi.io/master/collections/lakes/tiles/WebMercatorQuad/0/0/0", () =>
+    image(REFERENCE_TILE_MVT, "application/vnd.mapbox-vector-tile"),
+  );
+  routes.set("demo.pygeoapi.io/master/collections/mapserver_world_map/map", () =>
+    image(REFERENCE_TILE_PNG, "image/png"),
+  );
+  routes.set("demo.pygeoapi.io/master/processes", () => json(PYGEOAPI_PROCESSES));
 
   // OGC API Features: ldproxy.
   routes.set("demo.ldproxy.net/vineyards", () => json(LDPROXY_LANDING));
@@ -612,6 +670,10 @@ export const REFERENCE_ROUTE_KEYS = Object.freeze({
   pygeoapiLanding: "demo.pygeoapi.io/master",
   pygeoapiConformance: "demo.pygeoapi.io/master/conformance",
   pygeoapiItems: "demo.pygeoapi.io/master/collections/lakes/items",
+  pygeoapiRecordsItems: "demo.pygeoapi.io/master/collections/dutch-metadata/items",
+  pygeoapiOgcTile: "demo.pygeoapi.io/master/collections/lakes/tiles/WebMercatorQuad/0/0/0",
+  pygeoapiOgcMap: "demo.pygeoapi.io/master/collections/mapserver_world_map/map",
+  pygeoapiProcesses: "demo.pygeoapi.io/master/processes",
   ldproxyLanding: "demo.ldproxy.net/vineyards",
   stacLanding: "earth-search.aws.element84.com/v1",
   stacSearch: "earth-search.aws.element84.com/v1/search",

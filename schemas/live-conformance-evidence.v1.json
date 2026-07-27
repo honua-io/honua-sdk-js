@@ -148,7 +148,7 @@
         "id": { "type": "string", "minLength": 1 },
         "protocol": { "type": "string", "minLength": 1 },
         "status": { "enum": ["executed", "degraded", "failed", "skipped"] },
-        "journey": { "enum": ["query", "raster-tiles"] },
+        "journey": { "enum": ["query", "raster-tiles", "ogc-tile", "ogc-map", "process-discovery"] },
         "endpoint": {
           "description": "Redacted endpoint identity. Query strings, fragments, and userinfo never appear.",
           "type": "object",
@@ -234,8 +234,8 @@
               "properties": {
                 "protocol": { "type": "string", "minLength": 1 },
                 "cacheStatus": { "enum": ["bypass", "hit", "miss", "refreshed"] },
-                "sourceId": { "type": "string", "minLength": 1 },
-                "sourceCount": { "type": "integer", "minimum": 1 },
+                "sourceId": { "type": ["string", "null"], "minLength": 1 },
+                "sourceCount": { "type": "integer", "minimum": 0 },
                 "discoveryState": { "enum": ["metadata", "declared", "inferred", "unavailable", "mixed"] },
                 "protocolVersion": { "type": ["string", "null"] },
                 "capabilities": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
@@ -311,7 +311,9 @@
               "additionalProperties": false,
               "required": ["kind", "capability", "outcome"],
               "properties": {
-                "kind": { "enum": ["source-query", "maplibre-raster-tile"] },
+                "kind": {
+                  "enum": ["source-query", "maplibre-raster-tile", "ogc-tile", "ogc-map", "process-discovery"]
+                },
                 "capability": { "type": "string", "minLength": 1 },
                 "outcome": { "type": "string", "minLength": 1 },
                 "itemCount": { "type": ["integer", "null"], "minimum": 0 },
@@ -319,6 +321,24 @@
                 "geometryPresent": { "type": ["boolean", "null"] },
                 "exceededTransferLimit": { "type": ["boolean", "null"] },
                 "requestedLimit": { "type": ["integer", "null"], "minimum": 1 },
+                "mediaType": { "type": "string", "minLength": 1 },
+                "bytes": { "type": "integer", "minimum": 1 },
+                "signature": { "enum": ["png", "jpeg", "webp", "unknown"] },
+                "tileMatrixSetId": { "type": "string", "minLength": 1 },
+                "tile": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["z", "x", "y"],
+                  "properties": {
+                    "z": { "type": "integer", "minimum": 0 },
+                    "x": { "type": "integer", "minimum": 0 },
+                    "y": { "type": "integer", "minimum": 0 }
+                  }
+                },
+                "width": { "type": "integer", "minimum": 1 },
+                "height": { "type": "integer", "minimum": 1 },
+                "processCount": { "type": "integer", "minimum": 1 },
+                "processId": { "type": "string", "minLength": 1 },
                 "degradedReasons": {
                   "description": "Result.degraded entries. A non-empty list means the SDK fell back rather than executing natively.",
                   "type": "array",
@@ -382,6 +402,22 @@
                         "capability": { "type": "string", "minLength": 1 },
                         "errorName": { "type": "string", "minLength": 1 },
                         "sdkCode": { "type": "string", "minLength": 1 }
+                      }
+                    }
+                  ]
+                },
+                "sourceBoundary": {
+                  "description": "Operation-only proof that connect() rejects the protocol before touching the wire instead of manufacturing a Source.",
+                  "oneOf": [
+                    { "type": "null" },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["errorName", "sdkCode", "requestDelta"],
+                      "properties": {
+                        "errorName": { "type": "string", "minLength": 1 },
+                        "sdkCode": { "type": "string", "minLength": 1 },
+                        "requestDelta": { "type": "integer", "minimum": 0 }
                       }
                     }
                   ]
