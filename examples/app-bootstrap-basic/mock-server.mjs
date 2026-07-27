@@ -1,10 +1,10 @@
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
+import { runNpmScriptSync } from "../../scripts/lib/npm-cli.mjs";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
@@ -19,8 +19,7 @@ const MIME_TYPES = {
 };
 
 function buildDemoIfNeeded() {
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(npmCommand, ["run", "demo:app-bootstrap:build", "--silent"], {
+  const result = runNpmScriptSync("demo:app-bootstrap:build", {
     cwd: projectRoot,
     stdio: "inherit",
     env: createFixtureBuildEnvironment(),
@@ -86,7 +85,7 @@ export async function startAppBootstrapFixtureServer({ build = true } = {}) {
     if (requestUrl.pathname === "/api/v1/map-packages/app-bootstrap-demo") {
       res.writeHead(200, {
         "content-type": "application/json; charset=utf-8",
-        etag: "\"app-bootstrap-demo\"",
+        etag: '"app-bootstrap-demo"',
         "cache-control": "no-store",
       });
       res.end(JSON.stringify(packageBody()));

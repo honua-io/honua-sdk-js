@@ -12,6 +12,7 @@ import {
   typeSmokeSource,
   validateInstalledManifest,
 } from "./lib/packed-sdk-smoke.mjs";
+import { npmExecLocalArgs, runNpmSync } from "./lib/npm-cli.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"));
@@ -25,13 +26,15 @@ const consumerRoot = path.join(tempRoot, "consumer");
 const packRoot = path.join(tempRoot, "pack");
 
 function run(label, command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const spawnOptions = {
     cwd: options.cwd ?? projectRoot,
     encoding: "utf8",
     env: options.env ?? process.env,
     maxBuffer: 64 * 1024 * 1024,
     timeout: options.timeout ?? 60_000,
-  });
+  };
+  const result =
+    command === "npm" ? runNpmSync(args, spawnOptions) : spawnSync(command, args, spawnOptions);
   if (result.error || result.status !== 0) {
     const detail = [result.error?.message, result.stdout?.trim(), result.stderr?.trim()]
       .filter(Boolean)
@@ -44,13 +47,15 @@ function run(label, command, args, options = {}) {
 }
 
 function runFailure(label, command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const spawnOptions = {
     cwd: options.cwd ?? projectRoot,
     encoding: "utf8",
     env: options.env ?? process.env,
     maxBuffer: 64 * 1024 * 1024,
     timeout: options.timeout ?? 60_000,
-  });
+  };
+  const result =
+    command === "npm" ? runNpmSync(args, spawnOptions) : spawnSync(command, args, spawnOptions);
   if (result.error || result.status === 0 || result.status === null) {
     throw new Error(`${label} did not fail closed as expected: ${result.error?.message ?? result.stdout ?? result.stderr}`);
   }
@@ -303,13 +308,8 @@ if (described?.tileKind !== "mvt" || ranges.length !== 1) {
     { cwd: consumerRoot },
   );
 
-  const cli = path.join(
-    consumerRoot,
-    "node_modules",
-    ".bin",
-    process.platform === "win32" ? "honua.cmd" : "honua",
-  );
-  run("installed honua --help", cli, ["--help"], { cwd: consumerRoot });
+  const installedHonua = (...args) => npmExecLocalArgs("honua", args);
+  run("installed honua --help", "npm", installedHonua("--help"), { cwd: consumerRoot });
 
   const exchangePath = path.join(consumerRoot, "doctor-exchange.json");
   const bundlePath = path.join(consumerRoot, "doctor-bundle.json");
@@ -331,8 +331,8 @@ if (described?.tileKind !== "mvt" || ranges.length !== 1) {
   );
   run(
     "installed honua doctor emit",
-    cli,
-    [
+    "npm",
+    installedHonua(
       "doctor",
       "--exchange",
       exchangePath,
@@ -343,7 +343,7 @@ if (described?.tileKind !== "mvt" || ranges.length !== 1) {
       "--output",
       bundlePath,
       "--json",
-    ],
+    ),
     { cwd: consumerRoot },
   );
   const installedBundleText = fs.readFileSync(bundlePath, "utf8");
@@ -355,8 +355,16 @@ if (described?.tileKind !== "mvt" || ranges.length !== 1) {
   fs.writeFileSync(malformedPath, JSON.stringify({ schemaVersion: "0", envelopes: [] }));
   runFailure(
     "installed honua doctor validation failure",
-    cli,
-    ["doctor", "--replay", malformedPath, "--base-url", "https://example.test", "--output", "invalid.json"],
+    "npm",
+    installedHonua(
+      "doctor",
+      "--replay",
+      malformedPath,
+      "--base-url",
+      "https://example.test",
+      "--output",
+      "invalid.json",
+    ),
     { cwd: consumerRoot },
   );
 
@@ -366,8 +374,16 @@ if (described?.tileKind !== "mvt" || ranges.length !== 1) {
   fs.writeFileSync(unsafePath, JSON.stringify(unsafeBundle));
   runFailure(
     "installed honua doctor unsafe replay",
-    cli,
-    ["doctor", "--replay", unsafePath, "--base-url", "https://example.test", "--output", "replay.json"],
+    "npm",
+    installedHonua(
+      "doctor",
+      "--replay",
+      unsafePath,
+      "--base-url",
+      "https://example.test",
+      "--output",
+      "replay.json",
+    ),
     { cwd: consumerRoot },
   );
 

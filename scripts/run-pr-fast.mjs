@@ -5,6 +5,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
+
+import { npmScriptInvocation } from "./lib/npm-cli.mjs";
 
 const DEFAULT_BUDGET_MS = 120_000;
 const DEFAULT_OUTPUT = "test-results/pr-fast.json";
@@ -52,10 +55,19 @@ export function parseArgs(argv) {
   return options;
 }
 
+export function commandInvocation(command, args, runtime = {}) {
+  if (command !== "npm") return { command, args };
+  if (!Array.isArray(args) || args.length !== 2 || args[0] !== "run") {
+    throw new TypeError("PR-fast npm commands must be bounded npm run invocations");
+  }
+  return npmScriptInvocation(args[1], { ...runtime, silent: false });
+}
+
 function run(command, args) {
   return new Promise((resolve) => {
     const startedAt = performance.now();
-    const child = spawn(command, args, { stdio: "inherit", shell: false });
+    const invocation = commandInvocation(command, args);
+    const child = spawn(invocation.command, invocation.args, { stdio: "inherit", shell: false });
     child.once("error", (error) => {
       resolve({
         command: [command, ...args].join(" "),
@@ -133,7 +145,7 @@ async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
     process.stderr.write(`pr-fast failed: ${error instanceof Error ? error.stack : String(error)}\n`);
     process.exitCode = 1;

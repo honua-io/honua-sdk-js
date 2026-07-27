@@ -1198,12 +1198,12 @@ describe("sample publication contract", () => {
       'import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";';
     const helperImport = [
       'import { spawnSync } from "node:child_process";',
+      'import { runNpmScriptSync } from "../../scripts/lib/npm-cli.mjs";',
       fixtureEnvironmentImport,
-      'const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";',
     ].join("\n");
     expect(
       validateFixtureBuildHarnessSource(
-        `${helperImport}\nspawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], { env: createFixtureBuildEnvironment() });`,
+        `${helperImport}\nrunNpmScriptSync("demo:fixture:build", { env: createFixtureBuildEnvironment() });`,
       ),
     ).toBe(1);
     expect(
@@ -1211,32 +1211,77 @@ describe("sample publication contract", () => {
         `${helperImport}
 import { startSampleFixtureHarness } from "../../samples/scenarios/index.mjs";
 void startSampleFixtureHarness;
-spawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], { env: createFixtureBuildEnvironment() });`,
+runNpmScriptSync("demo:fixture:build", { env: createFixtureBuildEnvironment() });`,
+      ),
+    ).toBe(1);
+    expect(
+      validateFixtureBuildHarnessSource(
+        `${helperImport}
+const launchFixtureBuild = runNpmScriptSync;
+launchFixtureBuild("demo:fixture:build", { env: createFixtureBuildEnvironment() });`,
       ),
     ).toBe(1);
     expect(() =>
       validateFixtureBuildHarnessSource(
-        `${helperImport}\nspawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], {});`,
+        `import * as npmCli from "../../scripts/lib/npm-cli.mjs";
+${fixtureEnvironmentImport}
+npmCli.runNpmScriptSync("demo:fixture:build", { env: createFixtureBuildEnvironment() });`,
       ),
+    ).toThrow("npm CLI helper must use a named import");
+    expect(() =>
+      validateFixtureBuildHarnessSource(
+        `import { runNpmSync } from "../../scripts/lib/npm-cli.mjs";
+${fixtureEnvironmentImport}
+runNpmSync(["run", "demo:fixture:build"], { env: createFixtureBuildEnvironment() });`,
+      ),
+    ).toThrow("may import only runNpmScriptSync");
+    expect(() =>
+      validateFixtureBuildHarnessSource(
+        `${helperImport}
+runNpmScriptSync(
+  "demo:fixture:build",
+  { env: createFixtureBuildEnvironment() },
+  { spawnSync: unsafeSpawn },
+);`,
+      ),
+    ).toThrow("unsupported fixture npm script invocation");
+    expect(() =>
+      validateFixtureBuildHarnessSource(
+        `${helperImport}
+runNpmScriptSync("demo:fixture:build", {
+  env: createFixtureBuildEnvironment(),
+  shell: process.platform === "win32",
+});`,
+      ),
+    ).toThrow("unsupported fixture build option shell");
+    expect(() =>
+      validateFixtureBuildHarnessSource(
+        `${helperImport}
+const launchFixtureBuild = runNpmScriptSync;
+consume(launchFixtureBuild);`,
+      ),
+    ).toThrow("npm script launch functions cannot escape direct calls or const aliases");
+    expect(() =>
+      validateFixtureBuildHarnessSource(`${helperImport}\nrunNpmScriptSync("demo:fixture:build", {});`),
     ).toThrow("fixture build must declare an explicit env option");
     expect(() =>
       validateFixtureBuildHarnessSource(
-        `${helperImport}\nspawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], { env: process.env });`,
+        `${helperImport}\nrunNpmScriptSync("demo:fixture:build", { env: process.env });`,
       ),
     ).toThrow("fixture build env must come directly from createFixtureBuildEnvironment");
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}
 const argv = ["run", "demo:second:build", "--silent"];
-spawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], { env: createFixtureBuildEnvironment() });
-spawnSync(npmCommand, argv, { env: process.env });`,
+runNpmScriptSync("demo:fixture:build", { env: createFixtureBuildEnvironment() });
+spawnSync("npm", argv, { env: process.env });`,
       ),
     ).toThrow("spawnSync argv must be statically bounded");
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}
 const argv = createArgv();
-spawnSync(npmCommand, argv, { env: createFixtureBuildEnvironment() });`,
+spawnSync("npm", argv, { env: createFixtureBuildEnvironment() });`,
       ),
     ).toThrow("spawnSync argv must be statically bounded");
     expect(() =>
@@ -1245,14 +1290,14 @@ spawnSync(npmCommand, argv, { env: createFixtureBuildEnvironment() });`,
 ${fixtureEnvironmentImport}
 launch("npm", ["run", "demo:fixture:build", "--silent"], { env: process.env });`,
       ),
-    ).toThrow("fixture build env must come directly from createFixtureBuildEnvironment");
+    ).toThrow("fixture builds must use runNpmScriptSync");
     expect(() =>
       validateFixtureBuildHarnessSource(
         `import * as childProcess from "node:child_process";
 ${fixtureEnvironmentImport}
 childProcess.execFileSync("npm", ["run", "demo:fixture:build", "--silent"], { env: process.env });`,
       ),
-    ).toThrow("unsupported fixture build invocation");
+    ).toThrow("fixture builds must use runNpmScriptSync");
     expect(() =>
       validateFixtureBuildHarnessSource(
         'import { execSync } from "node:child_process";\nexecSync("npm run demo:fixture:build --silent");',
@@ -1264,7 +1309,7 @@ childProcess.execFileSync("npm", ["run", "demo:fixture:build", "--silent"], { en
 ${fixtureEnvironmentImport}
 launch("npm", ["run", "demo:fixture:build", "--silent"], { env: process.env });`,
       ),
-    ).toThrow("fixture build env must come directly from createFixtureBuildEnvironment");
+    ).toThrow("fixture builds must use runNpmScriptSync");
     expect(() =>
       validateFixtureBuildHarnessSource(
         `import { spawnSync } from "node:child_process";
@@ -1272,7 +1317,7 @@ ${fixtureEnvironmentImport}
 const launch = spawnSync;
 launch("npm", ["run", "demo:fixture:build", "--silent"], { env: process.env });`,
       ),
-    ).toThrow("fixture build env must come directly from createFixtureBuildEnvironment");
+    ).toThrow("fixture builds must use runNpmScriptSync");
     expect(() =>
       validateFixtureBuildHarnessSource(
         'import { spawnSync } from "node:child_process";\nconst holder = { launch: spawnSync };\nholder.launch(dynamicCommand);',
@@ -1290,7 +1335,7 @@ launch("npm", ["run", "demo:fixture:build", "--silent"], { env: process.env });`
       "child-process namespaces cannot escape launch API member access or const aliases",
     );
     const validFixtureBuild = `${helperImport}
-spawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], {
+runNpmScriptSync("demo:fixture:build", {
   env: createFixtureBuildEnvironment(),
 });`;
     for (const source of [
@@ -1310,7 +1355,7 @@ childProcess.default.spawnSync("npm", ["run", "demo:quickstart:build", "--silent
       validateFixtureBuildHarnessSource(
         `${helperImport}
 import "./unsafe-build.mjs";
-spawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], {
+runNpmScriptSync("demo:fixture:build", {
   env: createFixtureBuildEnvironment(),
 });`,
         "mock-server.mjs",
@@ -1376,7 +1421,7 @@ await import("DATA:text/javascript,export default 1");`,
       validateFixtureBuildHarnessSource(
         'import { execFileSync } from "node:child_process";\nexecFileSync("git", ["-c", "alias.x=!npm run demo:fixture:build", "x"]);',
       ),
-    ).toThrow("unsupported fixture build invocation");
+    ).toThrow("fixture builds must use runNpmScriptSync");
     expect(() =>
       validateFixtureBuildHarnessSource(
         'import { spawnSync } from "node:child_process";\nspawnSync("npm", ["run", "build"]);',
@@ -1399,16 +1444,16 @@ function launch(argv) {
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}
-spawnSync("npm", ["run", condition ? "demo:fixture:build" : "unsafe-script", "--silent"], {
+runNpmScriptSync(condition ? "demo:fixture:build" : "unsafe-script", {
   env: createFixtureBuildEnvironment(),
 });`,
       ),
-    ).toThrow("unsupported fixture build invocation");
+    ).toThrow("unsupported fixture npm script invocation");
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}
 const leaked = process.env.VITE_HONUA_LEAKED_URL;
-spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+runNpmScriptSync("demo:fixture:build", {
   env: createFixtureBuildEnvironment({ VITE_HONUA_FIXTURE_URL: leaked }),
 });`,
       ),
@@ -1417,16 +1462,16 @@ spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
       `${helperImport}
 import proc from "node:process";
 const processAlias = proc;
-spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+runNpmScriptSync("demo:fixture:build", {
   env: createFixtureBuildEnvironment({ VITE_HONUA_FIXTURE_URL: processAlias.env.VITE_HONUA_FIXTURE_URL }),
 });`,
       `${helperImport}
-spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+runNpmScriptSync("demo:fixture:build", {
   env: createFixtureBuildEnvironment({ VITE_HONUA_FIXTURE_URL: globalThis.process.env.VITE_HONUA_FIXTURE_URL }),
 });`,
       `${helperImport}
 const processAlias = globalThis.process;
-spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+runNpmScriptSync("demo:fixture:build", {
   env: createFixtureBuildEnvironment({ VITE_HONUA_FIXTURE_URL: processAlias.env.VITE_HONUA_FIXTURE_URL }),
 });`,
     ]) {
@@ -1437,7 +1482,7 @@ spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}
-spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+runNpmScriptSync("demo:fixture:build", {
   env: createFixtureBuildEnvironment({ VITE_HONUA_API_TOKEN: "not-even-a-real-token" }),
 });`,
       ),
@@ -1445,7 +1490,7 @@ spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}
-spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+runNpmScriptSync("demo:fixture:build", {
   env: createFixtureBuildEnvironment({ ...fixtureOverrides }),
 });`,
       ),
@@ -1455,7 +1500,7 @@ spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
         `${helperImport}
 const overrides = { VITE_HONUA_FIXTURE_URL: "fixture" };
 overrides.VITE_HONUA_FIXTURE_URL = process.env.VITE_HONUA_FIXTURE_URL;
-spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+runNpmScriptSync("demo:fixture:build", {
   env: createFixtureBuildEnvironment(overrides),
 });`,
       ),
@@ -1464,7 +1509,7 @@ spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
       validateFixtureBuildHarnessSource(
         `${helperImport}
 try { throw () => process.env; } catch (createFixtureBuildEnvironment) {
-  spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+  runNpmScriptSync("demo:fixture:build", {
     env: createFixtureBuildEnvironment(),
   });
 }`,
@@ -1473,7 +1518,7 @@ try { throw () => process.env; } catch (createFixtureBuildEnvironment) {
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}
-spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+runNpmScriptSync("demo:fixture:build", {
   env: createFixtureBuildEnvironment(),
   ...unsafeOptions,
 });`,
@@ -1482,7 +1527,7 @@ spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}
-spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
+runNpmScriptSync("demo:wrong:build", {
   env: createFixtureBuildEnvironment(),
 });`,
         "mock-server.mjs",

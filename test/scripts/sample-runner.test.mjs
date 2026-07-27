@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -431,9 +433,29 @@ test("qualification bootstrap also is rejected unless --sample itself derives a 
 });
 
 test("npm evidence commands suppress lifecycle hooks without changing their reviewed argv", () => {
-  const executable = process.platform === "win32" ? "npm.cmd" : "npm";
-  assert.deepEqual(commandForSpawn(["npm", "run", "bench:live", "--", "--sample", "safe-sample"]), [
-    executable,
+  const execPath = String.raw`C:\node-20.19.0\node.exe`;
+  const shimDirectory = String.raw`C:\host-build-lock`;
+  const npmShim = path.join(shimDirectory, "npm.CMD");
+  const runtime = {
+    cwd: String.raw`C:\work tree`,
+    env: {
+      PATH: shimDirectory,
+      PATHEXT: ".CMD",
+      SYSTEMROOT: String.raw`C:\Windows`,
+    },
+    execPath,
+    platform: "win32",
+    existsSync: (candidate) => candidate === npmShim,
+    statSync: () => ({ isFile: () => true }),
+  };
+  const invocation = commandForSpawn(
+    ["npm", "run", "bench:live", "--", "--sample", "safe-sample"],
+    runtime,
+  );
+  assert.equal(invocation[0], execPath);
+  assert.match(invocation[1], /scripts[\\/]lib[\\/]path-cli-runner\.mjs$/);
+  assert.deepEqual(invocation.slice(2), [
+    npmShim,
     "run",
     "--ignore-scripts",
     "bench:live",
@@ -1804,3 +1826,121 @@ test("child supervisor waits for flushed logs and bounds hung process groups", a
     await rm(root, { recursive: true, force: true });
   }
 });
+async function availableLoopbackPort() {
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  await new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  return address.port;
+}
+
+async function waitForHttp(url, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return response;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`listener did not become ready: ${url}`, { cause: lastError });
+}
+
+test(
+  "native Windows ChildSupervisor stops the owned npx/Vite tree and settles its run",
+  { skip: process.platform !== "win32" || process.versions.node !== "20.19.0" },
+  async () => {
+    const temporary = await mkdtemp(path.join(os.tmpdir(), "honua-supervisor-"));
+    const root = `${temporary} Windows Î© & ! ^ (vite)`;
+    const controlRoot = await mkdtemp(path.join(os.tmpdir(), "honua-supervisor-control-"));
+    await rename(temporary, root);
+    const shimDirectory = path.join(root, "PATH shim & Î©");
+    const countPath = path.join(controlRoot, "npx-count.txt");
+    const fakeNpxRunner = path.join(root, "fake npx runner.mjs");
+    const nodeDirectory = path.dirname(process.execPath);
+    const npxCli = path.join(nodeDirectory, "node_modules", "npm", "bin", "npx-cli.js");
+    assert.ok(existsSync(npxCli), `expected pinned npx CLI at ${npxCli}`);
+    await mkdir(shimDirectory, { recursive: true });
+    await Promise.all([
+      writeFile(path.join(root, "index.html"), "<main>owned vite fixture</main>\n"),
+      writeFile(countPath, ""),
+      writeFile(
+        path.join(shimDirectory, "npx.cmd"),
+        [
+          "@ECHO OFF",
+          "SETLOCAL DisableDelayedExpansion",
+          '"%HONUA_PINNED_NODE%" "%HONUA_FAKE_NPX_RUNNER%" %*',
+          "EXIT /B %ERRORLEVEL%",
+          "",
+        ].join("\r\n"),
+      ),
+      writeFile(
+        fakeNpxRunner,
+        [
+          'import { spawn } from "node:child_process";',
+          'import { appendFileSync } from "node:fs";',
+          "appendFileSync(process.env.HONUA_NPX_SHIM_COUNT, 'invoked\\n');",
+          "const child = spawn(process.execPath, [process.env.HONUA_REAL_NPX_CLI, ...process.argv.slice(2)], { stdio: 'inherit' });",
+          "child.once('error', (error) => { throw error; });",
+          "child.once('exit', (code) => { process.exitCode = code ?? 1; });",
+          "",
+        ].join("\n"),
+      ),
+    ]);
+    const env = {
+      PATH: `${shimDirectory};${nodeDirectory};${process.env.PATH}`,
+      PATHEXT: ".CMD;.EXE;.BAT;.COM",
+      HONUA_PINNED_NODE: process.execPath,
+      HONUA_FAKE_NPX_RUNNER: fakeNpxRunner,
+      HONUA_REAL_NPX_CLI: npxCli,
+      HONUA_NPX_SHIM_COUNT: countPath,
+    };
+    const port = await availableLoopbackPort();
+    const url = `http://127.0.0.1:${port}/`;
+    const supervisor = new ChildSupervisor();
+    let running;
+    try {
+      running = supervisor.run(
+        ["npx", "--no-install", "vite", root, "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+        {
+          env,
+          echoOutput: false,
+        },
+      );
+      const outcome = running.then(
+        () => new Error("Vite run unexpectedly resolved"),
+        (error) => error,
+      );
+      const response = await waitForHttp(url);
+      assert.match(await response.text(), /owned vite fixture/);
+      assert.equal((await readFile(countPath, "utf8")).split(/\r?\n/).filter(Boolean).length, 1);
+
+      await supervisor.stop("SIGTERM", 5_000);
+      const settled = await Promise.race([
+        outcome,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("supervised Vite run did not settle")), 2_000)),
+      ]);
+      assert.match(settled.message, /SIGTERM|SIGKILL|exit|failed/);
+      await assert.rejects(fetch(url));
+    } finally {
+      await supervisor.stop("SIGKILL", 5_000);
+      if (running) await running.catch(() => undefined);
+      await rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      });
+      await rm(controlRoot, { recursive: true, force: true });
+    }
+  },
+);
