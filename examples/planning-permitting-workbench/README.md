@@ -100,8 +100,16 @@ absent, search, analysis, export, and mutation controls stay disabled with an
 explicit reason. Unsupported edits do not mutate the local shell, and fixture
 success is never presented as live-service evidence.
 
-A cancelled draft sends nothing. A conflicting draft is parked until a reviewer
-chooses to overwrite, discard, or reload, and a stale token that still reaches
-the service is refused there too. A partly applied edit — feature committed,
-attachment rejected — is reported as rejected with the attachment named, never
-as a success.
+A cancelled draft sends nothing, and neither switching applications nor
+starting a new one discards unsaved work. A conflicting draft is parked until a
+reviewer chooses to overwrite, discard, or reload, and a stale token that still
+reaches the service is refused there too. A partly applied edit — feature
+committed, attachment rejected — is reported as rejected with the attachment
+named, never as a success.
+
+Because a GeoServices `applyEdits` response carries no new concurrency token,
+every write is followed by a re-read: a committed draft rebinds the editor
+selection to the record on file, and a partly applied one adopts the new token
+into the still-open draft. Either way the next submit or retry travels against
+the version the service actually holds instead of the one the accepted write
+already consumed.

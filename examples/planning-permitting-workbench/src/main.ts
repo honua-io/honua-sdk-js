@@ -745,19 +745,35 @@ function renderApplicationEditor(): void {
   message.dataset.degraded = String(reconciliationDegraded);
 }
 
+/**
+ * Whether the editor is holding work a person would lose. A committed draft is
+ * finished, so it is not "unsaved" — every other dirty draft is.
+ */
+function hasUnsavedDraft(): boolean {
+  const snapshot = editorWorkflow?.snapshot();
+  if (!snapshot || snapshot.form === undefined) return false;
+  return snapshot.dirty && snapshot.status !== "committed";
+}
+
+function refuseWhileUnsaved(action: string): boolean {
+  if (!hasUnsavedDraft()) return false;
+  reconciliationMessage = `Submit or cancel the open draft before ${action}.`;
+  reconciliationDegraded = true;
+  announceSampleStatus(reconciliationMessage);
+  scheduleRender();
+  return true;
+}
+
 function selectApplication(featureId: number): void {
   const application = applications.find((candidate) => candidate.id === featureId);
   if (!application || !editorWorkflow) return;
-  const snapshot = editorWorkflow.snapshot();
   // An open draft owns its identity: never switch the selection out from under
   // unsaved work, and never silently discard it.
-  if (snapshot.form !== undefined && snapshot.dirty && snapshot.status !== "committed") {
-    reconciliationMessage = "Submit or cancel the open draft before switching to another application.";
-    reconciliationDegraded = true;
-    scheduleRender();
-    return;
-  }
-  if (snapshot.form !== undefined) editorWorkflow.cancel();
+  if (refuseWhileUnsaved("switching to another application")) return;
+  const snapshot = editorWorkflow.snapshot();
+  // A committed draft is closed by `setSelection` itself; cancelling it here
+  // would claim nothing was sent, which is untrue.
+  if (snapshot.form !== undefined && snapshot.status !== "committed") editorWorkflow.cancel();
   selectedApplicationId = featureId;
   reconciledApplication = application;
   editorWorkflow.setSelection(application);
@@ -769,6 +785,10 @@ function selectApplication(featureId: number): void {
 
 function startApplicationDraft(): void {
   if (!planningJourney || !editorWorkflow || !planningSearch) return;
+  // `begin("create")` replaces whatever draft is open, so the same rule the
+  // selection path enforces applies here: unsaved work is never discarded to
+  // start a new application.
+  if (refuseWhileUnsaved("starting a new application")) return;
   const base = planningJourney.createDraft(DEFAULT_PROPOSAL);
   editorWorkflow.begin("create");
   editorWorkflow.setValues({ ...base.values });
@@ -800,12 +820,30 @@ async function refreshApplications(focusFeatureId?: number): Promise<void> {
   }
 }
 
+/**
+ * Whether the feature write itself reached the service. True for a clean
+ * commit, and also for the partial outcome where the feature edit applied and
+ * only an attachment was refused — the record on file has moved either way, so
+ * the shell must re-read it either way.
+ */
+function featureEditLanded(commit: HonuaFeatureEditorCommit): boolean {
+  if (commit.status === "committed") return true;
+  if (!commit.transported) return false;
+  if (!commit.attachments.some((attachment) => attachment.status === "failed")) return false;
+  return commit.failures.every((failure) => failure.operation.startsWith("attachment-"));
+}
+
 async function handleEditorCommit(commit: HonuaFeatureEditorCommit): Promise<void> {
   lastEditorCommit = commit;
+  const landed = featureEditLanded(commit);
+  const featureId =
+    numberOrNull(commit.committedFeatureId) ??
+    numberOrNull(editorWorkflow?.snapshot().identity?.featureId) ??
+    selectedApplicationId ??
+    undefined;
+  const reconciled = landed && featureId !== undefined ? await reconcileCommittedRecord(featureId) : undefined;
+
   if (commit.status === "committed") {
-    const committedId = Number(commit.committedFeatureId);
-    await refreshApplications(Number.isFinite(committedId) ? committedId : undefined);
-    const reconciled = reconciledApplication;
     reconciliationMessage = reconciled
       ? `Service re-read confirms ${reconciled.attributes.permit_no} at version ${String(reconciled.attributes.version)} with status ${reconciled.attributes.status}.`
       : "The service accepted the edit; the re-read did not return the committed record.";
@@ -813,7 +851,7 @@ async function handleEditorCommit(commit: HonuaFeatureEditorCommit): Promise<voi
     presentation.clearStatus();
     announceSampleStatus(`Planning application ${commit.operation} committed and reconciled from the source.`);
   } else {
-    reconciliationMessage = editorRecovery(commit);
+    reconciliationMessage = editorRecovery(commit, reconciled);
     reconciliationDegraded = true;
     presentation.showDegradation([reconciliationMessage]);
     announceSampleStatus(`Planning application ${commit.operation} did not commit: ${commit.status}.`);
@@ -821,8 +859,34 @@ async function handleEditorCommit(commit: HonuaFeatureEditorCommit): Promise<voi
   scheduleRender();
 }
 
+/**
+ * Re-reads the record the service just wrote and moves every local view of it
+ * onto that server truth.
+ *
+ * - A committed draft is finished, so the editor's selection is rebound to the
+ *   re-read record; the next `update` then opens on the fresh concurrency token
+ *   instead of the one the commit consumed.
+ * - A partial outcome leaves the draft open on purpose (the attachment still
+ *   needs recovering), so only the concurrency token is adopted into it. Retry
+ *   then re-transports against the version now on file rather than the stale
+ *   one the service would have to reject.
+ */
+async function reconcileCommittedRecord(featureId: number): Promise<PlanningApplication | undefined> {
+  await refreshApplications(featureId);
+  const reconciled = reconciledApplication;
+  const workflow = editorWorkflow;
+  if (!reconciled || !workflow) return reconciled;
+  const snapshot = workflow.snapshot();
+  if (snapshot.form === undefined || snapshot.status === "committed") {
+    workflow.setSelection(reconciled);
+    return reconciled;
+  }
+  workflow.adoptServerState(reconciled);
+  return reconciled;
+}
+
 /** Explicit, non-optimistic recovery guidance for every rejected editor commit. */
-function editorRecovery(commit: HonuaFeatureEditorCommit): string {
+function editorRecovery(commit: HonuaFeatureEditorCommit, reconciled: PlanningApplication | undefined): string {
   if (!commit.transported) {
     return `Nothing was sent to the service: ${commit.failures[0]?.description ?? "the draft was refused before transport"}.`;
   }
@@ -831,7 +895,10 @@ function editorRecovery(commit: HonuaFeatureEditorCommit): string {
   }
   const attachmentFailure = commit.attachments.find((attachment) => attachment.status === "failed");
   if (attachmentFailure) {
-    return `The feature edit reached the service but ${attachmentFailure.name} was rejected (${attachmentFailure.error ?? "no reason given"}). Retry the attachment separately.`;
+    const adopted = reconciled
+      ? ` The record is now at version ${String(reconciled.attributes.version)} and the open draft adopted that version, so Retry re-sends against it.`
+      : "";
+    return `The feature edit reached the service but ${attachmentFailure.name} was rejected (${attachmentFailure.error ?? "no reason given"}).${adopted} Retry the attachment separately.`;
   }
   return `The service rejected the ${commit.operation}: ${commit.failures[0]?.description ?? "no reason given"}.`;
 }

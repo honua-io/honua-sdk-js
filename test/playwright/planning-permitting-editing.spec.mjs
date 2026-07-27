@@ -149,6 +149,21 @@ test("planning editor creates and updates a fixture-backed application through t
     await expect(editor(page, "[data-state]")).toContainText("draft");
     await editor(page, "select[data-field='status']").selectOption("under-review");
     await fillField(page, "description", "Routed to the plans examiner.");
+
+    // Starting a new application must not discard unsaved work, the same rule
+    // the selection path enforces.
+    await expect(editor(page, "[data-state]")).toContainText("unsaved");
+    await page.getByRole("button", { name: "New application for this parcel" }).click();
+    await expect(page.locator("#reconciliation-message")).toContainText(
+      "Submit or cancel the open draft before starting a new application",
+    );
+    await expect(page.locator("#reconciliation-message")).toHaveAttribute("data-degraded", "true");
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_PLANNING_WORKBENCH_RUNTIME__?.editorOperation))
+      .toBe("update");
+    await expect(editor(page, "select[data-field='status']")).toHaveValue("under-review");
+    await expect(editor(page, "input[data-field='description']")).toHaveValue("Routed to the plans examiner.");
+
     await editor(page, "[data-action='submit']").click();
 
     await expect(editor(page, "[data-state]")).toContainText("committed");
@@ -163,6 +178,23 @@ test("planning editor creates and updates a fixture-backed application through t
       description: "Routed to the plans examiner.",
     });
     expect(state.featureCount).toBe(4);
+
+    // Reconciliation rebound the editor selection to the re-read record, so
+    // Edit again — without touching the list — opens on the fresh token rather
+    // than the one the commit consumed.
+    await editor(page, "[data-operation='update']").click();
+    await expect(editor(page, "input[data-field='version']")).toHaveValue("2");
+    await fillField(page, "description", "Examiner comments returned.");
+    await editor(page, "[data-action='submit']").click();
+    await expect(editor(page, "[data-state]")).toContainText("committed");
+    await expect(editor(page, "[data-conflict-panel]")).toHaveCount(0);
+    await expect(editor(page, "[data-failures]")).toHaveCount(0);
+
+    state = await fixtureState(page.request, fixtureServer.url);
+    expect(storedApplication(state, 6001)).toMatchObject({
+      version: 3,
+      description: "Examiner comments returned.",
+    });
 
     // The editing module — widget shadow DOM included — stays accessible.
     const accessibility = await new AxeBuilder({ page }).include("#permit-editing-module").analyze();
@@ -284,11 +316,35 @@ test("planning editor reports an attachment failure without claiming the edit fu
       .poll(async () => page.evaluate(() => window.__HONUA_PLANNING_WORKBENCH_RUNTIME__?.lastCommitTransported))
       .toBe(true);
 
-    const state = await fixtureState(page.request, fixtureServer.url);
+    let state = await fixtureState(page.request, fixtureServer.url);
     expect(storedApplication(state, 5002)).toMatchObject({
       version: 4,
       description: "Site plan attached for hydrology review.",
     });
+    expect(state.attachmentCount).toBe(0);
+
+    // The record on file moved, so the still-open draft adopts the new token —
+    // without that, the enabled Retry would collide with a version the accepted
+    // write already consumed.
+    await expect(page.locator("#reconciliation-message")).toContainText("now at version 4");
+    await expect(editor(page, "input[data-field='version']")).toHaveValue("4");
+    await expect(page.locator("#reconciliation-list")).toContainText("4");
+    // Adopting server truth must not retract the rejection it follows.
+    await expect(editor(page, "[data-state]")).toContainText("rejected");
+    await expect(editor(page, "[data-failures] li")).toContainText("exceeds the fixture upload limit");
+    await expect(editor(page, "[data-attachment-index='0']")).toHaveAttribute("data-attachment-status", "failed");
+    await expect(editor(page, "[data-action='retry']")).toBeEnabled();
+
+    // Retry reaches the service: the feature edit applies again and only the
+    // oversized site plan is refused. It is never a version conflict.
+    await editor(page, "[data-action='retry']").click();
+    await expect(editor(page, "[data-failures] li")).toContainText("exceeds the fixture upload limit");
+    await expect(editor(page, "[data-failures]")).not.toContainText("version conflict");
+    await expect(editor(page, "[data-conflict-panel]")).toHaveCount(0);
+    await expect(editor(page, "input[data-field='version']")).toHaveValue("5");
+
+    state = await fixtureState(page.request, fixtureServer.url);
+    expect(storedApplication(state, 5002)).toMatchObject({ version: 5 });
     expect(state.attachmentCount).toBe(0);
   } finally {
     await fixtureServer.close();
