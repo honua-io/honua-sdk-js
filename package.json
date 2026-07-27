@@ -116,6 +116,10 @@
       "types": "./dist/src/deckgl/index.d.ts",
       "default": "./dist/src/deckgl/index.js"
     },
+    "./kepler": {
+      "types": "./dist/src/kepler/index.d.ts",
+      "default": "./dist/src/kepler/index.js"
+    },
     "./analytics": {
       "types": "./dist/src/analytics/index.d.ts",
       "default": "./dist/src/analytics/index.js"
@@ -693,6 +697,7 @@
     "@connectrpc/connect-web": "^2.0.0",
     "@deck.gl/layers": "^9.0.0",
     "@duckdb/duckdb-wasm": "^1.29.0",
+    "@kepler.gl/actions": "^3.0.0",
     "@turf/area": "^7.0.0",
     "@turf/bbox": "^7.0.0",
     "@turf/boolean-contains": "^7.0.0",
@@ -779,6 +784,9 @@
       "optional": true
     },
     "@duckdb/duckdb-wasm": {
+      "optional": true
+    },
+    "@kepler.gl/actions": {
       "optional": true
     },
     "apache-arrow": {

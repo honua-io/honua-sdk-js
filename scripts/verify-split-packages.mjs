@@ -220,6 +220,7 @@ import {
   inspectColumnarBatch,
 } from "@honua/sdk/query-planner";
 import { DECK_GL_ADAPTER_CONTRACT_VERSION, bindGeoArrowPointBatchToDeckGl } from "@honua/sdk/deckgl";
+import { KEPLER_BRIDGE_CONTRACT_VERSION, projectResultToKeplerDataset } from "@honua/sdk/kepler";
 import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import {
@@ -690,6 +691,20 @@ if (typeof createColumnarBatch !== "function" || typeof inspectColumnarBatch !==
 }
 if (DECK_GL_ADAPTER_CONTRACT_VERSION !== "1.0")
   throw new Error("DECK_GL_ADAPTER_CONTRACT_VERSION export missing from @honua/sdk/deckgl");
+{
+  if (KEPLER_BRIDGE_CONTRACT_VERSION !== "1.0")
+    throw new Error("KEPLER_BRIDGE_CONTRACT_VERSION export missing from @honua/sdk/kepler");
+  const keplerProjection = projectResultToKeplerDataset({
+    datasetId: "split-smoke",
+    provenance: { sourceId: "split-smoke", planId: "plan:split-smoke" },
+    result: {
+      features: [{ attributes: { id: 1 }, geometry: { x: -157.86, y: 21.31 } }],
+      exceededTransferLimit: false,
+    },
+  });
+  if (keplerProjection.diagnostic.geoJsonBytes !== 0 || keplerProjection.dataset.data.rows.length !== 1)
+    throw new Error("@honua/sdk/kepler direct point path introduced a GeoJSON round trip");
+}
 {
   const schemaId = "geoarrow-split-smoke@1";
   const { batch } = createGeoArrowBatch({
