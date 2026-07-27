@@ -436,50 +436,58 @@ export function releaseMatrixState(record, options = {}) {
  *   is already relaxed (HONUA_DERIVED_ARTIFACTS_RELAX: feature PRs and the
  *   trunk push run), so a lapsed release cadence never blocks feature work it
  *   cannot fix. Dispatching first-map-release-smoke.yml reseals it.
+ *
+ * Two invariants the table below makes structural, because both have already
+ * been reached for accidentally:
+ *
+ *   1. HONUA_DERIVED_ARTIFACTS_RELAX may soften DECAY only. `failed` and
+ *      `missing` are affirmative findings about the tree in front of us -- a
+ *      real failing engine, or sealed evidence that was deleted -- and neither
+ *      branch is allowed to consult it. Only the publication automation's
+ *      HONUA_RELEASE_MATRIX_RECEIPT_RELAX downgrades those, because that channel
+ *      is what COMMITS the failing receipt.
+ *   2. Establishment governs ABSENCE only. It selects between `not-established`
+ *      and `missing` inside releaseMatrixState and never appears here, so it can
+ *      never soften a receipt that is present and failing.
+ *
+ * A structurally invalid receipt never reaches this function at all:
+ * readReleaseMatrixReceipt throws on it, unconditionally, in every lane.
  */
+const RELEASE_MATRIX_SEVERITY = Object.freeze({
+  // state: (switches) => severity. `decayRelaxed` is deliberately absent from
+  // every branch except `stale`.
+  [RELEASE_MATRIX_STATES.current]: () => "ok",
+  [RELEASE_MATRIX_STATES.notEstablished]: () => "note",
+  [RELEASE_MATRIX_STATES.missing]: ({ publicationRelaxed }) => (publicationRelaxed ? "warning" : "error"),
+  [RELEASE_MATRIX_STATES.failed]: ({ publicationRelaxed }) => (publicationRelaxed ? "warning" : "error"),
+  [RELEASE_MATRIX_STATES.stale]: ({ publicationRelaxed, decayRelaxed }) =>
+    publicationRelaxed || decayRelaxed ? "warning" : "error",
+});
+
 export function releaseMatrixGateOutcome(record, options = {}) {
   const sampleId = options.sampleId ?? record?.receipt?.sampleId ?? "sample";
   const { state, failedEngines, expiresAt } = releaseMatrixState(record, options);
-  const relaxed = options.relaxed === true;
-  const derivedArtifactsRelaxed = options.derivedArtifactsRelaxed === true;
-  if (state === RELEASE_MATRIX_STATES.current) {
-    return { state, severity: "ok", message: undefined };
-  }
-  if (state === RELEASE_MATRIX_STATES.notEstablished) {
-    return {
-      state,
-      severity: "note",
-      message:
-        `${sampleId}: release-matrix browser evidence is not established yet; ` +
-        `${releaseMatrixReceiptRelativePath(sampleId)} is sealed by the First Map release smoke ` +
-        `and becomes a required qualification input once ${RELEASE_MATRIX_LANES_PATH} records the lane`,
-    };
-  }
-  if (state === RELEASE_MATRIX_STATES.missing) {
-    return {
-      state,
-      severity: relaxed ? "warning" : "error",
-      message: releaseMatrixMissingReceiptMessage(sampleId),
-    };
-  }
-  if (state === RELEASE_MATRIX_STATES.failed) {
-    return {
-      state,
-      severity: relaxed ? "warning" : "error",
-      message:
-        `${sampleId}: release-matrix browser evidence reports a failing engine (${failedEngines.join(", ")}); ` +
-        "the golden qualification is stale until a green three-engine release smoke reseals " +
-        `${releaseMatrixReceiptRelativePath(sampleId)}`,
-    };
-  }
-  return {
-    state,
-    severity: relaxed || derivedArtifactsRelaxed ? "warning" : "error",
-    message:
+  const severity = RELEASE_MATRIX_SEVERITY[state]({
+    publicationRelaxed: options.relaxed === true,
+    decayRelaxed: options.derivedArtifactsRelaxed === true,
+  });
+  const messages = {
+    [RELEASE_MATRIX_STATES.current]: undefined,
+    [RELEASE_MATRIX_STATES.notEstablished]:
+      `${sampleId}: release-matrix browser evidence is not established yet; ` +
+      `${releaseMatrixReceiptRelativePath(sampleId)} is sealed by the First Map release smoke ` +
+      `and becomes a required qualification input once ${RELEASE_MATRIX_LANES_PATH} records the lane`,
+    [RELEASE_MATRIX_STATES.missing]: releaseMatrixMissingReceiptMessage(sampleId),
+    [RELEASE_MATRIX_STATES.failed]:
+      `${sampleId}: release-matrix browser evidence reports a failing engine (${failedEngines.join(", ")}); ` +
+      "the golden qualification is stale until a green three-engine release smoke reseals " +
+      `${releaseMatrixReceiptRelativePath(sampleId)}`,
+    [RELEASE_MATRIX_STATES.stale]:
       `${sampleId}: release-matrix browser evidence expired at ${expiresAt}; ` +
       "the golden qualification is stale until first-map-release-smoke.yml reseals " +
       `${releaseMatrixReceiptRelativePath(sampleId)}`,
   };
+  return { state, severity, message: messages[state] };
 }
 
 /**

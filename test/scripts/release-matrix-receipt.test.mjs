@@ -55,6 +55,23 @@ const revision = "a".repeat(40);
 const digest = "b".repeat(64);
 const reportDigest = "c".repeat(64);
 
+// HONUA_DERIVED_ARTIFACTS_RELAX is job-wide in ci.yml's JS SDK job, so any test
+// that reads it implicitly behaves differently locally and in CI. Every
+// gate-severity scenario below therefore FORCES the value it means to exercise
+// and restores the ambient one, which makes this file's result identical with
+// and without the variable set in the environment.
+async function withDerivedArtifactsRelax(enabled, run) {
+  const previous = process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+  if (enabled) process.env.HONUA_DERIVED_ARTIFACTS_RELAX = "1";
+  else delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+  try {
+    return await run();
+  } finally {
+    if (previous === undefined) delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+    else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = previous;
+  }
+}
+
 const runIdentity = {
   repository: "honua-io/honua-sdk-js",
   workflow: "First Map Release Smoke",
@@ -502,133 +519,154 @@ test("the seal CLI refuses to run outside the release matrix", async () => {
   }
 });
 
+async function goldenEvidenceCopy(catalog, label) {
+  const directory = await mkdtemp(path.join(os.tmpdir(), label));
+  const receiptRoot = path.join(directory, "evidence");
+  // Copy exactly the catalog-qualified golden samples rather than the whole
+  // evidence root: the strict inventory requires that exact set, and sibling
+  // suites create and remove their own adversary sample directories
+  // concurrently, which would race a whole-tree copy.
+  for (const journey of catalog.goldenJourneys.filter((candidate) => candidate.status === "qualified")) {
+    await cp(
+      path.join(projectRoot, "samples/evidence", journey.candidateSampleId),
+      path.join(receiptRoot, journey.candidateSampleId),
+      { recursive: true },
+    );
+  }
+  return { directory, receiptRoot };
+}
+
 // Fault injection through the exact path `npm run samples:verify` runs
 // (scripts/sample-contract.mjs check -> validateCatalog): an injected failing
 // receipt has to turn the First Map golden qualification red, and removing it
 // has to restore a green run without any other edit.
-test("a failing release-matrix receipt turns golden qualification validation red", async () => {
-  const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
-  const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
-  const directory = await mkdtemp(path.join(os.tmpdir(), "honua-release-matrix-evidence-"));
-  const receiptRoot = path.join(directory, "evidence");
-  try {
-    // Copy exactly the catalog-qualified golden samples rather than the whole
-    // evidence root: the strict inventory requires that exact set, and sibling
-    // suites create and remove their own adversary sample directories
-    // concurrently, which would race a whole-tree copy.
-    for (const journey of catalog.goldenJourneys.filter((candidate) => candidate.status === "qualified")) {
-      await cp(
-        path.join(projectRoot, "samples/evidence", journey.candidateSampleId),
-        path.join(receiptRoot, journey.candidateSampleId),
-        { recursive: true },
-      );
-    }
+//
+// Parameterized over HONUA_DERIVED_ARTIFACTS_RELAX because ci.yml sets it for
+// the whole JS SDK job: a present failing receipt must be red in BOTH lanes, and
+// only a lapsed (decayed) one may soften where that variable is set.
+for (const derivedRelax of [false, true]) {
+  test(`a failing release-matrix receipt turns golden qualification validation red (derived relax: ${derivedRelax})`, async () => {
+    const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
+    const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
+    const { directory, receiptRoot } = await goldenEvidenceCopy(catalog, "honua-release-matrix-evidence-");
     const injected = path.join(receiptRoot, sampleId, "release-matrix.v1.json");
     const options = { receiptRoot, verifyCheckout: false };
+    const validate = () => withDerivedArtifactsRelax(derivedRelax, () => validateCatalog(catalog, packageJson, options));
+    try {
+      // No receipt at all: the lane is not established and validation passes.
+      await validate();
 
-    // No receipt at all: the lane is not established and validation passes.
-    await validateCatalog(catalog, packageJson, options);
+      // A PRESENT failing receipt is affirmative evidence of a failing engine.
+      // Establishment is irrelevant here, and derived-artifact relaxation must
+      // never soften it -- only the publication automation may, and that switch
+      // is not set in either lane exercised here.
+      await writeFile(
+        injected,
+        `${JSON.stringify(await receipt({ engines: engines({ webkit: { status: "failed" } }) }), null, 2)}\n`,
+      );
+      await assert.rejects(validate(), /release-matrix browser evidence reports a failing engine \(webkit:failed\)/u);
 
-    await writeFile(
-      injected,
-      `${JSON.stringify(await receipt({ engines: engines({ webkit: { status: "failed" } }) }), null, 2)}\n`,
-    );
-    await assert.rejects(
-      validateCatalog(catalog, packageJson, options),
-      /release-matrix browser evidence reports a failing engine \(webkit:failed\)/u,
-    );
+      // A present but structurally invalid receipt is rejected before any
+      // severity policy applies, in both lanes.
+      const contradictory = await receipt();
+      contradictory.matrix.engines[1].status = "failed";
+      contradictory.matrix.engines[1].failed = 1;
+      await writeFile(injected, `${JSON.stringify(contradictory, null, 2)}\n`);
+      await assert.rejects(validate(), /status contradicts its per-engine outcomes/u);
 
-    // A lapsed but previously green receipt is stale in strict lanes.
-    await writeFile(
-      injected,
-      `${JSON.stringify(
-        await receipt({
-          observedAt: new Date(Date.now() - RELEASE_MATRIX_MAX_WINDOW_MS - 60_000).toISOString(),
-        }),
-        null,
-        2,
-      )}\n`,
-    );
-    await assert.rejects(validateCatalog(catalog, packageJson, options), /release-matrix browser evidence expired at/u);
-    await validateCatalog(catalog, packageJson, { ...options, relaxDerivedArtifacts: true });
+      // Decay is the one state the derived-artifact relaxation may soften: a
+      // lapsed release cadence must not block feature work that cannot fix it,
+      // while strict lanes (publish, docs-site, trunk's post-regeneration
+      // dispatch, local runs) still fail.
+      await writeFile(
+        injected,
+        `${JSON.stringify(
+          await receipt({
+            observedAt: new Date(Date.now() - RELEASE_MATRIX_MAX_WINDOW_MS - 60_000).toISOString(),
+          }),
+          null,
+          2,
+        )}\n`,
+      );
+      if (derivedRelax) await validate();
+      else await assert.rejects(validate(), /release-matrix browser evidence expired at/u);
 
-    // A green three-engine run restores qualification with no other edit.
-    await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);
-    await validateCatalog(catalog, packageJson, options);
+      // A green three-engine run restores qualification with no other edit.
+      await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);
+      await validate();
 
-    // The receipt is a declared sidecar for the First Map candidate only.
-    assert.deepEqual(RELEASE_MATRIX_SAMPLE_IDS, [sampleId]);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
+      // The receipt is a declared sidecar for the First Map candidate only.
+      assert.deepEqual(RELEASE_MATRIX_SAMPLE_IDS, [sampleId]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+}
 
 // Anti-laundering fault injection: with establishment recorded in reviewed
 // contract source, deleting the sealed sidecar must NOT fall back to the
 // harmless "not established" note in any enforced lane -- including the publish
 // lane, which runs samples:generate/samples:verify strictly.
-test("deleting an established release-matrix receipt turns golden qualification validation red", async () => {
-  const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
-  const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
-  const directory = await mkdtemp(path.join(os.tmpdir(), "honua-release-matrix-laundering-"));
-  const receiptRoot = path.join(directory, "evidence");
-  try {
-    for (const journey of catalog.goldenJourneys.filter((candidate) => candidate.status === "qualified")) {
-      await cp(
-        path.join(projectRoot, "samples/evidence", journey.candidateSampleId),
-        path.join(receiptRoot, journey.candidateSampleId),
-        { recursive: true },
-      );
-    }
-    const injected = path.join(receiptRoot, sampleId, "release-matrix.v1.json");
-    const established = {
-      receiptRoot,
-      verifyCheckout: false,
-      releaseMatrixLaneRegistryPath: "test/fixtures/release-matrix/established-lanes.v1.json",
-    };
-
-    // Established lane, sealed green receipt present: qualified.
-    await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);
-    await validateCatalog(catalog, packageJson, established);
-
-    // Seal a failure, then try to launder it away by deleting the receipt.
-    await writeFile(
-      injected,
-      `${JSON.stringify(await receipt({ engines: engines({ firefox: { status: "failed" } }) }), null, 2)}\n`,
-    );
-    await assert.rejects(validateCatalog(catalog, packageJson, established), /failing engine \(firefox:failed\)/u);
-    await rm(injected);
-    await assert.rejects(
-      validateCatalog(catalog, packageJson, established),
-      /established the release-matrix browser lane, but samples\/evidence\/maplibre-quickstart\/release-matrix\.v1\.json is missing/u,
-    );
-    // Still red where derived-artifact freshness is relaxed (feature PRs, trunk
-    // push) -- only the publication automation downgrades it.
-    await assert.rejects(
-      validateCatalog(catalog, packageJson, { ...established, relaxDerivedArtifacts: true }),
-      /is missing; deleting sealed cross-browser evidence/u,
-    );
-
-    // The generator side stays hard even under the publication relaxation: that
-    // switch exists so a FAILING receipt can be committed, never so a projection
-    // can be published for an established lane with its evidence removed.
-    await assert.rejects(
-      collectQualificationEvidence(catalog, {
+for (const derivedRelax of [false, true]) {
+  test(`deleting an established release-matrix receipt turns golden qualification validation red (derived relax: ${derivedRelax})`, async () => {
+    const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
+    const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
+    const { directory, receiptRoot } = await goldenEvidenceCopy(catalog, "honua-release-matrix-laundering-");
+    try {
+      const injected = path.join(receiptRoot, sampleId, "release-matrix.v1.json");
+      const established = {
         receiptRoot,
         verifyCheckout: false,
-        releaseMatrixLaneRegistryPath: established.releaseMatrixLaneRegistryPath,
-      }),
-      /is missing; deleting sealed cross-browser evidence/u,
-    );
+        releaseMatrixLaneRegistryPath: "test/fixtures/release-matrix/established-lanes.v1.json",
+      };
+      const validate = (options) =>
+        withDerivedArtifactsRelax(derivedRelax, () => validateCatalog(catalog, packageJson, options));
 
-    // Without the establishment record the same deletion is only a note, which
-    // is exactly today's pre-first-receipt trunk state.
-    await validateCatalog(catalog, packageJson, { receiptRoot, verifyCheckout: false });
+      // Established lane, sealed green receipt present: qualified.
+      await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);
+      await validate(established);
 
-    // Reseal green: qualified again, no manual edit.
-    await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);
-    await validateCatalog(catalog, packageJson, established);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
+      // Seal a failure, then try to launder it away by deleting the receipt.
+      await writeFile(
+        injected,
+        `${JSON.stringify(await receipt({ engines: engines({ firefox: { status: "failed" } }) }), null, 2)}\n`,
+      );
+      await assert.rejects(validate(established), /failing engine \(firefox:failed\)/u);
+      await rm(injected);
+      await assert.rejects(
+        validate(established),
+        /established the release-matrix browser lane, but samples\/evidence\/maplibre-quickstart\/release-matrix\.v1\.json is missing/u,
+      );
+      // Still red where derived-artifact freshness is relaxed (feature PRs, trunk
+      // push) -- only the publication automation downgrades it.
+      await assert.rejects(
+        validate({ ...established, relaxDerivedArtifacts: true }),
+        /is missing; deleting sealed cross-browser evidence/u,
+      );
+
+      // The generator side stays hard even under the publication relaxation: that
+      // switch exists so a FAILING receipt can be committed, never so a projection
+      // can be published for an established lane with its evidence removed.
+      await assert.rejects(
+        withDerivedArtifactsRelax(derivedRelax, () =>
+          collectQualificationEvidence(catalog, {
+            receiptRoot,
+            verifyCheckout: false,
+            releaseMatrixLaneRegistryPath: established.releaseMatrixLaneRegistryPath,
+          }),
+        ),
+        /is missing; deleting sealed cross-browser evidence/u,
+      );
+
+      // Without the establishment record the same deletion is only a note, which
+      // is exactly today's pre-first-receipt trunk state.
+      await validate({ receiptRoot, verifyCheckout: false });
+
+      // Reseal green: qualified again, no manual edit.
+      await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);
+      await validate(established);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+}
