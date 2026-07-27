@@ -20,9 +20,8 @@ import {
   type HonuaOdataAdvertisedCapabilities,
   type HonuaOdataBatchOperation,
   type HonuaOdataBatchOutcome,
-  HonuaOdataEntitySet,
+  type HonuaOdataEntitySet,
   type HonuaOdataMetadata,
-  type HonuaOdataPage,
   type HonuaOdataQueryParams,
   buildOdataSpatialFilter,
   odataFieldSchema,
@@ -32,7 +31,6 @@ import { HonuaOgcCollectionMap, HonuaOgcMaps } from "../core/ogc-maps.js";
 import type { HonuaOgcProcesses } from "../core/ogc-processes.js";
 import { HonuaOgcRecordCollection } from "../core/ogc-records.js";
 import { HonuaOgcTiles, HonuaOgcTileset } from "../core/ogc-tiles.js";
-import { trimTrailingSlashes } from "../core/path-utils.js";
 import { HonuaStacStaticCatalog, type StacStaticSearchParams } from "../core/stac-static.js";
 import { HonuaStacSearch } from "../core/stac.js";
 import {
@@ -68,6 +66,11 @@ import {
 import { HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
+import {
+  createOdataProtocolCompiledQuery,
+  odataProtocolModule,
+  odataProtocolResultFromPage,
+} from "../query-planner/odata-protocol-module.js";
 import type { HonuaPmtilesArchive } from "./pmtiles.js";
 import { pmtilesProtocolModule } from "./pmtiles.js";
 import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
@@ -2382,9 +2385,16 @@ export function odataSource<T>(
   options: OdataSourceOptions = {},
 ): CapabilityAwareSource<T> {
   descriptor = normalizeCapabilityDescriptor(descriptor);
-  const { entitySet, basePath } = requireOdataLocator(descriptor);
-  const entity = new HonuaOdataEntitySet({ client, entitySet, basePath });
-  const declaredCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.odata;
+  const module = odataProtocolModule(client);
+  const discovered = module.discover(descriptor);
+  if (discovered instanceof Promise) {
+    // OData discovery only binds an explicitly injected client to an entity
+    // set. `$metadata` remains lazy, so built-in Source construction is
+    // intentionally synchronous.
+    throw new Error("odata: built-in source construction requires synchronous protocol-module discovery");
+  }
+  const entity = discovered.adapter;
+  const declaredCaps = discovered.capabilities;
   const negotiation = new OdataCapabilityNegotiator(entity, declaredCaps);
   const writeEncoding = options.writeEncoding ?? "legacy";
   if (writeEncoding !== "legacy" && writeEncoding !== "lossless-json") {
@@ -2401,14 +2411,17 @@ export function odataSource<T>(
       await negotiation.ensureAdvertised(descriptor, "query");
       const geomColumn = await resolveOdataGeometryColumn(entity, descriptor);
       const params = await buildOdataParams(entity, descriptor, request, { count: true, geomColumn });
-      const page = await entity.query<Record<string, unknown>>(params);
-      return odataResultFromPage<T>(
-        descriptor,
-        page,
-        await negotiation.fieldsFor(descriptor.id),
-        request?.returnGeometry,
-        geomColumn,
-      );
+      return module.execute<T>(discovered, {
+        compiled: createOdataProtocolCompiledQuery(entity.entitySet, "query", params),
+        operation: "query",
+        query: {
+          count: true,
+          fields: await negotiation.fieldsFor(descriptor.id),
+          ...(request?.returnGeometry !== undefined ? { returnGeometry: request.returnGeometry } : {}),
+          ...(geomColumn ? { geometryColumn: geomColumn } : {}),
+        },
+        ...(request?.signal ? { signal: request.signal } : {}),
+      });
     },
     async queryAll(request) {
       ensureCapability(descriptor, declaredCaps, "query");
@@ -2416,33 +2429,20 @@ export function odataSource<T>(
       const geomColumn = await resolveOdataGeometryColumn(entity, descriptor);
       const params = await buildOdataParams(entity, descriptor, request, { count: true, geomColumn });
       const limit = request?.pagination?.limit;
-      // Lookahead row: ask the server for `limit + 1` so we can prove
-      // truncation by collecting more than `limit` rows even when the
-      // response carries no `@odata.nextLink`. Mirrors the GeoServices
-      // and OGC `queryAll` truncation pattern.
-      if (typeof limit === "number" && limit >= 0) {
-        params.top = limit + 1;
-      }
-      const drained = await entity.queryAll<Record<string, unknown>>(params);
-      const allFeatures = drained.rows.map((row) =>
-        odataRowToFeature<T>(row, descriptor, request?.returnGeometry, geomColumn),
-      );
-      const { features: limited, exceededTransferLimit: collectedExceeded } = applyQueryAllLimit(allFeatures, limit);
-      // Belt-and-braces: if the server respected `$top` exactly but
-      // reports `@odata.count > limited.length`, that also proves
-      // truncation. Either signal sets the flag.
-      const countExceeded =
-        typeof drained.totalCount === "number" && typeof limit === "number" && drained.totalCount > limited.length;
-      const exceededTransferLimit = collectedExceeded || countExceeded;
-      const fields = await negotiation.fieldsFor(descriptor.id);
-      return {
-        features: limited,
-        exceededTransferLimit,
-        ...(typeof drained.totalCount === "number"
-          ? { totalCount: drained.totalCount }
-          : { totalCount: limited.length }),
-        ...(fields.length > 0 ? { fields } : {}),
-      } satisfies Result<T>;
+      return module.execute<T>(discovered, {
+        // The operation-bound compiler adds the one-row queryAll lookahead;
+        // the runtime query context retains the caller-visible logical limit.
+        compiled: createOdataProtocolCompiledQuery(entity.entitySet, "queryAll", params),
+        operation: "queryAll",
+        query: {
+          count: true,
+          fields: await negotiation.fieldsFor(descriptor.id),
+          ...(request?.returnGeometry !== undefined ? { returnGeometry: request.returnGeometry } : {}),
+          ...(geomColumn ? { geometryColumn: geomColumn } : {}),
+          ...(limit !== undefined ? { limit } : {}),
+        },
+        ...(request?.signal ? { signal: request.signal } : {}),
+      });
     },
     async queryAggregate() {
       // OData aggregation is dialect-specific (`$apply` pipeline). The
@@ -2465,7 +2465,7 @@ export function odataSource<T>(
       const fields = await negotiation.fieldsFor(descriptor.id);
       const stream = entity.queryStream<Record<string, unknown>>(params);
       for await (const page of stream) {
-        yield odataResultFromPage<T>(descriptor, page, fields, request?.returnGeometry, geomColumn);
+        yield odataProtocolResultFromPage<T>(descriptor, page, fields, request?.returnGeometry, geomColumn);
       }
     },
     async queryObjectIds(request) {
@@ -2970,42 +2970,6 @@ function stripLeadingSlashLocal(url: string): string {
   return url.startsWith("/") ? url.slice(1) : url;
 }
 
-function requireOdataLocator(descriptor: SourceDescriptor): { entitySet: string; basePath: string } {
-  const { entitySet, url, layerId } = descriptor.locator;
-  // Resolve the entity-set token. Honua Server's `SourceLocator` only
-  // carries `url`, `serviceId`, and `layerId`, so server-produced OData
-  // bindings arrive without `entitySet`. The canonical server route is
-  // layer-scoped — `/odata/Layers(<layerId>)/Features` — so derive that
-  // path when only `layerId` is provided. SDK callers that already pass
-  // `entitySet` (the historical path) continue to win.
-  let resolvedEntitySet: string | undefined;
-  if (typeof entitySet === "string" && entitySet !== "") {
-    resolvedEntitySet = entitySet;
-  } else if (typeof layerId === "number" && Number.isFinite(layerId)) {
-    resolvedEntitySet = `Layers(${layerId})/Features`;
-  }
-  if (resolvedEntitySet === undefined) {
-    throw new Error(`createDataset: source "${descriptor.id}" (odata) requires locator.entitySet or locator.layerId`);
-  }
-  // `locator.url` is informational on the canonical surface; the request
-  // path is built from `basePath/<entitySet>`. When `locator.url` carries
-  // a path, treat its trailing path component as the basePath so a
-  // descriptor pointing at `https://srv/odata/v4` still resolves correctly.
-  const basePath = url ? extractOdataBasePath(url) : "/odata";
-  return { entitySet: resolvedEntitySet, basePath };
-}
-
-function extractOdataBasePath(url: string): string {
-  try {
-    const parsed = new URL(url);
-    const pathname = trimTrailingSlashes(parsed.pathname);
-    return pathname === "" ? "/odata" : pathname;
-  } catch {
-    // Relative URL: take it as the basePath verbatim.
-    return url.startsWith("/") ? trimTrailingSlashes(url) || "/odata" : `/${trimTrailingSlashes(url)}`;
-  }
-}
-
 /**
  * Resolve the OData geometry column for a descriptor. Prefers
  * `descriptor.schema.fields` (where a field of type
@@ -3184,64 +3148,6 @@ async function buildOdataParams<T>(
   if (request.signal) out.signal = request.signal;
   void descriptor;
   return out;
-}
-
-function odataResultFromPage<T>(
-  descriptor: SourceDescriptor,
-  page: HonuaOdataPage<Record<string, unknown>>,
-  fields: ReadonlyArray<import("../core/types.js").HonuaFieldInfo>,
-  returnGeometry: boolean | undefined,
-  geomColumn: string | undefined,
-): Result<T> {
-  const features = page.rows.map((row) => odataRowToFeature<T>(row, descriptor, returnGeometry, geomColumn));
-  const exceededTransferLimit =
-    typeof page.totalCount === "number" ? features.length < page.totalCount : Boolean(page.nextLink);
-  return {
-    features,
-    exceededTransferLimit,
-    ...(typeof page.totalCount === "number" ? { totalCount: page.totalCount } : {}),
-    ...(fields.length > 0 ? { fields } : {}),
-  };
-}
-
-/**
- * Convert one OData JSON row into a canonical `HonuaTypedFeature`. The
- * geometry column (when the row carries one as GeoJSON via Honua Server's
- * spatial encoding) is split out from the attributes envelope. When
- * `returnGeometry === false`, the geometry column is dropped from both
- * the attributes envelope and the `geometry` field — defensive against
- * servers that ignore the `$select` exclusion (or callers that bypassed
- * metadata-derived selects). The geometry column is sourced from the
- * caller-resolved `geomColumn` (descriptor schema → metadata
- * `isSpatial`) and falls back to the canonical name guesses on the
- * row keys when neither declares one.
- */
-function odataRowToFeature<T>(
-  row: Record<string, unknown>,
-  descriptor: SourceDescriptor,
-  returnGeometry: boolean | undefined,
-  geomColumn: string | undefined,
-): import("../core/types.js").HonuaTypedFeature<T> {
-  const geometryKey =
-    geomColumn ??
-    descriptor.schema?.fields?.find((f) => f.type === "esriFieldTypeGeometry")?.name ??
-    findGeometryKey(row);
-  if (geometryKey && row[geometryKey] !== undefined) {
-    const { [geometryKey]: geometry, ...rest } = row;
-    return {
-      attributes: rest as T,
-      geometry: returnGeometry === false ? null : ((geometry ?? null) as Record<string, unknown> | null),
-    };
-  }
-  return { attributes: row as T, geometry: null };
-}
-
-function findGeometryKey(row: Record<string, unknown>): string | undefined {
-  for (const key of Object.keys(row)) {
-    const lower = key.toLowerCase();
-    if (lower === "geometry" || lower === "geography" || lower === "shape") return key;
-  }
-  return undefined;
 }
 
 function featureToOdataBody<T>(feature: {

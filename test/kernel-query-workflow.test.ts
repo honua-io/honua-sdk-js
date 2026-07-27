@@ -222,7 +222,7 @@ const PROTOCOL_CASES = [
   {
     protocol: "odata" as const,
     endpoint: "https://geo.example.test/odata",
-    compiler: "odata-v4-query-v1",
+    compiler: "odata-v4-protocol-query-v1",
   },
 ] satisfies readonly { readonly protocol: Protocol; readonly endpoint: string; readonly compiler: string }[];
 

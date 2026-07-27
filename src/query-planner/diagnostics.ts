@@ -406,7 +406,7 @@ function compiledRowLimit(compiled: object | undefined): number | undefined {
       ? "limit"
       : artifact.compiler === "wfs-2.0-get-feature-v1"
         ? "count"
-        : artifact.compiler === "odata-v4-query-v1"
+        : artifact.compiler === "odata-v4-query-v1" || artifact.compiler === "odata-v4-protocol-query-v1"
           ? "top"
           : artifact.compiler === "geoservices-rest-query-v1" || artifact.compiler === "honua-grpc-query-features-v1"
             ? "resultRecordCount"

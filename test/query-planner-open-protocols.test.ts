@@ -139,7 +139,8 @@ describe("OData query planning", () => {
     expect(plan.steps[0]).toMatchObject({
       engine: "remote",
       compiled: {
-        compiler: "odata-v4-query-v1",
+        compiler: "odata-v4-protocol-query-v1",
+        operation: "query",
         entitySet: "Incidents",
         filter:
           "Severity ge 3 and Status eq 'open' and geo.intersects(Location,geography'SRID=4326;POINT(-157.8 21.3)')",
@@ -150,6 +151,9 @@ describe("OData query planning", () => {
         top: 20,
       },
     });
+    const legacy = compileOdataQuery(plan.ir.source, plan.ir.query);
+    expect(legacy).toMatchObject({ compiler: "odata-v4-query-v1", top: 20 });
+    expect(legacy).not.toHaveProperty("operation");
   });
 
   it("rejects unsupported operators and non-finite spatial coordinates before execution", () => {
