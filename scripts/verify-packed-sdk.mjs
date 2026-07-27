@@ -196,6 +196,67 @@ if (events.join(",") !== "initialize,dispose") throw new Error(\`installed plugi
   });
 
   fs.copyFileSync(
+    path.join(projectRoot, "test", "fixtures", "pmtiles", "sample-vector.pmtiles"),
+    path.join(consumerRoot, "pmtiles-fixture.pmtiles"),
+  );
+  fs.writeFileSync(
+    path.join(consumerRoot, "pmtiles-connect-smoke.mjs"),
+    `import { readFileSync } from "node:fs";
+import { connect } from "@honua/sdk-js";
+
+const fixture = readFileSync(new URL("./pmtiles-fixture.pmtiles", import.meta.url));
+const asset = Buffer.alloc(64 * 1024);
+fixture.copy(asset);
+const ranges = [];
+const requests = [];
+const fetchFn = async (input, init) => {
+  const headers = new Headers(init?.headers);
+  const range = headers.get("range");
+  const match = /^bytes=(\\d+)-(\\d+)$/.exec(range ?? "");
+  if (!match) return new Response("missing range", { status: 400 });
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  ranges.push(range);
+  requests.push({ authorization: headers.get("authorization"), cache: init?.cache });
+  const body = asset.subarray(start, end + 1);
+  return new Response(body, {
+    status: 206,
+    headers: {
+      "Content-Length": String(body.byteLength),
+      "Content-Range": \`bytes \${start}-\${end}/\${asset.byteLength}\`,
+      ETag: '"packed-fixture-v1"',
+    },
+  });
+};
+
+const connected = await connect({
+  endpoint: "https://assets.example.test/maps/packed.pmtiles",
+  protocol: "pmtiles",
+  authorizationScopeFingerprint: "public",
+  clientOptions: { fetchFn, bearerToken: "packed-secret" },
+});
+if (ranges.length !== 1 || ranges[0] !== "bytes=0-16383") {
+  throw new Error(\`installed PMTiles discovery exceeded its bounded range plan: \${ranges.join(",")}\`);
+}
+if (requests[0]?.authorization !== "Bearer packed-secret" || requests[0]?.cache !== "no-store") {
+  throw new Error("installed PMTiles discovery bypassed auth/cache pipeline semantics");
+}
+if (connected.inspection.protocol !== "pmtiles") throw new Error("installed PMTiles protocol classification failed");
+if (connected.inspection.sources[0]?.metadata?.pmtiles?.tileKind !== "mvt") {
+  throw new Error("installed PMTiles metadata discovery failed");
+}
+if (!connected.source().capabilities.has("tiles")) throw new Error("installed PMTiles source lacks tiles capability");
+const described = await connected.source().protocol("pmtiles")?.describe();
+if (described?.tileKind !== "mvt" || ranges.length !== 1) {
+  throw new Error("installed PMTiles typed adapter did not reuse reviewed metadata");
+}
+`,
+  );
+  run("installed bounded PMTiles connect", process.execPath, ["pmtiles-connect-smoke.mjs"], {
+    cwd: consumerRoot,
+  });
+
+  fs.copyFileSync(
     path.join(projectRoot, "test", "root-surface", "moved-runtime.mjs"),
     path.join(consumerRoot, "root-migration-runtime.mjs"),
   );
@@ -311,7 +372,7 @@ if (events.join(",") !== "initialize,dispose") throw new Error(\`installed plugi
   );
 
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} geocoding=runtime rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal registryInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} geocoding=runtime pmtilesConnect=bounded-range rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal registryInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(

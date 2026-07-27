@@ -468,6 +468,7 @@ export type {
   DescribePmtilesArchiveDeps,
   PmtilesArchiveDescription,
   PmtilesArchiveLike,
+  PmtilesDecompress,
   PmtilesHeaderLike,
   PmtilesModuleLike,
   PmtilesRangeResponse,

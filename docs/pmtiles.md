@@ -16,6 +16,53 @@ that never touches PMTiles pays no bundle cost.
 - Reference an archive as a MapLibre source `url` with the `pmtiles://` scheme:
   `pmtiles://https://example.com/basemap.pmtiles`.
 
+## Discovering a direct archive with `connect()`
+
+The shared `connect()` workflow owns direct PMTiles discovery. An explicit
+`protocol: "pmtiles"` works with an ordinary HTTPS asset URL. For `auto`, use a
+`pmtiles://https://...` marker; a `.pmtiles` filename is deliberately not enough
+evidence and causes an `ambiguous-protocol` error before cache, authentication,
+or network work begins.
+
+```ts doc-test=compile
+import { connect } from "@honua/sdk-js";
+
+const connection = await connect({
+  endpoint: "pmtiles://https://example.com/basemaps/hawaii.pmtiles",
+  protocol: "auto",
+  authorizationScopeFingerprint: "public",
+});
+
+const source = connection.source();
+console.log(source.descriptor.locator.sourceType); // "vector" or "raster"
+console.log(connection.inspection.sources[0]?.metadata?.pmtiles?.bounds);
+```
+
+Discovery runs through the normal client auth/interceptor/timeout pipeline and
+accepts only exact HTTP `206` ranges. It permits at most two physical HTTP
+attempts, 512 KiB per range, 1 MiB reserved in total, and 4 MiB of cumulative
+inflated internal directory/metadata output; caller-provided `pmtiles.limits`
+may only lower those ceilings. A retryable or authentication response is not
+replayed inside this bounded lane. Redirects, compressed HTTP ranges,
+aggregate whole-archive coverage, unbounded internal compression, inconsistent
+`Content-Range`/validators, unknown magic, cancellation, and response overflow
+fail closed. Disjoint ranges require one strong ETag or canonical Last-Modified
+validator; weak ETags are not byte-identity evidence.
+The cache identity binds the canonical asset URL, authorization-scope digest,
+and normalized transfer/decompression policy; cached inspection retains and
+cross-binds retrieval time, PMTiles spec version, validator evidence, and the
+complete bounded range ledger plus cumulative decompressed-byte count. Cache
+replay rechecks that count against the current caller ceiling. The snapshot
+retains at most 1,000,000 UTF-8 bytes of canonical raw metadata and
+at most 2,048 raw `vector_layers` entries, using the same admission rules on
+live discovery and cache replay. Normalized vector-layer metadata is capped at
+8,000 retained structural nodes so every accepted live result remains portable
+through the shared cache envelope. Cached extents, the exact capability and
+provenance record, and derived source fields are cross-bound to the reviewed
+archive metadata. The returned
+typed PMTiles adapter reuses that reviewed description and does not perform a
+second native fetch.
+
 ## Rendering a PMTiles source (runtime)
 
 `loadMapPackage` auto-registers the `pmtiles://` protocol before it applies the

@@ -83,14 +83,18 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
         },
       );
     }
+    if (hasTiffLikePath(endpoint)) {
+      throw directCogClassificationError(endpoint, hint);
+    }
     throw new HonuaDiscoveryError(
       "ambiguous-protocol",
-      "connect() could not determine the protocol from the URL without probing. Pass an explicit protocol hint.",
+      'connect() could not determine the protocol from the URL without probing. Pass an explicit protocol hint; for PMTiles, a "pmtiles://https://..." marker is strong auto evidence.',
       {
         autoDetectedLayouts: [
           "*/rest/services/*/FeatureServer[/layer]",
           "*/rest/services/*/MapServer[/layer]",
           "*/rest/services/*/ImageServer",
+          "pmtiles://https://*/asset",
         ],
         supportedProtocols: [
           "grpc",
@@ -98,6 +102,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
           "stac",
           "wfs",
           "odata",
+          "pmtiles",
           "geoparquet",
           "ogc-records",
           "ogc-tiles",
@@ -175,6 +180,19 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
     // directly; discovery reads its footer, so the client base URL is only the
     // asset origin and is never used for feature queries.
     return { endpoint, clientBaseUrl: new URL(endpoint).origin, protocol: "geoparquet" };
+  }
+  if (hint === "pmtiles") {
+    if (classifiedGeoServices) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `The canonical GeoServices URL resolves to "${classifiedGeoServices.protocol}", not "pmtiles".`,
+        { endpoint, protocol: hint, resolvedProtocol: classifiedGeoServices.protocol },
+      );
+    }
+    return { endpoint, clientBaseUrl: new URL(endpoint).origin, protocol: "pmtiles" };
+  }
+  if ((hint as string) === "cog" || (hint as string) === "geotiff") {
+    throw directCogClassificationError(endpoint, hint);
   }
   if ((hint as string) === "ogc-processes") {
     // OGC API Processes is intentionally not a Source-backed protocol: a
@@ -269,6 +287,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
         "stac",
         "wfs",
         "odata",
+        "pmtiles",
         "geoparquet",
         "ogc-records",
         "ogc-tiles",
@@ -279,6 +298,25 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
         "geoservices-map-service",
         "geoservices-image-service",
       ],
+    },
+  );
+}
+
+function hasTiffLikePath(endpoint: string): boolean {
+  return /\.tiff?$/i.test(new URL(endpoint).pathname);
+}
+
+function directCogClassificationError(endpoint: string, hint: ConnectProtocolHint): HonuaDiscoveryError {
+  return new HonuaDiscoveryError(
+    "unsupported-protocol",
+    "A direct TIFF URL is not sufficient COG evidence. Classify the asset through explicit static STAC metadata, then open the resulting COG candidate with @honua/sdk-js/cog.",
+    {
+      endpoint,
+      protocol: hint,
+      discoveryDisposition: "stac-classified",
+      directInput: "unsupported-unclassified",
+      requiredWorkflow: "connect-static-stac",
+      alternateProtocolProbing: false,
     },
   );
 }

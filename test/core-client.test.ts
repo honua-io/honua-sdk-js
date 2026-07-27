@@ -1,8 +1,32 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaAbortError, HonuaClient, HonuaHttpError } from "../src/index.js";
+import { HonuaAbortError, HonuaClient, HonuaHttpError, HonuaTimeoutError } from "../src/index.js";
 
 describe("HonuaClient", () => {
+  it("preserves cache mode and exposes every physical pipelineFetch attempt", async () => {
+    const cacheModes: Array<RequestCache | undefined> = [];
+    const attempts: number[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      retry: { maxRetries: 1, baseDelayMs: 1, maxDelayMs: 1, retryStatuses: [503] },
+      fetchFn: async (_input, init) => {
+        cacheModes.push(init?.cache);
+        return cacheModes.length === 1 ? new Response("retry", { status: 503 }) : new Response("ok", { status: 206 });
+      },
+    });
+
+    await expect(
+      client.pipelineFetch("GET", "/asset", { cache: "no-store" }, undefined, {
+        okStatuses: [206],
+        beforeAttempt: (_request, attempt) => {
+          attempts.push(attempt);
+        },
+      }),
+    ).resolves.toMatchObject({ status: 206 });
+    expect(cacheModes).toEqual(["no-store", "no-store"]);
+    expect(attempts).toEqual([0, 1]);
+  });
+
   it("refreshes provider credentials before expiry and applies rotated auth headers", async () => {
     const requestedHeaders: HeadersInit[] = [];
     let issue = 0;
@@ -1185,6 +1209,209 @@ describe("HonuaClient", () => {
     expect(intercepted).toHaveLength(1);
     expect(intercepted[0]).toBeInstanceOf(Error);
     expect((intercepted[0] as Error).message).toBe("Request timed out after 10ms");
+  });
+
+  it.each([
+    ["delayed", () => new Promise<void>((resolve) => setTimeout(resolve, 50))],
+    ["nonsettling", () => new Promise<void>(() => undefined)],
+  ])("keeps prepared-response timeouts active through %s after interceptors", async (_case, afterHook) => {
+    const intercepted: unknown[] = [];
+    let markAfterStarted!: () => void;
+    const afterStarted = new Promise<void>((resolve) => {
+      markAfterStarted = resolve;
+    });
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      timeoutMs: 10,
+      interceptors: [
+        {
+          after: async () => {
+            markAfterStarted();
+            await afterHook();
+          },
+          error: (context) => {
+            intercepted.push(context.error);
+          },
+        },
+      ],
+      fetchFn: async () => new Response("ok", { status: 206 }),
+    });
+
+    const pending = client.pipelineFetch("GET", "/asset", undefined, undefined, {
+      okStatuses: [206],
+      prepareResponse: async (response) => response,
+    });
+    await afterStarted;
+    await expect(pending).rejects.toMatchObject({
+      name: "HonuaTimeoutError",
+      sdkCode: "core.timeout",
+      timeoutMs: 10,
+      message: "Request timed out after 10ms",
+    });
+    expect(intercepted).toHaveLength(1);
+    expect(intercepted[0]).toBeInstanceOf(HonuaTimeoutError);
+  });
+
+  it("settles a prepared-response timeout when both after and error hooks do not settle", async () => {
+    const errors: Array<{ hook: string; error: unknown }> = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      timeoutMs: 10,
+      interceptors: [
+        {
+          after: () => new Promise<void>(() => undefined),
+          error: async ({ error }) => {
+            errors.push({ hook: "nonsettling", error });
+            await new Promise<void>(() => undefined);
+          },
+        },
+        {
+          error: ({ error }) => {
+            errors.push({ hook: "later", error });
+          },
+        },
+      ],
+      fetchFn: async () => new Response("ok", { status: 206 }),
+    });
+
+    await expect(
+      client.pipelineFetch("GET", "/asset", undefined, undefined, {
+        okStatuses: [206],
+        prepareResponse: async (response) => response,
+      }),
+    ).rejects.toMatchObject({
+      name: "HonuaTimeoutError",
+      sdkCode: "core.timeout",
+      timeoutMs: 10,
+    });
+    expect(errors.map(({ hook }) => hook)).toEqual(["nonsettling", "later"]);
+    expect(errors.map(({ error }) => error)).toSatisfy((seen: unknown[]) =>
+      seen.every((error) => error instanceof HonuaTimeoutError),
+    );
+  });
+
+  it("surfaces timeout once when a prepared after failure crosses the deadline in error hooks", async () => {
+    const afterFailure = new Error("after-failed");
+    const errors: Array<{ hook: string; error: unknown }> = [];
+    let releaseErrorHook!: () => void;
+    const errorHookReleased = new Promise<void>((resolve) => {
+      releaseErrorHook = resolve;
+    });
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      timeoutMs: 10,
+      interceptors: [
+        {
+          after: () => {
+            throw afterFailure;
+          },
+          error: async ({ error }) => {
+            errors.push({ hook: "delayed", error });
+            await errorHookReleased;
+          },
+        },
+        {
+          error: ({ error }) => {
+            errors.push({ hook: "later", error });
+          },
+        },
+      ],
+      fetchFn: async () => new Response("ok", { status: 206 }),
+    });
+
+    await expect(
+      client.pipelineFetch("GET", "/asset", undefined, undefined, {
+        okStatuses: [206],
+        prepareResponse: async (response) => response,
+      }),
+    ).rejects.toBeInstanceOf(HonuaTimeoutError);
+    expect(errors).toEqual([
+      { hook: "delayed", error: afterFailure },
+      { hook: "later", error: afterFailure },
+    ]);
+
+    releaseErrorHook();
+    await Promise.resolve();
+    expect(errors).toHaveLength(2);
+  });
+
+  it("settles caller abort during prepared after and nonsettling error hooks", async () => {
+    const controller = new AbortController();
+    const errors: Array<{ hook: string; error: unknown }> = [];
+    let markAfterStarted!: () => void;
+    const afterStarted = new Promise<void>((resolve) => {
+      markAfterStarted = resolve;
+    });
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      interceptors: [
+        {
+          after: async () => {
+            markAfterStarted();
+            await new Promise<void>(() => undefined);
+          },
+          error: async ({ error }) => {
+            errors.push({ hook: "nonsettling", error });
+            await new Promise<void>(() => undefined);
+          },
+        },
+        {
+          error: ({ error }) => {
+            errors.push({ hook: "later", error });
+          },
+        },
+      ],
+      fetchFn: async () => new Response("ok", { status: 206 }),
+    });
+
+    const pending = client.pipelineFetch("GET", "/asset", undefined, controller.signal, {
+      okStatuses: [206],
+      prepareResponse: async (response) => response,
+    });
+    await afterStarted;
+    controller.abort();
+
+    await expect(pending).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(errors.map(({ hook }) => hook)).toEqual(["nonsettling", "later"]);
+    expect(errors.map(({ error }) => error)).toSatisfy((seen: unknown[]) =>
+      seen.every((error) => error instanceof HonuaAbortError),
+    );
+  });
+
+  it("preserves a prepared after failure when error hooks settle before the deadline", async () => {
+    const afterFailure = new Error("after-failed");
+    const errors: Array<{ hook: string; error: unknown }> = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      timeoutMs: 1_000,
+      interceptors: [
+        {
+          after: () => {
+            throw afterFailure;
+          },
+          error: ({ error }) => {
+            errors.push({ hook: "first", error });
+          },
+        },
+        {
+          error: ({ error }) => {
+            errors.push({ hook: "second", error });
+          },
+        },
+      ],
+      fetchFn: async () => new Response("ok", { status: 206 }),
+    });
+
+    await expect(
+      client.pipelineFetch("GET", "/asset", undefined, undefined, {
+        okStatuses: [206],
+        prepareResponse: async (response) => response,
+      }),
+    ).rejects.toBe(afterFailure);
+    expect(errors).toEqual([
+      { hook: "first", error: afterFailure },
+      { hook: "second", error: afterFailure },
+    ]);
   });
 
   it("continues calling error interceptors when one interceptor throws", async () => {

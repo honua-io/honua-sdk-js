@@ -157,8 +157,43 @@ export interface DiscoverySourceMetadata {
   };
   readonly axisOrders?: readonly DiscoveryAxisOrderMetadata[];
   readonly tileMatrixSets?: readonly DiscoveryTileMatrixSetMetadata[];
+  /** Bounded direct-archive evidence retained for a PMTiles source. */
+  readonly pmtiles?: DiscoveryPmtilesMetadata;
   /** Structured optional-metadata failures retained even when discovery can continue. */
   readonly partialReasons?: readonly string[];
+}
+
+export interface DiscoveryPmtilesMetadata {
+  readonly specVersion: number;
+  readonly tileKind: "mvt" | "png" | "jpeg" | "webp" | "avif" | "unknown";
+  readonly bounds: readonly [number, number, number, number];
+  readonly minZoom: number;
+  readonly maxZoom: number;
+  readonly center: readonly [number, number, number];
+  readonly vectorLayers: readonly {
+    readonly id: string;
+    readonly description?: string;
+    readonly minZoom?: number;
+    readonly maxZoom?: number;
+    readonly fields?: Readonly<Record<string, string>>;
+  }[];
+  readonly attribution?: string;
+  /** Canonical JSON encoding of the bounded raw archive metadata document. */
+  readonly metadataJson: string;
+  readonly validator?: string;
+  readonly transfer: {
+    readonly requests: number;
+    readonly bytesFetched: number;
+    readonly decompressedBytes: number;
+    readonly ranges: readonly {
+      readonly offset: number;
+      readonly length: number;
+      readonly bytesReceived: number;
+      readonly status: 206;
+      readonly contentRange: string;
+      readonly validator?: string;
+    }[];
+  };
 }
 
 export interface DiscoveryStyleMetadata {

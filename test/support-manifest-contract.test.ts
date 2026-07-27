@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CONNECT_SOURCE_PROTOCOLS } from "../src/connect.js";
+import { CONNECT_SOURCE_PROTOCOLS, CONNECT_STATIC_FORMATS } from "../src/connect.js";
 import {
   CAPABILITIES,
   type Capability,
@@ -33,6 +33,20 @@ interface ProtocolClaim {
 
 interface SupportManifest {
   readonly connectProtocols: readonly Protocol[];
+  readonly discoveryInventory: {
+    readonly protocols: readonly {
+      readonly id: Protocol;
+      readonly disposition: string;
+      readonly owner: string;
+      readonly autoClassification: string;
+    }[];
+    readonly staticFormats: readonly {
+      readonly id: string;
+      readonly disposition: string;
+      readonly owner: string;
+      readonly autoClassification: string;
+    }[];
+  };
   readonly protocolOperations: readonly string[];
   readonly operationSurfaces: readonly OperationSurface[];
   readonly protocols: readonly ProtocolClaim[];
@@ -125,6 +139,34 @@ describe("support manifest contract parity", () => {
         protocol.id,
       ).not.toContain("connect");
     }
+  });
+
+  it("assigns every protocol and static format to one machine-checked discovery owner", () => {
+    expect(manifest.discoveryInventory.protocols.map((entry) => entry.id)).toEqual(PROTOCOLS);
+    expect(
+      manifest.discoveryInventory.protocols
+        .filter((entry) => entry.disposition === "source-backed")
+        .map((entry) => entry.id)
+        .sort(),
+    ).toEqual([...CONNECT_SOURCE_PROTOCOLS].sort());
+    expect(manifest.discoveryInventory.staticFormats.map((entry) => entry.id)).toEqual(CONNECT_STATIC_FORMATS);
+    expect(manifest.discoveryInventory.protocols.find((entry) => entry.id === "geoservices-gp-service")).toMatchObject({
+      disposition: "operation-only",
+      owner: "discoverGeoServices()",
+    });
+    expect(manifest.discoveryInventory.protocols.find((entry) => entry.id === "maplibre-vector")).toMatchObject({
+      disposition: "renderer-native",
+      owner: "@honua/sdk-js/runtime",
+    });
+    expect(manifest.discoveryInventory.staticFormats.find((entry) => entry.id === "pmtiles")).toMatchObject({
+      disposition: "source-backed",
+      autoClassification: "structural-marker",
+    });
+    expect(manifest.discoveryInventory.staticFormats.find((entry) => entry.id === "cog")).toMatchObject({
+      disposition: "stac-classified",
+      owner: "@honua/sdk-js/cog",
+      autoClassification: "stac-evidence",
+    });
   });
 
   it("tracks every native default capability without treating fallbacks as defaults", () => {

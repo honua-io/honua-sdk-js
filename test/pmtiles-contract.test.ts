@@ -73,7 +73,7 @@ describe("contract / PMTiles describe()", () => {
     });
   });
 
-  it("maps an unknown header tile type to 'unknown' and tolerates absent metadata", async () => {
+  it("maps an unknown header tile type to 'unknown' with valid object metadata", async () => {
     const fakePMTiles: PmtilesModuleLike = class {
       async getHeader() {
         return {
@@ -90,7 +90,7 @@ describe("contract / PMTiles describe()", () => {
         };
       }
       async getMetadata() {
-        return null;
+        return {};
       }
     } as unknown as PmtilesModuleLike;
     const info = await describePmtilesArchive("mem://archive", { PMTiles: fakePMTiles });
@@ -100,6 +100,37 @@ describe("contract / PMTiles describe()", () => {
     expect(info.vectorLayers).toEqual([]);
     expect(info.attribution).toBeUndefined();
     expect(info.metadata).toEqual({});
+  });
+
+  it.each([
+    ["null", null],
+    ["string", "metadata"],
+    ["number", 42],
+    ["array", [{ id: "not-an-object-document" }]],
+  ])("rejects %s archive metadata instead of coercing it to an empty object", async (_case, rawMetadata) => {
+    const fakePMTiles: PmtilesModuleLike = class {
+      async getHeader() {
+        return {
+          minZoom: 2,
+          maxZoom: 9,
+          minLon: -10,
+          minLat: -5,
+          maxLon: 10,
+          maxLat: 5,
+          centerZoom: 4,
+          centerLon: 0,
+          centerLat: 0,
+          tileType: 1,
+        };
+      }
+      async getMetadata() {
+        return rawMetadata;
+      }
+    } as unknown as PmtilesModuleLike;
+
+    await expect(describePmtilesArchive("mem://archive", { PMTiles: fakePMTiles })).rejects.toThrow(
+      "PMTiles archive metadata must be a JSON object.",
+    );
   });
 
   it("HonuaPmtilesArchive.describe() caches after the first call", async () => {

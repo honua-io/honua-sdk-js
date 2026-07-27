@@ -65,6 +65,7 @@
     { "id": "wmts-fixtures", "kind": "fixture", "path": "test/contract/wmts.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "odata-fixtures", "kind": "fixture", "path": "test/contract/odata-backend-agnostic.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "pmtiles-fixtures", "kind": "fixture", "path": "test/pmtiles-contract.test.ts", "freshnessPolicy": "release-gated" },
+    { "id": "pmtiles-connect-fixtures", "kind": "fixture", "path": "test/connect-pmtiles.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "geoparquet-fixtures", "kind": "fixture", "path": "test/geoparquet-source.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "geoparquet-connect-fixtures", "kind": "fixture", "path": "test/connect-geoparquet.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "wms-wmts-connect-fixtures", "kind": "fixture", "path": "test/connect-wms-wmts.test.ts", "freshnessPolicy": "release-gated" },
@@ -87,6 +88,7 @@
     "stac",
     "wfs",
     "odata",
+    "pmtiles",
     "geoparquet",
     "ogc-records",
     "ogc-tiles",
@@ -97,6 +99,47 @@
     "geoservices-map-service",
     "geoservices-image-service"
   ],
+  "discoveryInventory": {
+    "format": "honua.sdk.connect-discovery-inventory.v1",
+    "schemaVersion": 1,
+    "dispositionVocabulary": [
+      "source-backed",
+      "operation-only",
+      "stac-classified",
+      "renderer-native",
+      "explicitly-unsupported"
+    ],
+    "protocols": [
+      { "id": "grpc", "disposition": "source-backed", "owner": "connect()", "autoClassification": "explicit-only" },
+      { "id": "geoservices-feature-service", "disposition": "source-backed", "owner": "connect()", "autoClassification": "structural" },
+      { "id": "geoservices-map-service", "disposition": "source-backed", "owner": "connect()", "autoClassification": "structural" },
+      { "id": "geoservices-image-service", "disposition": "source-backed", "owner": "connect()", "autoClassification": "structural" },
+      { "id": "geoservices-geometry-service", "disposition": "operation-only", "owner": "discoverGeoServices()", "autoClassification": "not-applicable" },
+      { "id": "geoservices-gp-service", "disposition": "operation-only", "owner": "discoverGeoServices()", "autoClassification": "not-applicable" },
+      { "id": "ogc-features", "disposition": "source-backed", "owner": "connect()", "autoClassification": "explicit-only" },
+      { "id": "ogc-tiles", "disposition": "source-backed", "owner": "connect()", "autoClassification": "explicit-only" },
+      { "id": "ogc-maps", "disposition": "source-backed", "owner": "connect()", "autoClassification": "explicit-only" },
+      { "id": "ogc-records", "disposition": "source-backed", "owner": "connect()", "autoClassification": "explicit-only" },
+      { "id": "stac", "disposition": "source-backed", "owner": "connect()", "autoClassification": "explicit-only" },
+      { "id": "wfs", "disposition": "source-backed", "owner": "connect()", "autoClassification": "explicit-only" },
+      { "id": "wms", "disposition": "source-backed", "owner": "connect()", "autoClassification": "structural" },
+      { "id": "wmts", "disposition": "source-backed", "owner": "connect()", "autoClassification": "structural" },
+      { "id": "odata", "disposition": "source-backed", "owner": "connect()", "autoClassification": "explicit-only" },
+      { "id": "pmtiles", "disposition": "source-backed", "owner": "connect()", "autoClassification": "structural-marker" },
+      { "id": "geoparquet", "disposition": "source-backed", "owner": "connect()", "autoClassification": "explicit-only" },
+      { "id": "maplibre-vector", "disposition": "renderer-native", "owner": "@honua/sdk-js/runtime", "autoClassification": "not-applicable" },
+      { "id": "maplibre-raster", "disposition": "renderer-native", "owner": "@honua/sdk-js/runtime", "autoClassification": "not-applicable" },
+      { "id": "maplibre-geojson", "disposition": "renderer-native", "owner": "@honua/sdk-js/runtime", "autoClassification": "not-applicable" }
+    ],
+    "staticFormats": [
+      { "id": "static-stac", "disposition": "source-backed", "owner": "connect({ protocol: 'stac' })", "autoClassification": "explicit-only" },
+      { "id": "pmtiles", "disposition": "source-backed", "owner": "connect({ protocol: 'pmtiles' })", "autoClassification": "structural-marker" },
+      { "id": "geoparquet", "disposition": "source-backed", "owner": "connect({ protocol: 'geoparquet' })", "autoClassification": "explicit-only" },
+      { "id": "cog", "disposition": "stac-classified", "owner": "@honua/sdk-js/cog", "autoClassification": "stac-evidence" },
+      { "id": "tile-template", "disposition": "renderer-native", "owner": "@honua/sdk-js/runtime", "autoClassification": "stac-evidence" },
+      { "id": "geojson", "disposition": "renderer-native", "owner": "@honua/sdk-js/runtime", "autoClassification": "not-applicable" }
+    ]
+  },
   "protocolOperations": [
     "query",
     "queryAggregate",
@@ -179,7 +222,7 @@
     },
     "honuaSite": {
       "format": "honua.site.sdk-support.v1",
-      "projectionFields": ["sdk", "statusVocabulary", "environmentVocabulary", "executionModeVocabulary", "protocols", "supportClaims", "packageLifecycle", "evidence"],
+      "projectionFields": ["sdk", "statusVocabulary", "environmentVocabulary", "executionModeVocabulary", "discoveryInventory", "protocols", "supportClaims", "packageLifecycle", "evidence"],
       "joinKeys": ["protocols[].id", "supportClaims[].id", "packageLifecycle.entrypoints[].subpath"]
     }
   },
@@ -188,7 +231,7 @@
       "stableEntrypoints": 22,
       "rootRuntimeExports": 45,
       "rootTypeExports": 165,
-      "rootGzipBytes": 172968
+      "rootGzipBytes": 196018
     },
     "downstreamProjection": {
       "catalogOwner": "honua-io/honua-site",
@@ -292,6 +335,7 @@
     { "id": "wmts-discovery-standalone", "label": "WMTS 1.0 discovery and raster tiles", "protocol": "wmts", "operations": ["discovery", "render", "tiles"], "environment": "standalone", "executionMode": "discovery", "status": "supported", "backendNeeded": "Any WMTS 1.0.0 server with a Web Mercator, z-addressable tile matrix set", "api": "connect(), Source descriptor, @honua/sdk-js/map", "notes": "Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms.", "evidence": ["wms-wmts-connect-fixtures", "maplibre-raster-source-fixtures", "live-conformance"] },
     { "id": "stac-standalone", "label": "STAC API and static catalogs", "protocol": "stac", "operations": ["discovery", "query", "queryObjectIds", "stream"], "environment": "standalone", "executionMode": "discovery", "status": "supported", "backendNeeded": "Any STAC API or static catalog", "api": "connect(), Source with locator.layout=stac-api or stac-static", "notes": "Searches a raw STAC API or walks static catalog links with client-side filtering.", "evidence": ["stac-fixtures", "live-conformance"] },
     { "id": "odata-standalone", "label": "OData v4", "protocol": "odata", "operations": ["discovery", "query", "queryObjectIds", "applyEdits", "stream"], "environment": "standalone", "executionMode": "discovery", "status": "supported", "backendNeeded": "Any OData v4 service", "api": "connect(), Source, HonuaOdataEntitySet", "notes": "Reads $metadata, intersects advertised capabilities, and uses the raw service root.", "evidence": ["odata-fixtures", "live-conformance"] },
+    { "id": "pmtiles-discovery-client-only", "label": "PMTiles direct asset discovery", "protocol": "pmtiles", "operations": ["discovery", "tiles"], "environment": "client-only", "executionMode": "discovery", "status": "supported", "backendNeeded": "Any static host with exact HTTP Range and readable CORS headers", "api": "connect({ protocol: 'pmtiles' }), Source.protocol('pmtiles')", "notes": "Reads only a bounded PMTiles v3 header and metadata range through the authenticated client pipeline; pmtiles:// is the sole direct auto marker, while filename-only and spoofed inputs fail closed without alternate-protocol probing.", "evidence": ["pmtiles-connect-fixtures", "pmtiles-fixtures"] },
     { "id": "geoparquet-discovery-client-only", "label": "GeoParquet asset discovery", "protocol": "geoparquet", "operations": ["discovery"], "environment": "client-only", "executionMode": "discovery", "status": "experimental", "backendNeeded": "None; caller provides a GeoParquet profiler", "api": "connect({ protocol: 'geoparquet', geoparquet: { profiler } })", "notes": "Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver.", "evidence": ["geoparquet-connect-fixtures"] },
     { "id": "ogc-tiles-standalone", "label": "OGC API Tiles", "protocol": "ogc-tiles", "operations": ["discovery", "render", "tiles"], "environment": "standalone", "executionMode": "discovery", "status": "beta", "backendNeeded": "Any link-driven OGC API Tiles server", "api": "connect(), Source protocol ogc-tiles", "notes": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile.", "evidence": ["ogc-tiles-fixtures", "live-conformance"] },
     { "id": "ogc-maps-standalone", "label": "OGC API Maps", "protocol": "ogc-maps", "operations": ["discovery", "render"], "environment": "standalone", "executionMode": "discovery", "status": "beta", "backendNeeded": "Any link-driven OGC API Maps server", "api": "connect(), Source protocol ogc-maps", "notes": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render.", "evidence": ["ogc-maps-fixtures", "live-conformance"] },

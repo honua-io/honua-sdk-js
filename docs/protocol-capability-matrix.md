@@ -79,6 +79,43 @@ policy in the manifest.
 | `maplibre-vector` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts) |
 | `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs) |
 | `maplibre-raster` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) |
+
+### Generated discovery disposition inventory
+
+Every canonical protocol and supported static format has exactly one owner and
+discovery boundary. `explicit-only` never probes competing protocols;
+`structural-marker` currently means the explicit `pmtiles://` asset marker.
+The standalone machine projection is
+[`support/projections/connect-discovery-inventory.v1.json`](../support/projections/connect-discovery-inventory.v1.json).
+
+| Kind | Identifier | Disposition | Auto classification | Owner |
+| --- | --- | --- | --- | --- |
+| Protocol | `grpc` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `geoservices-feature-service` | `source-backed` | `structural` | `connect()` |
+| Protocol | `geoservices-map-service` | `source-backed` | `structural` | `connect()` |
+| Protocol | `geoservices-image-service` | `source-backed` | `structural` | `connect()` |
+| Protocol | `geoservices-geometry-service` | `operation-only` | `not-applicable` | `discoverGeoServices()` |
+| Protocol | `geoservices-gp-service` | `operation-only` | `not-applicable` | `discoverGeoServices()` |
+| Protocol | `ogc-features` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `ogc-tiles` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `ogc-maps` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `ogc-records` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `stac` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `wfs` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `wms` | `source-backed` | `structural` | `connect()` |
+| Protocol | `wmts` | `source-backed` | `structural` | `connect()` |
+| Protocol | `odata` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `pmtiles` | `source-backed` | `structural-marker` | `connect()` |
+| Protocol | `geoparquet` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `maplibre-vector` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
+| Protocol | `maplibre-raster` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
+| Protocol | `maplibre-geojson` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
+| Static format | `static-stac` | `source-backed` | `explicit-only` | `connect({ protocol: 'stac' })` |
+| Static format | `pmtiles` | `source-backed` | `structural-marker` | `connect({ protocol: 'pmtiles' })` |
+| Static format | `geoparquet` | `source-backed` | `explicit-only` | `connect({ protocol: 'geoparquet' })` |
+| Static format | `cog` | `stac-classified` | `stac-evidence` | `@honua/sdk-js/cog` |
+| Static format | `tile-template` | `renderer-native` | `stac-evidence` | `@honua/sdk-js/runtime` |
+| Static format | `geojson` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
 <!-- support-manifest:protocol-matrix:end -->
 
 MapLibre-native and PMTiles sources are included in the generated table even
@@ -747,6 +784,15 @@ layer names) is inspected through the typed escape hatch:
 `Source.protocol("pmtiles").describe()` (or the standalone
 `describePmtilesArchive(url)` helper), which returns a normalized
 `PmtilesArchiveDescription`.
+
+The top-level `connect()` path accepts an explicit PMTiles protocol or the
+strong `pmtiles://https://...` auto marker and performs an auth-aware,
+abortable inspection bounded to two physical HTTP attempts, cumulative
+transfer and decompression ceilings, and stable validators for disjoint
+ranges. Filename-only auto classification and whole-file fallback remain
+disabled. The normalized descriptor records vector/raster source type while
+the inspection retains archive version, validator, and transfer-ledger
+evidence; its typed adapter reuses the reviewed description without refetching.
 
 The `pmtiles` package is an optional peer dependency imported lazily — a
 build that never inspects or renders a PMTiles archive pays no cost. The
