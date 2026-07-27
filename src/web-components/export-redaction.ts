@@ -211,6 +211,73 @@ export function assertCredentialFreeExportText(value: string, label: string): vo
   }
 }
 
+// ── binary artifact scanning ─────────────────────────────────────────────
+
+/** Shortest printable run worth scanning. Below this it is structural noise, not text. */
+const MIN_PRINTABLE_RUN = 4;
+
+/** Printable text accumulated before a chunk is scanned and flushed. */
+const PRINTABLE_CHUNK_BYTES = 1 << 20;
+
+/**
+ * Characters carried between chunks so a token straddling a flush boundary is
+ * still matched. Comfortably longer than the longest pattern this module has.
+ */
+const PRINTABLE_CHUNK_OVERLAP = 512;
+
+/**
+ * Extracts runs of printable ASCII from a binary buffer, joined by newlines.
+ *
+ * This is the `strings(1)` idea, and it exists because "binary" is not a
+ * security boundary. A PNG `tEXt`/`iTXt` chunk, a JPEG `COM` marker, PDF
+ * metadata or an embedded XMP packet, an EXIF `UserComment`, a ZIP comment —
+ * all carry plainly readable text inside a buffer that will never decode as
+ * UTF-8 as a whole. Scanning only whole-buffer-decodable artifacts would let a
+ * token ride out inside any of them.
+ *
+ * Runs shorter than {@link MIN_PRINTABLE_RUN} are dropped: they are the
+ * incidental byte values that fall in the ASCII range inside compressed data,
+ * and keeping them would produce noise without ever forming a credential.
+ */
+export function extractPrintableRuns(bytes: Uint8Array, start = 0, end = bytes.byteLength): string {
+  const runs: string[] = [];
+  let current = "";
+  for (let index = start; index < end; index += 1) {
+    const byte = bytes[index];
+    // Printable ASCII plus tab. Deliberately not the full latin-1 upper range:
+    // every credential shape this module recognizes is ASCII, and admitting
+    // 0x80-0xFF would turn arbitrary compressed data into "text".
+    if ((byte >= 0x20 && byte <= 0x7e) || byte === 0x09) {
+      current += String.fromCharCode(byte);
+      continue;
+    }
+    if (current.length >= MIN_PRINTABLE_RUN) runs.push(current);
+    current = "";
+  }
+  if (current.length >= MIN_PRINTABLE_RUN) runs.push(current);
+  return runs.join("\n");
+}
+
+/**
+ * Fail-closed credential scan over a binary artifact (REQ-002).
+ *
+ * Scans in bounded chunks with an overlap, so an arbitrarily large artifact
+ * costs bounded memory while a token that straddles a chunk boundary is still
+ * caught. Throws {@link HonuaExportSafetyError} on a hit, like the text scan —
+ * a credential surviving to this point means an earlier layer is broken, and
+ * emitting the bytes anyway is the one outcome that cannot be walked back.
+ */
+export function assertCredentialFreeExportBytes(bytes: Uint8Array, label: string): void {
+  let carry = "";
+  for (let offset = 0; offset < bytes.byteLength; offset += PRINTABLE_CHUNK_BYTES) {
+    const end = Math.min(bytes.byteLength, offset + PRINTABLE_CHUNK_BYTES);
+    const printable = extractPrintableRuns(bytes, offset, end);
+    if (printable.length === 0 && carry.length === 0) continue;
+    assertCredentialFreeExportText(`${carry}${printable}`, label);
+    carry = printable.slice(-PRINTABLE_CHUNK_OVERLAP);
+  }
+}
+
 // ── URL handling ─────────────────────────────────────────────────────────
 
 /** Result of reducing an endpoint URL to its exportable form. */
