@@ -70,6 +70,7 @@ import { SAFE_DEMO_INCIDENT_ID, evaluateIncidentMutationGuard } from "./safe-edi
 import type { IncidentMutationGuard } from "./safe-edit.js";
 import type { IncidentEditReceipt, IncidentEditRequest, IncidentFeature, IncidentSummary } from "./types.js";
 
+import "../../_kit/design/index.css";
 import "./styles.css";
 
 interface IncidentRuntime {
@@ -122,15 +123,25 @@ interface EventLogEntry {
   readonly timestamp: string;
 }
 
+const BACKGROUND_LAYER_ID = "background";
+
+/* The basemap is the stage, the incidents are the actors: every canvas color is
+ * read from the shared design language's cartography tokens so the map re-keys
+ * with the active theme instead of staying a light plate under dark chrome. */
+function designToken(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value.length > 0 ? value : fallback;
+}
+
 const DEFAULT_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {},
   layers: [
     {
-      id: "background",
+      id: BACKGROUND_LAYER_ID,
       type: "background",
       paint: {
-        "background-color": "#e8edf0",
+        "background-color": designToken("--hn-basemap-land", "#f4f5f1"),
       },
     },
   ],
@@ -196,17 +207,24 @@ function incidentBounds(incidents: readonly IncidentFeature[]): maplibregl.LngLa
   return bounds.isEmpty() ? [fallback, fallback] : bounds;
 }
 
-/** Incident severity styling as a first-class renderer object (issue #497). */
-const severityRenderer = uniqueValueRenderer({
-  field: "severity",
-  values: [
-    { value: "critical", color: "#b91c1c", label: "Critical" },
-    { value: "high", color: "#d97706", label: "High" },
-    { value: "medium", color: "#2563eb", label: "Medium" },
-  ],
-  defaultColor: "#0f766e",
-  defaultLabel: "Low / other",
-});
+/* Incident severity styling as a first-class renderer object (issue #497).
+ * Severity is a status scale, so it paints from the design language's fixed
+ * status marks — the same tokens the queue's severity dots and the map legend
+ * swatches use, which is what keeps the three in sync. Severity is also spelled
+ * out in the queue row, the popup, and the detail rail, so nothing is carried
+ * by hue alone. */
+function severityRenderer() {
+  return uniqueValueRenderer({
+    field: "severity",
+    values: [
+      { value: "critical", color: designToken("--hn-status-critical", "#d03b3b"), label: "Critical" },
+      { value: "high", color: designToken("--hn-status-serious", "#ec835a"), label: "High" },
+      { value: "medium", color: designToken("--hn-status-warn", "#fab219"), label: "Medium" },
+    ],
+    defaultColor: designToken("--hn-status-ok", "#0ca30c"),
+    defaultLabel: "Low / other",
+  });
+}
 
 async function createMap(): Promise<MapHandle> {
   const map = new maplibregl.Map({
@@ -223,7 +241,7 @@ async function createMap(): Promise<MapHandle> {
     });
     // The severity match expression compiles from the renderer object
     // instead of being hand-written (issue #497).
-    const [severityFragment] = severityRenderer.toMapLibre("point");
+    const [severityFragment] = severityRenderer().toMapLibre("point");
     map.addLayer({
       id: INCIDENT_LAYER_ID,
       source: INCIDENT_SOURCE_ID,
@@ -238,7 +256,12 @@ async function createMap(): Promise<MapHandle> {
           ["interpolate", ["linear"], ["get", "affectedAssets"], 0, 7, 18, 13],
         ],
         "circle-opacity": ["case", ["==", ["get", "status"], "resolved"], 0.45, 0.92],
-        "circle-stroke-color": ["case", ["boolean", ["feature-state", "selected"], false], "#0f172a", "#ffffff"],
+        "circle-stroke-color": [
+          "case",
+          ["boolean", ["feature-state", "selected"], false],
+          designToken("--hn-accent", "#0b6b4d"),
+          designToken("--hn-halo", "#f4f5f1"),
+        ],
         "circle-stroke-width": ["case", ["boolean", ["feature-state", "selected"], false], 4, 2],
       },
     });
@@ -254,8 +277,8 @@ async function createMap(): Promise<MapHandle> {
         "text-anchor": "top",
       },
       paint: {
-        "text-color": "#0f172a",
-        "text-halo-color": "#ffffff",
+        "text-color": designToken("--hn-basemap-label", "#46554d"),
+        "text-halo-color": designToken("--hn-halo", "#f4f5f1"),
         "text-halo-width": 1.2,
       },
     });
@@ -368,7 +391,8 @@ function renderIncidentList(
   list.innerHTML = "";
 
   if (incidents.length === 0) {
-    list.innerHTML = '<div class="empty-state">No incidents match the linked context.</div>';
+    list.innerHTML =
+      '<div class="empty-state">No incidents match the linked context. Clear a filter or pan the map to widen the extent.</div>';
     return;
   }
 
@@ -432,7 +456,10 @@ function createPopupHtml(incident: IncidentFeature): string {
 function renderDetail(incident: IncidentFeature | undefined): void {
   if (!incident) {
     setText("#detail-title", "No selected incident");
-    setText("#detail-subtitle", "Selection is empty.");
+    setText(
+      "#detail-subtitle",
+      "Open an incident from the queue or the map to read its status, assignment, and evidence here.",
+    );
     setText("#detail-id", "-");
     setText("#detail-status", "-");
     setText("#detail-severity", "-");
@@ -617,6 +644,63 @@ function neutralizeRuntimeActions(runtime: IncidentRuntime): void {
   runtime.staleCursor = async () => undefined;
 }
 
+/* The design language follows the OS theme; the toggle stamps an explicit
+ * override on <html>. Dark mode is a redesign rather than dark chrome over a
+ * light canvas, so the map's basemap, halo, selection stroke, and label colors
+ * are re-read from the tokens whenever the active theme changes. */
+type ThemePreference = "auto" | "light" | "dark";
+const THEME_SEQUENCE: readonly ThemePreference[] = ["auto", "light", "dark"];
+
+function setupThemeToggle(
+  lifecycle: ReturnType<typeof createIncidentLifecycle>,
+  map: maplibregl.Map,
+  layerIds: readonly string[],
+): void {
+  const toggle = getElement<HTMLButtonElement>("#theme-toggle");
+  const [circleLayerId, labelLayerId] = layerIds;
+  let preference: ThemePreference = "auto";
+
+  const retint = (): void => {
+    if (map.getLayer(BACKGROUND_LAYER_ID)) {
+      map.setPaintProperty(BACKGROUND_LAYER_ID, "background-color", designToken("--hn-basemap-land", "#f4f5f1"));
+    }
+    if (circleLayerId && map.getLayer(circleLayerId)) {
+      map.setPaintProperty(circleLayerId, "circle-stroke-color", [
+        "case",
+        ["boolean", ["feature-state", "selected"], false],
+        designToken("--hn-accent", "#0b6b4d"),
+        designToken("--hn-halo", "#f4f5f1"),
+      ]);
+    }
+    if (labelLayerId && map.getLayer(labelLayerId)) {
+      map.setPaintProperty(labelLayerId, "text-color", designToken("--hn-basemap-label", "#46554d"));
+      map.setPaintProperty(labelLayerId, "text-halo-color", designToken("--hn-halo", "#f4f5f1"));
+    }
+  };
+
+  const apply = (): void => {
+    if (preference === "auto") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = preference;
+    toggle.textContent = `Theme: ${preference}`;
+    retint();
+  };
+
+  const onClick = (): void => {
+    preference = THEME_SEQUENCE[(THEME_SEQUENCE.indexOf(preference) + 1) % THEME_SEQUENCE.length] ?? "auto";
+    apply();
+  };
+  const scheme = matchMedia("(prefers-color-scheme: dark)");
+  const onScheme = (): void => retint();
+  toggle.addEventListener("click", onClick);
+  scheme.addEventListener("change", onScheme);
+  lifecycle.own(() => {
+    toggle.removeEventListener("click", onClick);
+    scheme.removeEventListener("change", onScheme);
+    delete document.documentElement.dataset.theme;
+  });
+  apply();
+}
+
 async function bootstrap(): Promise<void> {
   const overlay = getElement<HTMLElement>("#map-overlay");
   const severityFilter = getElement<HTMLSelectElement>("#severity-filter");
@@ -688,6 +772,7 @@ async function bootstrap(): Promise<void> {
     const resolvedTransportConfig = await resolveIncidentTransportConfig(readIncidentTransportConfig());
     const { map, layerIds } = await createMap();
     lifecycle.own(() => map.remove());
+    setupThemeToggle(lifecycle, map, layerIds);
     const store = createRealtimeFeatureStore<IncidentFeature>();
     lifecycle.own(() => store.close());
     const incidentTransport = createIncidentDashboardTransport(resolvedTransportConfig);

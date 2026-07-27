@@ -62,6 +62,7 @@ import type {
   ZoningCode,
 } from "./types.js";
 
+import "../../_kit/design/index.css";
 import "../../_kit/presentation.css";
 import "./styles.css";
 
@@ -372,8 +373,9 @@ function renderMap(query: WorkbenchQueryResult): void {
   const selected = selectedParcelId(latestProjection.selection);
   map.innerHTML = `
     <div class="map-grid"></div>
-    <div class="map-label top">Wailuku</div>
-    <div class="map-label bottom">Kahului shore</div>
+    <div class="map-label hn-canvas-text top">Wailuku</div>
+    <div class="map-label hn-canvas-text bottom">Kahului shore</div>
+    <p class="map-scope hn-canvas-text">Schematic parcel locator — positions are projected from the linked extent, not surveyed.</p>
     ${query.parcels.map((parcel) => renderParcelPin(parcel, extent, selected)).join("")}
     ${permits.map((permit) => renderPermitPin(permit, extent)).join("")}
   `;
@@ -393,7 +395,7 @@ function renderParcelPin(
   const bounds = extent ?? MAP_PRESETS[0].extent;
   const x = clamp(((parcel.coordinate[0] - bounds.xmin) / (bounds.xmax - bounds.xmin)) * 100, 5, 95);
   const y = clamp(100 - ((parcel.coordinate[1] - bounds.ymin) / (bounds.ymax - bounds.ymin)) * 100, 5, 95);
-  const color = zoningClass(parcel.zoning)?.color ?? "#888";
+  const color = zoningClass(parcel.zoning)?.color ?? "var(--hn-ink-faint)";
   return `
     <button
       type="button"
@@ -953,9 +955,12 @@ function renderDetail(): void {
   const parcel = findParcel(parcelId);
   const warning = getElement<HTMLElement>("#flood-warning");
   if (!parcel) {
-    setText("#detail-source", "-");
+    setText("#detail-source", "no selection");
     setText("#detail-title", "No selected parcel");
-    setText("#detail-summary", "-");
+    setText(
+      "#detail-summary",
+      "Pick a row in the parcel table or a pin on the map to read its zoning, flood exposure, and assessed value here.",
+    );
     getElement<HTMLElement>("#detail-attributes").innerHTML = "";
     warning.dataset.active = "false";
     warning.textContent = "";
@@ -1157,7 +1162,33 @@ function presetForParcel(parcel: ParcelFeature) {
   return parcel.district === "Kahului" ? MAP_PRESETS[2].extent : MAP_PRESETS[1].extent;
 }
 
+/* The design language follows the OS theme by default; the toggle stamps an
+ * explicit override on <html> so dark mode is a real theme rather than dark
+ * chrome over a light canvas. The schematic map re-keys automatically because
+ * it paints from the --hn-basemap-* tokens. */
+type ThemePreference = "auto" | "light" | "dark";
+const THEME_SEQUENCE: readonly ThemePreference[] = ["auto", "light", "dark"];
+
+function setupThemeToggle(): void {
+  const toggle = getElement<HTMLButtonElement>("#theme-toggle");
+  let preference: ThemePreference = "auto";
+  const apply = (): void => {
+    if (preference === "auto") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = preference;
+    toggle.textContent = `Theme: ${preference}`;
+  };
+  cleanup.listen(toggle, "click", () => {
+    preference = THEME_SEQUENCE[(THEME_SEQUENCE.indexOf(preference) + 1) % THEME_SEQUENCE.length] ?? "auto";
+    apply();
+  });
+  cleanup.add(() => {
+    delete document.documentElement.dataset.theme;
+  });
+  apply();
+}
+
 function bindControls(): void {
+  setupThemeToggle();
   const moduleTabs = [...document.querySelectorAll<HTMLButtonElement>("[data-module]")];
   moduleTabs.forEach((button) => {
     cleanup.listen(button, "click", () => {
