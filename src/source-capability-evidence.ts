@@ -1,4 +1,5 @@
 import { type ResolvedCrsDefinition, validateSourceCrsDefinition } from "./contract/schema.js";
+import type { SourceProtocol } from "./contract/schema.js";
 import { CAPABILITIES, type SourceDescriptor } from "./contract/types.js";
 import { canonicalStringify, sha256, toJsonValue } from "./query-planner/canonical.js";
 import type { JsonValue } from "./query-planner/types.js";
@@ -244,12 +245,20 @@ function createBoundCapabilityEvidenceProfile(
 
 function createSourceDescriptorMatcher(expectedFingerprint: Sha256): CapabilitySourceDescriptorMatcher {
   return (descriptor: Pick<SourceDescriptor, "id" | "protocol" | "locator">): boolean => {
-    const identity =
-      descriptor.protocol === "geoservices-feature-service" ||
-      descriptor.protocol === "geoservices-map-service" ||
-      descriptor.protocol === "odata"
-        ? sourceCapabilityEndpointIdentity(descriptor)
-        : { endpoint: descriptor.locator.url, protocol: descriptor.protocol, sourceId: descriptor.id };
+    let identity: CapabilitySourceEndpointIdentity = {
+      protocol: descriptor.protocol as SourceProtocol,
+      endpoint: descriptor.locator.url,
+      sourceId: descriptor.id,
+    };
+    try {
+      identity = sourceCapabilityEndpointIdentity(descriptor);
+    } catch {
+      identity = {
+        protocol: descriptor.protocol as SourceProtocol,
+        endpoint: descriptor.locator.url,
+        sourceId: descriptor.id,
+      };
+    }
     return createCapabilitySourceEndpointFingerprint(identity) === expectedFingerprint;
   };
 }

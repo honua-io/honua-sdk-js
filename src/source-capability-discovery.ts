@@ -63,6 +63,7 @@ const CERTIFIED_PROTOCOLS = new Set([
   "geoservices-map-service",
   "geoservices-image-service",
   "odata",
+  "pmtiles",
   "grpc",
   "wfs",
   "ogc-features",
@@ -84,6 +85,7 @@ export type SourceCapabilityConnectOptions = Omit<ConnectOptions, "protocol" | "
     | "geoservices-map-service"
     | "geoservices-image-service"
     | "odata"
+    | "pmtiles"
     | "grpc"
     | "wfs"
     | "ogc-features"

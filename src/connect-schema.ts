@@ -65,6 +65,18 @@ export function wmtsSourceSchemaV2(
   return rasterServiceSourceSchemaV2("wmts", metadata, context, false);
 }
 
+/** Normalize PMTiles archives as render-only, no-feature schema envelopes. */
+export function pmtilesSourceSchemaV2(context: Omit<SchemaNormalizationContext, "protocol">): SourceSchemaV2 {
+  return createSourceSchemaV2({
+    fields: [],
+    key: { state: "none" },
+    geometry: { state: "none", reason: "no-geometry-fields" },
+    temporal: { state: "none" },
+    openContent: "closed",
+    provenance: [provenance({ ...context, protocol: "pmtiles" })],
+  });
+}
+
 /** Normalize STAC collection metadata without a field inventory yet. */
 export function stacSourceSchemaV2(context: Omit<SchemaNormalizationContext, "protocol">): SourceSchemaV2 {
   return createSourceSchemaV2({

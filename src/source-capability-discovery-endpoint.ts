@@ -10,6 +10,7 @@ export type CapabilityDiscoveryProtocol =
   | "geoservices-image-service"
   | "odata"
   | "grpc"
+  | "pmtiles"
   | "wfs"
   | "ogc-features"
   | "ogc-records"
@@ -96,6 +97,13 @@ export function sourceCapabilityEndpointIdentity(
     });
   }
   if (protocol === "geoparquet") {
+    return endpointIdentity({
+      endpoint: requiredEndpoint(locator.url),
+      protocol,
+      sourceId: descriptor.id,
+    });
+  }
+  if (protocol === "pmtiles") {
     return endpointIdentity({
       endpoint: requiredEndpoint(locator.url),
       protocol,

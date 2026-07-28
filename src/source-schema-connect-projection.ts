@@ -7,6 +7,7 @@ import {
   ogcMapsSourceSchemaV2,
   ogcRecordsSourceSchemaV2,
   ogcTilesSourceSchemaV2,
+  pmtilesSourceSchemaV2,
   stacSourceSchemaV2,
   wfsSourceSchemaV2,
   wmsSourceSchemaV2,
@@ -31,4 +32,5 @@ export const SOURCE_SCHEMA_V2_CONNECT_PROJECTION = Object.freeze<ConnectSourceSc
   ogcMaps: (context) => ogcMapsSourceSchemaV2(context),
   wms: (metadata, context) => wmsSourceSchemaV2(metadata, context),
   wmts: (metadata, context) => wmtsSourceSchemaV2(metadata, context),
+  pmtiles: (context) => pmtilesSourceSchemaV2(context),
 });
