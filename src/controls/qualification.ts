@@ -410,6 +410,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "web-components.measure-control",
           "web-components.sketch-control",
           "web-components.editor",
+          "controls.basemap-switcher",
         ],
         evidence: [BROWSER_SPEC],
         note: "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state.",

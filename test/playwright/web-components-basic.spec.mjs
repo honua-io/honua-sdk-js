@@ -297,6 +297,28 @@ test("web components compose map, layers, legend, table, search, and editor stat
       "create",
     );
 
+    await page.evaluate(() => {
+      const switcher = document.createElement("honua-basemap-switcher");
+      switcher.dataset.keyboardProbe = "controls-basemap";
+      switcher.bases = [
+        { id: "probe-one", label: "Probe one", kind: "vector", sources: {}, layers: [] },
+        { id: "probe-two", label: "Probe two", kind: "vector", sources: {}, layers: [] },
+      ];
+      switcher.addEventListener("change", (event) => {
+        switcher.dataset.lastValue = event.detail.value;
+      });
+      document.body.append(switcher);
+    });
+    const probeOne = page
+      .locator("honua-basemap-switcher[data-keyboard-probe='controls-basemap']")
+      .getByRole("radio", { name: "Probe one" });
+    await probeOne.focus();
+    await probeOne.press("ArrowRight");
+    await expect(page.locator("honua-basemap-switcher[data-keyboard-probe='controls-basemap']")).toHaveAttribute(
+      "data-last-value",
+      "probe-two",
+    );
+
     const teardown = await page.locator("honua-map").evaluate((element) => {
       element.remove();
       return {
