@@ -146,6 +146,7 @@ export interface ConnectSourceSchemaProjectionContext {
 export interface ConnectSourceSchemaProjection {
   readonly cacheIdentity: string;
   parseCached(value: unknown): SourceSchemaV2Envelope;
+  stac(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
   geoServices(
     metadata: HonuaLayerMetadata,
     context: ConnectSourceSchemaProjectionContext & {
@@ -161,6 +162,17 @@ export interface ConnectSourceSchemaProjection {
     profile: GeoParquetSourceProfile,
     context: ConnectSourceSchemaProjectionContext,
   ): SourceSchemaV2Envelope | undefined;
+  geoservicesImage(
+    metadata: Readonly<Record<string, unknown>>,
+    context: ConnectSourceSchemaProjectionContext & {
+      readonly protocol: "geoservices-image-service";
+    },
+  ): SourceSchemaV2Envelope;
+  wfs(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
+  ogcFeatures(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
+  ogcRecords(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
+  ogcTiles(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
+  ogcMaps(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
   wms(
     metadata: DiscoverySourceMetadata,
     context: ConnectSourceSchemaProjectionContext & { readonly protocol: "wms" },
