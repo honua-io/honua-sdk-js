@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 183,
-    "failing": 106,
+    "passing": 185,
+    "failing": 104,
     "pending": 42,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -2458,7 +2458,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "high-contrast",
         "responsive-layout",
         "localization",
         "pseudo-locale",
@@ -2468,8 +2467,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 8,
-        "failing": 6,
+        "passing": 9,
+        "failing": 5,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2510,8 +2509,11 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The measure and sketch controls' shared panels declare forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules, asserted from each emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
@@ -2762,7 +2764,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "high-contrast",
         "responsive-layout",
         "localization",
         "pseudo-locale",
@@ -2772,8 +2773,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 8,
-        "failing": 6,
+        "passing": 9,
+        "failing": 5,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2814,8 +2815,11 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The measure and sketch controls' shared panels declare forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules, asserted from each emitted stylesheet."
         },
         {
           "gate": "responsive-layout",

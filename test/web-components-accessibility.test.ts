@@ -84,6 +84,13 @@ describe("web-component accessibility semantics", () => {
 
     const actions = shadow(mount("honua-action-panel", "Actions"));
     expect(actions.querySelector('[role="status"]')?.textContent).toContain("No actions");
+
+    for (const tagName of ["honua-measure-control", "honua-sketch-control"] as const) {
+      const controlCss = shadow(mount(tagName, tagName)).querySelector("style")?.textContent ?? "";
+      expect(controlCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+      expect(controlCss).toContain("background: Canvas");
+      expect(controlCss).toContain("border-color: ButtonText");
+    }
   });
 
   it("mounts and disconnects the covered controls without console errors", () => {
