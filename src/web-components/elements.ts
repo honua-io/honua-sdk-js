@@ -1453,7 +1453,7 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
 
 export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
-    return ["for", "source", "label"];
+    return ["for", "source", "label", "new-label", "save-label", "delete-label"];
   }
 
   #model: HonuaEditorModel | undefined;
@@ -1467,6 +1467,36 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
     this.render();
   }
 
+  /** Text rendered by the create action. Defaults to `"New"`. */
+  public get newLabel(): string {
+    return this.getAttribute("new-label") ?? "New";
+  }
+
+  public set newLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("new-label");
+    else this.setAttribute("new-label", value);
+  }
+
+  /** Text rendered by the save action. Defaults to `"Save"`. */
+  public get saveLabel(): string {
+    return this.getAttribute("save-label") ?? "Save";
+  }
+
+  public set saveLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("save-label");
+    else this.setAttribute("save-label", value);
+  }
+
+  /** Text rendered by the delete action. Defaults to `"Delete"`. */
+  public get deleteLabel(): string {
+    return this.getAttribute("delete-label") ?? "Delete";
+  }
+
+  public set deleteLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("delete-label");
+    else this.setAttribute("delete-label", value);
+  }
+
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
@@ -1478,6 +1508,9 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
     const selected = state?.selection?.feature;
     const canUpdate = model.capabilities.canUpdate && !model.capabilities.readOnly;
     const label = this.getAttribute("label") ?? "Editor";
+    const newLabel = this.newLabel;
+    const saveLabel = this.saveLabel;
+    const deleteLabel = this.deleteLabel;
     this.setShadowHtml(`
       <style>${baseStyles()}${editorStyles()}</style>
       <section class="editor" part="panel" aria-label="${escapeHtml(label)}">
@@ -1488,9 +1521,9 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
         <p class="selection">${escapeHtml(selected?.title ?? "No selection")}</p>
         <p class="muted">${escapeHtml(model.capabilities.readOnly ? (model.capabilities.reason ?? "Read-only") : "Editable")}</p>
         <div class="editor__actions">
-          <button type="button" data-action="new" ${model.capabilities.canCreate && !model.capabilities.readOnly ? "" : "disabled"}>New</button>
-          <button type="button" data-action="save" ${canUpdate ? "" : "disabled"}>Save</button>
-          <button type="button" data-action="delete" ${model.capabilities.canDelete && !model.capabilities.readOnly ? "" : "disabled"}>Delete</button>
+          <button type="button" data-action="new" ${model.capabilities.canCreate && !model.capabilities.readOnly ? "" : "disabled"}>${escapeHtml(newLabel)}</button>
+          <button type="button" data-action="save" ${canUpdate ? "" : "disabled"}>${escapeHtml(saveLabel)}</button>
+          <button type="button" data-action="delete" ${model.capabilities.canDelete && !model.capabilities.readOnly ? "" : "disabled"}>${escapeHtml(deleteLabel)}</button>
         </div>
       </section>
     `);

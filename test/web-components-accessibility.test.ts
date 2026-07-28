@@ -51,6 +51,19 @@ describe("web-component accessibility semantics", () => {
     expect(editorCss).toContain("flex-wrap: wrap");
   });
 
+  it("renders caller-supplied localized editor action labels", () => {
+    const element = mount("honua-editor", "Features bearbeiten");
+    element.setAttribute("new-label", "Neu");
+    element.setAttribute("save-label", "Speichern");
+    element.setAttribute("delete-label", "Löschen");
+
+    expect([...shadow(element).querySelectorAll("button")].map((button) => button.textContent?.trim())).toEqual([
+      "Neu",
+      "Speichern",
+      "Löschen",
+    ]);
+  });
+
   it("gives the chart a named panel and heading", () => {
     const root = shadow(mount("honua-chart", "Incident counts"));
     expect(root.querySelector(".chart")?.getAttribute("aria-label")).toBe("Incident counts");
