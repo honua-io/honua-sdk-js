@@ -635,6 +635,16 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/accessibility.test.ts"],
         note: "Each native control is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither.",
       },
+      {
+        ids: ["web-components.feature-editor"],
+        evidence: ["test/web-components-feature-editor-element.test.ts"],
+        note: "The feature editor is mounted and disconnected while console.error and console.warn are spied; its complete lifecycle emits neither.",
+      },
+      {
+        ids: ["web-components.measurement"],
+        evidence: ["test/web-components-measurement-element.test.ts"],
+        note: "The measurement element is mounted and disconnected while console.error and console.warn are spied; its complete lifecycle emits neither.",
+      },
     ],
     pendingNote:
       "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec.",

@@ -617,6 +617,21 @@ describe("<honua-feature-editor> keyboard geometry workflow (NFR-001)", () => {
     expect(secondUndo()).toBe(1);
     expect(firstUndo()).toBe(0);
   });
+
+  it("mounts and disconnects without console errors", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+      const element = mount(workflow);
+      element.remove();
+      expect(error).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
+  });
 });
 
 describe("<honua-feature-editor> realtime, conflict, and commit states", () => {

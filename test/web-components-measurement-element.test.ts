@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HonuaMeasureChangeDetail, HonuaMeasurementElement } from "../src/web-components/index.js";
 import { defineHonuaWebComponents } from "../src/web-components/index.js";
@@ -213,5 +213,19 @@ describe("<honua-measurement> (survival tier)", () => {
     element.remove();
     expect(map.listenerCount("click")).toBe(0);
     expect(map.doubleClickZoom.disabled).toBe(false);
+  });
+
+  it("mounts and disconnects without console errors", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const element = mount(makeMap());
+      element.remove();
+      expect(error).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
   });
 });
