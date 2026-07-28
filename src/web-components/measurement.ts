@@ -534,6 +534,14 @@ function structuralStyles(): string {
     .actions { display: flex; gap: 6px; }
     .value { margin: 0; }
     .hint { color: var(--honua-ui-muted); font-size: 12px; margin: 0; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .panel { background: Canvas; border-color: CanvasText; color: CanvasText; }
+      .state, .hint { color: GrayText; }
+      button { background: ButtonFace; border-color: ButtonText; color: ButtonText; }
+      button[aria-pressed="true"] { background: Highlight; border-color: Highlight; color: HighlightText; }
+      button:disabled { color: GrayText; }
+      button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+    }
   `;
 }
 
