@@ -19,6 +19,7 @@ interface DividerStub {
   listeners: Map<string, ((event: unknown) => void)[]>;
   setAttribute(name: string, value: string): void;
   getAttribute(name: string): string | null;
+  removeAttribute(name: string): void;
   addEventListener(type: string, listener: (event: unknown) => void): void;
   removeEventListener(type: string, listener: (event: unknown) => void): void;
   setPointerCapture(): void;
@@ -48,6 +49,9 @@ function makeDivider(): DividerStub {
     },
     getAttribute(name) {
       return attributes.get(name) ?? null;
+    },
+    removeAttribute(name) {
+      attributes.delete(name);
     },
     addEventListener(type, listener) {
       const existing = listeners.get(type) ?? [];
@@ -117,6 +121,22 @@ describe("HonuaSwipeControlElement", () => {
     expect(element.orientation).toBe("vertical");
     expect(divider.style.insetInlineStart).toBe("50%");
     expect(divider.getAttribute("aria-valuenow")).toBe("50");
+    expect(divider.getAttribute("aria-label")).toBeNull();
+  });
+
+  test("uses a caller-supplied non-English label for the public API and ARIA name", () => {
+    const { element, divider } = makeElement();
+
+    element.label = "Comparer les cartes";
+    element.attributeChangedCallback("label", null, "Comparer les cartes");
+
+    expect(element.label).toBe("Comparer les cartes");
+    expect(divider.getAttribute("aria-label")).toBe("Comparer les cartes");
+
+    element.setAttribute("label", "Karten vergleichen");
+    element.attributeChangedCallback("label", "Comparer les cartes", "Karten vergleichen");
+    expect(element.label).toBe("Karten vergleichen");
+    expect(divider.getAttribute("aria-label")).toBe("Karten vergleichen");
   });
 
   test("uses logical positioning and clips from the inline end in RTL", () => {
