@@ -65,6 +65,31 @@ export function wmtsSourceSchemaV2(
   return rasterServiceSourceSchemaV2("wmts", metadata, context, false);
 }
 
+/** Normalize WFS sources that currently discover only type metadata and capabilities. */
+export function wfsSourceSchemaV2(context: Omit<SchemaNormalizationContext, "protocol">): SourceSchemaV2 {
+  return queryLikeSourceSchemaV2(context, "wfs");
+}
+
+/** Normalize OGC API Features sources that currently discover collections without field payloads. */
+export function ogcFeaturesSourceSchemaV2(context: Omit<SchemaNormalizationContext, "protocol">): SourceSchemaV2 {
+  return queryLikeSourceSchemaV2(context, "ogc-features");
+}
+
+/** Normalize OGC API Records catalogs as a render-only catalog surface without field payloads. */
+export function ogcRecordsSourceSchemaV2(context: Omit<SchemaNormalizationContext, "protocol">): SourceSchemaV2 {
+  return rasterOnlySourceSchemaV2(context, "ogc-records");
+}
+
+/** Normalize OGC API Tiles collections as render-only without field payloads. */
+export function ogcTilesSourceSchemaV2(context: Omit<SchemaNormalizationContext, "protocol">): SourceSchemaV2 {
+  return rasterOnlySourceSchemaV2(context, "ogc-tiles");
+}
+
+/** Normalize OGC API Maps collections as render-only without field payloads. */
+export function ogcMapsSourceSchemaV2(context: Omit<SchemaNormalizationContext, "protocol">): SourceSchemaV2 {
+  return rasterOnlySourceSchemaV2(context, "ogc-maps");
+}
+
 function rasterServiceSourceSchemaV2(
   protocol: "wms" | "wmts",
   metadata: DiscoverySourceMetadata,
@@ -85,6 +110,38 @@ function rasterServiceSourceSchemaV2(
       : { state: "none", reason: "no-geometry-fields" },
     temporal: { state: "none" },
     openContent: mayReturnFeatures ? "unknown" : "closed",
+    provenance: [provenance({ ...context, protocol })],
+  });
+}
+
+function queryLikeSourceSchemaV2(
+  context: Omit<SchemaNormalizationContext, "protocol">,
+  protocol: "wfs" | "ogc-features",
+): SourceSchemaV2 {
+  return createSourceSchemaV2({
+    fields: [],
+    key: { state: "none" },
+    geometry: {
+      state: "unknown",
+      reason: "metadata-unavailable",
+      native: nativeReference(protocol, "capability-source", ["sources"]),
+    },
+    temporal: { state: "none" },
+    openContent: "unknown",
+    provenance: [provenance({ ...context, protocol })],
+  });
+}
+
+function rasterOnlySourceSchemaV2(
+  context: Omit<SchemaNormalizationContext, "protocol">,
+  protocol: "ogc-records" | "ogc-tiles" | "ogc-maps",
+): SourceSchemaV2 {
+  return createSourceSchemaV2({
+    fields: [],
+    key: { state: "none" },
+    geometry: { state: "none", reason: "no-geometry-fields" },
+    temporal: { state: "none" },
+    openContent: "closed",
     provenance: [provenance({ ...context, protocol })],
   });
 }

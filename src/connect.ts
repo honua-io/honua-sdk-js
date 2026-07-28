@@ -147,6 +147,15 @@ export interface ConnectSourceSchemaProjection {
     profile: GeoParquetSourceProfile,
     context: ConnectSourceSchemaProjectionContext,
   ): SourceSchemaV2Envelope | undefined;
+  wfs(context: ConnectSourceSchemaProjectionContext & { readonly protocol: "wfs" }): SourceSchemaV2Envelope;
+  ogcFeatures(
+    context: ConnectSourceSchemaProjectionContext & { readonly protocol: "ogc-features" },
+  ): SourceSchemaV2Envelope;
+  ogcRecords(
+    context: ConnectSourceSchemaProjectionContext & { readonly protocol: "ogc-records" },
+  ): SourceSchemaV2Envelope;
+  ogcTiles(context: ConnectSourceSchemaProjectionContext & { readonly protocol: "ogc-tiles" }): SourceSchemaV2Envelope;
+  ogcMaps(context: ConnectSourceSchemaProjectionContext & { readonly protocol: "ogc-maps" }): SourceSchemaV2Envelope;
   wms(
     metadata: DiscoverySourceMetadata,
     context: ConnectSourceSchemaProjectionContext & { readonly protocol: "wms" },
@@ -498,6 +507,9 @@ export async function connectWithSourceSchemaProjection(
                           : target.protocol === "wms" || target.protocol === "wmts"
                             ? await discoverWmsWmtsSources(client, identity, target, options, sourceSchemaProjection)
                             : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
+    if (sourceSchemaProjection && sourceSchemaProjectionApplies(target.protocol)) {
+      snapshot = applySourceSchemaProjection(snapshot, sourceSchemaProjection);
+    }
     if (
       options.cache &&
       (!sourceSchemaProjection ||
@@ -1591,10 +1603,61 @@ async function validateSnapshot(
   });
 }
 
+function applySourceSchemaProjection(
+  snapshot: ConnectDiscoverySnapshot,
+  sourceSchemaProjection: ConnectSourceSchemaProjection,
+): ConnectDiscoverySnapshot {
+  const sources = snapshot.sources.map((source) => {
+    if (source.schemaV2 !== undefined) return source;
+    const context = {
+      source: snapshot.endpoint,
+      observedAt: snapshot.retrievedAt,
+    };
+    let schemaV2: SourceSchemaV2Envelope | undefined;
+    switch (snapshot.protocol) {
+      case "wfs":
+        schemaV2 = sourceSchemaProjection.wfs({ ...context, protocol: "wfs" });
+        break;
+      case "ogc-features":
+        schemaV2 = sourceSchemaProjection.ogcFeatures({ ...context, protocol: "ogc-features" });
+        break;
+      case "ogc-records":
+        schemaV2 = sourceSchemaProjection.ogcRecords({ ...context, protocol: "ogc-records" });
+        break;
+      case "ogc-tiles":
+        schemaV2 = sourceSchemaProjection.ogcTiles({ ...context, protocol: "ogc-tiles" });
+        break;
+      case "ogc-maps":
+        schemaV2 = sourceSchemaProjection.ogcMaps({ ...context, protocol: "ogc-maps" });
+        break;
+      case "wms":
+        schemaV2 = source.metadata
+          ? sourceSchemaProjection.wms(source.metadata, { ...context, protocol: "wms" })
+          : undefined;
+        break;
+      case "wmts":
+        schemaV2 = source.metadata
+          ? sourceSchemaProjection.wmts(source.metadata, { ...context, protocol: "wmts" })
+          : undefined;
+        break;
+      default:
+        return source;
+    }
+    if (schemaV2 === undefined) return source;
+    return Object.freeze({ ...source, schemaV2 });
+  });
+  return Object.freeze({ ...snapshot, sources: Object.freeze(sources) });
+}
+
 function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boolean {
   return (
     protocol === "odata" ||
     protocol === "geoparquet" ||
+    protocol === "wfs" ||
+    protocol === "ogc-features" ||
+    protocol === "ogc-records" ||
+    protocol === "ogc-tiles" ||
+    protocol === "ogc-maps" ||
     protocol === "wms" ||
     protocol === "wmts" ||
     protocol === "geoservices-feature-service" ||
