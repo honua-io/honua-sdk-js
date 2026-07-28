@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/connect-parity-matrix.v1.json",
+  "title": "Honua connect portable parity matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "requiredSemanticFields", "lifecycleCases", "sourceProtocols", "operationOnly"],
+  "properties": {
+    "version": { "const": "1.0" },
+    "requiredSemanticFields": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "lifecycleCases": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "sourceProtocols": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/sourceProtocol" }
+    },
+    "operationOnly": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/operationOnly" }
+    }
+  },
+  "$defs": {
+    "sourceProtocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "fixture", "sourceKind", "semanticFields", "lifecycleCases"],
+      "properties": {
+        "protocol": { "type": "string", "minLength": 1 },
+        "fixture": { "type": "string", "minLength": 1 },
+        "sourceKind": { "enum": ["feature", "raster", "tiles", "catalog", "archive"] },
+        "semanticFields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "lifecycleCases": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "equivalence": { "type": "string", "minLength": 1 }
+      }
+    },
+    "operationOnly": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "fixture", "sourceKind", "lifecycleCases"],
+      "properties": {
+        "protocol": { "type": "string", "minLength": 1 },
+        "fixture": { "type": "string", "minLength": 1 },
+        "sourceKind": { "const": "operation-only" },
+        "lifecycleCases": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
