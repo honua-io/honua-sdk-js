@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import {
+  DISCOVERY_DISPOSITION_VOCABULARY,
   ENVIRONMENT_VOCABULARY,
   EXECUTION_MODE_VOCABULARY,
   MANIFEST_PATH,
@@ -54,6 +55,55 @@ test("all support statuses are explicit and the repository evidence exists", () 
   assert.deepEqual(manifest.environmentVocabulary, ENVIRONMENT_VOCABULARY);
   assert.deepEqual(manifest.executionModeVocabulary, EXECUTION_MODE_VOCABULARY);
   assert.deepEqual(validateSupportManifest(manifest), []);
+});
+
+test("the discovery inventory covers every protocol and keeps static ownership fail-closed", () => {
+  assert.deepEqual(manifest.discoveryInventory.dispositionVocabulary, DISCOVERY_DISPOSITION_VOCABULARY);
+  assert.deepEqual(
+    manifest.discoveryInventory.protocols.map((entry) => entry.id),
+    manifest.protocols.map((entry) => entry.id),
+  );
+  assert.deepEqual(
+    manifest.discoveryInventory.protocols
+      .filter((entry) => entry.disposition === "source-backed")
+      .map((entry) => entry.id)
+      .sort(),
+    [...manifest.connectProtocols].sort(),
+  );
+  assert.deepEqual(
+    manifest.discoveryInventory.staticFormats.find((entry) => entry.id === "cog"),
+    {
+      id: "cog",
+      disposition: "stac-classified",
+      owner: "@honua/sdk-js/cog",
+      autoClassification: "stac-evidence",
+    },
+  );
+});
+
+test("static format inventory drift fails closed against the runtime vocabulary", () => {
+  const missing = clone(manifest);
+  missing.discoveryInventory.staticFormats = missing.discoveryInventory.staticFormats.slice(1);
+  assert.match(validateSupportManifest(missing).join("\n"), /must cover CONNECT_STATIC_FORMATS exactly once/);
+
+  const added = clone(manifest);
+  added.discoveryInventory.staticFormats.push({
+    id: "invented-static-format",
+    disposition: "explicitly-unsupported",
+    owner: "connect()",
+    autoClassification: "not-applicable",
+  });
+  assert.match(validateSupportManifest(added).join("\n"), /must cover CONNECT_STATIC_FORMATS exactly once/);
+
+  const duplicate = clone(manifest);
+  duplicate.discoveryInventory.staticFormats.push(clone(duplicate.discoveryInventory.staticFormats[0]));
+  const duplicateFailures = validateSupportManifest(duplicate).join("\n");
+  assert.match(duplicateFailures, /static format ids must be unique/);
+  assert.match(duplicateFailures, /must cover CONNECT_STATIC_FORMATS exactly once/);
+
+  const disposition = clone(manifest);
+  disposition.discoveryInventory.staticFormats.find((entry) => entry.id === "cog").disposition = "source-backed";
+  assert.match(validateSupportManifest(disposition).join("\n"), /COG static discovery must remain STAC-classified/);
 });
 
 test("the protocol matrix distinguishes native defaults from opt-in client fallbacks", () => {

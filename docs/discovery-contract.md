@@ -104,23 +104,44 @@ complete decision, diagnostic, provenance, cache-result, and inspection type
 vocabulary for adapter authors. This keeps the beginner surface bounded while
 preserving a fully typed protocol integration seam.
 
-## Connect facade (OGC Features/Records/Tiles/Maps, STAC API/static, GeoServices, WFS/WMS/WMTS, OData, and GeoParquet slices)
+## Connect facade (OGC Features/Records/Tiles/Maps, STAC API/static, GeoServices, WFS/WMS/WMTS, OData, PMTiles, and GeoParquet slices)
 
 The experimental `connect()` facade composes this truth contract for raw OGC
 API Features and STAC API landing pages or bounded static STAC objects, raw OGC API Records catalog roots, raw
 OGC API Tiles and Maps service roots (render-only sources),
 WFS 2.0, WMS 1.3.0, and WMTS 1.0.0 endpoints, OData v4 service
-roots, static-file GeoParquet assets, and canonical GeoServices
+roots, direct PMTiles and static-file GeoParquet assets, and canonical GeoServices
 `FeatureServer` / `MapServer` service or layer URLs plus executable
 `ImageServer` raster catalogs. OGC, STAC, WFS, WMS, WMTS, OData, Records,
-Tiles, Maps, and GeoParquet endpoints require an explicit
+Tiles, Maps, GeoParquet, and ordinary HTTPS PMTiles endpoints require an explicit
 `protocol: "ogc-features"`,
 `protocol: "stac"`, `protocol: "wfs"`, `protocol: "wms"`, `protocol: "wmts"`, `protocol: "odata"`,
 `protocol: "ogc-records"`, `protocol: "ogc-tiles"`, `protocol: "ogc-maps"`, or
-`protocol: "geoparquet"` hint. OGC API Processes is deliberately **not** a
+`protocol: "geoparquet"` or `protocol: "pmtiles"` hint. A
+`pmtiles://https://...` asset marker is the sole direct static-asset shape that
+`auto` accepts: the marker is structural evidence and is stripped before
+cache/network identity is computed. A `.pmtiles` filename alone remains
+ambiguous and triggers no request. OGC API Processes is deliberately **not** a
 Source-backed protocol; `connect()` rejects `protocol: "ogc-processes"` and
 directs callers to `discoverOgcProcesses()`, which returns a
 capability/metadata result rather than a `Source` (see below).
+
+Direct PMTiles discovery admits only exact HTTP `206` byte ranges. The default
+ceiling is two requests, 512 KiB per range, 1 MiB transferred, and 4 MiB after
+internal metadata/directory decompression; caller overrides may only lower
+those values and participate in cache identity. The client timeout remains
+active until each admitted range body has been read exactly. Response
+interceptors receive only the resulting bounded in-memory response, never an
+unvalidated network-stream clone. Multi-range inspection requires a strong
+ETag or canonical Last-Modified validator and cannot collectively materialize
+the whole archive. Weak ETags are never treated as byte-identity evidence. The
+reviewed snapshot retains a bounded canonical encoding of the complete raw
+metadata document (up to 1,000,000 UTF-8 bytes, 2,048 raw `vector_layers`
+entries, and an 8,000-node normalized vector-layer structure), so
+`Source.protocol("pmtiles").describe()` preserves custom TileJSON fields
+without reopening the archive on live or cache-replay paths. Replay cross-binds
+both retained extents, the exact capability/provenance record, and every
+derived source projection to that reviewed archive metadata.
 Canonical source-backed GeoServices URLs may use
 `protocol: "auto"`: classification comes entirely from the URL path and makes
 no network request. An ambiguous auto target throws `HonuaDiscoveryError` with
@@ -133,8 +154,13 @@ authenticated protocol endpoint as fallback.
 `Source`, so it is intentionally absent from `Capability`, `CAPABILITIES`, and
 `PROTOCOL_DEFAULT_CAPABILITIES`. The reviewed connector inventory is exported
 internally as `CONNECT_SOURCE_PROTOCOLS` and projected as `connectProtocols` in
-the support manifest. CI requires every entry to have exactly one positive
-`discovery` support claim and rejects connector claims outside that inventory.
+the support manifest. The generated
+[`connect-discovery-inventory.v1.json`](../support/projections/connect-discovery-inventory.v1.json)
+assigns every declared protocol and supported static format to exactly one
+source-backed, operation-only, STAC-classified, renderer-native, or explicitly
+unsupported boundary. CI checks both projections, requires every connector to
+have exactly one positive `discovery` support claim, and rejects source-backed
+entries outside the connector inventory.
 
 ```ts doc-test=compile
 import { connect } from "@honua/sdk-js/honua";
@@ -382,6 +408,12 @@ non-executable as a protocol-neutral `Source`. Evidence-classified COG
 candidates can instead enter the bounded, caller-decoder-injected
 [`@honua/sdk-js/cog`](./cog.md) inspection/read boundary. Ambiguous or
 unsupported assets remain explicit candidates rather than disappearing.
+
+Direct COG input stays outside `connect()` even when a URL ends in `.tif` or
+`.tiff`: a suffix is guidance, not format evidence. The resulting structured
+`unsupported-protocol` error names the `stac-classified` disposition and directs
+the caller to explicit static-STAC classification followed by
+`@honua/sdk-js/cog`; no COG bytes or competing protocol endpoint are probed.
 
 The normalized traversal policy is stored on `SourceLocator.stacStatic` and is
 reapplied by the runtime static-catalog reader. Consequently, a discovered

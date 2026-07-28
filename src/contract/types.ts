@@ -303,6 +303,8 @@ export type RasterRequestBinding =
 export interface SourceLocator {
   /** Fully qualified URL to the protocol endpoint. */
   url: string;
+  /** PMTiles payload kind selected from bounded archive-header evidence. */
+  sourceType?: "vector" | "raster";
   /** GeoServices service identifier (FeatureServer / MapServer / ImageServer / Geometry / GP). */
   serviceId?: string;
   /** GeoServices layer identifier within the service. */
