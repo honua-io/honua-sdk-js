@@ -1,15 +1,10 @@
-import type { SourceDescriptor } from "./contract/types.js";
+import type { Protocol, SourceDescriptor } from "./contract/types.js";
 import { encodeServiceIdPath, trimTrailingSlashes } from "./core/path-utils.js";
 import { normalizeCapabilitySourceEndpoint } from "./source-capability-endpoint.js";
 import type { CapabilitySourceEndpointIdentity } from "./source-capability-types.js";
 
 /** Protocols whose descriptor-to-endpoint replay binding is certified by capability discovery. */
-export type CapabilityDiscoveryProtocol =
-  | "geoservices-feature-service"
-  | "geoservices-map-service"
-  | "odata"
-  | "wms"
-  | "wmts";
+export type CapabilityDiscoveryProtocol = Protocol;
 
 /**
  * Reconstruct the smallest credential-free source endpoint from one resolved
@@ -40,6 +35,18 @@ export function sourceCapabilityEndpointIdentity(
       sourceId: descriptor.id,
     });
   }
+  if (protocol === "grpc") {
+    const serviceId = requiredServiceId(locator.serviceId);
+    const layerId = locator.layerId;
+    if (!Number.isSafeInteger(layerId) || (layerId as number) < 0) {
+      throw new TypeError("gRPC locator.layerId must be a non-negative safe integer");
+    }
+    return endpointIdentity({
+      endpoint: canonicalGeoServicesLayerEndpoint(locator.url, serviceId, "FeatureServer", layerId as number),
+      protocol,
+      sourceId: descriptor.id,
+    });
+  }
   if (protocol === "wms" || protocol === "wmts") {
     const layer = requiredRasterLayer(locator.typeName, protocol);
     if (descriptor.id !== layer) {
@@ -51,9 +58,14 @@ export function sourceCapabilityEndpointIdentity(
       sourceId: layer,
     });
   }
-  throw new TypeError(
-    `Capability discovery endpoint binding is not certified for protocol "${String(protocol)}"; use the protocol rollout issue for that adapter.`,
-  );
+  return endpointIdentity({
+    endpoint:
+      typeof locator.basePath === "string"
+        ? new URL(locator.basePath, requiredEndpoint(locator.url)).toString()
+        : requiredEndpoint(locator.url),
+    protocol,
+    sourceId: descriptor.id,
+  });
 }
 
 function requiredRasterLayer(value: unknown, protocol: "wms" | "wmts"): string {

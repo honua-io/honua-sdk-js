@@ -1022,7 +1022,7 @@ describe("connectWithSourceCapabilities", () => {
         } as unknown as SourceCapabilityConnectOptions,
         { evaluatedAt: EVALUATED_AT },
       ),
-    ).rejects.toThrow(/currently certified/);
+    ).rejects.toThrow(/canonical GPServer/);
     await expect(
       connectWithSourceCapabilities(odataOptions("https://example.test/odata"), {
         evaluatedAt: EVALUATED_AT,
