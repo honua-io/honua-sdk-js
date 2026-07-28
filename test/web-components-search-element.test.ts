@@ -79,6 +79,19 @@ describe("<honua-search> (survival tier, geocoding lane)", () => {
     expect(element.shadowRoot?.querySelector("[role='listbox']")).toBeNull();
   });
 
+  it("renders a caller-supplied non-English submit label and preserves the default", () => {
+    defineHonuaWebComponents();
+    const defaultElement = document.createElement("honua-search") as HonuaSearchElement;
+    document.body.append(defaultElement);
+    expect(defaultElement.shadowRoot?.querySelector("button[type='submit']")?.textContent).toBe("Search");
+
+    const localizedElement = document.createElement("honua-search") as HonuaSearchElement;
+    localizedElement.submitLabel = "検索";
+    document.body.append(localizedElement);
+    expect(localizedElement.getAttribute("submit-label")).toBe("検索");
+    expect(localizedElement.shadowRoot?.querySelector("button[type='submit']")?.textContent).toBe("検索");
+  });
+
   it("stacks the search action in a narrow container", () => {
     defineHonuaWebComponents();
     const element = document.createElement("honua-search") as HonuaSearchElement;

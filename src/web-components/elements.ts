@@ -1174,7 +1174,7 @@ function cssEscape(value: string): string {
  */
 export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
-    return ["for", "source", "placeholder", "label", "debounce", "zoom"];
+    return ["for", "source", "placeholder", "label", "submit-label", "debounce", "zoom"];
   }
 
   #query = "";
@@ -1201,6 +1201,20 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
     this.render();
   }
 
+  /**
+   * Text rendered in the form's submit button. Defaults to `"Search"` for
+   * compatibility with the original markup. The property reflects the
+   * `submit-label` attribute so either caller API can supply localized text.
+   */
+  public get submitLabel(): string {
+    return this.getAttribute("submit-label") ?? "Search";
+  }
+
+  public set submitLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("submit-label");
+    else this.setAttribute("submit-label", value);
+  }
+
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
@@ -1214,6 +1228,7 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
   protected render(): void {
     const label = this.getAttribute("label") ?? "Search";
     const placeholder = this.getAttribute("placeholder") ?? "Search";
+    const submitLabel = this.submitLabel;
     const geocoding = this.#geocoder !== undefined;
     const expanded = geocoding && this.#suggestions.length > 0;
     const comboboxAttributes = geocoding
@@ -1229,7 +1244,7 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
           <input id="honua-search-input" name="q" value="${escapeAttribute(this.#query)}" placeholder="${escapeAttribute(
             placeholder,
           )}" autocomplete="off"${comboboxAttributes} />
-          <button type="submit">Search</button>
+          <button type="submit">${escapeHtml(submitLabel)}</button>
         </form>
         ${
           geocoding
