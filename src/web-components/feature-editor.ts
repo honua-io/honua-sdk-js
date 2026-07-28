@@ -588,7 +588,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     }
     if (!isEditableGeometry(parsed)) {
       this.#geometryError =
-        'A geometry needs a "type" (GeoJSON, for example {"type":"Point","coordinates":[0,0]}) or an Esri x/y, rings, or paths shape.';
+        'A geometry needs a GeoJSON "type" (for example {"type":"Point","coordinates":[0,0]}) or an Esri x/y, rings, or paths shape.';
       this.render();
       return;
     }
