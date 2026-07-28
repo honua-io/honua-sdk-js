@@ -266,6 +266,37 @@ test("web components compose map, layers, legend, table, search, and editor stat
       "point",
     );
 
+    await page.evaluate(() => {
+      const model = {
+        sourceId: "incidents",
+        status: "ready",
+        capabilities: { canCreate: true, canUpdate: true, canDelete: true, readOnly: false },
+      };
+      const controller = {
+        getState: () => ({
+          status: "ready",
+          editor: model,
+          selection: { feature: { id: 101, sourceId: "incidents", title: "Harbor response district" } },
+        }),
+        subscribe: () => ({ remove() {} }),
+        applyEdit: () => Promise.resolve(model),
+      };
+      const editor = document.createElement("honua-editor");
+      editor.dataset.keyboardProbe = "editor";
+      editor.controller = controller;
+      editor.addEventListener("honua-edit-change", (event) => {
+        editor.dataset.lastOperation = event.detail.request.operation;
+      });
+      document.body.append(editor);
+    });
+    const newEditor = page.locator("honua-editor[data-keyboard-probe='editor']").getByRole("button", { name: "New" });
+    await newEditor.focus();
+    await newEditor.press("Enter");
+    await expect(page.locator("honua-editor[data-keyboard-probe='editor']")).toHaveAttribute(
+      "data-last-operation",
+      "create",
+    );
+
     const teardown = await page.locator("honua-map").evaluate((element) => {
       element.remove();
       return {
