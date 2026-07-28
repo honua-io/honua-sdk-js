@@ -1588,7 +1588,7 @@ export class HonuaBasemapControlElement<T = Record<string, unknown>> extends Hon
     const basemaps = basemapsFromState(this.state);
     const active = this.#activeBasemapId ?? basemaps.find((basemap) => basemap.visible)?.id ?? basemaps[0]?.id;
     this.setShadowHtml(`
-      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <style>${baseStyles()}${controlPanelStyles()}${basemapControlStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
@@ -2890,6 +2890,34 @@ function controlPanelStyles(): string {
     }
     p {
       margin: 0;
+    }
+  `;
+}
+
+function basemapControlStyles(): string {
+  return `
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .control-panel {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .control-panel__bar span, .empty { color: CanvasText; }
+      .segmented button {
+        background: ButtonFace;
+        border: 2px solid ButtonText;
+        color: ButtonText;
+        forced-color-adjust: none;
+      }
+      .segmented button[aria-pressed="true"] {
+        background: Highlight;
+        border-color: Highlight;
+        color: HighlightText;
+      }
+      .segmented button:focus-visible {
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+      }
     }
   `;
 }
