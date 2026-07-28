@@ -72,11 +72,12 @@
   "/kepler gained its first dedicated guard with the optional analytics-workspace bridge (#684): the explicit ingestion mappings (direct row/point/columnar paths plus the measured GeoJSON fallback), provenance and CRS decisions, the declared linked-state channel table, bounded delta reconciliation, and export redaction measure 50,221 minified / 15,262 gzip bytes. The ceiling is measured actual plus ~10% headroom. kepler.gl, react, react-dom, and redux stay optional peers reached only through loadKeplerPeers' dynamic import, and the entry's forbiddenInputs guard proves none of them enters the static graph; root, /honua, and browser barrels are unchanged.",
   "/kepler was reset during #684 review: Esri-JSON conversion now reuses the canonical src/core/esri-geojson.ts converter instead of a local reimplementation that emitted one Polygon for multi-exterior-ring input (later exterior rings silently became holes) and never rewound Esri winding, and the entrypoint gained the realtime-event adapters that project RealtimeFeaturePatch/RealtimeSnapshotEvent into reconciliation inputs. Both are correctness fixes whose cost is code the bundle must carry: 56,620 minified / 16,883 gzip bytes, budgeted at measured actual plus ~10% headroom. The converter is dependency-free (type-only imports), so no new runtime graph is pulled in.",
   "/analytics and /analytics/uplot gained their first dedicated guards with the linked-analytics and chart presentation contract (#682). /analytics carries the versioned artifact contract, the widget-source pushdown bridge, exploration link bindings with deterministic undo, the adapter registry, and the small accessible default presentation at 32,743 minified / 10,766 gzip bytes; it declares forbiddenInputs on dist/src/analytics/adapters/ and node_modules/uplot/, so the core seam structurally cannot retain a chart adapter or a chart peer. /analytics/uplot is the reference third-party adapter at 9,558 minified / 3,934 gzip bytes with the same node_modules/uplot/ exclusion — uPlot is reached only through a variable-specifier dynamic import, so the ~50 KiB peer never enters any measured graph. 'tree-shake:analytics-core' measures a consumer that accepts artifacts, links them, and renders the default presentation at 24,494 minified / 8,524 gzip bytes, proving the barrel shakes below its own total. Root, /honua, and browser entrypoints are unchanged: the subpaths are experimental and are not re-exported from any barrel. Each ceiling is measured actual plus ~10% headroom.",
-  "Root and 'tree-shake:root-connect' gzip ceilings were reset for bounded direct PMTiles discovery (#820): strong/canonical validator binding, exact archive-evidence cache replay, retained raw metadata, and normalized structural caps measure 178,198 and 139,176 gzip bytes respectively. Only the exceeded gzip metrics are reset to measured actual plus 10% headroom; the pmtiles runtime remains an optional external peer."
+  "Root and 'tree-shake:root-connect' gzip ceilings were reset for bounded direct PMTiles discovery (#820): strong/canonical validator binding, exact archive-evidence cache replay, retained raw metadata, and normalized structural caps measure 178,198 and 139,176 gzip bytes respectively. Only the exceeded gzip metrics are reset to measured actual plus 10% headroom; the pmtiles runtime remains an optional external peer.",
+  "Root, browser, and 'tree-shake:root-createHonua' ceilings were reset for portable SourceSchemaV2 state and capability parity across every source protocol (#821/#822): the focused connect projection now carries unavailable schema identity and protocol-bound replay evidence without retaining renderer peers. Measured affected sizes are root 682,245 minified, browser IIFE 682,854 minified / 183,220 gzip, browser ESM 681,522 minified / 182,911 gzip, and root-createHonua 648,086 minified / 173,860 gzip; each exceeded metric is budgeted at measured actual plus 10% headroom."
  ],
  "entrypoints": {
   ".": {
-   "min": 677005,
+   "min": 750470,
    "gzip": 196018
   },
   "/honua": {
@@ -200,12 +201,12 @@
    "gzip": 4328
   },
   "browser-iife": {
-   "min": 677675,
-   "gzip": 180536
+   "min": 751140,
+   "gzip": 201543
   },
   "browser-esm": {
-   "min": 676210,
-   "gzip": 180210
+   "min": 749675,
+   "gzip": 201203
   },
   "tree-shake:HonuaClient": {
    "min": 235231,
@@ -220,8 +221,8 @@
    "gzip": 6372
   },
   "tree-shake:root-createHonua": {
-   "min": 642935,
-   "gzip": 171021
+   "min": 712895,
+   "gzip": 191247
   },
   "/react": {
    "min": 518846,
