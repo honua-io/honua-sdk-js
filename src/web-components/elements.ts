@@ -1453,7 +1453,17 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
 
 export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
-    return ["for", "source", "label", "new-label", "save-label", "delete-label"];
+    return [
+      "for",
+      "source",
+      "label",
+      "new-label",
+      "save-label",
+      "delete-label",
+      "no-selection-label",
+      "read-only-label",
+      "editable-label",
+    ];
   }
 
   #model: HonuaEditorModel | undefined;
@@ -1497,6 +1507,36 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
     else this.setAttribute("delete-label", value);
   }
 
+  /** Text rendered when no feature is selected. Defaults to `"No selection"`. */
+  public get noSelectionLabel(): string {
+    return this.getAttribute("no-selection-label") ?? "No selection";
+  }
+
+  public set noSelectionLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("no-selection-label");
+    else this.setAttribute("no-selection-label", value);
+  }
+
+  /** Text rendered for a read-only editor without a model-supplied reason. Defaults to `"Read-only"`. */
+  public get readOnlyLabel(): string {
+    return this.getAttribute("read-only-label") ?? "Read-only";
+  }
+
+  public set readOnlyLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("read-only-label");
+    else this.setAttribute("read-only-label", value);
+  }
+
+  /** Text rendered for an editable editor. Defaults to `"Editable"`. */
+  public get editableLabel(): string {
+    return this.getAttribute("editable-label") ?? "Editable";
+  }
+
+  public set editableLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("editable-label");
+    else this.setAttribute("editable-label", value);
+  }
+
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
@@ -1511,6 +1551,9 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
     const newLabel = this.newLabel;
     const saveLabel = this.saveLabel;
     const deleteLabel = this.deleteLabel;
+    const noSelectionLabel = this.noSelectionLabel;
+    const readOnlyLabel = this.readOnlyLabel;
+    const editableLabel = this.editableLabel;
     this.setShadowHtml(`
       <style>${baseStyles()}${editorStyles()}</style>
       <section class="editor" part="panel" aria-label="${escapeHtml(label)}">
@@ -1518,8 +1561,8 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
           <h2>${escapeHtml(label)}</h2>
           <span data-status>${escapeHtml(model.status)}</span>
         </div>
-        <p class="selection">${escapeHtml(selected?.title ?? "No selection")}</p>
-        <p class="muted">${escapeHtml(model.capabilities.readOnly ? (model.capabilities.reason ?? "Read-only") : "Editable")}</p>
+        <p class="selection">${escapeHtml(selected?.title ?? noSelectionLabel)}</p>
+        <p class="muted">${escapeHtml(model.capabilities.readOnly ? (model.capabilities.reason ?? readOnlyLabel) : editableLabel)}</p>
         <div class="editor__actions">
           <button type="button" data-action="new" ${model.capabilities.canCreate && !model.capabilities.readOnly ? "" : "disabled"}>${escapeHtml(newLabel)}</button>
           <button type="button" data-action="save" ${canUpdate ? "" : "disabled"}>${escapeHtml(saveLabel)}</button>

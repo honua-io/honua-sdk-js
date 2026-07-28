@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import "../src/web-components/index.js";
+import type { HonuaEditorModel } from "../src/web-components/types.js";
 
 const mounted: HTMLElement[] = [];
 
@@ -71,6 +72,30 @@ describe("web-component accessibility semantics", () => {
       "Speichern",
       "Löschen",
     ]);
+  });
+
+  it("renders caller-supplied localized editor selection and state labels", () => {
+    const element = mount("honua-editor", "Objekte bearbeiten");
+    element.setAttribute("no-selection-label", "Keine Auswahl");
+    element.setAttribute("read-only-label", "Nur Lesen");
+    const editor = element as typeof element & { editorModel: HonuaEditorModel | undefined };
+    editor.editorModel = {
+      status: "ready",
+      capabilities: { canCreate: false, canUpdate: false, canDelete: false, readOnly: true },
+    };
+
+    const root = shadow(element);
+    expect(root.querySelector(".selection")?.textContent).toBe("Keine Auswahl");
+    expect(root.querySelector(".muted")?.textContent).toBe("Nur Lesen");
+
+    const editable = mount("honua-editor", "Objekte bearbeiten");
+    editable.setAttribute("editable-label", "Bearbeitbar");
+    const editableEditor = editable as typeof editable & { editorModel: HonuaEditorModel | undefined };
+    editableEditor.editorModel = {
+      status: "ready",
+      capabilities: { canCreate: true, canUpdate: true, canDelete: true, readOnly: false },
+    };
+    expect(shadow(editable).querySelector(".muted")?.textContent).toBe("Bearbeitbar");
   });
 
   it("gives the chart a named panel and heading", () => {
