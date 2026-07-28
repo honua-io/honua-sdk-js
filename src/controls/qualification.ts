@@ -644,6 +644,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-map-status-element.test.ts"],
         note: "The map-status panel declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonText/GrayText/Mark system-color rules for normal, unsupported, error, and action states, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["web-components.action-panel"],
+        evidence: ["test/web-components-action-panel-element.test.ts"],
+        note: "The action panel declares forced-colors/prefers-contrast system-color rules for panel, action, empty, and status states, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -656,7 +661,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "controls.legend" &&
             id !== "web-components.search" &&
             id !== "web-components.legend" &&
-            id !== "web-components.map-status",
+            id !== "web-components.map-status" &&
+            id !== "web-components.action-panel",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
