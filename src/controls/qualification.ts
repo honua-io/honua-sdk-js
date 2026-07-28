@@ -642,9 +642,16 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   localization: {
+    passing: [
+      {
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/swipe-control.test.ts"],
+        note: "The swipe control has no default accessible label and reflects caller-supplied label text through its public property/attribute into aria-label, asserted with French and German labels.",
+      },
+    ],
     failing: [
       {
-        ids: ALL_IDS,
+        ids: ALL_IDS.filter((id) => id !== "controls.swipe-control"),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
       },
     ],
