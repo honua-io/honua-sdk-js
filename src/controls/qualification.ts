@@ -660,9 +660,16 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   rtl: {
+    passing: [
+      {
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/swipe-control.test.ts"],
+        note: "The swipe control uses logical divider positioning, reverses inline pointer and keyboard movement in RTL, and asserts the RTL clip path and Home/End semantics in focused tests.",
+      },
+    ],
     failing: [
       {
-        ids: allExcept(FEATURE_EDITOR),
+        ids: allExcept(FEATURE_EDITOR, "controls.swipe-control"),
         note: "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl.",
       },
     ],
