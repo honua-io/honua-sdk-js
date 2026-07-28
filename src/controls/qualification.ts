@@ -402,6 +402,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "Escape cancels an in-progress measurement via a real keydown.",
       },
       {
+        ids: ["web-components.layer-list"],
+        evidence: [BROWSER_SPEC],
+        note: "The controller-driven layer list is exercised in Chromium with a focused visibility checkbox activated by Space and a focused reorder button activated by Enter; controller visibility/order state and the re-rendered shadow rows are asserted.",
+      },
+      {
         ids: ["controls.swipe-control"],
         evidence: ["test/controls/swipe-control.test.ts"],
         note: "ArrowLeft/ArrowRight (with and without Shift), Home, and End step the divider and emit change.",
