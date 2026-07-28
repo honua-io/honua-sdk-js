@@ -45,19 +45,41 @@ describe("controls accessibility semantics", () => {
     expect(divider?.getAttribute("aria-valuemin")).toBe("0");
     expect(divider?.getAttribute("aria-valuemax")).toBe("100");
     expect(divider?.getAttribute("aria-valuenow")).toBe("50");
+    expect(divider?.getAttribute("aria-orientation")).toBe("horizontal");
+
+    element.orientation = "horizontal";
+    expect(element.shadowRoot?.querySelector('[role="slider"]')?.getAttribute("aria-orientation")).toBe("vertical");
   });
 
   it("exposes layer toggles through a named group and native checkbox labels", () => {
     const element = mount(new HonuaLayerListElement());
-    element.overlays = [{ id: "roads", label: "Roads", layers: ["roads-layer"] }];
+    const layers: Record<string, { visibility?: string }> = {
+      "roads-layer": {},
+      "parks-layer": { visibility: "none" },
+    };
+    element.connect({
+      getLayer: (id: string) => layers[id],
+      getLayoutProperty: (id: string, name: string) => (name === "visibility" ? layers[id]?.visibility : undefined),
+      setLayoutProperty: (id: string, _name: string, value: unknown) => {
+        layers[id].visibility = String(value);
+      },
+    });
+    element.overlays = [
+      { id: "roads", label: "Roads", layers: ["roads-layer"] },
+      { id: "parks", label: "Parks", layers: ["parks-layer"] },
+      { id: "future", label: "Future", layers: ["future-layer"] },
+    ];
 
     const root = element.shadowRoot?.querySelector('[role="group"]');
     const checkbox = element.shadowRoot?.querySelector<HTMLInputElement>('input[type="checkbox"]');
     const label = element.shadowRoot?.querySelector("label");
     expect(root?.getAttribute("aria-label")).toBe("Layers");
     expect(checkbox).not.toBeNull();
+    expect(checkbox?.checked).toBe(true);
     expect(label?.textContent).toContain("Roads");
     expect(label?.querySelector('input[type="checkbox"]')).toBe(checkbox);
+    expect(element.shadowRoot?.querySelector<HTMLInputElement>('input[data-overlay-id="parks"]')?.checked).toBe(false);
+    expect(element.shadowRoot?.querySelector<HTMLInputElement>('input[data-overlay-id="future"]')?.disabled).toBe(true);
   });
 
   it("mounts and disconnects native controls without console errors", () => {

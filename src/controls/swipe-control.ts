@@ -196,7 +196,7 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
         aria-valuemin="0"
         aria-valuemax="100"
         aria-valuenow="${this.#position}"
-        aria-orientation="${this.orientation}"
+        aria-orientation="${this.#ariaOrientation()}"
         aria-label="${escapeAttribute(this.#label())}"
       >
         <span part="handle" class="handle" aria-hidden="true"></span>
@@ -226,7 +226,7 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
     }
     divider.classList?.toggle("divider-horizontal", this.orientation === "horizontal");
     divider.setAttribute?.("aria-valuenow", String(this.#position));
-    divider.setAttribute?.("aria-orientation", this.orientation);
+    divider.setAttribute?.("aria-orientation", this.#ariaOrientation());
     divider.setAttribute?.("aria-label", this.#label());
   }
 
@@ -324,6 +324,11 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
     if (explicitDirection === "rtl") return true;
     if (explicitDirection === "ltr") return false;
     return globalDom.getComputedStyle?.(this as unknown as Element).direction === "rtl";
+  }
+
+  /** ARIA describes the axis of the slider value, not the divider's visual axis. */
+  #ariaOrientation(): "horizontal" | "vertical" {
+    return this.orientation === "vertical" ? "horizontal" : "vertical";
   }
 
   #reflectPosition(value: number): void {
