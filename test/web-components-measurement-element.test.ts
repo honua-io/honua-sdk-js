@@ -85,6 +85,21 @@ describe("<honua-measurement> (survival tier)", () => {
     expect(status?.getAttribute("aria-live")).toBe("polite");
   });
 
+  it("emits system-color styles for the status and mode surface", () => {
+    const element = mount(makeMap());
+    const styles = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(styles).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(styles).toContain(".panel { background: Canvas; border-color: CanvasText; color: CanvasText; }");
+    expect(styles).toContain(".state, .hint { color: GrayText; }");
+    expect(styles).toContain("button { background: ButtonFace; border-color: ButtonText; color: ButtonText; }");
+    expect(styles).toContain(
+      'button[aria-pressed="true"] { background: Highlight; border-color: Highlight; color: HighlightText; }',
+    );
+    expect(styles).toContain("button:disabled { color: GrayText; }");
+    expect(styles).toContain("button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }");
+  });
+
   it("measures distance from map clicks with the geodesic geometry ops", () => {
     const map = makeMap();
     const element = mount(map);
