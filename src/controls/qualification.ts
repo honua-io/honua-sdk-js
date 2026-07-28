@@ -400,6 +400,18 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "The focused zoom control receives a real Enter key event and produces the same viewport event count as its pointer-activation baseline in the browser fixture.",
       },
       {
+        ids: [
+          "web-components.layer-list",
+          "web-components.basemap-control",
+          "web-components.bookmarks",
+          "web-components.locate-control",
+          "web-components.print-export",
+          "web-components.action-panel",
+        ],
+        evidence: [BROWSER_SPEC],
+        note: "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state.",
+      },
+      {
         ids: ["web-components.search"],
         evidence: ["test/web-components-search-element.test.ts"],
         note: "ArrowDown/ArrowUp/Enter/Escape are dispatched as real KeyboardEvents against the combobox and the resulting suggestion, selection, and viewport changes are asserted.",

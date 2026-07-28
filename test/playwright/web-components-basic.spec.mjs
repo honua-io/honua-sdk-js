@@ -124,7 +124,9 @@ test("web components compose map, layers, legend, table, search, and editor stat
       )
       .toBe(baselineViewportEvents);
 
-    await page.getByLabel("Public safety incidents").uncheck();
+    const incidentLayer = page.getByLabel("Public safety incidents");
+    await incidentLayer.focus();
+    await incidentLayer.press("Space");
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.layerVisible("incident-points")))
       .toBe(false);
@@ -167,7 +169,9 @@ test("web components compose map, layers, legend, table, search, and editor stat
     await expect(page.locator("#event-log")).toHaveText("filter:incidents:kakaako");
     await expect(page.locator("honua-feature-table").getByText("Ala Moana shelter route")).toHaveCount(0);
 
-    await page.locator("honua-basemap-switcher").getByRole("radio", { name: "Dark" }).click();
+    const darkBasemap = page.locator("honua-basemap-switcher").getByRole("radio", { name: "Dark" });
+    await darkBasemap.focus();
+    await darkBasemap.press("Space");
     await expect(page.locator("#event-log")).toHaveText("basemap:dark");
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.mapLayerVisible("base-dark")))
@@ -194,16 +198,24 @@ test("web components compose map, layers, legend, table, search, and editor stat
       .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.mapLayerVisible("base-dark")))
       .toBe(false);
 
-    await page.locator("honua-bookmarks").getByRole("button", { name: "Harbor" }).click();
+    const harborBookmark = page.locator("honua-bookmarks").getByRole("button", { name: "Harbor" });
+    await harborBookmark.focus();
+    await harborBookmark.press("Enter");
     await expect(page.locator("#event-log")).toHaveText("bookmark:harbor");
 
-    await page.locator("honua-locate-control").getByRole("button", { name: "Use location" }).click();
+    const locateButton = page.locator("honua-locate-control").getByRole("button", { name: "Use location" });
+    await locateButton.focus();
+    await locateButton.press("Enter");
     await expect(page.locator("#event-log")).toHaveText("locate:ready");
 
-    await page.locator("honua-print-export").getByRole("button", { name: "Snapshot" }).click();
+    const snapshotButton = page.locator("honua-print-export").getByRole("button", { name: "Snapshot" });
+    await snapshotButton.focus();
+    await snapshotButton.press("Enter");
     await expect(page.locator("#event-log")).toHaveText("export:png:unsupported");
 
-    await page.locator("honua-action-panel").getByRole("button", { name: "Refresh sources" }).click();
+    const refreshButton = page.locator("honua-action-panel").getByRole("button", { name: "Refresh sources" });
+    await refreshButton.focus();
+    await refreshButton.press("Enter");
     await expect(page.locator("#event-log")).toHaveText("action:refresh:ready");
 
     const teardown = await page.locator("honua-map").evaluate((element) => {
