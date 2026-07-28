@@ -109,6 +109,21 @@ test("web components compose map, layers, legend, table, search, and editor stat
       )
       .toBe(baselineViewportEvents);
 
+    const viewportEventsBeforeKey = await page.evaluate(
+      () => window.__HONUA_WEB_COMPONENTS_DEMO__?.events.filter((event) => event.startsWith("viewport:")).length ?? 0,
+    );
+    await zoomIn.press("Enter");
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          (before) =>
+            (window.__HONUA_WEB_COMPONENTS_DEMO__?.events.filter((event) => event.startsWith("viewport:")).length ?? 0) -
+            before,
+          viewportEventsBeforeKey,
+        ),
+      )
+      .toBe(baselineViewportEvents);
+
     await page.getByLabel("Public safety incidents").uncheck();
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.layerVisible("incident-points")))

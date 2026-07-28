@@ -395,6 +395,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   "keyboard-behavior": {
     passing: [
       {
+        ids: ["web-components.map"],
+        evidence: [BROWSER_SPEC],
+        note: "The focused zoom control receives a real Enter key event and produces the same viewport event count as its pointer-activation baseline in the browser fixture.",
+      },
+      {
         ids: ["web-components.search"],
         evidence: ["test/web-components-search-element.test.ts"],
         note: "ArrowDown/ArrowUp/Enter/Escape are dispatched as real KeyboardEvents against the combobox and the resulting suggestion, selection, and viewport changes are asserted.",
