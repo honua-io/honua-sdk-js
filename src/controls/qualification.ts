@@ -624,6 +624,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/accessibility.test.ts"],
         note: "The native basemap switcher declares a forced-colors/prefers-contrast Highlight outline for the active radio, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["controls.legend"],
+        evidence: ["test/controls/legend.test.ts"],
+        note: "The native legend declares forced-colors/prefers-contrast system-color rules for swatches and the empty state, asserted from the component stylesheet.",
+      },
     ],
     failing: [
       {
@@ -632,7 +637,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== FEATURE_EDITOR &&
             id !== "controls.swipe-control" &&
             id !== "controls.layer-list" &&
-            id !== "controls.basemap-switcher",
+            id !== "controls.basemap-switcher" &&
+            id !== "controls.legend",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
