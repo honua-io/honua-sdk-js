@@ -80,6 +80,7 @@ import {
   mapLibreMatrixSetUnavailableReason,
   mapLibreTileMatrixTemplate,
 } from "./connect-raster-evidence.js";
+import { unavailableSourceSchemaState } from "./connect-schema.js";
 import { canonicalizeUrlQuery, hasCredentialQuery, isCredentialQueryName } from "./connect-url-safety.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import { discoverWmsWmtsSources } from "./connect-wms-wmts.js";
@@ -99,7 +100,7 @@ import {
 } from "./contract/discovery.js";
 import type { PmtilesArchiveDescription, PmtilesVectorLayerInfo } from "./contract/pmtiles.js";
 import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
-import type { SchemaIdentity } from "./contract/schema.js";
+import { type SchemaIdentity, parseSchemaIdentity } from "./contract/schema.js";
 import { normalizeCapabilityDescriptor } from "./contract/source-capability-support.js";
 import { createDatasetWithAdapterSeeds } from "./contract/source.js";
 import type {
@@ -944,10 +945,10 @@ async function discoverOgcFeatures(
         selected.map((source) =>
           Object.freeze({
             ...discoveredOgcSourceSnapshot(identity.endpoint, source),
-            schemaV2: sourceSchemaProjection.ogcFeatures({
-              source: source.id,
-              observedAt: retrievedAt,
-            }),
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "ogc-features", source: identity.endpoint, observedAt: retrievedAt },
+              "OGC API Features collection metadata does not advertise a feature-field schema.",
+            ),
           }),
         ),
       )
@@ -996,10 +997,14 @@ async function discoverStac(
     const source = sourceSchemaProjection
       ? Object.freeze({
           ...discovered.source,
-          schemaV2: sourceSchemaProjection.stac({
-            source: discovered.source.id,
-            observedAt: discovered.inspection.root.provenance[0]?.retrievedAt ?? new Date().toISOString(),
-          }),
+          schemaV2State: unavailableSourceSchemaState(
+            {
+              protocol: "stac",
+              source: identity.endpoint,
+              observedAt: discovered.inspection.root.provenance[0]?.retrievedAt ?? new Date().toISOString(),
+            },
+            "STAC collection metadata does not advertise a feature-field schema.",
+          ),
         })
       : discovered.source;
     return Object.freeze({
@@ -1042,10 +1047,10 @@ async function discoverStac(
         selected.map((source) =>
           Object.freeze({
             ...discoveredStacSourceSnapshot(identity.endpoint, source),
-            schemaV2: sourceSchemaProjection.stac({
-              source: source.id,
-              observedAt: retrievedAt,
-            }),
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "stac", source: identity.endpoint, observedAt: retrievedAt },
+              "STAC collection metadata does not advertise a feature-field schema.",
+            ),
           }),
         ),
       )
@@ -1137,10 +1142,10 @@ async function discoverWfs(
         discovered.sources.map((source) =>
           Object.freeze({
             ...source,
-            schemaV2: sourceSchemaProjection.wfs({
-              source: source.locator.url,
-              observedAt: discovered.retrievedAt,
-            }),
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "wfs", source: source.locator.url, observedAt: discovered.retrievedAt },
+              "WFS GetCapabilities does not advertise a feature-field schema.",
+            ),
           }),
         ),
       )
@@ -1200,10 +1205,10 @@ async function discoverOgcRecords(
         discovered.sources.map((source) =>
           Object.freeze({
             ...source,
-            schemaV2: sourceSchemaProjection.ogcRecords({
-              source: source.id,
-              observedAt: discovered.retrievedAt,
-            }),
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "ogc-records", source: identity.endpoint, observedAt: discovered.retrievedAt },
+              "OGC API Records metadata does not advertise a feature-field schema.",
+            ),
           }),
         ),
       )
@@ -1238,10 +1243,10 @@ async function discoverOgcTiles(
         discovered.sources.map((source) =>
           Object.freeze({
             ...source,
-            schemaV2: sourceSchemaProjection.ogcTiles({
-              source: source.id,
-              observedAt: discovered.retrievedAt,
-            }),
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "ogc-tiles", source: identity.endpoint, observedAt: discovered.retrievedAt },
+              "OGC API Tiles metadata does not advertise a feature-field schema.",
+            ),
           }),
         ),
       )
@@ -1276,10 +1281,10 @@ async function discoverOgcMaps(
         discovered.sources.map((source) =>
           Object.freeze({
             ...source,
-            schemaV2: sourceSchemaProjection.ogcMaps({
-              source: source.id,
-              observedAt: discovered.retrievedAt,
-            }),
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "ogc-maps", source: identity.endpoint, observedAt: discovered.retrievedAt },
+              "OGC API Maps metadata does not advertise a feature-field schema.",
+            ),
           }),
         ),
       )
@@ -1750,7 +1755,16 @@ async function validateSnapshot(
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source schema fields must be an array.");
     }
     let schemaV2: SourceSchemaV2Envelope | undefined;
-    const schemaV2State = source.schemaV2State;
+    let schemaV2State: SchemaIdentity | undefined;
+    if (source.schemaV2State !== undefined) {
+      try {
+        schemaV2State = parseSchemaIdentity(source.schemaV2State);
+      } catch (cause) {
+        throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source schemaV2State is invalid.", undefined, {
+          cause,
+        });
+      }
+    }
     if (source.schemaV2 !== undefined) {
       if (!sourceSchemaProjection || !projectionApplies) {
         throw new HonuaDiscoveryError(
@@ -1764,7 +1778,7 @@ async function validateSnapshot(
           "Cached source cannot carry both schemaV2 and an unavailable schemaV2State.",
         );
       }
-      if (schemaV2State?.state === "known" && schemaV2State.fingerprint !== schemaV2.fingerprint) {
+      if (schemaV2State?.state === "known" && schemaV2State.fingerprint !== source.schemaV2.fingerprint) {
         throw new HonuaDiscoveryError(
           "invalid-discovery-cache",
           "Cached source schemaV2State does not match its schemaV2 fingerprint.",
@@ -2366,7 +2380,19 @@ function validateCachedPmtilesBinding(
 ): void {
   assertCachedKeys(
     source as unknown as Record<string, unknown>,
-    ["id", "locator", "title", "description", "crs", "extent", "schema", "schemaV2", "metadata", "evidence"],
+    [
+      "id",
+      "locator",
+      "title",
+      "description",
+      "crs",
+      "extent",
+      "schema",
+      "schemaV2",
+      "schemaV2State",
+      "metadata",
+      "evidence",
+    ],
     "PMTiles source",
   );
   const pmtiles = metadata?.pmtiles;

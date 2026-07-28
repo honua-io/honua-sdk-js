@@ -1,5 +1,6 @@
 /** Internal GeoServices URL classification and metadata projection for connect(). */
 
+import { unavailableSourceSchemaState } from "./connect-schema.js";
 import { canonicalizeUrlQuery, deleteQueryNames } from "./connect-url-safety.js";
 import type {
   ConnectDiscoverySourceSnapshot,
@@ -541,16 +542,18 @@ function imageSourceSnapshot(
   const schema = imageSourceSchema(metadata);
   const title = readImageString(metadata, "name") ?? serviceId.split("/").at(-1) ?? serviceId;
   const description = readImageString(metadata, "serviceDescription") ?? readImageString(metadata, "description");
-  const schemaV2 = sourceSchemaProjection?.geoservicesImage(metadata, {
-    source: target.endpoint,
-    protocol: "geoservices-image-service",
-  });
+  const schemaV2State = sourceSchemaProjection
+    ? unavailableSourceSchemaState(
+        { protocol: "geoservices-image-service", source: target.endpoint },
+        "ImageServer metadata does not advertise a feature-field schema.",
+      )
+    : undefined;
   return Object.freeze({
     id: serviceId,
     locator: Object.freeze({ url: target.clientBaseUrl, serviceId }),
     title,
     ...(description ? { description } : {}),
-    ...(schemaV2 ? { schemaV2 } : {}),
+    ...(schemaV2State ? { schemaV2State } : {}),
     ...(schema ? { schema } : {}),
     evidence,
   });

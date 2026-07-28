@@ -357,14 +357,11 @@ describe("connectWithSourceCapabilities", () => {
     );
 
     const source = connection.source();
-    expect(source.descriptor.schemaV2).toMatchObject({
-      fields: [],
-      key: { state: "none" },
-      geometry: { state: "none", reason: "no-geometry-fields" },
-      temporal: { state: "none" },
-      openContent: "closed",
-    });
-    expect(source.capabilityProfile.sourceFingerprint).toBe(source.descriptor.schemaV2.fingerprint);
+    expect(source.descriptor.schemaV2).toBeUndefined();
+    expect(source.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
+    expect(schemaStateBindingFingerprint(source.descriptor.schemaV2State!)).toBe(
+      source.capabilityProfile.sourceFingerprint,
+    );
     expect(source.capabilityProfile.sourceEndpointFingerprint).toBe(
       createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(source.descriptor)),
     );
@@ -705,7 +702,7 @@ describe("connectWithSourceCapabilities", () => {
 
     const source = connection.source();
     expect(fetchFn).toHaveBeenCalledOnce();
-    expect(source.descriptor.schemaV2.fingerprint).toBe(source.capabilityProfile.sourceFingerprint);
+    expect(source.descriptor.schemaV2!.fingerprint).toBe(source.capabilityProfile.sourceFingerprint);
     expect(source.capabilityProfile.sourceEndpointFingerprint).toBe(
       createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(source.descriptor)),
     );
@@ -755,7 +752,7 @@ describe("connectWithSourceCapabilities", () => {
       availablePeers: ["maplibre-gl"],
     });
 
-    expect(facade.source().descriptor.schemaV2.fingerprint).toBe(thirdParty.source().descriptor.schemaV2.fingerprint);
+    expect(facade.source().descriptor.schemaV2!.fingerprint).toBe(thirdParty.source().descriptor.schemaV2!.fingerprint);
     expect(facade.source().capabilityProfile.entries).toEqual(thirdParty.source().capabilityProfile.entries);
     expect(facade.source().capabilityProfile.context).toEqual(thirdParty.source().capabilityProfile.context);
     expect(facade.source().capabilityProfile.sourceEndpointFingerprint).not.toBe(
@@ -898,8 +895,8 @@ describe("connectWithSourceCapabilities", () => {
       effective: "supported",
     });
     expect(JSON.stringify(wfs.source("ne:ne_10m_admin_0_countries")!.capabilityProfile.context)).toContain("node");
-    expect(wfs.dataset.sourceDescriptors[0].schemaV2.fingerprint).toBe(
-      wfs.source("ne:ne_10m_admin_0_countries")!.descriptor.schemaV2.fingerprint,
+    expect(schemaStateBindingFingerprint(wfs.dataset.sourceDescriptors[0].schemaV2State!)).toBe(
+      wfs.source("ne:ne_10m_admin_0_countries")!.capabilityProfile.sourceFingerprint,
     );
   });
 

@@ -1,5 +1,6 @@
 /** Bounded PMTiles static-asset discovery for the top-level connect() workflow. */
 
+import { unavailableSourceSchemaState } from "./connect-schema.js";
 import type { ConnectDiscoverySourceSnapshot, ConnectOptions, ConnectSourceSchemaProjection } from "./connect.js";
 import type {
   DiscoveryCacheIdentity,
@@ -225,18 +226,22 @@ export async function discoverPmtilesSources(
     }),
     ...(sourceSchemaProjection
       ? {
-          schemaV2: sourceSchemaProjection.pmtiles({
-            source: identity.endpoint,
-            observedAt: retrievedAt,
-            ...(validator
-              ? {
-                  validator: {
-                    kind: validator.kind,
-                    value: validator.value,
-                  },
-                }
-              : {}),
-          }),
+          schemaV2State: unavailableSourceSchemaState(
+            {
+              protocol: "pmtiles",
+              source: identity.endpoint,
+              observedAt: retrievedAt,
+              ...(validator
+                ? {
+                    validator: {
+                      kind: validator.kind,
+                      value: validator.value,
+                    },
+                  }
+                : {}),
+            },
+            "PMTiles archive metadata does not advertise a feature-field schema.",
+          ),
         }
       : {}),
     ...(normalized.attribution ? { title: normalized.attribution } : {}),
