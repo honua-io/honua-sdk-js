@@ -1,0 +1,172 @@
+{
+  "format": "honua.sdk.connect-discovery-inventory.v1",
+  "schemaVersion": 1,
+  "dispositionVocabulary": [
+    "source-backed",
+    "operation-only",
+    "stac-classified",
+    "renderer-native",
+    "explicitly-unsupported"
+  ],
+  "protocols": [
+    {
+      "id": "grpc",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "geoservices-feature-service",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "structural"
+    },
+    {
+      "id": "geoservices-map-service",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "structural"
+    },
+    {
+      "id": "geoservices-image-service",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "structural"
+    },
+    {
+      "id": "geoservices-geometry-service",
+      "disposition": "operation-only",
+      "owner": "discoverGeoServices()",
+      "autoClassification": "not-applicable"
+    },
+    {
+      "id": "geoservices-gp-service",
+      "disposition": "operation-only",
+      "owner": "discoverGeoServices()",
+      "autoClassification": "not-applicable"
+    },
+    {
+      "id": "ogc-features",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "ogc-tiles",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "ogc-maps",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "ogc-records",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "stac",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "wfs",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "wms",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "structural"
+    },
+    {
+      "id": "wmts",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "structural"
+    },
+    {
+      "id": "odata",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "pmtiles",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "structural-marker"
+    },
+    {
+      "id": "geoparquet",
+      "disposition": "source-backed",
+      "owner": "connect()",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "maplibre-vector",
+      "disposition": "renderer-native",
+      "owner": "@honua/sdk-js/runtime",
+      "autoClassification": "not-applicable"
+    },
+    {
+      "id": "maplibre-raster",
+      "disposition": "renderer-native",
+      "owner": "@honua/sdk-js/runtime",
+      "autoClassification": "not-applicable"
+    },
+    {
+      "id": "maplibre-geojson",
+      "disposition": "renderer-native",
+      "owner": "@honua/sdk-js/runtime",
+      "autoClassification": "not-applicable"
+    }
+  ],
+  "staticFormats": [
+    {
+      "id": "static-stac",
+      "disposition": "source-backed",
+      "owner": "connect({ protocol: 'stac' })",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "pmtiles",
+      "disposition": "source-backed",
+      "owner": "connect({ protocol: 'pmtiles' })",
+      "autoClassification": "structural-marker"
+    },
+    {
+      "id": "geoparquet",
+      "disposition": "source-backed",
+      "owner": "connect({ protocol: 'geoparquet' })",
+      "autoClassification": "explicit-only"
+    },
+    {
+      "id": "cog",
+      "disposition": "stac-classified",
+      "owner": "@honua/sdk-js/cog",
+      "autoClassification": "stac-evidence"
+    },
+    {
+      "id": "tile-template",
+      "disposition": "renderer-native",
+      "owner": "@honua/sdk-js/runtime",
+      "autoClassification": "stac-evidence"
+    },
+    {
+      "id": "geojson",
+      "disposition": "renderer-native",
+      "owner": "@honua/sdk-js/runtime",
+      "autoClassification": "not-applicable"
+    }
+  ],
+  "generatedFrom": "config/support-manifest.v1.json"
+}

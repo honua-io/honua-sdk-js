@@ -56,6 +56,8 @@ export interface PmtilesVectorLayerInfo {
 export interface PmtilesArchiveDescription {
   /** Archive URL the description was read from. */
   readonly url: string;
+  /** PMTiles archive specification version advertised by the header. */
+  readonly specVersion?: number;
   /** Tile payload kind stored in the archive. */
   readonly tileKind: PmtilesTileKind;
   /** Geographic bounds `[west, south, east, north]` in degrees. */
@@ -94,6 +96,7 @@ export interface PmtilesSourceLike {
 
 /** The `Header` fields this module reads (a subset of `pmtiles.Header`). */
 export interface PmtilesHeaderLike {
+  readonly specVersion?: number;
   readonly minZoom: number;
   readonly maxZoom: number;
   readonly minLon: number;
@@ -112,9 +115,12 @@ export interface PmtilesArchiveLike {
   getMetadata(): Promise<unknown>;
 }
 
+/** Decompress one PMTiles internal directory or metadata payload. */
+export type PmtilesDecompress = (buffer: ArrayBuffer, compression: number) => Promise<ArrayBuffer>;
+
 /** The minimal slice of `typeof import("pmtiles")` the describe path needs. */
 export interface PmtilesModuleLike {
-  new (source: PmtilesSourceLike | string): PmtilesArchiveLike;
+  new (source: PmtilesSourceLike | string, cache?: unknown, decompress?: PmtilesDecompress): PmtilesArchiveLike;
 }
 
 /** Injectable dependencies for {@link describePmtilesArchive} (test seams). */
@@ -123,6 +129,10 @@ export interface DescribePmtilesArchiveDeps {
   readonly PMTiles?: PmtilesModuleLike;
   /** Read from a local/in-memory source instead of fetching `url`. */
   readonly source?: PmtilesSourceLike;
+  /** Override internal decompression, for example to impose an output ceiling. */
+  readonly decompress?: PmtilesDecompress;
+  /** Reuse a previously reviewed description without reopening the archive. */
+  readonly preloadedDescription?: PmtilesArchiveDescription;
 }
 
 /**
@@ -180,7 +190,10 @@ function readVectorLayers(metadata: Record<string, unknown>): PmtilesVectorLayer
 }
 
 function asMetadataRecord(metadata: unknown): Record<string, unknown> {
-  return metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>) : {};
+  if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata)) {
+    throw new SyntaxError("PMTiles archive metadata must be a JSON object.");
+  }
+  return metadata as Record<string, unknown>;
 }
 
 /**
@@ -203,14 +216,18 @@ export async function describePmtilesArchive(
   url: string,
   deps: DescribePmtilesArchiveDeps = {},
 ): Promise<PmtilesArchiveDescription> {
+  if (deps.preloadedDescription) return deps.preloadedDescription;
   const PMTiles = deps.PMTiles ?? (await loadPmtilesCtor());
-  const archive: PmtilesArchiveLike = deps.source ? new PMTiles(deps.source) : new PMTiles(url);
+  const archive: PmtilesArchiveLike = deps.source
+    ? new PMTiles(deps.source, undefined, deps.decompress)
+    : new PMTiles(url, undefined, deps.decompress);
   const [header, rawMetadata] = await Promise.all([archive.getHeader(), archive.getMetadata()]);
   const metadata = asMetadataRecord(rawMetadata);
   const attribution = typeof metadata.attribution === "string" ? metadata.attribution : undefined;
 
   return {
     url,
+    ...(header.specVersion !== undefined ? { specVersion: header.specVersion } : {}),
     tileKind: tileKindFromHeader(header.tileType),
     bounds: [header.minLon, header.minLat, header.maxLon, header.maxLat],
     minZoom: header.minZoom,

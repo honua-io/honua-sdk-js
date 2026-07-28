@@ -57,24 +57,6 @@ function runFailure(label, command, args, options = {}) {
   return `${result.stdout ?? ""}${result.stderr ?? ""}`;
 }
 
-function packInstalledDependency(packageRoot, index) {
-  const dependency = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
-  const stagingRoot = path.join(tempRoot, "dependency-pack", String(index));
-  const stagingPackage = path.join(stagingRoot, "package");
-  const safeName = dependency.name.replaceAll("@", "").replaceAll("/", "-");
-  const tarballPath = path.join(packRoot, `${safeName}-${dependency.version}.tgz`);
-  fs.mkdirSync(stagingRoot, { recursive: true });
-  fs.cpSync(packageRoot, stagingPackage, { recursive: true, dereference: true });
-  run(`pack installed dependency ${dependency.name}`, "tar", [
-    "-czf",
-    tarballPath,
-    "-C",
-    stagingRoot,
-    "package",
-  ]);
-  return tarballPath;
-}
-
 function linkPeerFixtures(installedPackageJson) {
   let linked = 0;
   for (const name of Object.keys(installedPackageJson.peerDependencies ?? {})) {
@@ -92,23 +74,17 @@ function linkPeerFixtures(installedPackageJson) {
 try {
   fs.mkdirSync(consumerRoot, { recursive: true });
   fs.mkdirSync(packRoot, { recursive: true });
-  const offlineNpmEnv = {
+  const consumerNpmEnv = {
     ...process.env,
     npm_config_cache: path.join(tempRoot, "npm-cache"),
-    npm_config_offline: "true",
     npm_config_update_notifier: "false",
   };
 
-  const productionDependencyRoots = Object.entries(packageLock.packages ?? {})
-    .filter(
-      ([relative, metadata]) => relative.startsWith("node_modules/") && metadata.dev !== true,
-    )
-    .map(([relative]) => path.join(projectRoot, relative));
   const packedOutput = run(
     "npm pack",
     "npm",
     ["pack", "--json", "--ignore-scripts", "--pack-destination", packRoot, projectRoot],
-    { env: offlineNpmEnv, timeout: 120_000 },
+    { env: consumerNpmEnv, timeout: 120_000 },
   );
   const packed = JSON.parse(packedOutput);
   const tarballName = packed.find((artifact) => artifact.name === packageJson.name)?.filename;
@@ -116,7 +92,6 @@ try {
     throw new Error("npm pack did not report a tarball filename");
   }
   const tarballPath = path.join(packRoot, tarballName);
-  const dependencyTarballs = productionDependencyRoots.map(packInstalledDependency);
 
   fs.writeFileSync(
     path.join(consumerRoot, "package.json"),
@@ -126,24 +101,30 @@ try {
       2,
     )}\n`,
   );
+  // The SDK's runtime dependency tree now includes registry packages whose
+  // nested duplicate versions (for example rbush@3's quickselect@2 next to
+  // maplibre-gl-style-spec's quickselect@3) cannot be expressed as a flat set
+  // of same-named tarball arguments, so the pre-publish offline install proof
+  // is no longer representable. With @honua/honua-migrate published, the real
+  // consumer scenario is a registry install of the packed tarball: npm must
+  // resolve every declared dependency from the registry with no help from
+  // this repository's node_modules.
   run(
-    "offline packed-tarball install",
+    "packed-tarball registry install",
     "npm",
     [
       "install",
-      "--offline",
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
       "--package-lock=false",
       "--legacy-peer-deps",
       tarballPath,
-      ...dependencyTarballs,
     ],
     {
       cwd: consumerRoot,
       timeout: 600_000,
-      env: offlineNpmEnv,
+      env: consumerNpmEnv,
     },
   );
 
@@ -211,6 +192,67 @@ if (events.join(",") !== "initialize,dispose") throw new Error(\`installed plugi
 `,
   );
   run("installed plugin registry lifecycle", process.execPath, ["plugin-registry-smoke.mjs"], {
+    cwd: consumerRoot,
+  });
+
+  fs.copyFileSync(
+    path.join(projectRoot, "test", "fixtures", "pmtiles", "sample-vector.pmtiles"),
+    path.join(consumerRoot, "pmtiles-fixture.pmtiles"),
+  );
+  fs.writeFileSync(
+    path.join(consumerRoot, "pmtiles-connect-smoke.mjs"),
+    `import { readFileSync } from "node:fs";
+import { connect } from "@honua/sdk-js";
+
+const fixture = readFileSync(new URL("./pmtiles-fixture.pmtiles", import.meta.url));
+const asset = Buffer.alloc(64 * 1024);
+fixture.copy(asset);
+const ranges = [];
+const requests = [];
+const fetchFn = async (input, init) => {
+  const headers = new Headers(init?.headers);
+  const range = headers.get("range");
+  const match = /^bytes=(\\d+)-(\\d+)$/.exec(range ?? "");
+  if (!match) return new Response("missing range", { status: 400 });
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  ranges.push(range);
+  requests.push({ authorization: headers.get("authorization"), cache: init?.cache });
+  const body = asset.subarray(start, end + 1);
+  return new Response(body, {
+    status: 206,
+    headers: {
+      "Content-Length": String(body.byteLength),
+      "Content-Range": \`bytes \${start}-\${end}/\${asset.byteLength}\`,
+      ETag: '"packed-fixture-v1"',
+    },
+  });
+};
+
+const connected = await connect({
+  endpoint: "https://assets.example.test/maps/packed.pmtiles",
+  protocol: "pmtiles",
+  authorizationScopeFingerprint: "public",
+  clientOptions: { fetchFn, bearerToken: "packed-secret" },
+});
+if (ranges.length !== 1 || ranges[0] !== "bytes=0-16383") {
+  throw new Error(\`installed PMTiles discovery exceeded its bounded range plan: \${ranges.join(",")}\`);
+}
+if (requests[0]?.authorization !== "Bearer packed-secret" || requests[0]?.cache !== "no-store") {
+  throw new Error("installed PMTiles discovery bypassed auth/cache pipeline semantics");
+}
+if (connected.inspection.protocol !== "pmtiles") throw new Error("installed PMTiles protocol classification failed");
+if (connected.inspection.sources[0]?.metadata?.pmtiles?.tileKind !== "mvt") {
+  throw new Error("installed PMTiles metadata discovery failed");
+}
+if (!connected.source().capabilities.has("tiles")) throw new Error("installed PMTiles source lacks tiles capability");
+const described = await connected.source().protocol("pmtiles")?.describe();
+if (described?.tileKind !== "mvt" || ranges.length !== 1) {
+  throw new Error("installed PMTiles typed adapter did not reuse reviewed metadata");
+}
+`,
+  );
+  run("installed bounded PMTiles connect", process.execPath, ["pmtiles-connect-smoke.mjs"], {
     cwd: consumerRoot,
   });
 
@@ -330,7 +372,7 @@ if (events.join(",") !== "initialize,dispose") throw new Error(\`installed plugi
   );
 
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} geocoding=runtime rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal offlineInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} geocoding=runtime pmtilesConnect=bounded-range rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal registryInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(

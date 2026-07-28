@@ -29,11 +29,26 @@ export const EXECUTION_MODE_VOCABULARY = [
   "static",
   "transport",
 ];
+export const DISCOVERY_DISPOSITION_VOCABULARY = [
+  "source-backed",
+  "operation-only",
+  "stac-classified",
+  "renderer-native",
+  "explicitly-unsupported",
+];
+const DISCOVERY_AUTO_CLASSIFICATIONS = [
+  "structural",
+  "structural-marker",
+  "explicit-only",
+  "stac-evidence",
+  "not-applicable",
+];
 
 const GENERATED_PATHS = {
   publicSurface: "config/public-surface.json",
   supportProjectionSchema: "support/contract/v1/schemas/support-projection.schema.json",
   supportProjection: "support/projections/sdk-support.v1.json",
+  discoveryInventory: "support/projections/connect-discovery-inventory.v1.json",
 };
 
 function readJson(filename) {
@@ -129,6 +144,7 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
   for (const protocolId of manifest.connectProtocols ?? []) {
     if (!protocolIds.includes(protocolId)) fail(`connect() references unknown protocol ${protocolId}`);
   }
+  validateDiscoveryInventory(manifest, protocolIds, projectRoot, fail);
   if (!unique(manifest.claimOnlyProtocols ?? [])) fail("claimOnlyProtocols must be unique");
   for (const protocolId of manifest.claimOnlyProtocols ?? []) {
     if (protocolIds.includes(protocolId)) fail(`claim-only protocol duplicates a canonical protocol: ${protocolId}`);
@@ -268,6 +284,85 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
   return failures;
 }
 
+export function loadCanonicalStaticFormatIds(projectRoot = PROJECT_ROOT) {
+  const source = fs.readFileSync(path.join(projectRoot, "src/connect.ts"), "utf8");
+  const declaration = /export const CONNECT_STATIC_FORMATS = \[([\s\S]*?)\]\s+as const;/.exec(source);
+  if (!declaration) throw new Error("src/connect.ts does not declare CONNECT_STATIC_FORMATS");
+  return [...declaration[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+}
+
+function validateDiscoveryInventory(manifest, protocolIds, projectRoot, fail) {
+  const inventory = manifest.discoveryInventory;
+  if (
+    inventory?.format !== "honua.sdk.connect-discovery-inventory.v1" ||
+    inventory?.schemaVersion !== 1
+  ) {
+    fail("discoveryInventory must use honua.sdk.connect-discovery-inventory.v1 schema version 1");
+    return;
+  }
+  if (JSON.stringify(inventory.dispositionVocabulary) !== JSON.stringify(DISCOVERY_DISPOSITION_VOCABULARY)) {
+    fail(`discoveryInventory dispositionVocabulary must be exactly: ${DISCOVERY_DISPOSITION_VOCABULARY.join(", ")}`);
+  }
+  const entries = inventory.protocols ?? [];
+  const ids = entries.map((entry) => entry.id);
+  if (!unique(ids)) fail("discoveryInventory protocol ids must be unique");
+  if (JSON.stringify(ids) !== JSON.stringify(protocolIds)) {
+    fail("discoveryInventory protocols must cover every canonical protocol exactly once in declaration order");
+  }
+  const connectProtocols = new Set(manifest.connectProtocols ?? []);
+  const sourceBacked = new Set(entries.filter((entry) => entry.disposition === "source-backed").map((entry) => entry.id));
+  for (const protocolId of connectProtocols) {
+    if (!sourceBacked.has(protocolId)) fail(`connect() protocol ${protocolId} must be source-backed in discoveryInventory`);
+  }
+  for (const protocolId of sourceBacked) {
+    if (!connectProtocols.has(protocolId)) {
+      fail(`source-backed discoveryInventory protocol ${protocolId} is absent from connectProtocols`);
+    }
+  }
+  for (const entry of entries) validateDiscoveryEntry(entry, `protocol ${entry.id}`, fail);
+
+  const formats = inventory.staticFormats ?? [];
+  const formatIds = formats.map((entry) => entry.id);
+  if (!unique(formatIds)) fail("discoveryInventory static format ids must be unique");
+  try {
+    const canonicalFormatIds = loadCanonicalStaticFormatIds(projectRoot);
+    if (JSON.stringify(formatIds) !== JSON.stringify(canonicalFormatIds)) {
+      fail("discoveryInventory static formats must cover CONNECT_STATIC_FORMATS exactly once in declaration order");
+    }
+  } catch (error) {
+    fail(`could not read canonical CONNECT_STATIC_FORMATS: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  for (const entry of formats) validateDiscoveryEntry(entry, `static format ${entry.id}`, fail);
+  const pmtiles = formats.find((entry) => entry.id === "pmtiles");
+  if (
+    pmtiles?.disposition !== "source-backed" ||
+    pmtiles?.owner !== "connect({ protocol: 'pmtiles' })" ||
+    pmtiles?.autoClassification !== "structural-marker"
+  ) {
+    fail("PMTiles static discovery must be source-backed by connect() with structural-marker auto classification");
+  }
+  const cog = formats.find((entry) => entry.id === "cog");
+  if (
+    cog?.disposition !== "stac-classified" ||
+    cog?.owner !== "@honua/sdk-js/cog" ||
+    cog?.autoClassification !== "stac-evidence"
+  ) {
+    fail("COG static discovery must remain STAC-classified and owned by @honua/sdk-js/cog");
+  }
+}
+
+function validateDiscoveryEntry(entry, label, fail) {
+  if (!DISCOVERY_DISPOSITION_VOCABULARY.includes(entry.disposition)) {
+    fail(`discoveryInventory ${label} has invalid disposition ${entry.disposition ?? "missing"}`);
+  }
+  if (!DISCOVERY_AUTO_CLASSIFICATIONS.includes(entry.autoClassification)) {
+    fail(`discoveryInventory ${label} has invalid autoClassification ${entry.autoClassification ?? "missing"}`);
+  }
+  if (typeof entry.owner !== "string" || entry.owner.length === 0) {
+    fail(`discoveryInventory ${label} must name an owner`);
+  }
+}
+
 function tierForStatus(status) {
   return status === "supported" ? "stable" : status;
 }
@@ -350,6 +445,24 @@ export function renderProtocolSection(manifest) {
       `| \`${protocol.id}\` | ${claim.operations.map((operation) => `\`${operation}\``).join(", ")} | \`${claim.status}\` | \`${claim.environment}\` | \`${claim.executionMode}\` | ${markdownEvidence(manifest, claim.evidence, "../")} |`,
     ),
   );
+  const discoveryRows = [
+    ...manifest.discoveryInventory.protocols.map((entry) => [
+      "Protocol",
+      `\`${entry.id}\``,
+      `\`${entry.disposition}\``,
+      `\`${entry.autoClassification}\``,
+      `\`${entry.owner}\``,
+    ]),
+    ...manifest.discoveryInventory.staticFormats.map((entry) => [
+      "Static format",
+      `\`${entry.id}\``,
+      `\`${entry.disposition}\``,
+      `\`${entry.autoClassification}\``,
+      `\`${entry.owner}\``,
+    ]),
+  ]
+    .map((row) => `| ${row.join(" | ")} |`)
+    .join("\n");
   return `Status: generated from [\`${MANIFEST_PATH}\`](../${MANIFEST_PATH}); do not edit this section by hand.
 
 Native (\`✓\`) claims mirror the default capability set per protocol; per-source
@@ -375,7 +488,19 @@ policy in the manifest.
 
 | Protocol | Operations | Status | Environment | Execution mode | Evidence |
 | --- | --- | --- | --- | --- | --- |
-${evidenceRows.join("\n")}`;
+${evidenceRows.join("\n")}
+
+### Generated discovery disposition inventory
+
+Every canonical protocol and supported static format has exactly one owner and
+discovery boundary. \`explicit-only\` never probes competing protocols;
+\`structural-marker\` currently means the explicit \`pmtiles://\` asset marker.
+The standalone machine projection is
+[\`support/projections/connect-discovery-inventory.v1.json\`](../support/projections/connect-discovery-inventory.v1.json).
+
+| Kind | Identifier | Disposition | Auto classification | Owner |
+| --- | --- | --- | --- | --- |
+${discoveryRows}`;
 }
 
 export function renderStandaloneSection(manifest) {
@@ -488,6 +613,7 @@ export function buildSupportProjection(manifest, packageJson) {
     environmentVocabulary: manifest.environmentVocabulary,
     executionModeVocabulary: manifest.executionModeVocabulary,
     connectProtocols: manifest.connectProtocols,
+    discoveryInventory: manifest.discoveryInventory,
     protocolOperations: manifest.protocolOperations,
     operationSurfaces: manifest.operationSurfaces,
     claimCapabilities: manifest.claimCapabilities,
@@ -507,6 +633,7 @@ export function buildSupportProjectionSchema(manifestSchema) {
     "environmentVocabulary",
     "executionModeVocabulary",
     "connectProtocols",
+    "discoveryInventory",
     "protocolOperations",
     "operationSurfaces",
     "claimCapabilities",
@@ -597,6 +724,13 @@ export function generateOutputs({ manifest, packageJson, projectRoot = PROJECT_R
     ["INSTALL.md", replaceManagedSection(install, "install-status", renderInstallSupportSection(manifest))],
     [GENERATED_PATHS.supportProjectionSchema, json(buildSupportProjectionSchema(manifestSchema))],
     [GENERATED_PATHS.supportProjection, json(buildSupportProjection(manifest, packageJson))],
+    [
+      GENERATED_PATHS.discoveryInventory,
+      json({
+        ...manifest.discoveryInventory,
+        generatedFrom: MANIFEST_PATH,
+      }),
+    ],
   ]);
 }
 

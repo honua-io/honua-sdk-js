@@ -71,7 +71,7 @@ import {
   odataProtocolModule,
   odataProtocolResultFromPage,
 } from "../query-planner/odata-protocol-module.js";
-import type { HonuaPmtilesArchive } from "./pmtiles.js";
+import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive, PmtilesArchiveDescription } from "./pmtiles.js";
 import { pmtilesProtocolModule } from "./pmtiles.js";
 import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
 import {
@@ -165,6 +165,16 @@ import {
  * ```
  */
 export function createDataset(options: CreateDatasetOptions): Dataset {
+  return createDatasetWithAdapterSeeds(options);
+}
+
+/** @internal Reuse metadata already reviewed by top-level connect() adapters. */
+export function createDatasetWithAdapterSeeds(
+  options: CreateDatasetOptions,
+  seeds: {
+    readonly pmtilesDescriptions?: ReadonlyMap<SourceId, PmtilesArchiveDescription>;
+  } = {},
+): Dataset {
   const { id, client, sources, resolveSource } = options;
   const policy: CapabilityPolicy = options.capabilityPolicy ?? "strict";
   const descriptors = new Map<SourceId, SourceDescriptor>();
@@ -183,7 +193,7 @@ export function createDataset(options: CreateDatasetOptions): Dataset {
     const cached = handles.get(descriptor.id);
     if (cached) return cached as CapabilityAwareSource<T>;
 
-    const builtIn = buildBuiltInSource<T>(descriptor, client, policy);
+    const builtIn = buildBuiltInSource<T>(descriptor, client, policy, seeds);
     const built =
       builtIn ?? (resolveSource?.(descriptor, { client, capabilityPolicy: policy }) as Source<T> | undefined);
     if (!built) {
@@ -228,6 +238,9 @@ function buildBuiltInSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
   policy: CapabilityPolicy,
+  seeds: {
+    readonly pmtilesDescriptions?: ReadonlyMap<SourceId, PmtilesArchiveDescription>;
+  },
 ): CapabilityAwareSource<T> | undefined {
   switch (descriptor.protocol) {
     case "grpc":
@@ -268,7 +281,11 @@ function buildBuiltInSource<T>(
     case "odata":
       return odataSource<T>(descriptor, client, policy);
     case "pmtiles":
-      return pmtilesSource<T>(descriptor, client, policy);
+      return pmtilesSource<T>(descriptor, client, policy, {
+        ...(seeds.pmtilesDescriptions?.get(descriptor.id)
+          ? { preloadedDescription: seeds.pmtilesDescriptions.get(descriptor.id)! }
+          : {}),
+      });
     default:
       return undefined;
   }
@@ -983,9 +1000,10 @@ export function pmtilesSource<T>(
   descriptor: SourceDescriptor,
   _client: HonuaClient,
   policy: CapabilityPolicy,
+  deps: DescribePmtilesArchiveDeps = {},
 ): CapabilityAwareSource<T> {
   descriptor = normalizeCapabilityDescriptor(descriptor);
-  const discovered = pmtilesProtocolModule().discover(descriptor);
+  const discovered = pmtilesProtocolModule(deps).discover(descriptor);
   if (discovered instanceof Promise) {
     // PMTiles discovery is always synchronous (the reader opens lazily on the
     // handle's own first `describe()` call); a module that started returning

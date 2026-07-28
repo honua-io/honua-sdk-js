@@ -424,9 +424,11 @@
       "status": "covered",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "connect(), Source (protocol: \"pmtiles\")"
+        "Source.protocol('pmtiles')",
+        "connect({ protocol: 'pmtiles' })"
       ],
       "evidence": [
+        "test/connect-pmtiles.test.ts",
         "test/pmtiles-contract.test.ts"
       ],
       "source": "support-manifest"

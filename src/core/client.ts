@@ -19,7 +19,7 @@ import {
   evaluateCompatibility,
   parseCompatibilityEnvelope,
 } from "./compatibility.js";
-import { HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
+import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
 import {
   applyEdits,
   exportMap,
@@ -1168,6 +1168,30 @@ export class HonuaClient {
       okStatuses?: readonly number[];
       redirect?: "safe-follow" | "error" | "manual";
       discardErrorBody?: boolean;
+      /**
+       * Invoked immediately before every physical fetch attempt, including
+       * retry and replay-safe authentication attempts. Bounded callers use
+       * this guard to reserve request and byte budgets before network I/O.
+       */
+      beforeAttempt?: (request: Readonly<HonuaRequestContext>, attempt: number) => void | Promise<void>;
+      /**
+       * Invoked before credential refresh or retry backoff can lead to another
+       * physical request. Single-attempt binary lanes throw here so a response
+       * that cannot be replayed never waits on work whose only purpose is replay.
+       */
+      beforeReplay?: (
+        request: Readonly<HonuaRequestContext>,
+        statusCode: number | undefined,
+        reason: "authentication" | "retry",
+      ) => void | Promise<void>;
+      /**
+       * Validate and replace a successful response before `after`
+       * interceptors run. The callback remains inside the request timeout and
+       * receives its combined caller/deadline signal. Bounded binary lanes use
+       * this to consume the network stream under a hard ceiling, then return
+       * an in-memory response that interceptors may inspect safely.
+       */
+      prepareResponse?: (response: Response, deadlineSignal: AbortSignal | undefined) => Promise<Response>;
     } = {},
   ): Promise<Response> {
     const request: HonuaRequestContext = {
@@ -1175,6 +1199,7 @@ export class HonuaClient {
       path,
       method,
       init: {
+        ...init,
         method,
         headers: await this.composeHeaders(init?.headers),
         body: init?.body ?? null,
@@ -1186,6 +1211,9 @@ export class HonuaClient {
       callerSignal,
       ...(options.okStatuses ? { okStatuses: options.okStatuses } : {}),
       ...(options.redirect ? { redirect: options.redirect } : {}),
+      ...(options.beforeAttempt ? { beforeAttempt: options.beforeAttempt } : {}),
+      ...(options.beforeReplay ? { beforeReplay: options.beforeReplay } : {}),
+      ...(options.prepareResponse ? { deadlineThroughFinalize: true } : {}),
       ...(options.discardErrorBody
         ? {
             errorBody: (response: Response) => {
@@ -1194,9 +1222,11 @@ export class HonuaClient {
             },
           }
         : {}),
-      finalize: async (response, _durationMs, _request, runAfter) => {
-        await runAfter();
-        return response;
+      finalize: async (response, _durationMs, _request, runAfter, deadlineSignal) => {
+        const candidate = options.prepareResponse ? await options.prepareResponse(response, deadlineSignal) : response;
+        const prepared = candidate === response ? response : preserveResponseSemantics(candidate, response);
+        await runAfter(prepared);
+        return prepared;
       },
     });
   }
@@ -1994,19 +2024,27 @@ export class HonuaClient {
       callerSignal?: AbortSignal;
       okStatuses?: readonly number[];
       redirect?: "safe-follow" | "error" | "manual";
+      beforeAttempt?: (request: Readonly<HonuaRequestContext>, attempt: number) => void | Promise<void>;
+      beforeReplay?: (
+        request: Readonly<HonuaRequestContext>,
+        statusCode: number | undefined,
+        reason: "authentication" | "retry",
+      ) => void | Promise<void>;
+      deadlineThroughFinalize?: boolean;
       errorBody?: (response: Response) => Promise<unknown>;
       shortCircuit?: (
         response: Response,
         durationMs: number,
         request: HonuaRequestContext,
-        runAfter: () => Promise<void>,
+        runAfter: (preparedResponse?: Response) => Promise<void>,
       ) => Promise<{ value: T } | undefined>;
       onTerminalError?: (error: unknown) => T | undefined;
       finalize: (
         response: Response,
         durationMs: number,
         request: HonuaRequestContext,
-        runAfter: () => Promise<void>,
+        runAfter: (preparedResponse?: Response) => Promise<void>,
+        deadlineSignal: AbortSignal | undefined,
       ) => Promise<T>;
     },
   ): Promise<T> {
@@ -2016,8 +2054,10 @@ export class HonuaClient {
 
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
+      await options.beforeAttempt?.(cloneRequestContext(request), attempt);
       const timeout = createTimeoutSignal(options.callerSignal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
+      let fetchCompleted = false;
       try {
         response = await this.fetchWithSafeRedirects(
           request.url,
@@ -2028,12 +2068,14 @@ export class HonuaClient {
           },
           options.redirect,
         );
+        fetchCompleted = true;
       } catch (error) {
         const durationMs = performance.now() - startTime;
         const normalizedError = timeout.didTimeout
           ? new HonuaTimeoutError(this.timeoutMs ?? 0)
           : normalizeNetworkError(error);
         if (shouldRetryRequest(this.retryOptions, request.method, attempt, undefined, normalizedError)) {
+          await options.beforeReplay?.(cloneRequestContext(request), undefined, "retry");
           await this.sleepBeforeRetry(attempt, undefined, retrySignal);
           continue;
         }
@@ -2046,46 +2088,106 @@ export class HonuaClient {
         });
         throw normalizedError;
       } finally {
-        timeout.dispose();
+        if (!fetchCompleted || !options.deadlineThroughFinalize) timeout.dispose();
       }
       const durationMs = performance.now() - startTime;
       const currentRequest = request;
-      const runAfter = async (): Promise<void> => {
+      let terminalErrorNotification:
+        | {
+            readonly completion: Promise<void>;
+          }
+        | undefined;
+      const beginTerminalErrorNotification = (
+        error: unknown,
+        errorDurationMs: number,
+      ): { readonly claimed: boolean; readonly completion: Promise<void> } => {
+        if (terminalErrorNotification) {
+          return { claimed: false, completion: terminalErrorNotification.completion };
+        }
+        const completion = this.applyErrorInterceptorsConcurrently({
+          request: cloneRequestContext(currentRequest),
+          error,
+          durationMs: errorDurationMs,
+        });
+        terminalErrorNotification = { completion };
+        return { claimed: true, completion };
+      };
+      const awaitDeadlineOwned = async <R>(operation: Promise<R>): Promise<R> => {
+        const owned = operation.catch(async (error: unknown) => {
+          const notification = beginTerminalErrorNotification(error, performance.now() - startTime);
+          if (notification.claimed) {
+            await notification.completion;
+          }
+          throw error;
+        });
+        return await awaitAbortable(owned, timeout.signal);
+      };
+      const runAfter = async (preparedResponse: Response = response): Promise<void> => {
         try {
-          await this.applyAfterInterceptors(cloneRequestContext(currentRequest), response, durationMs);
+          await this.applyAfterInterceptors(
+            cloneRequestContext(currentRequest),
+            preparedResponse,
+            durationMs,
+            options.deadlineThroughFinalize ? timeout.signal : undefined,
+          );
         } catch (error) {
+          if (options.deadlineThroughFinalize) throw error;
           await this.applyErrorInterceptors({ request: cloneRequestContext(currentRequest), error, durationMs });
           throw error;
         }
       };
 
-      if (options.shortCircuit) {
-        const shorted = await options.shortCircuit(response, durationMs, currentRequest, runAfter);
-        if (shorted) return shorted.value;
-      }
-
-      if (!response.ok && !options.okStatuses?.includes(response.status)) {
-        const body = options.errorBody ? await options.errorBody(response) : await parseResponseBody(response.clone());
-        const httpError = toHttpError(response.status, body);
-        const authRefreshedRequest = refreshedAuth
-          ? undefined
-          : await this.refreshReplaySafeRequestAuth(request, response.status);
-        if (authRefreshedRequest) {
-          request = authRefreshedRequest;
-          refreshedAuth = true;
-          continue;
+      try {
+        if (options.shortCircuit) {
+          const shorted = await options.shortCircuit(response, durationMs, currentRequest, runAfter);
+          if (shorted) return shorted.value;
         }
-        if (shouldRetryRequest(this.retryOptions, request.method, attempt, response.status, httpError)) {
-          await this.sleepBeforeRetry(attempt, response, retrySignal);
-          continue;
-        }
-        const fallback = options.onTerminalError?.(httpError);
-        if (fallback !== undefined) return fallback;
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
-        throw httpError;
-      }
 
-      return options.finalize(response, durationMs, currentRequest, runAfter);
+        if (!response.ok && !options.okStatuses?.includes(response.status)) {
+          const body = options.errorBody
+            ? await options.errorBody(response)
+            : await parseResponseBody(response.clone());
+          const httpError = toHttpError(response.status, body);
+          if (
+            !refreshedAuth &&
+            (response.status === 401 || response.status === 403) &&
+            this.authProvider &&
+            DEFAULT_RETRY_METHODS.has(request.method)
+          ) {
+            await options.beforeReplay?.(cloneRequestContext(request), response.status, "authentication");
+          }
+          const authRefreshedRequest = refreshedAuth
+            ? undefined
+            : await this.refreshReplaySafeRequestAuth(request, response.status);
+          if (authRefreshedRequest) {
+            request = authRefreshedRequest;
+            refreshedAuth = true;
+            continue;
+          }
+          if (shouldRetryRequest(this.retryOptions, request.method, attempt, response.status, httpError)) {
+            await options.beforeReplay?.(cloneRequestContext(request), response.status, "retry");
+            await this.sleepBeforeRetry(attempt, response, retrySignal);
+            continue;
+          }
+          const fallback = options.onTerminalError?.(httpError);
+          if (fallback !== undefined) return fallback;
+          if (options.deadlineThroughFinalize) {
+            return await awaitDeadlineOwned<T>(Promise.reject(httpError));
+          }
+          await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
+          throw httpError;
+        }
+
+        const finalized = options.finalize(response, durationMs, currentRequest, runAfter, timeout.signal);
+        return await (options.deadlineThroughFinalize ? awaitDeadlineOwned(finalized) : finalized);
+      } catch (error) {
+        if (!options.deadlineThroughFinalize || !timeout.signal?.aborted) throw error;
+        const terminalError = timeout.didTimeout ? new HonuaTimeoutError(this.timeoutMs ?? 0) : new HonuaAbortError();
+        beginTerminalErrorNotification(terminalError, performance.now() - startTime);
+        throw terminalError;
+      } finally {
+        if (options.deadlineThroughFinalize) timeout.dispose();
+      }
     }
   }
 
@@ -2113,6 +2215,7 @@ export class HonuaClient {
     request: HonuaRequestContext,
     response: Response,
     durationMs: number,
+    deadlineSignal?: AbortSignal,
   ): Promise<void> {
     for (const interceptor of this.interceptors) {
       // Only clone the response for interceptors that actually inspect it. This
@@ -2122,12 +2225,14 @@ export class HonuaClient {
       if (!interceptor.after) {
         continue;
       }
+      if (deadlineSignal?.aborted) throw new HonuaAbortError();
       const context: HonuaResponseContext = {
         request: cloneRequestContext(request),
         response: response.clone(),
         durationMs,
       };
       await interceptor.after(context);
+      if (deadlineSignal?.aborted) throw new HonuaAbortError();
     }
   }
 
@@ -2144,6 +2249,23 @@ export class HonuaClient {
         // Preserve original request failure; interceptor failures should not mask it.
       }
     }
+  }
+
+  /**
+   * Start every terminal error hook independently so one nonsettling hook
+   * cannot prevent later hooks from observing the same failure. Each hook is
+   * contained so a detached deadline notification can never reject unhandled.
+   */
+  private async applyErrorInterceptorsConcurrently(context: HonuaErrorContext): Promise<void> {
+    await Promise.all(
+      this.interceptors.map(async (interceptor) => {
+        try {
+          await interceptor.error?.(context);
+        } catch {
+          // Preserve the terminal request failure; interceptor failures should not mask it.
+        }
+      }),
+    );
   }
 
   private async refreshReplaySafeRequestAuth(
@@ -2283,6 +2405,66 @@ function cloneRequestContext(request: HonuaRequestContext): HonuaRequestContext 
       headers: cloneHeadersInit(request.init.headers),
     },
   };
+}
+
+function awaitAbortable<T>(value: T | Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  const pending = Promise.resolve(value);
+  if (!signal) return pending;
+  if (signal.aborted) {
+    void pending.catch(() => undefined);
+    return Promise.reject(new HonuaAbortError());
+  }
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", abort);
+      callback();
+    };
+    const abort = () => finish(() => reject(new HonuaAbortError()));
+    signal.addEventListener("abort", abort, { once: true });
+    pending.then(
+      (result) => finish(() => resolve(result)),
+      (error: unknown) => finish(() => reject(error)),
+    );
+  });
+}
+
+interface PreservedResponseSemantics {
+  readonly url: string;
+  readonly type: Response["type"];
+  readonly redirected: boolean;
+}
+
+/**
+ * A response prepared under a tighter body boundary still represents the same
+ * physical fetch. Preserve the fetch-owned semantic properties for public
+ * interceptors and for every defensive clone they receive.
+ */
+function preserveResponseSemantics(response: Response, source: Response): Response {
+  return decorateResponseSemantics(
+    response,
+    Object.freeze({
+      url: source.url,
+      type: source.type,
+      redirected: source.redirected,
+    }),
+  );
+}
+
+function decorateResponseSemantics(response: Response, semantics: PreservedResponseSemantics): Response {
+  const nativeClone = response.clone.bind(response);
+  Object.defineProperties(response, {
+    url: { configurable: true, value: semantics.url },
+    type: { configurable: true, value: semantics.type },
+    redirected: { configurable: true, value: semantics.redirected },
+    clone: {
+      configurable: true,
+      value: () => decorateResponseSemantics(nativeClone(), semantics),
+    },
+  });
+  return response;
 }
 
 function cloneHeadersInit(headers: HeadersInit | undefined): HeadersInit {
