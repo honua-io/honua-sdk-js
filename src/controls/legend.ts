@@ -436,5 +436,14 @@ function structuralStyles(): string {
     }
     .swatch-line { block-size: 3px; border: none; }
     .swatch-circle { border-radius: 50%; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .row { color: CanvasText; }
+      .swatch {
+        background: CanvasText;
+        border: 1px solid CanvasText;
+        forced-color-adjust: none;
+      }
+      .swatch-line { background: CanvasText; border: none; }
+    }
   `;
 }
