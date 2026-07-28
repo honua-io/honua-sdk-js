@@ -129,8 +129,8 @@
     "cells": 357,
     "passing": 143,
     "failing": 129,
-    "pending": 64,
-    "notApplicable": 21,
+    "pending": 62,
+    "notApplicable": 23,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
   },
@@ -445,7 +445,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "focus-restoration",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -453,14 +452,13 @@
         "rtl",
         "visual-regression",
         "strict-csp",
-        "duplicate-listener",
         "memory-leak"
       ],
       "summary": {
         "passing": 5,
         "failing": 6,
-        "pending": 5,
-        "notApplicable": 1
+        "pending": 3,
+        "notApplicable": 3
       },
       "gates": [
         {
@@ -482,8 +480,8 @@
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+          "status": "not-applicable",
+          "note": "The native legend is a read-only list presentation with no focusable control; there is no active element to preserve."
         },
         {
           "gate": "reduced-motion",
@@ -555,8 +553,8 @@
         {
           "gate": "duplicate-listener",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+          "status": "not-applicable",
+          "note": "The native legend binds no event handler because it is a read-only list presentation; there is nothing that could accumulate."
         },
         {
           "gate": "memory-leak",

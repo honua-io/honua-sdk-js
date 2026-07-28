@@ -337,6 +337,7 @@ const BROWSER_SPEC = "test/playwright/web-components-basic.spec.mjs";
  * forces these rows to move.
  */
 const DISPLAY_ONLY_IDS = ["web-components.legend", "web-components.chart"] as const;
+const CONTROLS_DISPLAY_ONLY_IDS = ["controls.legend"] as const;
 
 /** Harness tags that carry a real interactive affordance. */
 const INTERACTIVE_HARNESS_IDS = LIFECYCLE_HARNESS_IDS.filter(
@@ -537,6 +538,10 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
       {
         ids: DISPLAY_ONLY_IDS,
         note: "A read-only presentation with no focusable control; there is no active element to preserve. The harness asserts the absence, so adding an affordance moves this row.",
+      },
+      {
+        ids: CONTROLS_DISPLAY_ONLY_IDS,
+        note: "The native legend is a read-only list presentation with no focusable control; there is no active element to preserve.",
       },
     ],
     pendingNote:
@@ -748,6 +753,10 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
       {
         ids: DISPLAY_ONLY_IDS,
         note: "A read-only presentation that binds no event handler; there is nothing that could accumulate. The harness asserts the absence of any interactive control, so adding one moves this row.",
+      },
+      {
+        ids: CONTROLS_DISPLAY_ONLY_IDS,
+        note: "The native legend binds no event handler because it is a read-only list presentation; there is nothing that could accumulate.",
       },
     ],
     pendingNote:
