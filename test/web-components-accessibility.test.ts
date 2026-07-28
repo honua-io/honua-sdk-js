@@ -23,6 +23,15 @@ function shadow(element: HTMLElement): ShadowRoot {
   return element.shadowRoot as ShadowRoot;
 }
 
+function expectResponsiveControlStyles(css: string): void {
+  expect(css).toContain("@media (max-width: 240px)");
+  expect(css).toContain("min-width: 0;");
+  expect(css).toContain("flex-direction: column;");
+  expect(css).toContain("overflow-wrap: anywhere;");
+  expect(css).toContain("grid-template-columns: 1fr;");
+  expect(css).toContain("width: 100%;");
+}
+
 describe("web-component accessibility semantics", () => {
   it("gives the map a named region and named zoom controls", () => {
     const root = shadow(mount("honua-map", "Reference map"));
@@ -99,10 +108,14 @@ describe("web-component accessibility semantics", () => {
   });
 
   it("exposes status messages and actionable controls with native semantics", () => {
+    const basemap = shadow(mount("honua-basemap-control", "Basemaps"));
+    expectResponsiveControlStyles(basemap.querySelector("style")?.textContent ?? "");
+
     const locate = shadow(mount("honua-locate-control", "Locate"));
     expect(locate.querySelector("button[data-locate")?.textContent?.trim()).toBe("Use location");
     expect(locate.querySelector('[role="status"]')).not.toBeNull();
     const locateCss = locate.querySelector("style")?.textContent ?? "";
+    expectResponsiveControlStyles(locateCss);
     expect(locateCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
     expect(locateCss).toContain("background: Canvas");
     expect(locateCss).toContain("border-color: ButtonText");
@@ -117,21 +130,25 @@ describe("web-component accessibility semantics", () => {
 
     const bookmarks = shadow(mount("honua-bookmarks", "Bookmarks"));
     const bookmarkCss = bookmarks.querySelector("style")?.textContent ?? "";
+    expectResponsiveControlStyles(bookmarkCss);
     expect(bookmarkCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
     expect(bookmarkCss).toContain("background: Canvas");
     expect(bookmarkCss).toContain("border-color: ButtonText");
 
     const actions = shadow(mount("honua-action-panel", "Actions"));
+    expectResponsiveControlStyles(actions.querySelector("style")?.textContent ?? "");
     expect(actions.querySelector('[role="status"]')?.textContent).toContain("No actions");
 
     for (const tagName of ["honua-measure-control", "honua-sketch-control"] as const) {
       const controlCss = shadow(mount(tagName, tagName)).querySelector("style")?.textContent ?? "";
+      expectResponsiveControlStyles(controlCss);
       expect(controlCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
       expect(controlCss).toContain("background: Canvas");
       expect(controlCss).toContain("border-color: ButtonText");
     }
 
     const printCss = shadow(mount("honua-print-export", "Print/export")).querySelector("style")?.textContent ?? "";
+    expectResponsiveControlStyles(printCss);
     expect(printCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
     expect(printCss).toContain("background: Canvas");
     expect(printCss).toContain("border-color: ButtonText");
