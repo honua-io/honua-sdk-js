@@ -893,6 +893,7 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
+        "keyboard-behavior",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -903,20 +904,17 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 8,
+        "passing": 7,
         "failing": 6,
-        "pending": 2,
+        "pending": 3,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "passing",
-          "evidence": [
-            "test/playwright/web-components-basic.spec.mjs"
-          ],
-          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
         },
         {
           "gate": "screen-reader-semantics",
@@ -3012,7 +3010,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -3023,17 +3020,20 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 7,
+        "passing": 8,
         "failing": 6,
-        "pending": 3,
+        "pending": 2,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",

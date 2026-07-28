@@ -581,7 +581,7 @@ the manifest, so the tier can never be mistaken for gate completion.
 | `honua-legend` (controls) | survival | n/a | pass | n/a | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | n/a | pending | pass | pass |
 | `honua-layer-list` (controls) | survival | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
 | `honua-map` (web-components) | survival | pass | pass | pass | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-layer-list` (web-components) | survival | pass | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-layer-list` (web-components) | survival | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
 | `honua-legend` (web-components) | survival | n/a | pass | n/a | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | n/a | pending | pass | pass |
 | `honua-feature-table` (web-components) | survival | pass | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
 | `honua-search` (web-components) | survival | pass | pass | pass | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
@@ -595,7 +595,7 @@ the manifest, so the tier can never be mistaken for gate completion.
 | `honua-measurement` (web-components) | survival | pass | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
 | `honua-sketch-control` (web-components) | survival | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
 | `honua-print-export` (web-components) | survival | pass | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
-| `honua-map-status` (web-components) | survival | pending | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
+| `honua-map-status` (web-components) | survival | pass | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
 | `honua-action-panel` (web-components) | survival | pass | pass | pass | n/a | FAIL | FAIL | FAIL | FAIL | FAIL | pending | FAIL | pass | pass | pass | pending | pass | pass |
 
 Gate definitions and per-cell evidence and notes live in

@@ -401,12 +401,12 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
       },
       {
         ids: [
-          "web-components.layer-list",
           "web-components.basemap-control",
           "web-components.bookmarks",
           "web-components.locate-control",
           "web-components.print-export",
           "web-components.action-panel",
+          "web-components.map-status",
         ],
         evidence: [BROWSER_SPEC],
         note: "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state.",

@@ -12,6 +12,9 @@ test("web components compose map, layers, legend, table, search, and editor stat
 
   const server = await startWebComponentsFixtureServer();
   try {
+    await page.addInitScript(() => {
+      Object.defineProperty(Element.prototype, "requestFullscreen", { configurable: true, value: undefined });
+    });
     await page.goto(server.url);
     await expect.poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.ready === true)).toBe(true);
     await expect.poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.mapNonBlank())).toBe(true);
@@ -124,9 +127,7 @@ test("web components compose map, layers, legend, table, search, and editor stat
       )
       .toBe(baselineViewportEvents);
 
-    const incidentLayer = page.getByLabel("Public safety incidents");
-    await incidentLayer.focus();
-    await incidentLayer.press("Space");
+    await page.getByLabel("Public safety incidents").uncheck();
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.layerVisible("incident-points")))
       .toBe(false);
@@ -217,6 +218,11 @@ test("web components compose map, layers, legend, table, search, and editor stat
     await refreshButton.focus();
     await refreshButton.press("Enter");
     await expect(page.locator("#event-log")).toHaveText("action:refresh:ready");
+
+    const fullscreenButton = page.locator("honua-map-status").getByRole("button", { name: "Fullscreen" });
+    await fullscreenButton.focus();
+    await fullscreenButton.press("Enter");
+    await expect(page.locator("#event-log")).toHaveText("fullscreen:unsupported");
 
     const teardown = await page.locator("honua-map").evaluate((element) => {
       element.remove();
