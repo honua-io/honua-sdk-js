@@ -12,6 +12,8 @@ import {
   sourceCapabilityEndpointIdentity,
 } from "../src/source-capability-discovery.js";
 
+type EndpointDescriptorFixture = Pick<SourceDescriptor, "id" | "protocol" | "locator">;
+
 const OBSERVED_AT = "2026-07-15T00:00:00.000Z";
 const EVALUATED_AT = "2026-07-15T00:01:00Z";
 const WMS_CAPABILITIES = readFileSync(
@@ -20,6 +22,10 @@ const WMS_CAPABILITIES = readFileSync(
 );
 const WMTS_CAPABILITIES = readFileSync(
   new URL("./fixtures/backend-agnostic/wmts/capabilities.xml", import.meta.url),
+  "utf8",
+);
+const WFS_CAPABILITIES = readFileSync(
+  new URL("./fixtures/backend-agnostic/geoserver-wfs/capabilities.xml", import.meta.url),
   "utf8",
 );
 
@@ -146,6 +152,67 @@ describe("capability discovery endpoint binding", () => {
         locator: { ...wmts.locator, url: "https://example.test/ogc/wmts?token=secret" },
       }),
     ).toThrow(/query or fragment/);
+  });
+
+  it("binds gRPC, WFS, OGC API, and GeoParquet identities with protocol-specific canonicalization", () => {
+    const grpc: EndpointDescriptorFixture = {
+      id: "7",
+      protocol: "grpc",
+      locator: {
+        url: "https://example.test/arcgis/rest/services/Transportation/FeatureServer",
+        serviceId: "Transportation",
+        layerId: 7,
+      },
+    };
+    expect(sourceCapabilityEndpointIdentity(grpc)).toEqual({
+      endpoint: "https://example.test/arcgis/rest/services/Transportation/FeatureServer/7",
+      protocol: "grpc",
+      sourceId: "7",
+    });
+
+    const wfs: EndpointDescriptorFixture = {
+      id: "ne:ne_10m_admin_0_countries",
+      protocol: "wfs",
+      locator: { url: "https://ahocevar.com/geoserver/wfs", typeName: "ne:ne_10m_admin_0_countries" },
+    };
+    expect(sourceCapabilityEndpointIdentity(wfs)).toEqual({
+      endpoint: "https://ahocevar.com/geoserver/wfs",
+      protocol: "wfs",
+      sourceId: "ne:ne_10m_admin_0_countries",
+    });
+
+    const ogcFeatures: EndpointDescriptorFixture = {
+      id: "incidents",
+      protocol: "ogc-features",
+      locator: { url: "https://example.test/ogc", collectionId: "incidents" },
+    };
+    expect(sourceCapabilityEndpointIdentity(ogcFeatures)).toEqual({
+      endpoint: "https://example.test/ogc",
+      protocol: "ogc-features",
+      sourceId: "incidents",
+    });
+
+    const ogcRecords: EndpointDescriptorFixture = {
+      id: "counties",
+      protocol: "ogc-records",
+      locator: { url: "https://example.test", basePath: "/api/v1/admin", collectionId: "counties" },
+    };
+    expect(sourceCapabilityEndpointIdentity(ogcRecords)).toEqual({
+      endpoint: "https://example.test/api/v1/admin",
+      protocol: "ogc-records",
+      sourceId: "counties",
+    });
+
+    const geoparquet: EndpointDescriptorFixture = {
+      id: "places",
+      protocol: "geoparquet",
+      locator: { url: "https://cdn.example.test/places.parquet", geoparquet: { geometryColumn: "shape" } },
+    };
+    expect(sourceCapabilityEndpointIdentity(geoparquet)).toEqual({
+      endpoint: "https://cdn.example.test/places.parquet",
+      protocol: "geoparquet",
+      sourceId: "places",
+    });
   });
 });
 
@@ -358,6 +425,36 @@ describe("connectWithSourceCapabilities", () => {
     });
   });
 
+  it("projects WFS schema and policy-bound capability truth", async () => {
+    useDiscoveryClock();
+    const wfs = await connectWithSourceCapabilities(
+      wfsOptions("https://ahocevar.com/geoserver/wfs", "ne:ne_10m_admin_0_countries", WFS_CAPABILITIES),
+      { evaluatedAt: EVALUATED_AT, policy: { deny: ["applyEdits"] }, environment: "node" },
+    );
+    expect(wfs.source("ne:ne_10m_admin_0_countries")).toBeDefined();
+    expect(
+      createCapabilitySourceEndpointFingerprint(
+        sourceCapabilityEndpointIdentity(wfs.source("ne:ne_10m_admin_0_countries")!.descriptor),
+      ),
+    ).toBe(wfs.source("ne:ne_10m_admin_0_countries")!.capabilityProfile.sourceEndpointFingerprint);
+    expect(capability(wfs.source("ne:ne_10m_admin_0_countries")!, "query")).toMatchObject({
+      effective: "supported",
+      reasons: ["supported-by-claim-and-observation"],
+    });
+    expect(capability(wfs.source("ne:ne_10m_admin_0_countries")!, "applyEdits")).toMatchObject({
+      effective: "policy-disabled",
+      reasons: ["policy-disabled"],
+    });
+    expect(capability(wfs.source("ne:ne_10m_admin_0_countries")!, "stream")).toMatchObject({
+      reasons: ["supported-by-claim-and-observation"],
+      effective: "supported",
+    });
+    expect(JSON.stringify(wfs.source("ne:ne_10m_admin_0_countries")!.capabilityProfile.context)).toContain("node");
+    expect(wfs.dataset.sourceDescriptors[0].schemaV2.fingerprint).toBe(
+      wfs.source("ne:ne_10m_admin_0_countries")!.descriptor.schemaV2.fingerprint,
+    );
+  });
+
   it("retains canonical Honua WMS FeatureInfo truth and reapplies policy after a raw cache hit", async () => {
     useDiscoveryClock();
     let snapshot: ConnectDiscoverySnapshot | undefined;
@@ -473,8 +570,8 @@ describe("connectWithSourceCapabilities", () => {
     await expect(
       connectWithSourceCapabilities(
         {
-          endpoint: "https://example.test/collections",
-          protocol: "ogc-features",
+          endpoint: "https://example.test/services/Geocoding/GeocodeServer",
+          protocol: "geoservices-gp-service",
           authorizationScopeFingerprint: "anonymous",
           clientOptions: { fetchFn },
         } as unknown as SourceCapabilityConnectOptions,
@@ -596,6 +693,24 @@ function capability(
 
 function json(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
+function wfsOptions(endpoint: string, typeName: string, capabilities: string): SourceCapabilityConnectOptions {
+  return {
+    endpoint,
+    protocol: "wfs",
+    typeName,
+    authorizationScopeFingerprint: "anonymous",
+    clientOptions: {
+      fetchFn: vi.fn(
+        async () =>
+          new Response(capabilities, {
+            status: 200,
+            headers: { "Content-Type": "application/xml", ETag: '"wfs-capabilities-v1"' },
+          }),
+      ),
+    },
+  };
 }
 
 function useDiscoveryClock(): void {

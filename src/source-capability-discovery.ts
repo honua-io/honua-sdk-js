@@ -63,9 +63,16 @@ const CERTIFIED_PROTOCOLS = new Set([
   "geoservices-map-service",
   "geoservices-image-service",
   "odata",
+  "grpc",
+  "wfs",
+  "ogc-features",
+  "ogc-records",
+  "ogc-tiles",
+  "ogc-maps",
   "wms",
   "wmts",
   "stac",
+  "geoparquet",
 ]);
 
 /** Connect options accepted by the certified capability-discovery rollout. */
@@ -77,9 +84,16 @@ export type SourceCapabilityConnectOptions = Omit<ConnectOptions, "protocol" | "
     | "geoservices-map-service"
     | "geoservices-image-service"
     | "odata"
+    | "grpc"
+    | "wfs"
+    | "ogc-features"
+    | "ogc-records"
+    | "ogc-tiles"
+    | "ogc-maps"
     | "wms"
     | "wmts"
-    | "stac";
+    | "stac"
+    | "geoparquet";
 };
 
 /** Fresh dynamic inputs reapplied after every raw discovery-cache read. */
@@ -311,7 +325,7 @@ function assertCertifiedProtocol(protocol: SourceCapabilityConnectOptions["proto
   if (protocol === "auto" || CERTIFIED_PROTOCOLS.has(protocol)) return;
   throw new HonuaDiscoveryError(
     "unsupported-protocol",
-    `Capability-aware discovery is currently certified for GeoServices, OData, STAC, WMS, and WMTS, not "${String(protocol)}".`,
+    `Capability-aware discovery is currently certified for reviewed source-backed protocols, not "${String(protocol)}".`,
     { protocol },
   );
 }

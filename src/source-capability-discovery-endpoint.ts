@@ -9,7 +9,14 @@ export type CapabilityDiscoveryProtocol =
   | "geoservices-map-service"
   | "geoservices-image-service"
   | "odata"
+  | "grpc"
+  | "wfs"
+  | "ogc-features"
+  | "ogc-records"
+  | "ogc-tiles"
+  | "ogc-maps"
   | "stac"
+  | "geoparquet"
   | "wms"
   | "wmts";
 
@@ -29,6 +36,51 @@ export function sourceCapabilityEndpointIdentity(
       sourceId: descriptor.id,
     });
   }
+  if (protocol === "grpc") {
+    const serviceId = requiredServiceId(locator.serviceId);
+    const layerId = locator.layerId;
+    if (typeof layerId !== "number" || !Number.isSafeInteger(layerId) || layerId < 0) {
+      throw new TypeError("gRPC descriptor requires locator.layerId to be a non-negative safe integer");
+    }
+    return endpointIdentity({
+      endpoint: canonicalGeoServicesLayerEndpoint(locator.url, serviceId, "FeatureServer", layerId as number),
+      protocol,
+      sourceId: descriptor.id,
+    });
+  }
+  if (protocol === "wfs") {
+    const sourceId = requiredCollectionId(locator.typeName, "WFS");
+    if (descriptor.id !== sourceId) {
+      throw new TypeError("WFS descriptor.id must match locator.typeName");
+    }
+    return endpointIdentity({
+      endpoint: requiredEndpoint(locator.url),
+      protocol,
+      sourceId,
+    });
+  }
+  if (protocol === "ogc-features") {
+    const sourceId = requiredCollectionId(locator.collectionId, "OGC Features");
+    if (descriptor.id !== sourceId) {
+      throw new TypeError("OGC Features descriptor.id must match locator.collectionId");
+    }
+    return endpointIdentity({
+      endpoint: requiredEndpoint(locator.url),
+      protocol,
+      sourceId,
+    });
+  }
+  if (protocol === "ogc-records" || protocol === "ogc-tiles" || protocol === "ogc-maps") {
+    const sourceId = requiredCollectionId(locator.collectionId, "OGC");
+    if (descriptor.id !== sourceId) {
+      throw new TypeError(`${protocol.toUpperCase()} descriptor.id must match locator.collectionId`);
+    }
+    return endpointIdentity({
+      endpoint: requiredEndpointWithBasePath(locator.url, locator.basePath),
+      protocol,
+      sourceId,
+    });
+  }
   if (protocol === "stac") {
     if (typeof locator.collectionId !== "string" && typeof locator.collectionId !== "number") {
       throw new TypeError("STAC locator.collectionId must be a string or number.");
@@ -43,10 +95,17 @@ export function sourceCapabilityEndpointIdentity(
       sourceId,
     });
   }
+  if (protocol === "geoparquet") {
+    return endpointIdentity({
+      endpoint: requiredEndpoint(locator.url),
+      protocol,
+      sourceId: descriptor.id,
+    });
+  }
   if (protocol === "geoservices-feature-service" || protocol === "geoservices-map-service") {
     const serviceId = requiredServiceId(locator.serviceId);
     const layerId = locator.layerId;
-    if (!Number.isSafeInteger(layerId) || (layerId as number) < 0) {
+    if (typeof layerId !== "number" || !Number.isSafeInteger(layerId) || layerId < 0) {
       throw new TypeError("GeoServices locator.layerId must be a non-negative safe integer");
     }
     const serviceType = protocol === "geoservices-feature-service" ? "FeatureServer" : "MapServer";
@@ -83,6 +142,13 @@ export function sourceCapabilityEndpointIdentity(
   );
 }
 
+function requiredCollectionId(value: unknown, family: string): string {
+  if (typeof value !== "string" || value.length === 0 || value.trim() !== value) {
+    throw new TypeError(`${family} locator.collectionId / typeName must be a non-empty trimmed identifier`);
+  }
+  return value;
+}
+
 function requiredRasterLayer(value: unknown, protocol: "wms" | "wmts"): string {
   if (typeof value !== "string" || value.length === 0 || value.trim() !== value) {
     throw new TypeError(`${protocol.toUpperCase()} locator.typeName must be a non-empty trimmed layer identifier`);
@@ -111,6 +177,16 @@ function odataEntityPath(locator: SourceDescriptor["locator"]): readonly string[
 
 function endpointIdentity(identity: CapabilitySourceEndpointIdentity): CapabilitySourceEndpointIdentity {
   return Object.freeze({ ...identity, endpoint: normalizeCapabilitySourceEndpoint(identity.endpoint) });
+}
+
+function requiredEndpointWithBasePath(rawEndpoint: string, basePath: unknown): string {
+  const endpoint = requiredEndpoint(rawEndpoint);
+  const normalizedBasePath = requiredBasePath(basePath);
+  if (!normalizedBasePath) return endpoint;
+  const parsed = new URL(endpoint);
+  const existing = trimTrailingSlashes(parsed.pathname);
+  parsed.pathname = existing === "/" || existing === "" ? normalizedBasePath : `${existing}${normalizedBasePath}`;
+  return parsed.toString();
 }
 
 function canonicalGeoServicesLayerEndpoint(
@@ -209,6 +285,18 @@ function requiredEndpoint(value: unknown): string {
     throw new TypeError("Source locator.url must be a non-empty trimmed endpoint");
   }
   return value;
+}
+
+function requiredBasePath(value: unknown): string {
+  if (value === undefined) return "";
+  if (typeof value !== "string") {
+    throw new TypeError("OGC locator.basePath must be a path string");
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || !trimmed.startsWith("/")) {
+    throw new TypeError("OGC locator.basePath must be a non-empty path beginning with /");
+  }
+  return trimTrailingSlashes(trimmed);
 }
 
 function requiredIdentifier(value: unknown, path: string): string {
