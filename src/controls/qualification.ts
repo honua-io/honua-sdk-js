@@ -674,6 +674,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   rtl: {
     passing: [
       {
+        ids: [FEATURE_EDITOR],
+        evidence: [FEATURE_EDITOR_SUITE],
+        note: "The feature editor renders flex/grid surfaces without physical left/right declarations; an explicit dir=rtl fixture asserts the emitted stylesheet remains direction-neutral.",
+      },
+      {
         ids: ["controls.swipe-control"],
         evidence: ["test/controls/swipe-control.test.ts"],
         note: "The swipe control uses logical divider positioning, reverses inline pointer and keyboard movement in RTL, and asserts the RTL clip path and Home/End semantics in focused tests.",

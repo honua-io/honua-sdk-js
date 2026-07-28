@@ -207,6 +207,17 @@ describe("<honua-feature-editor> registration", () => {
     expect(css).toContain("background: Canvas");
     expect(css).toContain("border-color: Mark");
   });
+
+  it("renders direction-neutral editor styles under RTL", () => {
+    defineHonuaWebComponents();
+    const element = document.createElement("honua-feature-editor") as HonuaFeatureEditorElement<PermitAttributes>;
+    element.setAttribute("dir", "rtl");
+    document.body.append(element);
+
+    const css = root(element).querySelector("style")?.textContent ?? "";
+    expect(element.getAttribute("dir")).toBe("rtl");
+    expect(css).not.toMatch(/(?:^|[;{])\s*(?:left|right)\s*:/m);
+  });
 });
 
 describe("<honua-feature-editor> schema-derived form", () => {
