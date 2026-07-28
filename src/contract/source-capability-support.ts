@@ -41,7 +41,7 @@ export function normalizeCapabilityDescriptor(descriptor: SourceDescriptor): Sou
     throw new TypeError(`Source "${descriptor.id}" schemaV2State does not match its schemaV2 fingerprint`);
   }
   if (profile.sourceFingerprint !== schemaStateBindingFingerprint(schemaIdentity)) {
-    throw new TypeError(`Source "${descriptor.id}" capabilityProfile does not match its schema identity fingerprint`);
+    throw new TypeError(`Source "${descriptor.id}" capabilityProfile does not match its schemaV2 fingerprint`);
   }
   if (!matchesRegisteredCapabilityProfileSource(profile, descriptor)) {
     throw new TypeError(`Source "${descriptor.id}" capabilityProfile does not match its endpoint fingerprint`);
