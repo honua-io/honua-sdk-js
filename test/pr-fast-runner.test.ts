@@ -22,17 +22,18 @@ describe("PR-fast runner arguments", () => {
 
   it("routes its bounded npm scripts through PATH without suppressing diagnostics", () => {
     const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-    const firstDirectory = path.join(projectRoot, "test", "fixtures", "first PATH shim");
-    const secondDirectory = path.join(projectRoot, "test", "fixtures", "second PATH shim");
-    const firstNpm = path.join(firstDirectory, "npm.CMD");
-    const secondNpm = path.join(secondDirectory, "npm.CMD");
-    const nodeExecutable = path.join(secondDirectory, "node.exe");
+    const firstDirectory = String.raw`C:\fixtures\first PATH shim`;
+    const secondDirectory = String.raw`C:\fixtures\second PATH shim`;
+    const firstNpm = path.win32.join(firstDirectory, "npm.CMD");
+    const secondNpm = path.win32.join(secondDirectory, "npm.CMD");
+    const nodeExecutable = path.win32.join(secondDirectory, "node.exe");
     expect(
       commandInvocation("npm", ["run", "typecheck"], {
         env: {
           PATH: `${firstDirectory};${secondDirectory}`,
           PATHEXT: ".CMD",
         },
+        cwd: String.raw`C:\workspace`,
         execPath: nodeExecutable,
         platform: "win32",
         existsSync: (candidate: string) =>
