@@ -507,11 +507,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add -A -- \
-            samples/catalog.v2.json \
-            samples/contract/v2/migrations/catalog.v1-to-v2.json \
-            samples/contract/v2/release-matrix-lanes.v1.json
-          git add -f -A -- samples/dist/sample-ci-selection.v2.json
+          node scripts/stage-regenerated-catalog.mjs
           if ! git diff --quiet -- . ':(exclude)samples/evidence'; then
             echo "Catalog live-expiry refresh modified unexpected tracked content:"
             git status --short -- . ':(exclude)samples/evidence'

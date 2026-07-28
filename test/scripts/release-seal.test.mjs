@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -10,6 +12,12 @@ import {
   releaseTagVersion,
   SEALED_VERSION_STAMPS,
 } from "../../scripts/release-seal.mjs";
+import {
+  FORCED_CATALOG_PATHS,
+  OPTIONAL_RELEASE_MATRIX_PATH,
+  REQUIRED_CATALOG_PATHS,
+  stageRegeneratedCatalog,
+} from "../../scripts/stage-regenerated-catalog.mjs";
 
 const digest = "a".repeat(64);
 const otherDigest = "b".repeat(64);
@@ -250,6 +258,124 @@ test("the release and regeneration generated-path allowlists agree", () => {
   const regeneration = generatedPathAllowlist("regenerate-derived-artifacts.yml");
   assert.ok(release.size >= 10, `expected a populated allowlist, got ${release.size}`);
   assert.deepEqual([...release].sort(), [...regeneration].sort());
+});
+
+function runFixtureGit(cwd, args) {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+    windowsHide: true,
+  }).trim();
+}
+
+function writeFixtureFile(root, relativePath, value) {
+  const target = path.join(root, ...relativePath.split("/"));
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, value);
+}
+
+function createCatalogStagingFixture({ trackedReleaseMatrix = false } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "honua-regenerated-catalog-"));
+  runFixtureGit(root, ["init", "--quiet"]);
+  runFixtureGit(root, ["config", "user.name", "Honua Test"]);
+  runFixtureGit(root, ["config", "user.email", "test@honua.invalid"]);
+  writeFixtureFile(root, ".gitignore", "samples/dist/\n");
+  for (const relativePath of [...REQUIRED_CATALOG_PATHS, ...FORCED_CATALOG_PATHS]) {
+    writeFixtureFile(root, relativePath, "before\n");
+  }
+  if (trackedReleaseMatrix) {
+    writeFixtureFile(root, OPTIONAL_RELEASE_MATRIX_PATH, "before\n");
+  }
+  runFixtureGit(root, ["add", "-A"]);
+  runFixtureGit(root, ["add", "-f", "--", ...FORCED_CATALOG_PATHS]);
+  runFixtureGit(root, ["commit", "--quiet", "-m", "fixture"]);
+  for (const relativePath of [...REQUIRED_CATALOG_PATHS, ...FORCED_CATALOG_PATHS]) {
+    writeFixtureFile(root, relativePath, "after\n");
+  }
+  return root;
+}
+
+function stagedFixturePaths(root) {
+  const output = runFixtureGit(root, ["diff", "--cached", "--name-only"]);
+  return output ? output.split(/\r?\n/u).sort() : [];
+}
+
+test("catalog regeneration stages an optional release-matrix registry only in exact owned states", async (context) => {
+  await context.test("leaves a never-established registry absent", () => {
+    const root = createCatalogStagingFixture();
+    try {
+      const result = stageRegeneratedCatalog(root);
+      assert.equal(result.releaseMatrixIncluded, false);
+      assert.deepEqual(
+        stagedFixturePaths(root),
+        [...REQUIRED_CATALOG_PATHS, ...FORCED_CATALOG_PATHS].sort(),
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await context.test("stages a newly established registry without unrelated files", () => {
+    const root = createCatalogStagingFixture();
+    try {
+      writeFixtureFile(root, OPTIONAL_RELEASE_MATRIX_PATH, "established\n");
+      writeFixtureFile(root, "unexpected.txt", "unowned\n");
+      const result = stageRegeneratedCatalog(root);
+      assert.equal(result.releaseMatrixIncluded, true);
+      assert.deepEqual(
+        stagedFixturePaths(root),
+        [
+          ...REQUIRED_CATALOG_PATHS,
+          ...FORCED_CATALOG_PATHS,
+          OPTIONAL_RELEASE_MATRIX_PATH,
+        ].sort(),
+      );
+      assert.equal(runFixtureGit(root, ["status", "--short", "--", "unexpected.txt"]), "?? unexpected.txt");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await context.test("stages deletion of a previously tracked registry", () => {
+    const root = createCatalogStagingFixture({ trackedReleaseMatrix: true });
+    try {
+      fs.rmSync(path.join(root, ...OPTIONAL_RELEASE_MATRIX_PATH.split("/")));
+      const result = stageRegeneratedCatalog(root);
+      assert.equal(result.releaseMatrixIncluded, true);
+      assert.deepEqual(
+        stagedFixturePaths(root),
+        [
+          ...REQUIRED_CATALOG_PATHS,
+          ...FORCED_CATALOG_PATHS,
+          OPTIONAL_RELEASE_MATRIX_PATH,
+        ].sort(),
+      );
+      assert.match(
+        runFixtureGit(root, ["diff", "--cached", "--name-status", "--", OPTIONAL_RELEASE_MATRIX_PATH]),
+        /^D\s+samples\/contract\/v2\/release-matrix-lanes\.v1\.json$/u,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+test("the regeneration workflow uses the bounded catalog staging helper", () => {
+  const workflow = fs.readFileSync(
+    path.resolve(".github/workflows/regenerate-derived-artifacts.yml"),
+    "utf8",
+  );
+  const stepStart = workflow.indexOf("- name: Stage and commit refreshed catalog locally");
+  const nextStep = workflow.indexOf("\n      - name:", stepStart + 1);
+  assert.ok(stepStart >= 0);
+  assert.ok(nextStep > stepStart);
+  const step = workflow.slice(stepStart, nextStep);
+  assert.match(step, /node scripts\/stage-regenerated-catalog\.mjs/u);
+  assert.doesNotMatch(
+    step,
+    /git add[^\n]*samples\/contract\/v2\/release-matrix-lanes\.v1\.json/u,
+  );
 });
 
 test("committed gate receipts are discoverable and declare a sealing revision", () => {
