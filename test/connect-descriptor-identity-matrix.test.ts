@@ -54,6 +54,11 @@ const WMTS_CAPABILITIES_XML = readFileSync(
   new URL("./fixtures/backend-agnostic/wmts/capabilities.xml", import.meta.url),
   "utf8",
 );
+const CONNECT_PARITY_MATRIX = JSON.parse(
+  readFileSync(new URL("../config/connect-parity-matrix.v1.json", import.meta.url), "utf8"),
+) as {
+  readonly sourceProtocols: readonly { readonly protocol: ConnectResolvedProtocol }[];
+};
 
 type BaseConnectOptions = Omit<ConnectOptions, "authorizationScopeFingerprint" | "cache" | "refresh" | "signal">;
 
@@ -1226,6 +1231,12 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
   });
 
   describe("cache / refresh / cancellation / auth-scope isolation hold uniformly across the full protocol matrix", () => {
+    it("executes every source protocol declared by the versioned portable matrix", () => {
+      expect([...MATRIX_CASES].map(({ label }) => label).sort()).toEqual(
+        CONNECT_PARITY_MATRIX.sourceProtocols.map(({ protocol }) => protocol).sort(),
+      );
+    });
+
     it.each(MATRIX_CASES)(
       "$label: a cache hit reapplies capability policy without any new discovery activity",
       async ({ build }) => {
