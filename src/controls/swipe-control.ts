@@ -23,7 +23,9 @@
  * ## Attributes
  * - `position` — divider position as a percentage 0–100 (default 50).
  * - `orientation` — `"vertical"` (default) or `"horizontal"`.
- * - `label` — accessible name of the divider (default "Compare maps").
+ * - `label` — optional accessible name of the divider. Supply this from the
+ *   host application's message source when the divider needs an accessible
+ *   name; the control does not provide a locale-specific fallback.
  *
  * ## Events
  * - `change` — `CustomEvent<HonuaSwipeChangeDetail>` (bubbles, composed)
@@ -111,6 +113,20 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
     this.setAttribute("orientation", value === "horizontal" ? "horizontal" : "vertical");
   }
 
+  /** Accessible name of the divider. Reflects the `label` attribute. */
+  public get label(): string | null {
+    return this.#label();
+  }
+
+  public set label(value: string | null) {
+    if (typeof this.setAttribute !== "function") return;
+    if (value === null) {
+      this.removeAttribute?.("label");
+    } else {
+      this.setAttribute("label", value);
+    }
+  }
+
   public attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null): void {
     if (name === "position") {
       const parsed = newValue === null ? DEFAULT_POSITION : Number(newValue);
@@ -184,6 +200,8 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
       this.#updateDividerDom();
       return;
     }
+    const label = this.#label();
+    const ariaLabel = label === null ? "" : ` aria-label="${escapeAttribute(label)}"`;
     root.innerHTML = `
       <style>${structuralStyles()}</style>
       <div
@@ -195,7 +213,7 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
         aria-valuemax="100"
         aria-valuenow="${this.#position}"
         aria-orientation="${this.orientation}"
-        aria-label="${escapeAttribute(this.#label())}"
+        ${ariaLabel}
       >
         <span part="handle" class="handle" aria-hidden="true"></span>
       </div>
@@ -225,7 +243,9 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
     divider.classList?.toggle("divider-horizontal", this.orientation === "horizontal");
     divider.setAttribute?.("aria-valuenow", String(this.#position));
     divider.setAttribute?.("aria-orientation", this.orientation);
-    divider.setAttribute?.("aria-label", this.#label());
+    const label = this.#label();
+    if (label === null) divider.removeAttribute?.("aria-label");
+    else divider.setAttribute?.("aria-label", label);
   }
 
   // ── interaction ────────────────────────────────────────────
@@ -306,8 +326,8 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
 
   // ── helpers ────────────────────────────────────────────────
 
-  #label(): string {
-    return this.#attr("label") ?? "Compare maps";
+  #label(): string | null {
+    return this.#attr("label");
   }
 
   #attr(name: string): string | null {
