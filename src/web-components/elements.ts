@@ -713,7 +713,7 @@ export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElemen
     const legend = this.visibleItems;
     const label = this.getAttribute("label") ?? "Legend";
     this.setShadowHtml(`
-      <style>${baseStyles()}${listStyles()}</style>
+      <style>${baseStyles()}${listStyles()}${legendStyles()}</style>
       <section class="panel" part="panel" aria-label="${escapeHtml(label)}">
         <h2>${escapeHtml(label)}</h2>
         <ul class="legend" role="list">
@@ -2701,6 +2701,19 @@ function listStyles(): string {
       width: 24px;
     }
     img.swatch { object-fit: cover; }
+  `;
+}
+
+function legendStyles(): string {
+  return `
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .legend li { color: CanvasText; }
+      .legend .swatch {
+        background: Canvas;
+        border: 2px solid CanvasText;
+        forced-color-adjust: none;
+      }
+    }
   `;
 }
 
