@@ -659,6 +659,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-accessibility.test.ts"],
         note: "The bookmarks control panel declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules for its surface and action buttons, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["web-components.basemap-control"],
+        evidence: ["test/web-components-basemap-control-element.test.ts"],
+        note: "The web basemap control declares forced-colors/prefers-contrast system-color rules for active radio state and controls, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -674,7 +679,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "web-components.map-status" &&
             id !== "web-components.action-panel" &&
             id !== "web-components.layer-list" &&
-            id !== "web-components.bookmarks",
+            id !== "web-components.bookmarks" &&
+            id !== "web-components.basemap-control",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
