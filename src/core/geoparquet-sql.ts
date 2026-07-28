@@ -113,45 +113,8 @@ export function parquetSourceExpr(urls: readonly string[]): string {
  *   2.11, Mar 2025) — DuckDB reads it as a `GEOMETRY`, used directly.
  * - `geojson`: GeoParquet `GeoJSON` encoding (string) — wrap with
  *   `ST_GeomFromGeoJSON(...)`.
- * - `geoarrow-point` / `geoarrow-linestring` / `geoarrow-polygon` /
- *   `geoarrow-multipoint` / `geoarrow-multilinestring` /
- *   `geoarrow-multipolygon`: GeoParquet **1.1** native single-geometry
- *   encodings (`geo.columns[].encoding`). DuckDB exposes these as nested
- *   `STRUCT`/`LIST` columns, not a `GEOMETRY` value — there is no DuckDB
- *   spatial expression for them. Geometry projection is decoded in JS by
- *   `@honua/sdk-js/geoparquet`'s native decoder (`native-geometry.ts`, built
- *   on `src/columnar/geoarrow.ts`); a spatial predicate against one of these
- *   columns requires a GeoParquet 1.1 bbox-covering column
- *   ({@link GeometryColumnPlan.bboxColumn}) and otherwise fails closed — see
- *   {@link geometryExpr}.
  */
-export type GeometryEncoding =
-  | "wkb"
-  | "native"
-  | "geojson"
-  | "geoarrow-point"
-  | "geoarrow-linestring"
-  | "geoarrow-polygon"
-  | "geoarrow-multipoint"
-  | "geoarrow-multilinestring"
-  | "geoarrow-multipolygon";
-
-/** The `geoarrow-*` subset of {@link GeometryEncoding} (GeoParquet 1.1 native). */
-export type GeoArrowNativeGeometryEncoding = Extract<GeometryEncoding, `geoarrow-${string}`>;
-
-const GEOARROW_NATIVE_ENCODINGS: ReadonlySet<GeometryEncoding> = new Set<GeometryEncoding>([
-  "geoarrow-point",
-  "geoarrow-linestring",
-  "geoarrow-polygon",
-  "geoarrow-multipoint",
-  "geoarrow-multilinestring",
-  "geoarrow-multipolygon",
-]);
-
-/** True for a GeoParquet 1.1 native single-geometry encoding (see {@link GeometryEncoding}). */
-export function isGeoArrowNativeEncoding(encoding: GeometryEncoding): encoding is GeoArrowNativeGeometryEncoding {
-  return GEOARROW_NATIVE_ENCODINGS.has(encoding);
-}
+export type GeometryEncoding = "wkb" | "native" | "geojson";
 
 export interface GeometryColumnPlan {
   /** Geometry column name in the parquet file. */
@@ -164,24 +127,11 @@ export interface GeometryColumnPlan {
    * can prune row groups without decoding any geometry.
    */
   readonly bboxColumn?: string;
-  /**
-   * Coordinate dimensions physically stored by a `geoarrow-*` encoding.
-   * Required (and only meaningful) when {@link encoding} is one of the
-   * `geoarrow-*` values; GeoParquet 1.1 native encodings carry no `M`.
-   */
-  readonly nativeDimensions?: "xy" | "xyz";
 }
 
 /**
  * SQL expression that yields a DuckDB `GEOMETRY` from the stored geometry
  * column, adapting to the physical encoding.
- *
- * @throws for a `geoarrow-*` encoding — GeoParquet 1.1 native columns are
- *   nested `STRUCT`/`LIST` values with no DuckDB spatial-predicate
- *   expression. Callers must fail closed before constructing SQL rather than
- *   let a malformed `ST_Intersects(...)` reach DuckDB; use a bbox-covering
- *   column for spatial pushdown and the dedicated native decoder for
- *   geometry projection instead.
  */
 export function geometryExpr(plan: GeometryColumnPlan): string {
   const col = quoteIdentifier(plan.column);
@@ -192,15 +142,6 @@ export function geometryExpr(plan: GeometryColumnPlan): string {
       return `ST_GeomFromGeoJSON(${col})`;
     case "native":
       return col;
-    case "geoarrow-point":
-    case "geoarrow-linestring":
-    case "geoarrow-polygon":
-    case "geoarrow-multipoint":
-    case "geoarrow-multilinestring":
-    case "geoarrow-multipolygon":
-      throw new Error(
-        `geoparquet: column ${JSON.stringify(plan.column)} uses the GeoParquet 1.1 native "${plan.encoding.slice("geoarrow-".length)}" encoding, which DuckDB stores as a nested struct/list value with no spatial-predicate expression. Supply a bbox-covering column for spatialFilter pushdown; geometry projection is decoded separately from the raw column.`,
-      );
   }
 }
 
@@ -336,15 +277,7 @@ function projection(query: Query, options: CompileOptions): string {
   const geom = options.geometry;
   const geomAlias = quoteIdentifier(options.geometryAlias ?? DEFAULT_GEOMETRY_ALIAS);
   const wantGeometry = query.returnGeometry !== false && geom !== undefined;
-  // `geoarrow-*` columns are raw nested struct/list values, not a DuckDB
-  // `GEOMETRY` — project them as-is and let the caller's native decoder
-  // (built on src/columnar/geoarrow.ts) turn the materialized rows into
-  // GeoJSON. Every other encoding keeps projecting `ST_AsGeoJSON(...)` text.
-  const geomSelect = wantGeometry
-    ? isGeoArrowNativeEncoding(geom.encoding)
-      ? `${quoteIdentifier(geom.column)} AS ${geomAlias}`
-      : `ST_AsGeoJSON(${geometryExpr(geom)}) AS ${geomAlias}`
-    : undefined;
+  const geomSelect = wantGeometry ? `ST_AsGeoJSON(${geometryExpr(geom)}) AS ${geomAlias}` : undefined;
 
   const outFields = query.outFields;
   if (outFields && outFields.length > 0) {

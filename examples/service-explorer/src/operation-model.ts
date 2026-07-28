@@ -165,7 +165,7 @@ export function generateServiceExplorerCode(
   const imports =
     operation === "query"
       ? `import { ${rootImports.join(", ")} } from "@honua/sdk-js";`
-      : `import "maplibre-gl/dist/maplibre-gl.css";\nimport { ${rootImports.join(", ")} } from "@honua/sdk-js";\nimport { explainAutomaticSourceToMapLibre, mountAutomaticSourceToMapLibre } from "@honua/sdk-js/map";\nimport * as maplibregl from "maplibre-gl";\nimport maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";\n\nmaplibregl.setWorkerUrl(maplibreWorkerUrl);`;
+      : `import "maplibre-gl/dist/maplibre-gl.css";\nimport { ${rootImports.join(", ")} } from "@honua/sdk-js";\nimport { explainAutomaticSourceToMapLibre, mountAutomaticSourceToMapLibre } from "@honua/sdk-js/map";\nimport maplibregl from "maplibre-gl";`;
 
   return `${imports}\n\nconst honua = createHonua();\ntry {\n  const connection = await honua.connect({ url: ${endpoint}, protocol: ${protocol}, sourceId: ${source} });\n  try {\n    const source = connection.source(${source});\n${indent(operationBody, 4)}\n  } finally {\n    await connection.dispose();\n  }\n} finally {\n  await honua.dispose();\n}\n`;
 }

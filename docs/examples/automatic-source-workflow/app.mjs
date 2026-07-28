@@ -19,7 +19,8 @@ import {
   mountAutomaticSourceToMapLibre,
 } from "/dist/src/map/index.js";
 import { explainQuery } from "/dist/src/query-planner/index.js";
-import * as maplibregl from "/node_modules/maplibre-gl/dist/maplibre-gl.mjs";
+
+const maplibregl = globalThis.maplibregl;
 
 globalThis.__automaticSourceWorkflowDone = false;
 globalThis.__automaticSourceWorkflowError = null;

@@ -1,5 +1,4 @@
-import type { FeatureCollection } from "geojson";
-import type * as maplibregl from "maplibre-gl";
+import type maplibregl from "maplibre-gl";
 
 import type {
   HonuaAgentLayerSummary,
@@ -27,7 +26,7 @@ export const INCIDENTS: readonly IncidentFeature[] = [
   { id: 6, status: "closed", kind: "rescue", lngLat: [-122.3618, 47.5903] },
 ];
 
-export function incidentsGeoJson(): FeatureCollection {
+export function incidentsGeoJson(): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
     features: INCIDENTS.map((incident) => ({

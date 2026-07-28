@@ -41,15 +41,6 @@ execution evidence so none of those meanings has to be inferred from another.
   required accessible keyboard and desktop/mobile responsive behavior. Both
   artifacts publish closed collection, string, JSON-depth, and byte budgets;
   the fixture separately exercises positive text and zero-result searches.
-- `sample-bundles.schema.json` defines the static browser bundles published for
-  the samples gallery to embed. The manifest is not committed: it is built into
-  `.artifacts/sample-bundles/sample-bundles.v2.json` and published as a rolling
-  GitHub Release asset. Alongside per-file SHA-256/SRI integrity and the build
-  commit, every entry carries the publication truth a consumer needs to embed a
-  bundle honestly -- support tier, lifecycle, the browser-public config surface,
-  and whether the bundle runs `standalone` or only where the host serves its
-  declared `hostFixtureRoutes`. Format v2 (honua-io/honua-sdk-js#656) retires
-  v1; see [`docs/sample-bundles.md`](../../../docs/sample-bundles.md).
 - `migrations/catalog.v1-to-v2.json` is the reviewed one-time migration overlay.
   `npm run samples:migrate:v1` reproduces `samples/catalog.v2.json` from the
   frozen v1 catalog and this overlay.
@@ -112,59 +103,6 @@ listings may use only canonical paths. The interaction
 object is a downstream requirement, not evidence that `honua-site` has already
 implemented or deployed it; that repository must validate the v3 fixture and
 run its own static/accessibility/responsive build before adoption is complete.
-
-Publication admission is fail-closed on four further conditions, and each one
-is checked against what the handoff itself publishes so a consumer can reproduce
-the decision from the handed-off bundle alone.
-
-- Golden-card receipts must be current. `policy.qualifiedRequires` is machine
-  checked per qualified card rather than read as prose: the source identity has
-  to match the card's own executable path and carry a full revision and
-  evidence-neutral digest, `packed-build` has to come from the packed SDK mode,
-  the `fixture` and `live` gates have to be present with a live observation
-  window, both the desktop and the mobile capture have to be present at their
-  required viewport and byte-identical across the repeat capture, and all nine
-  semantic gate receipts have to appear in canonical order. Every aggregate,
-  per-gate, and live freshness window is re-evaluated against the validation
-  clock, so an expired receipt fails publication instead of shipping a stale
-  card.
-- Identities may never be duplicated. Two cards may not share a canonical route,
-  an executable source path, a golden journey, an evidence binding, or a visual
-  evidence sample, and the upstream projection, matrix, and visual-evidence
-  inventories may not repeat a journey, replacement, evidence-binding, or
-  journey/sample identity. This is what keeps a second implementation from
-  riding an already-qualified card's evidence.
-- Published evidence must dereference. Every screenshot, repeat capture, gate
-  receipt, and gate report a card advertises has to resolve inside the owning
-  sample's own `samples/evidence/<sample-id>` root and its own evidence run, as
-  a regular non-symlink file whose bytes and digest match the published
-  reference. A missing file, a replaced file, a stale digest, or a path that
-  reaches into another sample's evidence fails publication.
-- The handoff must stay versioned, and the version pin has to be immutable. Each
-  reference content-addresses the schema that governs it with `schemaBytes` and
-  `schemaSha256`, exactly as it already content-addresses the artifact with
-  `bytes` and `sha256`; validation recomputes the digest from the schema on disk
-  and fails publication on mismatch. The schema's own `$id` (a canonical
-  `https://honua.io/schemas/sdk/` identifier ending in the referenced schema
-  version) and its `format`/`schemaVersion` constants are still checked, but only
-  as a guard against a reference pointed at the wrong or a renamed schema: a
-  schema declares those about itself, so they cannot detect a schema edited in
-  place while keeping its version. The digest can, whether the edit weakened a
-  constraint or only reformatted the file. `handoff.inputs` pins the three
-  upstream authority schemas and the v3 consumer fixture's `input` pins the
-  handoff's own schema, so all four contract schemas a consumer depends on are
-  bound. A reference published before this binding existed carries no schema
-  digest; under the relax flag below that counts as pending regeneration, and a
-  strict run rejects it rather than treating it as verified.
-
-The file-dereferencing and schema-pinning checks require a checkout and are
-consequently deferred at pull-request time by the derived-artifact decoupling
-(`HONUA_DERIVED_ARTIFACTS_RELAX`, honua-io/honua-sdk-js#677), exactly like the
-existing source and docs link checks. The receipt-currency and duplicate-identity
-checks are pure metadata and always run. Legitimately pending coverage stays
-publishable: an honest `planned`, `partial`, `experimental`, or `unsupported`
-card carries no evidence binding and no visual evidence, and only overstated
-claims fail.
 
 CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence
@@ -327,91 +265,3 @@ receipts require the reviewed producer to honor the runner's explicit enable
 flag, write a fresh envelope to the runner-provided per-run path, and reject
 exact forwarded credential values in the envelope or any declared artifact. See
 [`examples/_kit/README.md`](../../../examples/_kit/README.md) for runner usage.
-
-## Release-matrix browser evidence (honua-io/honua-sdk-js#766)
-
-Per-gate `browser` receipts only ever prove the default Playwright lane, which
-is Chromium-only. Cross-engine outcomes come from the release-only First Map
-smoke (`.github/workflows/first-map-release-smoke.yml`), which runs the
-quickstart spec across Chromium, headless WebKit, and headed Firefox under a
-virtual display with `HONUA_FIRST_MAP_RELEASE_MATRIX=true`.
-
-- `sample-release-matrix-receipt.schema.json` defines that lane's receipt,
-  sealed to `samples/evidence/<sample>/release-matrix.v1.json` by
-  `scripts/seal-release-matrix-receipt.mjs`. It is a separate receipt type from
-  `sample-gate-receipt.schema.json` on purpose: gate receipts are
-  `status: "passed"` by construction, while a matrix receipt must be able to
-  publish a FAILURE, because the failure is the signal that makes the golden
-  qualification stale. It records per-engine status, test and failure counts,
-  durations, the release-matrix environment, the workflow run identity, the
-  evidence-neutral whole-tree digest and revision, and the SHA-256 of the raw
-  Playwright report retained as the release smoke's workflow artifact.
-- The sidecar sits beside `receipts/`, never inside it: that directory must
-  contain exactly the quality profile's per-gate receipts. It is declared in the
-  strict evidence-root inventory, so an undeclared sidecar is still an orphan.
-- Persistence has no separate commit path. The release smoke seals the receipt
-  on every run, green or red, uploads it, and dispatches
-  `regenerate-derived-artifacts.yml`, which downloads it, verifies it is bound
-  to the dispatching run, installs it, and lands it through the same protected,
-  path-validated evidence-reseal automation as every other generated artifact.
-- Freshness mirrors the gate-receipt policy exactly: `observedAt` plus seven
-  days, no new cadence. `samples:verify` treats a **failing** receipt as an
-  error everywhere except the publication automation
-  (`HONUA_RELEASE_MATRIX_RECEIPT_RELAX`, which reports instead of enforcing so
-  the automation can commit the failing receipt), and an **expired** one as an
-  error in strict lanes while reporting it wherever
-  `HONUA_DERIVED_ARTIFACTS_RELAX` already relaxes shared derived-artifact
-  freshness. Re-running `first-map-release-smoke.yml` reseals the lane and
-  restores qualified status with no manual edit.
-- The qualification record projects the lane into the generated catalog,
-  [`docs/generated/sample-catalog.md`](../../../docs/generated/sample-catalog.md):
-  one row per established lane with its last sealed outcome, per-engine status,
-  freshness window, and receipt path. The section is emitted only once a lane is
-  established or a receipt exists, so the generated bytes are unchanged until the
-  first release smoke lands.
-- It is deliberately NOT published into
-  `samples/dist/golden-journey-visual-evidence.v1.json`. That artifact's schema is
-  content-addressed by the committed consumer handoff
-  (`inputs.visualEvidence.schemaBytes`/`schemaSha256`,
-  honua-io/honua-sdk-js#791), so adding even an optional property to it is a
-  versioned contract change: `golden-journey-visual-evidence.schema.json` would
-  have to bump v1 to v2, `site-consumer-handoff.schema.json` and
-  `site-consumer-fixture.schema.json` would have to bump with it because they pin
-  the visual-evidence `format` const, every committed projection and consumer
-  fixture would have to be regenerated in the same change, and honua-site would
-  have to move to the new format strings. That transition belongs to a dedicated
-  bump carried by the derived-artifact automation, not to a feature branch that
-  cannot legitimately reseal the committed artifacts.
-
-### Lane establishment is recorded outside the evidence tree
-
-An **absent** receipt is not evidence of anything, so before a lane is
-established it is only a note: `samples:verify` cannot go red for cross-browser
-evidence that has never been produced. Establishment itself, however, must not be
-erasable by deleting the evidence, or a failing lane could be laundered back to
-that harmless note.
-
-- `release-matrix-lanes.v1.json` (schema: `sample-release-matrix-lanes.schema.json`)
-  is the reviewed registry of established lanes. It records `sampleId`, the
-  canonical `receiptPath`, the first receipt's `establishedAt`, and the workflow
-  run that produced it. Absence of the file means no lane has ever been
-  established.
-- It lives under `samples/contract/`, **inside** the evidence-neutral source
-  digest, while the receipt lives under `samples/evidence/`, which is outside it.
-  That asymmetry is the point: removing a sealed receipt cannot relax the
-  requirement, because the requirement is reviewed contract source that the
-  digest, code review, and CI all cover.
-- `npm run samples:release-matrix:record -- --sample <id>` writes it from the
-  sealed receipt. `regenerate-derived-artifacts.yml` runs it in the same slot as
-  `samples:refresh-live-expiry` -- after a reseal pass, before the catalog
-  commit -- so establishment lands in the SAME automation commit chain that
-  publishes the first receipt, and so the following reseal binds to a tree that
-  already contains it. It is idempotent and pins `establishedAt` to the first
-  receipt, so later regenerations write no bytes and cause no digest churn.
-- Once a lane is recorded, a missing sidecar carries exactly the same severity as
-  a failing engine: an error in every enforced lane, downgraded only by the
-  publication automation's `HONUA_RELEASE_MATRIX_RECEIPT_RELAX`. The generator
-  side is stricter still and is never relaxed -- `collectQualificationEvidence`
-  requires the declared sidecar to exist, so no projection can present an
-  established lane as qualified after its evidence was removed. Resealing with
-  `first-map-release-smoke.yml` is the only way back to green.

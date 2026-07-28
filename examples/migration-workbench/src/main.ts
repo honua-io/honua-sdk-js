@@ -12,7 +12,6 @@ import type {
   UnsupportedModule,
 } from "./types.js";
 
-import "../../_kit/design/index.css";
 import "../../_kit/presentation.css";
 import "./styles.css";
 
@@ -67,57 +66,7 @@ cleanup.add(() => {
   delete window.__HONUA_MIGRATION_WORKBENCH_DISPOSE__;
 });
 
-setupThemeToggle();
-setupReportIndex();
 void bootstrap();
-
-type ThemePreference = "auto" | "light" | "dark";
-const THEME_SEQUENCE: readonly ThemePreference[] = ["auto", "light", "dark"];
-
-function setupThemeToggle(): void {
-  const toggle = getElement<HTMLButtonElement>("#theme-toggle");
-  let preference: ThemePreference = "auto";
-  const apply = (): void => {
-    if (preference === "auto") delete document.documentElement.dataset.theme;
-    else document.documentElement.dataset.theme = preference;
-    toggle.textContent = `Theme: ${preference}`;
-  };
-  cleanup.listen(toggle, "click", () => {
-    const nextIndex = (THEME_SEQUENCE.indexOf(preference) + 1) % THEME_SEQUENCE.length;
-    preference = THEME_SEQUENCE[nextIndex] ?? "auto";
-    apply();
-  });
-  cleanup.add(() => {
-    delete document.documentElement.dataset.theme;
-  });
-  apply();
-}
-
-function setupReportIndex(): void {
-  const links = [...document.querySelectorAll<HTMLAnchorElement>("#report-index-list a[href^='#']")];
-  const sections = links
-    .map((link) => document.getElementById(link.hash.slice(1)))
-    .filter((section): section is HTMLElement => section !== null);
-  if (links.length === 0 || sections.length !== links.length) return;
-  const setCurrent = (id: string): void => {
-    for (const link of links) {
-      if (link.hash === `#${id}`) link.setAttribute("aria-current", "true");
-      else link.removeAttribute("aria-current");
-    }
-  };
-  const observer = new IntersectionObserver(
-    (entries) => {
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top);
-      const first = visible[0];
-      if (first) setCurrent(first.target.id);
-    },
-    { rootMargin: "-15% 0px -65% 0px" },
-  );
-  for (const section of sections) observer.observe(section);
-  cleanup.add(() => observer.disconnect());
-}
 
 async function dispose(): Promise<void> {
   bootstrapController.abort();
@@ -179,23 +128,7 @@ function render(model: MigrationWorkbenchViewModel): void {
   renderMapLibre(model);
   renderCommands(model);
   renderArtifacts(model);
-  renderDiff(model.diff);
-}
-
-function renderDiff(diff: string): void {
-  getElement<HTMLPreElement>("#migration-diff").innerHTML = diff
-    .split("\n")
-    .map((line) => `<span class="diff-line" data-diff="${diffLineKind(line)}">${escapeHtml(line)}\n</span>`)
-    .join("");
-}
-
-function diffLineKind(line: string): "file" | "hunk" | "add" | "del" | "meta" | "ctx" {
-  if (line.startsWith("+++") || line.startsWith("---")) return "file";
-  if (line.startsWith("@@")) return "hunk";
-  if (line.startsWith("+")) return "add";
-  if (line.startsWith("-")) return "del";
-  if (line.startsWith("diff ") || line.startsWith("index ")) return "meta";
-  return "ctx";
+  getElement<HTMLPreElement>("#migration-diff").textContent = model.diff;
 }
 
 function renderSource(model: MigrationWorkbenchViewModel): void {
@@ -291,9 +224,7 @@ function renderCommands(model: MigrationWorkbenchViewModel): void {
   getElement<HTMLElement>("#command-list").innerHTML = model.commands
     .map(
       (command) => `<article class="command-card">
-        <div class="command-head"><strong>${escapeHtml(command.id)}</strong><span class="row-status" data-status="${
-          command.exitCode === 0 ? "passed" : "failed"
-        }">exit ${command.exitCode}</span></div>
+        <div><strong>${escapeHtml(command.id)}</strong><span>exit ${command.exitCode}</span></div>
         <pre tabindex="0">${escapeHtml(formatArtifactCommand(command.executable, command.argv))}</pre>
       </article>`,
     )

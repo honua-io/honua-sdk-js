@@ -22,6 +22,7 @@ const CAPABILITY_PROFILE_COMPANIONS = new Set([
 const packageDirs = {
   "@honua/sdk": path.join(PACKAGES_ROOT, "honua-sdk"),
   "@honua/sdk-esri-compat": path.join(PACKAGES_ROOT, "honua-sdk-esri-compat"),
+  "@honua/honua-migrate": path.join(PACKAGES_ROOT, "honua-migrate"),
   "@honua/react": path.join(PACKAGES_ROOT, "honua-react"),
   "@honua/geometry": path.join(PACKAGES_ROOT, "honua-geometry"),
   "@honua/app-platform": path.join(PACKAGES_ROOT, "honua-app-platform"),
@@ -102,6 +103,7 @@ try {
     dependencies: {
       "@honua/sdk": `file:${packageDirs["@honua/sdk"]}`,
       "@honua/sdk-esri-compat": `file:${packageDirs["@honua/sdk-esri-compat"]}`,
+      "@honua/honua-migrate": `file:${packageDirs["@honua/honua-migrate"]}`,
       "@honua/react": `file:${packageDirs["@honua/react"]}`,
       react: ROOT_PACKAGE_JSON.devDependencies.react,
       "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
@@ -220,7 +222,6 @@ import {
   inspectColumnarBatch,
 } from "@honua/sdk/query-planner";
 import { DECK_GL_ADAPTER_CONTRACT_VERSION, bindGeoArrowPointBatchToDeckGl } from "@honua/sdk/deckgl";
-import { KEPLER_BRIDGE_CONTRACT_VERSION, projectResultToKeplerDataset } from "@honua/sdk/kepler";
 import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import {
@@ -329,6 +330,14 @@ import {
   whenOnce,
   ZoomCompat,
 } from "@honua/sdk-esri-compat";
+import {
+  buildJsMigrationReport,
+  getJsParityMatrix,
+  runEsriCompatCodemod,
+  runLayerReconciliation,
+  scanArcGisUsage,
+  summarizeJsParityMatrix,
+} from "@honua/honua-migrate";
 import {
   HonuaLayer,
   HonuaMap as HonuaReactMap,
@@ -692,20 +701,6 @@ if (typeof createColumnarBatch !== "function" || typeof inspectColumnarBatch !==
 if (DECK_GL_ADAPTER_CONTRACT_VERSION !== "1.0")
   throw new Error("DECK_GL_ADAPTER_CONTRACT_VERSION export missing from @honua/sdk/deckgl");
 {
-  if (KEPLER_BRIDGE_CONTRACT_VERSION !== "1.0")
-    throw new Error("KEPLER_BRIDGE_CONTRACT_VERSION export missing from @honua/sdk/kepler");
-  const keplerProjection = projectResultToKeplerDataset({
-    datasetId: "split-smoke",
-    provenance: { sourceId: "split-smoke", planId: "plan:split-smoke" },
-    result: {
-      features: [{ attributes: { id: 1 }, geometry: { x: -157.86, y: 21.31 } }],
-      exceededTransferLimit: false,
-    },
-  });
-  if (keplerProjection.diagnostic.geoJsonBytes !== 0 || keplerProjection.dataset.data.rows.length !== 1)
-    throw new Error("@honua/sdk/kepler direct point path introduced a GeoJSON round trip");
-}
-{
   const schemaId = "geoarrow-split-smoke@1";
   const { batch } = createGeoArrowBatch({
     id: "geoarrow-split-smoke",
@@ -834,6 +829,12 @@ if (typeof TimeSliderCompat !== "function") throw new Error("TimeSliderCompat ex
 if (typeof watch !== "function") throw new Error("watch export missing");
 if (typeof when !== "function") throw new Error("when export missing");
 if (typeof whenOnce !== "function") throw new Error("whenOnce export missing");
+if (typeof scanArcGisUsage !== "function") throw new Error("scanArcGisUsage export missing");
+if (typeof runEsriCompatCodemod !== "function") throw new Error("runEsriCompatCodemod export missing");
+if (typeof buildJsMigrationReport !== "function") throw new Error("buildJsMigrationReport export missing");
+if (typeof getJsParityMatrix !== "function") throw new Error("getJsParityMatrix export missing");
+if (typeof runLayerReconciliation !== "function") throw new Error("runLayerReconciliation export missing");
+if (typeof summarizeJsParityMatrix !== "function") throw new Error("summarizeJsParityMatrix export missing");
 if (typeof HonuaProvider !== "function") throw new Error("HonuaProvider export missing from @honua/react");
 if (typeof useHonuaClient !== "function") throw new Error("useHonuaClient export missing from @honua/react");
 if (typeof useDataset !== "function") throw new Error("useDataset export missing from @honua/react");

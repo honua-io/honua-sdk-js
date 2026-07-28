@@ -166,10 +166,3 @@ export type {
   TemporalPlaybackTick,
   TemporalWindow,
 } from "./temporal-playback.js";
-// Realtime reconciliation MapLibre adapter (issue #559). @experimental.
-export { attachRealtimeReconciliationToMapLibre } from "./realtime-reconciliation-adapter.js";
-export type {
-  RealtimeReconciliationMapLibreAdapter,
-  RealtimeReconciliationMapLibreAdapterOptions,
-  RealtimeReconciliationMapLibreMap,
-} from "./realtime-reconciliation-adapter.js";

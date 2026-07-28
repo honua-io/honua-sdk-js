@@ -7,7 +7,7 @@
  * ```ts
  * import { HonuaClient } from "@honua/sdk-js";
  * import { loadMapPackage } from "@honua/sdk-js/runtime";
- * import * as maplibregl from "maplibre-gl";
+ * import maplibregl from "maplibre-gl";
  *
  * const map = new maplibregl.Map({ container: "map" });
  * const runtime = await loadMapPackage(pkg, map, {

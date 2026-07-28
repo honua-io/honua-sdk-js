@@ -2,26 +2,9 @@
   "$comment": [
     "These are regression-safety budgets for deterministic headless browser journeys, not product SLAs.",
     "They intentionally detect hangs, missing output, interaction breakage, and extreme instability.",
-    "They must never be used to claim performance superiority over another SDK.",
-    "schemaVersion 2 (issue #562) adds staged scale-tier metrics, a 100k/1M row scale corpus, and repeated",
-    "mount/unmount + context-loss recovery leak budgets. BOTH scale tiers (deckgl.scale-render-100k and",
-    "deckgl.scale-render-1m) are opt-in (HONUA_BROWSER_BENCH_SCALE=full / npm run bench:browser:full-scale) and",
-    "excluded from the deterministic PR lane's default `npm run bench:browser` run; only the 10k",
-    "deckgl.binary-render-interact scenario, the capability scenarios, and the lifecycle scenarios run there.",
-    "The 100k entries below were calibrated from a real LOCAL Chromium+swiftshader run, then proved wrong on a",
-    "real CI run of the same tier (render 2677.80 ms / interaction 695 ms / gpuUpload 990 ms / steadyFps 1.3 —",
-    "well past these numbers): CI's software GL is not the same runner class as any given contributor's",
-    "machine, so a same-box baseline is not a portable CI budget. Treat every number in deckgl.scale-render-100k",
-    "and deckgl.scale-render-1m below as UNCALIBRATED FOR CI — a placeholder pending a dedicated evidence job",
-    "that runs HONUA_BROWSER_BENCH_SCALE=full on CI's actual runner class and replaces these with reviewed",
-    "numbers, not a gate anyone should expect to pass out of the box. swiftshader is a CPU software rasterizer,",
-    "so its fill-rate-bound circle redraw is far slower than a real GPU (observed ~1 fps steady-state at 100k",
-    "points locally, worse on CI) — do not read these as real-device performance either way. The 1M budgets are",
-    "further extrapolated from the (already CI-invalidated) 100k baseline and are even less trustworthy.",
-    "stage metrics ending in Ms are upper bounds (smaller is better); steadyFrameRateFps is a lower bound",
-    "(direction: at-least) since a smaller frames-per-second value is the regression."
+    "They must never be used to claim performance superiority over another SDK."
   ],
-  "schemaVersion": 2,
+  "schemaVersion": 1,
   "variability": {
     "warningCoefficientOfVariation": 0.35,
     "failureCoefficientOfVariation": 0.75
@@ -34,40 +17,6 @@
     "deckgl.binary-render-interact": {
       "firstVisibleMs": { "warning": 5000, "failure": 15000 },
       "interactionLatencyMs": { "warning": 750, "failure": 2000 }
-    },
-    "deckgl.scale-render-100k": {
-      "firstVisibleMs": { "warning": 10000, "failure": 25000 },
-      "interactionLatencyMs": { "warning": 2500, "failure": 7000 },
-      "stages": {
-        "conversionMs": { "warning": 300, "failure": 1500 },
-        "transferMs": { "warning": 100, "failure": 500 },
-        "gpuUploadMs": { "warning": 6000, "failure": 18000 },
-        "steadyFrameRateFps": { "direction": "at-least", "warning": 0.4, "failure": 0.1 },
-        "pickingMs": { "warning": 2500, "failure": 7000 },
-        "disposalMs": { "warning": 500, "failure": 3000 }
-      }
-    },
-    "deckgl.scale-render-1m": {
-      "firstVisibleMs": { "warning": 30000, "failure": 90000 },
-      "interactionLatencyMs": { "warning": 15000, "failure": 40000 },
-      "stages": {
-        "conversionMs": { "warning": 1500, "failure": 6000 },
-        "transferMs": { "warning": 300, "failure": 1500 },
-        "gpuUploadMs": { "warning": 40000, "failure": 100000 },
-        "steadyFrameRateFps": { "direction": "at-least", "warning": 0.1, "failure": 0.02 },
-        "pickingMs": { "warning": 15000, "failure": 40000 },
-        "disposalMs": { "warning": 2000, "failure": 10000 }
-      }
-    }
-  },
-  "lifecycle": {
-    "repeatedMountUnmount": {
-      "cycles": 25,
-      "warmupCycles": 5,
-      "maxHeapGrowthBytes": { "warning": 8000000, "failure": 40000000 }
-    },
-    "contextLossRecovery": {
-      "maxRecoveryMs": { "warning": 4000, "failure": 12000 }
     }
   }
 }

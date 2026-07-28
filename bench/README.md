@@ -131,101 +131,11 @@ committed [`browser/budgets.json`](./browser/budgets.json) bounds hangs, extreme
 latency, variance, and broken rendering/interaction invariants. CI uploads the
 complete directory as `sdk-browser-benchmark`.
 
-`report.corpus.sha256` identifies only the benchmark's own scenario/data
-definitions (`BROWSER_CORPUS_SOURCE_FILES` + the versioned fixture pack) — it
-deliberately does **not** include the deck.gl adapter (or any other SDK
-implementation) under test, so an ordinary adapter-only code change never
-looks like a different benchmark corpus. That implementation's provenance is
-still reported, just kept separate: `report.gitCommit` is the authoritative
-whole-tree identity, and `report.codeUnderTest.{files,sha256}`
-(`CODE_UNDER_TEST_SOURCE_FILES` / `codeUnderTestFingerprint` in
-[`browser/run.mjs`](./browser/run.mjs)) is a convenience subset scoped to the
-`src/deckgl/*.ts` files the deck.gl scenarios actually exercise.
-
 These measurements are only a same-Honua regression gate. They are not an Esri,
 Mapbox, CARTO, MapLibre, or deck.gl comparison: the applications, data paths,
 renderer configuration, licensing constraints, and host/service conditions are
 not equivalent. A chart, README, website, or sales claim must not rank vendors
 from this report or combine it with separately collected competitor numbers.
-
-### deck.gl scale, capability/fallback, and lifecycle evidence (#562)
-
-`schemaVersion: 2` extends the browser corpus with the evidence the bounded
-deck.gl adapter (#388/#561) needs before promotion beyond `experimental`, and
-publishes it in a machine-readable shape for the #547 analytics golden
-journey to consume:
-
-- **Scale tiers.** `deckgl.scale-render-100k` (always on) and
-  `deckgl.scale-render-1m` (opt-in — see below) run the same binary
-  scatterplot journey as `deckgl.binary-render-interact` at 100,000 and
-  1,000,000 rows (`bench/browser/scale.html` / `scale-main.ts`, row count via
-  `?rows=`). Instead of one combined `firstVisibleMs`, each scenario's
-  `stagesSummary` separates **conversion** (SDK typed-array + `adapter.project`
-  cost), **transfer** (`projection.mount` hand-off), **GPU upload + first
-  frame**, **steady-state frame rate** (forced `deck.redraw()` over N frames),
-  **picking**, and **disposal**. `bench/browser/fixture.ts` builds every
-  scale tier's point grid from `index` alone (never `Math.random()`), so a
-  given row count is byte-identical across runs.
-- **Capability/fallback matrix.** `deckgl.capability-supported` and
-  `deckgl.capability-fallback` (`bench/browser/capability.html` /
-  `capability-main.ts`) classify the current browser/device with the pure,
-  unit-tested policy in
-  [`browser/capability-policy.mjs`](./browser/capability-policy.mjs) into one
-  of three tiers — `supported`, `fallback-maplibre`, or `unsupported` — and
-  only attempt a deck.gl mount when `supported`. The fallback scenario
-  deterministically simulates a no-WebGL device by overriding
-  `HTMLCanvasElement.getContext` before any page script runs (portable across
-  Chromium/Firefox/WebKit, not a Chromium-only launch flag). The report's
-  top-level `capabilityMatrix` field carries the reviewed policy plus the
-  facts/decision from both runs.
-- **Repeated mount/unmount leak evidence.** `deckgl.lifecycle-repeated-mount-unmount`
-  (`bench/browser/lifecycle.html` / `lifecycle-main.ts`) cycles
-  create-project-mount-dispose 25 times (5 warm-up) against one long-lived
-  `Deck`, sampling `performance.memory.usedJSHeapSize` and the live layer
-  count after each cycle. `budgets.json`'s `lifecycle.repeatedMountUnmount.maxHeapGrowthBytes`
-  bounds heap growth across the post-warm-up cycles; when the memory API is
-  unavailable (non-Chromium) the report records `not-measured` rather than a
-  silent pass.
-- **WebGL context-loss recovery.** `deckgl.context-loss-recovery` uses the
-  standard `WEBGL_lose_context` extension to force a deterministic context
-  loss, exercising `bindDeckGlContextLossRecovery` (`src/deckgl/lifecycle.ts`)
-  — the SDK's only new surface for this issue: a thin
-  `webglcontextlost`/`webglcontextrestored` binding, not a recovery
-  implementation. The harness's own recovery strategy rebuilds on a **fresh
-  canvas** rather than reusing the lost one in place: a real run reproducibly
-  showed deck.gl/luma.gl reusing stale GPU resource state (`"object does not
-  belong to this context"`, `"no valid shader program in use"`) when a second
-  `Deck` is bound to the same canvas after a synthetic restore — the same
-  canvas-swap mitigation real deck.gl apps use. `budgets.json`'s
-  `lifecycle.contextLossRecovery.maxRecoveryMs` bounds the swap-and-remount
-  latency.
-
-Both scale tiers (`deckgl.scale-render-100k` and `deckgl.scale-render-1m`) are
-opt-in, not part of the routine `npm run bench:browser` PR gate — the default
-deterministic lane runs only the 10k `deckgl.binary-render-interact`
-scenario, the capability scenarios, and the lifecycle scenarios:
-
-```sh
-HONUA_BROWSER_BENCH_SCALE=full npm run bench:browser   # or:
-npm run bench:browser:full-scale
-```
-
-They started as 1M-only opt-in with locally calibrated 100k budgets, but a
-real CI run of `deckgl.scale-render-100k` measured render 2677.80 ms /
-interaction 695 ms / gpuUpload 990 ms / steadyFps 1.3 on CI's own software
-GL — well past the local Chromium+swiftshader baseline those budgets were
-calibrated from. A same-box local measurement is not a portable CI number:
-CI's runner class, load, and swiftshader build can all differ from a
-contributor's machine, and 100k's fill-rate-bound circle redraw is exactly
-the kind of workload where that gap is largest. Both tiers are now opt-in for
-that reason, and every number in `deckgl.scale-render-100k` and
-`deckgl.scale-render-1m` in [`browser/budgets.json`](./browser/budgets.json)
-is documented in the file's own `$comment` as **uncalibrated for CI** — a
-placeholder, not a gate anyone should expect to pass out of the box — pending
-a dedicated evidence job that runs `HONUA_BROWSER_BENCH_SCALE=full` on CI's
-actual runner class and replaces them with reviewed numbers. `report.corpus`
-`.includesOptInScaleTiers` and `.activeScaleTierIds` record whether a given
-report included them.
 
 ## Million-feature columnar rendering budget
 

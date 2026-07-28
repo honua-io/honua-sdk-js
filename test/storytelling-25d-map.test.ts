@@ -63,11 +63,9 @@ vi.mock("maplibre-gl", () => {
     default: {
       Map: MockMap,
       NavigationControl: MockNavigationControl,
-      setWorkerUrl: vi.fn(),
     },
     Map: MockMap,
     NavigationControl: MockNavigationControl,
-    setWorkerUrl: vi.fn(),
   };
 });
 

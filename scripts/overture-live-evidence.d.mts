@@ -19,8 +19,6 @@ export const OVERTURE_LIVE_PRODUCER_ARTIFACT: Readonly<{
 }>;
 
 export function collectOvertureLiveEvidence(): Promise<OvertureLiveEvidenceEnvelope>;
-/** Normalize an HTTP-date / RFC 3339 string to RFC 3339; null when absent or not a date. */
-export function normalizeValidAt(value: unknown): string | null;
 export function summarizeOvertureRangeTraffic(
   entries: readonly {
     readonly method: string;

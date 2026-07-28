@@ -21,7 +21,6 @@ export interface ProjectedSample {
   supportTier: "supported" | "experimental" | "internal" | "deprecated";
   lifecycle: Record<string, unknown>;
   validationProfile: string;
-  source: { repository: "honua-io/honua-sdk-js"; path: string; docsPath: string };
   sdk: { package: string; version: string };
 }
 
@@ -159,23 +158,7 @@ export interface GoldenJourneyVisualEvidence {
     };
     observedAt: string;
     expiresAt: string;
-    screenshots: Array<{
-      variant: "desktop" | "mobile";
-      projectName: string;
-      browserName: string;
-      sourcePath: string;
-      mediaType: string;
-      viewport: { width: number; height: number };
-      bytes: number;
-      sha256: string;
-      reproducibility: {
-        captureCount: number;
-        comparison: string;
-        repeatSourcePath: string;
-        repeatBytes: number;
-        repeatSha256: string;
-      };
-    }>;
+    screenshots: Array<Record<string, unknown>>;
     semanticEvidence: MatrixReceiptEvidenceBinding[];
     liveEvidence: Record<string, unknown>;
   }>;
@@ -218,19 +201,6 @@ export type SiteConsumerResolvedReplacement =
     }
   | { kind: "external"; id: string; title: string; url: string };
 
-export interface SiteConsumerArtifactReference {
-  path: string;
-  schemaPath: string;
-  format: string;
-  schemaVersion: number;
-  bytes: number;
-  sha256: string;
-  /** Absent only in an artifact published before the schema integrity binding existed. */
-  schemaBytes?: number;
-  /** Absent only in an artifact published before the schema integrity binding existed. */
-  schemaSha256?: string;
-}
-
 export interface SiteConsumerHandoff {
   format: "honua.site.sdk-sample-consumer-handoff.v1";
   schemaVersion: 1;
@@ -238,7 +208,14 @@ export interface SiteConsumerHandoff {
   ownership: Record<string, unknown>;
   inputs: Record<
     "siteProjection" | "capabilityMatrix" | "visualEvidence",
-    SiteConsumerArtifactReference
+    {
+      path: string;
+      schemaPath: string;
+      format: string;
+      schemaVersion: number;
+      bytes: number;
+      sha256: string;
+    }
   >;
   policy: Record<string, unknown> & { interaction: Record<string, unknown> };
   filters: Record<string, string[]>;
@@ -278,7 +255,7 @@ export interface SiteConsumerFixtureV3 {
   format: "honua.site.sdk-sample-consumer-fixture.v3";
   schemaVersion: 3;
   accepts: Record<string, unknown>;
-  input: SiteConsumerArtifactReference;
+  input: Record<string, unknown>;
   assertions: Record<string, unknown>;
   filterCases: Array<{
     id: "all-public-cards" | "task" | "capability" | "protocol" | "combined" | "text" | "zero-results";
@@ -310,18 +287,6 @@ export function migrateCatalogV1ToV2(
   catalog: Record<string, unknown>,
   migration: Record<string, unknown>,
 ): Promise<SampleCatalog>;
-export function refreshOverlayLiveExpiry(
-  migration: Record<string, unknown>,
-  sampleIds: string | string[],
-  options?: { now?: string },
-): Promise<
-  Array<{
-    sampleId: string;
-    observedAt: string;
-    previousExpiresAt: string | undefined;
-    expiresAt: string;
-  }>
->;
 export function compareReleases(left: string, right: string): number;
 export function isRunnableRootExampleDirectory(name: string, markers: string[]): boolean;
 export function validateCatalog(
@@ -329,16 +294,11 @@ export function validateCatalog(
   packageJson: Record<string, unknown>,
   options?: {
     now?: string;
-    // A single golden sample id, or an array of them, to exempt from
-    // requiring an already-fresh qualification receipt set for this call.
-    // Supports promoting or resealing more than one golden sample against
-    // the same source without the single-target bootstrap becoming
-    // circular (honua-io/honua-sdk-js#735).
-    qualificationBootstrapSampleId?: string | string[];
+    qualificationBootstrapSampleId?: string;
     sourceRevision?: string;
     receiptRoot?: string;
     verifyCheckout?: boolean;
-    relaxDerivedArtifacts?: boolean;
+    qualificationBootstrapSampleId?: string;
   },
 ): Promise<void>;
 export function effectiveCatalog(
@@ -353,14 +313,6 @@ export function generateSiteProjection(
   routes: Array<Record<string, unknown>>;
   goldenJourneys: GoldenJourney[];
   externalReplacements: Array<{ id: string; title: string; url: string }>;
-  sampleBundles: {
-    format: string;
-    schemaVersion: number;
-    publication: { repo: string; releaseTag: string; manifestAsset: string; bundleAsset: string };
-    sampleIds: string[];
-    published: Array<{ id: string; runnability: string; hostFixtureRoutes: string[] }>;
-    excluded: Array<{ id: string; category: string; reason: string }>;
-  };
 };
 export function collectQualificationEvidence(
   catalog: SampleCatalog,
@@ -418,7 +370,6 @@ export function generateSiteConsumerFixtureV3(handoff: SiteConsumerHandoff): Sit
 export function validateSiteConsumerFixtureV3(
   fixture: unknown,
   handoff: SiteConsumerHandoff,
-  options?: { verifyCheckout?: boolean },
 ): Promise<void>;
 export function validateCapabilitySampleMatrix(
   matrix: unknown,
@@ -446,10 +397,6 @@ export function generatedOutputDrift(
   expectedOutputs: Map<string, string>,
   currentOutputs: Map<string, string>,
 ): string[];
-export function validateGeneratedOutputDrift(
-  drift: string[],
-  options?: { relaxed?: boolean },
-): void;
 export function extractSampleConfiguration(
   sourcePath: string,
   exemptions?: Array<{ name: string }>,
@@ -483,7 +430,6 @@ export function validateEvidenceEnvelope<T>(
 export function validateLiveEvidenceProducer(
   evidence: Record<string, unknown>,
   sample: Record<string, unknown>,
-  options?: { relaxed?: boolean },
 ): Promise<void>;
 export function buildBrowserArtifactManifest(options: {
   artifacts: Array<{ path: string; entrypoint: string; mediaType?: string }>;

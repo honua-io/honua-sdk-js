@@ -1,9 +1,8 @@
 import "maplibre-gl/dist/maplibre-gl.css";
-import "../../shared/maplibre-vite-worker.js";
 
-import { type HonuaAppLifecycleEvent, createHonuaApp } from "@honua/sdk-js/app";
+import maplibregl from "maplibre-gl";
+import { createHonuaApp, type HonuaAppLifecycleEvent } from "@honua/sdk-js/app";
 import type { HonuaMapPackage } from "@honua/sdk-js/runtime";
-import * as maplibregl from "maplibre-gl";
 
 import "./styles.css";
 
@@ -131,8 +130,7 @@ const setStatus = (value: string): void => {
 function onLifecycle(event: HonuaAppLifecycleEvent): void {
   eventTypes.push(event.type);
   if (event.type === "status") setStatus(event.status);
-  if (event.type === "package-ready")
-    summaryTarget.textContent = `${event.mapPackage.mapSpec.layers.length} layers ready`;
+  if (event.type === "package-ready") summaryTarget.textContent = `${event.mapPackage.mapSpec.layers.length} layers ready`;
   if (event.type === "degraded") summaryTarget.textContent = event.reason;
   const item = document.createElement("li");
   item.textContent = event.type;

@@ -719,7 +719,7 @@ describe("connect", () => {
             id: 0,
             name: "Parcels",
             capabilities: "Query,Create,Update,Delete",
-            hasAttachments: true,
+            supportsAttachments: true,
             supportsStatistics: true,
             useStandardizedQueries: true,
             supportedQueryFormats: "JSON, geoJSON, PBF",

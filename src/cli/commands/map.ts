@@ -14,8 +14,6 @@ import type { ParsedArgs } from "../args.js";
 import { ArgError, getBoolean, getString, parseBbox } from "../args.js";
 import { createClient } from "../client.js";
 import type { CommandContext } from "../command.js";
-import { resolveConnection } from "../config.js";
-import { downloadCredentialedResource } from "../download.js";
 import { printLine, renderDetail, renderJson } from "../output.js";
 
 export async function mapCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
@@ -49,8 +47,7 @@ async function mapExport(parsed: ParsedArgs, ctx: CommandContext): Promise<void>
   const format = getString(parsed, "format") ?? "png";
   const outPath = getString(parsed, "output");
 
-  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
-  const client = createClient(connection);
+  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
   const result = await client.exportMap({
     serviceId: service,
     bbox,
@@ -70,7 +67,11 @@ async function mapExport(parsed: ParsedArgs, ctx: CommandContext): Promise<void>
   }
 
   if (outPath) {
-    const bytes = await downloadCredentialedResource(result.href, connection);
+    const res = await fetch(result.href, ctx.apiKey ? { headers: { "X-API-Key": ctx.apiKey } } : undefined);
+    if (!res.ok) {
+      throw new Error(`Failed to download exported image (${res.status} ${res.statusText}) from ${result.href}`);
+    }
+    const bytes = Buffer.from(await res.arrayBuffer());
     fs.writeFileSync(outPath, bytes);
     printLine(
       renderDetail(
@@ -113,14 +114,17 @@ export async function tilesCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   const [z, x, y] = parts;
   const format = (getString(parsed, "format") ?? "png") as "png" | "jpg" | "jpeg" | "tif" | "tiff";
 
-  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
-  const client = createClient(connection);
+  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
   // Esri tile addressing is level/row/col == z/y/x.
   const url = client.imageService(service).tileUrl(z, y, x, format);
 
   const outPath = getString(parsed, "output");
   if (outPath) {
-    const bytes = await downloadCredentialedResource(url, connection);
+    const res = await fetch(url, ctx.apiKey ? { headers: { "X-API-Key": ctx.apiKey } } : undefined);
+    if (!res.ok) {
+      throw new Error(`Failed to download tile (${res.status} ${res.statusText}) from ${url}`);
+    }
+    const bytes = Buffer.from(await res.arrayBuffer());
     fs.writeFileSync(outPath, bytes);
     printLine(
       renderDetail({ service, tile: `${z}/${x}/${y}`, saved: outPath, bytes: bytes.length }, { title: "Tile saved" }),

@@ -4,9 +4,6 @@ You are reading the documentation for `@honua/sdk-js` **{{SDK_DOCS_CURRENT_VERSI
 Hosted pages are development documentation built from `trunk`, not immutable
 documentation for the package baseline. Every built page and the deployed
 `versions.json` identify the exact 40-character source commit.
-The package baseline can equal the latest published version while `trunk`
-already contains unreleased capabilities; a matching version string alone is
-therefore not proof that development documentation describes the npm artifact.
 The version navigation in every hosted guide is generated from
 [`docs/versions.json`](https://honua-io.github.io/honua-sdk-js/versions.json), which is derived from `package.json`,
 `.release-please-manifest.json`, and released `CHANGELOG.md` entries. A version

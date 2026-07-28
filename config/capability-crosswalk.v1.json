@@ -149,10 +149,6 @@
         "geocoding.forward"
       ]
     },
-    "geometry": {
-      "internalOnly": true,
-      "reason": "Client-side geometry computation (area, length, centroid, intersect) from the geometry subpath; an SDK utility, not a distinct platform capability."
-    },
     "geoparquet": {
       "internalOnly": true,
       "reason": "Client-only cloud-native columnar format profiling; GeoParquet has no canonical capability key in the published vocabulary."

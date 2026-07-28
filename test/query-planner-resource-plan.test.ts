@@ -110,54 +110,6 @@ describe("opaque GeoParquet v2 query plans", () => {
     expect(queryPlanCacheKey(opaquePlan(otherContext))).not.toBe(queryPlanCacheKey(firstPlan));
   });
 
-  it("round-trips GeoParquet 1.1 native encoding identity and executes with its dimensions", async () => {
-    const registry = createGeoParquetResourceRegistry({ resolver: "io.honua.native-plan" });
-    const handle = registry.register({
-      id: "parcels:native",
-      authorizationContextId: CONTEXT,
-      sources: [SIGNED_SOURCE],
-    });
-    const nativeDescriptor = (url: string): SourceDescriptor => ({
-      ...descriptor(url),
-      locator: {
-        url,
-        geoparquet: {
-          geometryColumn: "geometry",
-          geometryEncoding: "geoarrow-point",
-          nativeDimensions: "xyz",
-        },
-      },
-    });
-    const plan = explainQuery({
-      descriptor: nativeDescriptor(SIGNED_SOURCE),
-      geoparquetResource: handle,
-      query: { outFields: ["id"], returnGeometry: false },
-      ...PLAN_CONTEXT,
-    });
-
-    expect(plan.ir.source.geoparquet).toMatchObject({
-      geometryEncoding: "geoarrow-point",
-      nativeDimensions: "xyz",
-    });
-    const parsed = parseQueryPlan(serializeQueryPlan(plan));
-    expect(parsed).toEqual(plan);
-
-    const executeResolvedQuery = vi.fn(async (input: { readonly geometry?: unknown }) => {
-      expect(input.geometry).toMatchObject({
-        column: "geometry",
-        encoding: "geoarrow-point",
-        nativeDimensions: "xyz",
-      });
-      return result([]);
-    });
-    await executeQueryPlan(parsed, fakeSource(nativeDescriptor(ROTATED_SOURCE), { executeResolvedQuery }), {
-      ...PLAN_CONTEXT,
-      authorizationContextId: CONTEXT,
-      geoParquetResourceResolver: registry.resolver,
-    });
-    expect(executeResolvedQuery).toHaveBeenCalledOnce();
-  });
-
   it("rejects unsafe v2 metadata before returning a self-invalid plan", () => {
     const handle = createGeoParquetResourceHandle({
       resolver: "io.honua.metadata",

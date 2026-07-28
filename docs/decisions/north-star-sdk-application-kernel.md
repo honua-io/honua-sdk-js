@@ -377,7 +377,7 @@ This is the normative basic workflow: nine application lines including imports,
 inspection, first-frame readiness, and cleanup; no key or Honua account.
 
 ```ts doc-test=skip reason="normative future API; compile fixture lives under test/design"
-import * as maplibregl from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 import { createHonua } from "@honua/sdk-js";
 import { maplibreRenderer } from "@honua/sdk-js/runtime";
 const honua = createHonua();
@@ -476,10 +476,7 @@ decision PR intentionally does not edit `honua-site`.
 The root stays ESM-only, NodeNext-compatible, strict, and side-effect free.
 Renderer and analytics adapters declare peers and carry their own bundle
 budgets. `createHonua()` and built-in lightweight discovery must preserve the
-one-lightweight-stable-core-capability posture established by #357. The other
-direct dependencies are bounded compatibility plumbing:
-`@honua/honua-migrate` backs deprecated migration forwarders, and the temporary
-style-spec parser pin preserves Node 20 engine compatibility.
+one-lightweight-runtime-dependency posture established by #357.
 
 ## Mapping to the current SDK
 

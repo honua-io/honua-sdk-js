@@ -293,15 +293,6 @@ export function createResumableRealtimeTransport<TFeature = unknown>(
 
       function scheduleReconnect(detail: string): void {
         if (closed || lifecycle.signal.aborted || !gate) return;
-        // A burst of in-flight deliveries (e.g. several queued events that
-        // each resolve `resnapshot-required`) can each call this before the
-        // pending reconnect delay fires. Only the first is honored — a
-        // reconnect is already scheduled, so later calls in the same burst
-        // must be deduplicated into it rather than each arming their own
-        // `setTimeout` (which would leak timers, double-count
-        // `reconnectAttempt`, and open several concurrent connections when
-        // they all fire).
-        if (reconnectTimer !== undefined) return;
         teardownActiveHandle();
         if (reconnectAttempt >= policy.maxAttempts) {
           failClosed(
@@ -329,24 +320,9 @@ export function createResumableRealtimeTransport<TFeature = unknown>(
         // has moved to `resnapshot-required`, the checkpoint is left in
         // place for callers that read it, but this wrapper never sends it
         // back over the wire until a fresh snapshot is accepted.
-        const requiresResnapshot = gate.state.phase === "resnapshot-required";
-        const resumeFrom = requiresResnapshot ? undefined : gate.state.checkpoint?.resume;
-        // The gate's sole recovery path out of `resnapshot-required` is a
-        // `snapshot` event (`resumable.ts`'s `enqueue`: every other event is
-        // rejected while that phase holds). A subscription originally opened
-        // in pure `delta` mode never asks the transport for an initial
-        // snapshot, so reconnecting still in `delta` mode after a
-        // cursor-expired / transport-gap resnapshot would drop `resumeFrom`
-        // but never receive the snapshot needed to leave `resnapshot-required`
-        // — every subsequent delta is silently rejected and the caller loses
-        // the gap's data (and everything after it) for good. Upgrade to
-        // `snapshot-then-delta` so the reconnect requests a fresh snapshot
-        // before deltas resume.
-        const modeOverride =
-          requiresResnapshot && baseIdentity.mode === "delta" ? ({ mode: "snapshot-then-delta" } as const) : {};
+        const resumeFrom = gate.state.phase === "resnapshot-required" ? undefined : gate.state.checkpoint?.resume;
         const effectiveRequest: RealtimeSubscriptionRequest = {
           ...baseIdentity,
-          ...modeOverride,
           ...(resumeFrom ? { resumeFrom } : {}),
           signal: lifecycle.signal,
         };

@@ -2,14 +2,13 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { lstat, mkdir, opendir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { deriveExcludedSamples, derivePublishedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
+import { INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
 import {
   expectedGateCommand,
   isSampleEvidenceRunId,
@@ -18,21 +17,6 @@ import {
   SAMPLE_SCREENSHOT_VARIANTS,
 } from "./lib/sample-gates.mjs";
 import { loadCapabilityKeyList } from "./lib/capability-key-list.mjs";
-import {
-  readReleaseMatrixLaneRegistry,
-  readReleaseMatrixReceipt,
-  recordedReleaseMatrixLaneRegistry,
-  RELEASE_MATRIX_LANES_PATH,
-  RELEASE_MATRIX_RECEIPT_FILE_NAME,
-  RELEASE_MATRIX_SAMPLE_IDS,
-  releaseMatrixEvidenceProjection,
-  releaseMatrixGateOutcome,
-  releaseMatrixLaneEstablished,
-  releaseMatrixMissingReceiptMessage,
-  releaseMatrixReceiptRelativePath,
-  releaseMatrixReceiptRelaxed,
-  validateReleaseMatrixLaneRegistry,
-} from "./lib/release-matrix-receipt.mjs";
 import {
   readCanonicalBoundedFile,
   requiredReceiptGates,
@@ -173,18 +157,6 @@ const SITE_CONSUMER_CONTROL_ORDER = Object.freeze([
   "clear-filters",
   "sample-cards",
 ]);
-// Machine-checked per qualified card by validateGoldenCardReceiptEnforcement. The
-// handoff publishes this list, so it has to stay the single source both the emitted
-// policy and the admission gate read (honua-io/honua-sdk-js#550).
-const SITE_CONSUMER_QUALIFIED_REQUIREMENTS = Object.freeze([
-  "source",
-  "packed",
-  "fixture",
-  "live",
-  "desktop",
-  "mobile",
-  "semantic-gates",
-]);
 const SITE_CONSUMER_RESERVED_ROOT_ROUTES = new Set(["index.html", "gallery.html", "404.html"]);
 const SITE_CONSUMER_RESERVED_SAMPLE_ROUTES = new Set([
   "samples/index.html",
@@ -310,19 +282,6 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     },
   ],
   [
-    "evidence:migration-workbench:live",
-    {
-      definition:
-        "npm run prepare:test-sdk --silent && node scripts/migration-workbench-live-evidence.mjs --output samples/evidence/migration-workbench/live.v1.json",
-      generatorPath: "scripts/migration-workbench-live-evidence.mjs",
-      sampleId: "migration-workbench",
-      operation: "migration-workbench-deterministic-cli-replay",
-      dependencies: {
-        "prepare:test-sdk": "node scripts/prepare-sdk-test-artifacts.mjs --prepare",
-      },
-    },
-  ],
-  [
     "evidence:overture:live",
     {
       definition: "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",
@@ -334,18 +293,6 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     {
       definition: "npm run build --silent && node scripts/cog-live-evidence.mjs --output test-results/cog-live-evidence.json --strict",
       generatorPath: "scripts/cog-live-evidence.mjs",
-      dependencies: {
-        build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
-        clean: "rm -rf dist",
-        compile: "npm run clean --silent && tsc -p tsconfig.json",
-      },
-    },
-  ],
-  [
-    "evidence:planning:live",
-    {
-      definition: "npm run build --silent && node scripts/planning-live-evidence.mjs --output test-results/planning-live-evidence.json --strict",
-      generatorPath: "scripts/planning-live-evidence.mjs",
       dependencies: {
         build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
         clean: "rm -rf dist",
@@ -398,7 +345,6 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:incident",
   "test:playwright:migration-workbench",
   "test:playwright:overture",
-  "test:playwright:planning-workbench",
   "test:playwright:quickstart",
   "test:playwright:service-explorer",
   "test:playwright:sketch-editing",
@@ -420,20 +366,6 @@ const BOUNDED_VALIDATION_SEGMENTS = [
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
-}
-
-// Accepts either a single sample id or an array of them, so a qualification
-// pass can bootstrap-exempt every golden sample that simultaneously needs
-// fresh receipts against the current source (see `validateCatalog`'s golden
-// sample loop). A lone string keeps existing single-sample callers unchanged.
-function normalizeQualificationBootstrapSampleIds(value) {
-  const ids = new Set();
-  const values = value === undefined ? [] : Array.isArray(value) ? value : [value];
-  for (const id of values) {
-    invariant(typeof id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id), "qualification bootstrap sample id is invalid");
-    ids.add(id);
-  }
-  return ids;
 }
 
 function sortedUnique(values, label) {
@@ -2750,90 +2682,12 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
   return migratedCatalog;
 }
 
-// Resealing a golden sample refreshes its receipts and published live
-// evidence (samples/evidence/<id>/live.v1.json) with a new observedAt, but
-// samples/catalog.v2.json's live.expiresAt is not derived from that file --
-// it is copied verbatim from this migration overlay's sampleOverrides[id]
-// .live.expiresAt, a literal set once at qualification time. Reseal alone
-// therefore leaves the catalog's expiry frozen while receipts keep renewing,
-// so the catalog-level expiry eventually lapses out from under evidence that
-// is otherwise perfectly fresh (honua-io/honua-sdk-js#788). This mutates the
-// overlay in place, recomputing expiresAt for each named sample's evidence-
-// bound live lane as observedAt (read fresh from the lane's own evidencePath)
-// plus the applicable policy window (executedMaxDays for "executed",
-// nonExecutedMaxDays for "skipped"), matching the same policy validateCatalog
-// enforces. Callers must rerun migrate-v1 (to project the refreshed overlay
-// into samples/catalog.v2.json) and write (to regenerate the dist
-// projections) after calling this.
-//
-// This applies to non-executed ("skipped") lanes too, and they are the harder
-// case: nothing reseals a skip attestation, so its observedAt never moves and
-// a literal hand-set tighter than the policy window (the incident dashboard's
-// was 14 days against a 90-day non-executed policy) lapses long before the
-// observation it describes has to. Refreshing those lanes on the regeneration
-// cadence keeps the catalog claim equal to what the policy actually allows for
-// the observation on file; when even that has run out, this refuses rather
-// than writing an already-lapsed literal (honua-io/honua-sdk-js#810).
-export async function refreshOverlayLiveExpiry(migration, sampleIds, options = {}) {
-  const ids = Array.isArray(sampleIds) ? sampleIds : [sampleIds];
-  invariant(ids.length > 0, "refresh-live-expiry requires at least one sample id");
-  const nowMs = options.now === undefined ? Date.now() : parseDateTime(options.now, "refresh-live-expiry now");
-  const evidenceExpiry = migration.configuration?.evidenceExpiry;
-  invariant(
-    Number.isInteger(evidenceExpiry?.executedMaxDays) && Number.isInteger(evidenceExpiry?.nonExecutedMaxDays),
-    "migration configuration.evidenceExpiry policy is required",
-  );
-  const refreshed = [];
-  for (const sampleId of ids) {
-    const override = migration.sampleOverrides[sampleId];
-    invariant(override, `refresh-live-expiry: unknown sample override ${sampleId}`);
-    const live = override.live;
-    invariant(live && typeof live === "object", `${sampleId}: migration override has no live lane to refresh`);
-    invariant(
-      live.status === "executed" || live.status === "skipped",
-      `${sampleId}: live lane status "${live.status}" is not evidence-bound; only executed or skipped lanes carry a refreshable expiresAt`,
-    );
-    invariant(typeof live.evidencePath === "string" && live.evidencePath, `${sampleId}: live lane has no evidencePath to refresh from`);
-    assertRelativePath(live.evidencePath, `${sampleId}.live.evidencePath`);
-    const evidence = await readJson(live.evidencePath);
-    invariant(evidence.sampleId === sampleId, `${sampleId}: live evidence sampleId drift`);
-    invariant(evidence.lane === "live", `${sampleId}: live evidence lane drift`);
-    invariant(
-      evidence.status === live.status,
-      `${sampleId}: live evidence status "${evidence.status}" does not match overlay status "${live.status}"`,
-    );
-    const observedAtMs = parseDateTime(evidence.observedAt, `${sampleId}.evidence.observedAt`);
-    invariant(observedAtMs <= nowMs, `${sampleId}: live evidence observedAt is in the future`);
-    const maxDays = live.status === "executed" ? evidenceExpiry.executedMaxDays : evidenceExpiry.nonExecutedMaxDays;
-    const expiresAt = new Date(observedAtMs + maxDays * 24 * 60 * 60 * 1000).toISOString();
-    // A lane whose own observation is already older than its full policy
-    // window cannot be healed by recomputing this literal: the furthest expiry
-    // that can honestly be derived from that observation is itself in the past.
-    // Writing it anyway would leave the very next migrate-v1 (and every
-    // unrelated `samples:verify` after it) failing with an opaque
-    // "<id>: live evidence expired at <literal>" that points at the catalog
-    // projection rather than at the attestation that actually needs
-    // re-observing -- which is exactly how a lapsed skip attestation wedged
-    // the regeneration workflow that exists to prevent the lapse
-    // (honua-io/honua-sdk-js#810). Refusing here keeps the refresh path
-    // honest: it renews a claim about a real observation, it never extends a
-    // lane past what its observation can support.
-    invariant(
-      Date.parse(expiresAt) > nowMs,
-      `${sampleId}: live lane observation ${evidence.observedAt} is older than its ${maxDays}-day ` +
-        `"${live.status}" policy window, so the furthest honest expiry (${expiresAt}) has already lapsed; ` +
-        "re-run this lane's evidence producer to re-observe it -- refreshing the catalog expiry literal " +
-        "cannot renew a lapsed observation",
-    );
-    const previousExpiresAt = live.expiresAt;
-    live.expiresAt = expiresAt;
-    refreshed.push({ sampleId, observedAt: evidence.observedAt, previousExpiresAt, expiresAt });
-  }
-  return refreshed;
-}
-
 export async function validateCatalog(catalog, packageJson, options = {}) {
-  const qualificationBootstrapSampleIds = normalizeQualificationBootstrapSampleIds(options.qualificationBootstrapSampleId);
+  invariant(
+    options.qualificationBootstrapSampleId === undefined ||
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(options.qualificationBootstrapSampleId),
+    "qualification bootstrap sample id is invalid",
+  );
   validateSensitiveMetadata(catalog, "catalog");
   await validateJsonSchema(catalog, CATALOG_SCHEMA_PATH);
   await validateFixtureBuildHarnesses();
@@ -3101,7 +2955,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         );
         invariant(sample.evidence.live.targetMode, `${sample.id}: non-executed live evidence requires targetMode`);
       }
-      await validateLiveEvidenceProducer(evidence, sample, { relaxed: options.relaxDerivedArtifacts });
+      await validateLiveEvidenceProducer(evidence, sample);
     } else {
       invariant(!sample.evidence.live.evidencePath, `${sample.id}: ${sample.evidence.live.status} cannot carry evidencePath`);
       invariant(!sample.evidence.live.expiresAt, `${sample.id}: ${sample.evidence.live.status} cannot carry expiresAt`);
@@ -3173,24 +3027,16 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
 
   const goldenSamples = catalog.samples.filter((sample) => sample.track === "golden");
   const qualifiedJourneys = catalog.goldenJourneys.filter((journey) => journey.status === "qualified");
-  for (const bootstrapId of qualificationBootstrapSampleIds) {
-    invariant(
-      goldenSamples.some((sample) => sample.id === bootstrapId),
-      `${bootstrapId}: qualification bootstrap requires a qualified golden sample`,
-    );
-  }
-  const qualificationBootstrapConsumed = new Set();
+  invariant(
+    options.qualificationBootstrapSampleId === undefined ||
+      goldenSamples.some((sample) => sample.id === options.qualificationBootstrapSampleId),
+    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
+  );
+  let qualificationBootstrapConsumed = false;
   invariant(
     goldenSamples.length === qualifiedJourneys.length,
     "golden sample count must match the qualified journey count",
   );
-  // Receipt-freshness failures are collected rather than thrown immediately so
-  // that promoting (or resealing) more than one golden sample against the same
-  // source surfaces every simultaneously-stale sample in one actionable error
-  // instead of failing on the first one, sending an operator back and forth
-  // between single-sample bootstrap attempts that can never both succeed (see
-  // PR #653 and issue #735).
-  const receiptFailures = [];
   for (const sample of goldenSamples) {
     const profile = qualityProfiles.get(sample.validationProfile);
     invariant(sample.supportTier === "supported", `${sample.id}: golden samples must be supported`);
@@ -3211,63 +3057,24 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
       },
     };
-    if (qualificationBootstrapSampleIds.has(sample.id)) {
-      qualificationBootstrapConsumed.add(sample.id);
+    if (options.qualificationBootstrapSampleId === sample.id) {
+      qualificationBootstrapConsumed = true;
       continue;
     }
-    try {
-      await validateQualificationReceiptSet({
-        sample: selectedSample,
-        profile,
-        expectedCommand: expectedGateCommand,
-        receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, "samples/evidence")),
-        now: new Date(currentTime).toISOString(),
-        projectRoot: PROJECT_ROOT,
-        verifyCheckout: options.verifyCheckout,
-      });
-    } catch (error) {
-      receiptFailures.push({ sampleId: sample.id, error });
-    }
+    await validateQualificationReceiptSet({
+      sample: selectedSample,
+      profile,
+      expectedCommand: expectedGateCommand,
+      receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, "samples/evidence")),
+      now: new Date(currentTime).toISOString(),
+      projectRoot: PROJECT_ROOT,
+      verifyCheckout: options.verifyCheckout,
+    });
   }
-  for (const bootstrapId of qualificationBootstrapSampleIds) {
-    invariant(
-      qualificationBootstrapConsumed.has(bootstrapId),
-      `${bootstrapId}: qualification bootstrap requires a qualified golden sample`,
-    );
-  }
-  if (receiptFailures.length === 1 && qualificationBootstrapSampleIds.size === 0) {
-    // No qualification bootstrap is active: preserve the exact historical
-    // single-sample error for byte-stable behavior (issue #735 REQ-002).
-    throw receiptFailures[0].error;
-  }
-  if (receiptFailures.length > 0) {
-    const staleSampleIds = receiptFailures.map((failure) => failure.sampleId).sort();
-    const exemptedSampleIds = [...qualificationBootstrapSampleIds].sort();
-    const underlying = receiptFailures
-      .map((failure) => `${failure.sampleId}: ${failure.error instanceof Error ? failure.error.message : String(failure.error)}`)
-      .join("; ");
-    throw new Error(
-      `qualification bootstrap circularity: golden sample qualification receipts for [${staleSampleIds.join(", ")}] do not ` +
-        `match the current source at the same time as the qualification bootstrap exemption [${exemptedSampleIds.join(", ") || "none"}]. ` +
-        "Every golden sample that needs fresh receipts against this exact source must be named in one qualification bootstrap " +
-        "pass together, or resealed one at a time before promoting another sample, to break the cycle. " +
-        `Underlying failures: ${underlying}`,
-    );
-  }
-
-  // Release-matrix browser evidence (honua-io/honua-sdk-js#766, split from
-  // #687). The per-gate `browser` receipt only ever proves the Chromium-only
-  // default Playwright lane, so a Firefox or WebKit regression observed by the
-  // release smoke has to bind the golden qualification through its own sealed
-  // receipt. This runs outside the qualification-bootstrap exemption above: the
-  // matrix lane is independent of the reseal circularity, and a bootstrap pass
-  // must not be able to launder a failing engine.
-  await validateReleaseMatrixEvidence(goldenSamples, {
-    receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT)),
-    now: new Date(currentTime).toISOString(),
-    relaxDerivedArtifacts: options.relaxDerivedArtifacts === true || derivedArtifactsRelaxed(),
-    laneRegistryPath: options.releaseMatrixLaneRegistryPath,
-  });
+  invariant(
+    options.qualificationBootstrapSampleId === undefined || qualificationBootstrapConsumed,
+    `${options.qualificationBootstrapSampleId}: qualification bootstrap requires a qualified golden sample`,
+  );
 
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
@@ -3313,7 +3120,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   invariant(catalog.siteMappings.length === 21, "the compatibility route fixture must map all 21 existing honua.io samples");
 }
 
-export async function validateLiveEvidenceProducer(evidence, sample, options = {}) {
+export async function validateLiveEvidenceProducer(evidence, sample) {
   const producers = (evidence.artifacts ?? []).filter((artifact) => artifact.kind === "producer-generator");
   if (evidence.status !== "executed" && producers.length === 0) return;
   const claimLabel = evidence.status === "executed" ? "executed live evidence" : "non-executed live producer claim";
@@ -3334,12 +3141,10 @@ export async function validateLiveEvidenceProducer(evidence, sample, options = {
     `${sample.id}: producer generator path for ${command} must be ${binding.generatorPath}`,
   );
   const generatorBytes = await readFile(path.join(PROJECT_ROOT, producer.path));
-  if (options.relaxed !== true) {
-    invariant(
-      sha256(generatorBytes) === producer.sha256,
-      `${sample.id}: producer generator digest drift`,
-    );
-  }
+  invariant(
+    sha256(generatorBytes) === producer.sha256,
+    `${sample.id}: producer generator digest drift`,
+  );
   if (binding.sampleId) {
     invariant(sample.id === binding.sampleId, `${sample.id}: producer generator does not support this sample`);
   }
@@ -3355,31 +3160,6 @@ export async function validateLiveEvidenceProducer(evidence, sample, options = {
     const journeyLiteral = `journeyId: "${evidence.semantics.operation}"`;
     invariant(generator.includes(sampleLiteral), `${sample.id}: producer generator does not support this sample`);
     invariant(generator.includes(journeyLiteral), `${sample.id}: producer generator does not support this journey`);
-  }
-  // The pinned STAC/COG contract (scripts/cog-live-evidence.mjs) is a
-  // static, repo-committed fixture rather than a run-scoped artifact, so it
-  // is recorded as cog.contractPath/contractSha256 instead of in `artifacts`
-  // (see the matching comment there). Read the file back and compare its
-  // digest so a swapped/corrupted/mis-edited contract fails loudly instead
-  // of only being an unread claim (honua-io/honua-sdk-js PR #786 review).
-  if (evidence.cog?.contractPath !== undefined) {
-    assertRelativePath(evidence.cog.contractPath, `${sample.id}.cog.contractPath`);
-    invariant(/^[a-f0-9]{64}$/.test(evidence.cog?.contractSha256), `${sample.id}: cog.contractSha256 is invalid`);
-    let contractBytes;
-    try {
-      contractBytes = await readFile(path.join(PROJECT_ROOT, evidence.cog.contractPath));
-    } catch (error) {
-      if (error?.code === "ENOENT") {
-        throw new Error(`${sample.id}: pinned COG contract ${evidence.cog.contractPath} is missing`);
-      }
-      throw error;
-    }
-    if (options.relaxed !== true) {
-      invariant(
-        sha256(contractBytes) === evidence.cog.contractSha256,
-        `${sample.id}: pinned COG contract digest drift`,
-      );
-    }
   }
 }
 
@@ -3484,17 +3264,15 @@ export function generateSiteProjection(catalog, packageJson) {
     samples: effective.samples.map((sample) => publicSample(sample, effective.sdk)),
     routes,
     sampleBundles: {
-      format: "honua.sdk.sample-bundles.v2",
-      schemaVersion: 2,
+      format: "honua.sdk.sample-bundles.v1",
+      schemaVersion: 1,
       publication: {
         repo: "honua-io/honua-sdk-js",
         releaseTag: "sample-bundles-latest",
-        manifestAsset: "sample-bundles.v2.json",
+        manifestAsset: "sample-bundles.v1.json",
         bundleAsset: "sample-bundles.tar.gz",
       },
       sampleIds: [...INCLUDED_SAMPLE_IDS].sort(),
-      published: derivePublishedSamples(catalog),
-      excluded: deriveExcludedSamples(catalog),
     },
   };
 }
@@ -3747,118 +3525,7 @@ function exactEvidenceDirectoryNames(entries, expectedNames, label, options = {}
   );
 }
 
-/**
- * Samples whose golden qualification is bound to the release-only cross-browser
- * matrix, restricted to catalog-golden candidates so an orphan sidecar can never
- * declare a lane for itself.
- */
-function releaseMatrixGatedSampleIds(goldenSamples) {
-  return goldenSamples
-    .map((sample) => sample.id)
-    .filter((sampleId) => RELEASE_MATRIX_SAMPLE_IDS.includes(sampleId))
-    .sort();
-}
-
-/**
- * Maps every release-matrix sample whose sidecar the strict evidence-root
- * inventory must account for.
- *
- * A sample is included when the establishment registry names it -- and then the
- * file is REQUIRED, so a deleted receipt fails here too and not only in the
- * staleness gate -- or when a sidecar exists (the pre-establishment window
- * between the first seal and the automation commit that records the lane). A
- * sample with neither is legitimately not established.
- *
- * This requirement is not relaxed for the publication automation. That relaxation
- * exists so a FAILING receipt can be committed; it must never let a generator
- * publish a qualified projection for an established lane whose sealed evidence
- * has been removed.
- */
-async function releaseMatrixSidecarFileBySample(receiptRoot, sampleIds, laneRegistry) {
-  const sidecars = new Map();
-  for (const sampleId of sampleIds) {
-    if (!RELEASE_MATRIX_SAMPLE_IDS.includes(sampleId)) continue;
-    if (releaseMatrixLaneEstablished(laneRegistry, sampleId)) {
-      const established = path.join(receiptRoot, sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME);
-      try {
-        await lstat(established);
-      } catch (error) {
-        if (error?.code === "ENOENT") throw new Error(releaseMatrixMissingReceiptMessage(sampleId));
-        throw error;
-      }
-      sidecars.set(sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME);
-      continue;
-    }
-    try {
-      const metadata = await lstat(path.join(receiptRoot, sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME));
-      invariant(
-        metadata.isFile() && !metadata.isSymbolicLink(),
-        `${sampleId}: release-matrix receipt must be a regular non-symlink file`,
-      );
-      sidecars.set(sampleId, RELEASE_MATRIX_RECEIPT_FILE_NAME);
-    } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-    }
-  }
-  return sidecars;
-}
-
-/**
- * Gates golden qualification staleness on the release-matrix receipt (REQ-003).
- * Severity policy lives in scripts/lib/release-matrix-receipt.mjs: a failing
- * receipt -- or a receipt that has been DELETED after the lane was established
- * in samples/contract/v2/release-matrix-lanes.v1.json -- is an error everywhere
- * except the persistence automation; a lapsed one is an error in strict lanes;
- * and a lane that has never been established is a note, so merging the gate
- * cannot redden CI before the first matrix run.
- */
-const reportedReleaseMatrixNotes = new Set();
-
-async function validateReleaseMatrixEvidence(goldenSamples, options = {}) {
-  const relaxed = releaseMatrixReceiptRelaxed();
-  const notes = [];
-  // options.laneRegistryPath exists so adversarial tests can point the gate at a
-  // fixture registry under test/fixtures without writing to the real contract
-  // tree. Production callers always read the canonical committed path.
-  const laneRegistry = await readReleaseMatrixLaneRegistry({
-    projectRoot: PROJECT_ROOT,
-    registryPath: options.laneRegistryPath,
-    now: options.now,
-  });
-  for (const sampleId of releaseMatrixGatedSampleIds(goldenSamples)) {
-    const record = await readReleaseMatrixReceipt({
-      sampleId,
-      projectRoot: PROJECT_ROOT,
-      receiptRoot: options.receiptRoot,
-      now: options.now,
-    });
-    const outcome = releaseMatrixGateOutcome(record, {
-      sampleId,
-      now: options.now,
-      relaxed,
-      derivedArtifactsRelaxed: options.relaxDerivedArtifacts === true,
-      established: releaseMatrixLaneEstablished(laneRegistry, sampleId),
-    });
-    if (outcome.severity === "error") throw new Error(outcome.message);
-    if (outcome.message) notes.push(`${outcome.severity}: ${outcome.message}`);
-  }
-  // validateCatalog runs several times per process (migrate, write, check,
-  // runner input validation); report each distinct lane state once so the
-  // signal stays readable.
-  for (const note of notes) {
-    if (reportedReleaseMatrixNotes.has(note)) continue;
-    reportedReleaseMatrixNotes.add(note);
-    process.stdout.write(`${note}\n`);
-  }
-  return notes;
-}
-
-async function validateQualificationEvidenceRoot(
-  receiptRoot,
-  qualifiedSampleIds,
-  legacyLiveEvidenceFileBySample = new Map(),
-  releaseMatrixFileBySample = new Map(),
-) {
+async function validateQualificationEvidenceRoot(receiptRoot, qualifiedSampleIds, legacyLiveEvidenceFileBySample = new Map()) {
   const rootEntries = await evidenceDirectoryEntries(receiptRoot, "qualification evidence root", {
     optional: qualifiedSampleIds.length === 0,
     maxEntries: qualifiedSampleIds.length,
@@ -3873,20 +3540,16 @@ async function validateQualificationEvidenceRoot(
     // path via sample.evidence.live.evidencePath, so it is an honest,
     // declared artifact rather than an orphan.
     const legacyLiveEvidenceFile = legacyLiveEvidenceFileBySample.get(sampleId);
-    // The release-matrix receipt (honua-io/honua-sdk-js#766) is a second
-    // declared top-level sidecar. It lives beside `receipts/` rather than inside
-    // it because validateQualificationReceiptSet requires that directory to
-    // contain exactly the quality profile's per-gate receipts.
-    const releaseMatrixFile = releaseMatrixFileBySample.get(sampleId);
-    const allowedFiles = [legacyLiveEvidenceFile, releaseMatrixFile].filter(Boolean);
-    const expectedNames = ["receipts", "runs", ...allowedFiles];
+    const expectedNames = legacyLiveEvidenceFile
+      ? ["receipts", "runs", legacyLiveEvidenceFile]
+      : ["receipts", "runs"];
     const sampleEntries = await evidenceDirectoryEntries(
       path.join(receiptRoot, sampleId),
       `${sampleId}: qualification evidence directory`,
       { maxEntries: expectedNames.length, containmentRoot: receiptRoot },
     );
     exactEvidenceDirectoryNames(sampleEntries, expectedNames, `${sampleId}: qualification evidence directory`, {
-      allowedFiles,
+      allowedFiles: legacyLiveEvidenceFile ? [legacyLiveEvidenceFile] : [],
     });
   }
 }
@@ -4025,20 +3688,10 @@ export async function collectQualificationEvidence(catalog, options = {}) {
       legacyLiveEvidenceFileBySample.set(journey.candidateSampleId, evidencePath.slice(samplePrefix.length));
     }
   }
-  const qualifiedSampleIds = qualifiedJourneys.map((journey) => journey.candidateSampleId);
   await validateQualificationEvidenceRoot(
     receiptRoot,
-    qualifiedSampleIds,
+    qualifiedJourneys.map((journey) => journey.candidateSampleId),
     legacyLiveEvidenceFileBySample,
-    await releaseMatrixSidecarFileBySample(
-      receiptRoot,
-      qualifiedSampleIds,
-      await readReleaseMatrixLaneRegistry({
-        projectRoot: PROJECT_ROOT,
-        registryPath: options.releaseMatrixLaneRegistryPath,
-        now: options.now,
-      }),
-    ),
   );
   const samples = [];
   for (const journey of qualifiedJourneys) {
@@ -4410,141 +4063,37 @@ export async function generateGoldenJourneyVisualEvidence(catalog, qualification
   return visualEvidence;
 }
 
-/**
- * Every published visual-evidence artifact reference the consumer can dereference,
- * flattened to `{ label, path, bytes, sha256 }`. `bytes` is null for the gate
- * receipts, whose size is bound by the receipt digest rather than a recorded length.
- */
-function goldenVisualArtifactReferences(entry) {
-  const references = [];
-  for (const screenshot of entry.screenshots) {
-    references.push({
-      label: `${entry.sampleId} ${screenshot.variant} screenshot`,
-      path: screenshot.sourcePath,
-      bytes: screenshot.bytes,
-      sha256: screenshot.sha256,
-    });
-    references.push({
-      label: `${entry.sampleId} ${screenshot.variant} repeat screenshot`,
-      path: screenshot.reproducibility.repeatSourcePath,
-      bytes: screenshot.reproducibility.repeatBytes,
-      sha256: screenshot.reproducibility.repeatSha256,
-    });
-  }
-  for (const semantic of entry.semanticEvidence) {
-    references.push({
-      label: `${entry.sampleId} ${semantic.gate} receipt`,
-      path: semantic.receiptPath,
-      bytes: null,
-      sha256: semantic.receiptSha256,
-    });
-    references.push({
-      label: `${entry.sampleId} ${semantic.gate} report`,
-      path: semantic.reportPath,
-      bytes: semantic.reportBytes,
-      sha256: semantic.reportSha256,
-    });
-  }
-  return references;
-}
-
-/**
- * Bind every published visual-evidence path to the evidence root the entry's own
- * sample owns. Without this a tampered or hand-edited artifact could advertise
- * another sample's screenshots and receipts as its own qualification, which is the
- * duplicate-identity form of overstated coverage (honua-io/honua-sdk-js#550).
- */
-function validateGoldenVisualEvidenceOwnership(entry) {
-  const sampleRoot = `${QUALIFICATION_EVIDENCE_ROOT}/${entry.sampleId}`;
-  const runRoots = new Set();
-  for (const semantic of entry.semanticEvidence) {
-    invariant(
-      semantic.receiptPath === `${sampleRoot}/receipts/${semantic.gate}.v1.json`,
-      `${entry.sampleId}: ${semantic.gate} visual evidence receipt is orphaned from its sample`,
-    );
-    invariant(
-      semantic.runRoot.startsWith(`${sampleRoot}/runs/`) &&
-        isSampleEvidenceRunId(semantic.runRoot.split("/").at(-1)) &&
-        semantic.reportPath.startsWith(`${semantic.runRoot}/`) &&
-        path.posix.normalize(semantic.reportPath) === semantic.reportPath,
-      `${entry.sampleId}: ${semantic.gate} visual evidence report path is orphaned or stale`,
-    );
-    runRoots.add(semantic.runRoot);
-  }
-  const sdkModeByGate = new Map(entry.semanticEvidence.map((semantic) => [semantic.gate, semantic.sdkMode]));
-  invariant(
-    sdkModeByGate.get("packed-build") === "packed",
-    `${entry.sampleId}: packed-build visual evidence must come from the packed SDK mode`,
-  );
-  for (const screenshot of entry.screenshots) {
-    for (const candidate of [screenshot.sourcePath, screenshot.reproducibility.repeatSourcePath]) {
-      invariant(
-        path.posix.normalize(candidate) === candidate &&
-          [...runRoots].some((runRoot) => candidate.startsWith(`${runRoot}/`)),
-        `${entry.sampleId}: ${screenshot.variant} screenshot is orphaned from its own evidence run`,
-      );
-    }
-  }
-  const referencePaths = goldenVisualArtifactReferences(entry).map((reference) => reference.path);
-  const distinctPaths = new Set(referencePaths);
-  invariant(
-    distinctPaths.size === referencePaths.length,
-    `${entry.sampleId}: visual evidence reuses one artifact path for more than one claim`,
-  );
-}
-
-/**
- * Every freshness window a published golden entry advertises: the aggregate visual
- * window, each semantic gate receipt, and the live observation. Any expired member
- * means the card is no longer current (honua-io/honua-sdk-js#550).
- */
-function validateGoldenVisualEvidenceFreshness(entry, now = Date.now()) {
-  const maximumFutureSkewMs = GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS * 1000;
-  const maximumWindowMs = GOLDEN_VISUAL_MAX_WINDOW_SECONDS * 1000;
-  const windows = [
-    { observedAt: entry.observedAt, expiresAt: entry.expiresAt },
-    ...entry.semanticEvidence,
-    { observedAt: entry.liveEvidence.observedAt, expiresAt: entry.liveEvidence.expiresAt },
-  ];
-  for (const item of windows) {
-    const observedAt = Date.parse(item.observedAt);
-    const expiresAt = Date.parse(item.expiresAt);
-    invariant(
-      Number.isFinite(observedAt) &&
-        Number.isFinite(expiresAt) &&
-        observedAt <= now + maximumFutureSkewMs &&
-        expiresAt > now &&
-        expiresAt > observedAt &&
-        expiresAt - observedAt <= maximumWindowMs,
-      `${entry.sampleId}: visual evidence is stale or has an invalid freshness window`,
-    );
-  }
-}
-
 function validateGoldenVisualEvidenceEntries(visualEvidence) {
   const now = Date.now();
-  const journeyIds = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.journeyId);
-  const sampleIds = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.sampleId);
-  const sourcePaths = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.source.path);
-  invariant(
-    new Set(journeyIds).size === journeyIds.length &&
-      new Set(sampleIds).size === sampleIds.length &&
-      new Set(sourcePaths).size === sourcePaths.length,
-    "golden journey visual evidence contains duplicate journey, sample, or source identities",
-  );
+  const maximumFutureSkewMs = GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS * 1000;
+  const maximumWindowMs = GOLDEN_VISUAL_MAX_WINDOW_SECONDS * 1000;
   for (const entry of visualEvidence.qualifiedGoldenJourneys) {
     invariant(
       JSON.stringify(entry.semanticEvidence.map((item) => item.gate)) ===
         JSON.stringify(GOLDEN_VISUAL_GATE_ORDER),
       `${entry.sampleId}: visual semantic evidence is incomplete or out of order`,
     );
-    invariant(
-      JSON.stringify(entry.screenshots.map((screenshot) => screenshot.variant)) ===
-        JSON.stringify(SAMPLE_SCREENSHOT_VARIANTS.map((variant) => variant.id)),
-      `${entry.sampleId}: visual evidence is missing a required desktop/mobile screenshot variant`,
-    );
-    validateGoldenVisualEvidenceOwnership(entry);
-    validateGoldenVisualEvidenceFreshness(entry, now);
+    const allFreshness = [
+      { observedAt: entry.observedAt, expiresAt: entry.expiresAt },
+      ...entry.semanticEvidence,
+      {
+        observedAt: entry.liveEvidence.observedAt,
+        expiresAt: entry.liveEvidence.expiresAt,
+      },
+    ];
+    for (const item of allFreshness) {
+      const observedAt = Date.parse(item.observedAt);
+      const expiresAt = Date.parse(item.expiresAt);
+      invariant(
+        Number.isFinite(observedAt) &&
+          Number.isFinite(expiresAt) &&
+          observedAt <= now + maximumFutureSkewMs &&
+          expiresAt > now &&
+          expiresAt > observedAt &&
+          expiresAt - observedAt <= maximumWindowMs,
+        `${entry.sampleId}: visual evidence is stale or has an invalid freshness window`,
+      );
+    }
     invariant(
       entry.screenshots.every(
         (screenshot) =>
@@ -4562,31 +4111,6 @@ function validateGoldenVisualEvidenceEntries(visualEvidence) {
         `${entry.sampleId}: incident operations visual evidence must remain realtime`,
       );
     }
-  }
-}
-
-/**
- * Dereference every published visual-evidence artifact against the checkout so a
- * broken link, a replaced file, or a stale digest fails publication instead of
- * shipping an unverifiable golden card (honua-io/honua-sdk-js#550).
- */
-async function validateGoldenVisualEvidenceArtifactFiles(entry) {
-  for (const reference of goldenVisualArtifactReferences(entry)) {
-    let bytes;
-    try {
-      bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
-        label: reference.label,
-        maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
-      });
-    } catch (error) {
-      if (error?.code === "ENOENT") throw new Error(`${reference.label} is broken or missing`);
-      throw error;
-    }
-    invariant(
-      (reference.bytes === null || bytes.byteLength === reference.bytes) &&
-        sha256(bytes) === reference.sha256,
-      `${reference.label} byte or digest binding is stale`,
-    );
   }
 }
 
@@ -4613,20 +4137,6 @@ export async function validateGoldenJourneyVisualEvidence(
     "golden journey visual evidence is orphaned, missing, or overstated",
   );
   validateGoldenVisualEvidenceEntries(visualEvidence);
-  if (options.verifyCheckout !== false) {
-    invariant(
-      visualEvidence.inputs.catalog.path === CATALOG_PATH &&
-        visualEvidence.inputs.catalog.sha256 ===
-          sha256(await readCanonicalBoundedFile(PROJECT_ROOT, CATALOG_PATH, {
-            label: "golden visual evidence catalog input",
-            maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
-          })),
-      "golden journey visual evidence catalog input digest is stale",
-    );
-    for (const entry of visualEvidence.qualifiedGoldenJourneys) {
-      await validateGoldenVisualEvidenceArtifactFiles(entry);
-    }
-  }
   const expected = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence, options);
   invariant(
     JSON.stringify(visualEvidence) === JSON.stringify(expected),
@@ -5513,27 +5023,6 @@ function validateSiteConsumerJsonBudget(value, label) {
   visit(value, 0);
 }
 
-/**
- * Content-address one contract schema exactly as the artifact digests do. A schema's
- * own `$id`, `format`, and `schemaVersion` are self-declared by the file under
- * inspection, so they cannot detect the case the version pin exists for: a schema
- * edited in place while keeping its version. Its bytes can, so the published
- * reference carries the schema digest and validation recomputes it from disk
- * (honua-io/honua-sdk-js#550).
- *
- * Read fresh on every reference rather than cached: a generation pass must publish
- * the schema revision it actually validated against, never a digest a previous pass
- * observed.
- */
-function siteConsumerSchemaDefinition(schemaPath) {
-  const bytes = readFileSync(path.join(PROJECT_ROOT, schemaPath));
-  invariant(
-    bytes.byteLength > 0 && bytes.byteLength <= SITE_CONSUMER_MAX_ARTIFACT_BYTES,
-    `${schemaPath}: contract schema exceeds its byte budget`,
-  );
-  return { schemaBytes: bytes.byteLength, schemaSha256: sha256(bytes) };
-}
-
 function siteConsumerArtifactReference(relativePath, schemaPath, artifact) {
   validateSiteConsumerJsonBudget(artifact, relativePath);
   const bytes = Buffer.from(stableJson(artifact));
@@ -5548,7 +5037,6 @@ function siteConsumerArtifactReference(relativePath, schemaPath, artifact) {
     schemaVersion: artifact.schemaVersion,
     bytes: bytes.byteLength,
     sha256: sha256(bytes),
-    ...siteConsumerSchemaDefinition(schemaPath),
   };
 }
 
@@ -5802,120 +5290,6 @@ function siteConsumerInteractionContract(visualEvidence) {
   };
 }
 
-/**
- * Reject any handoff whose public cards duplicate an identity the consumer renders
- * as one thing: the canonical route, the executable source tree, the golden journey,
- * or the evidence binding a qualified claim rests on. Card IDs alone are not enough
- * because two IDs can still point at one implementation or one journey's evidence
- * (honua-io/honua-sdk-js#550 duplicate-identity handling).
- */
-function validateSiteConsumerCardIdentities(cards) {
-  const identities = [
-    ["ID", cards.map((card) => card.id)],
-    ["canonical route", cards.map((card) => card.canonicalPath)],
-    ["executable source path", cards.map((card) => card.source.path)],
-    ["golden journey", cards.filter((card) => card.journey).map((card) => card.journey.id)],
-    [
-      "evidence binding",
-      cards.filter((card) => card.evidenceBindingId).map((card) => card.evidenceBindingId),
-    ],
-    [
-      "visual evidence sample",
-      cards.filter((card) => card.visualEvidence).map((card) => card.visualEvidence.sampleId),
-    ],
-  ];
-  for (const [label, values] of identities) {
-    invariant(
-      new Set(values).size === values.length,
-      `site consumer handoff publishes a duplicated card ${label}`,
-    );
-  }
-}
-
-/**
- * Machine-check `policy.qualifiedRequires` against each qualified card's embedded
- * evidence instead of treating the declared list as prose. The handoff is the
- * artifact honua-samples consumes, so every requirement it advertises has to be
- * verifiable from the handoff alone (honua-io/honua-sdk-js#550 golden-card receipt
- * enforcement).
- */
-function validateGoldenCardReceiptEnforcement(handoff, now = Date.now()) {
-  invariant(
-    JSON.stringify(handoff.policy.qualifiedRequires) ===
-      JSON.stringify(SITE_CONSUMER_QUALIFIED_REQUIREMENTS),
-    "site consumer handoff qualified-card requirement policy drift",
-  );
-  const requirements = new Set(handoff.policy.qualifiedRequires);
-  for (const card of handoff.cards) {
-    if (card.qualification.state !== "qualified") {
-      invariant(
-        !card.evidenceBindingId && !card.visualEvidence,
-        `${card.id}: unqualified card overstates evidence`,
-      );
-      continue;
-    }
-    const visual = card.visualEvidence;
-    invariant(
-      visual && card.journey?.status === "qualified" && card.evidenceBindingId,
-      `${card.id}: qualified golden card is missing its journey, binding, or visual receipt`,
-    );
-    invariant(
-      visual.sampleId === card.id && visual.journeyId === card.journey.id,
-      `${card.id}: golden card visual receipt belongs to another journey or sample`,
-    );
-    validateGoldenVisualEvidenceOwnership(visual);
-    validateGoldenVisualEvidenceFreshness(visual, now);
-    const gates = new Map(visual.semanticEvidence.map((entry) => [entry.gate, entry]));
-    if (requirements.has("source")) {
-      invariant(
-        visual.source.repository === card.source.repository &&
-          visual.source.path === card.source.path &&
-          /^[a-f0-9]{40}$/.test(visual.source.revision) &&
-          /^[a-f0-9]{64}$/.test(visual.source.evidenceNeutralSha256),
-        `${card.id}: golden card source receipt is missing or unbound`,
-      );
-    }
-    if (requirements.has("packed")) {
-      invariant(
-        gates.get("packed-build")?.sdkMode === "packed",
-        `${card.id}: golden card is missing packed-package qualification`,
-      );
-    }
-    for (const gate of ["fixture", "live"]) {
-      if (requirements.has(gate)) {
-        invariant(gates.has(gate), `${card.id}: golden card is missing its ${gate} receipt`);
-      }
-    }
-    if (requirements.has("live")) {
-      invariant(
-        visual.liveEvidence?.observedAt && visual.liveEvidence.expiresAt,
-        `${card.id}: golden card live evidence has no observation window`,
-      );
-    }
-    for (const variant of SAMPLE_SCREENSHOT_VARIANTS) {
-      if (!requirements.has(variant.id)) continue;
-      const screenshot = visual.screenshots.find((entry) => entry.variant === variant.id);
-      invariant(
-        screenshot &&
-          screenshot.viewport.width === variant.viewport.width &&
-          screenshot.viewport.height === variant.viewport.height &&
-          screenshot.reproducibility.captureCount ===
-            SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.captureCount &&
-          screenshot.reproducibility.comparison ===
-            SAMPLE_SCREENSHOT_REPRODUCIBILITY_POLICY.comparison &&
-          screenshot.sha256 === screenshot.reproducibility.repeatSha256,
-        `${card.id}: golden card ${variant.id} screenshot is missing or not reproducible`,
-      );
-    }
-    if (requirements.has("semantic-gates")) {
-      invariant(
-        JSON.stringify([...gates.keys()]) === JSON.stringify(GOLDEN_VISUAL_GATE_ORDER),
-        `${card.id}: golden card semantic gate receipts are incomplete or out of order`,
-      );
-    }
-  }
-}
-
 function qualifiedCoverageCount(collection) {
   return collection.filter((entry) => entry.coverage.state === "qualified").length;
 }
@@ -5972,19 +5346,6 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
   };
   invariant(indexes.samples.size === projection.samples.length, "site projection sample IDs are not unique");
   invariant(indexes.matrixSamples.size === matrix.samples.length, "capability matrix sample IDs are not unique");
-  // Every remaining join index is a Map keyed by an upstream identity. A duplicate
-  // key would silently collapse into one entry and let a second implementation ride
-  // the first one's evidence, so the sizes are bound before any lookup runs
-  // (honua-io/honua-sdk-js#550 duplicate-identity handling).
-  invariant(
-    indexes.journeys.size === projection.goldenJourneys.length &&
-      indexes.externalReplacements.size === projection.externalReplacements.length &&
-      indexes.evidenceBindings.size === matrix.evidenceBindings.length &&
-      indexes.visualBySample.size === visualEvidence.qualifiedGoldenJourneys.length &&
-      new Set(visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.journeyId)).size ===
-        visualEvidence.qualifiedGoldenJourneys.length,
-    "site consumer handoff inputs contain duplicate journey, replacement, evidence-binding, or visual identities",
-  );
   invariant(
     projection.samples.every((sample) => indexes.matrixSamples.has(sample.id)) &&
       matrix.samples.every((sample) => indexes.samples.has(sample.id)),
@@ -6037,7 +5398,6 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
     return { ...card, searchText: siteConsumerSearchText(card) };
   });
   const cardById = new Map(cards.map((card) => [card.id, card]));
-  validateSiteConsumerCardIdentities(cards);
   const qualifiedCards = cards.filter((card) => card.qualification.state === "qualified");
   const qualifiedJourneys = qualifiedCards.map((card) => ({
     journeyId: card.journey.id,
@@ -6132,7 +5492,7 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
     },
     policy: {
       qualificationAuthority: "validated-matrix-and-visual-evidence",
-      qualifiedRequires: [...SITE_CONSUMER_QUALIFIED_REQUIREMENTS],
+      qualifiedRequires: ["source", "packed", "fixture", "live", "desktop", "mobile", "semantic-gates"],
       honestZeroQualificationAllowed: true,
       externalListings: "canonical-routes-only",
       canonicalRoutes: {
@@ -6276,83 +5636,6 @@ async function validateSiteConsumerArtifactInput(reference, label) {
   return artifact;
 }
 
-/**
- * Bind each published reference to the immutable definition of the schema that
- * governs it, so honua-samples can pin a contract revision instead of trusting a
- * `schemaPath` string (honua-io/honua-sdk-js#550 versioned visual-evidence handoff).
- *
- * Two layers, and only the second is load-bearing. `$id`, `format`, and
- * `schemaVersion` catch a reference pointed at the wrong or a renamed schema, but a
- * schema under inspection declares them about itself, so they cannot detect a schema
- * edited in place while keeping its version — the exact no-version-bump case. The
- * recomputed byte digest can, so it fails publication whether the edit weakened a
- * constraint or only reformatted the file.
- *
- * The digest binding is checkout-dependent and therefore subject to the
- * derived-artifact decoupling (honua-io/honua-sdk-js#677): a handoff published before
- * this binding existed carries no schema digest, and under the relax flag that counts
- * as pending until the post-merge regeneration emits it. Strict runs require it.
- */
-async function validateSiteConsumerSchemaBinding(reference, label) {
-  await validateSiteConsumerLocalLink(reference.schemaPath, `${label} schema`, "file");
-  const bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.schemaPath, {
-    label: `${label} schema`,
-    maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
-  });
-  const schema = parseJsonDocument(bytes.toString("utf8"), reference.schemaPath);
-  let schemaId;
-  try {
-    schemaId = new URL(schema.$id);
-  } catch {
-    throw new Error(`${label} schema does not publish a canonical versioned $id`);
-  }
-  invariant(
-    schemaId.protocol === "https:" &&
-      schemaId.origin === "https://honua.io" &&
-      schemaId.pathname.startsWith("/schemas/sdk/") &&
-      schemaId.pathname.endsWith(`.v${reference.schemaVersion}.schema.json`),
-    `${label} schema $id does not pin schema version ${reference.schemaVersion}`,
-  );
-  invariant(
-    schema.properties?.format?.const === reference.format &&
-      schema.properties?.schemaVersion?.const === reference.schemaVersion,
-    `${label} schema does not govern the referenced artifact format or version`,
-  );
-  if (reference.schemaSha256 === undefined && reference.schemaBytes === undefined) {
-    invariant(
-      derivedArtifactsRelaxed(),
-      `${label} schema integrity binding is missing; run npm run samples:generate`,
-    );
-    return;
-  }
-  invariant(
-    reference.schemaBytes === bytes.byteLength && reference.schemaSha256 === sha256(bytes),
-    `${label} schema definition changed without a version bump`,
-  );
-}
-
-/**
- * A handoff published before the schema integrity binding existed carries no
- * `schemaBytes`/`schemaSha256`. Under the derived-artifact decoupling that is pending
- * regeneration rather than drift, so the content-bound expectation drops exactly the
- * fields the committed artifact cannot yet carry; once the post-merge regeneration
- * emits them the comparison is exact again. Strict runs never take this branch, and a
- * reference that does carry a digest is always compared (honua-io/honua-sdk-js#550).
- */
-function withPendingSchemaBinding(expected, handoff) {
-  if (!derivedArtifactsRelaxed()) return expected;
-  const pending = Object.entries(handoff.inputs ?? {})
-    .filter(([, reference]) => reference?.schemaSha256 === undefined)
-    .map(([name]) => name);
-  if (pending.length === 0) return expected;
-  const relaxed = structuredClone(expected);
-  for (const name of pending) {
-    delete relaxed.inputs[name]?.schemaBytes;
-    delete relaxed.inputs[name]?.schemaSha256;
-  }
-  return relaxed;
-}
-
 export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   validateSiteConsumerJsonBudget(handoff, "site consumer handoff");
   validateSensitiveMetadata(handoff, "site consumer handoff", {
@@ -6413,17 +5696,6 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
 
   const cardById = new Map(handoff.cards.map((card) => [card.id, card]));
   invariant(cardById.size === handoff.cards.length, "site consumer handoff card IDs must be unique");
-  validateSiteConsumerCardIdentities(handoff.cards);
-  validateGoldenCardReceiptEnforcement(handoff);
-  if (inputs.verifyCheckout !== false) {
-    for (const [name, reference] of Object.entries(handoff.inputs)) {
-      await validateSiteConsumerSchemaBinding(reference, `site consumer ${name}`);
-    }
-    for (const card of handoff.cards) {
-      if (!card.visualEvidence) continue;
-      await validateGoldenVisualEvidenceArtifactFiles(card.visualEvidence);
-    }
-  }
   invariant(
     handoff.cards.length > 0 &&
       handoff.counts.cards === handoff.cards.length &&
@@ -6509,8 +5781,7 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   }
   if (contentBoundExpected) {
     invariant(
-      JSON.stringify(handoff) ===
-        JSON.stringify(withPendingSchemaBinding(contentBoundExpected, handoff)),
+      JSON.stringify(handoff) === JSON.stringify(contentBoundExpected),
       "site consumer handoff does not match its content-bound projection inputs",
     );
   }
@@ -6578,19 +5849,13 @@ export function generateSiteConsumerFixtureV3(handoff) {
   };
 }
 
-export async function validateSiteConsumerFixtureV3(fixture, handoff, options = {}) {
+export async function validateSiteConsumerFixtureV3(fixture, handoff) {
   validateSiteConsumerJsonBudget(fixture, "site consumer fixture v3");
   validateSensitiveMetadata(fixture, "site consumer fixture v3", {
     maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
     maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
   });
   await validateJsonSchema(fixture, SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH);
-  // The handoff's own schema is referenced only from here, so this is the one place
-  // that can pin it to an immutable definition the way handoff.inputs pins the three
-  // upstream authority schemas.
-  if (options.verifyCheckout !== false) {
-    await validateSiteConsumerSchemaBinding(fixture.input, "site consumer fixture handoff");
-  }
   const expected = generateSiteConsumerFixtureV3(handoff);
   invariant(
     JSON.stringify(fixture) === JSON.stringify(expected),
@@ -6710,49 +5975,7 @@ function generateSiteConsumerFixture(projection) {
   };
 }
 
-/**
- * Release-matrix section of the generated catalog (honua-io/honua-sdk-js#766
- * REQ-004). This is the qualification record's human-readable projection of the
- * cross-browser lane: which samples are established, what the last sealed
- * three-engine run observed, and where the receipt lives.
- *
- * It is emitted here, and not into samples/dist/golden-journey-visual-evidence.v1.json,
- * because that artifact's schema is content-addressed by the committed consumer
- * handoff (schemaBytes/schemaSha256, honua-io/honua-sdk-js#791): adding even an
- * optional property to it is a versioned contract change that has to be bumped
- * and regenerated together with the committed projections, which only the
- * derived-artifact automation can do. See samples/contract/v2/README.md.
- *
- * Rendered only for established or sealed lanes, so the generated bytes are
- * unchanged until the first release smoke lands a receipt.
- */
-export function releaseMatrixCatalogSection(lanes) {
-  if (!lanes || lanes.length === 0) return [];
-  const rows = lanes.map((lane) => {
-    const engines = lane.projection
-      ? lane.projection.engines.map((engine) => `${engine.name}: ${engine.status}`).join("<br>")
-      : "receipt missing";
-    const observedAt = lane.projection?.observedAt ?? "-";
-    const expiresAt = lane.projection?.expiresAt ?? "-";
-    const status = lane.projection?.status ?? "missing";
-    const receipt = lane.projection
-      ? `[\`${lane.projection.receiptPath}\`](../../${lane.projection.receiptPath})`
-      : `\`${lane.receiptPath}\``;
-    return `| [\`${lane.sampleId}\`](#${lane.sampleId}) | ${status} | ${engines} | ${observedAt} | ${expiresAt} | ${receipt} |`;
-  });
-  return [
-    "## Release-matrix browser evidence",
-    "",
-    "Per-gate `browser` receipts prove the default Chromium-only Playwright lane. These samples additionally bind their golden qualification to the release-only three-engine smoke (Chromium, headed Firefox, WebKit); a failing or lapsed lane makes the qualification stale. Establishment is recorded in [`samples/contract/v2/release-matrix-lanes.v1.json`](../../samples/contract/v2/release-matrix-lanes.v1.json).",
-    "",
-    "| Sample | Last sealed run | Engines | Observed | Expires | Receipt |",
-    "| --- | --- | --- | --- | --- | --- |",
-    ...rows,
-    "",
-  ];
-}
-
-function generatedCatalogMarkdown(catalog, packageJson, releaseMatrixLanes = []) {
+function generatedCatalogMarkdown(catalog, packageJson) {
   const journeyRows = catalog.goldenJourneys.map(
     (journey) =>
       `| \`${journey.id}\` | ${journey.status} | [\`${journey.candidateSampleId}\`](#${journey.candidateSampleId}) |`,
@@ -6776,7 +5999,6 @@ function generatedCatalogMarkdown(catalog, packageJson, releaseMatrixLanes = [])
     "| --- | --- | --- |",
     ...journeyRows,
     "",
-    ...releaseMatrixCatalogSection(releaseMatrixLanes),
     "## Executable samples",
     "",
     "| Sample | Track | Journey candidate | Support | Lifecycle | Quality profile | Data | Configuration | Demonstration |",
@@ -6814,40 +6036,6 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-/**
- * Release-matrix lanes worth projecting into the generated catalog: every
- * established lane (so a deleted receipt is visible as `missing` rather than
- * disappearing) plus any sample that already carries a sealed receipt before the
- * automation records it. Empty until the first release smoke lands, which keeps
- * the generated docs byte-identical today.
- */
-export async function collectReleaseMatrixLanes(catalog, options = {}) {
-  const laneRegistry = await readReleaseMatrixLaneRegistry({
-    projectRoot: PROJECT_ROOT,
-    registryPath: options.releaseMatrixLaneRegistryPath,
-    now: options.now,
-  });
-  const lanes = [];
-  for (const sampleId of RELEASE_MATRIX_SAMPLE_IDS) {
-    if (!catalog.samples.some((sample) => sample.id === sampleId && sample.track === "golden")) continue;
-    const record = await readReleaseMatrixReceipt({
-      sampleId,
-      projectRoot: PROJECT_ROOT,
-      receiptRoot: options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT),
-      now: options.now,
-    });
-    const established = releaseMatrixLaneEstablished(laneRegistry, sampleId);
-    if (!record && !established) continue;
-    lanes.push({
-      sampleId,
-      established,
-      receiptPath: releaseMatrixReceiptRelativePath(sampleId),
-      projection: releaseMatrixEvidenceProjection(record),
-    });
-  }
-  return lanes;
-}
-
 export async function generatedOutputs(catalog, packageJson, options = {}) {
   const readme = await readFile(path.join(PROJECT_ROOT, "README.md"), "utf8");
   const projection = generateSiteProjection(catalog, packageJson);
@@ -6880,14 +6068,9 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     qualificationEvidence,
     verifyCheckout: options.verifyCheckout,
   });
-  await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff, {
-    verifyCheckout: options.verifyCheckout,
-  });
+  await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff);
   return new Map([
-    [
-      GENERATED_CATALOG_PATH,
-      generatedCatalogMarkdown(catalog, packageJson, await collectReleaseMatrixLanes(catalog, options)),
-    ],
+    [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
     [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
     [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
@@ -6903,13 +6086,6 @@ export function generatedOutputDrift(expectedOutputs, currentOutputs) {
   return [...expectedOutputs]
     .filter(([relativePath, expected]) => currentOutputs.get(relativePath) !== expected)
     .map(([relativePath]) => relativePath);
-}
-
-export function validateGeneratedOutputDrift(drift, options = {}) {
-  invariant(
-    options.relaxed === true || drift.length === 0,
-    `${drift.join(", ")} has drifted; run npm run samples:generate`,
-  );
 }
 
 function gitSha() {
@@ -7189,7 +6365,7 @@ async function runContract(command, options = {}) {
       currentOutputs.set(relativePath, await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"));
     }
     const drift = generatedOutputDrift(outputs, currentOutputs);
-    validateGeneratedOutputDrift(drift, { relaxed: options.relaxGeneratedOutputs });
+    invariant(drift.length === 0, `${drift.join(", ")} has drifted; run npm run samples:generate`);
   }
   process.stdout.write(
     `${command === "write" ? "Generated" : "Verified"} ${catalog.samples.length} SDK and docs examples, seven reserved journey IDs, and ${catalog.siteMappings.length} honua.io routes (${catalog.format})\n`,
@@ -7201,92 +6377,23 @@ async function main(argv) {
   if (["check", "write"].includes(command)) {
     let qualificationBootstrapSampleId;
     if (command === "write" && args.length === 2 && args[0] === "--qualification-bootstrap") {
-      // Comma-separated, mirroring scripts/sample-runner.mjs's
-      // --qualification-bootstrap-also (honua-io/honua-sdk-js#735, PR #653):
-      // regenerating derived artifacts while more than one golden sample is
-      // simultaneously being requalified against the same source needs every
-      // such sample named here too, or validateCatalog's golden-sample loop
-      // reports the same qualification-bootstrap circularity `write` would
-      // otherwise be unable to resolve for any but a single sample.
-      qualificationBootstrapSampleId = args[1].split(",").map((id) => id.trim());
+      qualificationBootstrapSampleId = args[1];
     } else {
       invariant(args.length === 0, `${command} does not accept arguments`);
     }
     // Derived-artifact decoupling (honua-io/honua-sdk-js#677): at PR time the
     // committed evidence has not been resealed against the PR's source tree, so
     // `check` runs in a relaxed mode that still validates every receipt's
-    // schema, freshness, artifact digests, gate semantics, and catalog
-    // coherence, but defers source binding and committed projection drift until
-    // the post-merge workflow atomically regenerates both. Reproducibility is
-    // re-established strictly on trunk, where the regenerate-derived-artifacts
-    // workflow reseals evidence bound to the trunk source digest. `write`
-    // always stays strict.
+    // schema, freshness, artifact digests, gate semantics, catalog coherence,
+    // and generated-output drift, but does NOT require the evidence-neutral
+    // source digest to match the working tree. Reproducibility is re-established
+    // strictly on trunk, where the regenerate-derived-artifacts workflow reseals
+    // evidence bound to the trunk source digest. `write` always stays strict.
     const relaxCheckout = command === "check" && derivedArtifactsRelaxed();
     await runContract(command, {
       qualificationBootstrapSampleId,
-      relaxDerivedArtifacts: relaxCheckout,
       verifyCheckout: relaxCheckout ? false : undefined,
-      relaxGeneratedOutputs: relaxCheckout,
     });
-    return;
-  }
-  if (command === "refresh-live-expiry") {
-    invariant(
-      args.length === 2 && args[0] === "--sample",
-      "refresh-live-expiry requires --sample <comma-separated-ids>",
-    );
-    const sampleIds = args[1].split(",").map((id) => id.trim());
-    const migration = await readJson(V1_MIGRATION_PATH);
-    const refreshed = await refreshOverlayLiveExpiry(migration, sampleIds);
-    await writeFile(path.join(PROJECT_ROOT, V1_MIGRATION_PATH), stableJson(migration), "utf8");
-    for (const entry of refreshed) {
-      process.stdout.write(
-        `${entry.sampleId}: live.expiresAt ${entry.previousExpiresAt ?? "(none)"} -> ${entry.expiresAt} (observedAt ${entry.observedAt})\n`,
-      );
-    }
-    return;
-  }
-  // Establishment recording (honua-io/honua-sdk-js#766). Runs in the same slot
-  // as refresh-live-expiry above -- after a reseal pass has observed the tree,
-  // before the automation's catalog commit -- because
-  // samples/contract/v2/release-matrix-lanes.v1.json is INSIDE the
-  // evidence-neutral digest and must therefore be committed before the reseal
-  // pass whose receipts bind to it. Idempotent: an already-established lane
-  // writes no bytes, so routine regenerations cause no digest churn.
-  if (command === "record-release-matrix-lane") {
-    invariant(
-      args.length === 2 && args[0] === "--sample",
-      "record-release-matrix-lane requires --sample <comma-separated-ids>",
-    );
-    const sampleIds = args[1].split(",").map((id) => id.trim());
-    let registry;
-    const existing = await readReleaseMatrixLaneRegistry({ projectRoot: PROJECT_ROOT });
-    if (existing) registry = existing.registry;
-    let changedAny = false;
-    for (const sampleId of sampleIds) {
-      invariant(
-        RELEASE_MATRIX_SAMPLE_IDS.includes(sampleId),
-        `${sampleId}: sample does not declare the release-matrix browser lane`,
-      );
-      const record = await readReleaseMatrixReceipt({ sampleId, projectRoot: PROJECT_ROOT });
-      if (!record) {
-        process.stdout.write(`${sampleId}: no sealed release-matrix receipt to establish\n`);
-        continue;
-      }
-      const { registry: next, changed } = recordedReleaseMatrixLaneRegistry(registry, record.receipt);
-      registry = next;
-      changedAny ||= changed;
-      process.stdout.write(
-        changed
-          ? `${sampleId}: release-matrix browser lane established from run ${record.receipt.run.runId}\n`
-          : `${sampleId}: release-matrix browser lane already established\n`,
-      );
-    }
-    if (changedAny) {
-      await validateReleaseMatrixLaneRegistry(registry, { projectRoot: PROJECT_ROOT });
-      await writeFile(path.join(PROJECT_ROOT, RELEASE_MATRIX_LANES_PATH), stableJson(registry), "utf8");
-      process.stdout.write(`Wrote ${RELEASE_MATRIX_LANES_PATH}\n`);
-    }
     return;
   }
   if (command === "migrate-v1") {
@@ -7306,24 +6413,6 @@ async function main(argv) {
     });
     await writeFile(path.join(PROJECT_ROOT, CATALOG_PATH), stableJson(catalog), "utf8");
     process.stdout.write(`Migrated ${catalog.samples.length} executable examples to ${CATALOG_PATH}\n`);
-    return;
-  }
-  if (command === "write-ci-selection") {
-    // generateCiSelection is a pure projection of the catalog (no
-    // qualification-evidence dependency, unlike the rest of `write`'s
-    // outputs), so this can run safely between migrate-v1 and a reseal pass
-    // that has not produced fresh receipts yet: a reseal's own readInputs
-    // scopes its staleness check on samples/dist/sample-ci-selection.v2.json
-    // to the one --sample it targets, and that file embeds each sample's
-    // catalog-projected evidence.live.expiresAt, so refresh-live-expiry +
-    // migrate-v1 changing that literal leaves this file stale for exactly
-    // the samples a following reseal pass needs it fresh for.
-    invariant(args.length === 0, "write-ci-selection does not accept arguments");
-    const catalog = await readJson(CATALOG_PATH);
-    const selection = generateCiSelection(catalog);
-    await validateCiSelection(selection);
-    await writeFile(path.join(PROJECT_ROOT, CI_SELECTION_PATH), stableJson(selection), "utf8");
-    process.stdout.write(`Projected ${selection.samples.length} samples to ${CI_SELECTION_PATH}\n`);
     return;
   }
   if (command === "artifacts") {

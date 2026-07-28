@@ -10,7 +10,6 @@ import {
   honuaServerRealtimePreset,
 } from "../src/realtime/index.js";
 import type {
-  HonuaServerFeatureChangeEnvelope,
   RealtimeFeatureEvent,
   RealtimeFeatureObserver,
   RealtimeServerSentEventSource,
@@ -54,22 +53,6 @@ class MockRealtimeEventSource implements RealtimeServerSentEventSource {
 }
 
 describe("honua-server realtime preset", () => {
-  it("keeps the current-server envelope additive over the public string cursor contract", () => {
-    const envelope: HonuaServerFeatureChangeEnvelope = {
-      cursor: "42",
-      operation: "update",
-    };
-    const cursor: string | undefined = envelope.cursor;
-    type CurrentOperation = NonNullable<HonuaServerFeatureChangeEnvelope["operation"]>;
-    const operation: CurrentOperation = envelope.operation ?? "update";
-    // @ts-expect-error Snapshot remains a legacy `op`/`changes` value, not a current-server `operation`.
-    const unsupportedOperation: CurrentOperation = "snapshot";
-
-    expect(cursor).toBe("42");
-    expect(operation).toBe("update");
-    expect(unsupportedOperation).toBe("snapshot");
-  });
-
   it("encodes serviceId/layers query params instead of sourceId/layerId", () => {
     const request: RealtimeSubscriptionRequest = {
       sourceId: "incidents",
@@ -145,221 +128,6 @@ describe("honua-server realtime preset", () => {
     }
   });
 
-  it("decodes the current honua-server feature-stream envelope without inventing sequence from cursor", () => {
-    const event = decodeHonuaServerRealtimeEvent({
-      type: "feature-change",
-      eventId: "01JCURRENT",
-      cursor: 42,
-      timestamp: "2026-07-27T18:00:00Z",
-      sourceId: "postgres-cdc",
-      serviceId: "incidents",
-      layerId: 0,
-      featureId: "4321",
-      objectId: 4321,
-      operation: "update",
-      geometry: { type: "Point", coordinates: [-157.85, 21.3] },
-      attributes: { objectid: 4321, status: "assigned" },
-    });
-
-    expect(event).toEqual({
-      type: "delta",
-      eventId: "01JCURRENT",
-      sequence: undefined,
-      cursor: "42",
-      watermark: undefined,
-      timestamp: "2026-07-27T18:00:00Z",
-      deltaToken: undefined,
-      upserts: [
-        {
-          id: "4321",
-          sourceId: "incidents",
-          feature: {
-            type: "Feature",
-            id: "4321",
-            geometry: { type: "Point", coordinates: [-157.85, 21.3] },
-            properties: { objectid: 4321, status: "assigned" },
-          },
-          version: undefined,
-          updatedAt: "2026-07-27T18:00:00Z",
-        },
-      ],
-    });
-  });
-
-  it("keeps non-contiguous numeric replay cursors opaque on filtered streams", () => {
-    const events = [40, 42].map((cursor) =>
-      decodeHonuaServerRealtimeEvent({
-        type: "feature-change",
-        eventId: `evt-${String(cursor)}`,
-        cursor,
-        sourceId: null,
-        serviceId: "incidents",
-        layerId: 0,
-        featureId: String(cursor),
-        objectId: cursor,
-        operation: "update",
-        geometry: null,
-        attributes: { objectid: cursor, status: "assigned" },
-      }),
-    );
-
-    expect(events.map((event) => event.sequence)).toEqual([undefined, undefined]);
-    expect(events.map((event) => event.cursor)).toEqual(["40", "42"]);
-  });
-
-  it("fails closed when current-server insert/update events lack complete after-images", () => {
-    const complete = {
-      type: "feature-change",
-      cursor: 42,
-      serviceId: "incidents",
-      featureId: "4321",
-      objectId: 4321,
-      operation: "update",
-    };
-
-    expect(() =>
-      decodeHonuaServerRealtimeEvent({
-        ...complete,
-        attributes: { objectid: 4321, status: "assigned" },
-      }),
-    ).toThrow(/geometry after-image/u);
-    expect(() =>
-      decodeHonuaServerRealtimeEvent({
-        ...complete,
-        feature: { type: "Feature", geometry: null, properties: { objectid: 4321 } },
-      }),
-    ).toThrow(/geometry after-image/u);
-    expect(() =>
-      decodeHonuaServerRealtimeEvent({
-        ...complete,
-        changes: [
-          {
-            op: "update",
-            featureId: "legacy-4321",
-            feature: { type: "Feature", geometry: null, properties: { objectid: 4321 } },
-          },
-        ],
-        attributes: { objectid: 4321, status: "assigned" },
-      }),
-    ).toThrow(/geometry after-image/u);
-    expect(() =>
-      decodeHonuaServerRealtimeEvent({
-        ...complete,
-        geometry: undefined,
-        attributes: { objectid: 4321, status: "assigned" },
-      }),
-    ).toThrow(/geometry after-image/u);
-    expect(() =>
-      decodeHonuaServerRealtimeEvent({
-        ...complete,
-        geometry: null,
-      }),
-    ).toThrow(/attributes after-image/u);
-    expect(() =>
-      decodeHonuaServerRealtimeEvent({
-        ...complete,
-        feature: { type: "Feature", geometry: null, properties: { objectid: 4321 } },
-        geometry: null,
-      }),
-    ).toThrow(/attributes after-image/u);
-    expect(() =>
-      decodeHonuaServerRealtimeEvent({
-        ...complete,
-        op: "update",
-        feature: { type: "Feature", geometry: null, properties: { objectid: 4321 } },
-        geometry: null,
-      }),
-    ).toThrow(/attributes after-image/u);
-    expect(() =>
-      decodeHonuaServerRealtimeEvent({
-        ...complete,
-        geometry: null,
-        attributes: null,
-      }),
-    ).toThrow(/attributes after-image/u);
-  });
-
-  it.each([
-    ["operation", { operation: "truncate", serviceId: "incidents", featureId: "1", geometry: null, attributes: {} }],
-    ["feature id", { operation: "update", serviceId: "incidents", featureId: {}, geometry: null, attributes: {} }],
-    ["service id", { operation: "update", serviceId: 42, featureId: "1", geometry: null, attributes: {} }],
-    [
-      "cursor object",
-      { operation: "update", serviceId: "incidents", featureId: "1", cursor: {}, geometry: null, attributes: {} },
-    ],
-    [
-      "cursor integer",
-      { operation: "update", serviceId: "incidents", featureId: "1", cursor: 1.5, geometry: null, attributes: {} },
-    ],
-  ])("rejects an invalid current-server %s", (_label, invalid) => {
-    expect(() =>
-      decodeHonuaServerRealtimeEvent({
-        type: "feature-change",
-        ...invalid,
-      }),
-    ).toThrow(HonuaRealtimeResumeError);
-  });
-
-  it.each(["status", "error", "heartbeat"])(
-    "gives the current-server operation discriminator precedence over colliding %s type",
-    (type) => {
-      expect(() =>
-        decodeHonuaServerRealtimeEvent({
-          type,
-          status: "connected",
-          terminal: false,
-          operation: "truncate",
-          serviceId: "incidents",
-          featureId: "1",
-          geometry: null,
-          attributes: {},
-        }),
-      ).toThrow(/current feature-change operation/u);
-    },
-  );
-
-  it("decodes a valid current-server change despite a colliding generic type", () => {
-    const event = decodeHonuaServerRealtimeEvent({
-      type: "status",
-      status: "connected",
-      operation: "update",
-      serviceId: "incidents",
-      featureId: "1",
-      geometry: null,
-      attributes: { objectid: 1, status: "assigned" },
-    });
-
-    expect(event).toMatchObject({
-      type: "delta",
-      upserts: [
-        {
-          id: "1",
-          sourceId: "incidents",
-          feature: {
-            type: "Feature",
-            id: "1",
-            geometry: null,
-            properties: { objectid: 1, status: "assigned" },
-          },
-        },
-      ],
-    });
-  });
-
-  it("normalizes current honua-server connection statuses to the public live status", () => {
-    expect(
-      decodeHonuaServerRealtimeEvent({
-        type: "status",
-        status: "connected",
-        sessionId: "session-1",
-      }),
-    ).toEqual({
-      type: "status",
-      status: "live",
-      sessionId: "session-1",
-    });
-  });
-
   it("passes through status envelopes unchanged", () => {
     const event = decodeHonuaServerRealtimeEvent({
       type: "status",
@@ -392,16 +160,9 @@ describe("honua-server realtime preset", () => {
       code: "invalid-event",
       sdkCode: "realtime.protocol.terminal",
       retryable: false,
+      cause: rawError,
     });
-    expect(event.error).not.toHaveProperty("cause");
-    expect(event.error).not.toBe(rawError);
-    expect(event).toMatchObject({ type: "error", code: "invalid-event", terminal: true });
-    expect(event).not.toHaveProperty("cursor");
-    expect(event).not.toHaveProperty("authorization");
-    expect(event).not.toHaveProperty("token");
-    expect(event).not.toHaveProperty("payload");
-    expect(event).not.toHaveProperty("filter");
-    const serialized = JSON.stringify(event);
+    const serialized = JSON.stringify(event.error);
     for (const secret of [
       "raw-cursor-secret",
       "raw-header-secret",

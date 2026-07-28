@@ -42,52 +42,31 @@ export function normalizeRealtimeErrorEvent<TFeature>(
   event: RealtimeFeatureEvent<TFeature>,
 ): RealtimeFeatureEvent<TFeature> {
   if (event.type !== "error") return event;
-  const terminal = event.terminal === true;
-  const code = terminal ? "invalid-event" : normalizeReconnectableWireCode(event.code);
-  const error = realtimeFailure(
-    code,
-    terminal
-      ? "Realtime stream reported a terminal protocol failure."
-      : code === "cursor-expired"
-        ? "Realtime stream reported that its resume cursor expired."
-        : code === "resume-unsupported"
-          ? "Realtime stream reported that resume is unsupported."
-          : "Realtime stream reported a reconnectable transport failure.",
-    undefined,
-  );
+  const code = event.terminal ? "invalid-event" : "transport-gap";
+  if (event.error instanceof HonuaRealtimeResumeError && isHonuaSdkError(event.error) && event.error.code === code)
+    return event;
   return {
-    type: "error",
-    code,
-    error,
-    ...(typeof event.terminal === "boolean" ? { terminal: event.terminal } : {}),
-    ...(isNonNegativeFiniteNumber(event.retryAfterMs) ? { retryAfterMs: event.retryAfterMs } : {}),
-    ...(isNonNegativeFiniteNumber(event.receivedAt) ? { receivedAt: event.receivedAt } : {}),
+    ...event,
+    error: realtimeFailure(
+      code,
+      event.terminal
+        ? "Realtime stream reported a terminal protocol failure."
+        : "Realtime stream reported a reconnectable transport failure.",
+      event.error,
+    ),
   };
 }
 
 export type RealtimeTransportFailureCode = "consumer-failed" | "delivery-failed" | "invalid-event" | "transport-gap";
-export type RealtimeWireFailureCode = RealtimeTransportFailureCode | "cursor-expired" | "resume-unsupported";
 
 export function realtimeFailure(
-  code: RealtimeWireFailureCode,
+  code: RealtimeTransportFailureCode,
   message: string,
   cause: unknown,
 ): HonuaRealtimeResumeError {
   return cause instanceof HonuaRealtimeResumeError && isHonuaSdkError(cause) && cause.code === code
     ? cause
-    : cause === undefined
-      ? new HonuaRealtimeResumeError(code, message)
-      : new HonuaRealtimeResumeError(code, message, { cause });
-}
-
-function normalizeReconnectableWireCode(
-  value: string | undefined,
-): "cursor-expired" | "resume-unsupported" | "transport-gap" {
-  return value === "cursor-expired" || value === "resume-unsupported" ? value : "transport-gap";
-}
-
-function isNonNegativeFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+    : new HonuaRealtimeResumeError(code, message, { cause });
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

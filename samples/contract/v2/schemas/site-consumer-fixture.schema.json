@@ -27,21 +27,14 @@
     },
     "input": {
       "type": "object",
-      "comment": "schemaBytes/schemaSha256 content-address the handoff schema itself, the one contract schema handoff.inputs cannot pin. Optional only so a fixture published before this binding existed still validates; strict validation requires them.",
       "required": ["path", "schemaPath", "format", "schemaVersion", "bytes", "sha256"],
-      "dependentRequired": {
-        "schemaBytes": ["schemaSha256"],
-        "schemaSha256": ["schemaBytes"]
-      },
       "properties": {
         "path": { "const": "samples/dist/honua-site-consumer-handoff.v1.json" },
         "schemaPath": { "const": "samples/contract/v2/schemas/site-consumer-handoff.schema.json" },
         "format": { "const": "honua.site.sdk-sample-consumer-handoff.v1" },
         "schemaVersion": { "const": 1 },
         "bytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
-        "sha256": { "type": "string", "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
-        "schemaBytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
-        "schemaSha256": { "type": "string", "maxLength": 64, "pattern": "^[a-f0-9]{64}$" }
+        "sha256": { "type": "string", "maxLength": 64, "pattern": "^[a-f0-9]{64}$" }
       },
       "additionalProperties": false
     },

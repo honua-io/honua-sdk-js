@@ -105,8 +105,6 @@ export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = Object.freeze({
   "realtime.checkpoint.invalid": runtimeClassification("realtime", "validation", false),
   "realtime.sequence.gap": runtimeClassification("realtime", "protocol", true),
   "realtime.protocol.terminal": runtimeClassification("realtime", "protocol", false),
-  "realtime.reconciliation.disposed": runtimeClassification("realtime", "validation", false),
-  "realtime.reconciliation.invalid-option": runtimeClassification("realtime", "validation", false),
   "offline.region.validation": runtimeClassification("offline", "validation", false),
   "offline.region.quota": runtimeClassification("offline", "validation", false),
   "offline.region.integrity": runtimeClassification("offline", "protocol", false),

@@ -231,19 +231,9 @@ export function queryIrSourceIdentityV2(
     geometryEncoding !== undefined &&
     geometryEncoding !== "wkb" &&
     geometryEncoding !== "native" &&
-    geometryEncoding !== "geojson" &&
-    geometryEncoding !== "geoarrow-point" &&
-    geometryEncoding !== "geoarrow-linestring" &&
-    geometryEncoding !== "geoarrow-polygon" &&
-    geometryEncoding !== "geoarrow-multipoint" &&
-    geometryEncoding !== "geoarrow-multilinestring" &&
-    geometryEncoding !== "geoarrow-multipolygon"
+    geometryEncoding !== "geojson"
   ) {
     throw new HonuaQueryPlanningError("invalid-query", "GeoParquet geometry encoding identity is invalid");
-  }
-  const nativeDimensions = descriptor.locator.geoparquet?.nativeDimensions;
-  if (nativeDimensions !== undefined && nativeDimensions !== "xy" && nativeDimensions !== "xyz") {
-    throw new HonuaQueryPlanningError("invalid-query", "GeoParquet native geometry dimensions identity is invalid");
   }
   const effectiveSchema = geoparquetEffectiveSchema(context.effectiveSchema);
   return deepFreeze({
@@ -258,7 +248,6 @@ export function queryIrSourceIdentityV2(
       ...(geometryColumn ? { geometryColumn } : {}),
       ...(geometryEncoding ? { geometryEncoding } : {}),
       ...(bboxColumn ? { bboxColumn } : {}),
-      ...(nativeDimensions ? { nativeDimensions } : {}),
       ...(effectiveSchema ? { effectiveSchema } : {}),
     },
     authorizationScope,
@@ -389,7 +378,6 @@ function geoparquetIdentity(
     ...(geometryColumn ? { geometryColumn } : {}),
     ...(geoparquet?.geometryEncoding ? { geometryEncoding: geoparquet.geometryEncoding } : {}),
     ...(geoparquet?.bboxColumn ? { bboxColumn: geoparquet.bboxColumn } : {}),
-    ...(geoparquet?.nativeDimensions ? { nativeDimensions: geoparquet.nativeDimensions } : {}),
   };
 }
 

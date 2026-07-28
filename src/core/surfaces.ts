@@ -28,7 +28,6 @@ import type {
 import type { SourceId } from "../contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
-import { HonuaCapabilityNotSupportedError } from "./errors.js";
 import type { OgcApiLayoutMode } from "./ogc-endpoint-layout.js";
 import { encodeServiceIdPath } from "./path-utils.js";
 import type {
@@ -349,50 +348,19 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
 
     const features: HonuaTypedFeature<T>[] = [];
     let offset = startingOffset;
-    // Advance the page cursor through the top-level `resultOffset` /
-    // `resultRecordCount` fields on `QueryFeaturesRequest`, not
-    // `extraParams`. The REST mapper (`queryFeaturesRest`) honors both
-    // identically, but the gRPC-web request mapper (`toProtoQueryRequest`)
-    // only ever reads the top-level fields; nesting the cursor under
-    // `extraParams` silently dropped it on the gRPC transport and made every
-    // page repeat page one for a full/exact-page result set (issue #663).
-    let previousPageSignature: string | undefined;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
-        // Strip any caller-supplied `extraParams.resultOffset` /
-        // `resultRecordCount` so it cannot silently win over the computed
-        // top-level cursor on the wire (`appendQueryExtraParams` applies
-        // `extraParams` after the top-level fields on the REST transport).
-        extraParams: withoutPagingExtraParams(request.extraParams),
-        resultOffset: offset,
-        resultRecordCount: pageSize,
+        extraParams: {
+          ...(request.extraParams ?? {}),
+          resultOffset: offset,
+          resultRecordCount: pageSize,
+        },
       });
 
       const pageFeatures = response.features ?? [];
       if (pageFeatures.length === 0) {
         break;
-      }
-
-      if (this.client.isGrpcWeb) {
-        // Defense in depth (REQ-002): even with the cursor now threaded
-        // through the field the gRPC mapper actually reads, fail closed
-        // rather than loop if a server implementation still returns an
-        // identical page after the offset advanced (e.g. a nonconforming
-        // gRPC facade that ignores `resultOffset`). Looping here previously
-        // meant an unbounded repeat of the first page for exact-page-boundary
-        // result sets.
-        const signature = grpcPageOffsetSignature(response, pageFeatures);
-        if (previousPageSignature !== undefined && signature === previousPageSignature) {
-          throw new HonuaCapabilityNotSupportedError("queryAll", "grpc", `${this.serviceId}/${this.layerId}`, {
-            context: {
-              reason:
-                "gRPC transport returned an identical page after resultOffset advanced; gRPC-aware pagination cannot be honored for this request.",
-              resultOffset: offset,
-            },
-          });
-        }
-        previousPageSignature = signature;
       }
 
       features.push(...pageFeatures);
@@ -2703,47 +2671,6 @@ function normalizeOffset(offset: number | undefined): number {
     return 0;
   }
   return Math.max(0, Math.trunc(offset));
-}
-
-/**
- * Returns `extraParams` with `resultOffset` / `resultRecordCount` removed, so
- * a caller-supplied `extraParams` cannot be applied after (and therefore
- * override) the paging cursor `queryFeaturesAll` computes for each page. The
- * REST wire mapper (`appendQueryExtraParams`) applies `extraParams` after the
- * top-level query fields, so leaving these keys in place would let a stray
- * `extraParams.resultOffset` silently win over the loop's own cursor.
- */
-function withoutPagingExtraParams(
-  extraParams: Record<string, string | number | boolean> | undefined,
-): Record<string, string | number | boolean> | undefined {
-  if (!extraParams) {
-    return undefined;
-  }
-  const { resultOffset: _resultOffset, resultRecordCount: _resultRecordCount, ...rest } = extraParams;
-  return rest;
-}
-
-/**
- * Produces a cheap identity signature for a query page so
- * `HonuaFeatureLayer.queryFeaturesAll` can detect a gRPC transport that
- * returns the same page again after the `resultOffset` cursor advanced
- * (REQ-002 of issue #663: fail closed rather than loop or silently repeat a
- * page). Prefers the response's declared object-id field, present on every
- * GeoServices-shaped feature response; falls back to serializing the raw
- * attributes when the id field is unavailable.
- */
-function grpcPageOffsetSignature(
-  response: { objectIdFieldName?: string },
-  features: readonly { attributes: unknown }[],
-): string {
-  const idField = response.objectIdFieldName;
-  if (idField) {
-    const objectIds = features.map((feature) => (feature.attributes as Record<string, unknown> | undefined)?.[idField]);
-    if (objectIds.every((objectId) => objectId !== undefined && objectId !== null)) {
-      return JSON.stringify(objectIds);
-    }
-  }
-  return JSON.stringify(features);
 }
 
 function normalizeTotalLimit(limit: number | undefined): number | undefined {

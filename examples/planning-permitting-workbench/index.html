@@ -3,380 +3,263 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f4f0" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d1311" />
-    <meta
-      name="description"
-      content="Search a parcel, run bounded hazard analysis, and submit a metadata-backed permit — every step reading the capability truth the service actually advertises."
-    />
-    <title>Maui Planning &amp; Permitting Workbench — Honua JavaScript SDK</title>
+    <title>Maui Planning &amp; Permitting Workbench</title>
   </head>
-  <body class="hn-app">
-    <a class="hn-skip-link" href="#review-board-module">Skip to planning workbench</a>
-
-    <header class="masthead">
-      <div class="masthead-inner">
-        <div class="masthead-identity">
-          <p class="hn-eyebrow">Honua planning</p>
-          <h1 class="hn-h1 masthead-title">Planning &amp; Permitting Workbench</h1>
-          <p class="masthead-copy">
-            Maui Nui parcels, zoning, and flood hazard in one linked context. Search, bound the analysis, then submit
-            only the permit edits the source advertises.
-          </p>
-        </div>
-        <div class="masthead-aside">
-          <div class="masthead-controls">
-            <span id="tier-badge" class="hn-badge hn-badge--outline">Community + Pro</span>
-            <button id="theme-toggle" class="hn-btn hn-btn--quiet hn-btn--sm" type="button">Theme: auto</button>
-          </div>
-          <nav class="module-switcher" aria-label="Workbench modules" role="tablist">
-            <button id="tab-review-board" type="button" role="tab" data-module="review-board" aria-selected="true" aria-controls="review-board-module">Review Board</button>
-            <button id="tab-query-analysis" type="button" role="tab" data-module="query-analysis" aria-selected="false" aria-controls="query-analysis-module" tabindex="-1">Query &amp; Analysis</button>
-            <button id="tab-permit-editing" type="button" role="tab" data-module="permit-editing" aria-selected="false" aria-controls="permit-editing-module" tabindex="-1">Permit Editing</button>
-          </nav>
-        </div>
-      </div>
-    </header>
-
+  <body>
     <main class="workbench-shell">
       <aside class="left-rail" aria-label="Workbench controls">
-        <section class="hn-panel rail-panel">
-          <div class="hn-panel-header">
-            <h2 class="hn-panel-title">Search</h2>
-            <span id="search-status" class="hn-badge" role="status" aria-live="polite">connecting</span>
+        <header class="app-header">
+          <p class="eyebrow">Honua Planning</p>
+          <h1>Planning &amp; Permitting Workbench</h1>
+          <p class="tier-badge" id="tier-badge">Community + Pro</p>
+        </header>
+
+        <nav class="module-switcher" aria-label="Workbench modules">
+          <button type="button" data-module="review-board" aria-pressed="true">Review Board</button>
+          <button type="button" data-module="query-analysis" aria-pressed="false">Query &amp; Analysis</button>
+          <button type="button" data-module="permit-editing" aria-pressed="false">Permit Editing</button>
+        </nav>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Search</h2>
+            <span id="search-status">geocode</span>
           </div>
-          <div class="hn-panel-body rail-body">
-            <form id="planning-search-form" class="search-form">
-              <div class="hn-field search-field">
-                <label class="hn-field-label" for="search-input">Planning address</label>
-                <input id="search-input" class="hn-input" type="search" value="300 Hana Hwy" placeholder="300 Hana Hwy" autocomplete="off" aria-describedby="search-hint" required />
-              </div>
-              <button id="search-submit" class="hn-btn hn-btn--primary" type="submit" disabled>Find parcel</button>
-            </form>
-            <p id="search-hint" class="hn-field-hint">Uses the public geocoding client, then queries the metadata-discovered parcel source.</p>
-            <ul id="search-results" class="stack-list search-list" aria-label="Planning address suggestions"></ul>
-          </div>
+          <label class="field-label" for="search-input">Address or TMK</label>
+          <input id="search-input" type="search" placeholder="120 Market St / 3-8-001-014" autocomplete="off" />
+          <ul id="search-results" class="stack-list search-list"></ul>
         </section>
 
-        <section class="hn-panel rail-panel">
-          <div class="hn-panel-header">
-            <h2 class="hn-panel-title">Layers</h2>
-            <span id="layer-count" class="hn-register">0 on</span>
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Layers</h2>
+            <span id="layer-count">0 on</span>
           </div>
-          <div class="hn-panel-body rail-body">
-            <label class="source-toggle">
-              <input id="layer-parcels" type="checkbox" checked />
-              <span><strong>Parcels</strong><em id="parcels-status">ready</em></span>
-            </label>
-            <label class="source-toggle">
-              <input id="layer-zoning" type="checkbox" checked />
-              <span><strong>Zoning</strong><em id="zoning-status">ready</em></span>
-            </label>
-            <label class="source-toggle">
-              <input id="layer-flood" type="checkbox" checked />
-              <span><strong>Flood hazard</strong><em id="flood-status">ready</em></span>
-            </label>
-            <label class="source-toggle">
-              <input id="layer-permits" type="checkbox" checked />
-              <span><strong>Permits</strong><em id="permits-status">writable</em></span>
-            </label>
-          </div>
+          <label class="source-toggle">
+            <input id="layer-parcels" type="checkbox" checked />
+            <span><strong>Parcels</strong><em id="parcels-status">ready</em></span>
+          </label>
+          <label class="source-toggle">
+            <input id="layer-zoning" type="checkbox" checked />
+            <span><strong>Zoning</strong><em id="zoning-status">ready</em></span>
+          </label>
+          <label class="source-toggle">
+            <input id="layer-flood" type="checkbox" checked />
+            <span><strong>Flood hazard</strong><em id="flood-status">ready</em></span>
+          </label>
+          <label class="source-toggle">
+            <input id="layer-permits" type="checkbox" checked />
+            <span><strong>Permits</strong><em id="permits-status">writable</em></span>
+          </label>
         </section>
 
-        <section class="hn-panel rail-panel">
-          <div class="hn-panel-header">
-            <h2 class="hn-panel-title">Legend</h2>
-            <span class="hn-register">zoning / flood</span>
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Legend</h2>
+            <span>zoning / flood</span>
           </div>
-          <div class="hn-panel-body rail-body">
-            <h3 class="hn-register rail-group-title">Zoning district</h3>
-            <div id="zoning-legend" class="legend"></div>
-            <h3 class="hn-register rail-group-title">Flood hazard zone</h3>
-            <div id="flood-legend" class="legend"></div>
-          </div>
+          <div id="zoning-legend" class="legend"></div>
+          <div id="flood-legend" class="legend"></div>
         </section>
 
-        <section class="hn-panel rail-panel">
-          <div class="hn-panel-header">
-            <h2 class="hn-panel-title">Extent</h2>
-            <span id="extent-label" class="hn-register">Maui Nui</span>
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Extent</h2>
+            <span id="extent-label">Maui Nui</span>
           </div>
-          <div class="hn-panel-body rail-body">
-            <div id="map-presets" class="button-grid"></div>
-            <p id="extent-readout" class="readout">-</p>
-          </div>
+          <div id="map-presets" class="button-grid"></div>
+          <p id="extent-readout" class="readout">-</p>
         </section>
       </aside>
 
-      <section class="module-stage">
-        <section id="review-board-module" class="module-view" data-active="true" role="tabpanel" aria-labelledby="tab-review-board" tabindex="0">
+      <section class="module-stage" aria-live="polite">
+        <section id="review-board-module" class="module-view" data-active="true">
           <div class="stage-heading">
-            <div class="stage-title">
-              <p class="hn-eyebrow">Review Board</p>
-              <h2 class="hn-h3 stage-headline">Map, parcel table, and detail</h2>
+            <div>
+              <p class="eyebrow">Review Board</p>
+              <h2>Map, Parcel Table, and Detail</h2>
             </div>
             <dl class="summary-strip">
-              <div class="hn-stat"><dt class="hn-stat-label">Parcels</dt><dd id="parcel-count" class="hn-stat-value">0</dd></div>
-              <div class="hn-stat"><dt class="hn-stat-label">Flood-exposed</dt><dd id="flood-count" class="hn-stat-value">0</dd></div>
-              <div class="hn-stat"><dt class="hn-stat-label">Assessed</dt><dd id="assessed-total" class="hn-stat-value">$0</dd></div>
+              <div><dt>Parcels</dt><dd id="parcel-count">0</dd></div>
+              <div><dt>Flood-exposed</dt><dd id="flood-count">0</dd></div>
+              <div><dt>Assessed</dt><dd id="assessed-total">$0</dd></div>
             </dl>
           </div>
 
           <div class="map-workspace">
-            <div id="workbench-map" class="workbench-map hn-map-stage" aria-label="Linked parcel map"></div>
-            <section class="hn-panel queue-panel">
-              <div class="hn-panel-header">
-                <h3 class="hn-panel-title">Parcels</h3>
-                <span id="selection-count" class="hn-register">0 selected</span>
+            <div id="workbench-map" class="workbench-map" aria-label="Linked parcel map"></div>
+            <div class="queue-panel">
+              <div class="panel-heading">
+                <h3>Parcels</h3>
+                <span id="selection-count">0 selected</span>
               </div>
-              <div class="hn-table-wrap table-wrap" tabindex="0" aria-label="Scrollable parcel table">
-                <table class="hn-table">
-                  <caption class="hn-sr-only">Parcels in the current linked planning context</caption>
+              <div class="table-wrap">
+                <table>
                   <thead>
-                    <tr><th scope="col">TMK</th><th scope="col">Address</th><th scope="col">Zoning</th><th scope="col"><span class="hn-sr-only">Open parcel</span></th></tr>
+                    <tr><th>TMK</th><th>Address</th><th>Zoning</th><th></th></tr>
                   </thead>
                   <tbody id="parcel-table-body"></tbody>
                 </table>
               </div>
-            </section>
+            </div>
           </div>
 
-          <section class="hn-panel filter-panel">
-            <div class="hn-panel-header">
-              <h3 class="hn-panel-title">Query filters</h3>
-              <span class="hn-register"><strong id="filter-count">0</strong> active</span>
+          <section class="panel filter-panel">
+            <div class="panel-heading">
+              <h3>Query filters</h3>
+              <span><strong id="filter-count">0</strong> active</span>
             </div>
-            <div class="hn-panel-body filter-row">
-              <div class="hn-field filter-field">
-                <label class="hn-field-label" for="zoning-filter">Zoning</label>
-                <select id="zoning-filter" class="hn-select">
-                  <option value="">Any zone</option>
-                </select>
-              </div>
+            <div class="filter-row">
+              <label class="field-label" for="zoning-filter">Zoning</label>
+              <select id="zoning-filter">
+                <option value="">Any zone</option>
+              </select>
               <label class="checkbox">
                 <input id="flood-filter" type="checkbox" />
                 <span>Regulated flood only</span>
               </label>
-              <button id="clear-filters" class="hn-btn hn-btn--quiet" type="button">Clear</button>
+              <button id="clear-filters" type="button">Clear</button>
             </div>
           </section>
         </section>
 
-        <section id="query-analysis-module" class="module-view" data-active="false" role="tabpanel" aria-labelledby="tab-query-analysis" tabindex="0" hidden>
+        <section id="query-analysis-module" class="module-view" data-active="false">
           <div class="stage-heading">
-            <div class="stage-title">
-              <p class="hn-eyebrow">Query &amp; Analysis</p>
-              <h2 class="hn-h3 stage-headline">Linked map, table, and chart</h2>
+            <div>
+              <p class="eyebrow">Query &amp; Analysis</p>
+              <h2>Linked Map / Table / Chart</h2>
             </div>
             <dl class="summary-strip">
-              <div class="hn-stat"><dt class="hn-stat-label">In AOI</dt><dd id="aoi-count" class="hn-stat-value">0</dd></div>
-              <div class="hn-stat"><dt class="hn-stat-label">Sketch acres</dt><dd id="sketch-acres" class="hn-stat-value">0</dd></div>
-              <div class="hn-stat"><dt class="hn-stat-label">Measure</dt><dd id="measure-readout" class="hn-stat-value">0 m</dd></div>
+              <div><dt>In AOI</dt><dd id="aoi-count">0</dd></div>
+              <div><dt>Sketch acres</dt><dd id="sketch-acres">0</dd></div>
+              <div><dt>Measure</dt><dd id="measure-readout">0 m</dd></div>
             </dl>
           </div>
 
           <div class="analysis-grid">
-            <section class="hn-panel chart-panel">
-              <div class="hn-panel-header">
-                <h3 class="hn-panel-title">Parcels by zoning</h3>
-                <span class="hn-register">shared context</span>
+            <section class="panel chart-panel">
+              <div class="panel-heading">
+                <h3>Parcels by zoning</h3>
+                <span>shared context</span>
               </div>
-              <div class="hn-panel-body">
-                <div id="zoning-chart" class="zoning-chart"></div>
-              </div>
+              <div id="zoning-chart" class="zoning-chart"></div>
             </section>
 
-            <section class="hn-panel">
-              <div class="hn-panel-header">
-                <h3 class="hn-panel-title">Sketch proposed footprint</h3>
-                <span id="sketch-status" class="hn-badge">no sketch</span>
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Sketch proposed footprint</h3>
+                <span id="sketch-status">no sketch</span>
               </div>
-              <div class="hn-panel-body rail-body">
-                <p class="hn-field-hint">Draws a sample AOI ring, then checks it against the flood-hazard overlay.</p>
-                <div class="button-row">
-                  <button id="sketch-footprint" class="hn-btn" type="button">Sketch AOI</button>
-                  <button id="measure-footprint" class="hn-btn" type="button">Measure</button>
-                  <button id="clear-sketch" class="hn-btn hn-btn--quiet" type="button">Clear</button>
-                </div>
-                <ul id="sketch-readout" class="stack-list"></ul>
+              <p class="hint">Draws a sample AOI ring, then checks it against the flood-hazard overlay.</p>
+              <div class="button-row">
+                <button id="sketch-footprint" type="button">Sketch AOI</button>
+                <button id="measure-footprint" type="button">Measure</button>
+                <button id="clear-sketch" type="button">Clear</button>
               </div>
+              <ul id="sketch-readout" class="stack-list"></ul>
             </section>
 
-            <section class="hn-panel" id="analysis-truth" aria-labelledby="analysis-truth-heading">
-              <div class="hn-panel-header">
-                <h3 id="analysis-truth-heading" class="hn-panel-title">Public SDK analysis truth</h3>
-                <span id="analysis-status" class="hn-badge" role="status" aria-live="polite">search first</span>
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Print / export</h3>
+                <span id="print-status">not generated</span>
               </div>
-              <div class="hn-panel-body rail-body">
-                <p class="hn-field-hint">Runs a capped source envelope query before exact client-side geometry and hazard intersection.</p>
-                <button id="run-sdk-analysis" class="hn-btn hn-btn--primary" type="button" disabled>Run bounded analysis</button>
-                <ul id="analysis-truth-list" class="stack-list"></ul>
+              <div class="button-row">
+                <button id="generate-print" type="button">Generate print manifest</button>
+                <button id="export-workspace" type="button">Export workspace</button>
               </div>
-            </section>
-
-            <section class="hn-panel">
-              <div class="hn-panel-header">
-                <h3 class="hn-panel-title">Print / export</h3>
-                <span id="print-status" class="hn-badge">not generated</span>
-              </div>
-              <div class="hn-panel-body rail-body">
-                <div class="button-row">
-                  <button id="generate-print" class="hn-btn" type="button">Generate print manifest</button>
-                  <button id="export-workspace" class="hn-btn" type="button" disabled>Export workspace</button>
-                </div>
-                <pre id="print-json" class="hn-code json-readout" tabindex="0" aria-label="Generated planning export"></pre>
-              </div>
+              <pre id="print-json" class="json-readout"></pre>
             </section>
           </div>
         </section>
 
-        <section id="permit-editing-module" class="module-view" data-active="false" role="tabpanel" aria-labelledby="tab-permit-editing" tabindex="0" hidden>
+        <section id="permit-editing-module" class="module-view" data-active="false">
           <div class="stage-heading">
-            <div class="stage-title">
-              <p class="hn-eyebrow">Permit Editing</p>
-              <h2 class="hn-h3 stage-headline">Metadata-backed permit submission</h2>
+            <div>
+              <p class="eyebrow">Permit Editing</p>
+              <h2>Writable Permit Layer</h2>
             </div>
             <dl class="summary-strip">
-              <div class="hn-stat"><dt class="hn-stat-label">Permits</dt><dd id="permit-count" class="hn-stat-value">0</dd></div>
-              <div class="hn-stat"><dt class="hn-stat-label">Mode</dt><dd id="permit-mode" class="hn-stat-value">update</dd></div>
-              <div class="hn-stat"><dt class="hn-stat-label">Status</dt><dd id="edit-status-readout" class="hn-stat-value">ready</dd></div>
+              <div><dt>Permits</dt><dd id="permit-count">0</dd></div>
+              <div><dt>Mode</dt><dd id="permit-mode">update</dd></div>
+              <div><dt>Status</dt><dd id="edit-status-readout">ready</dd></div>
             </dl>
           </div>
 
           <div class="field-edit-grid">
-            <section class="hn-panel">
-              <div class="hn-panel-header">
-                <h3 class="hn-panel-title">Permits</h3>
-                <button id="new-permit" class="hn-btn hn-btn--sm" type="button">New permit</button>
-              </div>
-              <div class="hn-panel-body">
-                <ul id="permit-list" class="stack-list edit-list"></ul>
-              </div>
-            </section>
-
-            <section class="hn-panel edit-form-panel">
-              <div class="hn-panel-header">
-                <h3 class="hn-panel-title">Permit form</h3>
-                <span id="edit-permit-no" class="hn-register">-</span>
-              </div>
-              <div class="hn-panel-body edit-form-body">
-                <div class="hn-field">
-                  <label class="hn-field-label" for="edit-parcel-field">Parcel TMK</label>
-                  <input id="edit-parcel-field" class="hn-input" type="text" readonly aria-describedby="edit-parcel-hint" />
-                  <p id="edit-parcel-hint" class="hn-field-hint">Set by the public geocode and source-query workflow.</p>
-                </div>
-                <div class="hn-field">
-                  <label class="hn-field-label" for="edit-type-field">Permit type</label>
-                  <select id="edit-type-field" class="hn-select" disabled></select>
-                </div>
-                <div class="hn-field">
-                  <label class="hn-field-label" for="edit-status-field">Status</label>
-                  <select id="edit-status-field" class="hn-select" disabled></select>
-                </div>
-                <div class="hn-field">
-                  <label class="hn-field-label" for="edit-height-field">Proposed height (ft)</label>
-                  <input id="edit-height-field" class="hn-input" type="number" min="0" max="60" step="1" value="28" disabled />
-                </div>
-                <div class="hn-field edit-field--wide">
-                  <label class="hn-field-label" for="edit-description-field">Description</label>
-                  <textarea id="edit-description-field" class="hn-textarea" rows="3" disabled></textarea>
-                </div>
-                <div class="hn-field edit-field--wide">
-                  <label class="hn-field-label" for="permit-scenario">Deterministic submission scenario</label>
-                  <select id="permit-scenario" class="hn-select" disabled>
-                    <option value="success">Success with attachment</option>
-                    <option value="invalid-domain">Invalid metadata domain</option>
-                    <option value="conflict">Version conflict</option>
-                    <option value="attachment-failure">Attachment failure</option>
-                    <option value="unsupported">Unsupported read-only source</option>
-                  </select>
-                </div>
-                <div class="button-row edit-field--wide">
-                  <button id="force-conflict" class="hn-btn" type="button" disabled>Choose conflict</button>
-                  <button id="save-permit" class="hn-btn hn-btn--primary" type="button" aria-describedby="edit-message" disabled>Submit permit</button>
-                </div>
-                <p id="edit-message" class="edit-message edit-field--wide" role="status" aria-live="polite">Connect, search, and analyze before submitting.</p>
-              </div>
-            </section>
-
-            <section class="hn-panel">
-              <div class="hn-panel-header">
-                <h3 class="hn-panel-title">Capability readiness</h3>
-                <span id="edit-capability-state" class="hn-badge" role="status" aria-live="polite">connecting</span>
-              </div>
-              <div class="hn-panel-body">
-                <ul id="edit-readiness-list" class="stack-list"></ul>
-              </div>
-            </section>
-
-            <section class="panel source-editor-panel" id="source-editor-panel" aria-labelledby="source-editor-heading">
+            <section class="panel">
               <div class="panel-heading">
-                <h3 id="source-editor-heading">Applications on file</h3>
-                <span id="source-editor-state" role="status" aria-live="polite">connecting</span>
+                <h3>Permits</h3>
+                <button id="new-permit" type="button">New permit</button>
               </div>
-              <p class="hint">Records read back from the metadata-discovered planning layer. Selecting one opens the production feature editor over the same public source; create and update both travel the contract apply-edits seam.</p>
-              <ul id="application-list" class="stack-list edit-list" aria-label="Planning applications on file"></ul>
+              <ul id="permit-list" class="stack-list edit-list"></ul>
+            </section>
+
+            <section class="panel edit-form-panel">
+              <div class="panel-heading">
+                <h3>Permit form</h3>
+                <span id="edit-permit-no">-</span>
+              </div>
+              <label class="field-label" for="edit-parcel-field">Parcel TMK</label>
+              <input id="edit-parcel-field" type="text" />
+              <label class="field-label" for="edit-type-field">Permit type</label>
+              <select id="edit-type-field">
+                <option value="residential">Residential</option>
+                <option value="commercial">Commercial</option>
+                <option value="grading">Grading</option>
+                <option value="shoreline">Shoreline</option>
+                <option value="demolition">Demolition</option>
+              </select>
+              <label class="field-label" for="edit-status-field">Status</label>
+              <select id="edit-status-field">
+                <option value="intake">Intake</option>
+                <option value="under-review">Under review</option>
+                <option value="approved">Approved</option>
+                <option value="issued">Issued</option>
+                <option value="denied">Denied</option>
+              </select>
+              <label class="field-label" for="edit-reviewer-field">Reviewer</label>
+              <input id="edit-reviewer-field" type="text" />
+              <label class="field-label" for="edit-valuation-field">Valuation ($)</label>
+              <input id="edit-valuation-field" type="number" min="0" step="1000" />
+              <label class="field-label" for="edit-description-field">Description</label>
+              <textarea id="edit-description-field" rows="3"></textarea>
               <div class="button-row">
-                <button id="application-new" type="button" disabled>New application for this parcel</button>
-                <button id="application-refresh" type="button" disabled>Re-read from source</button>
+                <button id="force-conflict" type="button">Force conflict</button>
+                <button id="save-permit" type="button">Save permit</button>
               </div>
+              <p id="edit-message" class="edit-message">-</p>
+            </section>
 
-              <honua-feature-editor id="application-editor" label="Planning application"></honua-feature-editor>
-
+            <section class="panel">
               <div class="panel-heading">
-                <h3 id="reconciliation-heading">Reconciliation</h3>
-                <span id="reconciliation-state" role="status" aria-live="polite">no submission</span>
+                <h3>Capability readiness</h3>
+                <span id="edit-capability-state">-</span>
               </div>
-              <dl id="reconciliation-list" class="metric-list" aria-labelledby="reconciliation-heading"></dl>
-              <p id="reconciliation-message" class="edit-message" role="status" aria-live="polite">Select an application to edit, or start a new one for the searched parcel.</p>
-
-              <fieldset class="rehearsal-fieldset">
-                <legend>Deterministic fixture rehearsal</legend>
-                <p class="hint">Asks the fixture service to behave like a contested or briefly degraded system. Nothing is simulated in the browser.</p>
-                <div class="button-row">
-                  <button id="rehearse-concurrent-edit" type="button" disabled>Simulate concurrent reviewer edit</button>
-                  <button id="rehearse-service-outage" type="button" disabled>Arm one-shot service outage</button>
-                </div>
-                <p id="rehearsal-status" class="hint" role="status" aria-live="polite">No rehearsal armed.</p>
-              </fieldset>
+              <ul id="edit-readiness-list" class="stack-list"></ul>
             </section>
           </div>
         </section>
       </section>
 
       <aside class="detail-rail" aria-label="Parcel detail">
-        <section class="hn-panel rail-panel workflow-truth" id="workflow-truth" aria-labelledby="workflow-truth-heading">
-          <div class="hn-panel-header">
-            <h2 id="workflow-truth-heading" class="hn-panel-title">Public workflow truth</h2>
-            <span id="workflow-state" class="hn-badge" role="status" aria-live="polite">connecting</span>
+        <section class="panel detail-panel">
+          <div class="panel-heading">
+            <h2>Detail</h2>
+            <span id="detail-source">-</span>
           </div>
-          <div class="hn-panel-body rail-body">
-            <dl id="workflow-truth-list" class="metric-list"></dl>
-            <p id="workflow-degradation" class="edit-message" role="status" aria-live="polite">Waiting for metadata discovery.</p>
-          </div>
+          <h3 id="detail-title">No selected parcel</h3>
+          <p id="detail-summary">-</p>
+          <dl id="detail-attributes" class="metric-list"></dl>
+          <div id="flood-warning" class="flood-warning" data-active="false"></div>
         </section>
 
-        <section class="hn-panel rail-panel detail-panel">
-          <div class="hn-panel-header">
-            <h2 class="hn-panel-title">Detail</h2>
-            <span id="detail-source" class="hn-register">-</span>
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Linked context</h2>
+            <span id="context-active-view">review-board</span>
           </div>
-          <div class="hn-panel-body rail-body">
-            <h3 id="detail-title" class="hn-h3 detail-title">No selected parcel</h3>
-            <p id="detail-summary" class="detail-summary">-</p>
-            <dl id="detail-attributes" class="metric-list"></dl>
-            <div id="flood-warning" class="flood-warning" data-active="false"></div>
-          </div>
-        </section>
-
-        <section class="hn-panel rail-panel">
-          <div class="hn-panel-header">
-            <h2 class="hn-panel-title">Linked context</h2>
-            <span id="context-active-view" class="hn-register">review-board</span>
-          </div>
-          <div class="hn-panel-body">
-            <pre id="context-json" class="hn-code json-readout" tabindex="0" aria-label="Linked planning context"></pre>
-          </div>
+          <pre id="context-json" class="json-readout"></pre>
         </section>
       </aside>
     </main>

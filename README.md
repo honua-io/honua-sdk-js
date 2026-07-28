@@ -14,8 +14,8 @@
 protocols your data already speaks (Esri GeoServices, OGC API Features / Tiles / Maps /
 Processes, STAC, WMS, WMTS, WFS 2.0, OData v4), a one-call data→map bridge and MapLibre
 runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatibility
-layer with a codemod. MapLibre is the stable renderer path; optional Cesium and Kepler.gl
-integration remains pre-1.0.
+layer with a codemod — everything around the renderer, so MapLibre (2D) and Cesium (3D)
+can do what they do best.
 
 **Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and is
 removed at 6.0 — planned for **Q1 2027**. If your app constructs one, that code stops
@@ -32,7 +32,7 @@ Atlas FeatureServer becomes a styled, interactive MapLibre map:
 ```ts doc-test=compile
 import { connect } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
-import * as maplibregl from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 
 const endpoint = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0";
 const map = new maplibregl.Map({ container: "map", style: "https://demotiles.maplibre.org/style.json", center: [-98, 39], zoom: 3 });
@@ -79,19 +79,14 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.1.2-beta.0`). The 22-entrypoint stable tier is frozen and guarded <!-- x-release-please-version -->
-by an API-surface gate; 16 experimental subpaths may change before 1.0, and
+**Release status: beta** (`0.1.0-beta.0`). The 22-entrypoint stable tier is frozen and guarded
+by an API-surface gate; 12 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
 [`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
 site/sample consumer contract, and
 [the scope decision](./docs/decisions/scope-split-and-1.0.md).
-
-This README tracks the current development branch. The version above is its
-package baseline, not a claim that every capability described here is already
-present in the npm artifact with that version. For published behavior, use the
-[tagged release documentation](./docs/documentation-versions.md).
 <!-- support-manifest:release:end -->
 
 📚 **Hosted docs:** [honua-io.github.io/honua-sdk-js](https://honua-io.github.io/honua-sdk-js/) —
@@ -120,9 +115,7 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
   `HonuaCapabilityNotSupportedError` instead of returning empty results.
 - **Data to map in one call.** `connect()` + `mountSource()` turn a bare endpoint into a
   styled, interactive MapLibre layer; `loadMapPackage(...)` + `HonuaMapRuntime` render
-  server-authored `MapPackage`s. This is the stable renderer path. OGC web-map support
-  follows the generated capability matrix; Cesium integration lives on the pre-1.0
-  `@honua/app-platform/scene-workspace` path, and `@honua/sdk-js/kepler` is experimental.
+  server-authored `MapPackage`s. Cesium, kepler.gl, and OGC web-map sources are first-class.
 - **TypeScript first.** `strict` + `verbatimModuleSyntax`, exported types for every public
   symbol, declaration maps, and JSDoc on the public client surface.
 - **Migrate, don't rewrite.** `FeatureLayerCompat`, `MapImageLayerCompat`, `MapViewCompat`,
@@ -169,9 +162,8 @@ claim, execution mode, and evidence link.
 In the spirit of the [migration punch list](./docs/migration-punch-list.md), the
 non-goals are explicit rather than implied:
 
-- **It is not a rendering engine, on purpose.** The stable 2D runtime rides
-  [MapLibre GL JS](https://maplibre.org/); optional pre-1.0 3D integration rides
-  [CesiumJS](https://cesium.com/platform/cesiumjs/).
+- **It is not a rendering engine, on purpose.** 2D rendering rides
+  [MapLibre GL JS](https://maplibre.org/) and 3D rides [CesiumJS](https://cesium.com/platform/cesiumjs/);
   Honua does not fork, wrap-and-hide, or compete with either. If you need renderer
   features (custom shaders, globe projections, visual effects), take them from the
   renderer directly — Honua stays out of the way.
@@ -204,13 +196,11 @@ published from this repository for consumers who only want a subset:
 | [`@honua/geometry`](https://www.npmjs.com/package/@honua/geometry) | Curated turf/proj4 geometry ops + reprojection ([`docs/geometry.md`](./docs/geometry.md)) |
 | [`@honua/sdk`](https://www.npmjs.com/package/@honua/sdk) | Core client + contract only (split build) |
 | [`@honua/sdk-esri-compat`](https://www.npmjs.com/package/@honua/sdk-esri-compat) | ArcGIS JS compatibility layer (split build) |
-| [`@honua/honua-migrate`](https://www.npmjs.com/package/@honua/honua-migrate) | Migration codemod + scanner, owned by the [`honua-migrate`](https://github.com/honua-io/honua-migrate) repository |
+| [`@honua/honua-migrate`](https://www.npmjs.com/package/@honua/honua-migrate) | Migration codemod + scanner (split build) |
 | [`@honua/app-platform`](https://www.npmjs.com/package/@honua/app-platform) | Application-platform surfaces extracted from the SDK (own pre-1.0 cadence) |
 
-The SDK split builds exist for packaging workflows and subset consumers;
-details in [`docs/split-packages.md`](./docs/split-packages.md). Existing
-`@honua/sdk-js/migration` imports follow the
-[migration-tool transition policy](./docs/migration-tool-transition.md).
+The split builds exist for packaging workflows and subset consumers; details in
+[`docs/split-packages.md`](./docs/split-packages.md).
 
 ### Build-less / CDN usage
 
@@ -298,6 +288,7 @@ const dataset = createDataset({
 
 const states = dataset.source("apportionment")!;
 const result = await states.queryAll({
+  where: "Seats_2020 > 10",
   outFields: ["NAME", "Total_Pop_2020", "Seats_2020"],
   returnGeometry: true,
   pagination: { limit: 100 },
@@ -306,26 +297,12 @@ const result = await states.queryAll({
 console.log(`Loaded ${result.features.length} states`);
 ```
 
-The starter deliberately omits an attribute filter. The protocol-neutral
-`Query.where` member remains operational only as deprecated, source-native v1
-compatibility; its grammar changes with the adapter. A stable semantic-filter
-builder is not yet wired into `Source.query()`. New code that can accept
-pre-1.0 API changes can use the typed semantic AST from the experimental
-[`@honua/sdk-js/query-planner`](./docs/query-planner.md), whose examples are
-compile-checked.
+The same code works against any GeoServices, OGC API Features, WFS, OData, or
+STAC endpoint. Migrating from `esri-leaflet`? The raw GeoServices shape and the
+`esri-compat` drop-in point at `services.arcgis.com`-style URLs unchanged:
 
-The same unfiltered query envelope works against any GeoServices, OGC API
-Features, WFS, OData, or STAC endpoint. Migrating from `esri-leaflet`? The raw
-GeoServices API remains available, but its `where` member below is explicitly
-GeoServices SQL rather than the deprecated protocol-neutral `Query.where`:
-
-```ts doc-test=compile
-import { HonuaClient } from "@honua/sdk-js";
-
-const geoServicesClient = new HonuaClient({
-  baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis",
-});
-const { features } = await geoServicesClient.queryFeatures({
+```ts doc-test=skip reason="partial excerpt requires application host context"
+const { features } = await client.queryFeatures({
   serviceId: "2020_Census_State_Apportionment",
   layerId: 0,
   where: "1=1",
@@ -391,7 +368,7 @@ honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o m
 
 Authentication resolves from `--api-key`, `HONUA_API_KEY`, or a saved
 `honua login`. Run `honua --help` for the full command surface. This is the
-recommended command surface for docs and demos.
+recommended replacement for `curl` in docs and demos.
 
 For support-safe interoperability evidence, `honua doctor` emits a local,
 schema-validated diagnostic bundle with explicit classification/consent,
@@ -404,7 +381,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 32 executable examples: 4 qualified golden samples, 11 recipes, 15 labs, and 2 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 32 executable examples: 1 qualified golden sample, 12 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 6 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at

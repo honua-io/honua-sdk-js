@@ -1,7 +1,6 @@
 import "maplibre-gl/dist/maplibre-gl.css";
-import "../../shared/maplibre-vite-worker.js";
 
-import * as maplibregl from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 
 import type { AgentEnvelopeSigner, AgentEnvelopeVerifier } from "@honua/sdk-js/agent-safety";
 import {

@@ -9,9 +9,6 @@ const PARTIAL_EXPLANATION_PATTERN =
 const MAX_DISPOSITIONS = 20;
 const MAX_EXPLANATION_LENGTH = 160;
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
-const DERIVED_ARTIFACT_BRANCH_PATTERN = /^automation\/derived-artifacts-[1-9][0-9]*-[1-9][0-9]*$/u;
-
-export const DERIVED_ARTIFACT_EXEMPTION = "Derived-artifact regeneration";
 
 export class PullRequestDispositionError extends Error {
   constructor(code, message) {
@@ -51,14 +48,14 @@ export function automationExemption(input) {
   }
 
   const repository = normalizeRepository(input.repository);
-  const sameRepositoryAutomation =
+  const sameRepositoryRelease =
     /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/u.test(repository) &&
     normalizeRepository(input.baseRepository) === repository &&
     normalizeRepository(input.headRepository) === repository;
   if (
     botActor &&
     (login === "github-actions" || login === "github-actions[bot]" || login === "app/github-actions") &&
-    sameRepositoryAutomation &&
+    sameRepositoryRelease &&
     String(input.baseRefName ?? "") === "trunk" &&
     head === "release-please--branches--trunk" &&
     SHA_PATTERN.test(String(input.baseSha ?? "")) &&
@@ -66,18 +63,6 @@ export function automationExemption(input) {
     pullRequestTitle === "chore: release trunk"
   ) {
     return "Release Please automation";
-  }
-  if (
-    botActor &&
-    (login === "github-actions" || login === "github-actions[bot]" || login === "app/github-actions") &&
-    sameRepositoryAutomation &&
-    String(input.baseRefName ?? "") === "trunk" &&
-    DERIVED_ARTIFACT_BRANCH_PATTERN.test(head) &&
-    SHA_PATTERN.test(String(input.baseSha ?? "")) &&
-    SHA_PATTERN.test(String(input.headSha ?? "")) &&
-    pullRequestTitle === "chore(evidence): regenerate derived artifacts"
-  ) {
-    return DERIVED_ARTIFACT_EXEMPTION;
   }
   return null;
 }

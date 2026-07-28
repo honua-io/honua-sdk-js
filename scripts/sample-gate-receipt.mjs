@@ -83,10 +83,8 @@ function invariant(condition, message) {
 // set (PR CI), the evidence-neutral source-digest BINDING is relaxed so gate
 // evidence committed by a prior trunk reseal is accepted without requiring the
 // PR author to reseal against their tree. Everything else -- receipt schema,
-// 7-day freshness, artifact digests, gate semantics, run-root and command
-// bindings -- stays fully enforced. The producer digest is also deferred
-// because a feature PR can legitimately change the producer before trunk has
-// resealed its receipts. Defaults to strict (fail-closed):
+// 7-day freshness, producer/artifact digests, gate semantics, run-root and
+// command bindings -- stays fully enforced. Defaults to strict (fail-closed):
 // trunk pushes and the regenerate-derived-artifacts workflow leave it unset, so
 // the reseal there remains strictly bound to the trunk source digest.
 function derivedArtifactsRelaxed() {
@@ -156,96 +154,12 @@ const EVIDENCE_NEUTRAL_EXCLUDED_ROOTS = Object.freeze([
   "examples/migration-workbench/public/artifacts",
 ]);
 
-// Digest narrowing (honua-io/honua-sdk-js#746 REQ-003): the excluded roots
-// above remove regenerated OUTPUT and non-runtime CI config from an
-// otherwise whole-tree digest. That still leaves the digest a function of
-// content that can never influence what the maplibre-quickstart sample
-// renders or how it behaves -- docs/ prose (outside docs/examples/), mcp/,
-// conformance/, eval/, and so on -- so an unrelated merge (a typo fix in
-// docs/, an mcp/ feature) still invalidated sample evidence and forced a
-// reseal (#746 context). This allowlist is the positive half of the digest:
-// only these roots can ever be included, and the exclusions above are then
-// subtracted from that included set (e.g. samples/evidence stays out even
-// though samples/ is included). Every root here falls into one of four
-// categories:
-//  1. A sample's own source (examples/, docs/examples/ -- see
-//     sample-runner.mjs's sourcePath check) or the SDK runtime it imports
-//     from source mode (src/).
-//  2. The harness/config that produces and verifies sample evidence itself
-//     (samples/, config/, and the root Playwright configs each sample's npm
-//     script loads implicitly or via an explicit playwrightConfig override --
-//     playwright.config.mjs is the default every `playwright test <file>`
-//     invocation resolves, playwright.first-map.config.mjs is
-//     maplibre-quickstart's explicit override carrying the release-matrix
-//     Firefox/xvfb projects from #736 -- and test/playwright/, holding every
-//     sample's playwrightFile plus shared helpers like
-//     sample-gate-assertions.mjs).
-//  3. Every input scripts/lib/prepared-sdk-artifact.mjs itself treats as an
-//     SDK build input (BUILD_INPUT_ROOTS / BUILD_INPUT_FILES there): src,
-//     test, bench, scripts, config, examples, package.json, package-lock.json,
-//     tsconfig.json, vitest.config.ts, .nvmrc, LICENSE. Packed-mode sample
-//     evidence (`sample-runner.mjs`'s preparePackedSdk) calls
-//     verifyPreparedSdkArtifact, which npm-packs the *actual* dist/ tsc
-//     compiled from src/test/bench (tsconfig's rootDir "." pulls in anything
-//     transitively reachable, not just its "include" globs -- see that
-//     file's own comment and honua-io/honua-sdk-js#652) and embeds real file
-//     hashes in the packed-build gate report. If any of these could change
-//     without moving the digest, a later `samples:verify` would keep
-//     accepting a previously sealed receipt's stored hashes even though a
-//     rebuild at the new tree could produce different packed bytes -- so
-//     test/ and bench/ (whole roots, not just the fixtures/corpus
-//     prepared-sdk-artifact.mjs's own comment calls out) must stay in scope
-//     here even though most individual test/bench changes are unrelated to
-//     any one sample's rendered behavior.
-//  4. A dependency manifest that changes what gets installed
-//     (package.json/package-lock.json -- already covered by (3) too).
-// Every root omitted here must be genuinely incapable of affecting sample
-// behavior OR how its evidence is captured/verified/packed -- widen this
-// list deliberately.
-const EVIDENCE_NEUTRAL_INCLUDED_ROOTS = Object.freeze([
-  "examples",
-  "docs/examples",
-  "src",
-  "samples",
-  "test",
-  "bench",
-  "scripts",
-  "config",
-  "package.json",
-  "package-lock.json",
-  "tsconfig.json",
-  "vitest.config.ts",
-  ".nvmrc",
-  "LICENSE",
-  "playwright.config.mjs",
-  "playwright.first-map.config.mjs",
-]);
-
-function evidenceNeutralIncludePathspecs() {
-  return [...EVIDENCE_NEUTRAL_INCLUDED_ROOTS];
-}
-
 function evidenceNeutralExcludePathspecs() {
   return EVIDENCE_NEUTRAL_EXCLUDED_ROOTS.map((root) => `:(exclude)${root}`);
 }
 
-function evidenceNeutralPathspecs() {
-  return [...evidenceNeutralIncludePathspecs(), ...evidenceNeutralExcludePathspecs()];
-}
-
-function isEvidenceNeutralIncluded(file) {
-  return EVIDENCE_NEUTRAL_INCLUDED_ROOTS.some((root) => file === root || file.startsWith(`${root}/`));
-}
-
 function isEvidenceNeutralExcluded(file) {
   return EVIDENCE_NEUTRAL_EXCLUDED_ROOTS.some((root) => file === root || file.startsWith(`${root}/`));
-}
-
-// A file is inside the evidence-neutral source digest iff it matches the
-// allowlist above AND is not one of the regenerated-output/CI-config roots
-// subtracted from it.
-function isEvidenceNeutral(file) {
-  return isEvidenceNeutralIncluded(file) && !isEvidenceNeutralExcluded(file);
 }
 
 function canonicalTreeListing(buffer, format, excludeEvidence = false) {
@@ -257,7 +171,7 @@ function canonicalTreeListing(buffer, format, excludeEvidence = false) {
     const metadata = record.slice(0, tab).split(" ");
     const file = record.slice(tab + 1);
     invariant(file.length > 0 && !file.includes("\0"), `invalid Git ${format} tree path`);
-    if (excludeEvidence && !isEvidenceNeutral(file)) continue;
+    if (excludeEvidence && isEvidenceNeutralExcluded(file)) continue;
     if (format === "index") {
       invariant(metadata.length === 3 && metadata[2] === "0", "source index contains an unresolved stage");
       entries.push(`${metadata[0]}\0${metadata[1]}\0${file}\0`);
@@ -271,7 +185,7 @@ function canonicalTreeListing(buffer, format, excludeEvidence = false) {
 }
 
 function indexSourceListing(root) {
-  const index = execFileSync("git", ["ls-files", "-s", "-z", "--", ...evidenceNeutralPathspecs()], {
+  const index = execFileSync("git", ["ls-files", "-s", "-z", "--", ".", ...evidenceNeutralExcludePathspecs()], {
     cwd: root,
     encoding: null,
     stdio: ["ignore", "pipe", "pipe"],
@@ -300,7 +214,7 @@ function revisionSourceDigest(revision, root) {
 }
 
 function rejectHiddenIndexInputs(root) {
-  const output = execFileSync("git", ["ls-files", "-v", "-z", "--", ...evidenceNeutralPathspecs()], {
+  const output = execFileSync("git", ["ls-files", "-v", "-z", "--", ".", ...evidenceNeutralExcludePathspecs()], {
     cwd: root,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -321,12 +235,12 @@ export function evidenceNeutralSourceDigest(root = projectRoot) {
 export function verifyEvidenceNeutralCheckout(expectedSourceDigest, root = projectRoot, sourceRevision) {
   rejectHiddenIndexInputs(root);
   const status = gitOutput(
-    ["status", "--porcelain=v1", "--untracked-files=all", "--", ...evidenceNeutralPathspecs()],
+    ["status", "--porcelain=v1", "--untracked-files=all", "--", ".", ...evidenceNeutralExcludePathspecs()],
     root,
   );
   invariant(
     status === "",
-    `gate evidence requires a clean source checkout of the evidence-neutral roots (examples/, docs/examples/, src/, samples/ minus generated output, test/, bench/, scripts/, config/, package.json, package-lock.json, tsconfig.json, vitest.config.ts, .nvmrc, LICENSE, playwright.config.mjs, and playwright.first-map.config.mjs); found ${status.split("\n")[0]}`,
+    `gate evidence requires a clean source checkout outside samples/evidence, samples/dist, and samples/contract/v2/consumer-fixtures; found ${status.split("\n")[0]}`,
   );
   const digest = evidenceNeutralSourceDigest(root);
   if (expectedSourceDigest !== undefined) {
@@ -1208,17 +1122,9 @@ async function validateLiveEvidence(evidence, evidencePath, receipt, root) {
     "live evidence sample or lane binding mismatch",
   );
   invariant(evidence.sdk.gitCommit === receipt.sourceRevision, "live evidence source revision mismatch");
-  // demo-live samples (e.g. migration-workbench, honua-io/honua-sdk-js#549)
-  // prove liveness against a real, deterministic local process -- never a
-  // network endpoint, per their own no-non-loopback-request requirement --
-  // so their catalog-declared source.endpoint is null. public-live and
-  // authenticated samples still observe a real remote endpoint and must
-  // keep proving it over HTTPS.
-  const requiresHttpsEndpoint = sample.evidence.live.mode !== "demo-live";
   invariant(
-    (requiresHttpsEndpoint
-      ? typeof evidence.source.endpoint === "string" && evidence.source.endpoint.startsWith("https://")
-      : evidence.source.endpoint === null) &&
+    typeof evidence.source.endpoint === "string" &&
+      evidence.source.endpoint.startsWith("https://") &&
       evidence.provenance?.state === "live" &&
       evidence.semantics?.outcome &&
       Number.isInteger(evidence.semantics.itemCount) &&
@@ -1354,7 +1260,7 @@ async function validatePackedBuildReport(report, receipt, root) {
       typeof bundled.fileName === "string" &&
         path.posix.normalize(bundled.fileName) === bundled.fileName &&
         !bundled.fileName.startsWith("../") &&
-        ["asset", "chunk", "public"].includes(bundled.kind) &&
+        ["asset", "chunk"].includes(bundled.kind) &&
         bundled.hashSubject === "final-written-bundle-file" &&
         /^[a-f0-9]{64}$/.test(bundled.sha256) &&
         Number.isInteger(bundled.bytes) &&
@@ -1578,9 +1484,7 @@ export async function validateGateReceipt(receipt, options = {}) {
     label: "gate receipt producer",
     maxBytes: MAX_REPORT_BYTES,
   });
-  if (!derivedArtifactsRelaxed()) {
-    invariant(sha256(producerBytes) === receipt.producer.sha256, "gate receipt producer digest mismatch");
-  }
+  invariant(sha256(producerBytes) === receipt.producer.sha256, "gate receipt producer digest mismatch");
   const artifact = receipt.artifacts[0];
   const verified = await verifiedArtifact(artifact, root, receipt.sampleId, receipt.runRoot);
   invariant(verified.bytes === artifact.bytes, `gate receipt artifact byte count mismatch: ${artifact.path}`);

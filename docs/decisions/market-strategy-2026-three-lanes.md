@@ -88,13 +88,9 @@ capability class is not Honua-facade-bound; `@honua/react` depth worthy of
 the `@vis.gl/react-maplibre` ecosystem; and deliberate distribution (plugin
 directories, ecosystem examples, published benchmarks). All such additions
 ship as optional peers or in `@honua/app-platform`, never as stable-core
-capability dependencies, preserving the one-lightweight-stable-core-capability
-posture. The other direct dependencies are bounded compatibility plumbing:
-`@honua/honua-migrate` backs deprecated migration forwarders, and
-`@mapbox/jsonlint-lines-primitives@2.0.2` temporarily pins style-spec's existing
-parser for Node 20 engine compatibility.
-At current adoption, every discovery surface matters more than any single
-feature.
+runtime dependencies, preserving the one-lightweight-runtime-dependency
+posture. At current adoption, every discovery surface matters more than any
+single feature.
 
 ### Lane 3 — Own the open agentic-GIS SDK (12–18 months)
 

@@ -41,48 +41,6 @@
       "workflowSelectors": ["#compat-metrics", "#assertion-matrix", "#maplibre-residuals", "#artifact-files"]
     },
     {
-      "id": "planning-permitting-workbench",
-      "viteConfig": "examples/planning-permitting-workbench/vite.config.ts",
-      "tsconfig": "examples/planning-permitting-workbench/tsconfig.json",
-      "playwrightScript": "test:playwright:planning-workbench",
-      "playwrightFile": "test/playwright/planning-permitting-workbench.spec.mjs",
-      "playwrightTestTitle": "planning workbench runs the public SDK search, analysis, edit, and degradation workflow",
-      "playwrightProjects": [{ "name": "chromium", "browserName": "chromium" }],
-      "evidenceProject": "chromium",
-      "sdkEntrypoints": [
-        "@honua/sdk-js/app-workspace",
-        "@honua/sdk-js/contract",
-        "@honua/sdk-js/exploration",
-        "@honua/sdk-js/geocoding",
-        "@honua/sdk-js/geometry",
-        "@honua/sdk-js/honua",
-        "@honua/sdk-js/interactions",
-        "@honua/sdk-js/web-components"
-      ],
-      "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
-      "workflowSelectors": ["#planning-search-form", "#workflow-truth", "#search-status", "#layer-permits"]
-    },
-    {
-      "id": "realtime-incident-dashboard",
-      "viteConfig": "examples/realtime-incident-dashboard/vite.config.ts",
-      "tsconfig": "examples/realtime-incident-dashboard/tsconfig.json",
-      "playwrightScript": "test:playwright:incident",
-      "playwrightFile": "test/playwright/realtime-incident-dashboard.spec.mjs",
-      "playwrightTestTitle": "realtime incident dashboard keeps map, queue, filters, and detail linked",
-      "playwrightProjects": [{ "name": "chromium", "browserName": "chromium" }],
-      "evidenceProject": "chromium",
-      "sdkEntrypoints": [
-        "@honua/sdk-js/contract",
-        "@honua/sdk-js/exploration",
-        "@honua/sdk-js/honua",
-        "@honua/sdk-js/interactions",
-        "@honua/sdk-js/realtime",
-        "@honua/sdk-js/style"
-      ],
-      "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
-      "workflowSelectors": ["#data-lane", "#stream-reconciliation", "#incident-list", "#edit-outcome", "#map"]
-    },
-    {
       "id": "service-explorer",
       "viteConfig": "examples/service-explorer/vite.config.ts",
       "tsconfig": "examples/service-explorer/tsconfig.json",

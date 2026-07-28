@@ -1,6 +1,5 @@
 import type { RealtimeFeatureEvent, RealtimeFeatureState } from "@honua/sdk-js/realtime";
 
-import type { IncidentRealtimeReceipt } from "./realtime-session.js";
 import type { IncidentExecutionLane } from "./safe-edit.js";
 import type { IncidentFeature } from "./types.js";
 
@@ -13,9 +12,6 @@ export type IncidentReconciliationOutcome =
   | "delta-applied"
   | "heartbeat-observed"
   | "duplicate-or-stale-ignored"
-  | "reordered-event-ignored"
-  | "replacement-snapshot-required"
-  | "replacement-snapshot-applied"
   | "status-updated"
   | "stream-error";
 
@@ -54,7 +50,7 @@ export function reconcileIncidentDiagnostics(
       ...previous,
       cursor: state.cursor,
       sequence: state.lastSequence,
-      ignoredEventCount: Math.max(previous.ignoredEventCount, state.ignoredEventCount),
+      ignoredEventCount: state.ignoredEventCount,
     };
   }
   const observationAt = event.receivedAt ?? Date.now();
@@ -74,27 +70,8 @@ export function reconcileIncidentDiagnostics(
     reconnectAttempt: state.reconnectAttempt ?? previous.reconnectAttempt,
     retryAfterMs: state.retryAfterMs,
     reconnectOutcome: reconnectOutcome(state, event, previous.reconnectOutcome),
-    ignoredEventCount: Math.max(previous.ignoredEventCount, state.ignoredEventCount),
+    ignoredEventCount: state.ignoredEventCount,
     reconciliationOutcome: ignored ? "duplicate-or-stale-ignored" : reconciliationOutcome(event),
-  };
-}
-
-export function reconcileIncidentReceiptDiagnostics(
-  previous: IncidentRealtimeDiagnostics,
-  state: RealtimeFeatureState<IncidentFeature>,
-  receipt: IncidentRealtimeReceipt,
-): IncidentRealtimeDiagnostics {
-  return {
-    ...previous,
-    snapshotAt:
-      receipt.outcome === "replacement-snapshot-applied"
-        ? (state.lastEventAt ?? previous.snapshotAt)
-        : previous.snapshotAt,
-    observationAt: state.lastEventAt ?? previous.observationAt,
-    cursor: state.cursor,
-    sequence: state.lastSequence,
-    ignoredEventCount: Math.max(previous.ignoredEventCount, state.ignoredEventCount, receipt.duplicateEventCount),
-    reconciliationOutcome: receiptOutcome(receipt),
   };
 }
 
@@ -132,36 +109,5 @@ function reconciliationOutcome(event: RealtimeFeatureEvent<IncidentFeature>): In
       return "status-updated";
     case "error":
       return "stream-error";
-  }
-}
-
-function receiptOutcome(receipt: IncidentRealtimeReceipt): IncidentReconciliationOutcome {
-  switch (receipt.outcome) {
-    case "duplicate":
-      return "duplicate-or-stale-ignored";
-    case "reordered":
-      return "reordered-event-ignored";
-    case "resnapshot-required":
-      return "replacement-snapshot-required";
-    case "replacement-snapshot-applied":
-      return "replacement-snapshot-applied";
-    case "cancelled":
-      return "status-updated";
-    case "error":
-      return "stream-error";
-    case "applied": {
-      switch (receipt.eventType) {
-        case "snapshot":
-          return "snapshot-replaced";
-        case "upsert":
-          return "upsert-applied";
-        case "delete":
-          return "delete-applied";
-        case "delta":
-          return "delta-applied";
-        default:
-          return "status-updated";
-      }
-    }
   }
 }

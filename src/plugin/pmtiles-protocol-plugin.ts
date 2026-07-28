@@ -15,7 +15,6 @@
  * privilege over an out-of-tree module (see
  * `test/plugin-pmtiles-protocol-seam.test.ts`).
  *
- * @experimental
  * @module
  */
 import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive } from "../contract/pmtiles.js";

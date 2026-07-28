@@ -26,10 +26,9 @@
             debounce="200"
           ></honua-search>
           <honua-basemap-switcher for="ops-map" label="Basemaps" value="light"></honua-basemap-switcher>
-          <!-- Controls-entry legend, explicitly claimed via
-               register-controls-legend.ts's defineHonuaLegend() call (issue
-               #679): explicit incident entries plus a section derived from
-               the zoning layer's match expression. -->
+          <!-- Controls-entry legend (registered first, so it owns the honua-legend
+               tag here): explicit incident entries plus a section derived from the
+               zoning layer's match expression. -->
           <honua-legend
             for="ops-map"
             heading="Legend"

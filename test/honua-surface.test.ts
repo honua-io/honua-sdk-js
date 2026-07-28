@@ -1,7 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
-  HonuaCapabilityNotSupportedError,
   HonuaFeatureLayer,
   HonuaGeometryService,
   HonuaGeoprocessingService,
@@ -225,107 +224,6 @@ describe("Honua native API surfaces", () => {
     // Must not truncate on the first short page; offset advances by the actual count.
     expect(allFeatures).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
     expect(requestedOffsets).toEqual([0, 1, 2]);
-  });
-
-  it("queryFeaturesAll on grpc-web advances resultOffset via the top-level field and terminates on the exact page boundary", async () => {
-    // Regression for issue #663: an exact-page-boundary result set (page one
-    // returns exactly `pageSize` features) must not repeat page one forever.
-    // The gRPC-web request mapper (`toProtoQueryRequest`) only reads the
-    // top-level `resultOffset` / `resultRecordCount` fields, never
-    // `extraParams`, so this proves the cursor is threaded through the field
-    // the mapper actually consumes.
-    const client = new HonuaClient({
-      baseUrl: "https://example.test",
-      transport: "grpc-web",
-      fetchFn: async () => new Response("{}", { status: 200 }),
-    });
-
-    const seenOffsets: unknown[] = [];
-    const queryFeatures = vi.spyOn(client, "queryFeatures").mockImplementation(async (request) => {
-      seenOffsets.push(request.resultOffset);
-      // extraParams must never carry the pagination cursor for gRPC.
-      expect(request.extraParams?.resultOffset).toBeUndefined();
-      const offset = request.resultOffset ?? 0;
-      if (offset === 0) {
-        return {
-          objectIdFieldName: "OBJECTID",
-          features: [{ attributes: { OBJECTID: 1 } }, { attributes: { OBJECTID: 2 } }],
-        };
-      }
-      if (offset === 2) {
-        // Exact page boundary: the prior page was exactly `pageSize` long,
-        // and the next page is empty -- must stop, not repeat page one.
-        return { objectIdFieldName: "OBJECTID", features: [] };
-      }
-      throw new Error(`unexpected resultOffset ${offset}`);
-    });
-
-    const layer = client.featureLayer("transport", 4);
-    const allFeatures = await layer.queryFeaturesAll({ where: "1=1", pageSize: 2 });
-
-    expect(allFeatures).toEqual([{ attributes: { OBJECTID: 1 } }, { attributes: { OBJECTID: 2 } }]);
-    expect(seenOffsets).toEqual([0, 2]);
-    expect(queryFeatures).toHaveBeenCalledTimes(2);
-  });
-
-  it("queryFeaturesAll on grpc-web fails closed instead of looping when resultOffset is not honored", async () => {
-    // Regression for issue #663 (REQ-002): if a gRPC facade ignores
-    // `resultOffset` and keeps returning the same page after the cursor
-    // advances, queryAll must throw a typed capability error rather than
-    // repeating the page up to `maxPages`.
-    const client = new HonuaClient({
-      baseUrl: "https://example.test",
-      transport: "grpc-web",
-      fetchFn: async () => new Response("{}", { status: 200 }),
-    });
-
-    const queryFeatures = vi.spyOn(client, "queryFeatures").mockImplementation(async () => ({
-      objectIdFieldName: "OBJECTID",
-      features: [{ attributes: { OBJECTID: 1 } }, { attributes: { OBJECTID: 2 } }],
-    }));
-
-    const layer = client.featureLayer("transport", 4);
-
-    await expect(layer.queryFeaturesAll({ where: "1=1", pageSize: 2, maxPages: 50 })).rejects.toThrow(
-      HonuaCapabilityNotSupportedError,
-    );
-    // Must fail fast on the second (repeated) page, not loop to maxPages.
-    expect(queryFeatures).toHaveBeenCalledTimes(2);
-  });
-
-  it("queryFeaturesAll on grpc-web falls back to feature content when projected rows omit object ids", async () => {
-    const client = new HonuaClient({
-      baseUrl: "https://example.test",
-      transport: "grpc-web",
-      fetchFn: async () => new Response("{}", { status: 200 }),
-    });
-
-    const queryFeatures = vi.spyOn(client, "queryFeatures").mockImplementation(async (request) => {
-      const offset = request.resultOffset ?? 0;
-      if (offset === 0) {
-        return {
-          objectIdFieldName: "OBJECTID",
-          features: [{ attributes: { NAME: "Alpha" } }, { attributes: { NAME: "Bravo" } }],
-        };
-      }
-      if (offset === 2) {
-        return {
-          objectIdFieldName: "OBJECTID",
-          features: [{ attributes: { NAME: "Charlie" } }, { attributes: { NAME: "Delta" } }],
-        };
-      }
-      return { objectIdFieldName: "OBJECTID", features: [] };
-    });
-
-    const layer = client.featureLayer("transport", 4);
-    const allFeatures = await layer.queryFeaturesAll({
-      where: "1=1",
-      outFields: ["NAME"],
-      pageSize: 2,
-    });
-
-    expect(allFeatures.map((feature) => feature.attributes.NAME)).toEqual(["Alpha", "Bravo", "Charlie", "Delta"]);
-    expect(queryFeatures).toHaveBeenCalledTimes(3);
   });
 
   it("invokes map-service metadata, legend, export, identify, and find wrappers", async () => {

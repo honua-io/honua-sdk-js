@@ -1,8 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
-import "../../shared/maplibre-vite-worker.js";
 
 import type { GeocodeResult, GeocodeSuggestion, ReverseGeocodeResult } from "@honua/sdk-js/geocoding";
-import * as maplibregl from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 
 import { resolveGeocodingQuickstartConfig } from "./config.js";
 import { GEOCODING_FIXTURE_CENTER, GEOCODING_FIXTURE_ZOOM, OAHU_URBAN_CORE_OUTLINE } from "./fixtures.js";

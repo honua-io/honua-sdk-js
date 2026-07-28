@@ -73,5 +73,4 @@ export type {
   DeckGlMapCameraSource,
   DeckGlOverlayViewTarget,
 } from "./view-sync.js";
-export { bindDeckGlContextLossRecovery, combineDeckGlDisposal } from "./lifecycle.js";
-export type { DeckGlContextLossRecoveryOptions, DeckGlContextLossTarget } from "./lifecycle.js";
+export { combineDeckGlDisposal } from "./lifecycle.js";

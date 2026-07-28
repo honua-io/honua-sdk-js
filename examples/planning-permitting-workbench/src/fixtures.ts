@@ -43,54 +43,45 @@ export const MAP_PRESETS: readonly WorkbenchMapPreset[] = [
   { id: "kahului-shore", label: "Kahului Shore", extent: KAHULUI_SHORE_EXTENT },
 ];
 
-/* Zoning is a categorical layer, so it paints from the design language's
- * categorical cartography ramp (CARTO Prism, --hn-carto-cat-*) at six of the
- * ten available hues — never the UI chart series, never a per-sample palette.
- * The zoning code is printed on every pin and bar, so no distinction is
- * carried by hue alone. */
 export const ZONING_CLASSES: readonly ZoningClass[] = [
   {
     code: "R-1",
     label: "R-1 Residential",
     description: "Single-family residential",
     maxHeightFeet: 30,
-    color: "#5f4690",
+    color: "#7cb342",
   },
   {
     code: "R-3",
     label: "R-3 Multifamily",
     description: "Medium-density residential",
     maxHeightFeet: 45,
-    color: "#1d6996",
+    color: "#43a047",
   },
   {
     code: "B-2",
     label: "B-2 Business",
     description: "Community business district",
     maxHeightFeet: 60,
-    color: "#38a6a5",
+    color: "#1e88e5",
   },
   {
     code: "M-1",
     label: "M-1 Light Industrial",
     description: "Light industrial / warehouse",
     maxHeightFeet: 50,
-    color: "#0f8554",
+    color: "#8e24aa",
   },
-  { code: "AG", label: "Agricultural", description: "Agricultural district", maxHeightFeet: 30, color: "#73af48" },
-  { code: "OS", label: "Open Space", description: "Parks and open space", maxHeightFeet: 25, color: "#edad08" },
+  { code: "AG", label: "Agricultural", description: "Agricultural district", maxHeightFeet: 30, color: "#c0ca33" },
+  { code: "OS", label: "Open Space", description: "Parks and open space", maxHeightFeet: 25, color: "#26a69a" },
 ];
 
-/* Flood hazard is ordered, so it paints from the sequential warm ramp
- * (CARTO SunsetDark, --hn-seq-warm-*) reversed so the highest hazard is the
- * darkest class. Regulated status is also stated in words in the legend and
- * in the parcel detail warning. */
 export const FLOOD_CLASSES: readonly FloodClass[] = [
-  { zone: "VE", label: "VE — Coastal high hazard", regulated: true, color: "#7c1d6f" },
-  { zone: "AE", label: "AE — 1% annual chance", regulated: true, color: "#dc3977" },
-  { zone: "AO", label: "AO — Sheet flow", regulated: true, color: "#f0746e" },
-  { zone: "X-shaded", label: "X (shaded) — 0.2% chance", regulated: false, color: "#faa476" },
-  { zone: "X", label: "X — Minimal hazard", regulated: false, color: "#fcde9c" },
+  { zone: "VE", label: "VE — Coastal high hazard", regulated: true, color: "#b71c1c" },
+  { zone: "AE", label: "AE — 1% annual chance", regulated: true, color: "#ef6c00" },
+  { zone: "AO", label: "AO — Sheet flow", regulated: true, color: "#f9a825" },
+  { zone: "X-shaded", label: "X (shaded) — 0.2% chance", regulated: false, color: "#90caf9" },
+  { zone: "X", label: "X — Minimal hazard", regulated: false, color: "#cfd8dc" },
 ];
 
 export const PARCELS: readonly ParcelFeature[] = [

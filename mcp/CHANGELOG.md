@@ -1,39 +1,5 @@
 # Changelog
 
-## [0.1.2-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.1-beta.0...mcp-server-v0.1.2-beta.0) (2026-07-21)
-
-
-### Dependencies
-
-* The following workspace dependencies were updated
-  * devDependencies
-    * @honua/sdk-js bumped from file:.. to 0.1.2-beta.0
-  * peerDependencies
-    * @honua/sdk-js bumped from ^0.1.1-beta.0 to ^0.1.2-beta.0
-
-## [0.1.1-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.0-beta.0...mcp-server-v0.1.1-beta.0) (2026-07-21)
-
-
-### Features
-
-* **agent:** execute approved steps through audited SDK/MCP boundary ([#460](https://github.com/honua-io/honua-sdk-js/issues/460)) ([6d9ddd3](https://github.com/honua-io/honua-sdk-js/commit/6d9ddd3d5f99e5c2b201393e1b9e8d9d2c94b4c8))
-* finalize the reviewed root SDK surface ([#464](https://github.com/honua-io/honua-sdk-js/issues/464)) ([dd47d20](https://github.com/honua-io/honua-sdk-js/commit/dd47d205dba4fd3684508f7709b7a5e59df4edd3))
-* **mcp:** certify the NL map-control tool surface ([#636](https://github.com/honua-io/honua-sdk-js/issues/636)) ([f9f8c9f](https://github.com/honua-io/honua-sdk-js/commit/f9f8c9fd0c4d1808aae36f3a599c717e60c51271))
-
-
-### Bug Fixes
-
-* **mcp:** clear body-parser audit advisory ([#720](https://github.com/honua-io/honua-sdk-js/issues/720)) ([1d3a095](https://github.com/honua-io/honua-sdk-js/commit/1d3a095170c8eb02b0204813429b4f5cc7fbd230))
-
-
-### Dependencies
-
-* The following workspace dependencies were updated
-  * devDependencies
-    * @honua/sdk-js bumped from file:.. to 0.1.1-beta.0
-  * peerDependencies
-    * @honua/sdk-js bumped from ^0.1.0-beta.0 to ^0.1.1-beta.0
-
 ## [0.1.0-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.0.20-alpha.0...mcp-server-v0.1.0-beta.0) (2026-07-08)
 
 

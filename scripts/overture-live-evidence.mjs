@@ -32,20 +32,6 @@ function parseArgs(argv) {
   return options;
 }
 
-/**
- * `provenance.validAt` must be null or an RFC 3339 date-time, but the browser
- * reports S3's raw `Last-Modified` HTTP-date ("Wed, 17 Jun 2026 17:24:54 GMT")
- * and the fixture lane reports a non-date marker. Normalize to RFC 3339, or
- * null when the value is absent or not a date — otherwise every live envelope,
- * success or failure, is replaced by a generic validation failure that masks the
- * real outcome (#767).
- */
-export function normalizeValidAt(value) {
-  if (typeof value !== "string" || value.trim() === "") return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-}
-
 function gitCommit() {
   if (/^[a-f0-9]{40}$/.test(process.env.HONUA_SAMPLE_SOURCE_REVISION ?? "")) {
     return process.env.HONUA_SAMPLE_SOURCE_REVISION;
@@ -258,7 +244,7 @@ export async function collectOvertureLiveEvidence() {
           provenance: {
             sourceId: "overture:2026-06-17.0:places:place:00000",
             observedAt: failed.range.observedAt,
-            validAt: normalizeValidAt(failed.range.lastModified),
+            validAt: failed.range.lastModified,
             state: "live",
             attribution: "Overture Maps Foundation Open Map Data, accessed from the Registry of Open Data on AWS.",
           },
@@ -311,7 +297,7 @@ export async function collectOvertureLiveEvidence() {
       provenance: {
         sourceId: "overture:2026-06-17.0:places:place:00000",
         observedAt: evidence.range.observedAt,
-        validAt: normalizeValidAt(evidence.range.lastModified),
+        validAt: evidence.range.lastModified,
         state: "live",
         attribution: "Overture Maps Foundation Open Map Data, accessed from the Registry of Open Data on AWS.",
       },

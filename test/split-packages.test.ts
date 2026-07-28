@@ -14,7 +14,7 @@ describe("split package manifests", () => {
     expect(packageJson.scripts?.["verify:split-packages"]).toContain("verify-split-packages.mjs");
     expect(packageJson.scripts?.["pack:split-packages"]).toContain("dist/packages/honua-sdk");
     expect(packageJson.scripts?.["pack:split-packages"]).toContain("dist/packages/honua-sdk-esri-compat");
-    expect(packageJson.scripts?.["pack:split-packages"]).not.toContain("dist/packages/honua-migrate");
+    expect(packageJson.scripts?.["pack:split-packages"]).toContain("dist/packages/honua-migrate");
   });
 
   it("ships internal modules imported by the split SDK root", () => {

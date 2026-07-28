@@ -1,106 +1,37 @@
-/*
- * Shared sample-kit diagnostics strip (#734 REQ-001).
- *
- * The strip is kit-owned chrome, so its styling lives here once instead of
- * being re-tinted inside each sample's stylesheet. Every value reads a design
- * token (examples/_kit/design) with a literal fallback, so a sample that has
- * adopted the design language gets the themed strip automatically while a
- * sample that has not yet adopted it keeps a legible dark strip.
- */
-
 .honua-sample-kit {
   align-items: center;
-  background: var(--hn-surface, #071b22);
-  border-bottom: 1px solid var(--hn-line-strong, #24515b);
-  color: var(--hn-ink-secondary, #f0fdfa);
+  background: #071b22;
+  border-bottom: 1px solid #24515b;
+  color: #f0fdfa;
   display: flex;
   flex-wrap: wrap;
-  font-family: var(--hn-font-ui, system-ui, sans-serif);
-  font-size: var(--hn-text-xs, 0.75rem);
-  gap: var(--hn-space-2, 0.5rem) var(--hn-space-3, 0.75rem);
-  padding: var(--hn-space-2, 0.45rem) var(--hn-space-4, 0.75rem);
+  gap: 0.75rem;
+  padding: 0.45rem 0.75rem;
   position: relative;
   z-index: 10;
 }
 
 .honua-sample-kit__mode {
-  background: transparent;
-  border: 1px solid currentcolor;
-  border-radius: var(--hn-radius-sm, 4px);
-  color: var(--hn-accent, #5eead4);
-  font-family: var(--hn-font-mono, ui-monospace, Menlo, Consolas, monospace);
-  font-size: var(--hn-text-register, 0.6875rem);
-  font-weight: 600;
-  letter-spacing: var(--hn-tracking-register, 0.08em);
-  line-height: 1;
-  padding: 3px var(--hn-space-2, 0.55rem);
+  background: #0f766e;
+  border-radius: 999px;
+  font: 600 0.75rem/1 system-ui, sans-serif;
+  padding: 0.35rem 0.55rem;
   text-transform: uppercase;
-}
-
-.honua-sample-kit details {
-  min-width: 0;
-}
-
-.honua-sample-kit summary {
-  color: var(--hn-link, #5eead4);
-  cursor: pointer;
 }
 
 .honua-sample-kit details dl {
   display: grid;
   grid-template-columns: auto 1fr;
-  margin: var(--hn-space-2, 0.5rem) 0;
+  margin: 0.5rem 0;
   min-width: 18rem;
 }
 
 .honua-sample-kit details dd {
-  margin-inline-start: var(--hn-space-4, 1rem);
-  overflow-wrap: anywhere;
-}
-
-/* Degradation and error text can be long, so it wraps onto its own row
- * instead of stretching the strip's control row. */
-.honua-sample-kit [role="status"],
-.honua-sample-kit [role="alert"] {
-  flex: 1 1 100%;
-  line-height: 1.5;
-  max-width: 100ch;
-  order: 1;
-}
-
-.honua-sample-kit [role="status"] {
-  color: var(--hn-warn-text, #fde68a);
-  margin: 0;
+  margin-inline-start: 1rem;
 }
 
 .honua-sample-kit [role="alert"] {
-  color: var(--hn-critical-text, #fecaca);
-  margin: 0;
-}
-
-.honua-sample-kit button {
-  background: var(--hn-surface, transparent);
-  border: 1px solid var(--hn-border-control, currentcolor);
-  border-radius: var(--hn-radius, 6px);
-  color: var(--hn-ink, inherit);
-  cursor: pointer;
-  font: 600 var(--hn-text-xs, 0.75rem) / 1 var(--hn-font-ui, system-ui, sans-serif);
-  margin-left: auto;
-  min-height: 1.75rem;
-  padding: 0 var(--hn-space-3, 0.75rem);
-  transition:
-    border-color var(--hn-motion-fast, 120ms) var(--hn-ease, ease),
-    background-color var(--hn-motion-fast, 120ms) var(--hn-ease, ease);
-}
-
-.honua-sample-kit button:hover:not(:disabled) {
-  background: var(--hn-accent-wash, transparent);
-  border-color: var(--hn-accent, currentcolor);
-}
-
-.honua-sample-kit button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+  color: #fecaca;
 }
 
 .honua-sample-kit__sr-only {

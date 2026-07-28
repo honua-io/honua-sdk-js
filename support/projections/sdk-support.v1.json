@@ -5,7 +5,7 @@
   "generatedFrom": "config/support-manifest.v1.json",
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.1.2-beta.0",
+    "version": "0.1.0-beta.0",
     "releaseStatus": "beta"
   },
   "statusVocabulary": [
@@ -789,12 +789,6 @@
       "freshnessPolicy": "scheduled-live"
     },
     {
-      "id": "live-conformance",
-      "kind": "live",
-      "path": "scripts/live-conformance-evidence.mjs",
-      "freshnessPolicy": "scheduled-live"
-    },
-    {
       "id": "esri-compat-fixtures",
       "kind": "fixture",
       "path": "test/feature-layer-compat.test.ts",
@@ -825,22 +819,10 @@
       "freshnessPolicy": "release-gated"
     },
     {
-      "id": "realtime-cross-transport-fixtures",
-      "kind": "fixture",
-      "path": "test/realtime-cross-transport-conformance.test.ts",
-      "freshnessPolicy": "release-gated"
-    },
-    {
       "id": "realtime-integration",
       "kind": "integration",
       "path": "test/integration/surfaces/realtime.integration.ts",
       "freshnessPolicy": "nightly"
-    },
-    {
-      "id": "realtime-live-conformance",
-      "kind": "live",
-      "path": "scripts/realtime-conformance-evidence.mjs",
-      "freshnessPolicy": "scheduled-live"
     },
     {
       "id": "agent-tools-fixtures",
@@ -1179,8 +1161,7 @@
           "executionMode": "native",
           "status": "supported",
           "evidence": [
-            "ogc-tiles-fixtures",
-            "live-conformance"
+            "ogc-tiles-fixtures"
           ]
         }
       ]
@@ -1198,8 +1179,7 @@
           "executionMode": "native",
           "status": "supported",
           "evidence": [
-            "ogc-maps-fixtures",
-            "live-conformance"
+            "ogc-maps-fixtures"
           ]
         }
       ]
@@ -1211,18 +1191,7 @@
       "operationClaims": [
         {
           "operations": [
-            "query"
-          ],
-          "environment": "protocol-adapter",
-          "executionMode": "native",
-          "status": "supported",
-          "evidence": [
-            "ogc-records-fixtures",
-            "live-conformance"
-          ]
-        },
-        {
-          "operations": [
+            "query",
             "queryObjectIds",
             "stream"
           ],
@@ -1487,8 +1456,7 @@
         "connect-fixtures",
         "contract-conformance",
         "geoservices-conformance",
-        "first-map-live",
-        "live-conformance"
+        "first-map-live"
       ]
     },
     {
@@ -1638,8 +1606,7 @@
       "api": "connect(), Source with locator.layout=ogc-api or auto",
       "notes": "Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path.",
       "evidence": [
-        "ogc-features-fixtures",
-        "live-conformance"
+        "ogc-features-fixtures"
       ]
     },
     {
@@ -1661,8 +1628,7 @@
       "api": "connect(), Source, HonuaWfs",
       "notes": "Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path.",
       "evidence": [
-        "wfs-fixtures",
-        "live-conformance"
+        "wfs-fixtures"
       ]
     },
     {
@@ -1682,8 +1648,7 @@
       "notes": "Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding; canonical query remains disabled unless a Honua service id binds the existing FeatureInfo adapter.",
       "evidence": [
         "wms-wmts-connect-fixtures",
-        "maplibre-raster-source-fixtures",
-        "live-conformance"
+        "maplibre-raster-source-fixtures"
       ]
     },
     {
@@ -1703,8 +1668,7 @@
       "notes": "Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms.",
       "evidence": [
         "wms-wmts-connect-fixtures",
-        "maplibre-raster-source-fixtures",
-        "live-conformance"
+        "maplibre-raster-source-fixtures"
       ]
     },
     {
@@ -1724,8 +1688,7 @@
       "api": "connect(), Source with locator.layout=stac-api or stac-static",
       "notes": "Searches a raw STAC API or walks static catalog links with client-side filtering.",
       "evidence": [
-        "stac-fixtures",
-        "live-conformance"
+        "stac-fixtures"
       ]
     },
     {
@@ -1746,27 +1709,7 @@
       "api": "connect(), Source, HonuaOdataEntitySet",
       "notes": "Reads $metadata, intersects advertised capabilities, and uses the raw service root.",
       "evidence": [
-        "odata-fixtures",
-        "live-conformance"
-      ]
-    },
-    {
-      "id": "pmtiles-discovery-client-only",
-      "label": "PMTiles direct asset discovery",
-      "protocol": "pmtiles",
-      "operations": [
-        "discovery",
-        "tiles"
-      ],
-      "environment": "client-only",
-      "executionMode": "discovery",
-      "status": "supported",
-      "backendNeeded": "Any static host with exact HTTP Range and readable CORS headers",
-      "api": "connect({ protocol: 'pmtiles' }), Source.protocol('pmtiles')",
-      "notes": "Reads only a bounded PMTiles v3 header and metadata range through the authenticated client pipeline; pmtiles:// is the sole direct auto marker, while filename-only and spoofed inputs fail closed without alternate-protocol probing.",
-      "evidence": [
-        "pmtiles-connect-fixtures",
-        "pmtiles-fixtures"
+        "odata-fixtures"
       ]
     },
     {
@@ -1819,10 +1762,9 @@
       "status": "beta",
       "backendNeeded": "Any link-driven OGC API Tiles server",
       "api": "connect(), Source protocol ogc-tiles",
-      "notes": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile.",
+      "notes": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles.",
       "evidence": [
-        "ogc-tiles-fixtures",
-        "live-conformance"
+        "ogc-tiles-fixtures"
       ]
     },
     {
@@ -1838,10 +1780,9 @@
       "status": "beta",
       "backendNeeded": "Any link-driven OGC API Maps server",
       "api": "connect(), Source protocol ogc-maps",
-      "notes": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render.",
+      "notes": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps.",
       "evidence": [
-        "ogc-maps-fixtures",
-        "live-conformance"
+        "ogc-maps-fixtures"
       ]
     },
     {
@@ -1859,10 +1800,9 @@
       "status": "beta",
       "backendNeeded": "Any link-driven OGC API Records server",
       "api": "connect(), Source protocol ogc-records",
-      "notes": "Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page.",
+      "notes": "Discovers and queries the raw records path advertised by the service; does not require /ogc/records.",
       "evidence": [
-        "ogc-records-fixtures",
-        "live-conformance"
+        "ogc-records-fixtures"
       ]
     },
     {
@@ -1877,10 +1817,9 @@
       "status": "experimental",
       "backendNeeded": "Any link-driven OGC API Processes server",
       "api": "discoverOgcProcesses()",
-      "notes": "Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection.",
+      "notes": "Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source.",
       "evidence": [
-        "ogc-processes-fixtures",
-        "live-conformance"
+        "ogc-processes-fixtures"
       ]
     },
     {
@@ -1943,11 +1882,9 @@
       "status": "facade-required",
       "backendNeeded": "Honua Server",
       "api": "@honua/sdk-js/realtime",
-      "notes": "SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately.",
+      "notes": "Subscription-backed live updates depend on the Honua realtime contract.",
       "evidence": [
-        "realtime-cross-transport-fixtures",
-        "realtime-integration",
-        "realtime-live-conformance"
+        "realtime-integration"
       ]
     },
     {
@@ -2112,23 +2049,7 @@
         "status": "experimental"
       },
       {
-        "subpath": "./pmtiles-protocol-plugin.js",
-        "status": "experimental"
-      },
-      {
         "subpath": "./deckgl",
-        "status": "experimental"
-      },
-      {
-        "subpath": "./kepler",
-        "status": "experimental"
-      },
-      {
-        "subpath": "./analytics",
-        "status": "experimental"
-      },
-      {
-        "subpath": "./analytics/uplot",
         "status": "experimental"
       },
       {

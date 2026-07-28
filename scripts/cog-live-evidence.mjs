@@ -261,18 +261,11 @@ export async function runCogLiveEvidence(options = {}) {
       },
       timing: { totalMs, firstSuccessfulInteractionMs: totalMs },
       degradation: { state: "none", reasons: [] },
-      // Only the producer-generator script is listed as a formal `artifacts`
-      // entry: scripts/sample-runner.mjs's live-gate report binds every
-      // non-producer-generator artifact to that specific run's own
-      // samples/evidence/<sample>/runs/<runId>/ tree (see writeGateReport),
-      // which a static, shared, repo-committed fixture like the pinned STAC/
-      // COG contract can never satisfy. Its provenance is instead recorded
-      // (contractPath/contractSha256) alongside the other cog.* fields below,
-      // matching the same fields skippedEvidence() already records.
-      artifacts: [{ kind: "producer-generator", path: PRODUCER_PATH, sha256: sha256(producerBytes) }],
+      artifacts: [
+        { kind: "producer-generator", path: PRODUCER_PATH, sha256: sha256(producerBytes) },
+        { kind: "public-cog-contract", path: CONTRACT_PATH, sha256: sha256(contractBytes) },
+      ],
       cog: {
-        contractPath: CONTRACT_PATH,
-        contractSha256: sha256(contractBytes),
         prefix,
         classification: {
           candidateId: candidate.id,
@@ -322,11 +315,11 @@ export async function runCogLiveEvidence(options = {}) {
       semantics: { operation: "stac-direct-cog-inspect-read", outcome: null, itemCount: null, assertions: [] },
       timing: { totalMs, firstSuccessfulInteractionMs: null },
       degradation: { state: "unexpected", reasons: [failureCode] },
-      // See the matching comment on the success-path artifacts array above.
-      artifacts: [{ kind: "producer-generator", path: PRODUCER_PATH, sha256: sha256(producerBytes) }],
+      artifacts: [
+        { kind: "producer-generator", path: PRODUCER_PATH, sha256: sha256(producerBytes) },
+        { kind: "public-cog-contract", path: CONTRACT_PATH, sha256: sha256(contractBytes) },
+      ],
       cog: {
-        contractPath: CONTRACT_PATH,
-        contractSha256: sha256(contractBytes),
         failure: { code: failureCode, message: failureMessage },
         freshness: {
           acquisitionAt: contract.stac.acquisitionAt,
@@ -355,14 +348,7 @@ function parseArguments(argv) {
 }
 
 async function main() {
-  const { output: cliOutput, strict } = parseArguments(process.argv.slice(2));
-  // scripts/sample-runner.mjs's orchestrated "live" evidence gate binds every
-  // producer's output to a run-scoped path via HONUA_SAMPLE_LIVE_OUTPUT (see
-  // scripts/first-map-live-evidence.mjs for the sibling convention). Prefer it
-  // over the CLI --output default so this producer is captured through the
-  // reviewed sample-evidence pipeline; standalone/CI invocations without the
-  // env var keep writing to the CLI-resolved path unchanged.
-  const output = process.env.HONUA_SAMPLE_LIVE_OUTPUT ?? cliOutput;
+  const { output, strict } = parseArguments(process.argv.slice(2));
   let evidence;
   try {
     evidence = await runCogLiveEvidence({ strict });

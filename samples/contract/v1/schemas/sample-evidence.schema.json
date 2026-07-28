@@ -87,15 +87,6 @@
       },
       "additionalProperties": false
     },
-    "cog": {
-      "type": "object",
-      "required": ["contractPath", "contractSha256"],
-      "properties": {
-        "contractPath": { "type": "string", "minLength": 1 },
-        "contractSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
-      },
-      "additionalProperties": true
-    },
     "artifacts": {
       "type": "array",
       "items": {

@@ -182,7 +182,7 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 
 - Honua-first core: `@honua/sdk-js/honua`
 - Esri compat bridge: `@honua/sdk-js/esri-compat`
-- Migration tooling: `@honua/honua-migrate` (`@honua/sdk-js/migration` is a deprecated forwarder)
+- Migration tooling: `@honua/sdk-js/migration`
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
@@ -215,11 +215,10 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
   the canonical query family throws `HonuaCapabilityNotSupportedError` for utility-only services so
   mixed-source apps surface the limitation explicitly. The ImageServer adapter rejects `Query.spatialFilter` /
   `orderBy` / `outFields` rather than silently widening the catalog result. WMS surfaces `query` through
-  point-only `GetFeatureInfo`; WMTS is render-only (`Source.query()` throws). The WFS adapter compiles the
-  deprecated, source-native `Query.where` migration field and `Query.spatialFilter` to FES 2.0, prefers
-  GeoJSON over GML via `OperationsMetadata` negotiation, builds `<wfs:Transaction>` bodies for `applyEdits`,
-  and reaches raw GML / `LockFeature` / `GetPropertyValue` / stored queries through
-  `Source.protocol("wfs")`. The OData adapter exposes
+  point-only `GetFeatureInfo`; WMTS is render-only (`Source.query()` throws). The WFS adapter compiles
+  `Query.where` / `Query.spatialFilter` to FES 2.0, prefers GeoJSON over GML via `OperationsMetadata`
+  negotiation, builds `<wfs:Transaction>` bodies for `applyEdits`, and reaches raw GML / `LockFeature` /
+  `GetPropertyValue` / stored queries through `Source.protocol("wfs")`. The OData adapter exposes
   `query` / `queryObjectIds` / `stream` / `applyEdits` first-party
   (PATCH-with-full-body in place of PUT, per the parity matrix) and surfaces `$batch` / `$apply` /
   `$search` / `$deltatoken` through `Source.protocol("odata")` on a `HonuaOdataEntitySet`; it is also
@@ -239,9 +238,6 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
   [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md).
 - Live SDK ↔ Honua Server protocol integration lane:
   [`docs/integration-tests.md`](./docs/integration-tests.md).
-- Scheduled public-reference-service conformance lane (GeoServices, OGC API
-  Features, WFS, WMS, WMTS, STAC, OData):
-  [`docs/live-conformance.md`](./docs/live-conformance.md).
 
 ```ts doc-test=compile
 import { createDataset } from "@honua/sdk-js/contract";
@@ -264,8 +260,8 @@ const dataset = createDataset({
 });
 
 const parcels = dataset.source("parcels-fs")!;
-const result = await parcels.query({ pagination: { limit: 100 } });
-const { extent } = await parcels.queryExtent();
+const result = await parcels.query({ where: "STATUS = 'ACTIVE'", pagination: { limit: 100 } });
+const { extent } = await parcels.queryExtent({ where: "STATUS = 'ACTIVE'" });
 
 const ctx = createExplorationContext({
   datasetId: dataset.id,
@@ -290,7 +286,7 @@ applies geometry-appropriate default styling, wires optional click popups and ho
 returns one disposable handle whose `setFilter()`/`refresh()` diff-update in place.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import * as maplibregl from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 import { connect } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
 
@@ -321,7 +317,7 @@ that `honua-io/honua-sdk-js#22` and `#29` build on. The runtime never instantiat
 stays a peer dependency) and never issues edit writes.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import * as maplibregl from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { loadMapPackage } from "@honua/sdk-js/runtime";
 
@@ -484,7 +480,6 @@ npm run test:playwright:25d
 npm run test:playwright
 npm run demo:kepler:smoke
 HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live # scheduled anonymous public evidence
-HONUA_LIVE_CONFORMANCE_ENABLED=true npm run evidence:live-conformance # scheduled public reference services — see docs/live-conformance.md
 npm run test:integration # connect-only; requires HONUA_INTEGRATION_BASE_URL — see docs/integration-tests.md
 npm run scan:arcgis -- ../../path/to/arcgis-app
 npm run migrate:arcgis -- ../../path/to/arcgis-app --write --report migration-report.json
@@ -503,10 +498,7 @@ Generate publish-ready split packages under `dist/packages/`:
 
 - `@honua/sdk` -> `dist/packages/honua-sdk`
 - `@honua/sdk-esri-compat` -> `dist/packages/honua-sdk-esri-compat`
-
-`@honua/honua-migrate` is built and published from the
-[`honua-migrate`](https://github.com/honua-io/honua-migrate) repository. See
-the [transition policy](./migration-tool-transition.md).
+- `@honua/honua-migrate` -> `dist/packages/honua-migrate`
 
 ```bash
 npm run build:split-packages
@@ -523,30 +515,6 @@ CI publish workflow:
 - manual dry-run or publish via `Publish JS SDK Packages` workflow
 - tag-triggered publish uses Release Please tags in form `js-sdk-<version>`; the workflow also accepts `js-sdk-v<version>` and enforces tag/version match
 - Release Please dispatches the JS SDK and MCP publish workflows after creating releases; package publishes skip versions that already exist on npm.
-
-Release tags are strictly self-verifiable (honua-io/honua-sdk-js#768): checking
-one out on a pristine clone and running `npm run samples:generate` and
-`npm run samples:verify` must succeed with no `HONUA_DERIVED_ARTIFACTS_RELAX`
-relaxation. Release Please's version-bump commit never satisfies that on its own
--- it edits `package.json` and the version-stamped fixtures declared in
-`release-please-config.json`, all inside the evidence-neutral source digest
-(`scripts/sample-gate-receipt.mjs`), which re-stales every sample gate receipt,
-and the derived sample artifacts it carries were generated before the bump, so
-they still self-report the previous version. The release therefore:
-
-- waits for `regenerate-derived-artifacts.yml` to reseal evidence and regenerate
-  the projections against the bumped tree and merge that generated-only
-  descendant;
-- verifies the descendant changed only generated paths, then moves the
-  `js-sdk-*` tag onto it, so the tag names the sealed commit;
-- publishes from that tag, and dispatches the First Map release smoke at it.
-
-`npm run release:seal:check` is the gate that proves a commit is sealed (every
-gate receipt bound to this tree, derived artifacts stamping this release
-version). It runs in both `Publish JS SDK Packages` and `First Map Release
-Smoke`, and it fails closed if a relaxation signal is set. Use
-`--tag js-sdk-v<version>` to also require that the tag resolves to the verified
-commit, and `npm run release:seal:test` for its unit tests.
 
 ## Request/Auth Bridge
 
@@ -745,7 +713,6 @@ const dataset = createDataset({
 });
 
 const wfs = dataset.source("parcels-wfs")!;
-// Deprecated WFS-native compatibility text retained for migrations.
 const result = await wfs.query({ where: "STATE = 'CA' AND ACRES > 10" });
 const ids = await wfs.queryObjectIds({ where: "STATUS = 'ACTIVE'" });
 
@@ -754,9 +721,8 @@ const root = wfs.protocol("wfs")!.root;
 const storedQueries = await root.storedQueries();
 ```
 
-The deprecated, source-native `Query.where` migration field compiles to FES 2.0
-(comparison, `IN`, `BETWEEN`, `LIKE`, `IS NULL`, boolean combinators);
-`Query.spatialFilter`
+`Query.where` compiles to FES 2.0 (comparison, `IN`, `BETWEEN`,
+`LIKE`, `IS NULL`, boolean combinators); `Query.spatialFilter`
 becomes a KVP `bbox=` for envelope-only requests or a `<fes:Filter>`
 otherwise. Filters that exceed the GET budget switch to POST
 GetFeature with the `<fes:Filter>` body. `applyEdits` builds a single
@@ -792,7 +758,6 @@ const dataset = createDataset({
 });
 
 const parcels = dataset.source("parcels-odata")!;
-// Deprecated OData-native compatibility text retained for migrations.
 const result = await parcels.query({ where: "STATE = 'CA' AND ACRES > 10" });
 const ids = await parcels.queryObjectIds({ where: "STATUS = 'ACTIVE'" });
 
@@ -857,12 +822,11 @@ composite components, so lossless composite deletes fail locally; use the
 native typed OData surface until the generic edit contract gains structured
 feature identity.
 
-The deprecated, source-native `Query.where` migration field accepts SQL-92 /
-OData `$filter` text; the adapter rewrites the documented intersection
-(`IS NULL` → `eq null`, `<>` → `ne`, `=` → `eq`, plus the SQL comparison
-operators `>=` / `<=` / `>` / `<` → `ge` / `le` / `gt` / `lt`) and rejects
-operators the parity matrix marks unsupported (`has`, `in`, `any`, `all`,
-`cast`, `isof`). `Query.outFields`
+`Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites
+the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` →
+`eq`, plus the SQL comparison operators `>=` / `<=` / `>` / `<` → `ge` /
+`le` / `gt` / `lt`) and rejects operators the parity matrix marks
+unsupported (`has`, `in`, `any`, `all`, `cast`, `isof`). `Query.outFields`
 splits onto `$select` for plain field names and `$expand` for navigation
 paths — `["Owner.name"]` lowers to `$expand=Owner($select=name)` so
 related properties round-trip through the canonical request envelope.
@@ -893,7 +857,6 @@ const parcelsLayer = client.service("transport").featureLayer(0);
 const parcelsOgc = client.ogcFeatures().collection("parcels");
 
 const [features, items] = await Promise.all([
-  // Low-level GeoServices calls use native ArcGIS SQL, not contract `Query.where`.
   parcelsLayer.queryFeatures({ where: "status = 'active'", outFields: ["OBJECTID"] }),
   parcelsOgc.items({ limit: 50 }),
 ]);
@@ -993,8 +956,7 @@ const slider = new TimeSliderCompat({
 // Connect slider to layer — time extent changes auto-filter queries
 const connection = slider.connectLayer(layer);
 
-// Esri compatibility APIs retain raw ArcGIS SQL during migration.
-// Queries now include the time parameter automatically.
+// Queries now include the time parameter automatically
 const features = await layer.queryFeatures({ where: "1=1" });
 
 // Disconnect when done
@@ -1003,80 +965,76 @@ connection.remove();
 
 ## Migration CLI
 
-Install `@honua/honua-migrate` and use `honua-js-migrate`. The SDK-local npm
-scripts remain temporary compatibility forwarders; see the
-[transition policy](./migration-tool-transition.md).
-
 ```bash
 # Scan only
-npx honua-js-migrate scan ./src --report scan-report.json
+node dist/src/migration/cli.js scan ./src --report scan-report.json
 
 # Widget-usage inventory + ArcGIS 6.0 readiness report (classic widgets are removed
 # at 6.0, as early as Q1 2027). Detects ESM imports, AMD require([...]) arrays, and
 # dynamic $arcgis.import(...) specifiers; per-widget dispositions come from the
 # generated docs/widget-survival-guide.md (source: src/migration/widget-dispositions.ts).
-npx honua-js-migrate widgets ./src                     # human table
-npx honua-js-migrate widgets ./src --json              # machine-readable
-npx honua-js-migrate widgets ./src --markdown          # shareable report
-npx honua-js-migrate widgets ./src --gate 80           # exit 2 if automated share < 80%
-npx honua-js-migrate widgets ./src --report widget-readiness.json
+node dist/src/migration/cli.js widgets ./src                     # human table
+node dist/src/migration/cli.js widgets ./src --json              # machine-readable
+node dist/src/migration/cli.js widgets ./src --markdown          # shareable report
+node dist/src/migration/cli.js widgets ./src --gate 80           # exit 2 if automated share < 80%
+node dist/src/migration/cli.js widgets ./src --report widget-readiness.json
 
 # Safe codemod (dry run)
-npx honua-js-migrate codemod ./src --report migration-report.json
+node dist/src/migration/cli.js codemod ./src --report migration-report.json
 
 # Safe codemod (write changes)
-npx honua-js-migrate codemod ./src --write --report migration-report.json
+node dist/src/migration/cli.js codemod ./src --write --report migration-report.json
 
 # Safe codemod (explicit honua target alias)
-npx honua-js-migrate codemod ./src --target honua --write --report migration-report.json
+node dist/src/migration/cli.js codemod ./src --target honua --write --report migration-report.json
 
 # Safe codemod (write changes targeting esri-leaflet for supported subset)
-npx honua-js-migrate codemod ./src --target esri-leaflet --write --report migration-report.json
+node dist/src/migration/cli.js codemod ./src --target esri-leaflet --write --report migration-report.json
 
 # Safe codemod (write + inline TODO annotations for manual sites)
-npx honua-js-migrate codemod ./src --write --annotate-todos --report migration-report.json
+node dist/src/migration/cli.js codemod ./src --write --annotate-todos --report migration-report.json
 
 # Emit parity matrix JSON (for docs/CI dashboards)
-npx honua-js-migrate matrix --report parity-matrix.json
+node dist/src/migration/cli.js matrix --report parity-matrix.json
 
 # Emit runtime parity matrix JSON (for JS API capability tracking)
-npx honua-js-migrate runtime-matrix --report runtime-parity-matrix.json
+node dist/src/migration/cli.js runtime-matrix --report runtime-parity-matrix.json
 
 # Generate readiness metrics for bundled complex real-sample fixtures
-npx honua-js-migrate fixtures --report reports/real-sample-metrics.json
+node dist/src/migration/cli.js fixtures --report reports/real-sample-metrics.json
 
 # Inspect the fixture-only Esri sample migration corpus helpers from tests/docs
 # See docs/esri-sample-corpus.md and test/fixtures/esri-sample-corpus/manifest.json
 
 # Enforce strict readiness gates for bundled real-sample fixtures
-npx honua-js-migrate fixtures --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/real-sample-metrics.json
+node dist/src/migration/cli.js fixtures --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/real-sample-metrics.json
 
 # Enforce strict readiness gates for the demo target fixture only
-npx honua-js-migrate fixtures --target honua --fixtures esri-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json
+node dist/src/migration/cli.js fixtures --target honua --fixtures esri-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json
 
 # Limit fixture metrics to a subset and esri-leaflet target mode
-npx honua-js-migrate fixtures --target esri-leaflet --fixtures esri-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json
+node dist/src/migration/cli.js fixtures --target esri-leaflet --fixtures esri-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json
 
 # Gate in CI (non-zero exit if migration constraints fail)
-npx honua-js-migrate codemod ./src --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0.2 --max-manual-intervention-ratio 0.3
+node dist/src/migration/cli.js codemod ./src --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0.2 --max-manual-intervention-ratio 0.3
 
 # Compare source vs target service fidelity for one layer
-npx honua-js-migrate reconcile --source-base-url https://source.example --source-service-id parcels --target-base-url https://target.example --target-service-id parcels --layer-id 0 --sample-size 200 --report reconcile-report.json
+node dist/src/migration/cli.js reconcile --source-base-url https://source.example --source-service-id parcels --target-base-url https://target.example --target-service-id parcels --layer-id 0 --sample-size 200 --report reconcile-report.json
 
 # Content inventory scan from ArcGIS Online/Portal
-npx honua-js-migrate content scan --portal https://org.maps.arcgis.com --report ./content/scan.json
+node dist/src/migration/cli.js content scan --portal https://org.maps.arcgis.com --report ./content/scan.json
 
 # Content export (WebMaps + hosted layers)
-npx honua-js-migrate content export --portal https://org.maps.arcgis.com --output-dir ./export --acknowledge-mutations --report ./content/export.json
+node dist/src/migration/cli.js content export --portal https://org.maps.arcgis.com --output-dir ./export --report ./content/export.json
 
 # Content import into Honua admin endpoint
-npx honua-js-migrate content import --source ./export --target https://honua.example.com --admin-api-key $HONUA_ADMIN_API_KEY --acknowledge-mutations --report ./content/import.json
+node dist/src/migration/cli.js content import --source ./export --target https://honua.example.com --admin-api-key $HONUA_ADMIN_API_KEY --report ./content/import.json
 
 # Content reconcile using export + import reports
-npx honua-js-migrate content reconcile --source ./export --report ./content/reconcile.json
+node dist/src/migration/cli.js content reconcile --source ./export --report ./content/reconcile.json
 
 # Convert a WebMap JSON export into Honua style config and rewrite portal URLs
-npx honua-js-migrate content-webmap --input ./export/webmap.json --output ./export/webmap.honua.json --source-url-prefix https://org.maps.arcgis.com --target-url-prefix https://honua.example.com --report ./export/webmap.report.json
+node dist/src/migration/cli.js content-webmap --input ./export/webmap.json --output ./export/webmap.honua.json --source-url-prefix https://org.maps.arcgis.com --target-url-prefix https://honua.example.com --report ./export/webmap.report.json
 ```
 
 ## Migration Admin Scanner

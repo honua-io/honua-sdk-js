@@ -114,11 +114,6 @@ const SECTIONS = [
           "Bounded zero-copy typed-array projection into an optional deck.gl peer with deterministic lifecycle semantics.",
       },
       {
-        path: "docs/kepler-workspace-bridge.md",
-        description:
-          "Optional Kepler.gl workspace bridge: explicit ingestion mappings, preserved provenance, declared linked-state channels, bounded delta reconciliation, and credential redaction.",
-      },
-      {
         path: "docs/cesium-entity-adapter.md",
         description:
           "Bounded accepted-plan projection into an optional Cesium peer with stable entity identity and disposal.",

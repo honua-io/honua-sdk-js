@@ -1,5 +1,4 @@
 import "maplibre-gl/dist/maplibre-gl.css";
-import "../../shared/maplibre-vite-worker.js";
 
 import { createHonuaController } from "@honua/sdk-js/app-controller";
 import type { HonuaControllerRuntimeLike } from "@honua/sdk-js/app-controller";
@@ -25,7 +24,7 @@ import type {
   HonuaMapElement,
   HonuaWebComponentRuntimeLike,
 } from "@honua/sdk-js/web-components";
-import * as maplibregl from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 
 import {
   INCIDENT_SOURCE_ID,

@@ -95,8 +95,6 @@ describe("Service Explorer accepted-operation projection", () => {
     expect(queryCode).toContain(`AbortSignal.timeout(${SERVICE_EXPLORER_OPERATION_TIMEOUT_MS})`);
     expect(queryCode).toContain("executeQueryPlan(queryPlan, source, { signal })");
     expect(renderCode).toContain("explainAutomaticSourceToMapLibre(source, { queryPlan })");
-    expect(renderCode).toContain('maplibre-gl-worker.mjs?worker&url"');
-    expect(renderCode).toContain("maplibregl.setWorkerUrl(maplibreWorkerUrl)");
     expect(renderCode).toContain("mountAutomaticSourceToMapLibre(map, source, renderPlan, { queryPlan, signal })");
     expect(renderCode).toContain("mounted.dispose()");
     expect(renderCode).toContain("map.remove()");

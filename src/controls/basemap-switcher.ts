@@ -48,7 +48,8 @@ import {
   listenForHonuaMapReady,
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
-import { defineHonuaSwipeControl } from "./swipe-control.js";
+import { HonuaLegendElement } from "./legend.js";
+import { HonuaSwipeControlElement } from "./swipe-control.js";
 import type {
   HonuaBasemapDefinition,
   HonuaBasemapKind,
@@ -333,37 +334,30 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
 }
 
 /**
- * Registers `<honua-basemap-switcher>`. Skipped when the tag is already
- * defined. Broken out from {@link defineHonuaControls} so the catalog-driven
- * registry (`./registry.js`) can register this tag individually.
+ * Registers the controls-entry custom elements (`honua-basemap-switcher`,
+ * `honua-legend`, `honua-swipe-control`). Invoked automatically on import when
+ * a global `customElements` registry is present; call explicitly when using a
+ * scoped registry.
+ *
+ * Registrations are skipped for tag names that are already defined. In
+ * particular the `web-components` entry registers its own (controller-driven)
+ * `honua-legend`; whichever entry is imported first owns that tag.
+ *
+ * `honua-layer-list` is intentionally NOT registered here — it collides with
+ * the `web-components` kit's own controller-driven `honua-layer-list`, so it is
+ * opt-in via {@link defineHonuaLayerList}.
  */
-export function defineHonuaBasemapSwitcher(registry = globalDom.customElements): void {
+export function defineHonuaControls(registry = globalDom.customElements): void {
   if (!registry) return;
   if (!registry.get("honua-basemap-switcher")) {
     registry.define("honua-basemap-switcher", HonuaBasemapSwitcherElement);
   }
-}
-
-/**
- * Registers the controls-entry custom elements that do NOT contend for a tag
- * with the `web-components` kit: `honua-basemap-switcher` and
- * `honua-swipe-control`. Invoked automatically on import when a global
- * `customElements` registry is present; call explicitly when using a scoped
- * registry.
- *
- * `honua-legend` and `honua-layer-list` are intentionally NOT registered here
- * — both tags also have a controller-driven implementation in the
- * `web-components` kit, and the `web-components` kit's implementation is that
- * tag's canonical/default registrant (see `./catalog.js`). Registering both
- * kits' colliding elements from unguarded module-load side effects made the
- * winner depend on import order (issue #679); each is opt-in instead, via
- * {@link defineHonuaLegend} / {@link defineHonuaLayerList}, so claiming the
- * controls-kit implementation is always an explicit, deterministic choice.
- */
-export function defineHonuaControls(registry = globalDom.customElements): void {
-  if (!registry) return;
-  defineHonuaBasemapSwitcher(registry);
-  defineHonuaSwipeControl(registry);
+  if (!registry.get("honua-legend")) {
+    registry.define("honua-legend", HonuaLegendElement);
+  }
+  if (!registry.get("honua-swipe-control")) {
+    registry.define("honua-swipe-control", HonuaSwipeControlElement);
+  }
 }
 
 if (globalDom.customElements) {

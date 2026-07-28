@@ -29,60 +29,6 @@
           "type": "json",
           "path": "samples/contract/v1/fixtures/sample-evidence.skipped.json",
           "jsonpath": "$.sdk.version"
-        },
-        {
-          "type": "json",
-          "path": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
-          "jsonpath": "$.sdk.version"
-        },
-        {
-          "type": "json",
-          "path": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
-          "jsonpath": "$.sdk.version"
-        },
-        {
-          "type": "json",
-          "path": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
-          "jsonpath": "$.sdk.version"
-        },
-        {
-          "type": "json",
-          "path": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "jsonpath": "$.sdk.version"
-        },
-        {
-          "type": "json",
-          "path": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "jsonpath": "$.sdk.version"
-        },
-        {
-          "type": "json",
-          "path": "samples/evidence/migration-workbench/live.v1.json",
-          "jsonpath": "$.sdk.version"
-        },
-        {
-          "type": "json",
-          "path": "samples/evidence/service-explorer/live.v1.json",
-          "jsonpath": "$.sdk.version"
-        },
-        {
-          "type": "json",
-          "path": "bench/cross-sdk/corpus.json",
-          "jsonpath": "$.references[0].package.version"
-        },
-        {
-          "type": "generic",
-          "path": "README.md"
-        },
-        {
-          "type": "json",
-          "path": "support/projections/sdk-support.v1.json",
-          "jsonpath": "$.sdk.version"
-        },
-        {
-          "type": "json",
-          "path": "config/sdk-coverage.v1.json",
-          "jsonpath": "$.sdk.version"
         }
       ],
       "changelog-sections": [

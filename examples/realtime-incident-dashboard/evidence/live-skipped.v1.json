@@ -8,11 +8,7 @@
   "reason": "Realtime feature streams are not enabled; requires Pro",
   "observedAt": "2026-07-12T02:18:02.730Z",
   "authMode": "anonymous",
-  "sdk": {
-    "package": "@honua/sdk-js",
-    "version": "0.1.2-beta.0",
-    "gitCommit": "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b"
-  },
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b" },
   "source": {
     "provider": "honua-demo",
     "identity": "honua-demo-incident-realtime",
@@ -27,15 +23,10 @@
     "itemCount": null,
     "assertions": []
   },
-  "timing": {
-    "totalMs": null,
-    "firstSuccessfulInteractionMs": null
-  },
+  "timing": { "totalMs": null, "firstSuccessfulInteractionMs": null },
   "degradation": {
     "state": "unavailable",
-    "reasons": [
-      "Realtime feature streams are not enabled; requires Pro"
-    ]
+    "reasons": ["Realtime feature streams are not enabled; requires Pro"]
   },
   "realtime": {
     "snapshotAt": null,
@@ -48,7 +39,7 @@
     {
       "kind": "producer-generator",
       "path": "scripts/live-benchmark-evidence.mjs",
-      "sha256": "62918c97bf1afec6fb0e13169d6f8873adf0fd02155bb8a9d3c1d3d19072762f"
+      "sha256": "5c43cfddeb103dca32419b4bfd008f6fba80b6a8f1d15dcd9f4bc9b8d59b2607"
     }
   ]
 }

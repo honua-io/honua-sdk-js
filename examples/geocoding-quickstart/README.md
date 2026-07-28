@@ -7,12 +7,6 @@ Small browser sample for the SDK geocoding surface. It demonstrates:
 - typeahead suggestions through `HonuaGeocodingClient.suggest()`
 - visible audit rows that map each interaction to its GeocodeServer endpoint
 
-This remains the focused geocoding recipe. The planning and permitting journey
-reuses forward geocoding as one step of a larger task, while this sample owns
-forward, reverse, and suggestion behavior in isolation. Its current browser
-credential configuration remains cataloged as rework and is not a live-success
-claim.
-
 ## Fast Local Run
 
 The fixture lane is same-origin and does not need a live Honua server.

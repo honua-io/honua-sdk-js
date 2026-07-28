@@ -3,6 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { capabilities, createDataset } from "../../dist/src/contract/index.js";
+import { HonuaClient } from "../../dist/src/honua.js";
+import { executeQueryPlan, explainQuery } from "../../dist/src/query-planner/index.js";
 import { liveEvidenceOutputContract } from "../../scripts/lib/live-evidence-output.mjs";
 import { validateEvidenceEnvelope } from "../../scripts/sample-contract.mjs";
 
@@ -10,7 +13,6 @@ const producerPath = "examples/spatial-analytics-workbench/live-evidence.mjs";
 const producerSha256 = createHash("sha256")
   .update(fs.readFileSync(fileURLToPath(import.meta.url)))
   .digest("hex");
-const packageJson = JSON.parse(fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 const outputContract = liveEvidenceOutputContract(
   "spatial-analytics-workbench",
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../test-results/spatial-analytics-live-evidence.json"),
@@ -34,11 +36,6 @@ if (protocol === "ogc-features") {
     observedAt,
   );
 } else {
-  const [{ capabilities, createDataset }, { HonuaClient }, { executeQueryPlan, explainQuery }] = await Promise.all([
-    import("../../dist/src/contract/index.js"),
-    import("../../dist/src/honua.js"),
-    import("../../dist/src/query-planner/index.js"),
-  ]);
   const safeUrl = publicUrl(baseUrl);
   const descriptor = {
     id: `live:${serviceId}:layer:${layerId}`,
@@ -96,8 +93,8 @@ if (protocol === "ogc-features") {
     observedAt,
     authMode: "anonymous",
     sdk: {
-      package: packageJson.name,
-      version: packageJson.version,
+      package: "@honua/sdk-js",
+      version: "0.1.0-beta.0",
       gitCommit: outputContract.sourceRevision ?? process.env.GITHUB_SHA ?? null,
     },
     source: {
@@ -143,8 +140,8 @@ function skipped(reason, timestamp) {
     observedAt: timestamp,
     authMode: "anonymous",
     sdk: {
-      package: packageJson.name,
-      version: packageJson.version,
+      package: "@honua/sdk-js",
+      version: "0.1.0-beta.0",
       gitCommit: outputContract.sourceRevision ?? process.env.GITHUB_SHA ?? null,
     },
     source: {

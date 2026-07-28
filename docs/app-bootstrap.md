@@ -16,7 +16,7 @@ controller handles.
 ## Inline Package
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import * as maplibregl from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
 import { createHonuaApp } from "@honua/sdk-js/app";
 

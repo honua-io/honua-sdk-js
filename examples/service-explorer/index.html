@@ -3,52 +3,42 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f4f0" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d1311" />
-    <meta
-      name="description"
-      content="Inspect any spatial service, read its capability evidence, and run only the operations the endpoint and SDK both support."
-    />
-    <title>Universal Service Explorer — Honua JavaScript SDK</title>
+    <title>Honua Service Explorer</title>
   </head>
-  <body class="hn-app">
-    <a class="hn-skip-link" href="#endpoint-input">Skip to the endpoint field</a>
-
-    <header class="masthead">
-      <div class="masthead-inner">
-        <div class="masthead-topline">
-          <p class="hn-eyebrow">Universal service explorer</p>
-          <button id="theme-toggle" class="hn-btn hn-btn--quiet hn-btn--sm" type="button">Theme: auto</button>
-        </div>
-        <div class="masthead-lede">
-          <h1 class="hn-h1 masthead-title">Inspect any spatial service without guessing.</h1>
-          <p class="hn-lead masthead-copy">
-            Point the explorer at an endpoint. It reports the protocol it resolved, the capabilities the service
-            actually proves, and then runs only the operations both the service and the SDK accept.
+  <body>
+    <main class="explorer-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Honua golden journey</p>
+          <h1>Inspect any spatial service without guessing</h1>
+          <p class="hero-copy">
+            Paste an endpoint, inspect protocol evidence, then execute only the operations the endpoint and SDK both
+            support.
           </p>
         </div>
-        <div class="masthead-aside">
-          <div class="hn-panel state-readout" data-state="idle" aria-live="polite">
-            <p class="hn-register state-readout-label">Connection</p>
-            <p class="state-readout-headline"><span id="state-dot" aria-hidden="true"></span><strong id="state-label">Idle</strong></p>
-            <p id="state-detail" class="state-readout-detail">Enter a service URL.</p>
-            <p class="state-readout-scope"><span class="hn-register">Scope</span><span id="request-scope">anonymous scope</span></p>
-          </div>
+        <div class="truth-badge" aria-live="polite">
+          <span id="state-dot"></span>
+          <strong id="state-label">Idle</strong>
+          <small id="state-detail">Enter a service URL.</small>
         </div>
-      </div>
-    </header>
+      </header>
 
-    <section class="connection-bar" aria-labelledby="connect-title">
-      <div class="connection-inner">
-        <h2 id="connect-title" class="hn-sr-only">Service endpoint</h2>
-        <form id="inspect-form" class="connect-form" novalidate>
-          <div class="hn-field endpoint-field">
-            <label class="hn-field-label" for="endpoint-input">HTTP(S) endpoint</label>
-            <input id="endpoint-input" class="hn-input" name="endpoint" type="url" maxlength="4096" required spellcheck="false" />
+      <section class="connect-card panel" aria-labelledby="connect-title">
+        <div class="panel-heading">
+          <div>
+            <p class="step">01 · Connect</p>
+            <h2 id="connect-title">Service endpoint</h2>
           </div>
-          <div class="hn-field">
-            <label class="hn-field-label" for="protocol-input">Protocol</label>
-            <select id="protocol-input" class="hn-select" name="protocol">
+          <span id="request-scope">anonymous scope</span>
+        </div>
+        <form id="inspect-form" novalidate>
+          <label class="endpoint-field" for="endpoint-input">
+            <span>HTTP(S) endpoint</span>
+            <input id="endpoint-input" name="endpoint" type="url" maxlength="4096" required spellcheck="false" />
+          </label>
+          <label for="protocol-input">
+            <span>Protocol</span>
+            <select id="protocol-input" name="protocol">
               <option value="auto">Auto (URL structure only)</option>
               <option value="geoservices-feature-service">GeoServices FeatureServer</option>
               <option value="geoservices-map-service">GeoServices MapServer</option>
@@ -61,164 +51,124 @@
               <option value="stac">STAC</option>
               <option value="odata">OData v4</option>
             </select>
-          </div>
-          <div class="hn-field">
-            <label class="hn-field-label" for="source-input">Source ID <span class="field-optional">optional</span></label>
-            <input id="source-input" class="hn-input" name="source" type="text" maxlength="512" autocomplete="off" />
-          </div>
+          </label>
+          <label for="source-input">
+            <span>Source ID (optional)</span>
+            <input id="source-input" name="source" type="text" maxlength="512" autocomplete="off" />
+          </label>
           <div class="form-actions">
-            <button id="inspect-button" class="hn-btn hn-btn--primary" type="submit">Inspect service</button>
-            <button id="cancel-button" class="hn-btn" type="button" disabled>Cancel</button>
+            <button id="inspect-button" class="primary" type="submit">Inspect service</button>
+            <button id="cancel-button" type="button" disabled>Cancel</button>
           </div>
         </form>
         <p id="input-message" class="inline-message" role="alert"></p>
+      </section>
+
+      <div class="inspection-grid">
+        <section class="panel evidence-panel" aria-labelledby="evidence-title">
+          <div class="panel-heading">
+            <div>
+              <p class="step">02 · Inspect</p>
+              <h2 id="evidence-title">Detection and evidence</h2>
+            </div>
+            <span id="cache-status">not loaded</span>
+          </div>
+          <dl class="fact-grid">
+            <div><dt>Requested</dt><dd id="requested-protocol">—</dd></div>
+            <div><dt>Resolved</dt><dd id="resolved-protocol">—</dd></div>
+            <div><dt>Confidence</dt><dd id="detection-confidence">—</dd></div>
+            <div><dt>Metadata cache</dt><dd id="metadata-cache">—</dd></div>
+          </dl>
+          <h3>Sources</h3>
+          <div id="source-list" class="source-list"></div>
+          <h3>Schema and CRS</h3>
+          <div id="schema-summary" class="empty-state">Inspect an endpoint to see source metadata.</div>
+        </section>
+
+        <section class="panel capability-panel" aria-labelledby="capability-title">
+          <div class="panel-heading">
+            <div>
+              <p class="step">03 · Decide</p>
+              <h2 id="capability-title">Capability truth</h2>
+            </div>
+            <span>claimed · observed · effective</span>
+          </div>
+          <div id="capability-list" class="capability-list" tabindex="0" aria-label="Scrollable capability evidence"></div>
+        </section>
       </div>
-    </section>
 
-    <div class="workspace">
-      <aside class="evidence-rail" aria-label="Inspected service evidence">
-        <section class="hn-panel rail-panel" aria-labelledby="evidence-title">
-          <div class="hn-panel-header rail-header">
+      <section class="operation-grid" aria-label="Accepted operations">
+        <div class="panel operation-panel">
+          <div class="panel-heading">
             <div>
-              <p class="hn-eyebrow rail-eyebrow">01 · Inspect</p>
-              <h2 id="evidence-title" class="hn-panel-title">Detection and evidence</h2>
+              <p class="step">04 · Execute</p>
+              <h2>Bounded operation</h2>
             </div>
-            <span id="cache-status" class="hn-badge">not loaded</span>
+            <label class="limit-label" for="query-limit">Limit <input id="query-limit" type="number" min="1" max="100" value="25" /></label>
           </div>
-          <div class="hn-panel-body rail-body">
-            <dl class="fact-grid">
-              <div><dt>Requested</dt><dd id="requested-protocol">—</dd></div>
-              <div><dt>Resolved</dt><dd id="resolved-protocol">—</dd></div>
-              <div><dt>Confidence</dt><dd id="detection-confidence">—</dd></div>
-              <div><dt>Metadata cache</dt><dd id="metadata-cache">—</dd></div>
-            </dl>
+          <div class="action-grid">
+            <div class="action-card">
+              <h3>Query features</h3>
+              <p id="query-reason">Inspect a source first.</p>
+              <code id="query-code">source.selection-required</code>
+              <button id="run-query-button" class="primary" type="button" disabled>Run accepted query</button>
+            </div>
+            <div class="action-card">
+              <h3>Render source</h3>
+              <p id="render-reason">Inspect a source first.</p>
+              <code id="render-code">source.selection-required</code>
+              <button id="prepare-render-button" type="button" disabled>Prepare exact render</button>
+            </div>
+          </div>
+        </div>
 
-            <div class="rail-group">
-              <h3 class="hn-register rail-group-title">Sources</h3>
-              <div id="source-list" class="source-list"></div>
-            </div>
+        <div class="panel plan-panel">
+          <div class="panel-heading">
+            <h2>Explain plan</h2>
+            <span id="plan-id">not accepted</span>
+          </div>
+          <dl class="fact-grid compact">
+            <div><dt>Pushdown</dt><dd id="plan-pushdown">—</dd></div>
+            <div><dt>Fidelity</dt><dd id="plan-fidelity">—</dd></div>
+            <div><dt>Cache</dt><dd id="plan-cache">—</dd></div>
+            <div><dt>Residual</dt><dd id="plan-residual">—</dd></div>
+            <div><dt>Rows</dt><dd id="result-count">—</dd></div>
+          </dl>
+          <ol id="plan-steps" class="plan-steps"></ol>
+        </div>
+      </section>
 
-            <div class="rail-group">
-              <h3 class="hn-register rail-group-title">Schema and CRS</h3>
-              <div id="schema-summary" class="schema-summary">
-                <p class="empty-state">Inspect an endpoint to see source metadata.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="hn-panel rail-panel" aria-labelledby="capability-title">
-          <div class="hn-panel-header rail-header">
-            <div>
-              <p class="hn-eyebrow rail-eyebrow">02 · Decide</p>
-              <h2 id="capability-title" class="hn-panel-title">Capability truth</h2>
-            </div>
-            <span class="hn-register capability-legend">Claimed · observed · effective</span>
-          </div>
-          <div class="hn-panel-body rail-body">
-            <div id="capability-list" class="capability-list" tabindex="0" aria-label="Scrollable capability evidence"></div>
-          </div>
-        </section>
-      </aside>
-
-      <main class="operations" aria-label="Accepted operations and results">
-        <section class="hn-map-stage map-stage" aria-label="Accepted query map preview">
-          <div id="map" class="map-canvas"></div>
-          <p id="map-empty" class="map-empty hn-canvas-text">
-            Nothing is projected yet. Run the accepted query to draw its exact features here.
-          </p>
-          <div
-            class="hn-map-slot hn-map-slot--bottom-left hn-panel hn-panel--floating map-readout"
-            role="status"
-            aria-live="polite"
-          >
-            <p class="hn-register map-readout-label">Map</p>
-            <p id="map-status" class="map-readout-value">waiting</p>
-          </div>
-        </section>
-
-        <section class="hn-panel operation-panel" aria-labelledby="operation-title">
-          <div class="hn-panel-header">
-            <div>
-              <p class="hn-eyebrow">03 · Execute</p>
-              <h2 id="operation-title" class="hn-panel-title">Bounded operation</h2>
-            </div>
-            <div class="hn-field limit-field">
-              <label class="hn-field-label" for="query-limit">Row limit</label>
-              <input id="query-limit" class="hn-input" type="number" min="1" max="100" value="25" />
-            </div>
-          </div>
-          <div class="hn-panel-body operation-body">
-            <div class="action-grid">
-              <article class="action-card">
-                <h3 class="action-title">Query features</h3>
-                <p id="query-reason" class="action-reason">Inspect a source first.</p>
-                <code id="query-code" class="action-code">source.selection-required</code>
-                <button id="run-query-button" class="hn-btn hn-btn--primary" type="button" disabled>Run accepted query</button>
-              </article>
-              <article class="action-card">
-                <h3 class="action-title">Render source</h3>
-                <p id="render-reason" class="action-reason">Inspect a source first.</p>
-                <code id="render-code" class="action-code">source.selection-required</code>
-                <button id="prepare-render-button" class="hn-btn" type="button" disabled>Prepare exact render</button>
-              </article>
-            </div>
-
-            <div class="hn-panel hn-panel--sunken plan-block">
-              <div class="plan-head">
-                <h3 class="hn-register plan-title">Explain plan</h3>
-                <span id="plan-id" class="plan-id">not accepted</span>
-              </div>
-              <dl class="fact-grid compact">
-                <div><dt>Pushdown</dt><dd id="plan-pushdown">—</dd></div>
-                <div><dt>Fidelity</dt><dd id="plan-fidelity">—</dd></div>
-                <div><dt>Cache</dt><dd id="plan-cache">—</dd></div>
-                <div><dt>Residual</dt><dd id="plan-residual">—</dd></div>
-                <div><dt>Rows</dt><dd id="result-count">—</dd></div>
-              </dl>
-              <ol id="plan-steps" class="plan-steps"></ol>
-            </div>
-          </div>
-        </section>
-
-        <section class="hn-panel result-panel" aria-labelledby="result-title">
-          <div class="hn-panel-header">
-            <h2 id="result-title" class="hn-panel-title">Bounded result</h2>
-            <span class="hn-register">Text-safe rendering</span>
-          </div>
-          <div class="hn-table-wrap table-scroll" tabindex="0" aria-label="Scrollable query result">
-            <table class="hn-table">
+      <section class="result-grid">
+        <div class="panel map-panel">
+          <div class="panel-heading"><h2>Map preview</h2><span id="map-status">waiting</span></div>
+          <div id="map" aria-label="Accepted query map preview"></div>
+        </div>
+        <div class="panel table-panel">
+          <div class="panel-heading"><h2>Bounded result</h2><span>safe text rendering</span></div>
+          <div class="table-scroll" tabindex="0" aria-label="Scrollable query result">
+            <table>
               <thead id="result-head"></thead>
               <tbody id="result-body"><tr><td>No query has run.</td></tr></tbody>
             </table>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="hn-panel code-panel" aria-labelledby="code-title">
-          <div class="hn-panel-header">
-            <div>
-              <p class="hn-eyebrow">04 · Reuse</p>
-              <h2 id="code-title" class="hn-panel-title">Equivalent TypeScript</h2>
-            </div>
-            <button id="copy-code-button" class="hn-btn hn-btn--sm" type="button" disabled>Copy code</button>
+      <section class="result-grid">
+        <div class="panel code-panel">
+          <div class="panel-heading">
+            <div><p class="step">05 · Reuse</p><h2>Equivalent TypeScript</h2></div>
+            <button id="copy-code-button" type="button" disabled>Copy code</button>
           </div>
-          <div class="hn-panel-body code-body">
-            <pre id="typescript-code" class="hn-code" tabindex="0">// Accept an operation to generate code.</pre>
-            <p id="copy-status" class="inline-message" aria-live="polite"></p>
-          </div>
-        </section>
-
-        <section class="hn-panel diagnostics-panel" aria-labelledby="diagnostics-title">
-          <div class="hn-panel-header">
-            <h2 id="diagnostics-title" class="hn-panel-title">Diagnostics</h2>
-            <span class="hn-badge"><span id="diagnostic-count">0</span> reported</span>
-          </div>
-          <div class="hn-panel-body">
-            <ul id="diagnostic-list" class="diagnostic-list" tabindex="0" aria-label="Scrollable diagnostics"></ul>
-          </div>
-        </section>
-      </main>
-    </div>
+          <pre id="typescript-code" tabindex="0">// Accept an operation to generate code.</pre>
+          <p id="copy-status" class="inline-message" aria-live="polite"></p>
+        </div>
+        <div class="panel diagnostics-panel">
+          <div class="panel-heading"><h2>Diagnostics</h2><span id="diagnostic-count">0</span></div>
+          <ul id="diagnostic-list" tabindex="0" aria-label="Scrollable diagnostics"></ul>
+        </div>
+      </section>
+    </main>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

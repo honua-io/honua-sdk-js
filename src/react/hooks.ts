@@ -167,7 +167,7 @@ export interface UseQueryResult<T> extends QuerySnapshot<Result<T>> {
  * ```tsx
  * const { data, isLoading, error, refetch } = useQuery(
  *   dataset.source("incidents"),
- *   { pagination: { limit: 100 }, returnGeometry: true },
+ *   { where: "STATUS = 'OPEN'", returnGeometry: true },
  * );
  * ```
  */

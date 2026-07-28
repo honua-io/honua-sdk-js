@@ -1,4 +1,23 @@
 {
-  "extends": "../_kit/tsconfig.source.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "types": ["vite/client"],
+    "paths": {
+      "@honua/sdk-js": ["../../src/index.ts"],
+      "@honua/sdk-js/app-workspace": ["../../src/app-workspace/index.ts"],
+      "@honua/sdk-js/contract": ["../../src/contract/index.ts"],
+      "@honua/sdk-js/exploration": ["../../src/exploration/index.ts"],
+      "@honua/sdk-js/honua": ["../../src/honua.ts"],
+      "@honua/sdk-js/interactions": ["../../src/interactions/index.ts"]
+    }
+  },
   "include": ["src/**/*.ts", "vite.config.ts"]
 }

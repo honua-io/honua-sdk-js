@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   OVERTURE_LIVE_PRODUCER_ARTIFACT,
   collectOvertureLiveEvidence,
-  normalizeValidAt,
   summarizeOvertureRangeTraffic,
 } from "../scripts/overture-live-evidence.mjs";
 import { validateEvidenceEnvelope } from "../scripts/sample-contract.mjs";
@@ -163,59 +162,5 @@ describe("Overture live evidence", () => {
       artifacts: [OVERTURE_LIVE_PRODUCER_ARTIFACT],
     };
     expect(validateEvidenceEnvelope(evidence, { now: observedAt })).toBe(evidence);
-  });
-
-  // #767: S3 reports `Last-Modified` as an HTTP-date and the fixture lane reports
-  // a non-date marker. Both were forwarded straight into provenance.validAt,
-  // which the envelope contract only accepts as null-or-RFC 3339 — so every live
-  // envelope, success or failure, was replaced by a generic validation failure
-  // that hid the real outcome.
-  it("normalizes the raw Last-Modified header into an RFC 3339 provenance.validAt", () => {
-    expect(normalizeValidAt("Wed, 17 Jun 2026 17:24:54 GMT")).toBe("2026-06-17T17:24:54.000Z");
-    expect(normalizeValidAt("2026-06-17T17:24:54.000Z")).toBe("2026-06-17T17:24:54.000Z");
-    for (const absent of [null, undefined, "", "   ", "fixture-commit", "not-a-date", 17, {}]) {
-      expect(normalizeValidAt(absent as never)).toBeNull();
-    }
-  });
-
-  it("accepts a live envelope whose validAt came from a raw HTTP-date header", () => {
-    const observedAt = "2026-07-01T00:00:00.000Z";
-    const envelope = {
-      format: "honua.sdk.sample-evidence.v1",
-      schemaVersion: 1,
-      sampleId: "overture-geoparquet",
-      lane: "live",
-      status: "failed",
-      reason: "engine budget exceeded",
-      observedAt,
-      authMode: "anonymous",
-      sdk: { package: "@honua/sdk-js", version: "0.1.2-beta.0", gitCommit: "1".repeat(40) },
-      source: {
-        provider: "overture-aws-open-data",
-        identity: "release/theme=places/type=place/part.parquet",
-        endpoint: "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/part.parquet",
-        deploymentVersion: "2026-06-17.0",
-        dataVersion: "v1.17.0",
-      },
-      provenance: {
-        sourceId: "overture:2026-06-17.0:places:place:00000",
-        observedAt,
-        validAt: normalizeValidAt("Wed, 17 Jun 2026 17:24:54 GMT"),
-        state: "live",
-        attribution: "Overture Maps Foundation Open Map Data",
-      },
-      semantics: { operation: "bounded-aoi-columnar-query", outcome: null, itemCount: null, assertions: [] },
-      timing: { totalMs: 250, firstSuccessfulInteractionMs: 100 },
-      degradation: { state: "unexpected", reasons: ["engine budget exceeded"] },
-      artifacts: [],
-    };
-
-    expect(validateEvidenceEnvelope(envelope, { now: observedAt })).toBe(envelope);
-    expect(() =>
-      validateEvidenceEnvelope(
-        { ...envelope, provenance: { ...envelope.provenance, validAt: "Wed, 17 Jun 2026 17:24:54 GMT" } },
-        { now: observedAt },
-      ),
-    ).toThrow(/validAt must be null or an RFC 3339 date-time/);
   });
 });

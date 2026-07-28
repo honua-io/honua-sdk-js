@@ -47,11 +47,3 @@ deterministic `offset`/`run` fixture extensions; handlers reject undeclared or
 duplicate query names. The GeoServices projection is read-only (`Query`). The
 fixture's deliberately custom mutation contract lives at
 `POST /__fixture__/runs/<run>/actions/edit`, outside the protocol surface.
-
-Incident Operations also exposes deterministic control actions for
-`duplicate-event`, `reorder-event`, and `stale-cursor`. Duplicate and reordered
-data remain distinct: the former repeats the last event identity, while the
-latter delivers an older sequence with a new identity. Stale cursor emits an
-explicit `cursor-expired` stream error so consumers must accept a replacement
-snapshot before treating the projection as authoritative again. Heartbeats do
-not consume the ordered data sequence.

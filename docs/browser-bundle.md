@@ -61,13 +61,8 @@ unpkg works the same way:
 ## What's bundled vs. external
 
 The bundle is focused on the **core SDK public API** (everything re-exported
-from `src/index.ts`). Its stable-core runtime dependency,
-`@maplibre/maplibre-gl-style-spec`, is bundled in. The package manifest has two
-other bounded direct dependencies: `@honua/honua-migrate` backs deprecated
-migration forwarders outside the browser graph, and
-`@mapbox/jsonlint-lines-primitives@2.0.2` temporarily pins style-spec's
-existing parser so its new Node 22 engine metadata does not reject the
-published Node 20 contract.
+from `src/index.ts`). The sole real runtime dependency,
+`@maplibre/maplibre-gl-style-spec`, is bundled in.
 
 The heavy runtime *peers* are kept **external** so the artifact stays small and
 does not inline multi-megabyte map/protobuf runtimes:

@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.1.2-beta.0"
+    "version": "0.1.0-beta.0"
   },
   "generatedFrom": [
     "config/sdk-coverage-crosswalk.v1.json",
@@ -102,7 +102,6 @@
       ],
       "evidence": [
         "scripts/first-map-live-evidence.mjs",
-        "scripts/live-conformance-evidence.mjs",
         "test/connect.test.ts",
         "test/contract/conformance.test.ts",
         "test/contract/geoservices-conformance.test.ts",
@@ -283,7 +282,6 @@
       ],
       "evidence": [
         "scripts/first-map-live-evidence.mjs",
-        "scripts/live-conformance-evidence.mjs",
         "test/connect.test.ts",
         "test/contract/conformance.test.ts",
         "test/contract/geoservices-conformance.test.ts",
@@ -349,7 +347,6 @@
         "connect()"
       ],
       "evidence": [
-        "scripts/live-conformance-evidence.mjs",
         "test/contract/odata-backend-agnostic.test.ts"
       ],
       "source": "support-manifest"
@@ -363,7 +360,6 @@
         "connect()"
       ],
       "evidence": [
-        "scripts/live-conformance-evidence.mjs",
         "test/contract/ogc-features-backend-agnostic.test.ts"
       ],
       "source": "support-manifest"
@@ -377,11 +373,10 @@
         "connect()"
       ],
       "evidence": [
-        "scripts/live-conformance-evidence.mjs",
         "test/connect-ogc-maps.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render."
+      "note": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps."
     },
     {
       "key": "serve.ogc-api-records",
@@ -392,11 +387,10 @@
         "connect()"
       ],
       "evidence": [
-        "scripts/live-conformance-evidence.mjs",
         "test/connect-ogc.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page."
+      "note": "Discovers and queries the raw records path advertised by the service; does not require /ogc/records."
     },
     {
       "key": "serve.ogc-api-tiles",
@@ -407,11 +401,10 @@
         "connect()"
       ],
       "evidence": [
-        "scripts/live-conformance-evidence.mjs",
         "test/connect-ogc-tiles.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile."
+      "note": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles."
     },
     {
       "key": "serve.stac",
@@ -422,7 +415,6 @@
         "connect()"
       ],
       "evidence": [
-        "scripts/live-conformance-evidence.mjs",
         "test/contract/stac-backend-agnostic.test.ts"
       ],
       "source": "support-manifest"
@@ -451,7 +443,6 @@
         "connect()"
       ],
       "evidence": [
-        "scripts/live-conformance-evidence.mjs",
         "test/contract/wfs-backend-agnostic.test.ts"
       ],
       "source": "support-manifest"
@@ -466,7 +457,6 @@
         "connect()"
       ],
       "evidence": [
-        "scripts/live-conformance-evidence.mjs",
         "test/connect-wms-wmts.test.ts",
         "test/raster-source-strategy.test.ts"
       ],
@@ -482,7 +472,6 @@
         "connect()"
       ],
       "evidence": [
-        "scripts/live-conformance-evidence.mjs",
         "test/connect-wms-wmts.test.ts",
         "test/raster-source-strategy.test.ts"
       ],
@@ -496,12 +485,10 @@
         "@honua/sdk-js/realtime"
       ],
       "evidence": [
-        "scripts/realtime-conformance-evidence.mjs",
-        "test/integration/surfaces/realtime.integration.ts",
-        "test/realtime-cross-transport-conformance.test.ts"
+        "test/integration/surfaces/realtime.integration.ts"
       ],
       "source": "support-manifest",
-      "note": "SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately."
+      "note": "Subscription-backed live updates depend on the Honua realtime contract."
     },
     {
       "key": "styling.ogc-api-styles",

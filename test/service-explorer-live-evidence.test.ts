@@ -86,14 +86,14 @@ describe("Service Explorer public-live evidence producer", () => {
     ).resolves.toBeUndefined();
     const selection = generateCiSelection(catalog);
     expect(selection.samples.find((candidate) => candidate.id === "service-explorer")).toMatchObject({
-      track: "golden",
+      track: "lab",
       commandPlan: {
         liveEvidence: {
           execution: "scheduled-only",
           commands: ["npm run demo:service-explorer:live-evidence"],
         },
       },
-      liveEvidence: { mode: "public-live", status: "executed" },
+      liveEvidence: { mode: "public-live", status: "planned" },
     });
 
     const geoservicesQuery = requests.find((request) => request.url.includes("/FeatureServer/0/query?"));

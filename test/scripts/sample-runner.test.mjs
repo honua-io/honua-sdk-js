@@ -16,7 +16,6 @@ import {
   canonicalizePlaywrightEvidenceReport,
   ChildSupervisor,
   commandForSpawn,
-  commandsForAction,
   commitGateReceiptTransaction,
   forwardedLiveCredentials,
   groupEvidenceGates,
@@ -264,172 +263,7 @@ test("runner argument and manifest boundaries reject substitution and traversal"
     validateSelection(drifted, { packageScripts, checkPaths: false, expectedSelection: expected }),
     /membership or gates drifted|stale or modified/,
   );
-
-  const generatedDrift = selection();
-  generatedDrift.samples[0].track = "lab";
-  await assert.rejects(
-    validateSelection(generatedDrift, { packageScripts, checkPaths: false, expectedSelection: expected }),
-    /stale or modified/,
-  );
-  await assert.doesNotReject(
-    validateSelection(generatedDrift, {
-      packageScripts,
-      checkPaths: false,
-      expectedSelection: expected,
-      deferGeneratedProjectionFreshness: true,
-    }),
-  );
-
-  const unrelatedExpected = selection();
-  unrelatedExpected.samples.push({
-    ...structuredClone(unrelatedExpected.samples[0]),
-    id: "other-sample",
-    sourcePath: "examples/other-sample",
-  });
-  unrelatedExpected.profiles[0].sampleIds.push("other-sample");
-  await assert.doesNotReject(
-    validateSelection(selection(), {
-      packageScripts,
-      checkPaths: false,
-      expectedSelection: unrelatedExpected,
-      scopeGeneratedProjectionFreshnessToSampleId: "safe-sample",
-    }),
-  );
-  await assert.rejects(
-    validateSelection(generatedDrift, {
-      packageScripts,
-      checkPaths: false,
-      expectedSelection: expected,
-      scopeGeneratedProjectionFreshnessToSampleId: "safe-sample",
-    }),
-    /stale or modified/,
-  );
-  await assert.rejects(
-    validateSelection(generatedDrift, {
-      packageScripts,
-      checkPaths: false,
-      expectedSelection: expected,
-      deferGeneratedProjectionFreshness: true,
-      scopeGeneratedProjectionFreshnessToSampleId: "safe-sample",
-    }),
-    /stale or modified/,
-  );
-  await assert.rejects(
-    validateSelection(selection(), {
-      packageScripts,
-      checkPaths: false,
-      expectedSelection: unrelatedExpected,
-      scopeGeneratedProjectionFreshnessToSampleId: "missing-sample",
-    }),
-    /stale or modified/,
-  );
 });
-
-test("qualification bootstrap accepts every simultaneously-stale golden sample, not just the invocation target", () => {
-  // A lone --sample keeps the single-target bootstrap unchanged: no
-  // qualificationBootstrapAlso is present at all.
-  const single = parseRunnerArgs(["evidence", "--sample", "safe-sample"]);
-  assert.equal(single.qualificationBootstrapAlso, undefined);
-
-  // Naming other golden samples that are simultaneously being requalified
-  // against the same source breaks the circularity described in issue #735:
-  // the single-target bootstrap alone can never validate two mutually-stale
-  // golden samples in one pass.
-  const multi = parseRunnerArgs([
-    "evidence",
-    "--sample",
-    "safe-sample",
-    "--qualification-bootstrap-also",
-    "sample-a,sample-b",
-  ]);
-  assert.deepEqual(multi.qualificationBootstrapAlso, ["sample-a", "sample-b"]);
-
-  assert.throws(
-    () => parseRunnerArgs(["build", "--sample", "safe-sample", "--qualification-bootstrap-also", "sample-a"]),
-    /only valid for a full evidence run/,
-  );
-  assert.throws(
-    () =>
-      parseRunnerArgs([
-        "evidence",
-        "--sample",
-        "safe-sample",
-        "--gate",
-        "browser",
-        "--qualification-bootstrap-also",
-        "sample-a",
-      ]),
-    /only valid for a full evidence run/,
-  );
-  assert.throws(
-    () => parseRunnerArgs(["evidence", "--sample", "safe-sample", "--qualification-bootstrap-also", "../escape"]),
-    /--qualification-bootstrap-also is invalid/,
-  );
-  assert.throws(
-    () => parseRunnerArgs(["evidence", "--sample", "safe-sample", "--qualification-bootstrap-also", "sample-a,sample-a"]),
-    /duplicate sample id/,
-  );
-  assert.throws(
-    () =>
-      parseRunnerArgs([
-        "evidence",
-        "--sample",
-        "safe-sample",
-        "--qualification-bootstrap-also",
-        "sample-a",
-        "--qualification-bootstrap-also",
-        "sample-b",
-      ]),
-    /duplicate option/,
-  );
-});
-
-test("qualification bootstrap also is rejected unless --sample itself derives a golden bootstrap exemption", () => {
-  // `--sample` is not a golden-track catalog sample, so it derives no
-  // qualification bootstrap of its own: `--qualification-bootstrap-also`
-  // would otherwise let an unrelated, non-bootstrap evidence run exempt
-  // golden samples' receipt freshness without producing any replacement
-  // receipts for them (a freshness-gate bypass fixed for #735).
-  const rejected = spawnSync(
-    process.execPath,
-    [
-      "scripts/sample-runner.mjs",
-      "evidence",
-      "--sample",
-      "realtime-incident-dashboard",
-      "--dry-run",
-      "--qualification-bootstrap-also",
-      "maplibre-quickstart",
-    ],
-    { cwd: process.cwd(), encoding: "utf8" },
-  );
-  assert.notEqual(rejected.status, 0);
-  assert.match(
-    rejected.stderr,
-    /--qualification-bootstrap-also requires --sample to itself be a golden qualification bootstrap target/,
-  );
-  assert.match(rejected.stderr, /realtime-incident-dashboard is not/);
-
-  // A `--sample` that is itself a golden bootstrap target (a full evidence
-  // run for a golden-track sample, no --gate) is accepted by this guard: any
-  // later failure must come from catalog/receipt validation, never from the
-  // guard added here.
-  const accepted = spawnSync(
-    process.execPath,
-    [
-      "scripts/sample-runner.mjs",
-      "evidence",
-      "--sample",
-      "maplibre-quickstart",
-      "--dry-run",
-      "--qualification-bootstrap-also",
-      "realtime-incident-dashboard",
-    ],
-    { cwd: process.cwd(), encoding: "utf8" },
-  );
-  assert.doesNotMatch(accepted.stderr, /--qualification-bootstrap-also requires --sample to itself be/);
-});
-
 test("npm evidence commands suppress lifecycle hooks without changing their reviewed argv", () => {
   const executable = process.platform === "win32" ? "npm.cmd" : "npm";
   assert.deepEqual(commandForSpawn(["npm", "run", "bench:live", "--", "--sample", "safe-sample"]), [
@@ -442,17 +276,6 @@ test("npm evidence commands suppress lifecycle hooks without changing their revi
     "safe-sample",
   ]);
   assert.deepEqual(commandForSpawn([process.execPath, "script.mjs"]), [process.execPath, "script.mjs"]);
-});
-
-test("kit-bound browser tests remain runnable when catalog validation omits Playwright", () => {
-  const sample = selection().samples[0];
-  sample.commandPlan.validation.commands = sample.commandPlan.validation.commands.filter(
-    (command) => !command.includes("test:playwright"),
-  );
-  assert.deepEqual(commandsForAction(sample, "test", { playwrightScript: "test:playwright:safe" }), [
-    ["npm", "run", "test:playwright:safe"],
-  ]);
-  assert.deepEqual(commandsForAction(sample, "test"), []);
 });
 
 test("kit configs are regular files bound to the selected sample and Playwright root", async () => {
@@ -778,10 +601,7 @@ test("reviewed live producers honor the explicit per-run output contract", async
     });
     assert.equal(result.status, 0, result.stderr);
     const evidence = JSON.parse(await readFile(output, "utf8"));
-    const packageJson = JSON.parse(await readFile("package.json", "utf8"));
     assert.equal(evidence.sampleId, "ai-spatial-app-builder");
-    assert.equal(evidence.sdk.package, packageJson.name);
-    assert.equal(evidence.sdk.version, packageJson.version);
     assert.equal(evidence.sdk.gitCommit, sourceRevision);
     assert.equal(evidence.status, "skipped");
   } finally {
@@ -794,34 +614,6 @@ test("reviewed live producers honor the explicit per-run output contract", async
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
     }
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("spatial analytics live evidence derives SDK identity from package.json", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "honua-spatial-live-contract-"));
-  const output = path.join(root, "live-evidence.json");
-  const sourceRevision = "2".repeat(40);
-  try {
-    const result = spawnSync(process.execPath, ["examples/spatial-analytics-workbench/live-evidence.mjs"], {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      env: {
-        PATH: process.env.PATH,
-        HONUA_SAMPLE_LIVE_OUTPUT: output,
-        HONUA_SAMPLE_LIVE_SAMPLE_ID: "spatial-analytics-workbench",
-        HONUA_SAMPLE_SOURCE_REVISION: sourceRevision,
-      },
-    });
-    assert.equal(result.status, 0, result.stderr);
-    const evidence = JSON.parse(await readFile(output, "utf8"));
-    const packageJson = JSON.parse(await readFile("package.json", "utf8"));
-    assert.equal(evidence.sampleId, "spatial-analytics-workbench");
-    assert.equal(evidence.status, "skipped");
-    assert.equal(evidence.sdk.package, packageJson.name);
-    assert.equal(evidence.sdk.version, packageJson.version);
-    assert.equal(evidence.sdk.gitCommit, sourceRevision);
-  } finally {
     await rm(root, { recursive: true, force: true });
   }
 });

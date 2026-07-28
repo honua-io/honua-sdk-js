@@ -1192,9 +1192,6 @@ export interface HonuaLayerMetadata {
   extent?: HonuaExtent;
   spatialReference?: HonuaSpatialReference;
   maxRecordCount?: number;
-  /** Canonical GeoServices layer-metadata flag for attachment support. */
-  hasAttachments?: boolean;
-  /** @deprecated Compatibility alias accepted only when `hasAttachments` is absent. */
   supportsAttachments?: boolean;
   relationships?: HonuaRelationshipInfo[];
   /** Comma-delimited GeoServices operation names advertised by the layer. */

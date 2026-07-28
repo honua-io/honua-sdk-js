@@ -4,9 +4,9 @@ import {
   createSceneStateSynchronizer,
   defaultSceneStateSyncMappings,
 } from "/dist/src/scene-workspace/index.js";
-import * as maplibregl from "/node_modules/maplibre-gl/dist/maplibre-gl.mjs";
 
 const Cesium = globalThis.Cesium;
+const maplibregl = globalThis.maplibregl;
 const AT = "2026-07-11T12:00:00.000Z";
 const identity = Object.freeze({
   sourceId: "live-incidents",

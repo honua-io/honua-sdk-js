@@ -1,4 +1,4 @@
-import * as maplibregl from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 
 import { HonuaClient } from "@honua/sdk-js";
 import { createHonuaController } from "@honua/sdk-js/app-controller";

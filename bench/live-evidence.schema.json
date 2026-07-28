@@ -42,14 +42,6 @@
       "items": {
         "type": "object",
         "required": ["id", "status", "provider", "endpoint", "authMode", "sampleEvidence"],
-        "allOf": [
-          {
-            "$comment": "A skip must be typed. An untyped skip is indistinguishable from a swallowed failure, which is exactly what this lane must never publish.",
-            "if": { "properties": { "status": { "const": "skipped" } }, "required": ["status"] },
-            "then": { "required": ["skipReason", "skipReasonCode"] },
-            "else": { "not": { "required": ["skipReasonCode"] } }
-          }
-        ],
         "properties": {
           "id": { "type": "string" },
           "status": { "enum": ["passed", "failed", "skipped"] },
@@ -57,16 +49,6 @@
           "endpoint": { "type": "string", "format": "uri" },
           "authMode": { "enum": ["anonymous", "api-key", "bearer"] },
           "skipReason": { "type": "string" },
-          "skipReasonCode": {
-            "description": "Typed skip taxonomy. Only a probe that positively established the live environment cannot demonstrate the journey may skip; transport, status, timeout, and schema problems stay failed.",
-            "enum": [
-              "live-probes-disabled",
-              "operator-requested-skip",
-              "realtime-capability-probe-unavailable",
-              "realtime-capability-disabled",
-              "incident-demo-dataset-empty"
-            ]
-          },
           "error": { "type": "string" },
           "startedAt": { "type": "string", "format": "date-time" },
           "completedAt": { "type": "string", "format": "date-time" },
@@ -136,29 +118,6 @@
               "requestedUrls": {
                 "type": "array",
                 "items": { "type": "string", "format": "uri" }
-              }
-            },
-            "additionalProperties": false
-          },
-          "realtime": {
-            "type": "object",
-            "required": ["snapshotAt", "cursor", "lagMs", "observationWindowMs", "reconnectOutcome"],
-            "properties": {
-              "snapshotAt": { "type": ["string", "null"] },
-              "cursor": { "type": ["string", "null"] },
-              "lagMs": { "type": ["number", "null"], "minimum": 0 },
-              "observationWindowMs": { "type": "number", "minimum": 0 },
-              "reconnectOutcome": {
-                "description": "Machine-readable discriminator for why the journey did or did not reconnect. Each skip condition owns a distinct outcome so a consumer is never told the capability was unavailable when it was not.",
-                "enum": [
-                  "resumed-from-cursor-and-observed-delta",
-                  "not-attempted-live-probes-disabled",
-                  "not-attempted-operator-skip",
-                  "not-attempted-capability-unavailable",
-                  "not-attempted-demo-dataset-empty",
-                  "not-attempted",
-                  null
-                ]
               }
             },
             "additionalProperties": false

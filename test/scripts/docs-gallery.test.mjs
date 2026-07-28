@@ -17,7 +17,6 @@ import {
 
 const projectionBytes = fs.readFileSync("samples/dist/honua-site-samples.v2.json", "utf8");
 const projection = JSON.parse(projectionBytes);
-const derivedArtifactsRelaxed = /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "");
 const consumerFixture = JSON.parse(
   fs.readFileSync("samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json", "utf8"),
 );
@@ -396,25 +395,15 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const cards = galleryCards(gallery);
   const byId = new Map(cards.map((card) => [card.sample.id, card]));
 
-  const qualifiedGoldenJourneys = projection.goldenJourneys.filter((journey) => journey.status === "qualified");
-  const qualifiedGoldenJourneyIds = new Set(qualifiedGoldenJourneys.map((journey) => journey.id));
-
   assert.equal(gallery.cardCount, 30);
-  // imagery-cog-quickstart's golden promotion (#548) came from the recipe
-  // track (unlike service-explorer's, which came from lab), so the recipe
-  // count is now 11 (down from 12) and lab absorbs the rest.
-  assert.deepEqual(counts, {
-    golden: qualifiedGoldenJourneys.length,
-    recipe: 11,
-    lab: gallery.cardCount - 11 - qualifiedGoldenJourneys.length,
-  });
+  assert.deepEqual(counts, { golden: 1, recipe: 12, lab: 17 });
   assert.ok(!byId.has("arcgis-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
   assert.deepEqual(byId.get("runtime-parity-showcase").replacement, {
     kind: "journey",
     id: "service-explorer",
     title: "Universal Service Explorer",
-    status: qualifiedGoldenJourneyIds.has("service-explorer") ? "qualified" : "planned",
+    status: "planned",
     candidateSampleId: "service-explorer",
     publicSampleId: "service-explorer",
   });
@@ -426,34 +415,10 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   });
   assert.equal(byId.get("web-components-basic").sample.lifecycle.state, "retire");
   assert.equal(byId.get("realtime-incident-dashboard").journey.title, "Realtime Incident Operations");
-  if (!derivedArtifactsRelaxed) {
-    assert.deepEqual(byId.get("edit-workflow-demo").replacement, {
-      kind: "journey",
-      id: "planning-permitting",
-      title: "Planning and Permitting",
-      status: "planned",
-      candidateSampleId: "planning-permitting-workbench",
-      publicSampleId: "planning-permitting-workbench",
-    });
-    assert.equal(byId.get("edit-workflow-demo").sample.lifecycle.state, "replace");
-    assert.equal(byId.get("geocoding-quickstart").sample.track, "recipe");
-    assert.equal(byId.get("geocoding-quickstart").sample.lifecycle.state, "rework");
-    assert.equal(byId.get("sketch-editing").sample.track, "recipe");
-    assert.equal(byId.get("sketch-editing").sample.lifecycle.state, "active");
-    const planningCard = byId.get("planning-permitting-workbench");
-    assert.equal(planningCard.sample.track, "lab");
-    assert.equal(planningCard.sample.lifecycle.state, "active");
-    assert.equal(planningCard.journey.status, "planned");
-    assert.equal(planningCard.qualification.state, "planned-golden-candidate");
-    assert.match(planningCard.qualification.label, /not receipt-qualified/u);
-    assert.equal(planningCard.sample.evidence.live.status, "planned");
-  }
-  // imagery-cog-quickstart is now the real, receipt-qualified Imagery and
-  // Terrain golden journey (#548), not merely a planned candidate.
   const imageryCard = byId.get("imagery-cog-quickstart");
   assert.equal(imageryCard.sample.lifecycle.state, "active");
-  assert.equal(imageryCard.qualification.state, "receipt-qualified-golden");
-  assert.equal(imageryCard.qualification.label, "Receipt-qualified golden journey");
+  assert.equal(imageryCard.qualification.state, "planned-golden-candidate");
+  assert.match(imageryCard.qualification.label, /not receipt-qualified/u);
   assert.deepEqual(imageryCard.qualification.requiredGates, [
     "packedBuild",
     "browser",
@@ -465,32 +430,13 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
     "liveEvidence",
   ]);
   assert.equal(imageryCard.sample.evidence.live.mode, "public-live");
-  assert.equal(imageryCard.sample.evidence.live.status, "executed");
-  const qualifiedGoldenCandidateSampleIds = new Set(
-    qualifiedGoldenJourneys.map((journey) => journey.candidateSampleId),
-  );
-  assert.deepEqual(
-    [...qualifiedGoldenCandidateSampleIds].sort(),
-    ["imagery-cog-quickstart", "maplibre-quickstart", "migration-workbench", "service-explorer"],
-  );
+  assert.equal(imageryCard.sample.evidence.live.status, "planned");
   const firstMapCard = byId.get("maplibre-quickstart");
   assert.equal(firstMapCard.qualification.state, "receipt-qualified-golden");
   assert.equal(firstMapCard.qualification.label, "Receipt-qualified golden journey");
-  const serviceExplorerCard = byId.get("service-explorer");
-  assert.equal(serviceExplorerCard.qualification.state, "receipt-qualified-golden");
-  assert.equal(serviceExplorerCard.qualification.label, "Receipt-qualified golden journey");
-  // migration-workbench is the real, receipt-qualified ArcGIS Migration
-  // Workbench golden journey (#549); its live evidence comes from the
-  // deterministic-CLI demo-live producer rather than a public-live proof.
-  const migrationCard = byId.get("migration-workbench");
-  assert.equal(migrationCard.sample.lifecycle.state, "active");
-  assert.equal(migrationCard.qualification.state, "receipt-qualified-golden");
-  assert.equal(migrationCard.qualification.label, "Receipt-qualified golden journey");
-  assert.equal(migrationCard.sample.evidence.live.mode, "demo-live");
-  assert.equal(migrationCard.sample.evidence.live.status, "executed");
   assert.ok(
     cards
-      .filter((card) => !qualifiedGoldenCandidateSampleIds.has(card.sample.id))
+      .filter((card) => card.sample.id !== "maplibre-quickstart")
       .every((card) => card.qualification.label.includes("not receipt-qualified")),
   );
   assert.deepEqual(firstMapCard.qualification.requiredGates, [
@@ -503,9 +449,6 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
     "performance",
     "liveEvidence",
   ]);
-  assert.deepEqual(serviceExplorerCard.qualification.requiredGates, firstMapCard.qualification.requiredGates);
-  assert.deepEqual(imageryCard.qualification.requiredGates, firstMapCard.qualification.requiredGates);
-  assert.deepEqual(migrationCard.qualification.requiredGates, firstMapCard.qualification.requiredGates);
 });
 
 test("sorts public capability and protocol facets deterministically", async () => {

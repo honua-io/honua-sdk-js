@@ -3,11 +3,7 @@
  * Events (`sse.ts`) and WebSocket (`websocket.ts`) wire adapters pair with
  * the bounded, resumable wrapper in `resumable-transport.ts` (issue #557),
  * which adds the #556 delivery gate, reconnect/backoff, heartbeat timeout,
- * and redacted telemetry on top of either one. `odata-delta.ts` (issue #558)
- * adds a pull-based OData v4 delta-link adapter with its own bounded poll
- * loop and honest, non-live freshness reporting — it satisfies the same
- * `RealtimeFeatureTransport` surface but is not a socket transport, so it
- * does not compose with `resumable-transport.ts`'s reconnect wrapper.
+ * and redacted telemetry on top of either one.
  *
  * @module
  */
@@ -88,13 +84,6 @@ export type {
   RealtimeWebSocketFactory,
   RealtimeWebSocketTransportOptions,
 } from "./websocket.js";
-export { createOdataDeltaTransport } from "./odata-delta.js";
-export type {
-  OdataDeltaEntity,
-  OdataDeltaInitialQuery,
-  OdataDeltaPollTelemetry,
-  OdataDeltaTransportOptions,
-} from "./odata-delta.js";
 export {
   computeReconnectDelayMs,
   createResumableRealtimeTransport,
@@ -107,35 +96,6 @@ export type {
   RealtimeResumableTransportTelemetry,
 } from "./resumable-transport.js";
 export { filterRealtimeSelection, reconcileRealtimeSelection } from "./exploration.js";
-export {
-  HonuaRealtimeReconciliationError,
-  createRealtimeReconciledCache,
-  createRealtimeReconciler,
-  diffRealtimeFeatureState,
-  realtimeReconciliationVersion,
-  reconcileRealtimeKeyedState,
-  reconcileRealtimeViewport,
-} from "./reconciliation.js";
-export type {
-  RealtimeKeyedStateReconciliation,
-  RealtimeReconciledCache,
-  RealtimeReconciledCacheSnapshot,
-  RealtimeReconciler,
-  RealtimeReconcilerOptions,
-  RealtimeReconciliationChange,
-  RealtimeReconciliationChangeKind,
-  RealtimeReconciliationDiff,
-  RealtimeReconciliationErrorCode,
-  RealtimeReconciliationInvalidation,
-  RealtimeReconciliationInvalidationReason,
-  RealtimeReconciliationMode,
-  RealtimeReconciliationRebuildReason,
-  RealtimeReconciliationResetReasonCode,
-  RealtimeReconciliationResult,
-  RealtimeReconciliationTrigger,
-  RealtimeReconciliationVersion,
-  RealtimeViewportReconciliation,
-} from "./reconciliation.js";
 export {
   selectRealtimeDetail,
   selectRealtimeFeatureRecordMap,

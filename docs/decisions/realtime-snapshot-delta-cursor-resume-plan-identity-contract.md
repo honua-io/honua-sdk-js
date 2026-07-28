@@ -198,11 +198,11 @@ to migrate.
 
 ## Follow-on work
 
-- [`#557`](https://github.com/honua-io/honua-sdk-js/issues/557) subsequently
-  delivered bounded SSE/WebSocket transports against this contract.
+- [`#557`](https://github.com/honua-io/honua-sdk-js/issues/557): bounded
+  SSE/WebSocket transports against this contract.
 - [`#558`](https://github.com/honua-io/honua-sdk-js/issues/558)–[`#560`](https://github.com/honua-io/honua-sdk-js/issues/560):
-  subsequently delivered OData delta and renderer/cache integration.
-- [`#818`](https://github.com/honua-io/honua-sdk-js/issues/818) subsequently
-  added the shared SSE/WebSocket/OData fixture matrix and scheduled
-  honua-server capability evidence. See
-  [`docs/realtime-conformance.md`](../realtime-conformance.md).
+  renderer/cache/columnar-batch and sample-app integration once a transport
+  exists.
+- A shared cross-transport conformance suite against honua-server's
+  `realtime.feature-streams` capability, once that capability is generally
+  available server-side, is explicitly deferred rather than claimed here.

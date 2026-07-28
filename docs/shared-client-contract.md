@@ -31,8 +31,7 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
   `wfsSource`, `odataSource`).
 - **Non-goal:** replacing the v1 `Query` envelope while protocol compilers
   migrate. `Query.where` is a deprecated, source-native compatibility string;
-  the experimental typed semantic AST in `@honua/sdk-js/query-planner` follows
-  separate compiler/execution workflows and is not accepted by `Source.query()`.
+  new filters use the typed semantic AST from `@honua/sdk-js/query-planner`.
 
 ## Module layout
 
@@ -72,7 +71,7 @@ unsupported-capability, and degraded-result scenarios.
 | `SourceDescriptor` | `{ id, protocol, locator, capabilities, schema?, attribution? }`. The serializable identity of one source. |
 | `Source<T>` | Runtime handle. Methods: `query`, `queryAll`, `queryAggregate`, `queryExtent`, `stream`, `queryObjectIds`, `applyEdits`, `queryRelated`, `attachments` (namespace), `protocol` (typed escape hatch; `adapter` is the legacy alias). |
 | `Dataset` | Logical grouping of sources sharing identity. Methods: `source(id)`, `sourceIds()`, `isCompatible()`, `supportsFeature()`. |
-| `Query<T>` | The v1 compatibility envelope `{ where?, spatialFilter?, outFields?, orderBy?, pagination?, aggregation?, returnGeometry?, outSr?, signal? }`; `where` is deprecated, source-native migration compatibility. The experimental typed planner AST uses separate compiler/execution workflows and is not accepted by `Source.query()`. |
+| `Query<T>` | The v1 compatibility envelope `{ where?, spatialFilter?, outFields?, orderBy?, pagination?, aggregation?, returnGeometry?, outSr?, signal? }`; `where` is deprecated and source-native. New filters use the typed query-planner AST. |
 | `Result<T>` | `{ features, exceededTransferLimit, totalCount?, aggregateRows?, extent?, fields?, degraded? }`. |
 | `SpatialAggregationRequest` / `SpatialAggregationResult` | Indexed spatial aggregation contract for large result sets. Requests carry `where`, `spatialFilter`, `viewport`, zoom/index-resolution hints, opaque index selection, summary specs (`category`, `histogram`, `range`, `count`, `sum`, `avg`, `min`, `max`), and optional `groupBy`. Results carry opaque indexed cells, grouped/totals summaries, backend index metadata, widget metadata, and progressive loading state. |
 | `EditEnvelope<T>` | `{ adds?, updates?, deletes?, rollbackOnFailure?, signal? }`. Each add / update is a `CanonicalFeature<T>` (attributes + optional geometry + optional id). |
@@ -164,14 +163,9 @@ const dataset = createDataset({
 });
 
 const parcels = dataset.source("parcels-fs")!;
-const result = await parcels.query({ pagination: { limit: 100 } });
+// Deprecated source-native compatibility text during semantic compiler adoption.
+const result = await parcels.query({ where: "STATE = 'CA'", pagination: { limit: 100 } });
 ```
-
-`Source.query()` accepts the stable protocol-neutral `Query` envelope. Its
-deprecated `where` string is retained only for source-native migration
-compatibility. The experimental typed semantic AST follows separate
-compiler/execution workflows in `@honua/sdk-js/query-planner`; it is not
-accepted by `Source.query()`.
 
 The built-in resolver handles `geoservices-feature-service`,
 `geoservices-map-service`, `geoservices-image-service`,
@@ -228,9 +222,9 @@ The WMS / WMTS factories cover the OGC web-map services per
 `docs/wfs.md` documents the WFS 2.0 factory in the same shape:
 
 - `wfsSource` — WFS 2.0 (query, queryAll, queryExtent, queryObjectIds,
-  applyEdits, stream; FES 2.0 emission for `Query.spatialFilter` and the
-  deprecated, source-native `Query.where` migration field; raw GML /
-  `<wfs:Transaction>` payloads via `protocol("wfs")`).
+  applyEdits, stream; FES 2.0 emission for `Query.where` /
+  `Query.spatialFilter`; raw GML / `<wfs:Transaction>` payloads via
+  `protocol("wfs")`).
 
 The OData factory wraps an OData v4 entity set behind the canonical
 surface:

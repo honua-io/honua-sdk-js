@@ -316,23 +316,7 @@ test("README release display is derived from package.json", () => {
   const outputs = generateOutputs({ manifest, packageJson: fixturePackage });
   const fixtureReadme = outputs.get("README.md");
   assert.match(fixtureReadme, /\*\*Release status: beta\*\* \(`9\.8\.7-rc\.3`\)/);
-  assert.match(fixtureReadme, /guarded <!-- x-release-please-version -->/);
-  assert.match(fixtureReadme, /version above is its\s+package baseline, not a claim/);
-  assert.match(fixtureReadme, /tagged release documentation/);
   assert.doesNotMatch(fixtureReadme, /\(`0\.1\.0-beta(?:\.0)?`\)/);
-});
-
-test("INSTALL root ceilings and development identity are generated from support truth", () => {
-  const outputs = generateOutputs({ manifest, packageJson });
-  const install = outputs.get("INSTALL.md");
-  const { rootRuntimeExports, rootTypeExports } = manifest.packageLifecycle.ceilings;
-
-  assert.match(
-    install,
-    new RegExp(`package-root ceilings are ${rootRuntimeExports} runtime\\s+exports and ${rootTypeExports} declaration exports`),
-  );
-  assert.match(install, /package baseline can match the latest release\s+while the branch contains unreleased work/);
-  assert.match(install, /config\/root-surface\.json/);
 });
 
 test("the published generic projection identifies its source and consumers", () => {

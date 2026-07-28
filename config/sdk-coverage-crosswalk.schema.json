@@ -4,22 +4,13 @@
   "title": "Honua JavaScript SDK support-manifest to canonical capability-key coverage crosswalk",
   "type": "object",
   "additionalProperties": false,
-  "required": ["format", "schemaVersion", "source", "trackingIssue", "introductionVersions", "protocols", "supportClaims", "extras"],
+  "required": ["format", "schemaVersion", "source", "trackingIssue", "protocols", "supportClaims", "extras"],
   "properties": {
     "$schema": { "type": "string" },
     "format": { "const": "honua.sdk.sdk-coverage-crosswalk.v1" },
     "schemaVersion": { "const": 1 },
     "source": { "type": "string", "minLength": 1 },
     "trackingIssue": { "type": "string", "minLength": 1 },
-    "introductionVersions": {
-      "type": "object",
-      "minProperties": 1,
-      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*\\.[a-z0-9][a-z0-9-]*$" },
-      "additionalProperties": {
-        "type": "string",
-        "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
-      }
-    },
     "protocols": {
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/mappingEntry" }

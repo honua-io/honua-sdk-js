@@ -40,12 +40,11 @@ hosts must honour HTTP `Range` requests, which PMTiles relies on; the bundled
 PMTiles works from a plain HTML page with no bundler:
 
 ```html
+<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/pmtiles@4/dist/pmtiles.js"></script>
-<link href="https://unpkg.com/maplibre-gl@6/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" rel="stylesheet" />
 <div id="map" style="position:absolute;inset:0"></div>
-<script type="module">
-  import * as maplibregl from "https://unpkg.com/maplibre-gl@6/dist/maplibre-gl.mjs";
-
+<script>
   const protocol = new pmtiles.Protocol();
   maplibregl.addProtocol("pmtiles", protocol.tile);
   new maplibregl.Map({

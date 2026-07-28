@@ -102,7 +102,6 @@ export interface HonuaServerFeatureChange<TFeature = unknown> {
  */
 export interface HonuaServerFeatureChangeEnvelope<TFeature = unknown> {
   readonly serviceId?: string;
-  readonly sourceId?: string;
   readonly layerId?: string | number;
   readonly eventId?: string;
   readonly sequence?: number;
@@ -116,14 +115,7 @@ export interface HonuaServerFeatureChangeEnvelope<TFeature = unknown> {
   /** Single-change envelopes inline the change instead of a `changes` array. */
   readonly op?: HonuaServerFeatureChange<TFeature>["op"];
   readonly featureId?: FeatureId;
-  readonly objectId?: FeatureId;
   readonly feature?: TFeature;
-  /** Current honua-server wire field; normalized to {@link HonuaServerFeatureChange.op}. */
-  readonly operation?: Exclude<HonuaServerFeatureChange<TFeature>["op"], "snapshot">;
-  /** Current honua-server GeoJSON geometry field. */
-  readonly geometry?: unknown;
-  /** Current honua-server full attribute snapshot for insert/update events. */
-  readonly attributes?: Readonly<Record<string, unknown>>;
   readonly version?: number;
   readonly updatedAt?: string;
   /** Pass-through status / heartbeat / error envelopes. */
@@ -142,34 +134,11 @@ export function decodeHonuaServerRealtimeEvent<TFeature = unknown>(payload: unkn
   }
   const envelope = payload as HonuaServerFeatureChangeEnvelope<TFeature>;
 
-  // A current-server change discriminator always wins over generic `type`.
-  // Otherwise a malformed/colliding payload could masquerade as status or
-  // error and bypass the stricter operation/after-image validation below.
-  const currentServerChange = envelope.operation !== undefined;
-
   // Status / heartbeat / error envelopes already use the SDK vocabulary.
-  if (
-    !currentServerChange &&
-    typeof envelope.type === "string" &&
-    envelope.type !== "change" &&
-    envelope.type !== "feature-change"
-  ) {
-    if (envelope.type === "status" && (payload.status === "connected" || payload.status === "subscribed")) {
-      return decodeRealtimeServerSentEvent<TFeature>({ ...payload, status: "live" });
-    }
+  if (typeof envelope.type === "string" && envelope.type !== "change" && envelope.type !== "feature-change") {
     return decodeRealtimeServerSentEvent<TFeature>(payload);
   }
 
-  const serviceId = optionalNonEmptyText(envelope.serviceId, "serviceId");
-  optionalNonEmptyText(envelope.sourceId, "sourceId");
-  const cursor = normalizeCursor(envelope.cursor);
-  const sequence = optionalSequence(envelope.sequence);
-  if (currentServerChange && serviceId === undefined) {
-    throw new HonuaRealtimeResumeError(
-      "invalid-event",
-      "honua-server current feature-change envelope is missing serviceId.",
-    );
-  }
   const changes = collectChanges(envelope);
   if (changes.length === 0) {
     throw new HonuaRealtimeResumeError("invalid-event", "honua-server feature-change envelope is missing changes.");
@@ -177,8 +146,8 @@ export function decodeHonuaServerRealtimeEvent<TFeature = unknown>(payload: unkn
 
   const base = {
     eventId: envelope.eventId,
-    sequence,
-    cursor,
+    sequence: envelope.sequence,
+    cursor: envelope.cursor,
     watermark: envelope.watermark,
     timestamp: envelope.timestamp,
     deltaToken: envelope.deltaToken,
@@ -191,21 +160,22 @@ export function decodeHonuaServerRealtimeEvent<TFeature = unknown>(payload: unkn
     if (!isRecord(change)) {
       throw new HonuaRealtimeResumeError("invalid-event", "honua-server feature change must be an object.");
     }
-    const operation = featureChangeOperation(change.op);
-    const featureId = featureIdValue(change.featureId);
-    if (operation === "delete") {
-      deletes.push({ id: featureId, version: change.version, updatedAt: change.updatedAt });
+    if (change.featureId === undefined) {
+      throw new HonuaRealtimeResumeError("invalid-event", "honua-server feature change is missing featureId.");
+    }
+    if (change.op === "delete") {
+      deletes.push({ id: change.featureId, version: change.version, updatedAt: change.updatedAt });
       continue;
     }
     if (change.feature === undefined) {
       throw new HonuaRealtimeResumeError(
         "invalid-event",
-        `honua-server ${operation} change is missing feature payload.`,
+        `honua-server ${change.op} change is missing feature payload.`,
       );
     }
     upserts.push({
-      id: featureId,
-      sourceId: serviceId,
+      id: change.featureId,
+      sourceId: envelope.serviceId,
       feature: change.feature,
       version: change.version,
       updatedAt: change.updatedAt,
@@ -216,7 +186,7 @@ export function decodeHonuaServerRealtimeEvent<TFeature = unknown>(payload: unkn
     type: "delta",
     ...base,
     ...(upserts.length ? { upserts } : {}),
-    ...(deletes.length ? { deletes: deletes.map((entry) => ({ ...entry, sourceId: serviceId })) } : {}),
+    ...(deletes.length ? { deletes: deletes.map((entry) => ({ ...entry, sourceId: envelope.serviceId })) } : {}),
   };
 }
 
@@ -291,20 +261,6 @@ function resolveStreamingUrl(baseUrl: string | undefined): string {
 function collectChanges<TFeature>(
   envelope: HonuaServerFeatureChangeEnvelope<TFeature>,
 ): ReadonlyArray<HonuaServerFeatureChange<TFeature>> {
-  if (envelope.operation !== undefined) {
-    const operation = currentServerOperation(envelope.operation);
-    const featureId =
-      envelope.featureId === "" || envelope.featureId === undefined ? envelope.objectId : envelope.featureId;
-    return [
-      {
-        op: operation,
-        featureId,
-        feature: operation === "delete" ? undefined : projectCurrentServerFeature<TFeature>(envelope, featureId),
-        version: envelope.version,
-        updatedAt: envelope.updatedAt ?? envelope.timestamp,
-      },
-    ];
-  }
   if (Array.isArray(envelope.changes)) return envelope.changes;
   if (envelope.op !== undefined) {
     return [
@@ -318,90 +274,6 @@ function collectChanges<TFeature>(
     ];
   }
   return [];
-}
-
-function projectCurrentServerFeature<TFeature>(
-  envelope: HonuaServerFeatureChangeEnvelope<TFeature>,
-  featureId: FeatureId | undefined,
-): TFeature {
-  if (!Object.hasOwn(envelope, "geometry") || envelope.geometry === undefined) {
-    throw new HonuaRealtimeResumeError(
-      "invalid-event",
-      "honua-server insert/update change is missing a complete geometry after-image.",
-    );
-  }
-  if (!isAttributeRecord(envelope.attributes)) {
-    throw new HonuaRealtimeResumeError(
-      "invalid-event",
-      "honua-server insert/update change is missing a complete attributes after-image.",
-    );
-  }
-  return {
-    type: "Feature",
-    ...(featureId === undefined ? {} : { id: featureId }),
-    geometry: envelope.geometry,
-    properties: envelope.attributes,
-  } as TFeature;
-}
-
-function normalizeCursor(cursor: unknown): string | undefined {
-  if (cursor === undefined) return undefined;
-  if (typeof cursor === "number") {
-    if (Number.isSafeInteger(cursor) && cursor >= 0) return String(cursor);
-  } else if (typeof cursor === "string" && cursor.length > 0) {
-    return cursor;
-  }
-  throw new HonuaRealtimeResumeError(
-    "invalid-event",
-    "honua-server feature-change cursor must be a non-empty string or non-negative safe integer.",
-  );
-}
-
-function optionalSequence(sequence: unknown): number | undefined {
-  if (sequence === undefined) return undefined;
-  if (typeof sequence === "number" && Number.isSafeInteger(sequence) && sequence >= 0) return sequence;
-  throw new HonuaRealtimeResumeError(
-    "invalid-event",
-    "honua-server feature-change sequence must be a non-negative safe integer.",
-  );
-}
-
-function optionalNonEmptyText(value: unknown, field: string): string | undefined {
-  if (value === undefined || value === null) return undefined;
-  if (typeof value === "string" && value.length > 0) return value;
-  throw new HonuaRealtimeResumeError(
-    "invalid-event",
-    `honua-server feature-change ${field} must be a non-empty string.`,
-  );
-}
-
-function featureIdValue(value: unknown): FeatureId {
-  if (typeof value === "string" && value.length > 0) return value;
-  if (typeof value === "number" && Number.isSafeInteger(value)) return value;
-  throw new HonuaRealtimeResumeError(
-    "invalid-event",
-    "honua-server feature change featureId must be a non-empty string or safe integer.",
-  );
-}
-
-function featureChangeOperation(value: unknown): HonuaServerFeatureChange["op"] {
-  if (value === "insert" || value === "update" || value === "delete" || value === "snapshot") return value;
-  throw new HonuaRealtimeResumeError(
-    "invalid-event",
-    "honua-server feature change operation must be insert, update, delete, or snapshot.",
-  );
-}
-
-function currentServerOperation(value: unknown): Exclude<HonuaServerFeatureChange["op"], "snapshot"> {
-  if (value === "insert" || value === "update" || value === "delete") return value;
-  throw new HonuaRealtimeResumeError(
-    "invalid-event",
-    "honua-server current feature-change operation must be insert, update, or delete.",
-  );
-}
-
-function isAttributeRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return isRecord(value) && !Array.isArray(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
