@@ -2744,9 +2744,11 @@ function searchStyles(): string {
     .search {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
+      min-width: 0;
       padding: 10px;
+      width: 100%;
     }
-    form { display: grid; gap: 8px; grid-template-columns: minmax(120px, 1fr) auto; }
+    form { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; }
     input {
       border: 1px solid var(--honua-ui-border);
       border-radius: 6px;
@@ -2773,6 +2775,10 @@ function searchStyles(): string {
     }
     .status { color: var(--honua-ui-muted); margin: 6px 0 0; }
     .status:empty { display: none; }
+    @media (max-width: 320px) {
+      form { grid-template-columns: minmax(0, 1fr); }
+      form button { width: 100%; }
+    }
   `;
 }
 

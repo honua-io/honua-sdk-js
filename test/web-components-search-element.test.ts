@@ -79,6 +79,19 @@ describe("<honua-search> (survival tier, geocoding lane)", () => {
     expect(element.shadowRoot?.querySelector("[role='listbox']")).toBeNull();
   });
 
+  it("stacks the search action in a narrow container", () => {
+    defineHonuaWebComponents();
+    const element = document.createElement("honua-search") as HonuaSearchElement;
+    document.body.append(element);
+
+    const css = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+    expect(css).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(css).toContain("min-width: 0");
+    expect(css).toContain("@media (max-width: 320px)");
+    expect(css).toContain("form { grid-template-columns: minmax(0, 1fr); }");
+    expect(css).toContain("form button { width: 100%; }");
+  });
+
   it("debounces suggest calls and renders options", async () => {
     const geocoder = makeGeocoder();
     const element = mountSearch(createHonuaWebComponentController(), geocoder);
