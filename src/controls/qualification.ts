@@ -523,6 +523,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "The focused measurement mode button retains focus when the mode state rerenders.",
       },
       {
+        ids: ["web-components.map"],
+        evidence: [BROWSER_SPEC],
+        note: "A focused zoom control retains focus across repeated controller-driven map state updates in the real MapLibre browser fixture.",
+      },
+      {
         ids: ["controls.layer-list"],
         evidence: ["test/controls/accessibility.test.ts"],
         note: "A focused layer checkbox retains focus across an overlays rerender.",
@@ -752,6 +757,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: ["controls.layer-list"],
         evidence: ["test/controls/accessibility.test.ts"],
         note: "Repeated overlays rerenders leave one checkbox change handler, evidenced by exactly one change event from one click.",
+      },
+      {
+        ids: ["web-components.map"],
+        evidence: [BROWSER_SPEC],
+        note: "After repeated controller-driven state updates, one zoom click produces the same viewport event count as the pre-update baseline in the real MapLibre browser fixture.",
       },
     ],
     notApplicable: [

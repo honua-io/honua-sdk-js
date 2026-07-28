@@ -60,10 +60,54 @@ test("web components compose map, layers, legend, table, search, and editor stat
       .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.events.includes("click:101")))
       .toBe(true);
 
+    const initialViewportEvents = await page.evaluate(
+      () => window.__HONUA_WEB_COMPONENTS_DEMO__?.events.filter((event) => event.startsWith("viewport:")).length ?? 0,
+    );
     await page.locator("honua-map").getByLabel("Zoom in").click();
     await expect
-      .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.events.some((event) => event.startsWith("viewport:"))))
+      .poll(async () =>
+        page.evaluate(
+          (before) =>
+            (window.__HONUA_WEB_COMPONENTS_DEMO__?.events.filter((event) => event.startsWith("viewport:")).length ?? 0) >
+            before,
+          initialViewportEvents,
+        ),
+      )
       .toBe(true);
+    await page.waitForTimeout(500);
+    const baselineViewportEvents = await page.evaluate(
+      (before) =>
+        (window.__HONUA_WEB_COMPONENTS_DEMO__?.events.filter((event) => event.startsWith("viewport:")).length ?? 0) -
+        before,
+      initialViewportEvents,
+    );
+
+    const zoomIn = page.locator("honua-map").getByLabel("Zoom in");
+    await zoomIn.focus();
+    await page.locator("honua-map").evaluate((element) => {
+      const viewport = element.controller?.getState().viewport ?? {};
+      for (let index = 0; index < 4; index += 1) {
+        element.controller?.setViewport({ ...viewport, zoom: (viewport.zoom ?? 0) + index / 10 });
+      }
+    });
+    await expect
+      .poll(async () => page.locator("honua-map").evaluate((element) => element.shadowRoot?.activeElement?.getAttribute("aria-label")))
+      .toBe("Zoom in");
+    await page.waitForTimeout(500);
+    const viewportEventsBeforeClick = await page.evaluate(
+      () => window.__HONUA_WEB_COMPONENTS_DEMO__?.events.filter((event) => event.startsWith("viewport:")).length ?? 0,
+    );
+    await zoomIn.click();
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          (before) =>
+            (window.__HONUA_WEB_COMPONENTS_DEMO__?.events.filter((event) => event.startsWith("viewport:")).length ?? 0) -
+            before,
+          viewportEventsBeforeClick,
+        ),
+      )
+      .toBe(baselineViewportEvents);
 
     await page.getByLabel("Public safety incidents").uncheck();
     await expect
