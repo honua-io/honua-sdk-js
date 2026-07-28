@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 182,
-    "failing": 107,
+    "passing": 183,
+    "failing": 106,
     "pending": 42,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -2300,7 +2300,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "high-contrast",
         "responsive-layout",
         "localization",
         "pseudo-locale",
@@ -2310,8 +2309,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 9,
-        "failing": 6,
+        "passing": 10,
+        "failing": 5,
         "pending": 2,
         "notApplicable": 0
       },
@@ -2355,8 +2354,11 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The locate control's shared panel declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules for its surface and action, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",

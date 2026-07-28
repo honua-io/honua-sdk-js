@@ -66,6 +66,10 @@ describe("web-component accessibility semantics", () => {
     const locate = shadow(mount("honua-locate-control", "Locate"));
     expect(locate.querySelector("button[data-locate")?.textContent?.trim()).toBe("Use location");
     expect(locate.querySelector('[role="status"]')).not.toBeNull();
+    const locateCss = locate.querySelector("style")?.textContent ?? "";
+    expect(locateCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(locateCss).toContain("background: Canvas");
+    expect(locateCss).toContain("border-color: ButtonText");
 
     const status = shadow(mount("honua-map-status", "Status"));
     expect(status.querySelector('span[aria-label="Approximate scale"]')).not.toBeNull();
