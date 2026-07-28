@@ -1255,6 +1255,34 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
       },
     );
 
+    it.each(MATRIX_CASES)("$label: malformed cached schema state is rejected before replay", async ({ build }) => {
+      const { options } = build();
+      let cached: ConnectDiscoverySnapshot | undefined;
+      const cache: ConnectDiscoveryCache = {
+        get: vi.fn(() => cached),
+        set: vi.fn((_identity, snapshot) => {
+          cached = snapshot;
+        }),
+      };
+
+      await connect({ ...options, authorizationScopeFingerprint: "anonymous", cache });
+      expect(cached).toBeDefined();
+      const malformed = structuredClone(cached!) as unknown as {
+        sources: Array<{ schemaV2State?: unknown }>;
+      };
+      malformed.sources[0]!.schemaV2State = {
+        state: "unavailable",
+        reason: "not-advertised",
+        provenance: [],
+      };
+      cached = malformed as unknown as ConnectDiscoverySnapshot;
+
+      await expect(connect({ ...options, authorizationScopeFingerprint: "anonymous", cache })).rejects.toMatchObject({
+        name: "HonuaDiscoveryError",
+        code: "invalid-discovery-cache",
+      });
+    });
+
     it.each(MATRIX_CASES)("$label: refresh always bypasses a cache read and revalidates", async ({ build }) => {
       const { options, activity } = build();
       const cache = { get: vi.fn(), set: vi.fn() };
