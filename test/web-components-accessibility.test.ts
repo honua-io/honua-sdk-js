@@ -29,6 +29,10 @@ describe("web-component accessibility semantics", () => {
     expect(root.querySelector('[role="region"]')?.getAttribute("aria-label")).toBe("Reference map");
     expect(root.querySelector('button[aria-label="Zoom out"]')).not.toBeNull();
     expect(root.querySelector('button[aria-label="Zoom in"]')).not.toBeNull();
+    const mapCss = root.querySelector("style")?.textContent ?? "";
+    expect(mapCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(mapCss).toContain("background: Canvas");
+    expect(mapCss).toContain("border-color: ButtonText");
   });
 
   it("gives the editor a named panel and named native actions", () => {

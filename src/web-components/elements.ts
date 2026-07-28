@@ -2675,6 +2675,19 @@ function mapStyles(): string {
     .maplibregl-control-container {
       display: none;
     }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .map {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .map__chrome, .map__footer, .map__status {
+        background: Canvas;
+        color: CanvasText;
+      }
+      .map__canvas { background: Canvas; }
+      .map__controls button { border-color: ButtonText; color: ButtonText; }
+    }
   `;
 }
 
