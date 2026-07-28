@@ -199,6 +199,9 @@ function runWindowsCliSync(invocation, options, runtime) {
     stdout: output?.[1] ?? null,
     stderr: output?.[2] ?? null,
     pid: control?.pid ?? outer.pid,
+    ...(control?.jobActiveProcesses !== undefined
+      ? { jobActiveProcesses: control.jobActiveProcesses }
+      : {}),
   };
   if (!control) {
     return {

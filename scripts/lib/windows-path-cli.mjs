@@ -21,12 +21,21 @@ function pathExtensions(env) {
   return [...new Set(extensions.map((extension) => extension.toUpperCase()))];
 }
 
+function isWindowsAbsolutePath(entry) {
+  return (
+    /^[a-zA-Z]:[\\/]/.test(entry) ||
+    entry.startsWith("\\\\") ||
+    entry.startsWith("//")
+  );
+}
+
 function candidateDirectories(env, cwd) {
   const configured = environmentValue(env, "PATH");
   if (configured === undefined) return [];
   return configured.split(";").map((entry) => {
     const unquoted = entry.startsWith('"') && entry.endsWith('"') ? entry.slice(1, -1) : entry;
-    return path.resolve(cwd, unquoted || ".");
+    if (isWindowsAbsolutePath(unquoted)) return path.win32.normalize(unquoted || ".");
+    return path.win32.resolve(cwd, unquoted || ".");
   });
 }
 
@@ -42,10 +51,10 @@ export function resolveWindowsPathCommand(
   if (typeof name !== "string" || !/^[a-z0-9][a-z0-9-]*$/i.test(name)) {
     throw new TypeError("Windows PATH command names must contain only alphanumerics and hyphens");
   }
-  const extensions = path.extname(name) ? [""] : pathExtensions(env);
+  const extensions = path.win32.extname(name) ? [""] : pathExtensions(env);
   for (const directory of candidateDirectories(env, cwd)) {
     for (const extension of extensions) {
-      const candidate = path.join(directory, `${name}${extension}`);
+      const candidate = path.win32.join(directory, `${name}${extension}`);
       if (!existsSync(candidate)) continue;
       try {
         if (statSync(candidate).isFile()) return candidate;
@@ -60,7 +69,7 @@ export function resolveWindowsPathCommand(
 export function windowsPowerShellPath(env = process.env) {
   const systemRoot = environmentValue(env, "SYSTEMROOT") ?? environmentValue(env, "WINDIR");
   if (!systemRoot) throw new Error("SYSTEMROOT is required to launch a Windows PATH command");
-  return path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  return path.win32.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
 }
 
 const CMD_META_CHARACTER = /([()[\]%!^"`<>&|;, *?])/g;
@@ -107,7 +116,7 @@ export function windowsScriptInvocation(command, args, { env = process.env } = {
   return {
     command:
       environmentValue(env, "COMSPEC") ??
-      path.join(
+      path.win32.join(
         environmentValue(env, "SYSTEMROOT") ?? environmentValue(env, "WINDIR") ?? String.raw`C:\Windows`,
         "System32",
         "cmd.exe",

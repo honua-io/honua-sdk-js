@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { once } from "node:events";
+import { randomUUID } from "node:crypto";
+import { EventEmitter, once } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
 import {
@@ -16,9 +18,14 @@ import {
   runNpmSync,
 } from "../../scripts/lib/npm-cli.mjs";
 import {
+  assignWindowsJobLease,
   captureProcessIdentity,
   terminateProcessTree,
 } from "../../scripts/lib/process-tree.mjs";
+import {
+  resolveWindowsPathCommand,
+  windowsPowerShellPath,
+} from "../../scripts/lib/windows-path-cli.mjs";
 
 const WINDOWS_SYSTEM_ROOT = String.raw`C:\Windows`;
 
@@ -40,9 +47,42 @@ async function waitUntilNotAlive(pids, timeoutMs = 5_000) {
   return pids.filter(pidIsAlive);
 }
 
+function fakeChild(pid = 200) {
+  return Object.assign(new EventEmitter(), {
+    pid,
+    exitCode: null,
+    signalCode: null,
+    stdio: [],
+  });
+}
+
+function fakeKeeper(onStart) {
+  const keeper = Object.assign(new EventEmitter(), {
+    stdin: new PassThrough(),
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    stdio: [],
+    exitCode: null,
+    signalCode: null,
+  });
+  keeper.kill = (signal = "SIGTERM") => {
+    if (keeper.exitCode !== null || keeper.signalCode !== null) return false;
+    keeper.signalCode = signal;
+    queueMicrotask(() => keeper.emit("close", null, signal));
+    return true;
+  };
+  keeper.close = (code = 0) => {
+    if (keeper.exitCode !== null || keeper.signalCode !== null) return;
+    keeper.exitCode = code;
+    keeper.emit("close", code, null);
+  };
+  queueMicrotask(() => onStart?.(keeper));
+  return keeper;
+}
+
 function windowsRuntime(name = "npm") {
   const directory = String.raw`C:\host build lock`;
-  const resolved = path.join(directory, `${name}.CMD`);
+  const resolved = path.win32.join(directory, `${name}.CMD`);
   return {
     directory,
     resolved,
@@ -60,6 +100,54 @@ function windowsRuntime(name = "npm") {
     },
   };
 }
+
+test("simulated Windows drive paths stay Windows-native on every host", () => {
+  const cwd = String.raw`D:\work tree\sdk`;
+  const expected = String.raw`D:\work tree\sdk\portable tools\npm.CMD`;
+  const candidates = [];
+  const resolved = resolveWindowsPathCommand("npm", {
+    cwd,
+    env: {
+      PATH: String.raw`"C:\host build lock";portable tools`,
+      PATHEXT: ".CMD",
+    },
+    existsSync(candidate) {
+      candidates.push(candidate);
+      return candidate === expected;
+    },
+    statSync: () => ({ isFile: () => true }),
+  });
+
+  assert.equal(resolved, expected);
+  assert.deepEqual(candidates, [
+    String.raw`C:\host build lock\npm.CMD`,
+    expected,
+  ]);
+  assert.equal(
+    windowsPowerShellPath({ windir: String.raw`E:\Windows Root` }),
+    String.raw`E:\Windows Root\System32\WindowsPowerShell\v1.0\powershell.exe`,
+  );
+});
+
+test("accepts forward-slash Windows absolute PATH entries without host-path conversion", () => {
+  const cwd = String.raw`D:\work tree\sdk`;
+  const candidates = [];
+  const resolved = resolveWindowsPathCommand("npm", {
+    cwd,
+    env: {
+      PATH: String.raw`C:/host build lock`,
+      PATHEXT: ".CMD",
+    },
+    existsSync(candidate) {
+      candidates.push(candidate);
+      return candidate === String.raw`C:\host build lock\npm.CMD`;
+    },
+    statSync: () => ({ isFile: () => true }),
+  });
+
+  assert.equal(resolved, String.raw`C:\host build lock\npm.CMD`);
+  assert.deepEqual(candidates, [String.raw`C:\host build lock\npm.CMD`]);
+});
 
 test("resolves the exact first Windows PATH npm shim through a Node owner", () => {
   const { resolved, runtime } = windowsRuntime();
@@ -255,6 +343,76 @@ test("constructs an offline local-bin execution without flattening arguments", (
   assert.throws(() => npmExecLocalArgs("honua", ["doctor", 42]), /array of strings/);
 });
 
+test("Windows Job Object assignment ACK precedes launch and remains authoritative after root exit", async () => {
+  const events = [];
+  const child = fakeChild();
+  let keeper;
+  const ownership = await assignWindowsJobLease(
+    child,
+    { pid: child.pid, startedAtFileTimeUtc: "133485408000000000" },
+    {
+      platform: "win32",
+      powerShellPath: String.raw`C:\Windows\powershell.exe`,
+      spawnImpl: () => {
+        keeper = fakeKeeper((startedKeeper) => {
+          events.push("assigned");
+          startedKeeper.stdout.write('{"kind":"assigned"}\n');
+        });
+        keeper.stdin.setEncoding("utf8");
+        keeper.stdin.once("data", (command) => {
+          events.push(command.trim().split(":")[0]);
+          keeper.stdout.write(
+            '{"kind":"drained","reason":"terminate","activeProcesses":0}\n',
+          );
+          keeper.close(0);
+        });
+        return keeper;
+      },
+    },
+  );
+  events.push("launch");
+  child.exitCode = 0;
+
+  const result = await terminateProcessTree(child, ownership, {
+    platform: "win32",
+    timeoutMs: 100,
+  });
+
+  assert.deepEqual(events, ["assigned", "launch", "terminate"]);
+  assert.deepEqual(result, {
+    state: "terminated",
+    reason: "terminate",
+    activeProcesses: 0,
+  });
+});
+
+test("Windows Job Object assignment failure cannot reach the gated target launch", async () => {
+  const child = fakeChild();
+  let launched = false;
+  await assert.rejects(
+    (async () => {
+      await assignWindowsJobLease(
+        child,
+        { pid: child.pid, startedAtFileTimeUtc: "133485408000000000" },
+        {
+          platform: "win32",
+          powerShellPath: String.raw`C:\Windows\powershell.exe`,
+          spawnImpl: () =>
+            fakeKeeper((keeper) => {
+              keeper.stdout.write(
+                '{"kind":"error","stage":"assign","win32Error":5}\n',
+              );
+              keeper.close(25);
+            }),
+        },
+      );
+      launched = true;
+    })(),
+    /Job Object assign failed \(Win32 5\)/,
+  );
+  assert.equal(launched, false);
+});
+
 test(
   "native Windows refuses to terminate a reused PID with a different creation identity",
   { skip: process.platform !== "win32" || process.versions.node !== "20.19.0" },
@@ -288,7 +446,7 @@ test(
 );
 
 test(
-  "native Windows Node 20 preserves adversarial arguments, invokes one PATH shim, and tears down exact timeout trees",
+  "native Windows Node 20 preserves argv and drains orphaned inherited-handle leaves on timeout and maxBuffer",
   { skip: process.platform !== "win32" || process.versions.node !== "20.19.0" },
   async () => {
     const temporary = await mkdtemp(path.join(os.tmpdir(), "honua-npm-cli-"));
@@ -298,9 +456,14 @@ test(
     const shimDirectory = path.join(root, "PATH shim & Ω");
     const countPath = path.join(controlRoot, "shim-count.txt");
     const parentPidPath = path.join(root, "parent pid.txt");
+    const ownerPidPath = path.join(root, "exiting owner pid.txt");
+    const ownerExitedPath = path.join(root, "exiting owner exited.txt");
     const leafPidPath = path.join(root, "leaf pid.txt");
     const noisyParentPidPath = path.join(root, "noisy parent pid.txt");
+    const noisyOwnerPidPath = path.join(root, "noisy exiting owner pid.txt");
+    const noisyOwnerExitedPath = path.join(root, "noisy exiting owner exited.txt");
     const noisyLeafPidPath = path.join(root, "noisy leaf pid.txt");
+    const cleanupPath = path.join(controlRoot, `cleanup-${randomUUID()}.txt`);
     const fakeNpmRunner = path.join(root, "fake npm runner.mjs");
     const nodeDirectory = path.dirname(process.execPath);
     const npmCli = path.join(nodeDirectory, "node_modules", "npm", "bin", "npm-cli.js");
@@ -367,19 +530,42 @@ test(
         path.join(root, "hang-parent.mjs"),
         [
           'import { spawn } from "node:child_process";',
-          'import { writeFileSync } from "node:fs";',
+          'import { existsSync, writeFileSync } from "node:fs";',
           "writeFileSync(process.env.HONUA_PARENT_PID_PATH, String(process.pid));",
-          "spawn(process.execPath, ['leaf.mjs'], { stdio: 'inherit' });",
-          "setInterval(() => spawn(process.execPath, ['leaf.mjs'], { stdio: 'inherit' }), 75);",
+          "spawn(process.execPath, ['exiting-owner.mjs'], { stdio: 'inherit' });",
+          "while (!existsSync(process.env.HONUA_OWNER_EXITED_PATH)) {",
+          "  await new Promise((resolve) => setTimeout(resolve, 10));",
+          "}",
+          "setInterval(() => {",
+          "  if (existsSync(process.env.HONUA_CLEANUP_PATH)) process.exit(0);",
+          "}, 50);",
+          "",
+        ].join("\n"),
+      ),
+      writeFile(
+        path.join(root, "exiting-owner.mjs"),
+        [
+          'import { spawn } from "node:child_process";',
+          'import { existsSync, writeFileSync } from "node:fs";',
+          "writeFileSync(process.env.HONUA_OWNER_PID_PATH, String(process.pid));",
+          "const leaf = spawn(process.execPath, ['leaf.mjs'], { stdio: 'inherit' });",
+          "leaf.unref();",
+          "while (!existsSync(process.env.HONUA_LEAF_PID_PATH)) {",
+          "  await new Promise((resolve) => setTimeout(resolve, 10));",
+          "}",
+          "writeFileSync(process.env.HONUA_OWNER_EXITED_PATH, 'owner-exited-before-cleanup\\n');",
           "",
         ].join("\n"),
       ),
       writeFile(
         path.join(root, "leaf.mjs"),
         [
-          'import { appendFileSync } from "node:fs";',
+          'import { appendFileSync, existsSync } from "node:fs";',
           "appendFileSync(process.env.HONUA_LEAF_PID_PATH, `${process.pid}\\n`);",
-          "setInterval(() => {}, 1_000);",
+          "const deadline = Date.now() + 30_000;",
+          "setInterval(() => {",
+          "  if (existsSync(process.env.HONUA_CLEANUP_PATH) || Date.now() >= deadline) process.exit(0);",
+          "}, 50);",
           "",
         ].join("\n"),
       ),
@@ -389,23 +575,46 @@ test(
           'import { spawn } from "node:child_process";',
           'import { existsSync, writeFileSync } from "node:fs";',
           "writeFileSync(process.env.HONUA_NOISY_PARENT_PID_PATH, String(process.pid));",
-          "spawn(process.execPath, ['noisy-leaf.mjs'], { stdio: 'inherit' });",
+          "spawn(process.execPath, ['noisy-exiting-owner.mjs'], { stdio: 'inherit' });",
+          "while (!existsSync(process.env.HONUA_NOISY_OWNER_EXITED_PATH)) {",
+          "  await new Promise((resolve) => setTimeout(resolve, 10));",
+          "}",
+          "setInterval(() => {",
+          "  if (existsSync(process.env.HONUA_CLEANUP_PATH)) process.exit(0);",
+          "}, 50);",
+          "",
+        ].join("\n"),
+      ),
+      writeFile(
+        path.join(root, "noisy-exiting-owner.mjs"),
+        [
+          'import { spawn } from "node:child_process";',
+          'import { existsSync, writeFileSync } from "node:fs";',
+          "writeFileSync(process.env.HONUA_NOISY_OWNER_PID_PATH, String(process.pid));",
+          "const leaf = spawn(process.execPath, ['noisy-leaf.mjs'], { stdio: 'inherit' });",
+          "leaf.unref();",
           "while (!existsSync(process.env.HONUA_NOISY_LEAF_PID_PATH)) {",
           "  await new Promise((resolve) => setTimeout(resolve, 10));",
           "}",
-          "for (;;) {",
-          "  process.stdout.write('x'.repeat(4096));",
-          "  await new Promise((resolve) => setImmediate(resolve));",
-          "}",
+          "writeFileSync(process.env.HONUA_NOISY_OWNER_EXITED_PATH, 'owner-exited-before-overflow\\n');",
           "",
         ].join("\n"),
       ),
       writeFile(
         path.join(root, "noisy-leaf.mjs"),
         [
-          'import { writeFileSync } from "node:fs";',
+          'import { existsSync, writeFileSync } from "node:fs";',
           "writeFileSync(process.env.HONUA_NOISY_LEAF_PID_PATH, String(process.pid));",
-          "setInterval(() => {}, 1_000);",
+          "const deadline = Date.now() + 30_000;",
+          "while (!existsSync(process.env.HONUA_NOISY_OWNER_EXITED_PATH)) {",
+          "  await new Promise((resolve) => setTimeout(resolve, 10));",
+          "}",
+          "await new Promise((resolve) => setTimeout(resolve, 100));",
+          "for (;;) {",
+          "  if (existsSync(process.env.HONUA_CLEANUP_PATH) || Date.now() >= deadline) process.exit(0);",
+          "  process.stdout.write('x'.repeat(4096));",
+          "  await new Promise((resolve) => setImmediate(resolve));",
+          "}",
           "",
         ].join("\n"),
       ),
@@ -422,9 +631,14 @@ test(
       HONUA_FAKE_NPM_RUNNER: fakeNpmRunner,
       HONUA_EXACT_VALUE: exactArgument,
       HONUA_PARENT_PID_PATH: parentPidPath,
+      HONUA_OWNER_PID_PATH: ownerPidPath,
+      HONUA_OWNER_EXITED_PATH: ownerExitedPath,
       HONUA_LEAF_PID_PATH: leafPidPath,
       HONUA_NOISY_PARENT_PID_PATH: noisyParentPidPath,
+      HONUA_NOISY_OWNER_PID_PATH: noisyOwnerPidPath,
+      HONUA_NOISY_OWNER_EXITED_PATH: noisyOwnerExitedPath,
       HONUA_NOISY_LEAF_PID_PATH: noisyLeafPidPath,
+      HONUA_CLEANUP_PATH: cleanupPath,
     };
     const invocationCount = async () => (await readFile(countPath, "utf8")).split(/\r?\n/).filter(Boolean).length;
     let knownPids = [];
@@ -584,6 +798,7 @@ test(
       });
       knownPids = [
         Number(await readFile(parentPidPath, "utf8")),
+        Number(await readFile(ownerPidPath, "utf8")),
         ...(await readFile(leafPidPath, "utf8"))
           .split(/\r?\n/)
           .filter(Boolean)
@@ -592,6 +807,8 @@ test(
       assert.equal(timedOut.status, null);
       assert.equal(timedOut.signal, "SIGTERM");
       assert.equal(timedOut.error?.code, "ETIMEDOUT", timedOut.error?.cause?.stack);
+      assert.equal(timedOut.jobActiveProcesses, 0);
+      assert.match(await readFile(ownerExitedPath, "utf8"), /owner-exited-before-cleanup/);
       assert.equal(await invocationCount(), 1);
       assert.deepEqual(await waitUntilNotAlive(knownPids), []);
       assert.equal(pidIsAlive(unrelated.pid), true);
@@ -606,20 +823,25 @@ test(
       });
       const noisyPids = [
         Number(await readFile(noisyParentPidPath, "utf8")),
+        Number(await readFile(noisyOwnerPidPath, "utf8")),
         Number(await readFile(noisyLeafPidPath, "utf8")),
       ];
       knownPids.push(...noisyPids);
       assert.equal(overflow.status, null);
       assert.equal(overflow.signal, "SIGTERM");
       assert.equal(overflow.error?.code, "ENOBUFS", overflow.error?.cause?.stack);
+      assert.equal(overflow.jobActiveProcesses, 0);
+      assert.match(await readFile(noisyOwnerExitedPath, "utf8"), /owner-exited-before-overflow/);
       assert.ok(overflow.stdout.length <= 4_096);
       assert.equal(await invocationCount(), 1);
       assert.deepEqual(await waitUntilNotAlive(noisyPids), []);
     } finally {
-      for (const pid of knownPids.filter(pidIsAlive)) {
-        process.kill(pid, "SIGKILL");
+      await writeFile(cleanupPath, "cleanup\n").catch(() => undefined);
+      await waitUntilNotAlive(knownPids, 10_000);
+      if (pidIsAlive(unrelated.pid)) {
+        unrelated.kill("SIGKILL");
+        await once(unrelated, "close").catch(() => undefined);
       }
-      if (pidIsAlive(unrelated.pid)) unrelated.kill("SIGKILL");
       await rm(root, {
         recursive: true,
         force: true,

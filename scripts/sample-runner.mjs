@@ -21,8 +21,13 @@ import {
   SAMPLE_SCREENSHOT_REPORT_FORMAT,
 } from "./lib/sample-gates.mjs";
 import { npmInvocation, npxInvocation } from "./lib/npm-cli.mjs";
+import { PATH_CLI_OWNER_GATE_FLAG } from "./lib/path-cli-runner.mjs";
 import {
+  assignWindowsJobLease,
   captureProcessIdentity,
+  disposeWindowsJobLease,
+  observeWindowsJobLease,
+  terminateOwnedProcessHandle,
   terminateProcessTree,
 } from "./lib/process-tree.mjs";
 import {
@@ -487,6 +492,11 @@ export class ChildSupervisor {
       options.allowedEnvironmentNames,
     );
     const [executable, ...args] = commandForSpawn(argv, { cwd, env });
+    const ownerGated =
+      process.platform === "win32" && (argv[0] === "npm" || argv[0] === "npx");
+    const childArgs = ownerGated
+      ? [args[0], PATH_CLI_OWNER_GATE_FLAG, ...args.slice(1)]
+      : args;
     const startedAt = performance.now();
     const logPath = options.artifactPath;
     if (logPath) await mkdir(path.dirname(logPath), { recursive: true });
@@ -502,22 +512,77 @@ export class ChildSupervisor {
     const done = new Promise((resolve) => {
       resolveDone = resolve;
     });
-    const child = spawn(executable, args, {
+    const child = spawn(executable, childArgs, {
       cwd,
       env,
       shell: false,
       detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe", ...(ownerGated ? ["ipc"] : [])],
+      windowsHide: ownerGated,
     });
-    const identity = captureProcessIdentity(child);
+    const ownershipAbort = ownerGated ? new AbortController() : undefined;
+    const identity = captureProcessIdentity(child, {
+      signal: ownershipAbort?.signal,
+    });
     void identity.catch(() => undefined);
     const record = {
       child,
       done,
       identity,
+      ownerGated,
+      ownership: undefined,
+      ownershipAbort,
+      stopRequested: false,
+      launch: undefined,
       termination: undefined,
     };
     this.#children.set(child, record);
+    if (ownerGated) {
+      record.launch = (async () => {
+        let ownership;
+        try {
+          const captured = await identity;
+          ownership = await assignWindowsJobLease(child, captured, {
+            signal: record.ownershipAbort.signal,
+          });
+          record.ownership = ownership;
+          if (record.stopRequested) {
+            await disposeWindowsJobLease(ownership);
+            throw new Error("Supervised Windows owner stopped before target launch");
+          }
+          await new Promise((resolve, reject) => {
+            child.send({ kind: "launch" }, (error) =>
+              error ? reject(error) : resolve(),
+            );
+          });
+          void observeWindowsJobLease(ownership).catch((error) => {
+            spawnError ??= error;
+          });
+          return ownership;
+        } catch (error) {
+          let launchError = error;
+          try {
+            if (ownership) {
+              await disposeWindowsJobLease(ownership);
+            } else {
+              await terminateOwnedProcessHandle(child, {
+                signal: "SIGKILL",
+                timeoutMs: 500,
+              });
+            }
+          } catch (cleanupError) {
+            launchError = new AggregateError(
+              [error, cleanupError],
+              "Windows supervised-owner launch cleanup failed",
+            );
+          }
+          throw launchError;
+        }
+      })();
+      void record.launch.catch((error) => {
+        spawnError ??= error;
+      });
+    }
     const append = (channel, bytes) => {
       capturedBytes += bytes.byteLength;
       if (capturedBytes > (options.maxCaptureBytes ?? MAX_CAPTURE_BYTES)) {
@@ -548,9 +613,25 @@ export class ChildSupervisor {
       child.once("close", async (code, signal) => {
         if (settled) return;
         settled = true;
-        await record.identity.catch((error) => {
-          spawnError ??= error;
-        });
+        if (record.ownerGated) {
+          await record.launch.catch((error) => {
+            spawnError ??= error;
+          });
+          if (record.ownership) {
+            try {
+              const disposed = await disposeWindowsJobLease(record.ownership);
+              if (disposed.activeProcesses !== 0) {
+                throw new Error("Windows Job Object retained active processes");
+              }
+            } catch (error) {
+              spawnError ??= error;
+            }
+          }
+        } else {
+          await record.identity.catch((error) => {
+            spawnError ??= error;
+          });
+        }
         try {
           await record.termination;
         } catch (error) {
@@ -580,6 +661,24 @@ export class ChildSupervisor {
 
   #kill(record, signal, timeoutMs = 5_000) {
     record.termination ??= (async () => {
+      record.stopRequested = true;
+      record.ownershipAbort?.abort();
+      if (record.ownerGated) {
+        if (!record.ownership) {
+          try {
+            await record.launch;
+          } catch (error) {
+            if (error?.code === "ABORT_ERR") {
+              return { state: "terminated-before-launch" };
+            }
+            throw error;
+          }
+        }
+        return await terminateProcessTree(record.child, record.ownership, {
+          signal,
+          timeoutMs,
+        });
+      }
       const identity = await record.identity;
       return await terminateProcessTree(record.child, identity, {
         signal,
