@@ -35,7 +35,7 @@ jobs:
           MCP_RELEASE_CREATED: ${{ steps.release.outputs['mcp--release_created'] }}
           MCP_TAG_NAME: ${{ steps.release.outputs['mcp--tag_name'] }}
         run: |
-          dispatch_publish() {
+          dispatch_tag_publish() {
             local workflow="$1"
             local tag="$2"
             if [[ -z "${tag}" ]]; then
@@ -45,11 +45,147 @@ jobs:
             gh workflow run "${workflow}" --repo "${GITHUB_REPOSITORY}" --ref "${tag}" -f dry_run=false
           }
 
+          dispatch_resealed_js_publish() {
+            local tag="$1"
+            if [[ "${tag}" != js-sdk-* ]]; then
+              echo "Release Please exposed an invalid JS SDK tag: ${tag}"
+              exit 1
+            fi
+            local release_version="${tag#js-sdk-}"
+            while [[ "${release_version}" == v* ]]; do
+              release_version="${release_version#v}"
+            done
+
+            # The strict reseal no longer runs on every trunk push (#746), so
+            # dispatch one for the release commit's tree and publish only after
+            # it has validated and merged its generated-only follow-up. The
+            # dispatched run checks out trunk, whose tip is this release commit
+            # or a descendant; the ancestry check below rejects anything else.
+            local before_id
+            before_id="$(gh run list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --workflow regenerate-derived-artifacts.yml \
+              --limit 1 --json databaseId --jq '.[0].databaseId // 0')"
+            gh workflow run regenerate-derived-artifacts.yml \
+              --repo "${GITHUB_REPOSITORY}" \
+              --ref trunk
+            # gh workflow run does not reliably expose the created run's id, so
+            # poll for the first run newer than the pre-dispatch newest one.
+            # Watching a concurrent schedule/dispatch run instead of ours is
+            # fine: the concurrency group serializes them and every run reseals
+            # the then-current trunk tip.
+            local reseal_run_id=""
+            for attempt in {1..30}; do
+              sleep 10
+              reseal_run_id="$(gh run list \
+                --repo "${GITHUB_REPOSITORY}" \
+                --workflow regenerate-derived-artifacts.yml \
+                --limit 10 --json databaseId \
+                --jq "[.[].databaseId | select(. > ${before_id})] | min // empty")"
+              if [[ -n "${reseal_run_id}" ]]; then
+                break
+              fi
+            done
+            if [[ -z "${reseal_run_id}" ]]; then
+              echo "Dispatched reseal run for ${GITHUB_SHA} never appeared in the run list."
+              exit 1
+            fi
+            gh run watch "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status --interval 10
+
+            local trunk_sha
+            trunk_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/trunk" --jq .object.sha)"
+            local comparison
+            comparison="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...${trunk_sha}")"
+            local comparison_status
+            comparison_status="$(jq -r .status <<<"${comparison}")"
+            local merge_base
+            merge_base="$(jq -r .merge_base_commit.sha <<<"${comparison}")"
+            if [[ "${merge_base}" != "${GITHUB_SHA}" || ( "${comparison_status}" != "ahead" && "${comparison_status}" != "identical" ) ]]; then
+              echo "Trunk ${trunk_sha} is not a generated-only descendant of release commit ${GITHUB_SHA}."
+              exit 1
+            fi
+            # Keep this allowlist in lockstep with the identical one in
+            # regenerate-derived-artifacts.yml's "Validate and publish
+            # regeneration commits" step: that job is the producer of these
+            # commits, this is the consumer that decides a release may proceed
+            # (and, below, that the tag may move onto them). A path present
+            # there but missing here stalls every release; the reverse would let
+            # non-generated content ride into a release under a moved tag.
+            while IFS= read -r changed_path; do
+              case "${changed_path}" in
+                api-report/* | \
+                bench/cross-sdk/corpus.json | \
+                docs/bundle-sizes.md | docs/comparison.md | docs/errors.md | \
+                llms.txt | llms-full.txt | \
+                examples/migration-workbench/public/artifacts/* | \
+                examples/migration-workbench/src/generated/* | \
+                samples/catalog.v2.json | \
+                samples/contract/v2/migrations/catalog.v1-to-v2.json | \
+                samples/contract/v2/release-matrix-lanes.v1.json | \
+                samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json | \
+                samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
+                samples/dist/* | samples/evidence/imagery-cog-quickstart/* | \
+                samples/evidence/maplibre-quickstart/* | samples/evidence/migration-workbench/* | \
+                samples/evidence/service-explorer/*)
+                  ;;
+                *)
+                  echo "Post-release trunk contains a non-generated path: ${changed_path}"
+                  exit 1
+                  ;;
+              esac
+            done < <(jq -r '.files[].filename' <<<"${comparison}")
+
+            # Release-tag sealing (#768). The tag Release Please just cut points
+            # at this version-bump commit, which can never be self-verifiable:
+            # it edits package.json plus the version-stamped fixtures listed in
+            # release-please-config.json, all inside the evidence-neutral source
+            # digest (scripts/sample-gate-receipt.mjs), so a pristine checkout
+            # of it fails samples:generate/samples:verify with a gate receipt
+            # source digest mismatch, and the sample contract artifacts it
+            # carries still self-report the previous release version. The reseal
+            # awaited above produced a descendant that IS sealed and stamps this
+            # release's version, so move the tag onto it before anything
+            # publishes. The two checks above -- merge base equals this release
+            # commit, and every changed path is generated output -- are what
+            # make moving the tag safe: only regenerated bytes can differ, so
+            # the tag still names exactly this release's source.
+            local tag_sha
+            tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
+            if [[ "${tag_sha}" != "${GITHUB_SHA}" && "${tag_sha}" != "${trunk_sha}" ]]; then
+              echo "Tag ${tag} resolves to ${tag_sha}, neither the release commit nor the resealed trunk tip."
+              exit 1
+            fi
+            if [[ "${tag_sha}" != "${trunk_sha}" ]]; then
+              gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" \
+                -f sha="${trunk_sha}" -F force=true >/dev/null
+            fi
+
+            # Publish from the tag itself rather than as a branch recovery run:
+            # the tag now names the sealed commit, so publish-js-sdk's own
+            # tag/version check and its strict release-seal gate both apply to
+            # the exact bytes consumers will fetch.
+            gh workflow run publish-js-sdk.yml \
+              --repo "${GITHUB_REPOSITORY}" \
+              --ref "${tag}" \
+              -f dry_run=false \
+              -f release_version="${release_version}" \
+              -f source_revision="${trunk_sha}"
+
+            # The release smoke cannot use the `release: published` event: that
+            # event fires on the unsealed version-bump commit and
+            # actions/checkout pins the event's payload SHA, so such a run would
+            # verify the stale tree however long it waited. Dispatch it against
+            # the moved tag instead.
+            gh workflow run first-map-release-smoke.yml \
+              --repo "${GITHUB_REPOSITORY}" \
+              --ref "${tag}"
+          }
+
           if [[ "${JS_SDK_RELEASE_CREATED}" == "true" ]]; then
-            dispatch_publish publish-js-sdk.yml "${JS_SDK_TAG_NAME}"
+            dispatch_resealed_js_publish "${JS_SDK_TAG_NAME}"
           fi
           if [[ "${MCP_RELEASE_CREATED}" == "true" ]]; then
-            dispatch_publish publish-mcp-server.yml "${MCP_TAG_NAME}"
+            dispatch_tag_publish publish-mcp-server.yml "${MCP_TAG_NAME}"
           fi
 
   release-please-ci:
