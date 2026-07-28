@@ -496,10 +496,12 @@
         "@honua/sdk-js/realtime"
       ],
       "evidence": [
-        "test/integration/surfaces/realtime.integration.ts"
+        "scripts/realtime-conformance-evidence.mjs",
+        "test/integration/surfaces/realtime.integration.ts",
+        "test/realtime-cross-transport-conformance.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Subscription-backed live updates depend on the Honua realtime contract."
+      "note": "SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately."
     },
     {
       "key": "styling.ogc-api-styles",

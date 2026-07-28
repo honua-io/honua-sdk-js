@@ -158,20 +158,22 @@ for the honesty model behind its `capabilities.kind: "polling"` /
 `onPoll` telemetry, and why it does not compose with
 `resumable-transport.ts`'s reconnect wrapper.
 
-## Scope and remaining work
+## Cross-transport conformance and remaining work
 
-This is the first production slice of issue
-[#393](https://github.com/honua-io/honua-sdk-js/issues/393), not completion of
-the full workstream. It does not claim:
+The delivery gate began as the first production slice of issue
+[#393](https://github.com/honua-io/honua-sdk-js/issues/393). The public SSE,
+WebSocket, and OData delta compositions now share the versioned fixture and
+scheduled capability evidence described in
+[`docs/realtime-conformance.md`](realtime-conformance.md). The remaining scope
+does not claim:
 
 - protocol-feed reconnection beyond SSE, WebSocket (`resumable-transport.ts`,
   #557), and OData delta-link polling (`odata-delta.ts`, #558);
 - cursor-only protocol adaptation where no trustworthy ordering sequence is
   available;
 - server support for cursor retention or expiry negotiation;
-- renderer, cache, columnar-batch, or offline-store patch integration;
-- a shared cross-transport conformance suite against a live honua-server
-  stream.
+- server-advertised transports that scheduled evidence reports as explicitly
+  unsupported.
 
 Adapters should declare unsupported resume behavior before subscription when
 the protocol can determine it. Expired server cursors must be projected as an
