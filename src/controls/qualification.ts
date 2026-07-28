@@ -548,8 +548,12 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   localization: {
     failing: [
       {
-        ids: ALL_IDS,
+        ids: allExcept("web-components.search"),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
+      },
+      {
+        ids: ["web-components.search"],
+        note: "The submit action is caller-localizable through the reflected submitLabel property / submit-label attribute, with the legacy English `Search` default preserved and a non-English rendering assertion. The component still owns hard-coded placeholder, suggestion, no-result, and geocoding status strings, so the full localization criterion remains failing for this component.",
       },
     ],
   },
