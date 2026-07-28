@@ -169,6 +169,16 @@ describe("HonuaLayerListElement", () => {
     expect(shadow.innerHTML).toContain("County GIS");
   });
 
+  test("emits forced-colors and prefers-contrast state styles", () => {
+    const { element, shadow } = makeElement();
+    element.connect(makeMockMap({ "parcels-fill": {}, "incident-points": {} }));
+    element.overlays = makeOverlays();
+
+    expect(shadow.innerHTML).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(shadow.innerHTML).toContain(".row:has(.checkbox:checked) { outline: 2px solid CanvasText");
+    expect(shadow.innerHTML).toContain(".row[data-not-seeded] { color: GrayText");
+  });
+
   test("setVisible writes visibility on every overlay layer and emits change", () => {
     const { element, events } = makeElement();
     const map = makeMockMap({ "parcels-fill": {}, "parcels-outline": {}, "incident-points": {} });
