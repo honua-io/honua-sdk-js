@@ -19,12 +19,29 @@
  * distance/area drawing on the map's pointer events, computed with
  * `@honua/geometry` ops) — needs no external drawing provider.
  *
+ * `<honua-legend>` and `<honua-layer-list>` are also each contested by the
+ * `controls` kit's own framework-free implementation. This kit's classes are
+ * both tags' canonical/default registrant: importing `./web-components` —
+ * alone, or alongside `@honua/sdk-js/controls` in either order — always
+ * registers these tags with the classes exported here (issue #679; see
+ * `./catalog.js` for the full ownership record and `./registry.js` for the
+ * catalog-id-addressable registration APIs re-exported below).
+ *
  * @experimental This entrypoint is not yet covered by the SDK's semver contract
  *   — the surface may change in any minor release prior to `1.0.0`.
  * @module
  */
 
-import "./elements.js";
+import { defineHonuaWebComponents } from "./elements.js";
+
+// The blanket auto-registration side effect lives here, not in `./elements.js`
+// (issue #679 PR review): `./elements.js` must stay side-effect-free on
+// import so `../controls/registry.js` can dynamically `import()` it to
+// register one tag without also claiming every tag the kit owns. This is
+// every existing `@honua/sdk-js/web-components` consumer's actual entry
+// point, so the observable behavior — importing this module registers all 16
+// tags when a `customElements` registry is present — is unchanged.
+defineHonuaWebComponents();
 
 export {
   HonuaInMemoryWebComponentController,
@@ -33,6 +50,34 @@ export {
   layersFromMapPackage,
   legendFromMapPackage,
 } from "./controller.js";
+
+export {
+  HONUA_COMPONENT_CATALOG,
+  describeDeprecatedComponentImport,
+  getCanonicalComponentCatalogEntry,
+  getComponentCatalogEntriesForTag,
+  getComponentCatalogEntry,
+  listComponentCatalogEntries,
+  listDeprecatedComponentImports,
+} from "../controls/catalog.js";
+export type {
+  HonuaComponentCatalogEntry,
+  HonuaComponentSource,
+  HonuaComponentSupportTier,
+  HonuaDeprecatedComponentDiagnostic,
+} from "../controls/catalog.js";
+export {
+  HonuaComponentCatalogError,
+  createComponentRegistry,
+  registerAllComponents,
+  registerComponent,
+  registerComponents,
+} from "../controls/registry.js";
+export type {
+  HonuaComponentCatalogId,
+  HonuaComponentRegistrationOptions,
+  HonuaComponentRegistry,
+} from "../controls/registry.js";
 
 export {
   HonuaActionPanelElement,
@@ -50,9 +95,11 @@ export {
   HonuaPrintExportElement,
   HonuaSearchElement,
   HonuaSketchControlElement,
+  defineHonuaWebComponent,
   defineHonuaWebComponents,
   honuaExportKindFromFormat,
 } from "./elements.js";
+export type { HonuaFeatureTableConflictDetail } from "./elements.js";
 
 export { HonuaMeasurementElement, defineHonuaMeasurement } from "./measurement.js";
 
@@ -123,6 +170,7 @@ export {
   describeComponentQualificationGate,
   getComponentQualification,
   isComponentProductionQualified,
+  listOpenQualificationGates,
   listComponentQualifications,
   summarizeComponentQualification,
 } from "../controls/qualification.js";
@@ -135,6 +183,126 @@ export type {
   HonuaComponentQualificationSummary,
   HonuaComponentQualificationCell,
 } from "../controls/qualification.js";
+
+// Bounded production feature table (issue #681).
+export {
+  DEFAULT_FEATURE_TABLE_BUDGETS,
+  createHonuaFeatureTable,
+  describeFeatureTableCount,
+  explorationClauseToFilterClause,
+  featureTableAriaRowCount,
+  featureTableAriaSort,
+  featureTablePageCacheKey,
+  featureTableRowKey,
+  featureTableWindow,
+  featureTableWorkByTier,
+  formatFeatureTableCell,
+  linkFeatureTableToExploration,
+} from "./feature-table-engine.js";
+export type {
+  CreateHonuaFeatureTableOptions,
+  HonuaFeatureTable,
+  HonuaFeatureTableBudgetKind,
+  HonuaFeatureTableBudgetLedger,
+  HonuaFeatureTableBudgets,
+  HonuaFeatureTableColumn,
+  HonuaFeatureTableColumnType,
+  HonuaFeatureTableConflict,
+  HonuaFeatureTableConflictCode,
+  HonuaFeatureTableCount,
+  HonuaFeatureTableCountEvidence,
+  HonuaFeatureTableExport,
+  HonuaFeatureTableExportRequest,
+  HonuaFeatureTableFocus,
+  HonuaFeatureTableFocusMove,
+  HonuaFeatureTablePageIdentity,
+  HonuaFeatureTablePaging,
+  HonuaFeatureTablePagingMode,
+  HonuaFeatureTablePlanner,
+  HonuaFeatureTableQueryEvidence,
+  HonuaFeatureTableQuerySource,
+  HonuaFeatureTableRealtimeDiff,
+  HonuaFeatureTableRealtimeOutcome,
+  HonuaFeatureTableResolvedColumn,
+  HonuaFeatureTableRow,
+  HonuaFeatureTableRowKey,
+  HonuaFeatureTableScrollMetrics,
+  HonuaFeatureTableSnapshot,
+  HonuaFeatureTableState,
+  HonuaFeatureTableWindow,
+  HonuaFeatureTableWorkConcern,
+  HonuaFeatureTableWorkItem,
+  HonuaFeatureTableWorkTier,
+  LinkFeatureTableToExplorationOptions,
+} from "./feature-table-engine.js";
+export {
+  describeFeatureTableState,
+  featureTableFocusMoveForKey,
+  featureTableGridHtml,
+  featureTableGridStyles,
+  featureTableViewModel,
+  legacyFeatureTableViewModel,
+} from "./feature-table-view.js";
+export type { HonuaFeatureTableViewModel, HonuaFeatureTableViewRow } from "./feature-table-view.js";
+
+// ── production-tier feature editor (issue #680) ──────────────────────────
+export { HonuaFeatureEditorElement, defineHonuaFeatureEditor } from "./feature-editor.js";
+export type { HonuaFeatureEditChangeDetail, HonuaFeatureEditCommitDetail } from "./feature-editor.js";
+export { HonuaFeatureEditorWorkflow, createFeatureEditorWorkflow } from "./feature-editor-workflow.js";
+export type {
+  HonuaFeatureEditorCommit,
+  HonuaFeatureEditorConflict,
+  HonuaFeatureEditorConflictChoice,
+  HonuaFeatureEditorExternalChangeOutcome,
+  HonuaFeatureEditorFailure,
+  HonuaFeatureEditorIdentity,
+  HonuaFeatureEditorOptions,
+  HonuaFeatureEditorSketchState,
+  HonuaFeatureEditorSnapshot,
+  HonuaFeatureEditorStatus,
+} from "./feature-editor-workflow.js";
+export {
+  buildEditorFormModel,
+  coerceEditorFieldValue,
+  editorControlKind,
+  editorDomainFromSchema,
+  editorFieldInputValue,
+  editorFieldsFromSchema,
+  editorOperationAvailability,
+  hiddenEditorFieldNames,
+  redactEditorAttachment,
+  resolveActiveEditorSubtype,
+  resolveEditorFields,
+  resolveEditorOperations,
+} from "./feature-editor-model.js";
+export type {
+  BuildEditorFormModelInput,
+  HonuaEditorAttachmentDraft,
+  HonuaEditorAttachmentMutationLike,
+  HonuaEditorCapabilityDecisionLike,
+  HonuaEditorChoice,
+  HonuaEditorControlKind,
+  HonuaEditorFieldControl,
+  HonuaEditorFormModel,
+  HonuaEditorOperation,
+  HonuaEditorOperationAvailability,
+  HonuaEditorOperationOverride,
+  HonuaEditorOperationOverrides,
+  HonuaEditorSchemaDomainLike,
+  HonuaEditorSchemaFieldLike,
+  HonuaEditorSubtype,
+  HonuaEditorSubtypeConfig,
+  HonuaEditorSubtypeFieldOverride,
+  HonuaEditorUnavailableCode,
+  ResolveEditorOperationsInput,
+} from "./feature-editor-model.js";
+export { bindEditorSketch, createTerraDrawEditorSketch, editorSnappingOptions } from "./feature-editor-sketch.js";
+export type {
+  CreateTerraDrawEditorSketchOptions,
+  HonuaEditorSketchAdapter,
+  HonuaEditorSketchOptions,
+  HonuaEditorSnappingOptions,
+} from "./feature-editor-sketch.js";
 
 export type {
   HonuaActionDetail,

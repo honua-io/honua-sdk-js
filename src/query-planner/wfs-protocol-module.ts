@@ -463,8 +463,7 @@ function validateWfsCapabilities(state: WfsHandleState, snapshot: WfsCapabilitie
   const advertisedFormats = snapshot.outputFormatsByOp.get("GetFeature") ?? [];
   if (
     !Array.isArray(advertisedFormats) ||
-    (advertisedFormats.length > 0 &&
-      advertisedFormats.some((value) => typeof value !== "string" || value.length === 0))
+    (advertisedFormats.length > 0 && advertisedFormats.some((value) => typeof value !== "string" || value.length === 0))
   ) {
     throw invalidCapabilities("WFS GetFeature does not advertise an outputFormat");
   }

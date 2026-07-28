@@ -576,8 +576,10 @@ describe("print/export affordances and semantics", () => {
     for (const kind of ["snapshot", "state"]) {
       const button = root.querySelector<HTMLButtonElement>(`button[data-export-kind="${kind}"]`);
       expect(button, kind).not.toBeNull();
-      expect(button?.disabled, kind).toBe(true);
-      expect(button?.getAttribute("aria-disabled"), kind).toBe("true");
+      expect(button?.disabled, kind).toBe(false);
+      expect(button?.getAttribute("disabled"), kind).toBeNull();
+      expect(button?.getAttribute("aria-disabled"), kind).toBeNull();
+      expect(button?.getAttribute("data-export-unavailable"), kind).toBe("true");
       expect(button?.getAttribute("title") ?? "", kind).toContain("adapter");
     }
 
@@ -600,11 +602,15 @@ describe("print/export affordances and semantics", () => {
     };
 
     const stateButton = shadowOf(element).querySelector<HTMLButtonElement>('button[data-export-kind="state"]');
-    expect(stateButton?.disabled).toBe(false);
+    expect(stateButton?.getAttribute("data-export-unavailable")).toBeNull();
     await expect(element.requestExport?.("state")).resolves.toMatchObject({ status: "ready" });
 
     element.exportAdapter = undefined;
-    expect(shadowOf(element).querySelector<HTMLButtonElement>('button[data-export-kind="state"]')?.disabled).toBe(true);
+    expect(
+      shadowOf(element)
+        .querySelector<HTMLButtonElement>('button[data-export-kind="state"]')
+        ?.getAttribute("data-export-unavailable"),
+    ).toBe("true");
     await expect(element.requestExport?.("state")).resolves.toMatchObject({ status: "unsupported" });
   });
 });

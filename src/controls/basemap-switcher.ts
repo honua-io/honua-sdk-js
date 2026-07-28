@@ -48,8 +48,7 @@ import {
   listenForHonuaMapReady,
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
-import { HonuaLegendElement } from "./legend.js";
-import { HonuaSwipeControlElement } from "./swipe-control.js";
+import { defineHonuaSwipeControl } from "./swipe-control.js";
 import type {
   HonuaBasemapDefinition,
   HonuaBasemapKind,
@@ -347,17 +346,17 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
  * the `web-components` kit's own controller-driven `honua-layer-list`, so it is
  * opt-in via {@link defineHonuaLayerList}.
  */
-export function defineHonuaControls(registry = globalDom.customElements): void {
+export function defineHonuaBasemapSwitcher(registry = globalDom.customElements): void {
   if (!registry) return;
   if (!registry.get("honua-basemap-switcher")) {
     registry.define("honua-basemap-switcher", HonuaBasemapSwitcherElement);
   }
-  if (!registry.get("honua-legend")) {
-    registry.define("honua-legend", HonuaLegendElement);
-  }
-  if (!registry.get("honua-swipe-control")) {
-    registry.define("honua-swipe-control", HonuaSwipeControlElement);
-  }
+}
+
+export function defineHonuaControls(registry = globalDom.customElements): void {
+  if (!registry) return;
+  defineHonuaBasemapSwitcher(registry);
+  defineHonuaSwipeControl(registry);
 }
 
 if (globalDom.customElements) {

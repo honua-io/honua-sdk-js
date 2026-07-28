@@ -124,13 +124,13 @@
     }
   ],
   "summary": {
-    "components": 20,
+    "components": 21,
     "gates": 17,
-    "cells": 340,
-    "passing": 107,
-    "failing": 126,
-    "pending": 87,
-    "notApplicable": 20,
+    "cells": 357,
+    "passing": 115,
+    "failing": 131,
+    "pending": 90,
+    "notApplicable": 21,
     "productionQualifiedComponents": 0
   },
   "components": [
@@ -1047,9 +1047,9 @@
       "source": "web-components",
       "productionQualified": false,
       "summary": {
-        "passing": 7,
+        "passing": 8,
         "failing": 6,
-        "pending": 3,
+        "pending": 2,
         "notApplicable": 1
       },
       "gates": [
@@ -1058,24 +1058,29 @@
           "requirement": "REQ-004",
           "status": "passing",
           "evidence": [
-            "test/playwright/web-components-basic.spec.mjs"
+            "test/playwright/web-components-basic.spec.mjs",
+            "test/web-components-feature-table-element.test.ts"
           ],
-          "note": "Focusing a row and pressing Enter selects the feature, asserted in a real browser. Unit-level coverage is still absent."
+          "note": "The kit's strongest keyboard coverage: ArrowDown/Enter/Tab dispatched as real KeyboardEvents against both the controller lane and the bounded engine lane, asserting the resulting focus move, selection, and — for Tab — that the grid does not preventDefault a key the page owns. Also verified end to end in a real browser. Not yet dispatched as DOM events: Home/End, Ctrl+Home/Ctrl+End, PageUp/PageDown, Space, and Shift+click additive sort; the key-to-move mapping behind the paging keys is unit-tested separately, so the gap is the DOM delivery path rather than the behavior."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-table-element.test.ts"
+          ],
+          "note": "A full WAI-ARIA grid contract: role=grid/row/columnheader/gridcell with absolute aria-rowcount, aria-colcount, aria-rowindex, and aria-colindex across a virtualized window, aria-rowcount=-1 when the true total is genuinely unknown rather than a fabricated number, aria-sort, aria-selected, aria-busy, a role=status aria-live=polite readout, and placeholder rows that announce nothing they cannot substantiate. The grid's own accessible name (aria-labelledby) is emitted but not asserted."
         },
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
           "status": "passing",
           "evidence": [
+            "test/web-components-feature-table-element.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "The shared setShadowHtml() capture/restore path is asserted per tag: the focused control survives a controller-driven re-render. For the search element the covered case is its text input, which additionally keeps its typed value and selection range."
+          "note": "The shared setShadowHtml() capture/restore path is asserted per tag: the focused control survives a controller-driven re-render. For the search element the covered case is its text input, which additionally keeps its typed value and selection range. Stronger than the harness's generic check: the exact cell keeps focus across the re-render that focusing itself causes, via a data-cell-key attribute deliberately ordered ahead of data-field so the base class's alphabetical data-* scan selects the cell rather than the column. The roving tabindex is restored with it, and rows are asserted to stay out of the tab sequence so the grid keeps a single tab stop."
         },
         {
           "gate": "reduced-motion",
@@ -1132,25 +1137,27 @@
           "evidence": [
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Covered for the controller lane only. The bounded engine lane is not driven by the harness and no feature-table suite spies on the console, so its query, paging, and conflict paths are unswept."
         },
         {
           "gate": "deterministic-disposal",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-feature-table-element.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "Removing the element drops its controller state subscription and its root honua-controller-ready listener to zero, and a subsequent controller update reaches no detached element."
+          "note": "Removing the element drops its controller state subscription and its root honua-controller-ready listener to zero, and a subsequent controller update reaches no detached element. Both lanes are covered: the controller subscription and root controller-ready listener (harness), and the bounded engine subscription — released on detach, re-taken exactly once on reconnect, with a re-assignment asserted not to double-subscribe and a reconnect asserted not to re-query. Its grid listeners are bound to nodes that the next innerHTML render replaces, so unlike the feature editor's former shadow-root binding they neither accumulate nor survive as a live handler. Still uncovered: the element does not cancel an in-flight engine refresh on disconnect (the engine is host-owned and cancels on its own dispose), and no test asserts that."
         },
         {
           "gate": "duplicate-listener",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-feature-table-element.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones."
+          "note": "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones. Covered through the controller lane by the harness, and the bounded lane binds every grid handler to nodes the next render replaces rather than to the persistent shadow root, which is the arrangement that makes accumulation impossible. The bounded lane's scroll, cell-focus, and sort-button handlers are not themselves swept across repeated renders."
         },
         {
           "gate": "memory-leak",
@@ -1429,6 +1436,144 @@
             "test/web-components-lifecycle-gates.test.ts"
           ],
           "note": "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.feature-editor",
+      "tag": "honua-feature-editor",
+      "source": "web-components",
+      "productionQualified": false,
+      "summary": {
+        "passing": 7,
+        "failing": 5,
+        "pending": 4,
+        "notApplicable": 1
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "Ctrl+Z / Ctrl+Shift+Z drive undo and redo and Escape cancels the draft, each dispatched as a real KeyboardEvent with the resulting workflow state asserted. The events are dispatched at the shadow root rather than from a focused control, so the root-level handler is proven but focus-based delivery is not."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "The kit's most complete accessibility contract: per-field label association, aria-required, aria-invalid with aria-describedby resolving to the validation text, role=alert on validation/conflict/failure regions, aria-pressed on operation and sketch-tool toggles, aria-disabled on unavailable actions, role=group with an accessible name on the tool groups, and a role=status aria-live=polite readout."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "A reconciling realtime change forces a re-render and the focused field keeps its edited value, its focus, and its caret range. Covered for text inputs only: this element hand-rolls its own captureFocus() keyed on `id` alone rather than using the shared setShadowHtml() helper's id/name/data-* selector, and none of its buttons carry an id, so button focus is silently lost across the same re-render."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No verdict rather than a known failure, which is the honest distinction for this component: unlike the rest of the kit its styles declare no physical left/right offsets at all, so it is not demonstrably RTL-hostile. It also uses no logical properties and nothing renders it under dir=rtl, so it is simply unverified."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "failing",
+          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "Complete for what this element owns: the workflow subscription is released on disconnect and re-taken on reconnect, and the shadow-root keydown listener is released too — asserted by dispatching at the detached element's still-live shadow root and counting zero workflow calls, then exactly one after reconnect, and still exactly one after three detach/reattach cycles (issue #809). The element holds no timers and no AbortController of its own, so there is nothing further to release."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "One keystroke after four re-renders drives exactly one undo, one redo, and one cancel, asserted by counting workflow invocations rather than resulting state — which is the only way to see this defect class, since surplus undo()/cancel() calls are idempotent no-ops that leave state looking correct. The keydown listener is now bound once per connection on the shadow root instead of on every render (issue #809)."
         },
         {
           "gate": "memory-leak",
@@ -2421,7 +2566,7 @@
           "evidence": [
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "Export buttons carry aria-disabled when no adapter is assigned, and the outcome readout is a role=status aria-live=polite region."
+          "note": "The outcome readout is a role=status aria-live=polite region that names the adapter requirement, and an export with no adapter carries an explanatory title. Deliberately neither disabled nor aria-disabled: both suppress activation, and activation is how an application discovers it must supply an adapter — the asserted behavior is that activating an unavailable export still reports the unsupported outcome through honua-export."
         },
         {
           "gate": "focus-restoration",

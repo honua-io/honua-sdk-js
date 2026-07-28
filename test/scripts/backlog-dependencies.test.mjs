@@ -1228,23 +1228,36 @@ describe("backlog dependency CLI and workflow", () => {
     const oversizedPath = path.join(tempDirectory, "oversized.json");
     const invalidUtf8Path = path.join(tempDirectory, "invalid-utf8.json");
     const symlinkPath = path.join(tempDirectory, "snapshot-link.json");
+    let symlinkSupported = false;
+    try {
+      fs.symlinkSync(path.join(fixtureRoot, "stable-snapshot.json"), symlinkPath, "file");
+      symlinkSupported = true;
+    } catch (error) {
+      const asErr = error;
+      const code = asErr && typeof asErr === "object" && "code" in asErr ? asErr.code : undefined;
+      if (code !== "EPERM") {
+        throw error;
+      }
+    }
     try {
       fs.closeSync(fs.openSync(oversizedPath, "w"));
       fs.truncateSync(oversizedPath, 16 * 1024 * 1024 + 1);
       fs.writeFileSync(invalidUtf8Path, Buffer.from([0xff]));
-      fs.symlinkSync(path.join(fixtureRoot, "stable-snapshot.json"), symlinkPath);
 
-      for (const args of [
+      const argsList = [
         ["--repository", repository, "--repository", repository],
         ["--repository", repository, "--json", "--json"],
         ["--repository", repository, "--apply", "--apply"],
         ["--repository", repository, "--apply", "--metadata", path.join(fixtureRoot, "stable-snapshot.json")],
         ["--repository", repository, "--metadata", oversizedPath],
         ["--repository", repository, "--metadata", invalidUtf8Path],
-        ["--repository", repository, "--metadata", symlinkPath],
         ["--repository", repository, "--metadata", tempDirectory],
         ["--repository", repository, "--metadata", path.join(fixtureRoot, "stable-snapshot.json"), "--max-issues", "1"],
-      ]) {
+      ];
+      if (symlinkSupported) {
+        argsList.push(["--repository", repository, "--metadata", symlinkPath]);
+      }
+      for (const args of argsList) {
         const result = spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: "utf8" });
         assert.equal(result.status, 1, `${args.join(" ")}\n${result.stdout}\n${result.stderr}`);
         assert.equal(result.stdout, "");

@@ -48,15 +48,15 @@
  * presentation, with the text labels carrying the meaning.
  *
  * Note: the `web-components` entry also registers a (controller-driven)
- * `honua-legend` element. Both registrations are guarded with an if-missing
- * check, so whichever entry is imported first owns the tag; import
- * `@honua/sdk-js/controls` first to use this element.
+ * `honua-legend` element and is that tag's canonical/default registrant.
+ * Call `defineHonuaLegend()` explicitly to claim this implementation.
  */
 
 import {
   HTMLElementBase,
   escapeAttribute,
   escapeHtml,
+  globalDom,
   listenForHonuaMapReady,
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
@@ -64,9 +64,8 @@ import { HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js"
 import type { HonuaLegendEntry, HonuaLegendMap, HonuaLegendSection, HonuaLegendSwatchShape } from "./types.js";
 
 /**
- * Custom element implementing the legend. Registered as `honua-legend` by
- * `defineHonuaControls` (which runs automatically on import of the controls
- * entry when a `customElements` registry exists).
+ * Custom element implementing the legend. Registered explicitly by
+ * `defineHonuaLegend`; it is not part of blanket controls registration.
  */
 export class HonuaLegendElement extends HTMLElementBase {
   public static get observedAttributes(): string[] {
@@ -319,6 +318,12 @@ export class HonuaLegendElement extends HTMLElementBase {
     if (value) this.setAttribute(name, "");
     else this.removeAttribute?.(name);
   }
+}
+
+/** Registers the map-style-derived legend implementation, if requested. */
+export function defineHonuaLegend(registry = globalDom.customElements): void {
+  if (!registry) return;
+  if (!registry.get("honua-legend")) registry.define("honua-legend", HonuaLegendElement);
 }
 
 function normalizeSections(value: readonly (HonuaLegendEntry | HonuaLegendSection)[]): HonuaLegendSection[] {

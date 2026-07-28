@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { defineHonuaControls } from "../../src/controls/basemap-switcher.js";
 import { HonuaLegendDeriveError, deriveLegendEntries } from "../../src/controls/legend-derive.js";
-import { HonuaLegendElement } from "../../src/controls/legend.js";
+import { HonuaLegendElement, defineHonuaLegend } from "../../src/controls/legend.js";
 import type { HonuaLegendEntry, HonuaLegendSection } from "../../src/controls/types.js";
 
 interface MockLayerSpec {
@@ -246,7 +246,7 @@ describe("deriveLegendEntries", () => {
 });
 
 describe("HonuaLegendElement", () => {
-  test("is registered for browser registries via defineHonuaControls", () => {
+  test("is opt-in via defineHonuaLegend and not auto-registered by defineHonuaControls", () => {
     const defined: Record<string, CustomElementConstructor> = {};
     const registry = {
       get: (name: string) => defined[name],
@@ -254,10 +254,15 @@ describe("HonuaLegendElement", () => {
         defined[name] = ctor;
       },
     } as unknown as CustomElementRegistry;
+    // The blanket controls registration must NOT claim honua-legend — the
+    // tag is shared with the controller-driven web-components element.
     defineHonuaControls(registry);
+    expect(defined["honua-legend"]).toBeUndefined();
+    // Explicit opt-in registers it.
+    defineHonuaLegend(registry);
     expect(defined["honua-legend"]).toBe(HonuaLegendElement);
     // Idempotent: re-defining must not throw.
-    defineHonuaControls(registry);
+    defineHonuaLegend(registry);
   });
 
   test("a flat entries array renders as one untitled section with list semantics and aria-hidden swatches", () => {

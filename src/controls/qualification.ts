@@ -32,10 +32,15 @@
  *   that component — it is the only status that can silently remove work, so it
  *   is the one that most needs an argument attached.
  *
- * Nothing here is aspirational. A component reaches
- * `"production-tier"` in the catalog only when
- * {@link isComponentProductionQualified} is true, and the verifier cross-checks
- * that in both directions, so a tier claim cannot drift ahead of the evidence.
+ * Nothing here is aspirational, and this matrix is a *different axis* from the
+ * catalog's `supportTier`. The tier records the functional maturity whichever
+ * feature issue (#680-#683) delivered on a component; this records the
+ * cross-cutting gates, which no component has cleared yet. The verifier enforces
+ * only the direction that is implied — clearing every gate requires the
+ * production tier, since gate completion is the harder bar — and surfaces every
+ * production-tier component's still-open gates rather than pretending the tier
+ * settles them. See {@link isComponentProductionQualified} and
+ * {@link listOpenQualificationGates}.
  *
  * ## Shape
  *
@@ -265,6 +270,38 @@ export interface HonuaComponentQualificationSummary {
 /** Catalog id groups referenced repeatedly below. */
 const ALL_IDS = HONUA_COMPONENT_CATALOG.map((entry) => entry.id);
 
+/** Every catalog id except the named ones, for gates where one component differs. */
+function allExcept(...excluded: readonly string[]): readonly string[] {
+  return ALL_IDS.filter((id) => !excluded.includes(id));
+}
+
+/**
+ * `<honua-feature-editor>` (issue #680) is the kit's first component the catalog
+ * declares `production-tier`, and it is the reason the tier cross-check below is
+ * one-directional. Its own suites are the strongest in the kit on the gates they
+ * cover: real keyboard events, a thorough ARIA contract, text-input focus
+ * restoration across a reconciling re-render, and — since issue #809 — the kit's
+ * only invocation-counting proofs of single-binding and full listener release.
+ *
+ * It is also the matrix earning its keep. Seeding it honestly recorded two
+ * `failing` cells naming a per-render shadow-root listener that accumulated and
+ * was never released on disconnect; #809 fixed exactly those two defects and
+ * added regression tests that count invocations rather than assert state, and
+ * both cells now flip to `passing` on that evidence. A matrix that had rounded
+ * those up to "probably fine" would have had nothing to flip.
+ */
+const FEATURE_EDITOR = "web-components.feature-editor";
+const FEATURE_EDITOR_SUITE = "test/web-components-feature-editor-element.test.ts";
+
+/**
+ * `<honua-feature-table>`'s bounded production lane (issue #681) brought the
+ * kit's most complete ARIA-grid contract and its only two-lane keyboard suite,
+ * so several of its rows are re-seeded from that evidence rather than from the
+ * cross-cutting harness alone.
+ */
+const FEATURE_TABLE = "web-components.feature-table";
+const FEATURE_TABLE_SUITE = "test/web-components-feature-table-element.test.ts";
+
 /**
  * The web-components tags covered by the cross-cutting lifecycle harness
  * `test/web-components-lifecycle-gates.test.ts`. `web-components.map` is
@@ -370,9 +407,14 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "ArrowLeft/ArrowRight (with and without Shift), Home, and End step the divider and emit change.",
       },
       {
-        ids: ["web-components.feature-table"],
-        evidence: [BROWSER_SPEC],
-        note: "Focusing a row and pressing Enter selects the feature, asserted in a real browser. Unit-level coverage is still absent.",
+        ids: [FEATURE_TABLE],
+        evidence: [FEATURE_TABLE_SUITE, BROWSER_SPEC],
+        note: "The kit's strongest keyboard coverage: ArrowDown/Enter/Tab dispatched as real KeyboardEvents against both the controller lane and the bounded engine lane, asserting the resulting focus move, selection, and — for Tab — that the grid does not preventDefault a key the page owns. Also verified end to end in a real browser. Not yet dispatched as DOM events: Home/End, Ctrl+Home/Ctrl+End, PageUp/PageDown, Space, and Shift+click additive sort; the key-to-move mapping behind the paging keys is unit-tested separately, so the gap is the DOM delivery path rather than the behavior.",
+      },
+      {
+        ids: [FEATURE_EDITOR],
+        evidence: [FEATURE_EDITOR_SUITE],
+        note: "Ctrl+Z / Ctrl+Shift+Z drive undo and redo and Escape cancels the draft, each dispatched as a real KeyboardEvent with the resulting workflow state asserted. The events are dispatched at the shadow root rather than from a focused control, so the root-level handler is proven but focus-based delivery is not.",
       },
     ],
     pendingNote:
@@ -409,7 +451,17 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
       {
         ids: ["web-components.print-export"],
         evidence: [LIFECYCLE_HARNESS],
-        note: "Export buttons carry aria-disabled when no adapter is assigned, and the outcome readout is a role=status aria-live=polite region.",
+        note: "The outcome readout is a role=status aria-live=polite region that names the adapter requirement, and an export with no adapter carries an explanatory title. Deliberately neither disabled nor aria-disabled: both suppress activation, and activation is how an application discovers it must supply an adapter — the asserted behavior is that activating an unavailable export still reports the unsupported outcome through honua-export.",
+      },
+      {
+        ids: [FEATURE_EDITOR],
+        evidence: [FEATURE_EDITOR_SUITE],
+        note: "The kit's most complete accessibility contract: per-field label association, aria-required, aria-invalid with aria-describedby resolving to the validation text, role=alert on validation/conflict/failure regions, aria-pressed on operation and sketch-tool toggles, aria-disabled on unavailable actions, role=group with an accessible name on the tool groups, and a role=status aria-live=polite readout.",
+      },
+      {
+        ids: [FEATURE_TABLE],
+        evidence: [FEATURE_TABLE_SUITE],
+        note: "A full WAI-ARIA grid contract: role=grid/row/columnheader/gridcell with absolute aria-rowcount, aria-colcount, aria-rowindex, and aria-colindex across a virtualized window, aria-rowcount=-1 when the true total is genuinely unknown rather than a fabricated number, aria-sort, aria-selected, aria-busy, a role=status aria-live=polite readout, and placeholder rows that announce nothing they cannot substantiate. The grid's own accessible name (aria-labelledby) is emitted but not asserted.",
       },
     ],
     pendingNote:
@@ -427,6 +479,16 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: ["web-components.search"],
         evidence: ["test/web-components-search-element.test.ts", BROWSER_SPEC],
         note: "Also verified end to end in a real browser: the search input keeps focus across the re-render that follows a suggestion commit.",
+      },
+      {
+        ids: [FEATURE_TABLE],
+        evidence: [FEATURE_TABLE_SUITE],
+        note: "Stronger than the harness's generic check: the exact cell keeps focus across the re-render that focusing itself causes, via a data-cell-key attribute deliberately ordered ahead of data-field so the base class's alphabetical data-* scan selects the cell rather than the column. The roving tabindex is restored with it, and rows are asserted to stay out of the tab sequence so the grid keeps a single tab stop.",
+      },
+      {
+        ids: [FEATURE_EDITOR],
+        evidence: [FEATURE_EDITOR_SUITE],
+        note: "A reconciling realtime change forces a re-render and the focused field keeps its edited value, its focus, and its caret range. Covered for text inputs only: this element hand-rolls its own captureFocus() keyed on `id` alone rather than using the shared setShadowHtml() helper's id/name/data-* selector, and none of its buttons carry an id, so button focus is silently lost across the same re-render.",
       },
     ],
     failing: [
@@ -499,10 +561,12 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   rtl: {
     failing: [
       {
-        ids: ALL_IDS,
+        ids: allExcept(FEATURE_EDITOR),
         note: "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl.",
       },
     ],
+    pendingNote:
+      "No verdict rather than a known failure, which is the honest distinction for this component: unlike the rest of the kit its styles declare no physical left/right offsets at all, so it is not demonstrably RTL-hostile. It also uses no logical properties and nothing renders it under dir=rtl, so it is simply unverified.",
   },
 
   "visual-regression": {
@@ -525,6 +589,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: LIFECYCLE_HARNESS_IDS,
         evidence: [LIFECYCLE_HARNESS],
         note: "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called.",
+      },
+      {
+        ids: [FEATURE_TABLE],
+        evidence: [LIFECYCLE_HARNESS],
+        note: "Covered for the controller lane only. The bounded engine lane is not driven by the harness and no feature-table suite spies on the console, so its query, paging, and conflict paths are unswept.",
       },
     ],
     pendingNote:
@@ -558,6 +627,16 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [BROWSER_SPEC],
         note: "Removing the element tears down canvas, map, and runtime, asserted in a real browser. Unit-level coverage is not possible without a renderer.",
       },
+      {
+        ids: [FEATURE_TABLE],
+        evidence: [FEATURE_TABLE_SUITE, LIFECYCLE_HARNESS],
+        note: "Both lanes are covered: the controller subscription and root controller-ready listener (harness), and the bounded engine subscription — released on detach, re-taken exactly once on reconnect, with a re-assignment asserted not to double-subscribe and a reconnect asserted not to re-query. Its grid listeners are bound to nodes that the next innerHTML render replaces, so unlike the feature editor's former shadow-root binding they neither accumulate nor survive as a live handler. Still uncovered: the element does not cancel an in-flight engine refresh on disconnect (the engine is host-owned and cancels on its own dispose), and no test asserts that.",
+      },
+      {
+        ids: [FEATURE_EDITOR],
+        evidence: [FEATURE_EDITOR_SUITE],
+        note: "Complete for what this element owns: the workflow subscription is released on disconnect and re-taken on reconnect, and the shadow-root keydown listener is released too — asserted by dispatching at the detached element's still-live shadow root and counting zero workflow calls, then exactly one after reconnect, and still exactly one after three detach/reattach cycles (issue #809). The element holds no timers and no AbortController of its own, so there is nothing further to release.",
+      },
     ],
     pendingNote: "Nothing asserts what this component releases when it is disconnected.",
   },
@@ -568,6 +647,16 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: INTERACTIVE_HARNESS_IDS,
         evidence: [LIFECYCLE_HARNESS],
         note: "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones.",
+      },
+      {
+        ids: [FEATURE_TABLE],
+        evidence: [LIFECYCLE_HARNESS, FEATURE_TABLE_SUITE],
+        note: "Covered through the controller lane by the harness, and the bounded lane binds every grid handler to nodes the next render replaces rather than to the persistent shadow root, which is the arrangement that makes accumulation impossible. The bounded lane's scroll, cell-focus, and sort-button handlers are not themselves swept across repeated renders.",
+      },
+      {
+        ids: [FEATURE_EDITOR],
+        evidence: [FEATURE_EDITOR_SUITE],
+        note: "One keystroke after four re-renders drives exactly one undo, one redo, and one cancel, asserted by counting workflow invocations rather than resulting state — which is the only way to see this defect class, since surplus undo()/cancel() calls are idempotent no-ops that leave state looking correct. The keydown listener is now bound once per connection on the shadow root instead of on every render (issue #809).",
       },
     ],
     notApplicable: [
@@ -683,16 +772,44 @@ export function summarizeComponentQualification(id?: string): HonuaComponentQual
 }
 
 /**
- * Whether a component has cleared every applicable gate, i.e. whether it may
- * legitimately claim `supportTier: "production-tier"` in the catalog.
+ * Whether a component has cleared **every** gate in this matrix.
  *
  * `not-applicable` cells count as cleared (that is what the status means, and
  * why it requires a justifying note); `pending` and `failing` do not.
- * `scripts/component-qualification.mjs` asserts this agrees with the catalog's
- * declared tier in both directions, so neither can drift ahead of the other.
+ *
+ * This is deliberately *not* the same claim as the catalog's
+ * `supportTier: "production-tier"`, and conflating the two would misreport both.
+ * The catalog tier is a **functional maturity** claim owned by whichever feature
+ * issue raised the component (#680-#683): `<honua-feature-editor>` is
+ * production-tier because #680 delivered capability-aware editing, conflict
+ * handling, snapping, and attachment staging on it. This function is the
+ * **cross-cutting gate** axis, which no component has cleared yet.
+ *
+ * `scripts/component-qualification.mjs` therefore enforces only the direction
+ * that is actually implied: a component that has cleared every gate must be
+ * declared production-tier, because gate completion is strictly the harder bar.
+ * The reverse does not hold, so a production-tier component simply carries its
+ * still-open gates in the manifest's `openGates` — visible, counted, and
+ * impossible to mistake for done. See {@link listOpenQualificationGates}.
  */
 export function isComponentProductionQualified(id: string): boolean {
   const qualification = getComponentQualification(id);
   if (!qualification) return false;
   return qualification.gates.every((cell) => cell.status === "passing" || cell.status === "not-applicable");
+}
+
+/**
+ * The gates a component has not yet cleared (`pending` or `failing`), in gate
+ * order. Empty exactly when {@link isComponentProductionQualified} is true.
+ *
+ * This is what keeps a `production-tier` catalog claim honest: the tier says the
+ * component's *feature* work landed, and this says precisely what remains on the
+ * accessibility, localization, visual, CSP, lifecycle, and bundle axes.
+ */
+export function listOpenQualificationGates(id: string): readonly HonuaComponentQualificationGateId[] {
+  const qualification = getComponentQualification(id);
+  if (!qualification) return [];
+  return qualification.gates
+    .filter((cell) => cell.status === "pending" || cell.status === "failing")
+    .map((cell) => cell.gate);
 }
