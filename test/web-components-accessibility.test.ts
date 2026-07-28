@@ -55,6 +55,15 @@ describe("web-component accessibility semantics", () => {
     expect(chartCss).toContain("background: Highlight");
   });
 
+  it("emits forced-colors styles for the feature table", () => {
+    const root = shadow(mount("honua-feature-table", "Features"));
+    const tableCss = root.querySelector("style")?.textContent ?? "";
+    expect(tableCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(tableCss).toContain("background: Canvas");
+    expect(tableCss).toContain("border-top-color: CanvasText");
+    expect(tableCss).toContain("background: Highlight");
+  });
+
   it("gives basemap, bookmark, locate, status, and action controls named panels", () => {
     const controls = [
       ["honua-basemap-control", "Basemap choices"],

@@ -2775,6 +2775,17 @@ function tableStyles(): string {
     tr[aria-selected="true"] td { background: #dbeafe; }
     tbody tr[data-feature-id] { cursor: pointer; }
     tbody tr[data-feature-id]:focus { outline: 2px solid var(--honua-ui-accent); outline-offset: -2px; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .table-panel {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .table-panel__bar, th { background: Canvas; color: CanvasText; }
+      th, td { border-top-color: CanvasText; }
+      tr[aria-selected="true"] td { background: Highlight; color: HighlightText; }
+      tbody tr[data-feature-id]:focus { outline-color: Highlight; }
+    }
   `;
 }
 

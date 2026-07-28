@@ -694,6 +694,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-accessibility.test.ts"],
         note: "The chart declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText/Highlight rules for its panel and bars, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["web-components.feature-table"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The feature table declares forced-colors/prefers-contrast Canvas/CanvasText/Highlight rules for panel, headers, selected rows, and focus, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -717,7 +722,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "web-components.print-export" &&
             id !== "web-components.editor" &&
             id !== "web-components.measurement" &&
-            id !== "web-components.chart",
+            id !== "web-components.chart" &&
+            id !== "web-components.feature-table",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
