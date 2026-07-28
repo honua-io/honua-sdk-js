@@ -34,6 +34,42 @@ test("native controls-kit layer list toggles from real keyboard input", async ({
   }
 });
 
+test("controller-driven layer list responds to focused Space and Enter activation", async ({ page }) => {
+  const server = await startWebComponentsFixtureServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.ready === true)).toBe(true);
+
+    const layerList = page.locator("honua-layer-list");
+    const visibility = layerList.locator("input[data-layer-id='incident-points']");
+    await expect(visibility).toBeChecked();
+    await visibility.focus();
+    await page.keyboard.press("Space");
+
+    await expect(visibility).not.toBeChecked();
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.layerVisible("incident-points")))
+      .toBe(false);
+    await expect(layerList.locator("input[data-layer-id='incident-points']")).not.toBeChecked();
+
+    const reorder = layerList.locator("button[data-move='up:incident-points']");
+    await expect(reorder).toBeEnabled();
+    await reorder.focus();
+    await page.keyboard.press("Enter");
+
+    await expect(page.locator("#event-log")).toHaveText("reorder:incident-points:zoning-districts,incident-points,incident-halos");
+    await expect
+      .poll(async () =>
+        page.locator("honua-layer-list").evaluate((element) =>
+          [...(element.shadowRoot?.querySelectorAll("[data-layer-row]") ?? [])].map((row) => row.getAttribute("data-layer-row")),
+        ),
+      )
+      .toEqual(["zoning-districts", "incident-points", "incident-halos"]);
+  } finally {
+    await server.close();
+  }
+});
+
 test("web components compose map, layers, legend, table, search, and editor state", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => {
