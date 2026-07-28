@@ -718,6 +718,16 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-measurement-element.test.ts"],
         note: "Repeated mode rerenders leave exactly one map click and one double-click listener, proving handlers are not accumulated.",
       },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "Repeated bases rerenders leave one click handler on the selected radio, evidenced by exactly one change event from one interaction.",
+      },
+      {
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/swipe-control.test.ts"],
+        note: "Repeated position rerenders leave one keyboard handler on the divider, evidenced by exactly one change event from one ArrowRight interaction.",
+      },
     ],
     notApplicable: [
       {

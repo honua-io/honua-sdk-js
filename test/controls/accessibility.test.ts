@@ -79,4 +79,21 @@ describe("controls accessibility semantics", () => {
       warn.mockRestore();
     }
   });
+
+  it("does not duplicate basemap handlers across repeated rerenders", () => {
+    const element = mount(new HonuaBasemapSwitcherElement());
+    element.bases = [
+      { id: "streets", label: "Streets", kind: "vector", sources: {}, layers: [] },
+      { id: "imagery", label: "Imagery", kind: "raster", sources: {}, layers: [] },
+    ];
+    const changes: Event[] = [];
+    element.addEventListener("change", (event) => changes.push(event));
+    for (let index = 0; index < 4; index += 1) {
+      element.bases = element.bases;
+    }
+    changes.splice(0);
+    const imagery = element.shadowRoot?.querySelector<HTMLElement>('[data-base-id="imagery"]');
+    imagery?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(changes).toHaveLength(1);
+  });
 });

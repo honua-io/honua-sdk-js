@@ -199,6 +199,17 @@ describe("HonuaSwipeControlElement", () => {
     expect(divider.listeners.get("pointercancel")).toHaveLength(0);
   });
 
+  test("does not duplicate keyboard handlers across position rerenders", () => {
+    const { element, divider, events } = makeElement();
+    for (let index = 0; index < 4; index += 1) element.position = 40 + index;
+    events.splice(0);
+
+    divider.emit("keydown", { key: "ArrowRight", preventDefault() {} });
+
+    expect(events).toHaveLength(1);
+    expect(element.position).toBe(44);
+  });
+
   test("horizontal orientation clips along the top edge and drags vertically", () => {
     const { element, divider } = makeElement();
     const top = makeMap();
