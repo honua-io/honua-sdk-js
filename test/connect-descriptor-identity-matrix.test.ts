@@ -1054,7 +1054,7 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
   });
 
   describe("structurally schema-less protocols never invent a field inventory for the same resource", () => {
-    it("carries no legacy schema and synthetic zero-field schemaV2 when supported, while advertising vector or render capabilities normally", async () => {
+    it("carries no legacy schema and explicit unavailable schema state when fields are not advertised", async () => {
       const [wfs, ogcFeatures, wms, wmts, stac, geoservicesImage, ogcRecords, ogcTiles, ogcMaps, pmtiles] =
         await Promise.all([
           connectWithSourceSchemaV2({
@@ -1120,26 +1120,18 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
         ]);
 
       // WFS and OGC Features: vector protocols. Discovery does not return a
-      // field inventory, so `connectWithSourceSchemaV2()` synthesizes a schema
-      // with zero fields to preserve vector capabilities and geometry openness.
+      // field inventory, so the focused path preserves that fact as an
+      // unavailable identity while retaining vector capabilities.
       const wfsSource = wfs.inspection.sources.find((source) => source.descriptor.id === "parcels")!;
       expect(wfsSource.descriptor.schema).toBeUndefined();
-      expect(wfsSource.descriptor.schemaV2).toMatchObject({
-        fields: [],
-        key: { state: "none" },
-        geometry: { state: "unknown", reason: "metadata-unavailable" },
-        openContent: "unknown",
-      });
+      expect(wfsSource.descriptor.schemaV2).toBeUndefined();
+      expect(wfsSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
       expect(wfsSource.descriptor.capabilities.has("query")).toBe(true);
 
       const ogcSource = ogcFeatures.inspection.sources.find((source) => source.descriptor.id === "parcels")!;
       expect(ogcSource.descriptor.schema).toBeUndefined();
-      expect(ogcSource.descriptor.schemaV2).toMatchObject({
-        fields: [],
-        key: { state: "none" },
-        geometry: { state: "unknown", reason: "metadata-unavailable" },
-        openContent: "unknown",
-      });
+      expect(ogcSource.descriptor.schemaV2).toBeUndefined();
+      expect(ogcSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
       expect(ogcSource.descriptor.capabilities.has("query")).toBe(true);
 
       // WMS and WMTS: render/tile-only protocols. Both explicitly report
@@ -1148,76 +1140,53 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
       // metadata), WMTS tiles never carry per-feature attributes at all.
       const wmsSource = wms.inspection.sources.find((source) => source.descriptor.id === "imagery")!;
       expect(wmsSource.descriptor.schema).toBeUndefined();
-      expect(wmsSource.descriptor.schemaV2?.key).toEqual({ state: "none" });
-      expect(wmsSource.descriptor.schemaV2?.geometry).toMatchObject({
-        state: "unknown",
-        reason: "metadata-unavailable",
-      });
-      expect(wmsSource.descriptor.schemaV2?.openContent).toBe("unknown");
+      expect(wmsSource.descriptor.schemaV2).toBeUndefined();
+      expect(wmsSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
 
       const wmtsSource = wmts.inspection.sources.find((source) => source.descriptor.id === "imagery")!;
       expect(wmtsSource.descriptor.schema).toBeUndefined();
-      expect(wmtsSource.descriptor.schemaV2?.key).toEqual({ state: "none" });
-      expect(wmtsSource.descriptor.schemaV2?.geometry).toEqual({ state: "none", reason: "no-geometry-fields" });
-      expect(wmtsSource.descriptor.schemaV2?.openContent).toBe("closed");
+      expect(wmtsSource.descriptor.schemaV2).toBeUndefined();
+      expect(wmtsSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
 
       // STAC: a catalog/item protocol, not an attribute-schema protocol.
       const stacSource = stac.inspection.sources.find((source) => source.descriptor.id === "imagery")!;
       expect(stacSource.descriptor.schema).toBeUndefined();
-      expect(stacSource.descriptor.schemaV2).toMatchObject({
-        fields: [],
-        key: { state: "none" },
-        geometry: { state: "unknown", reason: "metadata-unavailable" },
-        openContent: "unknown",
-      });
+      expect(stacSource.descriptor.schemaV2).toBeUndefined();
+      expect(stacSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
       expect(stacSource.descriptor.capabilities.has("query")).toBe(true);
 
       const geoservicesImageSource = geoservicesImage.inspection.sources[0];
       expect(geoservicesImageSource?.descriptor.schema).toBeDefined();
-      expect(geoservicesImageSource?.descriptor.schemaV2).toMatchObject({
-        fields: [],
-        key: { state: "none" },
-        geometry: { state: "none", reason: "no-geometry-fields" },
-        openContent: "unknown",
+      expect(geoservicesImageSource?.descriptor.schemaV2).toBeUndefined();
+      expect(geoservicesImageSource?.descriptor.schemaV2State).toMatchObject({
+        state: "unavailable",
+        reason: "not-advertised",
       });
       expect(geoservicesImageSource?.descriptor.schema?.primaryKey).toBe("OBJECTID");
       expect(geoservicesImageSource?.descriptor.capabilities.has("query")).toBe(true);
 
       const recordsSource = ogcRecords.inspection.sources.find((source) => source.descriptor.id === "parcels")!;
       expect(recordsSource.descriptor.schema).toBeUndefined();
-      expect(recordsSource.descriptor.schemaV2).toMatchObject({
-        fields: [],
-        key: { state: "none" },
-        geometry: { state: "none", reason: "no-geometry-fields" },
-        openContent: "closed",
+      expect(recordsSource.descriptor.schemaV2).toBeUndefined();
+      expect(recordsSource.descriptor.schemaV2State).toMatchObject({
+        state: "unavailable",
+        reason: "not-advertised",
       });
 
       const tilesSource = ogcTiles.inspection.sources.find((source) => source.descriptor.id === "parcels")!;
       expect(tilesSource.descriptor.schema).toBeUndefined();
-      expect(tilesSource.descriptor.schemaV2).toMatchObject({
-        fields: [],
-        key: { state: "none" },
-        geometry: { state: "none", reason: "no-geometry-fields" },
-        openContent: "closed",
-      });
+      expect(tilesSource.descriptor.schemaV2).toBeUndefined();
+      expect(tilesSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
 
       const mapsSource = ogcMaps.inspection.sources.find((source) => source.descriptor.id === "parcels")!;
       expect(mapsSource.descriptor.schema).toBeUndefined();
-      expect(mapsSource.descriptor.schemaV2).toMatchObject({
-        fields: [],
-        key: { state: "none" },
-        geometry: { state: "none", reason: "no-geometry-fields" },
-        openContent: "closed",
-      });
+      expect(mapsSource.descriptor.schemaV2).toBeUndefined();
+      expect(mapsSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
 
       const pmtilesSource = pmtiles.inspection.sources.find((source) => source.descriptor.id === "pmtiles")!;
       expect(pmtilesSource.descriptor.schema).toBeUndefined();
-      expect(pmtilesSource.descriptor.schemaV2).toMatchObject({
-        fields: [],
-        key: { state: "none" },
-        geometry: { state: "none", reason: "no-geometry-fields" },
-        openContent: "closed",
-      });
+      expect(pmtilesSource.descriptor.schemaV2).toBeUndefined();
+      expect(pmtilesSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
       expect(pmtilesSource.descriptor.capabilities.has("tiles")).toBe(true);
     });
 
