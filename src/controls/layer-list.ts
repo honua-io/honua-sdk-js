@@ -387,5 +387,9 @@ function structuralStyles(): string {
     .checkbox { flex: none; }
     .badge { font-size: 0.75em; }
     [data-not-seeded] { cursor: not-allowed; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .row:has(.checkbox:checked) { outline: 2px solid CanvasText; outline-offset: 2px; }
+      .row[data-not-seeded] { color: GrayText; }
+    }
   `;
 }
