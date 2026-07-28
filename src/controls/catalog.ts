@@ -204,7 +204,7 @@ export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
     tag: "honua-feature-editor",
     source: "web-components",
     className: "HonuaFeatureEditorElement",
-    supportTier: "production-tier",
+    supportTier: "survival-tier",
     canonical: true,
     requiredAdapters: ["edit-capable-source"],
     events: ["honua-feature-edit-change", "honua-feature-edit-commit"],

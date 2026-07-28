@@ -270,7 +270,7 @@
     "honua-plugin-certify": "./dist/src/plugin/bin.js"
   },
   "scripts": {
-    "clean": "rm -rf dist",
+    "clean": "node scripts/clean-dist.mjs",
     "compile": "npm run clean --silent && tsc -p tsconfig.json",
     "build": "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
     "prepare:test-sdk": "node scripts/prepare-sdk-test-artifacts.mjs --prepare",

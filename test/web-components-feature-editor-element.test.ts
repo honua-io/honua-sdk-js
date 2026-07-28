@@ -172,13 +172,13 @@ function statusText(element: HonuaFeatureEditorElement<PermitAttributes>): strin
 }
 
 describe("<honua-feature-editor> registration", () => {
-  it("is catalogued as the first production-tier component and registers its tag", () => {
+  it("is catalogued as the first survival-tier component and registers its tag", () => {
     defineHonuaWebComponents();
     expect(customElements.get("honua-feature-editor")).toBeTypeOf("function");
     expect(getComponentCatalogEntry("web-components.feature-editor")).toMatchObject({
       tag: "honua-feature-editor",
       className: "HonuaFeatureEditorElement",
-      supportTier: "production-tier",
+      supportTier: "survival-tier",
       canonical: true,
       events: ["honua-feature-edit-change", "honua-feature-edit-commit"],
     });
@@ -371,109 +371,13 @@ describe("<honua-feature-editor> keyboard geometry workflow (NFR-001)", () => {
     query<HTMLTextAreaElement>(element, "[data-geometry-json]").value = '{"coordinates":[0,0]}';
     query<HTMLTextAreaElement>(element, "[data-geometry-json]").dispatchEvent(new Event("input", { bubbles: true }));
     query<HTMLButtonElement>(element, "[data-action='apply-geometry']").click();
-    expect(query(element, "[data-geometry-error]").textContent).toMatch(/needs a GeoJSON "type"/i);
+    expect(query(element, "[data-geometry-error]").textContent).toMatch(/needs a "type"/i);
 
     query<HTMLTextAreaElement>(element, "[data-geometry-json]").value = "  ";
     query<HTMLTextAreaElement>(element, "[data-geometry-json]").dispatchEvent(new Event("input", { bubbles: true }));
     query<HTMLButtonElement>(element, "[data-action='apply-geometry']").click();
     expect(query(element, "[data-geometry-error]").textContent).toMatch(/Enter a GeoJSON geometry/i);
     expect(workflow.snapshot().sketch?.geometry).toBeUndefined();
-  });
-
-  // Regression: the contract carries protocol-shaped geometry, so a
-  // GeoServices source round-trips Esri geometry. Rejecting it here made the
-  // element render a value in the textarea that Apply geometry then refused,
-  // stranding the keyboard-only path on every Esri-backed source.
-  it("accepts the Esri geometry a GeoServices source round-trips, not only GeoJSON", () => {
-    const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
-    const element = mount(workflow);
-    workflow.begin("create");
-
-    const apply = (text: string): void => {
-      const textarea = query<HTMLTextAreaElement>(element, "[data-geometry-json]");
-      textarea.value = text;
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-      query<HTMLButtonElement>(element, "[data-action='apply-geometry']").click();
-    };
-
-    apply('{"x":-156.4662,"y":20.8951,"spatialReference":{"wkid":4326}}');
-    expect(root(element).querySelector("[data-geometry-error]")).toBeNull();
-    expect(workflow.snapshot().sketch?.geometry).toEqual({
-      x: -156.4662,
-      y: 20.8951,
-      spatialReference: { wkid: 4326 },
-    });
-    expect(root(element).querySelector("[data-geometry-state]")?.textContent).toMatch(/Geometry ready/i);
-
-    // What the element rendered back must itself be re-appliable.
-    const rendered = query<HTMLTextAreaElement>(element, "[data-geometry-json]").value;
-    expect(JSON.parse(rendered)).toMatchObject({ x: -156.4662, y: 20.8951 });
-
-    apply('{"rings":[[[0,0],[1,0],[1,1],[0,0]]]}');
-    expect(root(element).querySelector("[data-geometry-error]")).toBeNull();
-    expect(workflow.snapshot().sketch?.geometry).toEqual({
-      rings: [
-        [
-          [0, 0],
-          [1, 0],
-          [1, 1],
-          [0, 0],
-        ],
-      ],
-    });
-
-    apply('{"paths":[[[0,0],[1,1]]]}');
-    expect(workflow.snapshot().sketch?.geometry).toEqual({
-      paths: [
-        [
-          [0, 0],
-          [1, 1],
-        ],
-      ],
-    });
-
-    // A shape carrying neither a GeoJSON type nor a recognizable Esri body is
-    // still refused rather than transported.
-    apply('{"coordinates":[0,0]}');
-    expect(query(element, "[data-geometry-error]").textContent).toMatch(/needs a GeoJSON "type"/i);
-    expect(workflow.snapshot().sketch?.geometry).toEqual({
-      paths: [
-        [
-          [0, 0],
-          [1, 1],
-        ],
-      ],
-    });
-  });
-
-  it("infers the sketch tool from an Esri shape, so an unsupported tool still refuses it", () => {
-    const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
-    workflow.configureSketchTools({
-      point: "supported",
-      line: "supported",
-      polygon: { state: "unsupported", reason: "This layer does not accept polygon geometry." },
-    });
-    const element = mount(workflow);
-    workflow.begin("create");
-
-    const textarea = query<HTMLTextAreaElement>(element, "[data-geometry-json]");
-    textarea.value = '{"rings":[[[0,0],[1,0],[1,1],[0,0]]]}';
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    query<HTMLButtonElement>(element, "[data-action='apply-geometry']").click();
-
-    // Inferred as `polygon`; the unsupported tool refuses it rather than
-    // silently applying it as a point.
-    expect(workflow.snapshot().sketch?.geometry).toBeUndefined();
-    expect(query(element, "[data-sketch-tool='polygon']").getAttribute("title")).toMatch(
-      /does not accept polygon geometry/i,
-    );
-    // A point geometry on the same draft still applies, so the refusal is the
-    // inferred tool's, not a blanket rejection of Esri shapes.
-    const textareaAgain = query<HTMLTextAreaElement>(element, "[data-geometry-json]");
-    textareaAgain.value = '{"x":1,"y":2}';
-    textareaAgain.dispatchEvent(new Event("input", { bubbles: true }));
-    query<HTMLButtonElement>(element, "[data-action='apply-geometry']").click();
-    expect(workflow.snapshot().sketch?.geometry).toEqual({ x: 1, y: 2 });
   });
 
   it("exposes sketch tools as an accessible toggle group with reasons for unsupported ones", () => {

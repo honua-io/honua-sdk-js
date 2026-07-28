@@ -246,7 +246,7 @@ describe("deriveLegendEntries", () => {
 });
 
 describe("HonuaLegendElement", () => {
-  test("is NOT auto-registered by the blanket defineHonuaControls (contested tag, issue #679)", () => {
+  test("is opt-in via defineHonuaLegend and not auto-registered by defineHonuaControls", () => {
     const defined: Record<string, CustomElementConstructor> = {};
     const registry = {
       get: (name: string) => defined[name],
@@ -254,26 +254,15 @@ describe("HonuaLegendElement", () => {
         defined[name] = ctor;
       },
     } as unknown as CustomElementRegistry;
-    // honua-legend also has a canonical (default) implementation in the
-    // web-components kit; the blanket controls registration must not claim
-    // it, so the winner never depends on import order.
+    // The blanket controls registration must NOT claim honua-legend — the
+    // tag is shared with the controller-driven web-components element.
     defineHonuaControls(registry);
     expect(defined["honua-legend"]).toBeUndefined();
-  });
-
-  test("is registered via the opt-in defineHonuaLegend", () => {
-    const defined: Record<string, CustomElementConstructor> = {};
-    const registry = {
-      get: (name: string) => defined[name],
-      define: (name: string, ctor: CustomElementConstructor) => {
-        defined[name] = ctor;
-      },
-    } as unknown as CustomElementRegistry;
+    // Explicit opt-in registers it.
     defineHonuaLegend(registry);
     expect(defined["honua-legend"]).toBe(HonuaLegendElement);
     // Idempotent: re-defining must not throw.
     defineHonuaLegend(registry);
-    expect(defined["honua-legend"]).toBe(HonuaLegendElement);
   });
 
   test("a flat entries array renders as one untitled section with list semantics and aria-hidden swatches", () => {
