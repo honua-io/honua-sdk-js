@@ -204,6 +204,19 @@ describe("<honua-measurement> (survival tier)", () => {
     expect(element.vertices).toHaveLength(0);
   });
 
+  it("does not accumulate map listeners across repeated mode rerenders", () => {
+    const map = makeMap();
+    const element = mount(map);
+    modeButton(element, "distance").click();
+
+    for (let index = 0; index < 4; index += 1) {
+      modeButton(element, "distance").click();
+    }
+
+    expect(map.listenerCount("click")).toBe(1);
+    expect(map.listenerCount("dblclick")).toBe(1);
+  });
+
   it("stops drawing when disconnected from the DOM", () => {
     const map = makeMap();
     const element = mount(map);

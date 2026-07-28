@@ -713,6 +713,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [FEATURE_EDITOR_SUITE],
         note: "One keystroke after four re-renders drives exactly one undo, one redo, and one cancel, asserted by counting workflow invocations rather than resulting state — which is the only way to see this defect class, since surplus undo()/cancel() calls are idempotent no-ops that leave state looking correct. The keydown listener is now bound once per connection on the shadow root instead of on every render (issue #809).",
       },
+      {
+        ids: ["web-components.measurement"],
+        evidence: ["test/web-components-measurement-element.test.ts"],
+        note: "Repeated mode rerenders leave exactly one map click and one double-click listener, proving handlers are not accumulated.",
+      },
     ],
     notApplicable: [
       {
