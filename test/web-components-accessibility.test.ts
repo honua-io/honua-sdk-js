@@ -49,6 +49,10 @@ describe("web-component accessibility semantics", () => {
     const root = shadow(mount("honua-chart", "Incident counts"));
     expect(root.querySelector(".chart")?.getAttribute("aria-label")).toBe("Incident counts");
     expect(root.querySelector("h2")?.textContent).toBe("Incident counts");
+    const chartCss = root.querySelector("style")?.textContent ?? "";
+    expect(chartCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(chartCss).toContain("background: Canvas");
+    expect(chartCss).toContain("background: Highlight");
   });
 
   it("gives basemap, bookmark, locate, status, and action controls named panels", () => {

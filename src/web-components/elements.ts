@@ -2871,6 +2871,15 @@ function chartStyles(): string {
       position: absolute;
       width: var(--bar);
     }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .chart {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .bar { background: ButtonFace; outline: 1px solid ButtonText; }
+      .bar::before { background: Highlight; }
+    }
   `;
 }
 
