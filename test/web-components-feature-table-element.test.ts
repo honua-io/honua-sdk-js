@@ -107,6 +107,14 @@ describe("<honua-feature-table> bounded lane", () => {
     expect(cells[1]?.textContent).toBe("Incident 1");
   });
 
+  it("keeps the panel shrinkable and exposes horizontal scrolling for narrow containers", () => {
+    const stylesheet = shadow(mount()).querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toContain(".table-panel { max-width: 100%; min-width: 0; }");
+    expect(stylesheet).toContain(".table-wrap { max-width: 100%; overflow-x: auto; overflow-y: auto; }");
+    expect(stylesheet).toContain(".table-wrap table { min-width: max-content; width: 100%; }");
+  });
+
   it("keeps exactly one tabbable cell (roving tabindex)", async () => {
     const element = mount();
     const engine = makeEngine();
