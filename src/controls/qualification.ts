@@ -748,10 +748,17 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/accessibility.test.ts"],
         note: "The native basemap switcher stacks its wrapped group and ellipsizes radio labels below 240px, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["web-components.map-status"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The map-status row stacks its content and makes the action full-width below 240px, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
-        ids: ALL_IDS.filter((id) => id !== "web-components.search" && id !== "controls.basemap-switcher"),
+        ids: ALL_IDS.filter(
+          (id) => id !== "web-components.search" && id !== "controls.basemap-switcher" && id !== "web-components.map-status",
+        ),
         note: "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit.",
       },
     ],

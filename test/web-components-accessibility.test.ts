@@ -96,6 +96,9 @@ describe("web-component accessibility semantics", () => {
     expect(status.querySelector('span[aria-label="Approximate scale"]')).not.toBeNull();
     expect(status.querySelector('span[aria-label="Attribution"]')).not.toBeNull();
     expect(status.querySelector("button[data-fullscreen")?.textContent?.trim()).toBe("Fullscreen");
+    const statusCss = status.querySelector("style")?.textContent ?? "";
+    expect(statusCss).toContain("@media (max-width: 240px)");
+    expect(statusCss).toContain("flex-direction: column");
 
     const bookmarks = shadow(mount("honua-bookmarks", "Bookmarks"));
     const bookmarkCss = bookmarks.querySelector("style")?.textContent ?? "";

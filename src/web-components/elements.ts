@@ -3062,6 +3062,10 @@ function mapStatusStyles(): string {
       }
       :host([data-status="error"]) .map-status span { color: MarkText; }
     }
+    @media (max-width: 240px) {
+      .map-status { align-items: flex-start; flex-direction: column; }
+      .map-status button { inline-size: 100%; }
+    }
   `;
 }
 
