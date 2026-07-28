@@ -521,6 +521,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-measurement-element.test.ts"],
         note: "The focused measurement mode button retains focus when the mode state rerenders.",
       },
+      {
+        ids: ["controls.layer-list"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "A focused layer checkbox retains focus across an overlays rerender.",
+      },
     ],
     failing: [
       {

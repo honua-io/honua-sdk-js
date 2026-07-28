@@ -116,4 +116,18 @@ describe("controls accessibility semantics", () => {
     element.position = 65;
     expect(element.shadowRoot?.activeElement).toBe(divider);
   });
+
+  it("restores focus to a layer checkbox after a rerender", () => {
+    const element = mount(new HonuaLayerListElement());
+    element.map = {
+      getLayer: () => ({}),
+      getLayoutProperty: () => "visible",
+      setLayoutProperty: () => undefined,
+    };
+    element.overlays = [{ id: "roads", label: "Roads", layers: ["roads-layer"] }];
+    const checkbox = element.shadowRoot?.querySelector<HTMLInputElement>('input[data-overlay-id="roads"]');
+    checkbox?.focus();
+    element.overlays = element.overlays;
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-overlay-id")).toBe("roads");
+  });
 });

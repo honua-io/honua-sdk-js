@@ -243,6 +243,7 @@ export class HonuaLayerListElement extends HTMLElementBase {
   protected render(): void {
     const root = this.shadowRoot;
     if (!root) return;
+    const focusedOverlayId = root.activeElement?.getAttribute("data-overlay-id");
     const label = this.#attr("label") ?? "Layers";
     root.innerHTML = `
       <style>${structuralStyles()}</style>
@@ -251,6 +252,11 @@ export class HonuaLayerListElement extends HTMLElementBase {
       </div>
     `;
     this.#bindRows(root);
+    if (focusedOverlayId) {
+      [...root.querySelectorAll<HTMLInputElement>("input[data-overlay-id]")]
+        .find((input) => input.getAttribute("data-overlay-id") === focusedOverlayId)
+        ?.focus({ preventScroll: true });
+    }
   }
 
   #renderRow(overlay: HonuaLayerListOverlay): string {
