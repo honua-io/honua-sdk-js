@@ -99,6 +99,7 @@ import {
 } from "./contract/discovery.js";
 import type { PmtilesArchiveDescription, PmtilesVectorLayerInfo } from "./contract/pmtiles.js";
 import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
+import type { SchemaIdentity } from "./contract/schema.js";
 import { normalizeCapabilityDescriptor } from "./contract/source-capability-support.js";
 import { createDatasetWithAdapterSeeds } from "./contract/source.js";
 import type {
@@ -231,6 +232,7 @@ export interface ConnectDiscoverySourceSnapshot {
   readonly schema?: SourceSchema;
   /** Lightweight identity envelope for an opt-in v2 schema cache payload. */
   readonly schemaV2?: SourceSchemaV2Envelope;
+  readonly schemaV2State?: SchemaIdentity;
   /** Validated protocol metadata retained for inspection and cache replay. */
   readonly metadata?: DiscoverySourceMetadata;
   readonly evidence?: readonly DiscoveryCapabilityEvidence[];
@@ -554,7 +556,7 @@ export async function connectWithSourceSchemaProjection(
       options.cache &&
       (!sourceSchemaProjection ||
         !sourceSchemaProjectionApplies(target.protocol) ||
-        snapshot.sources.every((source) => source.schemaV2 !== undefined))
+        snapshot.sources.every((source) => source.schemaV2 !== undefined || source.schemaV2State !== undefined))
     ) {
       // Give caller-owned caches an isolated, deeply frozen serializable
       // observation rather than the adapter's working object graph.
@@ -579,6 +581,11 @@ export async function connectWithSourceSchemaProjection(
         capabilities: resolution.capabilities,
         ...(source.schema ? { schema: source.schema } : {}),
         ...(source.schemaV2 ? { schemaV2: source.schemaV2 } : {}),
+        ...(source.schemaV2State
+          ? { schemaV2State: source.schemaV2State }
+          : source.schemaV2
+            ? { schemaV2State: { state: "known" as const, fingerprint: source.schemaV2.fingerprint } }
+            : {}),
         ...(source.title ? { attribution: source.title } : {}),
       };
       const discovered = inspectDiscoveredSource(descriptor, resolution);
@@ -1632,11 +1639,24 @@ async function validateSnapshot(
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source schema fields must be an array.");
     }
     let schemaV2: SourceSchemaV2Envelope | undefined;
+    const schemaV2State = source.schemaV2State;
     if (source.schemaV2 !== undefined) {
       if (!sourceSchemaProjection || !projectionApplies) {
         throw new HonuaDiscoveryError(
           "invalid-discovery-cache",
           "Cached source schemaV2 requires the focused source-schema connection path.",
+        );
+      }
+      if (schemaV2State?.state === "unavailable") {
+        throw new HonuaDiscoveryError(
+          "invalid-discovery-cache",
+          "Cached source cannot carry both schemaV2 and an unavailable schemaV2State.",
+        );
+      }
+      if (schemaV2State?.state === "known" && schemaV2State.fingerprint !== schemaV2.fingerprint) {
+        throw new HonuaDiscoveryError(
+          "invalid-discovery-cache",
+          "Cached source schemaV2State does not match its schemaV2 fingerprint.",
         );
       }
       try {
@@ -1649,7 +1669,7 @@ async function validateSnapshot(
           { cause },
         );
       }
-    } else if (projectionApplies) {
+    } else if (projectionApplies && schemaV2State?.state !== "unavailable") {
       throw new HonuaDiscoveryError(
         "invalid-discovery-cache",
         "Focused discovery cache source is missing its validated schemaV2 payload.",
@@ -1709,6 +1729,7 @@ async function validateSnapshot(
           }
         : {}),
       ...(schemaV2 ? { schemaV2 } : {}),
+      ...(schemaV2State ? { schemaV2State } : {}),
       ...(sourceEvidence ? { evidence: sourceEvidence } : {}),
     });
   });

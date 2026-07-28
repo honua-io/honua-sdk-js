@@ -4,8 +4,10 @@ import {
   cloneSourceSchemaV2,
   createSourceSchemaV2,
   parseSourceSchemaV2,
+  schemaStateBindingFingerprint,
   serializeSourceSchemaV2,
   sourceSchemaIdentity,
+  unavailableSchemaIdentity,
 } from "../../src/source-schema.js";
 import type {
   CrsDefinition,
@@ -289,6 +291,28 @@ describe("SourceSchemaV2 canonical contract", () => {
     expect(changed.fingerprint).not.toBe(first.fingerprint);
     // Golden fixture: detects accidental projection/domain-separator drift.
     expect(first.fingerprint).toBe("sha256:a2c9cb525692cf2e224b088147f1b23ae99bce3c974ba023ab4898f28bc79aa8");
+  });
+
+  it("binds unavailable schema truth without exposing it as a SourceSchemaV2 fingerprint", () => {
+    const unavailable = unavailableSchemaIdentity({
+      reason: "not-advertised",
+      provenance: [
+        {
+          method: "unavailable",
+          protocol: "wms",
+          source: "https://maps.example.test/wms?SERVICE=WMS&REQUEST=GetCapabilities",
+          observedAt: "2026-07-15T00:00:00Z",
+          detail: "Feature fields were not advertised.",
+        },
+      ],
+    });
+
+    expect(unavailable).toMatchObject({ state: "unavailable", reason: "not-advertised" });
+    expect(schemaStateBindingFingerprint(unavailable)).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(schemaStateBindingFingerprint(unavailable)).not.toBe(
+      "sha256:a2c9cb525692cf2e224b088147f1b23ae99bce3c974ba023ab4898f28bc79aa8",
+    );
+    expect(Object.isFrozen(unavailable)).toBe(true);
   });
 
   it("retains bounded native-reference identity for unknown domain/constraint knowledge without hashing payloads", () => {
