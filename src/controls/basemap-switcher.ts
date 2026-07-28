@@ -412,5 +412,12 @@ function structuralStyles(): string {
     :host { display: inline-block; }
     .group { display: inline-flex; flex-wrap: wrap; }
     .radio { font: inherit; cursor: pointer; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .radio[aria-checked="true"] {
+        forced-color-adjust: none;
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+      }
+    }
   `;
 }

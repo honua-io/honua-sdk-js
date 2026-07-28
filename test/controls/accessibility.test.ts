@@ -33,9 +33,12 @@ describe("controls accessibility semantics", () => {
 
     const group = element.shadowRoot?.querySelector('[role="radiogroup"]');
     const radios = [...(element.shadowRoot?.querySelectorAll('[role="radio"]') ?? [])];
+    const styles = element.shadowRoot?.querySelector("style")?.textContent ?? "";
     expect(group?.getAttribute("aria-label")).toBe("Fonds de carte");
     expect(radios.map((radio) => radio.textContent?.trim())).toEqual(["Streets", "Imagery"]);
     expect(radios.map((radio) => radio.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+    expect(styles).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(styles).toContain("outline: 2px solid Highlight");
   });
 
   it("exposes the swipe divider as a labelled range", () => {

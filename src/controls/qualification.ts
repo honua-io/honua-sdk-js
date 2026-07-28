@@ -619,11 +619,20 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/layer-list.test.ts"],
         note: "The native layer list declares forced-colors and prefers-contrast rules that preserve checked-row distinction with a CanvasText outline and unseeded-row distinction with GrayText, asserted from the component stylesheet.",
       },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The native basemap switcher declares a forced-colors/prefers-contrast Highlight outline for the active radio, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
         ids: ALL_IDS.filter(
-          (id) => id !== FEATURE_EDITOR && id !== "controls.swipe-control" && id !== "controls.layer-list",
+          (id) =>
+            id !== FEATURE_EDITOR &&
+            id !== "controls.swipe-control" &&
+            id !== "controls.layer-list" &&
+            id !== "controls.basemap-switcher",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
