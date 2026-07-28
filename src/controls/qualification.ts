@@ -663,6 +663,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "Unbinding the map removes every layer and source the control added, and reconnecting restores the selection.",
       },
       {
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/swipe-control.test.ts"],
+        note: "Disconnecting during an active drag removes the pointermove, pointerup, and pointercancel listeners it installed.",
+      },
+      {
         ids: ["web-components.map"],
         evidence: [BROWSER_SPEC],
         note: "Removing the element tears down canvas, map, and runtime, asserted in a real browser. Unit-level coverage is not possible without a renderer.",

@@ -185,6 +185,20 @@ describe("HonuaSwipeControlElement", () => {
     expect(events.at(-1)?.detail.position).toBe(100);
   });
 
+  test("disconnecting during a drag removes every document-level listener", () => {
+    const { element, divider } = makeElement();
+    divider.emit("pointerdown", { pointerId: 1, clientX: 100, clientY: 0, preventDefault() {} });
+    expect(divider.listeners.get("pointermove")).toHaveLength(1);
+    expect(divider.listeners.get("pointerup")).toHaveLength(1);
+    expect(divider.listeners.get("pointercancel")).toHaveLength(1);
+
+    element.disconnectedCallback();
+
+    expect(divider.listeners.get("pointermove")).toHaveLength(0);
+    expect(divider.listeners.get("pointerup")).toHaveLength(0);
+    expect(divider.listeners.get("pointercancel")).toHaveLength(0);
+  });
+
   test("horizontal orientation clips along the top edge and drags vertically", () => {
     const { element, divider } = makeElement();
     const top = makeMap();
