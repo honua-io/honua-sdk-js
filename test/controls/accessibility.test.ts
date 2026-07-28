@@ -25,6 +25,7 @@ function mount<T extends HTMLElement>(element: T): T {
 describe("controls accessibility semantics", () => {
   it("exposes basemap choices as a named radio group", () => {
     const element = mount(new HonuaBasemapSwitcherElement());
+    element.setAttribute("label", "Fonds de carte");
     element.bases = [
       { id: "streets", label: "Streets", kind: "vector", sources: {}, layers: [] },
       { id: "imagery", label: "Imagery", kind: "raster", sources: {}, layers: [] },
@@ -32,7 +33,7 @@ describe("controls accessibility semantics", () => {
 
     const group = element.shadowRoot?.querySelector('[role="radiogroup"]');
     const radios = [...(element.shadowRoot?.querySelectorAll('[role="radio"]') ?? [])];
-    expect(group?.getAttribute("aria-label")).toBe("Basemaps");
+    expect(group?.getAttribute("aria-label")).toBe("Fonds de carte");
     expect(radios.map((radio) => radio.textContent?.trim())).toEqual(["Streets", "Imagery"]);
     expect(radios.map((radio) => radio.getAttribute("aria-checked"))).toEqual(["true", "false"]);
   });
@@ -42,7 +43,7 @@ describe("controls accessibility semantics", () => {
     const divider = element.shadowRoot?.querySelector('[role="slider"]');
     const styles = element.shadowRoot?.querySelector("style")?.textContent ?? "";
 
-    expect(divider?.getAttribute("aria-label")).toBe("Compare maps");
+    expect(divider?.getAttribute("aria-label")).toBeNull();
     expect(divider?.getAttribute("aria-valuemin")).toBe("0");
     expect(divider?.getAttribute("aria-valuemax")).toBe("100");
     expect(divider?.getAttribute("aria-valuenow")).toBe("50");

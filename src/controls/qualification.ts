@@ -649,6 +649,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   localization: {
     passing: [
       {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The basemap switcher accepts a caller-supplied non-English group label and emits it as the radiogroup accessible name; individual basemap names are supplied by the base definitions.",
+      },
+      {
         ids: ["controls.swipe-control"],
         evidence: ["test/controls/swipe-control.test.ts"],
         note: "The swipe control has no default accessible label and reflects caller-supplied label text through its public property/attribute into aria-label, asserted with French and German labels.",
@@ -656,7 +661,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
     ],
     failing: [
       {
-        ids: ALL_IDS.filter((id) => id !== "controls.swipe-control"),
+        ids: ALL_IDS.filter((id) => id !== "controls.basemap-switcher" && id !== "controls.swipe-control"),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
       },
     ],
