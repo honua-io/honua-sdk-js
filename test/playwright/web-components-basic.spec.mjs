@@ -4,6 +4,36 @@ import { startWebComponentsFixtureServer } from "../../examples/web-components-b
 
 test.setTimeout(90_000);
 
+test("native controls-kit layer list toggles from real keyboard input", async ({ page }) => {
+  const server = await startWebComponentsFixtureServer();
+  try {
+    await page.goto(`${server.url}?controls-layer-list=1`);
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.ready === true)).toBe(true);
+
+    await page.evaluate(() => {
+      const map = document.querySelector("honua-map").map;
+      const list = document.createElement("honua-controls-layer-list");
+      list.id = "controls-layer-list-keyboard-fixture";
+      list.map = map;
+      list.overlays = [{ id: "incidents", label: "Public safety incidents", layers: ["incident-points"] }];
+      document.body.append(list);
+    });
+
+    const checkbox = page.locator("#controls-layer-list-keyboard-fixture").locator('input[type="checkbox"]');
+    await expect(checkbox).toBeChecked();
+    await checkbox.focus();
+    await page.keyboard.press("Space");
+    await expect(checkbox).not.toBeChecked();
+    await expect
+      .poll(async () =>
+        page.evaluate(() => document.querySelector("honua-map").map.getLayoutProperty("incident-points", "visibility")),
+      )
+      .toBe("none");
+  } finally {
+    await server.close();
+  }
+});
+
 test("web components compose map, layers, legend, table, search, and editor state", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => {

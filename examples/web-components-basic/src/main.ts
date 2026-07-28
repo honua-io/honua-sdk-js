@@ -16,6 +16,7 @@ import type {
   HonuaBasemapSwitcherElement,
   HonuaLegendElement,
 } from "@honua/sdk-js/controls";
+import { HonuaLayerListElement } from "@honua/sdk-js/controls";
 import {
   type HonuaChartModel,
   type HonuaFeatureRecord,
@@ -27,6 +28,14 @@ import {
 } from "@honua/sdk-js/web-components";
 
 import "./styles.css";
+
+// The browser qualification lane needs to exercise the native controls-kit
+// layer list alongside this demo's canonical web-components registrant. Keep
+// the alternate tag opt-in so the normal sample still demonstrates the public
+// `<honua-layer-list>` tag without changing its ownership.
+if (new URLSearchParams(window.location.search).has("controls-layer-list")) {
+  customElements.define("honua-controls-layer-list", HonuaLayerListElement);
+}
 
 declare global {
   interface Window {
