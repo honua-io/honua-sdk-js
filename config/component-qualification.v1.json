@@ -127,9 +127,9 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 169,
+    "passing": 170,
     "failing": 118,
-    "pending": 44,
+    "pending": 43,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
@@ -909,7 +909,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -920,17 +919,20 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 7,
+        "passing": 8,
         "failing": 6,
-        "pending": 3,
+        "pending": 2,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The controller-driven layer list is exercised in Chromium with a focused visibility checkbox activated by Space and a focused reorder button activated by Enter; controller visibility/order state and the re-rendered shadow rows are asserted."
         },
         {
           "gate": "screen-reader-semantics",
