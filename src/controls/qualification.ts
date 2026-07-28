@@ -759,6 +759,19 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "The feature table keeps its panel shrinkable and exposes horizontal scrolling for narrow containers, with an overflow-safe table width, asserted from the emitted stylesheet.",
       },
       {
+        ids: [
+          "web-components.basemap-control",
+          "web-components.bookmarks",
+          "web-components.locate-control",
+          "web-components.measure-control",
+          "web-components.sketch-control",
+          "web-components.print-export",
+          "web-components.action-panel",
+        ],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The shared control-panel stylesheet removes its fixed minimum width, stacks the heading, wraps long labels, and makes narrow segmented/action controls full-width below 240px; each covered panel asserts the emitted stylesheet.",
+      },
+      {
         ids: ["web-components.editor"],
         evidence: ["test/web-components-accessibility.test.ts"],
         note: "The editor panel makes its action row wrap and its buttons shrink below 320px, asserted from the emitted stylesheet.",
@@ -772,9 +785,16 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "controls.basemap-switcher" &&
             id !== "web-components.map-status" &&
             id !== "web-components.feature-table" &&
+            id !== "web-components.basemap-control" &&
+            id !== "web-components.bookmarks" &&
+            id !== "web-components.locate-control" &&
+            id !== "web-components.measure-control" &&
+            id !== "web-components.sketch-control" &&
+            id !== "web-components.print-export" &&
+            id !== "web-components.action-panel" &&
             id !== "web-components.editor",
         ),
-        note: "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit.",
+        note: "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists.",
       },
     ],
   },

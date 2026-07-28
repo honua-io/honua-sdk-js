@@ -2958,6 +2958,27 @@ function controlPanelStyles(): string {
     p {
       margin: 0;
     }
+    @media (max-width: 240px) {
+      .control-panel {
+        min-width: 0;
+      }
+      .control-panel__bar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .control-panel__bar h2 {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .segmented {
+        grid-template-columns: 1fr;
+      }
+      .button-stack button,
+      .segmented button,
+      .control-panel > button {
+        width: 100%;
+      }
+    }
     @media (forced-colors: active), (prefers-contrast: more) {
       .control-panel {
         background: Canvas;
