@@ -2839,6 +2839,17 @@ function editorStyles(): string {
     .editor__actions { justify-content: flex-start; }
     .selection { margin: 10px 0 4px; }
     .muted { margin: 0 0 10px; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .editor {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .editor__actions button {
+        border-color: ButtonText;
+        color: ButtonText;
+      }
+    }
   `;
 }
 

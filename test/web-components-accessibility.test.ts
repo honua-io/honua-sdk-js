@@ -39,6 +39,10 @@ describe("web-component accessibility semantics", () => {
       "Save",
       "Delete",
     ]);
+    const editorCss = root.querySelector("style")?.textContent ?? "";
+    expect(editorCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(editorCss).toContain("background: Canvas");
+    expect(editorCss).toContain("border-color: ButtonText");
   });
 
   it("gives the chart a named panel and heading", () => {
