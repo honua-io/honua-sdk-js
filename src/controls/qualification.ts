@@ -437,6 +437,12 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "Ctrl+Z / Ctrl+Shift+Z drive undo and redo and Escape cancels the draft, each dispatched as a real KeyboardEvent with the resulting workflow state asserted. The events are dispatched at the shadow root rather than from a focused control, so the root-level handler is proven but focus-based delivery is not.",
       },
     ],
+    notApplicable: [
+      {
+        ids: [...DISPLAY_ONLY_IDS, ...CONTROLS_DISPLAY_ONLY_IDS],
+        note: "These legend and chart components render display-only content and expose no interactive affordance for keyboard operation; adding one would require this row to be re-qualified.",
+      },
+    ],
     pendingNote:
       "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons.",
   },

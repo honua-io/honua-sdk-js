@@ -129,8 +129,8 @@
     "cells": 357,
     "passing": 153,
     "failing": 129,
-    "pending": 52,
-    "notApplicable": 23,
+    "pending": 49,
+    "notApplicable": 26,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
   },
@@ -444,7 +444,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -457,15 +456,15 @@
       "summary": {
         "passing": 5,
         "failing": 6,
-        "pending": 3,
-        "notApplicable": 3
+        "pending": 2,
+        "notApplicable": 4
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "not-applicable",
+          "note": "These legend and chart components render display-only content and expose no interactive affordance for keyboard operation; adding one would require this row to be re-qualified."
         },
         {
           "gate": "screen-reader-semantics",
@@ -1046,7 +1045,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -1059,15 +1057,15 @@
       "summary": {
         "passing": 5,
         "failing": 6,
-        "pending": 3,
-        "notApplicable": 3
+        "pending": 2,
+        "notApplicable": 4
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "not-applicable",
+          "note": "These legend and chart components render display-only content and expose no interactive affordance for keyboard operation; adding one would require this row to be re-qualified."
         },
         {
           "gate": "screen-reader-semantics",
@@ -1805,7 +1803,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -1818,15 +1815,15 @@
       "summary": {
         "passing": 5,
         "failing": 6,
-        "pending": 3,
-        "notApplicable": 3
+        "pending": 2,
+        "notApplicable": 4
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "not-applicable",
+          "note": "These legend and chart components render display-only content and expose no interactive affordance for keyboard operation; adding one would require this row to be re-qualified."
         },
         {
           "gate": "screen-reader-semantics",
