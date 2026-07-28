@@ -511,6 +511,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [FEATURE_EDITOR_SUITE],
         note: "A reconciling realtime change forces a re-render and the focused field keeps its edited value, its focus, and its caret range. Covered for text inputs only: this element hand-rolls its own captureFocus() keyed on `id` alone rather than using the shared setShadowHtml() helper's id/name/data-* selector, and none of its buttons carry an id, so button focus is silently lost across the same re-render.",
       },
+      {
+        ids: ["controls.basemap-switcher", "controls.swipe-control"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "A focused basemap radio and swipe divider retain focus across their state rerenders.",
+      },
     ],
     failing: [
       {

@@ -228,6 +228,7 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
       this.#updateSelectionDom();
       return;
     }
+    const focusedBaseId = root.activeElement?.getAttribute("data-base-id");
     const label = (typeof this.getAttribute === "function" ? this.getAttribute("label") : null) ?? "Basemaps";
     root.innerHTML = `
       <style>${structuralStyles()}</style>
@@ -253,6 +254,11 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
     this.#rendered = true;
     this.#bindGroup(root);
     this.#updateSelectionDom();
+    if (focusedBaseId) {
+      [...root.querySelectorAll<HTMLElement>("[data-base-id]")]
+        .find((radio) => radio.getAttribute("data-base-id") === focusedBaseId)
+        ?.focus({ preventScroll: true });
+    }
   }
 
   #bindGroup(root: ShadowRoot): void {

@@ -96,4 +96,24 @@ describe("controls accessibility semantics", () => {
     imagery?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(changes).toHaveLength(1);
   });
+
+  it("restores focus to the selected basemap after a rerender", () => {
+    const element = mount(new HonuaBasemapSwitcherElement());
+    element.bases = [
+      { id: "streets", label: "Streets", kind: "vector", sources: {}, layers: [] },
+      { id: "imagery", label: "Imagery", kind: "raster", sources: {}, layers: [] },
+    ];
+    const imagery = element.shadowRoot?.querySelector<HTMLElement>('[data-base-id="imagery"]');
+    imagery?.focus();
+    element.bases = element.bases;
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-base-id")).toBe("imagery");
+  });
+
+  it("keeps the swipe divider focused while its value rerenders", () => {
+    const element = mount(new HonuaSwipeControlElement());
+    const divider = element.shadowRoot?.querySelector<HTMLElement>('[role="slider"]');
+    divider?.focus();
+    element.position = 65;
+    expect(element.shadowRoot?.activeElement).toBe(divider);
+  });
 });
