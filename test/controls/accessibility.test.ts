@@ -92,6 +92,10 @@ describe("controls accessibility semantics", () => {
     expect(label?.querySelector('input[type="checkbox"]')).toBe(checkbox);
     expect(element.shadowRoot?.querySelector<HTMLInputElement>('input[data-overlay-id="parks"]')?.checked).toBe(false);
     expect(element.shadowRoot?.querySelector<HTMLInputElement>('input[data-overlay-id="future"]')?.disabled).toBe(true);
+
+    checkbox?.click();
+    expect(layers["roads-layer"]?.visibility).toBe("none");
+    expect(element.shadowRoot?.querySelector<HTMLInputElement>('input[data-overlay-id="roads"]')?.checked).toBe(false);
   });
 
   it("mounts and disconnects native controls without console errors", () => {
