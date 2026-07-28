@@ -72,6 +72,12 @@ describe("web-component accessibility semantics", () => {
     expect(status.querySelector('span[aria-label="Attribution"]')).not.toBeNull();
     expect(status.querySelector("button[data-fullscreen")?.textContent?.trim()).toBe("Fullscreen");
 
+    const bookmarks = shadow(mount("honua-bookmarks", "Bookmarks"));
+    const bookmarkCss = bookmarks.querySelector("style")?.textContent ?? "";
+    expect(bookmarkCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(bookmarkCss).toContain("background: Canvas");
+    expect(bookmarkCss).toContain("border-color: ButtonText");
+
     const actions = shadow(mount("honua-action-panel", "Actions"));
     expect(actions.querySelector('[role="status"]')?.textContent).toContain("No actions");
   });

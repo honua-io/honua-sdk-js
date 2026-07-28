@@ -2909,6 +2909,19 @@ function controlPanelStyles(): string {
     p {
       margin: 0;
     }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .control-panel {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .control-panel__bar span { color: CanvasText; }
+      .button-stack button {
+        background: ButtonFace;
+        border-color: ButtonText;
+        color: ButtonText;
+      }
+    }
   `;
 }
 

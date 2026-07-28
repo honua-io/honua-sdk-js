@@ -654,6 +654,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-layer-list-element.test.ts"],
         note: "The web-component layer list declares forced-colors/prefers-contrast system-color rules for row boundaries, checked labels, and reorder controls, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["web-components.bookmarks"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The bookmarks control panel declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules for its surface and action buttons, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -668,7 +673,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "web-components.legend" &&
             id !== "web-components.map-status" &&
             id !== "web-components.action-panel" &&
-            id !== "web-components.layer-list",
+            id !== "web-components.layer-list" &&
+            id !== "web-components.bookmarks",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
