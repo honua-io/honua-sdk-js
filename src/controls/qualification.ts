@@ -629,6 +629,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/legend.test.ts"],
         note: "The native legend declares forced-colors/prefers-contrast system-color rules for swatches and the empty state, asserted from the component stylesheet.",
       },
+      {
+        ids: ["web-components.search"],
+        evidence: ["test/web-components-search-element.test.ts"],
+        note: "The search component declares forced-colors/prefers-contrast system-color rules for borders and selected suggestions, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -638,7 +643,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "controls.swipe-control" &&
             id !== "controls.layer-list" &&
             id !== "controls.basemap-switcher" &&
-            id !== "controls.legend",
+            id !== "controls.legend" &&
+            id !== "web-components.search",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },

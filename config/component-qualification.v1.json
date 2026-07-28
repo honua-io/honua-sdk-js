@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 175,
-    "failing": 114,
+    "passing": 176,
+    "failing": 113,
     "pending": 42,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -1369,7 +1369,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "high-contrast",
         "localization",
         "pseudo-locale",
         "rtl",
@@ -1378,8 +1377,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 10,
-        "failing": 5,
+        "passing": 11,
+        "failing": 4,
         "pending": 2,
         "notApplicable": 0
       },
@@ -1425,8 +1424,11 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-search-element.test.ts"
+          ],
+          "note": "The search component declares forced-colors/prefers-contrast system-color rules for borders and selected suggestions, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",

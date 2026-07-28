@@ -2794,6 +2794,13 @@ function searchStyles(): string {
       form { grid-template-columns: minmax(0, 1fr); }
       form button { width: 100%; }
     }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .search, input, button, .suggestions { border-color: CanvasText; }
+      .suggestions [role="option"][aria-selected="true"] {
+        background: Highlight;
+        color: HighlightText;
+      }
+    }
   `;
 }
 
