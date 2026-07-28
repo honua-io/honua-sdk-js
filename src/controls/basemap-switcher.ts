@@ -419,5 +419,9 @@ function structuralStyles(): string {
         outline-offset: 2px;
       }
     }
+    @media (max-width: 240px) {
+      .group { flex-direction: column; inline-size: 100%; }
+      .radio { min-inline-size: 0; max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; }
+    }
   `;
 }

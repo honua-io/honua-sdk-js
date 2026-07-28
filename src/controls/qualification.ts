@@ -743,10 +743,15 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-search-element.test.ts"],
         note: "The search form uses a shrinkable grid and stacks its submit button full-width below 320px, asserted from the emitted stylesheet for narrow-container behavior.",
       },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The native basemap switcher stacks its wrapped group and ellipsizes radio labels below 240px, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
-        ids: ALL_IDS.filter((id) => id !== "web-components.search"),
+        ids: ALL_IDS.filter((id) => id !== "web-components.search" && id !== "controls.basemap-switcher"),
         note: "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit.",
       },
     ],

@@ -41,6 +41,8 @@ describe("controls accessibility semantics", () => {
     expect(styles).toContain("@media (forced-colors: active), (prefers-contrast: more)");
     expect(styles).toContain("outline: 2px solid Highlight");
     expect(styles).not.toMatch(/(?:^|[;{])\s*(?:left|right)\s*:/m);
+    expect(styles).toContain("@media (max-width: 240px)");
+    expect(styles).toContain("flex-direction: column");
   });
 
   it("exposes the swipe divider as a labelled range", () => {
