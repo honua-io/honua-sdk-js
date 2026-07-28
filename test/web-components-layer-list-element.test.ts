@@ -58,6 +58,11 @@ describe("<honua-layer-list> (survival tier)", () => {
     expect([...checkboxes].map((input) => input.checked)).toEqual([true, true, false]);
     expect(root.textContent).toContain("Base map");
     expect(root.textContent).toContain("Top overlay");
+    const css = root.querySelector("style")?.textContent ?? "";
+    expect(css).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(css).toContain("border-top-color: CanvasText");
+    expect(css).toContain("color: Highlight");
+    expect(css).toContain("border-color: ButtonText");
   });
 
   it("toggles visibility through the controller and dispatches honua-layer-visibility-change", () => {

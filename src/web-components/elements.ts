@@ -2733,6 +2733,17 @@ function layerListStyles(): string {
     }
     .opacity { flex: 1; min-width: 60px; }
     .move { min-width: 32px; padding: 0; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .layer-row {
+        border-top-color: CanvasText;
+      }
+      .layer-row input[type="checkbox"]:checked + span {
+        color: Highlight;
+      }
+      .layer-row__tools button {
+        border-color: ButtonText;
+      }
+    }
   `;
 }
 

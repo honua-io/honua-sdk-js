@@ -649,6 +649,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-action-panel-element.test.ts"],
         note: "The action panel declares forced-colors/prefers-contrast system-color rules for panel, action, empty, and status states, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["web-components.layer-list"],
+        evidence: ["test/web-components-layer-list-element.test.ts"],
+        note: "The web-component layer list declares forced-colors/prefers-contrast system-color rules for row boundaries, checked labels, and reorder controls, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -662,7 +667,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "web-components.search" &&
             id !== "web-components.legend" &&
             id !== "web-components.map-status" &&
-            id !== "web-components.action-panel",
+            id !== "web-components.action-panel" &&
+            id !== "web-components.layer-list",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
