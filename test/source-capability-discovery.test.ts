@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { GeoParquetSourceProfile, GeoParquetSourceProfiler } from "../src/connect-geoparquet.js";
 import type { ConnectDiscoverySnapshot } from "../src/connect.js";
+import { schemaStateBindingFingerprint } from "../src/contract/schema.js";
 import type { Result, Source, SourceDescriptor } from "../src/contract/types.js";
 import { HONUA_MINIMUM_SUPPORTED_SERVER_VERSION, HonuaClient } from "../src/core/client.js";
 import type { HonuaLayerMetadata, HonuaQueryResponse } from "../src/core/types.js";
@@ -813,21 +814,22 @@ describe("connectWithSourceCapabilities", () => {
       { evaluatedAt: EVALUATED_AT },
     );
 
-    expect(wms.source().descriptor.schemaV2).toMatchObject({
-      fields: [],
-      key: { state: "none" },
-      geometry: { state: "unknown", reason: "metadata-unavailable" },
-      openContent: "unknown",
+    expect(wms.source().descriptor.schemaV2).toBeUndefined();
+    expect(wms.source().descriptor.schemaV2State).toMatchObject({
+      state: "unavailable",
+      reason: "not-advertised",
     });
-    expect(wmts.source().descriptor.schemaV2).toMatchObject({
-      fields: [],
-      key: { state: "none" },
-      geometry: { state: "none", reason: "no-geometry-fields" },
-      openContent: "closed",
+    expect(wmts.source().descriptor.schemaV2).toBeUndefined();
+    expect(wmts.source().descriptor.schemaV2State).toMatchObject({
+      state: "unavailable",
+      reason: "not-advertised",
     });
     for (const connection of [wms, wmts]) {
       const source = connection.source();
-      expect(source.descriptor.schemaV2.fingerprint).toBe(source.capabilityProfile.sourceFingerprint);
+      expect(source.descriptor.schemaV2State).toBeDefined();
+      expect(schemaStateBindingFingerprint(source.descriptor.schemaV2State!)).toBe(
+        source.capabilityProfile.sourceFingerprint,
+      );
       expect(source.capabilityProfile.sourceEndpointFingerprint).toBe(
         createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(source.descriptor)),
       );

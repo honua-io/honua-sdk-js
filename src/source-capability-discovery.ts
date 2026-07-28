@@ -21,7 +21,8 @@ import type {
   DiscoveryCapabilityPolicy,
   SourceDiscoveryInspection,
 } from "./contract/discovery.js";
-import { parseSourceSchemaV2 } from "./contract/schema.js";
+import { parseSourceSchemaV2, schemaStateBindingFingerprint } from "./contract/schema.js";
+import type { SchemaIdentity } from "./contract/schema.js";
 import type { SourceSchemaV2 } from "./contract/schema.js";
 import {
   CAPABILITIES,
@@ -107,8 +108,12 @@ export interface SourceCapabilityEvaluationOptions extends CapabilityEvaluationC
 }
 
 /** Descriptor refinement returned by the focused capability-aware connection path. */
-export type SourceDescriptorWithCapabilityProfile = Omit<SourceDescriptor, "schemaV2" | "capabilityProfile"> & {
-  readonly schemaV2: SourceSchemaV2;
+export type SourceDescriptorWithCapabilityProfile = Omit<
+  SourceDescriptor,
+  "schemaV2" | "schemaV2State" | "capabilityProfile"
+> & {
+  readonly schemaV2?: SourceSchemaV2;
+  readonly schemaV2State: SchemaIdentity;
   readonly capabilityProfile: CapabilityProfile;
 };
 
@@ -213,26 +218,34 @@ function capabilityProjection(evaluation: SourceCapabilityEvaluationOptions): Co
           { protocol: descriptor.protocol },
         );
       }
-      if (descriptor.schemaV2 === undefined) {
+      const schemaIdentity =
+        descriptor.schemaV2State ??
+        (descriptor.schemaV2 === undefined
+          ? undefined
+          : ({ state: "known", fingerprint: descriptor.schemaV2.fingerprint } satisfies SchemaIdentity));
+      if (schemaIdentity === undefined) {
         throw new HonuaDiscoveryError(
           "invalid-capability",
-          `Capability-aware discovery requires SourceSchemaV2 metadata for source "${descriptor.id}".`,
+          `Capability-aware discovery requires a schema identity for source "${descriptor.id}".`,
           { sourceId: descriptor.id, protocol: descriptor.protocol },
         );
       }
-      const schema = parseSourceSchemaV2(descriptor.schemaV2);
+      if (schemaIdentity.state === "known" && descriptor.schemaV2 !== undefined) {
+        parseSourceSchemaV2(descriptor.schemaV2);
+      }
+      const sourceFingerprint = schemaStateBindingFingerprint(schemaIdentity);
       const expiresAt = observationExpiry(projectionContext.observedAt, observationTtlMs);
       const entries = resolution.decisions.map((decision) =>
         discoveryEvidenceEntry(
           decision,
           descriptor.protocol,
-          schema.fingerprint,
+          sourceFingerprint,
           projectionContext.observedAt,
           expiresAt,
         ),
       );
       const evidenceProfile = createCapabilityEvidenceProfile(entries, {
-        sourceFingerprint: schema.fingerprint,
+        sourceFingerprint,
         sourceEndpoint: sourceCapabilityEndpointIdentity(descriptor),
       });
       return evaluateCapabilityProfile(evidenceProfile, context);

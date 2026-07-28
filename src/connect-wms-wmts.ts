@@ -26,6 +26,7 @@ import type {
   DiscoveryStyleMetadata,
   DiscoveryTileMatrixSetMetadata,
 } from "./contract/discovery.js";
+import { unavailableSchemaIdentity } from "./contract/schema.js";
 import type { Capability, RasterRequestBinding, SourceLocator } from "./contract/types.js";
 import {
   HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS,
@@ -358,12 +359,21 @@ function projectWms(
       ...(selectedStyle ? { styleId: selectedStyle.id } : {}),
       ...(raster ? { raster } : {}),
     });
-    const schemaV2 = sourceSchemaProjection?.wms(metadata, {
-      source: document.source,
-      observedAt: document.retrievedAt,
-      ...schemaValidator(document.validator),
-      protocol: "wms",
-    });
+    const schemaV2State = sourceSchemaProjection
+      ? unavailableSchemaIdentity({
+          reason: "not-advertised",
+          provenance: [
+            {
+              method: "unavailable",
+              protocol: "wms",
+              source: document.source,
+              observedAt: document.retrievedAt,
+              ...schemaValidator(document.validator),
+              detail: "WMS GetCapabilities does not advertise a feature-field schema.",
+            },
+          ],
+        })
+      : undefined;
     return Object.freeze({
       id: layer.name,
       locator,
@@ -371,7 +381,7 @@ function projectWms(
       ...(layer.abstract ? { description: layer.abstract } : {}),
       ...(layer.crs.length > 0 ? { crs: Object.freeze([...layer.crs]) } : {}),
       ...(metadata.extent ? { extent: metadata.extent } : {}),
-      ...(schemaV2 ? { schemaV2 } : {}),
+      ...(schemaV2State ? { schemaV2State } : {}),
       metadata,
       evidence: Object.freeze(evidence),
     });
@@ -484,12 +494,21 @@ function projectWmts(
       ...(selectedMatrixSet ? { tileMatrixSetId: selectedMatrixSet.identifier } : {}),
       ...(rasterResult?.binding ? { raster: rasterResult.binding } : {}),
     });
-    const schemaV2 = sourceSchemaProjection?.wmts(metadata, {
-      source: document.source,
-      observedAt: document.retrievedAt,
-      ...schemaValidator(document.validator),
-      protocol: "wmts",
-    });
+    const schemaV2State = sourceSchemaProjection
+      ? unavailableSchemaIdentity({
+          reason: "not-advertised",
+          provenance: [
+            {
+              method: "unavailable",
+              protocol: "wmts",
+              source: document.source,
+              observedAt: document.retrievedAt,
+              ...schemaValidator(document.validator),
+              detail: "WMTS GetCapabilities does not advertise a feature-field schema.",
+            },
+          ],
+        })
+      : undefined;
     return Object.freeze({
       id: layer.identifier,
       locator,
@@ -497,7 +516,7 @@ function projectWmts(
       ...(layer.abstract ? { description: layer.abstract } : {}),
       ...(selectedMatrixSet?.supportedCrs ? { crs: Object.freeze([selectedMatrixSet.supportedCrs]) } : {}),
       ...(metadata.extent ? { extent: metadata.extent } : {}),
-      ...(schemaV2 ? { schemaV2 } : {}),
+      ...(schemaV2State ? { schemaV2State } : {}),
       metadata,
       evidence: Object.freeze(evidence),
     });
