@@ -129,7 +129,14 @@ export async function githubRequest(url, options = {}) {
   if (!response.ok) {
     throw new Error(`GitHub API request failed with HTTP ${response.status} for ${new URL(url).pathname}.`);
   }
-  return response.json();
+  if (response.status === 204) return null;
+  const responseBody = await response.text();
+  if (!responseBody) return null;
+  try {
+    return JSON.parse(responseBody);
+  } catch {
+    throw new Error(`GitHub API returned invalid JSON for ${new URL(url).pathname}.`);
+  }
 }
 
 async function queryPullRequest(input, request) {
