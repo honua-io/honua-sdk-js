@@ -169,6 +169,16 @@ describe("HonuaLayerListElement", () => {
     expect(shadow.innerHTML).toContain("County GIS");
   });
 
+  test("renders direction-neutral rows under RTL", () => {
+    const { element, shadow } = makeElement();
+    element.setAttribute("dir", "rtl");
+    element.overlays = [{ id: "roads", label: "Roads", layers: ["roads-layer"] }];
+
+    expect(element.getAttribute("dir")).toBe("rtl");
+    expect(shadow.innerHTML).toContain("flex-direction: column");
+    expect(shadow.innerHTML).not.toMatch(/(?:^|[;{])\s*(?:left|right)\s*:/m);
+  });
+
   test("emits forced-colors and prefers-contrast state styles", () => {
     const { element, shadow } = makeElement();
     element.connect(makeMockMap({ "parcels-fill": {}, "incident-points": {} }));
