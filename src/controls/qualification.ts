@@ -748,6 +748,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/swipe-control.test.ts"],
         note: "Repeated position rerenders leave one keyboard handler on the divider, evidenced by exactly one change event from one ArrowRight interaction.",
       },
+      {
+        ids: ["controls.layer-list"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "Repeated overlays rerenders leave one checkbox change handler, evidenced by exactly one change event from one click.",
+      },
     ],
     notApplicable: [
       {

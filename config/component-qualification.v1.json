@@ -127,9 +127,9 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 143,
+    "passing": 144,
     "failing": 129,
-    "pending": 62,
+    "pending": 61,
     "notApplicable": 23,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
@@ -598,13 +598,12 @@
         "rtl",
         "visual-regression",
         "strict-csp",
-        "duplicate-listener",
         "memory-leak"
       ],
       "summary": {
-        "passing": 6,
+        "passing": 7,
         "failing": 6,
-        "pending": 4,
+        "pending": 3,
         "notApplicable": 1
       },
       "gates": [
@@ -702,8 +701,11 @@
         {
           "gate": "duplicate-listener",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "Repeated overlays rerenders leave one checkbox change handler, evidenced by exactly one change event from one click."
         },
         {
           "gate": "memory-leak",

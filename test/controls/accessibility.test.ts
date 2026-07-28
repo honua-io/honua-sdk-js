@@ -130,4 +130,22 @@ describe("controls accessibility semantics", () => {
     element.overlays = element.overlays;
     expect(element.shadowRoot?.activeElement?.getAttribute("data-overlay-id")).toBe("roads");
   });
+
+  it("does not duplicate layer checkbox handlers across rerenders", () => {
+    const element = mount(new HonuaLayerListElement());
+    element.map = {
+      getLayer: () => ({}),
+      getLayoutProperty: () => "visible",
+      setLayoutProperty: () => undefined,
+    };
+    const overlays = [{ id: "roads", label: "Roads", layers: ["roads-layer"] }];
+    element.overlays = overlays;
+    const changes: Event[] = [];
+    element.addEventListener("change", (event) => changes.push(event));
+    for (let index = 0; index < 4; index += 1) element.overlays = overlays;
+    changes.splice(0);
+    const checkbox = element.shadowRoot?.querySelector<HTMLInputElement>('input[data-overlay-id="roads"]');
+    checkbox?.click();
+    expect(changes).toHaveLength(1);
+  });
 });
