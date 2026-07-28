@@ -753,11 +753,20 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-accessibility.test.ts"],
         note: "The map-status row stacks its content and makes the action full-width below 240px, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["web-components.feature-table"],
+        evidence: ["test/web-components-feature-table-element.test.ts"],
+        note: "The feature table keeps its panel shrinkable and exposes horizontal scrolling for narrow containers, with an overflow-safe table width, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
         ids: ALL_IDS.filter(
-          (id) => id !== "web-components.search" && id !== "controls.basemap-switcher" && id !== "web-components.map-status",
+          (id) =>
+            id !== "web-components.search" &&
+            id !== "controls.basemap-switcher" &&
+            id !== "web-components.map-status" &&
+            id !== "web-components.feature-table",
         ),
         note: "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit.",
       },
