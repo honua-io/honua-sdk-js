@@ -244,13 +244,12 @@ function createBoundCapabilityEvidenceProfile(
 
 function createSourceDescriptorMatcher(expectedFingerprint: Sha256): CapabilitySourceDescriptorMatcher {
   return (descriptor: Pick<SourceDescriptor, "id" | "protocol" | "locator">): boolean => {
-    const identity =
-      descriptor.protocol === "geoservices-feature-service" ||
-      descriptor.protocol === "geoservices-map-service" ||
-      descriptor.protocol === "odata"
-        ? sourceCapabilityEndpointIdentity(descriptor)
-        : { endpoint: descriptor.locator.url, protocol: descriptor.protocol, sourceId: descriptor.id };
-    return createCapabilitySourceEndpointFingerprint(identity) === expectedFingerprint;
+    try {
+      const identity = sourceCapabilityEndpointIdentity(descriptor);
+      return createCapabilitySourceEndpointFingerprint(identity) === expectedFingerprint;
+    } catch {
+      return false;
+    }
   };
 }
 
