@@ -358,13 +358,15 @@ const FOCUS_RESTORING_IDS = [
   "web-components.sketch-control",
   "web-components.print-export",
   "web-components.action-panel",
+  "web-components.locate-control",
+  "web-components.map-status",
   // The search element's *text input* — the case that actually matters — is
   // covered by the harness's dedicated text-field suite.
   "web-components.search",
 ] as const;
 
-/** Harness tags whose focused control is demonstrably lost across a re-render. */
-const FOCUS_LOSING_IDS = ["web-components.locate-control", "web-components.map-status"] as const;
+/** No harness-covered interactive component currently loses focus across a re-render. */
+const FOCUS_LOSING_IDS = [] as const;
 
 /** Components that move the map camera and would need to honour reduced motion. */
 const CAMERA_MOVING_IDS = [

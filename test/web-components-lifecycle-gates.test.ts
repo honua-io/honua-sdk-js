@@ -99,6 +99,8 @@ const FOCUS_RESTORING_TAGS = new Set<string>([
   "honua-sketch-control",
   "honua-print-export",
   "honua-action-panel",
+  "honua-locate-control",
+  "honua-map-status",
   // Not `honua-search`: its submit button carries no id/name/data-* so focus on
   // *that* control is lost. Its text input is the case that matters and is
   // covered by the dedicated text-field suite below, which is why the matrix

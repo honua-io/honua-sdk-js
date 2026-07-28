@@ -1702,7 +1702,7 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
           <h2>${escapeHtml(label)}</h2>
           <span>${escapeHtml(status)}</span>
         </div>
-        <button type="button" data-locate ${supported ? "" : "disabled"}>Use location</button>
+        <button type="button" data-locate="action" ${supported ? "" : "disabled"}>Use location</button>
         <p class="empty" role="status">${escapeHtml(
           supported ? this.#message || "Centers the shared map controller." : "Geolocation is unavailable.",
         )}</p>
@@ -2197,7 +2197,7 @@ export class HonuaMapStatusElement<T = Record<string, unknown>> extends HonuaEle
       <section class="map-status" part="panel" aria-label="${escapeHtml(label)}">
         <span aria-label="Approximate scale">${escapeHtml(approximateScale(this.state?.viewport))}</span>
         <span aria-label="Attribution">${escapeHtml(attribution)}</span>
-        <button type="button" data-fullscreen>Fullscreen</button>
+        <button type="button" data-fullscreen="action">Fullscreen</button>
       </section>
     `);
     this.shadowRoot?.querySelector<HTMLButtonElement>("button[data-fullscreen]")?.addEventListener("click", () => {
