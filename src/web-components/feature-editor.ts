@@ -846,5 +846,36 @@ function editorStyles(): string {
       padding: 8px 10px;
     }
     .conflict p { margin: 0; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      :host {
+        forced-color-adjust: auto;
+      }
+      button[aria-pressed="true"] {
+        background: Highlight;
+        border-color: Highlight;
+        color: HighlightText;
+        outline: 2px solid Highlight;
+        outline-offset: 1px;
+      }
+      button:disabled {
+        border-style: dashed;
+        color: GrayText;
+        opacity: 1;
+      }
+      input, select, textarea {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      [aria-invalid="true"] {
+        border-color: Mark;
+        outline: 1px solid Mark;
+      }
+      .problems {
+        background: Canvas;
+        border-color: Mark;
+        color: Mark;
+      }
+    }
   `;
 }
