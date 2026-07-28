@@ -2912,6 +2912,30 @@ function mapStatusStyles(): string {
       color: var(--honua-ui-muted);
       min-width: 0;
     }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .map-status {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .map-status span { color: CanvasText; }
+      .map-status button {
+        background: ButtonFace;
+        border: 2px solid ButtonText;
+        color: ButtonText;
+        forced-color-adjust: none;
+      }
+      :host([data-status="unsupported"]) .map-status {
+        border-color: GrayText;
+        color: GrayText;
+      }
+      :host([data-status="unsupported"]) .map-status span { color: GrayText; }
+      :host([data-status="error"]) .map-status {
+        border-color: Mark;
+        color: MarkText;
+      }
+      :host([data-status="error"]) .map-status span { color: MarkText; }
+    }
   `;
 }
 
