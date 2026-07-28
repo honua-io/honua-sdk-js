@@ -26,6 +26,7 @@ describe("controls accessibility semantics", () => {
   it("exposes basemap choices as a named radio group", () => {
     const element = mount(new HonuaBasemapSwitcherElement());
     element.setAttribute("label", "Fonds de carte");
+    element.setAttribute("dir", "rtl");
     element.bases = [
       { id: "streets", label: "Streets", kind: "vector", sources: {}, layers: [] },
       { id: "imagery", label: "Imagery", kind: "raster", sources: {}, layers: [] },
@@ -39,6 +40,7 @@ describe("controls accessibility semantics", () => {
     expect(radios.map((radio) => radio.getAttribute("aria-checked"))).toEqual(["true", "false"]);
     expect(styles).toContain("@media (forced-colors: active), (prefers-contrast: more)");
     expect(styles).toContain("outline: 2px solid Highlight");
+    expect(styles).not.toMatch(/(?:^|[;{])\s*(?:left|right)\s*:/m);
   });
 
   it("exposes the swipe divider as a labelled range", () => {

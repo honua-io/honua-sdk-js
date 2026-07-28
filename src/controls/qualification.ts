@@ -706,10 +706,15 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/layer-list.test.ts"],
         note: "The native layer list renders direction-neutral flex rows under an explicit dir=rtl fixture and has no physical left/right style declarations.",
       },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The native basemap switcher is rendered with dir=rtl and its emitted structural styles contain no physical left/right declarations.",
+      },
     ],
     failing: [
       {
-        ids: allExcept(FEATURE_EDITOR, "controls.swipe-control", "controls.layer-list"),
+        ids: allExcept(FEATURE_EDITOR, "controls.swipe-control", "controls.layer-list", "controls.basemap-switcher"),
         note: "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl.",
       },
     ],
