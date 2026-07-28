@@ -2874,6 +2874,11 @@ function editorStyles(): string {
         color: ButtonText;
       }
     }
+    @media (max-width: 320px) {
+      .editor { min-width: 0; }
+      .editor__actions { flex-wrap: wrap; }
+      .editor__actions button { flex: 1 1 120px; min-width: 0; }
+    }
   `;
 }
 

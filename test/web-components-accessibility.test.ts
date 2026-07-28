@@ -47,6 +47,8 @@ describe("web-component accessibility semantics", () => {
     expect(editorCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
     expect(editorCss).toContain("background: Canvas");
     expect(editorCss).toContain("border-color: ButtonText");
+    expect(editorCss).toContain("@media (max-width: 320px)");
+    expect(editorCss).toContain("flex-wrap: wrap");
   });
 
   it("gives the chart a named panel and heading", () => {

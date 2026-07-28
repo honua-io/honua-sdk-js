@@ -758,6 +758,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-feature-table-element.test.ts"],
         note: "The feature table keeps its panel shrinkable and exposes horizontal scrolling for narrow containers, with an overflow-safe table width, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["web-components.editor"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The editor panel makes its action row wrap and its buttons shrink below 320px, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -766,7 +771,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "web-components.search" &&
             id !== "controls.basemap-switcher" &&
             id !== "web-components.map-status" &&
-            id !== "web-components.feature-table",
+            id !== "web-components.feature-table" &&
+            id !== "web-components.editor",
         ),
         note: "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit.",
       },

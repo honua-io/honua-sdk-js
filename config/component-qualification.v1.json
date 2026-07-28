@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 193,
-    "failing": 96,
+    "passing": 195,
+    "failing": 94,
     "pending": 42,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -1221,7 +1221,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "responsive-layout",
         "localization",
         "pseudo-locale",
         "rtl",
@@ -1230,8 +1229,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 9,
-        "failing": 5,
+        "passing": 10,
+        "failing": 4,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1283,8 +1282,11 @@
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-table-element.test.ts"
+          ],
+          "note": "The feature table keeps its panel shrinkable and exposes horizontal scrolling for narrow containers, with an overflow-safe table width, asserted from the emitted stylesheet."
         },
         {
           "gate": "localization",
@@ -1540,7 +1542,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "responsive-layout",
         "localization",
         "pseudo-locale",
         "rtl",
@@ -1549,8 +1550,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 9,
-        "failing": 5,
+        "passing": 10,
+        "failing": 4,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1600,8 +1601,11 @@
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The editor panel makes its action row wrap and its buttons shrink below 320px, asserted from the emitted stylesheet."
         },
         {
           "gate": "localization",
