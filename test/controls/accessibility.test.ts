@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { HonuaBasemapSwitcherElement } from "../../src/controls/basemap-switcher.js";
 import { HonuaLayerListElement, defineHonuaLayerList } from "../../src/controls/layer-list.js";
+import { HonuaLegendElement, defineHonuaLegend } from "../../src/controls/legend.js";
 import { HonuaSwipeControlElement } from "../../src/controls/swipe-control.js";
 
 defineHonuaLayerList();
+defineHonuaLegend();
 
 const mounted: HTMLElement[] = [];
 
@@ -56,5 +58,25 @@ describe("controls accessibility semantics", () => {
     expect(checkbox).not.toBeNull();
     expect(label?.textContent).toContain("Roads");
     expect(label?.querySelector('input[type="checkbox"]')).toBe(checkbox);
+  });
+
+  it("mounts and disconnects native controls without console errors", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      for (const element of [
+        new HonuaBasemapSwitcherElement(),
+        new HonuaSwipeControlElement(),
+        new HonuaLegendElement(),
+        new HonuaLayerListElement(),
+      ]) {
+        mount(element);
+      }
+      expect(error).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
   });
 });

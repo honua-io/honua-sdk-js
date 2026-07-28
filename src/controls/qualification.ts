@@ -630,6 +630,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-accessibility.test.ts"],
         note: "Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither.",
       },
+      {
+        ids: ["controls.basemap-switcher", "controls.swipe-control", "controls.legend", "controls.layer-list"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "Each native control is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither.",
+      },
     ],
     pendingNote:
       "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec.",
