@@ -365,6 +365,7 @@ export class HonuaMeasurementElement extends HTMLElementBase {
   protected render(): void {
     const root = this.shadowRoot;
     if (!root || !this.#connected) return;
+    const focusedMode = root.activeElement?.getAttribute("data-measure-mode");
     const label = this.#attr("label") ?? "Measure";
     const ready = this.#map !== undefined;
     const sketchActive = this.#mode !== "off" && this.#vertices.length > 0 && !this.#finished;
@@ -411,6 +412,11 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     root.querySelector<HTMLButtonElement>("button[data-measure-cancel]")?.addEventListener("click", () => {
       this.cancel();
     });
+    if (focusedMode) {
+      [...root.querySelectorAll<HTMLButtonElement>("[data-measure-mode]")]
+        .find((button) => button.getAttribute("data-measure-mode") === focusedMode)
+        ?.focus({ preventScroll: true });
+    }
   }
 
   #resultText(): string {

@@ -217,6 +217,15 @@ describe("<honua-measurement> (survival tier)", () => {
     expect(map.listenerCount("dblclick")).toBe(1);
   });
 
+  it("restores focus to the active mode button after a rerender", () => {
+    const map = makeMap();
+    const element = mount(map);
+    const distance = modeButton(element, "distance");
+    distance.focus();
+    element.setMode("distance");
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-measure-mode")).toBe("distance");
+  });
+
   it("stops drawing when disconnected from the DOM", () => {
     const map = makeMap();
     const element = mount(map);

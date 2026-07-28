@@ -127,9 +127,9 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 141,
+    "passing": 142,
     "failing": 129,
-    "pending": 66,
+    "pending": 65,
     "notApplicable": 21,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
@@ -2545,7 +2545,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "focus-restoration",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -2556,9 +2555,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 7,
+        "passing": 8,
         "failing": 6,
-        "pending": 3,
+        "pending": 2,
         "notApplicable": 1
       },
       "gates": [
@@ -2583,8 +2582,11 @@
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "The focused measurement mode button retains focus when the mode state rerenders."
         },
         {
           "gate": "reduced-motion",

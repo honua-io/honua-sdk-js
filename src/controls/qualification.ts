@@ -516,6 +516,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/accessibility.test.ts"],
         note: "A focused basemap radio and swipe divider retain focus across their state rerenders.",
       },
+      {
+        ids: ["web-components.measurement"],
+        evidence: ["test/web-components-measurement-element.test.ts"],
+        note: "The focused measurement mode button retains focus when the mode state rerenders.",
+      },
     ],
     failing: [
       {
