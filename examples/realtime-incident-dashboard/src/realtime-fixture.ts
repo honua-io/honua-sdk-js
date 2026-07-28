@@ -30,6 +30,7 @@ export interface FixtureIncidentTransport extends RealtimeFeatureTransport<Incid
   heartbeat(): void;
   offline(): void;
   duplicateLast(): void;
+  reorderLast(): void;
   staleCursor(): void;
   edit(request: IncidentEditRequest): IncidentEditReceipt;
   reset(request: IncidentResetRequest): IncidentEditReceipt;
@@ -43,6 +44,7 @@ export function createFixtureIncidentTransport(
   let observer: RealtimeFeatureObserver<IncidentFeature> | undefined;
   let request: RealtimeSubscriptionRequest | undefined;
   let sequence = 0;
+  let heartbeatIndex = 0;
   let stepIndex = 0;
   let closed = false;
   let lastDataEvent: Parameters<RealtimeFeatureObserver<IncidentFeature>["next"]>[0] | undefined;
@@ -135,9 +137,10 @@ export function createFixtureIncidentTransport(
         features: [...current.values()].map(patch),
         replace: true,
       });
+      heartbeatIndex += 1;
       nextObserver.next({
         type: "heartbeat",
-        eventId: `heartbeat-${eventSequence}`,
+        eventId: `heartbeat-${heartbeatIndex}`,
         cursor: cursor("heartbeat"),
         receivedAt: receivedAt(),
       });
@@ -225,9 +228,10 @@ export function createFixtureIncidentTransport(
     heartbeat() {
       const target = ensureObserver();
       if (!target) return;
+      heartbeatIndex += 1;
       target.next({
         type: "heartbeat",
-        eventId: `heartbeat-${nextSequence()}`,
+        eventId: `heartbeat-${heartbeatIndex}`,
         cursor: cursor("heartbeat"),
         receivedAt: receivedAt(),
       });
@@ -243,17 +247,26 @@ export function createFixtureIncidentTransport(
       if (!lastDataEvent) return;
       ensureObserver()?.next({ ...lastDataEvent, receivedAt: receivedAt() });
     },
-    staleCursor() {
+    reorderLast() {
       const target = ensureObserver();
       const incident = current.get(SAFE_DEMO_INCIDENT_ID);
       if (!target || !incident) return;
       target.next({
         type: "upsert",
-        eventId: `stale-cursor-${sequence + 1}`,
-        cursor: `stale-${Math.max(0, sequence - 1)}`,
+        eventId: `reordered-${sequence + 1}`,
+        cursor: `reordered-${Math.max(0, sequence - 1)}`,
         sequence: Math.max(0, sequence - 1),
         receivedAt: receivedAt(),
         feature: patch(incident),
+      });
+    },
+    staleCursor() {
+      ensureObserver()?.next({
+        type: "error",
+        code: "cursor-expired",
+        error: new Error("Realtime cursor expired."),
+        terminal: false,
+        receivedAt: receivedAt(),
       });
     },
     edit(request) {

@@ -458,7 +458,7 @@ export async function explainDataToMapStrategy<T>(
  *
  * @example
  * ```ts
- * import maplibregl from "maplibre-gl";
+ * import * as maplibregl from "maplibre-gl";
  * import { connect } from "@honua/sdk-js";
  * import { mountSource } from "@honua/sdk-js/map";
  *

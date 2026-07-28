@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/studio/package-drafts/draft-parcels-1",
+    "body": {
+      "packageKey": "parcels-query",
+      "generation": 1,
+      "envelope": {
+        "family": "query",
+        "schemaVersion": "1.0",
+        "format": "studio_query_package.v1",
+        "body": { "where": "status = 'stale'" }
+      }
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "type": "https://honua.io/problems/studio",
+      "title": "Draft generation conflict",
+      "status": 409,
+      "detail": "Draft \"draft-parcels-1\" generation 1 is stale; the current generation is 2.",
+      "code": "studio.draft.generation-conflict"
+    }
+  }
+}

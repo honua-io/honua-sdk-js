@@ -1,0 +1,13 @@
+{
+  "family": "report",
+  "schemaVersion": "1.0",
+  "format": "studio_report_package.v1",
+  "dependencies": [{ "kind": "content-item", "ref": "content.flood-zones", "versionId": "v1", "required": true }],
+  "validation": { "status": "not-validated" },
+  "provenance": [{ "kind": "prompt", "ref": "prompt-report-1", "rel": "generated-by" }],
+  "body": {
+    "title": "Flood risk summary",
+    "templateId": "template-report-1",
+    "sections": [{ "id": "summary", "kind": "text", "title": "Summary" }]
+  }
+}

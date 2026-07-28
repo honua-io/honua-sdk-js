@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../contract/v2/schemas/sample-gate-receipt.schema.json",
+  "format": "honua.sdk.sample-gate-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "imagery-cog-quickstart",
+  "gate": "responsive",
+  "status": "passed",
+  "sdkMode": "source",
+  "sourceRevision": "30dd370e5c8e75878246831fe7cd9fa335954d95",
+  "sourceDigest": "38037508faf4248c66c1f9157642ffe93151c8182aa3a4bbbb56c55596b4866a",
+  "runRoot": "samples/evidence/imagery-cog-quickstart/runs/e09254ca-b4df-4903-9f8a-09b2e005da20",
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "test:playwright:imagery-cog",
+      "--",
+      "--reporter=json"
+    ]
+  },
+  "producer": {
+    "id": "honua-sdk-sample-runner",
+    "version": 1,
+    "path": "scripts/sample-runner.mjs",
+    "sha256": "a1bc94a5e38fb21a450e17e2ffd2e8b5e3e486637d5f7aa6b0194bb0322b1293"
+  },
+  "observedAt": "2026-07-25T20:50:08.052Z",
+  "expiresAt": "2026-08-01T20:50:08.052Z",
+  "durationMs": 64417.472087999995,
+  "artifacts": [
+    {
+      "kind": "playwright-gate-report",
+      "path": "samples/evidence/imagery-cog-quickstart/runs/e09254ca-b4df-4903-9f8a-09b2e005da20/artifacts/responsive.json",
+      "bytes": 13379,
+      "sha256": "6160949e8228dccf113f426de2c45b81790227b953702b4e6fc40c23cc6bb2df"
+    }
+  ]
+}

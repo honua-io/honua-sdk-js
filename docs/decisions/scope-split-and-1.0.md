@@ -32,9 +32,15 @@ the stable surface honest from now on.
 Two constraints frame the split, mirroring the tension recorded in
 [`geometry-library-selection.md`](./geometry-library-selection.md):
 
-- The core `@honua/sdk-js` package has exactly **one** runtime dependency by
-  deliberate design (`@maplibre/maplibre-gl-style-spec`); everything heavier is
-  an optional peer. The stable tier must not grow that.
+- The core `@honua/sdk-js` package has exactly **one stable-core capability**
+  runtime dependency by deliberate design
+  (`@maplibre/maplibre-gl-style-spec`); everything heavier is an optional peer.
+  The manifest also carries `@honua/honua-migrate` for deprecated migration
+  forwarders. A third direct dependency, the temporary pin of style-spec's
+  transitive
+  `@mapbox/jsonlint-lines-primitives@2.0.2` preserves the package's Node 20
+  contract. The stable tier must not grow beyond those bounded compatibility
+  exceptions.
 - No stable-tier entrypoint may depend on a moved app-platform entrypoint after
   the split, or the split is a lie. §"Dependency analysis" audits this.
 

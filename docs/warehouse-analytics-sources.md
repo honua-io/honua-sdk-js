@@ -54,6 +54,7 @@ const tiles = defineQueryTileSource({
   id: "incident-h3-tiles",
   source: incidentCells,
   endpoint: { baseUrl: "https://honua.example.com/query-tiles" },
+  // Deprecated warehouse-native compatibility text; not a portable semantic filter.
   query: { where: "severity >= 3", outFields: ["severity", "exposure"] },
   projection: { fields: ["severity", "exposure"] },
   cache: { key: { styleFilters: { severity: "high" }, extra: { indexResolution: 8 } } },

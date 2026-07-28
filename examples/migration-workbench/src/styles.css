@@ -1,462 +1,692 @@
-:root {
-  color-scheme: dark;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #edf6f5;
-  background: #071210;
-  font-synthesis: none;
-  --surface: #0d1b18;
-  --surface-raised: #122520;
-  --line: #274039;
-  --text-muted: #a9bdb7;
-  --mint: #69e2bc;
-  --amber: #ffc76a;
-  --red: #ff8a87;
-  --blue: #91c9ff;
+/*
+ * ArcGIS Migration Workbench layout.
+ *
+ * All color, type, spacing, radius, elevation, and motion come from the shared
+ * sample design language (examples/_kit/design). This sheet adds layout only:
+ * the masthead with its floating docket title block, the sticky numbered
+ * report index, the evidence panel column, the register-voice tables, and the
+ * colorized patch view. No raw hex, no new font sizes.
+ */
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
-* {
-  box-sizing: border-box;
+/* Anchored sections land clear of the viewport edge. */
+.report-panel {
+  scroll-margin-top: var(--hn-space-5);
 }
 
-html {
-  scroll-behavior: smooth;
+/* The shared sample-kit diagnostics strip is styled once by the kit itself
+ * (examples/_kit/presentation.css) from these same tokens. */
+
+/* -- Masthead: headline plus the floating docket title block ---------------- */
+.masthead {
+  border-bottom: 1px solid var(--hn-line);
 }
 
-body {
-  min-width: 320px;
-  margin: 0;
-  background:
-    radial-gradient(circle at 85% -10%, rgb(35 111 89 / 30%), transparent 35rem),
-    linear-gradient(180deg, #091713 0, #071210 40rem);
-}
-
-a {
-  color: var(--blue);
-}
-
-a:focus-visible,
-button:focus-visible,
-[tabindex="0"]:focus-visible {
-  outline: 3px solid var(--amber);
-  outline-offset: 3px;
-}
-
-code,
-pre {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-}
-
-.skip-link {
-  position: fixed;
-  z-index: 10;
-  top: 0.75rem;
-  left: 0.75rem;
-  padding: 0.75rem 1rem;
-  color: #071210;
-  background: var(--mint);
-  border-radius: 0.5rem;
-  transform: translateY(-200%);
-}
-
-.skip-link:focus {
-  transform: translateY(0);
-}
-
-.hero {
+.masthead-inner {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(19rem, 0.8fr);
-  gap: 3rem;
-  width: min(calc(100% - 2rem), 90rem);
+  gap: var(--hn-space-6);
+  grid-template-columns: minmax(0, 1.5fr) minmax(20rem, 1fr);
+  row-gap: var(--hn-space-5);
+  align-items: center;
+  width: min(calc(100% - 2 * var(--hn-space-5)), 80rem);
   margin: 0 auto;
-  padding: 4.5rem 0 2.5rem;
+  padding: var(--hn-space-7) 0 var(--hn-space-6);
 }
 
-.hero h1 {
-  max-width: 16ch;
-  margin: 0.25rem 0 1rem;
-  font-size: clamp(2.35rem, 7vw, 5.4rem);
-  line-height: 0.96;
-  letter-spacing: -0.055em;
+.masthead-topline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--hn-space-3);
+  grid-column: 1 / -1;
 }
 
-.hero-copy {
-  max-width: 47rem;
+.masthead-eyebrow {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 1.05rem;
-  line-height: 1.65;
 }
 
-.hero-facts,
-.fact-grid {
+.masthead-title {
+  margin: var(--hn-space-2) 0 var(--hn-space-3);
+  max-width: 24ch;
+}
+
+.masthead-copy {
+  margin: 0;
+  max-width: 56ch;
+}
+
+.docket {
   display: grid;
-  gap: 0.75rem;
-  margin: 0;
+  gap: var(--hn-space-3);
+  padding: var(--hn-space-5);
 }
 
-.hero-facts > div,
-.fact-grid > div {
+.docket-route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hn-space-3);
+  border-bottom: 1px solid var(--hn-line);
+  padding-bottom: var(--hn-space-3);
+}
+
+.docket-arrow {
+  color: var(--hn-accent);
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-lead);
+}
+
+.docket-field {
+  display: grid;
+  gap: var(--hn-space-0);
   min-width: 0;
-  padding: 0.9rem 1rem;
-  background: rgb(18 37 32 / 75%);
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
 }
 
-dt {
-  margin-bottom: 0.25rem;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-dd {
-  min-width: 0;
-  margin: 0;
+.docket-value {
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-sm);
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.page-shell {
+/* -- Workbench frame: sticky report index beside the evidence column -------- */
+.workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
-  width: min(calc(100% - 2rem), 90rem);
+  gap: var(--hn-space-6);
+  grid-template-columns: 13rem minmax(0, 1fr);
+  width: min(calc(100% - 2 * var(--hn-space-5)), 80rem);
   margin: 0 auto;
-  padding-bottom: 5rem;
+  padding: var(--hn-space-6) 0 var(--hn-space-8);
 }
 
-.panel,
-.error-panel {
+.report-index {
+  align-self: start;
+  position: sticky;
+  top: var(--hn-space-5);
+}
+
+.report-index-title {
+  border-bottom: 1px solid var(--hn-line-strong);
+  margin: 0 0 var(--hn-space-2);
+  padding-bottom: var(--hn-space-2);
+}
+
+.report-index-list {
+  display: grid;
+  gap: var(--hn-space-0);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.report-index-list a {
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--hn-radius-sm) var(--hn-radius-sm) 0;
+  color: var(--hn-ink-secondary);
+  display: flex;
+  align-items: baseline;
+  gap: var(--hn-space-2);
+  font-size: var(--hn-text-sm);
+  padding: var(--hn-space-1) var(--hn-space-2);
+  text-decoration: none;
+  transition: background-color var(--hn-motion-fast) var(--hn-ease), color var(--hn-motion-fast) var(--hn-ease);
+}
+
+.report-index-list a:hover {
+  background: var(--hn-accent-wash);
+  color: var(--hn-ink);
+}
+
+.report-index-list a[aria-current="true"] {
+  background: var(--hn-accent-wash);
+  border-left-color: var(--hn-accent);
+  color: var(--hn-ink);
+  font-weight: 600;
+}
+
+.index-no {
+  color: var(--hn-ink-muted);
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-register);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--hn-tracking-register);
+}
+
+.report-index-list a[aria-current="true"] .index-no {
+  color: var(--hn-accent);
+}
+
+/* -- Report panels ----------------------------------------------------------- */
+.report {
+  display: grid;
+  gap: var(--hn-space-5);
   min-width: 0;
-  padding: clamp(1.1rem, 3vw, 2rem);
-  background: rgb(13 27 24 / 92%);
-  border: 1px solid var(--line);
-  border-radius: 1rem;
-  box-shadow: 0 1.25rem 3rem rgb(0 0 0 / 16%);
 }
 
-.alternative-panel {
-  border-color: #6b542e;
+.report-panel {
+  min-width: 0;
+  padding: clamp(1.25rem, 2.5vw, 2rem);
 }
 
-.error-panel {
-  color: #280303;
-  background: #ffb5b2;
-  border-color: var(--red);
-  font-weight: 700;
+/* .hn-message sets display:flex, which would defeat the hidden attribute. */
+.report-error[hidden] {
+  display: none;
 }
 
-.section-heading {
-  margin-bottom: 1.25rem;
+.panel-head {
+  margin-bottom: var(--hn-space-4);
 }
 
-.split-heading {
+.panel-head--split {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--hn-space-3);
 }
 
-.section-heading h2 {
-  margin: 0.2rem 0 0;
-  font-size: clamp(1.45rem, 3vw, 2.15rem);
-  letter-spacing: -0.025em;
+.panel-eyebrow {
+  margin-bottom: var(--hn-space-1);
 }
 
-.eyebrow {
-  margin: 0;
-  color: var(--mint);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.subhead {
+  margin: var(--hn-space-4) 0 var(--hn-space-3);
 }
 
-.fact-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.compact-facts {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 1rem;
-}
-
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 0.65rem;
-  margin-bottom: 1.5rem;
-}
-
-.metric-card {
-  display: grid;
-  gap: 0.4rem;
-  min-width: 0;
-  padding: 1rem;
-  background: var(--surface-raised);
-  border: 1px solid var(--line);
-  border-top: 3px solid #63766f;
-  border-radius: 0.75rem;
-}
-
-.metric-card[data-tone="good"] {
-  border-top-color: var(--mint);
-}
-
-.metric-card[data-tone="warning"] {
-  border-top-color: var(--amber);
-}
-
-.metric-card[data-tone="danger"] {
-  border-top-color: var(--red);
-}
-
-.metric-card span,
-.metric-card small {
-  color: var(--text-muted);
-}
-
-.metric-card strong {
-  font-size: 1.9rem;
-  line-height: 1;
-}
-
-.metric-card small {
-  line-height: 1.35;
-}
-
-.status-pill,
-.row-status,
-.count-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: fit-content;
-  padding: 0.32rem 0.55rem;
-  color: #d8e3df;
-  background: #23352f;
-  border: 1px solid #445b53;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-style: normal;
-  font-weight: 800;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.status-pill {
-  padding: 0.5rem 0.8rem;
-  text-transform: capitalize;
-}
-
-[data-status="passed"],
-[data-status="automated"] {
-  color: #06251c;
-  background: var(--mint);
-  border-color: var(--mint);
-}
-
-[data-status="warning"],
-[data-status="assisted"] {
-  color: #2a1900;
-  background: var(--amber);
-  border-color: var(--amber);
-}
-
-[data-status="failed"],
-[data-status="manual"] {
-  color: #2b0505;
-  background: var(--red);
-  border-color: var(--red);
-}
-
-.two-column {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-h3 {
-  margin: 0 0 0.75rem;
-  font-size: 1rem;
-}
-
-.section-note,
-.callout {
-  color: var(--text-muted);
-  line-height: 1.55;
+.two-column > section > .subhead:first-child,
+.panel-head + .subhead {
+  margin-top: 0;
 }
 
 .section-note {
-  margin: -0.35rem 0 1rem;
+  color: var(--hn-ink-muted);
+  font-size: var(--hn-text-sm);
+  margin: calc(-1 * var(--hn-space-2)) 0 var(--hn-space-3);
+  max-width: 72ch;
 }
 
 .callout {
-  padding: 0.9rem 1rem;
-  background: #122b24;
-  border-left: 3px solid var(--mint);
-  border-radius: 0.35rem;
+  background: var(--hn-surface-sunken);
+  border-left: 3px solid var(--hn-accent);
+  border-radius: var(--hn-radius-sm);
+  color: var(--hn-ink-secondary);
+  margin: 0 0 var(--hn-space-4);
+  padding: var(--hn-space-3) var(--hn-space-4);
 }
 
-.warning-callout {
-  background: #302616;
-  border-left-color: var(--amber);
+.report-panel .hn-message {
+  margin: 0 0 var(--hn-space-4);
 }
 
+/* -- Fact grids (provenance, patch proof) ------------------------------------- */
+.fact-grid {
+  display: grid;
+  gap: var(--hn-space-2);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.fact-grid--compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: var(--hn-space-4);
+}
+
+.fact-grid > div {
+  background: var(--hn-surface-sunken);
+  border-radius: var(--hn-radius-sm);
+  min-width: 0;
+  padding: var(--hn-space-3);
+}
+
+.fact-grid dt {
+  /* --hn-ink-muted is only ~4.5:1 on the sunken well — below AA once any
+     compositing (entry animation, subpixel AA) shaves the ratio. */
+  color: var(--hn-ink-secondary);
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-register);
+  font-weight: 600;
+  letter-spacing: var(--hn-tracking-register);
+  margin-bottom: var(--hn-space-1);
+  text-transform: uppercase;
+}
+
+.fact-grid dd {
+  color: var(--hn-ink-secondary);
+  font-size: var(--hn-text-sm);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* -- Metric tiles -------------------------------------------------------------- */
+.metric-grid {
+  display: grid;
+  gap: var(--hn-space-2);
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  margin-bottom: var(--hn-space-4);
+}
+
+.metric-card {
+  background: var(--hn-surface);
+  border: 1px solid var(--hn-line);
+  border-left: 3px solid var(--hn-line-strong);
+  border-radius: var(--hn-radius-sm);
+  display: grid;
+  gap: var(--hn-space-1);
+  min-width: 0;
+  padding: var(--hn-space-3) var(--hn-space-3) var(--hn-space-3) var(--hn-space-4);
+}
+
+.metric-card[data-tone="good"] {
+  border-left-color: var(--hn-status-ok);
+}
+
+.metric-card[data-tone="warning"] {
+  border-left-color: var(--hn-status-warn);
+}
+
+.metric-card[data-tone="danger"] {
+  border-left-color: var(--hn-status-critical);
+}
+
+.metric-card > span {
+  color: var(--hn-ink-muted);
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-register);
+  font-weight: 600;
+  letter-spacing: var(--hn-tracking-register);
+  text-transform: uppercase;
+}
+
+.metric-card > strong {
+  font-family: var(--hn-font-display);
+  font-size: var(--hn-text-h2);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: var(--hn-tracking-heading);
+  line-height: var(--hn-leading-tight);
+}
+
+.metric-card > small {
+  color: var(--hn-ink-muted);
+  font-size: var(--hn-text-xs);
+  line-height: 1.35;
+}
+
+/* -- Status badges (readiness stamps, row verdicts, residual counts) ----------- */
+.status-pill,
+.row-status,
+.count-badge {
+  align-items: center;
+  background: var(--hn-neutral-tint);
+  border-radius: var(--hn-radius-sm);
+  color: var(--hn-neutral-text);
+  display: inline-flex;
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-register);
+  font-style: normal;
+  font-weight: 600;
+  justify-content: center;
+  letter-spacing: var(--hn-tracking-register);
+  line-height: 1;
+  padding: 3px var(--hn-space-2);
+  text-transform: uppercase;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.status-pill--lg {
+  padding: var(--hn-space-2) var(--hn-space-3);
+}
+
+.count-badge {
+  font-variant-numeric: tabular-nums;
+  min-width: 2rem;
+}
+
+.status-pill[data-status="passed"],
+.row-status[data-status="passed"],
+.row-status[data-status="automated"] {
+  background: var(--hn-ok-tint);
+  color: var(--hn-ok-text);
+}
+
+.status-pill[data-status="warning"],
+.row-status[data-status="warning"],
+.row-status[data-status="assisted"] {
+  background: var(--hn-warn-tint);
+  color: var(--hn-warn-text);
+}
+
+.status-pill[data-status="failed"],
+.row-status[data-status="failed"],
+.row-status[data-status="manual"] {
+  background: var(--hn-critical-tint);
+  color: var(--hn-critical-text);
+}
+
+/* -- Evidence rows (gates and residuals) ---------------------------------------- */
 .evidence-list,
 .command-list {
   display: grid;
-  gap: 0.55rem;
+  gap: var(--hn-space-2);
 }
 
 .evidence-row {
-  display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
+  background: var(--hn-surface-sunken);
+  border: 1px solid var(--hn-line);
+  border-radius: var(--hn-radius-sm);
+  display: flex;
+  gap: var(--hn-space-3);
   min-width: 0;
-  padding: 0.8rem;
-  background: #10201c;
-  border: 1px solid var(--line);
-  border-radius: 0.65rem;
+  padding: var(--hn-space-3);
 }
 
 .evidence-row > div {
   min-width: 0;
 }
 
-.evidence-row strong,
-.evidence-row p {
+.evidence-row strong {
+  font-size: var(--hn-text-sm);
   overflow-wrap: anywhere;
 }
 
 .evidence-row p {
-  margin: 0.25rem 0 0;
-  color: var(--text-muted);
-  font-size: 0.86rem;
+  color: var(--hn-ink-secondary);
+  font-size: var(--hn-text-xs);
   line-height: 1.45;
+  margin: var(--hn-space-0) 0 0;
+  overflow-wrap: anywhere;
 }
 
+/* Zero-count registers stay on the sheet; the dashed frame marks "measured,
+ * found empty" rather than "omitted". */
 .zero-row {
+  background: transparent;
   border-style: dashed;
 }
 
+/* -- Tables ----------------------------------------------------------------------- */
 .table-scroll {
+  background: var(--hn-surface);
+  border: 1px solid var(--hn-line-strong);
+  border-radius: var(--hn-radius);
   max-width: 100%;
   overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
 }
 
 #compat-mappings,
-#maplibre-mappings {
-  max-height: 32rem;
+#maplibre-mappings,
+#assertion-matrix {
+  max-height: 26rem;
 }
 
-table {
-  width: 100%;
+.table-scroll table {
   border-collapse: collapse;
-  font-size: 0.84rem;
+  font-size: var(--hn-text-sm);
+  width: 100%;
 }
 
-th,
-td {
-  padding: 0.7rem 0.75rem;
+.table-scroll th,
+.table-scroll td {
+  padding: var(--hn-space-2) var(--hn-space-3);
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid var(--line);
 }
 
-thead th {
+.table-scroll td {
+  border-top: 1px solid var(--hn-line);
+  color: var(--hn-ink-secondary);
+}
+
+.table-scroll tbody th {
+  border-top: 1px solid var(--hn-line);
+  font-weight: 600;
+}
+
+.table-scroll tbody tr:first-child > * {
+  border-top: 0;
+}
+
+.table-scroll thead th {
+  background: var(--hn-surface);
+  box-shadow: inset 0 -1px 0 var(--hn-line-strong);
+  color: var(--hn-ink-muted);
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-register);
+  font-weight: 600;
+  letter-spacing: var(--hn-tracking-register);
   position: sticky;
-  z-index: 1;
-  top: 0;
-  color: #c6d7d1;
-  background: #142823;
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
   text-transform: uppercase;
+  top: 0;
+  white-space: nowrap;
+  z-index: 1;
 }
 
-tbody tr:last-child > * {
-  border-bottom: 0;
+.table-scroll tbody tr:hover {
+  background: var(--hn-accent-wash);
 }
 
-tbody tr[data-zero="true"] {
-  color: #8ca099;
-  background: rgb(0 0 0 / 10%);
-}
-
-td code,
-th code,
+.table-scroll code,
 .hash {
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-xs);
   overflow-wrap: anywhere;
 }
 
+.hash {
+  color: var(--hn-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Numeric columns read as instrument counts: right-aligned, tabular. */
+#compat-mappings thead th:not(:first-child),
+#maplibre-mappings thead th:not(:first-child),
+#widget-guidance thead th:nth-child(5),
+#artifact-files thead th:nth-child(3) {
+  text-align: right;
+}
+
+#compat-mappings td,
+#maplibre-mappings td,
+#widget-guidance td:nth-child(5),
+#artifact-files td:nth-child(3) {
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+#widget-guidance td:nth-child(3),
+#widget-guidance td:nth-child(6) {
+  font-family: var(--hn-font-ui);
+  font-size: var(--hn-text-sm);
+  text-align: left;
+}
+
+#widget-guidance a {
+  overflow-wrap: anywhere;
+}
+
+/* Zero-count codemod categories stay listed, quietly — but the sunken table
+   stripes leave --hn-ink-muted under the AA floor, so quiet means secondary. */
+.table-scroll tbody tr[data-zero="true"] th,
+.table-scroll tbody tr[data-zero="true"] td {
+  color: var(--hn-ink-secondary);
+}
+
+.table-scroll tbody tr[data-zero="false"] th code {
+  color: var(--hn-ink);
+  font-weight: 600;
+}
+
+/* -- Command cards ------------------------------------------------------------------ */
 .command-card {
+  background: var(--hn-surface-sunken);
+  border: 1px solid var(--hn-line);
+  border-radius: var(--hn-radius);
   min-width: 0;
-  padding: 0.9rem;
-  background: #091512;
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
+  padding: var(--hn-space-3) var(--hn-space-4);
 }
 
-.command-card > div {
+.command-head {
+  align-items: center;
   display: flex;
+  gap: var(--hn-space-3);
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.6rem;
+  margin-bottom: var(--hn-space-2);
 }
 
-.command-card span {
-  color: var(--text-muted);
+.command-head strong {
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-sm);
+  overflow-wrap: anywhere;
 }
 
-.command-card pre,
-.diff-view {
-  max-width: 100%;
+.command-card pre {
+  color: var(--hn-ink-secondary);
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-xs);
+  line-height: 1.6;
   margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* -- Patch view --------------------------------------------------------------------- */
+.diff-view {
+  background: var(--hn-surface-sunken);
+  border: 1px solid var(--hn-line-strong);
+  border-radius: var(--hn-radius);
+  color: var(--hn-ink-secondary);
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-xs);
+  line-height: 1.6;
+  margin: 0;
+  max-height: 36rem;
+  max-width: 100%;
   overflow: auto;
-  font-size: 0.78rem;
-  line-height: 1.55;
+  padding: var(--hn-space-4);
   white-space: pre;
 }
 
-.diff-view {
-  max-height: 38rem;
-  padding: 1rem;
-  color: #cce0d9;
-  background: #050d0b;
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
+.diff-line[data-diff="add"] {
+  background: var(--hn-ok-tint);
+  color: var(--hn-ok-text);
 }
 
-@media (max-width: 800px) {
-  .hero,
-  .two-column {
+.diff-line[data-diff="del"] {
+  background: var(--hn-critical-tint);
+  color: var(--hn-critical-text);
+}
+
+.diff-line[data-diff="hunk"] {
+  color: var(--hn-accent);
+  font-weight: 600;
+}
+
+.diff-line[data-diff="file"] {
+  color: var(--hn-ink);
+  font-weight: 600;
+}
+
+.diff-line[data-diff="meta"] {
+  /* On the sunken diff well --hn-ink-muted sits at the AA floor; use secondary. */
+  color: var(--hn-ink-secondary);
+}
+
+/* -- Layout helpers ------------------------------------------------------------------ */
+.two-column {
+  display: grid;
+  gap: var(--hn-space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: var(--hn-space-2);
+}
+
+.two-column > section {
+  min-width: 0;
+}
+
+/* -- Entry motion: one quiet rise on load; tokens zero out under reduced motion.
+   Transform-only: animating opacity composites text against its well and can
+   drop borderline-AA colors below 4.5:1 at the instant an accessibility scan
+   samples the page. -- */
+@media (prefers-reduced-motion: no-preference) {
+  .masthead-inner,
+  .report-index,
+  .report-panel {
+    animation: workbench-rise var(--hn-motion-slow) var(--hn-ease) both;
+  }
+
+  .report-panel {
+    animation-delay: var(--hn-motion-fast);
+  }
+}
+
+@keyframes workbench-rise {
+  from {
+    transform: translateY(8px);
+  }
+}
+
+/* -- Responsive flow ------------------------------------------------------------------ */
+@media (max-width: 64rem) {
+  .masthead-inner {
     grid-template-columns: 1fr;
+    gap: var(--hn-space-5);
+    padding-top: var(--hn-space-6);
   }
 
-  .hero {
-    gap: 1.5rem;
-    padding-top: 3rem;
+  .workbench {
+    grid-template-columns: 1fr;
+    gap: var(--hn-space-4);
+    padding-top: var(--hn-space-4);
   }
 
+  .report-index {
+    position: static;
+  }
+
+  .report-index-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hn-space-1);
+  }
+
+  .report-index-list a {
+    border: 1px solid var(--hn-line-strong);
+    border-radius: var(--hn-radius-pill);
+    padding: var(--hn-space-1) var(--hn-space-3);
+  }
+
+  .report-index-list a[aria-current="true"] {
+    border-color: var(--hn-accent);
+  }
+}
+
+@media (max-width: 48rem) {
+  .two-column,
   .fact-grid,
-  .compact-facts {
+  .fact-grid--compact {
     grid-template-columns: 1fr;
   }
 
-  .split-heading {
+  .panel-head--split {
     display: grid;
+    gap: var(--hn-space-2);
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
+  .masthead-topline {
+    flex-wrap: wrap;
+  }
+
+  .docket {
+    padding: var(--hn-space-4);
   }
 }

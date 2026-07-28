@@ -8,6 +8,7 @@
  */
 
 import type { GeometryColumnPlan, GeometryEncoding } from "../core/geoparquet-sql.js";
+import type { GeoParquetNativeGeometryKind } from "./native-geometry.js";
 
 export interface DescribeRow {
   readonly column_name: string;
@@ -110,6 +111,29 @@ const MAX_GEOPARQUET_METADATA_BYTES = 1024 * 1024;
 const MAX_GEOPARQUET_METADATA_DEPTH = 32;
 const MAX_GEOPARQUET_METADATA_NODES = 100_000;
 
+/** GeoParquet 1.1 `geo.columns[].encoding` values with a reviewed native decoder (`native-geometry.ts`). */
+const GEOARROW_KIND_BY_DECLARED_ENCODING: ReadonlyMap<string, GeoParquetNativeGeometryKind> = new Map([
+  ["point", "point"],
+  ["linestring", "linestring"],
+  ["polygon", "polygon"],
+  ["multipoint", "multipoint"],
+  ["multilinestring", "multilinestring"],
+  ["multipolygon", "multipolygon"],
+]);
+
+const GEOARROW_ENCODING_BY_KIND: Readonly<Record<GeoParquetNativeGeometryKind, GeometryEncoding>> = {
+  point: "geoarrow-point",
+  linestring: "geoarrow-linestring",
+  polygon: "geoarrow-polygon",
+  multipoint: "geoarrow-multipoint",
+  multilinestring: "geoarrow-multilinestring",
+  multipolygon: "geoarrow-multipolygon",
+};
+
+function geoArrowKindFromDeclaredEncoding(encoding: string | undefined): GeoParquetNativeGeometryKind | undefined {
+  return encoding === undefined ? undefined : GEOARROW_KIND_BY_DECLARED_ENCODING.get(encoding);
+}
+
 /**
  * Encoding is derived from the DuckDB DESCRIBE column type, not the GeoParquet
  * `geo.encoding` field. DuckDB's `read_parquet` rehydrates a GeoParquet WKB
@@ -180,29 +204,53 @@ function geoParquetRepetitionMatches(geometry: DescribeRow, bbox: DescribeRow): 
   return geometryRepetition !== undefined && bboxRepetition === geometryRepetition;
 }
 
+/**
+ * Physical shape check for a *declared* GeoParquet 1.1 `covering.bbox` column.
+ * The covering maps each of `xmin`/`ymin`/`xmax`/`ymax` (plus `zmin`/`zmax` in
+ * 3D) to a column path, so the spec constrains the referenced members' names
+ * and numeric type but never their physical order inside the struct — Overture
+ * Maps declares a conforming covering over
+ * `STRUCT(xmin DOUBLE, xmax DOUBLE, ymin DOUBLE, ymax DOUBLE)`. Require exactly
+ * the expected member set, each present once, every member the same
+ * `FLOAT`/`DOUBLE` type (#767).
+ */
 function isGeoParquetBboxStruct(columnType: string): boolean {
   const members = bboxStructMembers(columnType);
   if (!members) return false;
-  const expectedNames =
+  const required =
     members.length === 4
-      ? ["xmin", "ymin", "xmax", "ymax"]
+      ? new Set(["xmin", "ymin", "xmax", "ymax"])
       : members.length === 6
-        ? ["xmin", "ymin", "zmin", "xmax", "ymax", "zmax"]
+        ? new Set(["xmin", "ymin", "zmin", "xmax", "ymax", "zmax"])
         : undefined;
-  if (!expectedNames) return false;
+  if (!required) return false;
   let memberType: "FLOAT" | "DOUBLE" | undefined;
-  return members.every(({ name, type }, index) => {
-    if (name !== expectedNames[index] || (type !== "FLOAT" && type !== "DOUBLE")) return false;
+  for (const { name, type } of members) {
+    if (!required.delete(name) || (type !== "FLOAT" && type !== "DOUBLE")) return false;
     memberType ??= type;
-    return memberType === type;
-  });
+    if (memberType !== type) return false;
+  }
+  return required.size === 0;
 }
 
+/**
+ * Runtime named-bbox fast path shape check (no declared GeoParquet 1.1
+ * covering). Member *order* is deliberately not constrained: the compiled
+ * predicate addresses `bbox.xmin` … `bbox.ymax` by name, so ordering carries no
+ * meaning, and real-world writers do not follow the covering order — Overture
+ * Maps ships `STRUCT(xmin FLOAT, xmax FLOAT, ymin FLOAT, ymax FLOAT)`. Unlike
+ * {@link isGeoParquetBboxStruct}, which validates a covering the file itself
+ * declared, this path has no declaration to trust, so every member must still
+ * be a distinct expected name with an exact numeric runtime type.
+ */
 function isRuntimeBboxStruct(columnType: string): boolean {
   const members = bboxStructMembers(columnType);
   if (!members || members.length !== 4) return false;
-  const expectedNames = ["xmin", "ymin", "xmax", "ymax"];
-  return members.every(({ name, type }, index) => name === expectedNames[index] && isRuntimeNumericType(type));
+  const required = new Set(["xmin", "ymin", "xmax", "ymax"]);
+  for (const { name, type } of members) {
+    if (!required.delete(name) || !isRuntimeNumericType(type)) return false;
+  }
+  return required.size === 0;
 }
 
 function bboxStructMembers(columnType: string): Array<{ readonly name: string; readonly type: string }> | undefined {
@@ -418,10 +466,43 @@ function geometryPlanFromGeoMetadata(
   const epoch = inspectEpoch(metadata);
   const detectedEncoding = encodingFromColumnType(row.column_type);
   const declaredNativeEncoding = metadataState === "valid" && metadata?.encoding !== "WKB";
-  const runtimeSupported = detectedEncoding !== undefined && (!declaredNativeEncoding || detectedEncoding === "native");
+  // A GeoParquet 1.1 native single-geometry encoding (`point`/`linestring`/
+  // `polygon`/`multipoint`/`multilinestring`/`multipolygon`) is never a
+  // DuckDB `GEOMETRY`/`GEOGRAPHY`/BLOB/JSON/VARCHAR column, so
+  // `encodingFromColumnType` returns `undefined` for it. Give it its own
+  // `geoarrow-*` identity (never collapsed onto DuckDB's own `native`
+  // GEOMETRY type) whenever the declared kind is one of those six and the
+  // whole-document metadata slice already proved the physical column shape
+  // matches (`validGeoMetadataProjectionSlice` → `geoParquetEncodingMatchesPhysicalType`).
+  const declaredGeoArrowKind =
+    detectedEncoding === undefined && declaredNativeEncoding
+      ? geoArrowKindFromDeclaredEncoding(metadata?.encoding)
+      : undefined;
+  const declaredGeoArrowPhysical =
+    declaredGeoArrowKind !== undefined ? parseNativeCoordinateType(row.column_type) : undefined;
+  const nativeDimensions: "xy" | "xyz" | undefined =
+    declaredGeoArrowKind === undefined
+      ? undefined
+      : declaredGeoArrowPhysical === undefined
+        ? undefined
+        : declaredGeoArrowPhysical.hasZ
+          ? "xyz"
+          : "xy";
+  const encoding: GeometryEncoding =
+    detectedEncoding ??
+    (declaredGeoArrowKind !== undefined
+      ? GEOARROW_ENCODING_BY_KIND[declaredGeoArrowKind]
+      : declaredNativeEncoding
+        ? "native"
+        : "wkb");
+  const runtimeSupported =
+    declaredGeoArrowKind !== undefined
+      ? nativeDimensions !== undefined
+      : detectedEncoding !== undefined && (!declaredNativeEncoding || detectedEncoding === "native");
   return {
     column: row.column_name,
-    encoding: detectedEncoding ?? (declaredNativeEncoding ? "native" : "wkb"),
+    encoding,
+    ...(nativeDimensions !== undefined ? { nativeDimensions } : {}),
     ...(runtimeSupported ? {} : { runtimeSupported: false }),
     ...(bboxColumn ? { bboxColumn } : {}),
     metadataState,

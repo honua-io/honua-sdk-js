@@ -293,9 +293,9 @@ const dataset = createDataset({
   ],
 });
 
-const features = await dataset.source("parcels-ogc")!.query({ where: "STATUS = 'ACTIVE'" });
-const stacItems = await dataset.source("parcels-stac")!.query({ where: "cloud_cover < 10" });
-const catalogRecords = await dataset.source("catalog-records")!.query({ where: "type = 'service'" });
+const features = await dataset.source("parcels-ogc")!.query({ pagination: { limit: 100 } });
+const stacItems = await dataset.source("parcels-stac")!.query({ pagination: { limit: 100 } });
+const catalogRecords = await dataset.source("catalog-records")!.query({ pagination: { limit: 100 } });
 const tileset = dataset.source("parcels-tiles")!.adapter("ogc-tiles"); // HonuaOgcTileset
 const map = dataset.source("parcels-map")!.adapter("ogc-maps"); // HonuaOgcCollectionMap
 const recordsCatalog = dataset.source("catalog-records")!.adapter("ogc-records"); // HonuaOgcRecordCollection

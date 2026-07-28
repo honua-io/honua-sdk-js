@@ -110,17 +110,71 @@ test("release projection updates without a committed generated manifest", () => 
   assert.doesNotThrow(() => JSON.parse(serializeDocsVersions(bumped)));
 
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, "release-please-config.json"), "utf8"));
-  const evidenceFiles = config.packages["."]["extra-files"].filter(
+  const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, "samples/catalog.v2.json"), "utf8"));
+  const sdkVersionFiles = config.packages["."]["extra-files"].filter(
     (entry) => entry.type === "json" && entry.jsonpath === "$.sdk.version",
   );
   assert.deepEqual(
-    evidenceFiles.map((entry) => entry.path).sort(),
+    sdkVersionFiles.map((entry) => entry.path).sort(),
     [
+      "config/sdk-coverage.v1.json",
+      "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
+      "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
+      "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
       "samples/contract/v1/fixtures/sample-evidence.fixture.json",
       "samples/contract/v1/fixtures/sample-evidence.live.json",
       "samples/contract/v1/fixtures/sample-evidence.skipped.json",
+      "samples/evidence/imagery-cog-quickstart/live.v1.json",
+      "samples/evidence/maplibre-quickstart/live.v1.json",
+      "samples/evidence/migration-workbench/live.v1.json",
+      "samples/evidence/service-explorer/live.v1.json",
+      "support/projections/sdk-support.v1.json",
     ],
   );
+
+  const managedEvidencePaths = new Set(sdkVersionFiles.map((entry) => entry.path));
+  const catalogEvidencePaths = catalog.samples.flatMap((sample) =>
+    sample.evidence?.live?.evidencePath ? [sample.evidence.live.evidencePath] : [],
+  );
+  assert.ok(catalogEvidencePaths.length > 0);
+  for (const evidencePath of catalogEvidencePaths) {
+    assert.ok(managedEvidencePaths.has(evidencePath), `${evidencePath} must be release-managed`);
+  }
+
+  const benchmarkVersionFile = config.packages["."]["extra-files"].find(
+    (entry) => entry.path === "bench/cross-sdk/corpus.json",
+  );
+  assert.deepEqual(benchmarkVersionFile, {
+    type: "json",
+    path: "bench/cross-sdk/corpus.json",
+    jsonpath: "$.references[0].package.version",
+  });
+
+  const supportVersionFiles = config.packages["."]["extra-files"].filter((entry) =>
+    ["README.md", "support/projections/sdk-support.v1.json"].includes(entry.path),
+  );
+  assert.deepEqual(supportVersionFiles, [
+    { type: "generic", path: "README.md" },
+    {
+      type: "json",
+      path: "support/projections/sdk-support.v1.json",
+      jsonpath: "$.sdk.version",
+    },
+  ]);
+
+  const coverageVersionFile = config.packages["."]["extra-files"].find(
+    (entry) => entry.path === "config/sdk-coverage.v1.json",
+  );
+  assert.deepEqual(coverageVersionFile, {
+    type: "json",
+    path: "config/sdk-coverage.v1.json",
+    jsonpath: "$.sdk.version",
+  });
+
+  const currentPackage = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+  const benchmarkCorpus = JSON.parse(fs.readFileSync(path.join(ROOT, "bench/cross-sdk/corpus.json"), "utf8"));
+  assert.equal(benchmarkCorpus.references[0].id, "honua-sdk-js");
+  assert.equal(benchmarkCorpus.references[0].package.version, currentPackage.version);
 });
 
 test("authoritative tag validation rejects a fabricated release", () => {

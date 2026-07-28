@@ -1,11 +1,11 @@
-import { isFixtureRunId } from "../../../samples/scenarios/identifiers.mjs";
 import {
   type RealtimeFeatureEvent,
   type RealtimeFeatureTransport,
   type RealtimeSubscriptionRequest,
   createHonuaServerRealtimeSubscription,
   decodeHonuaServerRealtimeEvent,
-} from "../../../src/realtime/index.js";
+} from "@honua/sdk-js/realtime";
+import { isFixtureRunId } from "../../../samples/scenarios/identifiers.mjs";
 
 import { INCIDENT_LAYER_ID, INCIDENT_SOURCE_ID } from "./fixtures.js";
 import { type FixtureIncidentTransport, createFixtureIncidentTransport } from "./realtime-fixture.js";
@@ -20,6 +20,7 @@ import type {
 
 export type IncidentRequestedTransportMode = "auto" | "live" | "replay" | "fixture-edit";
 export type IncidentTransportMode = "live" | "replay" | "fixture-edit";
+export type IncidentFixtureAuthorization = "authorized" | "unauthorized";
 
 export interface IncidentTransportControls {
   readonly mode: IncidentTransportMode;
@@ -33,6 +34,7 @@ export interface IncidentTransportControls {
   resume(): Promise<void>;
   refresh(): Promise<void>;
   duplicateLast(): Promise<void>;
+  reorderLast(): Promise<void>;
   staleCursor(): Promise<void>;
   edit(request: IncidentEditRequest): Promise<IncidentEditReceipt>;
   reset(request: IncidentResetRequest): Promise<IncidentEditReceipt>;
@@ -49,6 +51,7 @@ export interface IncidentTransportConfig {
   readonly layerId: number;
   readonly fixtureRunId?: string;
   readonly fixtureControlUrl?: string;
+  readonly fixtureAuthorization?: IncidentFixtureAuthorization;
 }
 
 export interface ResolvedIncidentTransportConfig extends IncidentTransportConfig {
@@ -171,6 +174,7 @@ export function readIncidentTransportConfig(location: Location = window.location
   const layerId = Number.parseInt(params.get("layerId") ?? env?.VITE_HONUA_INCIDENT_LAYER_ID ?? "0", 10);
   let fixtureRunId: string | undefined;
   let fixtureControlUrl: string | undefined;
+  let fixtureAuthorization: IncidentFixtureAuthorization | undefined;
   if (requestedMode === "fixture-edit") {
     const fixtureRunValues = params.getAll("fixtureRun");
     fixtureRunId = fixtureRunValues[0];
@@ -193,6 +197,17 @@ export function readIncidentTransportConfig(location: Location = window.location
     if (new URL(fixtureControlUrl).origin !== expectedOrigin) {
       throw new Error("Fixture-edit action endpoint must use the sanitized fixture origin.");
     }
+    const fixtureAuthorizationValues = params.getAll("fixtureAuthorization");
+    const requestedFixtureAuthorization = fixtureAuthorizationValues[0];
+    if (
+      fixtureAuthorizationValues.length > 1 ||
+      (requestedFixtureAuthorization !== undefined &&
+        requestedFixtureAuthorization !== "authorized" &&
+        requestedFixtureAuthorization !== "unauthorized")
+    ) {
+      throw new Error("Fixture-edit mode requires one valid fixtureAuthorization value when provided.");
+    }
+    fixtureAuthorization = requestedFixtureAuthorization ?? "authorized";
   }
   return {
     requestedMode,
@@ -203,6 +218,7 @@ export function readIncidentTransportConfig(location: Location = window.location
     layerId: Number.isFinite(layerId) && layerId >= 0 ? layerId : DEFAULT_LAYER_ID,
     fixtureRunId,
     fixtureControlUrl,
+    fixtureAuthorization,
   };
 }
 
@@ -353,6 +369,7 @@ function createFixtureIncidentTransportControls(
     resume: async () => fixture.resume(),
     refresh: async () => fixture.refresh(),
     duplicateLast: async () => fixture.duplicateLast(),
+    reorderLast: async () => fixture.reorderLast(),
     staleCursor: async () => fixture.staleCursor(),
     edit: async (request) => fixture.edit(request),
     reset: async (request) => fixture.reset(request),
@@ -649,7 +666,7 @@ function createRemoteFixtureIncidentTransportControls(
     requestedMode: config.requestedMode,
     sourceIdentity: SAFE_DEMO_EDIT_SOURCE_ID,
     safeDemoEditing: true,
-    authorized: true,
+    authorized: config.fixtureAuthorization !== "unauthorized",
     async step() {
       return decodeStepResult(await action("step"));
     },
@@ -664,6 +681,9 @@ function createRemoteFixtureIncidentTransportControls(
     },
     async duplicateLast() {
       decodeActionAcknowledgement(await action("duplicate-event"), "duplicate-event", "duplicated", true);
+    },
+    async reorderLast() {
+      decodeActionAcknowledgement(await action("reorder-event"), "reorder-event", "reordered");
     },
     async staleCursor() {
       decodeActionAcknowledgement(await action("stale-cursor"), "stale-cursor", "staleCursorInjected");
@@ -699,6 +719,7 @@ function createReadOnlyControls(config: ResolvedIncidentTransportConfig): Incide
     resume: async () => undefined,
     refresh: async () => undefined,
     duplicateLast: async () => undefined,
+    reorderLast: async () => undefined,
     staleCursor: async () => undefined,
     edit: async (request) => blocked("edit", request.idempotencyKey),
     reset: async (request) => blocked("reset", request.idempotencyKey),

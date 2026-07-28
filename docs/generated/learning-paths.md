@@ -48,7 +48,7 @@ Labels: `fixture` · `public-live` · `degraded`
 - Executable entry: [examples/service-explorer/src/main.ts](../../examples/service-explorer/src/main.ts)
 - Example notes: [examples/service-explorer/README.md](../../examples/service-explorer/README.md)
 - Compile check: `npm run demo:service-explorer:typecheck`
-- Sample contract: `lab` · `supported` · `active`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.
 - Freshness: Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics.
@@ -119,26 +119,26 @@ Labels: `fixture` · `experimental` · `degraded`
 - honua.io journey: `linked-large-data-analysis`
 - Degradation: The current shell still uses the 0.1.x app-workspace compatibility shim; #399 owns its supported-import migration.
 
-### 6. Edit with recovery and capability checks
+### 6. Plan, analyze, and edit with recovery
 
-Apply optimistic edits, attachments, and conflict recovery without hiding unsupported mutations.
+Search a parcel, run bounded geometry analysis, and apply metadata-backed edits and attachments without hiding unsupported mutations.
 
 Labels: `fixture` · `degraded`
 
 - Guide: [docs/shared-client-contract.md](../shared-client-contract.md)
-- Runnable example: [edit-workflow-demo](../../examples/edit-workflow-demo)
-- Executable entry: [examples/edit-workflow-demo/src/main.ts](../../examples/edit-workflow-demo/src/main.ts)
-- Example notes: [examples/edit-workflow-demo/README.md](../../examples/edit-workflow-demo/README.md)
-- Compile check: `npm run demo:edit-workflow:typecheck`
-- Sample contract: `recipe` · `supported` · `rework`
+- Runnable example: [planning-permitting-workbench](../../examples/planning-permitting-workbench)
+- Executable entry: [examples/planning-permitting-workbench/src/journey.ts](../../examples/planning-permitting-workbench/src/journey.ts)
+- Example notes: [examples/planning-permitting-workbench/README.md](../../examples/planning-permitting-workbench/README.md)
+- Compile check: `npm run demo:planning-workbench:typecheck`
+- Sample contract: `lab` · `supported` · `active`
 - Data and auth: `fixture` · `none`
-- Provenance: Committed deterministic edit fixture.
-- Freshness: Deterministic fixture replay time.
-- Catalog degradation: Editing is read-only when the service does not advertise mutation capability.
-- Live sample: [demo-editing.html](https://honua.io/demo-editing.html)
-- Supported API imports: `@honua/sdk-js/contract` (`createEditSession`); `@honua/sdk-js/honua` (`HonuaCapabilityNotSupportedError`)
-- honua.io journey: `realtime-operations`
-- Degradation: The current shell still uses the 0.1.x app-workspace compatibility shim, and mutations become read-only when capability or auth is absent.
+- Provenance: Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.
+- Freshness: Fixture version and generated-at values are committed with the repository; no live freshness claim is made.
+- Catalog degradation: Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.
+- Live sample: [demo-editing.html](https://honua.io/demo-editing.html) · [demo-planning-permitting.html](https://honua.io/demo-planning-permitting.html)
+- Supported API imports: `@honua/sdk-js/contract` (`createEditSession`); `@honua/sdk-js/geocoding` (`HonuaGeocodingClient`); `@honua/sdk-js/geometry` (`area`, `booleanIntersects`, `intersect`); `@honua/sdk-js/honua` (`createHonua`, `envelope`)
+- honua.io journey: `query-map-style`
+- Degradation: Metadata or capability discovery failure disables analysis, export, and mutation; deterministic fixture output is never presented as live or regulatory evidence.
 
 ### 7. Operate through realtime and offline transitions
 
@@ -192,7 +192,7 @@ Labels: `fixture` · `public-live` · `degraded`
 - Executable entry: [examples/migration-workbench/src/main.ts](../../examples/migration-workbench/src/main.ts)
 - Example notes: [docs/migration-honua-maplibre.md](../migration-honua-maplibre.md)
 - Compile check: `npm run demo:migration-workbench:typecheck`
-- Sample contract: `lab` · `supported` · `active`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `fixture` · `none`
 - Provenance: Committed ArcGIS source fixtures and migration reports.
 - Freshness: Versioned with the migration corpus.

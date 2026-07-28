@@ -33,8 +33,8 @@
  *   ],
  * });
  *
- * const incidents = await dataset.source("incidents")!.queryAll({ where: "STATUS = 'OPEN'" });
- * const scenes = await dataset.source("imagery")!.query({ where: "collections IN ('landsat-c2-l2')" });
+ * const incidents = await dataset.source("incidents")!.queryAll({ pagination: { limit: 500 } });
+ * const scenes = await dataset.source("imagery")!.query({ pagination: { limit: 100 } });
  * ```
  *
  * @packageDocumentation

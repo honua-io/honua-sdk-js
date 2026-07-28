@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "DELETE",
+    "path": "/api/v1/studio/package-drafts/draft-parcels-1"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "data": {},
+      "message": "Studio package draft deleted.",
+      "timestamp": "2026-07-01T00:06:00Z"
+    }
+  }
+}

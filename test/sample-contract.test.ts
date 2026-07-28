@@ -20,11 +20,13 @@ import {
   isRunnableRootExampleDirectory,
   migrateCatalogV1ToV2,
   parseJsonDocument,
+  refreshOverlayLiveExpiry,
   validateCatalog,
   validateCiSelection,
   validateEvidenceEnvelope,
   validateFixtureBuildHarnessSource,
   validateFixtureBuildHarnesses,
+  validateGeneratedOutputDrift,
   validateGoldenJourneyVisualEvidence,
   validateLiveEvidenceProducer,
   validateSiteProjection,
@@ -34,15 +36,18 @@ import type { GoldenJourneyVisualEvidence } from "../scripts/sample-contract.mjs
 
 // validateCatalog and the golden-journey visual-evidence helpers below read
 // the real samples/evidence tree (receipts, screenshots, live evidence) for
-// the now genuinely qualified First Map journey. That real I/O regularly
-// exceeds vitest's 5s default under full-suite contention; the default
-// empty-evidence case was effectively instant, so this was never exercised
-// before. Raise this file's timeout rather than the global default.
-vi.setConfig({ testTimeout: 20_000 });
+// the now genuinely qualified First Map, Imagery and Terrain, Universal
+// Service Explorer, and ArcGIS Migration Workbench journeys. That real I/O
+// regularly exceeds vitest's 5s default under full-suite contention; the
+// default empty-evidence case was effectively instant, so this was never
+// exercised before. Raise this file's timeout rather than the global
+// default; four qualified journeys' worth of receipts (up from one) need
+// more headroom than the original single-journey budget.
+vi.setConfig({ testTimeout: 40_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
-const validationTime = { now: "2026-07-21T00:00:00.000Z" };
+const validationTime = { now: new Date().toISOString() };
 const goldenJourneyIds = [
   "first-map",
   "service-explorer",
@@ -93,7 +98,10 @@ function visualEvidenceAdversary(
     sampleId,
     source: {
       repository: "honua-io/honua-sdk-js",
-      path: "examples/maplibre-quickstart",
+      // Derived from the sample so two synthetic entries never claim one
+      // executable tree; duplicate source identities are their own admission
+      // failure (honua-io/honua-sdk-js#550).
+      path: `examples/${sampleId}`,
       revision: "b".repeat(40),
       evidenceNeutralSha256: "c".repeat(64),
     },
@@ -150,16 +158,46 @@ describe("sample publication contract", () => {
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(1);
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(4);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      1,
+      4,
     );
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
-      6,
+      3,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
       data: { configurationStatus: "legacy-unsafe", config: [] },
+    });
+    expect(
+      catalog.samples.find((sample: { id: string }) => sample.id === "planning-permitting-workbench"),
+    ).toMatchObject({
+      track: "lab",
+      journeyId: "planning-permitting",
+      lifecycle: { state: "active" },
+      renderers: ["none"],
+      evidence: {
+        live: {
+          mode: "public-live",
+          status: "planned",
+          commands: ["npm run evidence:planning:live"],
+        },
+      },
+    });
+    expect(catalog.samples.find((sample: { id: string }) => sample.id === "edit-workflow-demo")).toMatchObject({
+      track: "recipe",
+      lifecycle: {
+        state: "replace",
+        replacement: { kind: "journey", id: "planning-permitting" },
+      },
+    });
+    expect(catalog.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart")).toMatchObject({
+      track: "recipe",
+      lifecycle: { state: "rework" },
+    });
+    expect(catalog.samples.find((sample: { id: string }) => sample.id === "sketch-editing")).toMatchObject({
+      track: "recipe",
+      lifecycle: { state: "active" },
     });
     expect(catalog.siteMappings).toHaveLength(21);
   });
@@ -172,7 +210,7 @@ describe("sample publication contract", () => {
     const migrated = await migrateCatalogV1ToV2(v1, migration);
     expect(migrated).toEqual(canonical);
     expect(migrated.samples.find((sample) => sample.id === "migration-workbench")).toMatchObject({
-      track: "lab",
+      track: "golden",
       journeyId: "arcgis-migration",
       supportTier: "supported",
       lifecycle: { state: "active" },
@@ -187,7 +225,11 @@ describe("sample publication contract", () => {
           status: "executed",
           commands: ["npm run demo:migration-workbench:mock"],
         },
-        live: { mode: "unavailable", status: "not-applicable", commands: [] },
+        live: {
+          mode: "demo-live",
+          status: "executed",
+          commands: ["npm run evidence:migration-workbench:live"],
+        },
       },
     });
 
@@ -195,6 +237,181 @@ describe("sample publication contract", () => {
     await expect(migrateCatalogV1ToV2(v1, migration)).rejects.toThrow(
       "migration overrides must cover every v1 sample exactly",
     );
+  });
+
+  it("moves a resealed golden sample's overlay live-evidence expiry to observedAt plus the policy window", async () => {
+    // Resealing renews samples/evidence/<id>/live.v1.json's observedAt, but
+    // samples/catalog.v2.json's live.expiresAt is projected from this
+    // migration overlay's sampleOverrides[id].live.expiresAt literal, which
+    // reseal alone never touches -- the class of bug behind
+    // honua-io/honua-sdk-js#788 (receipts renew forever while the catalog's
+    // own expiry claim silently drifts toward, and eventually past, "now").
+    // refreshOverlayLiveExpiry is the fix: it re-derives that literal from
+    // the sample's own fresh evidence every time it is called, so a stale
+    // catalog expiry sitting alongside fresh receipts cannot arise as long
+    // as every reseal calls it.
+    // Read the real migration overlay for its reviewed policy config and
+    // schema shape, but build an isolated sampleOverrides fixture for the
+    // sample under test rather than asserting against whatever the current
+    // repo's real maplibre-quickstart override happens to hold: the repo's
+    // evidence provenance (which reseal last touched which golden sample,
+    // and when) is allowed to vary -- e.g. a merge that reseals some golden
+    // samples and not others -- and this invariant must hold under any such
+    // combination, not just the one this test happened to be written
+    // against. A deliberately unrelated, far-past placeholder expiresAt
+    // guarantees "before" can never coincidentally equal "after" (which is
+    // always freshly derived from the real evidence's own observedAt), no
+    // matter what the real overlay's current value is.
+    const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+    const evidence = await readJson("samples/evidence/maplibre-quickstart/live.v1.json");
+    const stalePlaceholderExpiresAt = "2000-01-01T00:00:00.000Z";
+    const staleOverlay = structuredClone(migration);
+    staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt = stalePlaceholderExpiresAt;
+
+    const refreshed = await refreshOverlayLiveExpiry(staleOverlay, ["maplibre-quickstart"]);
+
+    expect(refreshed).toEqual([
+      {
+        sampleId: "maplibre-quickstart",
+        observedAt: evidence.observedAt,
+        previousExpiresAt: stalePlaceholderExpiresAt,
+        expiresAt: staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt,
+      },
+    ]);
+    const refreshedExpiresAt = staleOverlay.sampleOverrides["maplibre-quickstart"].live.expiresAt;
+    // The refreshed literal is no longer identical to the stale placeholder (it moved)...
+    expect(refreshedExpiresAt).not.toBe(stalePlaceholderExpiresAt);
+    // ...and is now derived exactly from this fresh evidence's own
+    // observedAt plus the executed-lane policy window, so it can never again
+    // disagree with what reseal actually observed.
+    const observedAtMs = Date.parse(evidence.observedAt);
+    const expectedExpiresAtMs =
+      observedAtMs + migration.configuration.evidenceExpiry.executedMaxDays * 24 * 60 * 60 * 1000;
+    expect(Date.parse(refreshedExpiresAt)).toBe(expectedExpiresAtMs);
+    // The stale-expiry-alongside-fresh-evidence shape validateCatalog would
+    // have rejected (or worse, silently accepted right up until it lapsed)
+    // is exactly what this proves is no longer reachable through this
+    // helper: the refreshed value is always derived from the real
+    // observation, never from whenever the catalog literal happened to be
+    // hand-set. Compare against observedAt (not Date.now()) so this holds
+    // regardless of how fresh the checked-in fixture evidence itself is.
+    expect(Date.parse(refreshedExpiresAt) - observedAtMs).toBe(
+      migration.configuration.evidenceExpiry.executedMaxDays * 24 * 60 * 60 * 1000,
+    );
+
+    await expect(refreshOverlayLiveExpiry(structuredClone(migration), ["not-a-real-sample"])).rejects.toThrow(
+      "unknown sample override",
+    );
+    const nonLiveOverlay = structuredClone(migration);
+    nonLiveOverlay.sampleOverrides["oauth-signin"].live.status = "planned";
+    await expect(refreshOverlayLiveExpiry(nonLiveOverlay, ["oauth-signin"])).rejects.toThrow("is not evidence-bound");
+  });
+
+  // honua-io/honua-sdk-js#810. A skip-attested live lane is the harder half of
+  // #788's bug class: nothing reseals a skip attestation, so its observedAt
+  // never moves, and the catalog literal projected from it was hand-set at
+  // qualification time -- the incident dashboard's was 14 days against a
+  // 90-day non-executed policy, so it lapsed 76 days before the observation it
+  // describes had to. When it lapsed, validateCatalog's wall-clock expiry check
+  // (deliberately NOT relaxed by HONUA_DERIVED_ARTIFACTS_RELAX) failed every
+  // `samples:verify` on trunk AND every reseal pass inside the regeneration
+  // workflow -- including passes targeting entirely unrelated samples -- so the
+  // automation that exists to prevent the lapse could not run at all.
+  //
+  // The contract these two cases pin: a skip lane is refreshable by the
+  // automation path from its own real observation, and once even that
+  // observation has aged past its full policy window the refresh refuses
+  // honestly (naming the sample and the remedy) instead of writing an
+  // already-lapsed literal that resurfaces later as an opaque catalog error.
+  it("refreshes a skip-attested lane from its own observation and refuses once that observation outlives its policy window", async () => {
+    const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+    const skipLaneIds = Object.entries(migration.sampleOverrides)
+      .filter(([, override]: [string, any]) => override.live?.status === "skipped")
+      .map(([sampleId]) => sampleId)
+      .sort();
+    expect(skipLaneIds.length).toBeGreaterThan(0);
+    const nonExecutedWindowMs = migration.configuration.evidenceExpiry.nonExecutedMaxDays * 24 * 60 * 60 * 1000;
+
+    // Every skip lane refreshes to exactly its attestation's own observedAt
+    // plus the non-executed window -- no lane depends on a reseal having run,
+    // which is what makes refreshing them safe before the first reseal pass.
+    for (const sampleId of skipLaneIds) {
+      const overlay = structuredClone(migration);
+      const lane = overlay.sampleOverrides[sampleId].live;
+      lane.expiresAt = "2000-01-01T00:00:00.000Z";
+      const evidence = await readJson(lane.evidencePath);
+      expect(evidence.status).toBe("skipped");
+
+      const refreshed = await refreshOverlayLiveExpiry(overlay, [sampleId]);
+
+      expect(refreshed).toEqual([
+        {
+          sampleId,
+          observedAt: evidence.observedAt,
+          previousExpiresAt: "2000-01-01T00:00:00.000Z",
+          expiresAt: lane.expiresAt,
+        },
+      ]);
+      expect(Date.parse(lane.expiresAt)).toBe(Date.parse(evidence.observedAt) + nonExecutedWindowMs);
+      // No explicit "is in the future" assertion is needed: the refresh above
+      // now refuses outright once an observation has outlived its window, so
+      // reaching this line at all means the lane is still honestly refreshable.
+      // A skip attestation that ages out therefore fails here with the
+      // actionable "re-observe it" message rather than at some later gate.
+    }
+
+    // An observation older than the whole non-executed window cannot be healed
+    // by recomputing the literal, and the refresh must say so rather than
+    // writing a past expiry that fails later as a catalog-projection error.
+    const lapsedSampleId = skipLaneIds[0];
+    const lapsedOverlay = structuredClone(migration);
+    const lapsedEvidence = await readJson(lapsedOverlay.sampleOverrides[lapsedSampleId].live.evidencePath);
+    const beyondWindowNow = new Date(Date.parse(lapsedEvidence.observedAt) + nonExecutedWindowMs + 1).toISOString();
+    const previousLapsedExpiresAt = lapsedOverlay.sampleOverrides[lapsedSampleId].live.expiresAt;
+    await expect(refreshOverlayLiveExpiry(lapsedOverlay, [lapsedSampleId], { now: beyondWindowNow })).rejects.toThrow(
+      /is older than its .* policy window/,
+    );
+    await expect(refreshOverlayLiveExpiry(lapsedOverlay, [lapsedSampleId], { now: beyondWindowNow })).rejects.toThrow(
+      "re-run this lane's evidence producer to re-observe it",
+    );
+    // The refusal leaves the overlay untouched: no half-refreshed literal to
+    // commit, and no already-lapsed value projected into the catalog.
+    expect(lapsedOverlay.sampleOverrides[lapsedSampleId].live.expiresAt).toBe(previousLapsedExpiresAt);
+  });
+
+  // The recurrence half of #810: refreshability is only useful if the
+  // regeneration workflow actually exercises it for these lanes, and does so
+  // before the first reseal pass -- the pass a lapsed expiry would otherwise
+  // fail. Pinning the step ordering and the covered sample set here means
+  // adding a skip-attested sample without wiring it into the refresh (which is
+  // how the incident dashboard was left out) fails this test instead of
+  // silently arming the next trunk-wide outage.
+  it("refreshes every skip-attested lane's catalog expiry before the regeneration workflow's first reseal pass", async () => {
+    const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+    const skipLaneIds = Object.entries(migration.sampleOverrides)
+      .filter(([, override]: [string, any]) => override.live?.status === "skipped")
+      .map(([sampleId]) => sampleId)
+      .sort();
+    const workflow = await readFile(".github/workflows/regenerate-derived-artifacts.yml", "utf8");
+
+    const refreshIndex = workflow.indexOf("- name: Refresh catalog live-evidence expiry for skip-attested lanes");
+    const commitIndex = workflow.indexOf("- name: Stage and commit refreshed skip-attestation catalog locally");
+    const passOneIndex = workflow.indexOf("- name: Reseal sample evidence (pass one");
+    expect(refreshIndex).toBeGreaterThan(-1);
+    expect(commitIndex).toBeGreaterThan(refreshIndex);
+    // Committed before pass one, because every reseal pass requires a clean
+    // checkout of the evidence-neutral roots the catalog and overlay live in.
+    expect(passOneIndex).toBeGreaterThan(commitIndex);
+
+    const refreshStep = workflow.slice(refreshIndex, commitIndex);
+    const sampleArgument = /samples:refresh-live-expiry -- --sample ([\w,-]+)/.exec(refreshStep);
+    expect(sampleArgument).not.toBeNull();
+    expect(sampleArgument![1].split(",").sort()).toEqual(skipLaneIds);
+    // migrate-v1 projects the refreshed overlay into samples/catalog.v2.json
+    // and write-ci-selection reprojects the dist copy of the same literal;
+    // without both, pass one still reads the lapsed value.
+    expect(refreshStep).toContain("npm run samples:migrate:v1");
+    expect(refreshStep).toContain("npm run samples:write-ci-selection");
   });
 
   it("rejects duplicate JSON properties before permissive parsing can hide them", () => {
@@ -220,6 +437,10 @@ describe("sample publication contract", () => {
     expect(compareReleases("0.2.0", "0.2.0-beta.0")).toBeGreaterThan(0);
   });
 
+  // Reads real qualification evidence for all four golden journeys
+  // (collectQualificationEvidence) plus generates golden-journey visual
+  // evidence from it; give this test its own headroom rather than
+  // inflating the whole file's budget.
   it("generates one shared docs/site taxonomy and an executable CI selection", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
@@ -267,18 +488,31 @@ describe("sample publication contract", () => {
         },
       },
     });
-    // maplibre-quickstart is the one real, evidence-backed golden journey;
-    // check its stable identity fields rather than the full volatile object
-    // (timestamps, run IDs, screenshot hashes all legitimately change every
-    // capture).
-    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(1);
-    expect(visualEvidence.qualifiedGoldenJourneys[0]).toMatchObject({
-      journeyId: "first-map",
-      sampleId: "maplibre-quickstart",
-    });
+    // maplibre-quickstart, imagery-cog-quickstart, migration-workbench, and
+    // service-explorer are the four real, evidence-backed golden journeys;
+    // check their stable identity fields rather than the full volatile
+    // object (timestamps, run IDs, screenshot hashes all legitimately
+    // change every capture).
+    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(4);
+    expect(
+      [...visualEvidence.qualifiedGoldenJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
+    ).toMatchObject([
+      { journeyId: "arcgis-migration", sampleId: "migration-workbench" },
+      { journeyId: "first-map", sampleId: "maplibre-quickstart" },
+      { journeyId: "imagery-terrain", sampleId: "imagery-cog-quickstart" },
+      { journeyId: "service-explorer", sampleId: "service-explorer" },
+    ]);
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
     expect(JSON.stringify(projection)).not.toContain("VITE_");
+    // site-projection.schema.json transitionally accepts a v1 bundle-manifest
+    // pointer so the not-yet-resealed committed projection stays valid; pin
+    // generation to v2 so that allowance cannot mask a regression.
+    expect(projection.sampleBundles).toMatchObject({
+      format: "honua.sdk.sample-bundles.v2",
+      schemaVersion: 2,
+      publication: { manifestAsset: "sample-bundles.v2.json" },
+    });
     for (const sample of catalog.samples) {
       const projected = projection.samples.find((candidate: { id: string }) => candidate.id === sample.id);
       const selected = ciSelection.samples.find((candidate: { id: string }) => candidate.id === sample.id);
@@ -312,11 +546,38 @@ describe("sample publication contract", () => {
       execution: "scheduled-only",
       commands: ["npm run evidence:cog:live"],
     });
+    const planning = ciSelection.samples.find(
+      (sample: { id: string }) => sample.id === "planning-permitting-workbench",
+    );
+    expect(planning).toMatchObject({
+      track: "lab",
+      validationProfile: "browser-lab",
+      commandPlan: {
+        validation: {
+          execution: "automatic",
+          commands: [
+            "npm run demo:planning-workbench:typecheck",
+            "npm run demo:planning-workbench:build",
+            "npm run test:playwright:planning-workbench",
+          ],
+        },
+        fixtureEvidence: {
+          execution: "orchestrated",
+          commands: ["npm run demo:planning-workbench:mock"],
+        },
+        liveEvidence: { execution: "scheduled-only", commands: ["npm run evidence:planning:live"] },
+      },
+    });
     expect(
       projection.routes
         .filter((route) => ["imagery-terrain", "maui-3d", "wms-overlay"].includes(String(route.id)))
         .map((route) => String(route.sampleId)),
     ).toEqual(["imagery-cog-quickstart", "imagery-cog-quickstart", "imagery-cog-quickstart"]);
+    expect(
+      projection.routes
+        .filter((route) => ["editing", "planning-permitting"].includes(String(route.id)))
+        .map((route) => String(route.sampleId)),
+    ).toEqual(["planning-permitting-workbench", "planning-permitting-workbench"]);
     expect(projection.samples.some((sample: { id: string }) => sample.id === "two-protocols")).toBe(false);
 
     const malformedProjection = structuredClone(projection);
@@ -334,8 +595,10 @@ describe("sample publication contract", () => {
     flattenedSample.commands = ["npm run demo:quickstart:mock"];
     delete flattenedSample.commandPlan;
     await expect(validateCiSelection(flattenedCi)).rejects.toThrow("JSON Schema validation failed");
-  });
+  }, 80_000);
 
+  // Also reads real qualification evidence for all four golden journeys;
+  // give it its own headroom for the same reason as the test above.
   it("rejects overstated, stale, cross-runtime, and non-realtime visual evidence", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const qualificationEvidence = await collectQualificationEvidence(catalog);
@@ -354,28 +617,38 @@ describe("sample publication contract", () => {
     const staleCatalog = structuredClone(catalog);
     staleCatalog.goldenJourneys[0].status = "qualified";
     staleCatalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").track = "golden";
-    // Replace (not push): canonical already carries the one real first-map
-    // entry, and this sub-case isolates a stale freshness window on the
-    // catalog's single qualified journey rather than an extra/duplicate one.
+    // Replace (not push) only the first-map entry: canonical now carries all
+    // four real qualified journeys (first-map, imagery-terrain,
+    // arcgis-migration, and service-explorer), and the orphaned/overstated
+    // coverage check requires visualEvidence to exactly match the catalog's
+    // qualified set, so this sub-case isolates a stale freshness window on
+    // one journey without orphaning or dropping the other three's genuine
+    // evidence.
     const stale = structuredClone(canonical);
-    stale.qualifiedGoldenJourneys = [
-      visualEvidenceAdversary(
-        "first-map",
-        "maplibre-quickstart",
-        "2026-07-01T00:00:00.000Z",
-        "2026-07-08T00:00:00.000Z",
-      ),
-    ];
+    stale.qualifiedGoldenJourneys = stale.qualifiedGoldenJourneys.map((entry) =>
+      entry.journeyId === "first-map"
+        ? visualEvidenceAdversary(
+            "first-map",
+            "maplibre-quickstart",
+            "2026-07-01T00:00:00.000Z",
+            "2026-07-08T00:00:00.000Z",
+          )
+        : entry,
+    );
     await expect(validateGoldenJourneyVisualEvidence(stale, staleCatalog, qualificationEvidence)).rejects.toThrow(
       "stale or has an invalid freshness window",
     );
 
     const staleLive = structuredClone(canonical);
-    staleLive.qualifiedGoldenJourneys = [
-      visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt),
-    ];
-    staleLive.qualifiedGoldenJourneys[0].liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
-    staleLive.qualifiedGoldenJourneys[0].liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
+    staleLive.qualifiedGoldenJourneys = staleLive.qualifiedGoldenJourneys.map((entry) =>
+      entry.journeyId === "first-map"
+        ? visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt)
+        : entry,
+    );
+    const staleLiveEntry = staleLive.qualifiedGoldenJourneys.find((entry) => entry.journeyId === "first-map");
+    if (!staleLiveEntry) throw new Error("expected a first-map entry in staleLive.qualifiedGoldenJourneys");
+    staleLiveEntry.liveEvidence.observedAt = "2026-07-01T00:00:00.000Z";
+    staleLiveEntry.liveEvidence.expiresAt = "2026-07-08T00:00:00.000Z";
     await expect(validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence)).rejects.toThrow(
       "stale or has an invalid freshness window",
     );
@@ -387,8 +660,21 @@ describe("sample publication contract", () => {
     incidentJourney.status = "qualified";
     incidentCatalog.samples.find((sample: { id: string }) => sample.id === "realtime-incident-dashboard").track =
       "golden";
+    // Insert (not push) at the reserved goldenJourneys array position for
+    // incident-operations (index 3, between first-map and imagery-terrain):
+    // the orphaned/missing/overstated check compares qualifiedGoldenJourneys
+    // against the catalog's own qualified-journey order, so an append would
+    // trip that check instead of exercising the realtime invariant below.
     const staticIncident = structuredClone(canonical);
-    staticIncident.qualifiedGoldenJourneys.push(
+    const incidentJourneyIndex = incidentCatalog.goldenJourneys.findIndex(
+      (journey: { id: string }) => journey.id === "incident-operations",
+    );
+    const qualifiedBeforeIncident = incidentCatalog.goldenJourneys
+      .slice(0, incidentJourneyIndex)
+      .filter((journey: { status: string }) => journey.status === "qualified").length;
+    staticIncident.qualifiedGoldenJourneys.splice(
+      qualifiedBeforeIncident,
+      0,
       visualEvidenceAdversary("incident-operations", "realtime-incident-dashboard", observedAt, expiresAt),
     );
     await expect(
@@ -400,21 +686,88 @@ describe("sample publication contract", () => {
     await expect(validateGoldenJourneyVisualEvidence(crossRuntime, catalog, qualificationEvidence)).rejects.toThrow(
       "JSON Schema validation failed",
     );
-  });
 
+    // Two entries cannot resolve to one sample, journey, or executable tree:
+    // that is how a second implementation would ride qualified evidence
+    // (honua-io/honua-sdk-js#550 duplicate-identity handling).
+    const duplicateIdentity = structuredClone(canonical);
+    duplicateIdentity.qualifiedGoldenJourneys[1].source.path = duplicateIdentity.qualifiedGoldenJourneys[0].source.path;
+    await expect(
+      validateGoldenJourneyVisualEvidence(duplicateIdentity, catalog, qualificationEvidence),
+    ).rejects.toThrow("duplicate journey, sample, or source identities");
+
+    const borrowedReceipt = structuredClone(canonical);
+    borrowedReceipt.qualifiedGoldenJourneys = borrowedReceipt.qualifiedGoldenJourneys.map((entry) => {
+      if (entry.journeyId !== "first-map") return entry;
+      const adversary = visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt);
+      adversary.semanticEvidence[0].receiptPath = "samples/evidence/service-explorer/receipts/packed-build.v1.json";
+      return adversary;
+    });
+    await expect(
+      validateGoldenJourneyVisualEvidence(borrowedReceipt, staleCatalog, qualificationEvidence),
+    ).rejects.toThrow("visual evidence receipt is orphaned from its sample");
+
+    const borrowedScreenshot = structuredClone(canonical);
+    borrowedScreenshot.qualifiedGoldenJourneys = borrowedScreenshot.qualifiedGoldenJourneys.map((entry) => {
+      if (entry.journeyId !== "first-map") return entry;
+      const adversary = visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt);
+      adversary.screenshots[0].sourcePath =
+        "samples/evidence/service-explorer/runs/11111111-1111-4111-8111-111111111111/artifacts/screenshot-desktop.png";
+      return adversary;
+    });
+    await expect(
+      validateGoldenJourneyVisualEvidence(borrowedScreenshot, staleCatalog, qualificationEvidence),
+    ).rejects.toThrow("screenshot is orphaned from its own evidence run");
+
+    const sourceModePacked = structuredClone(canonical);
+    sourceModePacked.qualifiedGoldenJourneys = sourceModePacked.qualifiedGoldenJourneys.map((entry) => {
+      if (entry.journeyId !== "first-map") return entry;
+      const adversary = visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt);
+      const packed = adversary.semanticEvidence.find((receipt) => receipt.gate === "packed-build");
+      if (!packed) throw new Error("expected a packed-build receipt in the adversary");
+      packed.sdkMode = "source";
+      return adversary;
+    });
+    await expect(
+      validateGoldenJourneyVisualEvidence(sourceModePacked, staleCatalog, qualificationEvidence),
+    ).rejects.toThrow("must come from the packed SDK mode");
+
+    // A structurally consistent entry that advertises artifacts the checkout
+    // does not contain must fail publication rather than ship an unverifiable
+    // golden card.
+    const unverifiableArtifacts = structuredClone(canonical);
+    unverifiableArtifacts.qualifiedGoldenJourneys = unverifiableArtifacts.qualifiedGoldenJourneys.map((entry) =>
+      entry.journeyId === "first-map"
+        ? visualEvidenceAdversary("first-map", "maplibre-quickstart", observedAt, expiresAt)
+        : entry,
+    );
+    await expect(
+      validateGoldenJourneyVisualEvidence(unverifiableArtifacts, staleCatalog, qualificationEvidence),
+    ).rejects.toThrow("is broken or missing");
+  }, 80_000);
+
+  // This test calls generatedOutputs() twice (current + bumped-version
+  // catalogs), roughly doubling the file's already-doubled four-journey I/O
+  // budget; give it its own headroom rather than inflating every other test
+  // in this file to match.
   it("derives release versions without catalog edits and still detects semantic drift", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
     const currentOutputs = await generatedOutputs(catalog, packageJson);
-    const bumpedPackage = { ...packageJson, version: "0.1.1-beta.0" };
+    const versionMatch = /^(\d+)\.(\d+)\.(\d+)([-+].+)?$/.exec(packageJson.version);
+    if (!versionMatch) {
+      throw new Error(`Expected a semantic package version, received ${packageJson.version}`);
+    }
+    const bumpedVersion = `${versionMatch[1]}.${versionMatch[2]}.${Number(versionMatch[3]) + 1}${versionMatch[4] ?? ""}`;
+    const bumpedPackage = { ...packageJson, version: bumpedVersion };
 
     await expect(validateCatalog(catalog, bumpedPackage, validationTime)).rejects.toThrow(
-      "live evidence SDK version 0.1.0-beta.0 does not match 0.1.1-beta.0",
+      `live evidence SDK version ${packageJson.version} does not match ${bumpedVersion}`,
     );
     const bumpedOutputs = await generatedOutputs(catalog, bumpedPackage);
     const bumpedProjection = JSON.parse(bumpedOutputs.get("samples/dist/honua-site-samples.v2.json")!);
-    expect(bumpedProjection.catalog.version).toBe("0.1.1-beta.0");
-    expect(bumpedProjection.samples[0].sdk.version).toBe("0.1.1-beta.0");
+    expect(bumpedProjection.catalog.version).toBe(bumpedVersion);
+    expect(bumpedProjection.samples[0].sdk.version).toBe(bumpedVersion);
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
       "samples/dist/capability-sample-matrix.v1.json",
@@ -443,7 +796,9 @@ describe("sample publication contract", () => {
       fixturePath,
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
-  });
+    expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
+    expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
+  }, 100_000);
 
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {
     const packageJson = await readJson("package.json");
@@ -1272,6 +1627,9 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
 
     const metadataOnly = await promoteIncident();
     const evidencePath = "test-results/metadata-only-golden-evidence.json";
+    const metadataOnlyExpiresAt = new Date(
+      new Date(validationTime.now).getTime() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const executedEvidence = await readJson("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
     executedEvidence.status = "executed";
     executedEvidence.reason = null;
@@ -1290,7 +1648,7 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       status: "executed",
       commands: ["npm run bench:live"],
       evidencePath,
-      expiresAt: "2026-07-26T02:18:02.730Z",
+      expiresAt: metadataOnlyExpiresAt,
     };
     try {
       await mkdir("test-results", { recursive: true });
@@ -1314,6 +1672,155 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       ).rejects.toThrow("qualification bootstrap requires a qualified golden sample");
     } finally {
       await rm(evidencePath, { force: true });
+    }
+  });
+
+  it("bootstraps more than one golden sample against the same source without circular evidence dependencies", async () => {
+    // Regression coverage for honua-io/honua-sdk-js#735: the qualification
+    // bootstrap used to accept only one exempted sample id, so promoting (or
+    // resealing) a second golden sample while another already exists was
+    // circular — validating the catalog for either one required the other to
+    // already carry a fresh, digest-matching receipt set, which neither could
+    // produce first. See PR #653's "Scope note: golden-track promotion
+    // deferred" for the originally-encountered failure mode.
+    const packageJson = await readJson("package.json");
+    const expiresAt = new Date(new Date(validationTime.now).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const incidentEvidencePath = "test-results/qualification-bootstrap-incident-evidence.json";
+    const spatialEvidencePath = "test-results/qualification-bootstrap-spatial-evidence.json";
+
+    const promoteIncident = (catalog: any) => {
+      catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations").status =
+        "qualified";
+      const sample = catalog.samples.find(
+        (candidate: { id: string }) => candidate.id === "realtime-incident-dashboard",
+      );
+      sample.track = "golden";
+      sample.validationProfile = "golden-browser";
+      sample.evidence.live = {
+        mode: "demo-live",
+        status: "executed",
+        commands: ["npm run bench:live"],
+        evidencePath: incidentEvidencePath,
+        expiresAt,
+      };
+      return sample;
+    };
+
+    const promoteSpatialAnalytics = (catalog: any) => {
+      catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "cloud-native-analysis").status =
+        "qualified";
+      const sample = catalog.samples.find(
+        (candidate: { id: string }) => candidate.id === "spatial-analytics-workbench",
+      );
+      sample.track = "golden";
+      sample.validationProfile = "golden-browser";
+      sample.supportTier = "supported";
+      sample.lifecycle = { state: "active", reason: "Qualification bootstrap regression fixture." };
+      sample.evidence.live = {
+        mode: "demo-live",
+        status: "executed",
+        commands: ["npm run demo:spatial-analytics:live-evidence"],
+        evidencePath: spatialEvidencePath,
+        expiresAt,
+      };
+      return sample;
+    };
+
+    const buildCatalog = async () => {
+      const catalog = await readJson("samples/catalog.v2.json");
+      promoteIncident(catalog);
+      promoteSpatialAnalytics(catalog);
+      return catalog;
+    };
+
+    try {
+      await mkdir("test-results", { recursive: true });
+
+      const incidentEvidence = await readJson("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
+      incidentEvidence.status = "executed";
+      incidentEvidence.reason = null;
+      incidentEvidence.provenance = {
+        sourceId: "honua-demo:incident-realtime",
+        observedAt: incidentEvidence.observedAt,
+        validAt: null,
+        state: "live",
+        attribution: "Honua demo synthetic incident data",
+      };
+      incidentEvidence.semantics.outcome = "connected";
+      incidentEvidence.timing.totalMs = 1;
+      incidentEvidence.degradation = { state: "none", reasons: [] };
+      await writeFile(incidentEvidencePath, `${JSON.stringify(incidentEvidence, null, 2)}\n`);
+
+      const spatialEvidence = await readJson("examples/spatial-analytics-workbench/evidence/live-skipped.v1.json");
+      spatialEvidence.status = "executed";
+      spatialEvidence.reason = null;
+      spatialEvidence.sdk.gitCommit = "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b";
+      spatialEvidence.observedAt = validationTime.now;
+      spatialEvidence.provenance = {
+        sourceId: "honua-demo:spatial-analytics",
+        observedAt: spatialEvidence.observedAt,
+        validAt: null,
+        state: "live",
+        attribution: "Honua demo synthetic spatial analytics data",
+      };
+      spatialEvidence.semantics.outcome = "connected";
+      spatialEvidence.timing.totalMs = 1;
+      spatialEvidence.degradation = { state: "none", reasons: [] };
+      spatialEvidence.artifacts = [
+        {
+          kind: "producer-generator",
+          path: "examples/spatial-analytics-workbench/live-evidence.mjs",
+          sha256: "0".repeat(64),
+        },
+      ];
+      await writeFile(spatialEvidencePath, `${JSON.stringify(spatialEvidence, null, 2)}\n`);
+
+      const catalogOptions = { ...validationTime, verifyCheckout: false, relaxDerivedArtifacts: true };
+
+      // Neither newly-promoted golden sample has a qualification receipt set
+      // yet, and neither is exempted: both failures are named together in one
+      // actionable error (REQ-003) instead of surfacing only the first one
+      // encountered and sending an operator chasing the other one next.
+      await expect(validateCatalog(await buildCatalog(), packageJson, catalogOptions)).rejects.toThrow(
+        "qualification bootstrap circularity: golden sample qualification receipts for " +
+          "[realtime-incident-dashboard, spatial-analytics-workbench]",
+      );
+
+      // The single-target bootstrap can only ever exempt one sample: naming
+      // just spatial-analytics-workbench still blocks on
+      // realtime-incident-dashboard, which the current source cannot resolve
+      // (the exact circularity issue #735 reports), and the error is explicit
+      // about which sample still needs to be included.
+      await expect(
+        validateCatalog(await buildCatalog(), packageJson, {
+          ...catalogOptions,
+          qualificationBootstrapSampleId: "spatial-analytics-workbench",
+        }),
+      ).rejects.toThrow(
+        "qualification bootstrap circularity: golden sample qualification receipts for [realtime-incident-dashboard]",
+      );
+      await expect(
+        validateCatalog(await buildCatalog(), packageJson, {
+          ...catalogOptions,
+          qualificationBootstrapSampleId: "realtime-incident-dashboard",
+        }),
+      ).rejects.toThrow(
+        "qualification bootstrap circularity: golden sample qualification receipts for [spatial-analytics-workbench]",
+      );
+
+      // Naming every golden sample that needs fresh receipts against this
+      // exact source in one qualification bootstrap pass breaks the cycle
+      // (REQ-001): both a string-array and, for a single id, a bare string
+      // (REQ-002's backward-compatible byte-stable form) are accepted.
+      await expect(
+        validateCatalog(await buildCatalog(), packageJson, {
+          ...catalogOptions,
+          qualificationBootstrapSampleId: ["realtime-incident-dashboard", "spatial-analytics-workbench"],
+        }),
+      ).resolves.toBeUndefined();
+    } finally {
+      await rm(incidentEvidencePath, { force: true });
+      await rm(spatialEvidencePath, { force: true });
     }
   });
 
@@ -1473,7 +1980,13 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       commands: ["npm run evidence:first-map:live"],
       evidencePath: "samples/evidence/maplibre-quickstart/live.v1.json",
     });
-    expect(sample.evidence.live.expiresAt).toMatch(/^2026-07-24T/);
+    // refresh-live-expiry (honua-io/honua-sdk-js#788) recomputes this from
+    // the live lane's own fresh evidence every reseal, so it legitimately
+    // moves on every reseal rather than pinning to one qualification day;
+    // assert it is a well-formed, currently-unexpired RFC 3339 date-time
+    // instead of a fixed literal.
+    expect(new Date(sample.evidence.live.expiresAt).toISOString()).toBe(sample.evidence.live.expiresAt);
+    expect(Date.parse(sample.evidence.live.expiresAt)).toBeGreaterThan(Date.now());
     const evidence = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
     evidence.sampleId = sample.id;
     delete evidence.realtime;
@@ -1517,6 +2030,9 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     await expect(validateLiveEvidenceProducer(staleSkippedProducer, skippedSample)).rejects.toThrow(
       "producer generator digest drift",
     );
+    await expect(
+      validateLiveEvidenceProducer(staleSkippedProducer, skippedSample, { relaxed: true }),
+    ).resolves.toBeUndefined();
 
     const misplacedSkippedProducer = structuredClone(skippedEvidence);
     misplacedSkippedProducer.artifacts[0].path = "package.json";
@@ -1590,6 +2106,48 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     evidence.semantics.operation = "unsupported-old-journey";
     await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow(
       "producer generator does not support this journey",
+    );
+  });
+
+  // PR #786 review: cog.contractPath/contractSha256 previously recorded the
+  // pinned STAC/COG contract's digest without the validator ever opening the
+  // file to check it, so a swapped or tampered contract would still pass.
+  it("rejects a tampered or missing pinned COG contract behind its recorded digest", async () => {
+    const catalog = await readJson("samples/catalog.v2.json");
+    const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === "imagery-cog-quickstart");
+    const evidence = await readJson(sample.evidence.live.evidencePath);
+    expect(evidence.cog.contractPath).toBe("test/fixtures/cog/public-earth-search-sentinel-2.json");
+    expect(evidence.cog.contractSha256).toBe(
+      createHash("sha256")
+        .update(await readFile(evidence.cog.contractPath))
+        .digest("hex"),
+    );
+    await expect(validateLiveEvidenceProducer(evidence, sample)).resolves.toBeUndefined();
+
+    const digestDrift = structuredClone(evidence);
+    digestDrift.cog.contractSha256 = "0".repeat(64);
+    await expect(validateLiveEvidenceProducer(digestDrift, sample)).rejects.toThrow("pinned COG contract digest drift");
+    // The same drift is a no-op at PR time, before the trunk reseal that
+    // would bind it, mirroring the adjacent producer-generator digest check.
+    await expect(validateLiveEvidenceProducer(digestDrift, sample, { relaxed: true })).resolves.toBeUndefined();
+
+    const swappedContent = structuredClone(evidence);
+    swappedContent.cog.contractPath = "package.json";
+    swappedContent.cog.contractSha256 = createHash("sha256")
+      .update(await readFile("package.json"))
+      .digest("hex");
+    await expect(validateLiveEvidenceProducer(swappedContent, sample)).resolves.toBeUndefined();
+
+    const missingContract = structuredClone(evidence);
+    missingContract.cog.contractPath = "test/fixtures/cog/does-not-exist.json";
+    await expect(validateLiveEvidenceProducer(missingContract, sample)).rejects.toThrow(
+      "pinned COG contract test/fixtures/cog/does-not-exist.json is missing",
+    );
+
+    const escapingContract = structuredClone(evidence);
+    escapingContract.cog.contractPath = "../outside.json";
+    await expect(validateLiveEvidenceProducer(escapingContract, sample)).rejects.toThrow(
+      "cog.contractPath must stay inside the repository",
     );
   });
 

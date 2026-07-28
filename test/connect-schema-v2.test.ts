@@ -713,9 +713,10 @@ describe("source schema v2 discovery adapters", () => {
     expect(profile("1.0.0").geometry?.metadataState).toBe("invalid");
     expect(profile("1.1.0").geometry).toMatchObject({
       metadataState: "valid",
-      encoding: "native",
-      runtimeSupported: false,
+      encoding: "geoarrow-point",
+      nativeDimensions: "xy",
     });
+    expect(profile("1.1.0").geometry?.runtimeSupported).toBeUndefined();
 
     const wkbProfile = (version: string) =>
       buildSourceProfile({
@@ -780,24 +781,32 @@ describe("source schema v2 discovery adapters", () => {
   });
 
   it.each([
-    ["point", "Point", "STRUCT(x DOUBLE, y DOUBLE)"],
-    ["linestring", "LineString", "STRUCT(x DOUBLE, y DOUBLE)[]"],
-    ["multipoint", "MultiPoint", "LIST(STRUCT(x DOUBLE, y DOUBLE))"],
-    ["polygon", "Polygon", "STRUCT<x DOUBLE, y DOUBLE>[][]"],
-    ["multilinestring", "MultiLineString", "LIST<LIST<STRUCT<x DOUBLE, y DOUBLE>>>"],
-    ["multipolygon", "MultiPolygon", "STRUCT(x DOUBLE, y DOUBLE)[][][]"],
-    ["point", "Point Z", "STRUCT(x DOUBLE, y DOUBLE, z DOUBLE)"],
-  ])("accepts the exact GeoParquet native layout for %s", (encoding, geometryType, columnType) => {
-    const profile = buildSourceProfile({
-      describe: [{ column_name: "geometry", column_type: columnType }],
-      geoJson: JSON.stringify({
-        version: "1.1.0",
-        primary_column: "geometry",
-        columns: { geometry: { encoding, geometry_types: [geometryType] } },
-      }),
-    });
-    expect(profile.geometry).toMatchObject({ metadataState: "valid", runtimeSupported: false });
-  });
+    ["point", "Point", "STRUCT(x DOUBLE, y DOUBLE)", "xy"],
+    ["linestring", "LineString", "STRUCT(x DOUBLE, y DOUBLE)[]", "xy"],
+    ["multipoint", "MultiPoint", "LIST(STRUCT(x DOUBLE, y DOUBLE))", "xy"],
+    ["polygon", "Polygon", "STRUCT<x DOUBLE, y DOUBLE>[][]", "xy"],
+    ["multilinestring", "MultiLineString", "LIST<LIST<STRUCT<x DOUBLE, y DOUBLE>>>", "xy"],
+    ["multipolygon", "MultiPolygon", "STRUCT(x DOUBLE, y DOUBLE)[][][]", "xy"],
+    ["point", "Point Z", "STRUCT(x DOUBLE, y DOUBLE, z DOUBLE)", "xyz"],
+  ] as const)(
+    "accepts the exact GeoParquet native layout for %s and marks it executable via the reviewed decoder",
+    (encoding, geometryType, columnType, dimensions) => {
+      const profile = buildSourceProfile({
+        describe: [{ column_name: "geometry", column_type: columnType }],
+        geoJson: JSON.stringify({
+          version: "1.1.0",
+          primary_column: "geometry",
+          columns: { geometry: { encoding, geometry_types: [geometryType] } },
+        }),
+      });
+      expect(profile.geometry).toMatchObject({
+        metadataState: "valid",
+        encoding: `geoarrow-${encoding}`,
+        nativeDimensions: dimensions,
+      });
+      expect(profile.geometry?.runtimeSupported).toBeUndefined();
+    },
+  );
 
   it.each([
     ["polygon", "Polygon", "STRUCT(x DOUBLE, y DOUBLE)[]"],
@@ -1077,6 +1086,57 @@ describe("source schema v2 discovery adapters", () => {
     expect(profile.fields?.map((field) => field.name)).toEqual(["geometry"]);
   });
 
+  // #767 — verbatim from `DESCRIBE SELECT * FROM read_parquet(<overture place file>)`
+  // and that file's `geo` key, observed through DuckDB-WASM against
+  // release/2026-06-17.0/theme=places/type=place/part-00000-…zstd.parquet. Overture
+  // declares a conforming GeoParquet 1.1 covering over a struct whose members are
+  // ordered (xmin, xmax, ymin, ymax); the covering maps member *names* to column
+  // paths, so that order must not invalidate the document or drop bbox pushdown.
+  it("accepts the covering a real Overture places file declares", () => {
+    const profile = buildSourceProfile({
+      describe: [
+        { column_name: "id", column_type: "VARCHAR", null: "YES" },
+        { column_name: "geometry", column_type: "BLOB", null: "YES" },
+        { column_name: "categories", column_type: 'STRUCT("primary" VARCHAR, alternate VARCHAR[])', null: "YES" },
+        { column_name: "confidence", column_type: "DOUBLE", null: "YES" },
+        { column_name: "bbox", column_type: "STRUCT(xmin DOUBLE, xmax DOUBLE, ymin DOUBLE, ymax DOUBLE)", null: "YES" },
+        { column_name: "theme", column_type: "VARCHAR", null: "YES" },
+        { column_name: "type", column_type: "VARCHAR", null: "YES" },
+      ],
+      geoJson: JSON.stringify({
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: {
+          geometry: {
+            encoding: "WKB",
+            geometry_types: ["Point"],
+            bbox: [-179.99806213378906, -84.83818054199219, -76.6320571899414, 28.47271728515625],
+            covering: {
+              bbox: {
+                xmin: ["bbox", "xmin"],
+                ymin: ["bbox", "ymin"],
+                xmax: ["bbox", "xmax"],
+                ymax: ["bbox", "ymax"],
+              },
+            },
+          },
+        },
+      }),
+    });
+
+    expect(profile.geometry).toMatchObject({
+      column: "geometry",
+      encoding: "wkb",
+      bboxColumn: "bbox",
+      metadataState: "valid",
+      geometryTypesState: "valid",
+    });
+    expect(profile.crs).toBe("OGC:CRS84");
+    // The covering column is consumed by the geometry plan, not offered as a field.
+    expect(profile.columns).toEqual(["id", "categories", "confidence", "theme", "type"]);
+    expect(profile.fields?.map((field) => field.name)).not.toContain("bbox");
+  });
+
   it("preserves the v1 named-bbox fast path for bounded DuckDB DECIMAL coordinates", () => {
     const profile = buildSourceProfile({
       describe: [
@@ -1098,10 +1158,48 @@ describe("source schema v2 discovery adapters", () => {
     expect(profile.columns).toEqual([]);
   });
 
+  // #767: real Overture Maps place files carry no GeoParquet `geo` metadata and
+  // write the covering members as (xmin, xmax, ymin, ymax). The runtime fast
+  // path addresses the members by name, so member order must not gate bbox
+  // pushdown — otherwise the compiler falls back to `ST_Intersects`, which needs
+  // the spatial extension the browser lane does not load.
   it.each([
-    ["invalid order", "STRUCT(xmin DOUBLE, xmax DOUBLE, ymin DOUBLE, ymax DOUBLE)", "YES", "YES"],
+    ["Overture member order", "STRUCT(xmin FLOAT, xmax FLOAT, ymin FLOAT, ymax FLOAT)"],
+    ["GeoParquet covering order", "STRUCT(xmin FLOAT, ymin FLOAT, xmax FLOAT, ymax FLOAT)"],
+    ["reversed member order", "STRUCT(ymax DOUBLE, xmax DOUBLE, ymin DOUBLE, xmin DOUBLE)"],
+  ])("accepts the named-bbox fast path in %s without GeoParquet metadata", (_name, bboxType) => {
+    const profile = buildSourceProfile({
+      describe: [
+        { column_name: "id", column_type: "VARCHAR", null: "YES" },
+        { column_name: "geometry", column_type: "BLOB", null: "YES" },
+        { column_name: "bbox", column_type: bboxType, null: "YES" },
+      ],
+    });
+
+    expect(profile.geometry).toMatchObject({ column: "geometry", encoding: "wkb", bboxColumn: "bbox" });
+    expect(profile.columns).toEqual(["id"]);
+  });
+
+  it.each([
+    ["duplicated member", "STRUCT(xmin FLOAT, xmin FLOAT, ymin FLOAT, ymax FLOAT)"],
+    ["unknown member", "STRUCT(xmin FLOAT, xmax FLOAT, ymin FLOAT, zmax FLOAT)"],
+    ["non-numeric member", "STRUCT(xmin FLOAT, xmax FLOAT, ymin FLOAT, ymax VARCHAR)"],
+  ])("rejects the named-bbox fast path with a %s", (_name, bboxType) => {
+    const profile = buildSourceProfile({
+      describe: [
+        { column_name: "geometry", column_type: "BLOB", null: "YES" },
+        { column_name: "bbox", column_type: bboxType, null: "YES" },
+      ],
+    });
+
+    expect(profile.geometry?.bboxColumn).toBeUndefined();
+    expect(profile.columns).toEqual(["bbox"]);
+  });
+
+  it.each([
     ["missing field", "STRUCT(xmin DOUBLE, ymin DOUBLE, xmax DOUBLE)", "YES", "YES"],
     ["extra field", "STRUCT(xmin DOUBLE, ymin DOUBLE, xmid DOUBLE, xmax DOUBLE, ymax DOUBLE)", "YES", "YES"],
+    ["duplicated member", "STRUCT(xmin DOUBLE, xmin DOUBLE, ymin DOUBLE, ymax DOUBLE)", "YES", "YES"],
     ["mixed numeric types", "STRUCT(xmin DOUBLE, ymin FLOAT, xmax DOUBLE, ymax DOUBLE)", "YES", "YES"],
     ["non-floating fields", "STRUCT(xmin INTEGER, ymin INTEGER, xmax INTEGER, ymax INTEGER)", "YES", "YES"],
     ["repeated bbox", "STRUCT(xmin DOUBLE, ymin DOUBLE, xmax DOUBLE, ymax DOUBLE)[]", "YES", "YES"],

@@ -136,20 +136,44 @@ behalf, so application code enqueuing events directly against
 lower-level, transport-neutral building block for callers that want to own
 reconnect themselves.
 
-## Scope and remaining work
+## OData v4 delta-link pull adapter (#558)
 
-This is the first production slice of issue
-[#393](https://github.com/honua-io/honua-sdk-js/issues/393), not completion of
-the full workstream. It does not claim:
+`createOdataDeltaTransport` (`src/realtime/odata-delta.ts`) is a pull-based
+`RealtimeFeatureTransport`, not a socket transport: it polls an OData v4
+entity set's `@odata.deltaLink` on a caller-configured interval instead of
+holding an open connection. It follows `@odata.nextLink` pages to establish
+an initial snapshot (sending `Prefer: odata.track-changes`), then polls the
+resulting delta link, normalizing `@removed` / `@odata.removed` entries into
+deletes and failing explicitly — rather than silently dropping or
+misreading them — on OData relationship (link) delta entries, which are out
+of scope. Every `@odata.nextLink` / `@odata.deltaLink` it follows, and any
+resumed `resumeFrom.deltaToken`, must resolve to the exact origin and
+collection path it was configured for; a foreign link is rejected instead of
+followed. An expired or rejected delta link (HTTP 410 by default, overridable
+via `isDeltaLinkExpiredResponse`) is recovered by re-running a full snapshot
+cycle — an explicit resnapshot, bounded by `maxConsecutiveResnapshots` so a
+server that keeps rejecting the token cannot loop forever. See
+[`docs/realtime-subscriptions.md`](realtime-subscriptions.md#odata-v4-delta-link-pull-adapter-558)
+for the honesty model behind its `capabilities.kind: "polling"` /
+`onPoll` telemetry, and why it does not compose with
+`resumable-transport.ts`'s reconnect wrapper.
 
-- OData-delta or protocol-feed reconnection (SSE and WebSocket reconnection
-  are covered by `resumable-transport.ts`, #557);
+## Cross-transport conformance and remaining work
+
+The delivery gate began as the first production slice of issue
+[#393](https://github.com/honua-io/honua-sdk-js/issues/393). The public SSE,
+WebSocket, and OData delta compositions now share the versioned fixture and
+scheduled capability evidence described in
+[`docs/realtime-conformance.md`](realtime-conformance.md). The remaining scope
+does not claim:
+
+- protocol-feed reconnection beyond SSE, WebSocket (`resumable-transport.ts`,
+  #557), and OData delta-link polling (`odata-delta.ts`, #558);
 - cursor-only protocol adaptation where no trustworthy ordering sequence is
   available;
 - server support for cursor retention or expiry negotiation;
-- renderer, cache, columnar-batch, or offline-store patch integration;
-- a shared cross-transport conformance suite against a live honua-server
-  stream.
+- server-advertised transports that scheduled evidence reports as explicitly
+  unsupported.
 
 Adapters should declare unsupported resume behavior before subscription when
 the protocol can determine it. Expired server cursors must be projected as an

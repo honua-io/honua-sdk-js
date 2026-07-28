@@ -1,5 +1,6 @@
 import type { Query, Result, Source } from "../contract/types.js";
 import { HonuaAbortError } from "../core/errors.js";
+import type { GeometryColumnPlan } from "../core/geoparquet-sql.js";
 import { canonicalStringify, toJsonValue } from "./canonical.js";
 import { createPlanValidity, createQueryPlanProvenance } from "./diagnostics.js";
 import { assertQueryPlanExecutionContextV1 } from "./execution-context.js";
@@ -126,11 +127,7 @@ interface ResolvedGeoParquetPlanInput<T> {
   readonly operation: GeoParquetRemoteQueryPlanStepV2["operation"];
   readonly query: Query<T>;
   readonly sourceId: string;
-  readonly geometry?: {
-    readonly column: string;
-    readonly encoding: "wkb" | "native" | "geojson";
-    readonly bboxColumn?: string;
-  };
+  readonly geometry?: GeometryColumnPlan;
   /** Bound plan-time effective DuckDB output schema (#627); undefined for legacy encoding. */
   readonly effectiveSchema?: readonly GeoParquetEffectiveSchemaFieldV1[];
 }
@@ -178,7 +175,10 @@ async function executeGeoParquetRemote<T>(
                 column: geometryColumn,
                 encoding: plan.ir.source.geoparquet.geometryEncoding ?? "wkb",
                 ...(plan.ir.source.geoparquet.bboxColumn ? { bboxColumn: plan.ir.source.geoparquet.bboxColumn } : {}),
-              },
+                ...(plan.ir.source.geoparquet.nativeDimensions
+                  ? { nativeDimensions: plan.ir.source.geoparquet.nativeDimensions }
+                  : {}),
+              } satisfies GeometryColumnPlan,
             }
           : {}),
         ...(effectiveSchema ? { effectiveSchema } : {}),

@@ -1,4 +1,5 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../shared/maplibre-vite-worker.js";
 
 import { type PmtilesArchiveDescription, describePmtilesArchive } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
@@ -8,7 +9,7 @@ import {
   isPmtilesProtocolRegistered,
   loadMapPackage,
 } from "@honua/sdk-js/runtime";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 
 import "./styles.css";
 

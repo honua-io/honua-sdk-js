@@ -74,7 +74,7 @@ across every map you attach.
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, loadMapPackage } from "@honua/sdk-js/runtime";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 
 const map = new maplibregl.Map({ container: "map", style: { version: 8, sources: {}, layers: [] } });
 await new Promise((resolve) => map.on("load", resolve));
@@ -169,11 +169,12 @@ PMTiles works from a plain HTML page with no bundler — load `maplibre-gl` and
 `pmtiles` from a CDN and register the protocol:
 
 ```html
-<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/pmtiles@4/dist/pmtiles.js"></script>
-<link href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="https://unpkg.com/maplibre-gl@6/dist/maplibre-gl.css" rel="stylesheet" />
 <div id="map" style="position:absolute;inset:0"></div>
-<script>
+<script type="module">
+  import * as maplibregl from "https://unpkg.com/maplibre-gl@6/dist/maplibre-gl.mjs";
+
   const protocol = new pmtiles.Protocol();
   maplibregl.addProtocol("pmtiles", protocol.tile);
   new maplibregl.Map({

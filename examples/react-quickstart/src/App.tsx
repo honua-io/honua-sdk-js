@@ -1,4 +1,6 @@
-import maplibregl from "maplibre-gl";
+import "../../shared/maplibre-vite-worker.js";
+
+import * as maplibregl from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { HonuaClient } from "@honua/sdk-js/honua";

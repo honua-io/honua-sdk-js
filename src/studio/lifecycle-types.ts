@@ -1,0 +1,396 @@
+/**
+ * Typed request/response models for the Studio package lifecycle API
+ * (`/api/v{version}/studio` in `honua-server`), backing
+ * {@link HonuaStudioLifecycleClient}.
+ *
+ * These mirror the DTOs documented in
+ * `docs/internal/admin-api/studio-package-lifecycle.md` (`honua-server`):
+ * `Honua.Core.Features.Studio.Domain` for the entities and
+ * `Honua.Server.Features.Studio.Models` for the request shapes. Every
+ * interface keeps an open `[extra: string]: unknown` index signature so
+ * additive server fields do not break existing clients, and reuses the
+ * existing {@link StudioPackageDiagnostic} / {@link HonuaStudioPackageFamily}
+ * projections from `./validation.js` / `./types.js` rather than redeclaring
+ * them.
+ *
+ * @experimental Not yet covered by the SDK's semver contract — these shapes
+ *   may change in any minor release prior to `1.0.0`, and until a dedicated
+ *   Studio OpenAPI snapshot is published this doc and the source-generated
+ *   JSON contexts are `honua-server`'s only contract reference.
+ * @module
+ */
+
+import type { HonuaStudioPackageFamily } from "./types.js";
+import type { StudioPackageDiagnostic } from "./validation.js";
+
+/**
+ * Successful `ApiResponse<T>` envelope every Studio lifecycle endpoint wraps
+ * its payload in. The source-generated JSON context omits `null`-valued
+ * properties, so `message` is present only on responses that carry one (for
+ * example the draft-delete response).
+ *
+ * @experimental
+ */
+export interface StudioApiResponse<T> {
+  readonly success: true;
+  readonly data: T;
+  readonly timestamp: string;
+  readonly message?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Package-family capability discovery
+// ---------------------------------------------------------------------------
+
+/** Depth of validation a package family currently receives. */
+export type StudioValidationDepth = "full" | "envelope" | (string & {});
+
+/** Deployment persistence backing for Studio lifecycle data. */
+export type StudioPersistenceMode = "postgres" | "in-memory" | (string & {});
+
+/** Support level a deployment advertises for a package family. */
+export type StudioPackageFamilySupportLevel = "supported" | "limited" | (string & {});
+
+/**
+ * One package-family-scoped operation name as returned by
+ * `GET /package-families`. `draft.delete` is available on every family but,
+ * per the API doc, is not itself advertised as a per-family capability
+ * operation.
+ */
+export type StudioPackageFamilyOperation =
+  | "draft.create"
+  | "draft.read"
+  | "draft.update"
+  | "validate"
+  | "preview-plan"
+  | "content-version.create"
+  | "content-version.read"
+  | "content-version.compare"
+  | "publish-request.create"
+  | "reopen"
+  | "rollback"
+  | (string & {});
+
+/** Capability descriptor for one Studio package family. */
+export interface StudioPackageFamilyCapability {
+  readonly family: HonuaStudioPackageFamily | (string & {});
+  readonly schemaVersion: string;
+  readonly format: string;
+  readonly supportLevel: StudioPackageFamilySupportLevel;
+  readonly supportedOperations: readonly StudioPackageFamilyOperation[];
+  readonly validationDepth: StudioValidationDepth;
+  readonly limitations?: readonly string[];
+  readonly maxPackageBytes: number;
+  readonly durable: boolean;
+  readonly persistenceMode?: StudioPersistenceMode;
+  readonly [extra: string]: unknown;
+}
+
+/** `GET /package-families` response payload — every registered package family. */
+export interface StudioPackageFamilyCapabilities {
+  readonly families: readonly StudioPackageFamilyCapability[];
+  readonly [extra: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Package envelope
+// ---------------------------------------------------------------------------
+
+/** Reference to a source a package envelope binds to. */
+export interface StudioBindingRef {
+  readonly key: string;
+  readonly kind: string;
+  readonly ref: string;
+  readonly crs?: string;
+  readonly srid?: number;
+  readonly requiredPermissions?: readonly string[];
+  readonly [extra: string]: unknown;
+}
+
+/** Dependency lineage entry (e.g. on a content item's version) carried on an envelope. */
+export interface StudioDependencyRef {
+  readonly kind: string;
+  readonly ref: string;
+  readonly versionId?: string;
+  readonly required?: boolean;
+  readonly [extra: string]: unknown;
+}
+
+/** Provenance lineage entry (e.g. the prompt or plan that generated the package). */
+export interface StudioProvenanceRef {
+  readonly kind: string;
+  readonly ref: string;
+  readonly rel: string;
+  readonly [extra: string]: unknown;
+}
+
+/** Route/visibility a package declares it wants to publish to. */
+export interface StudioPublicationIntent {
+  readonly route?: string;
+  readonly visibility?: "private" | "organization" | "public" | (string & {});
+  readonly [extra: string]: unknown;
+}
+
+/** `StudioValidationSummary.status` — see the API doc's "Validation And Preview" section. */
+export type StudioValidationStatus = "not-validated" | "valid" | "warning" | "invalid";
+
+/**
+ * Validation summary persisted on a draft or captured on a content version.
+ * Returned directly by `POST /package-drafts/{draftId}/validate` and embedded
+ * in every {@link StudioPackageEnvelope.validation}.
+ */
+export interface StudioValidationSummary {
+  readonly status: StudioValidationStatus;
+  readonly diagnostics?: readonly StudioPackageDiagnostic[];
+  readonly unsupportedCapabilities?: readonly string[];
+  readonly generatedAt?: string;
+  readonly [extra: string]: unknown;
+}
+
+/**
+ * `StudioPackageEnvelope` — the wire shape shared by every package family.
+ * `schemaVersion` and `format` must match the descriptor
+ * {@link StudioPackageFamilyCapability} returns for `family` from
+ * `GET /package-families`. `body` is deliberately generic: for `map`/`app` it
+ * is validated against the existing `honua_map_package.v1` /
+ * `honua_app_package.v1` models (pass `HonuaMapPackage` /
+ * `HonuaGeneratedAppPackage` as `TBody` for full typing); every other family
+ * currently receives only envelope-level validation.
+ *
+ * @experimental
+ */
+export interface StudioPackageEnvelope<TBody = Record<string, unknown>> {
+  readonly family: HonuaStudioPackageFamily | (string & {});
+  readonly schemaVersion: string;
+  readonly format: string;
+  readonly bindings?: readonly StudioBindingRef[];
+  readonly dependencies?: readonly StudioDependencyRef[];
+  readonly validation?: StudioValidationSummary;
+  readonly publicationIntent?: StudioPublicationIntent;
+  readonly provenance?: readonly StudioProvenanceRef[];
+  readonly body: TBody;
+}
+
+// ---------------------------------------------------------------------------
+// Drafts
+// ---------------------------------------------------------------------------
+
+/** A mutable Studio package draft. `generation` increments on every successful `PUT`. */
+export interface StudioPackageDraft {
+  readonly draftId: string;
+  readonly itemId: string;
+  readonly family: HonuaStudioPackageFamily | (string & {});
+  readonly packageKey: string;
+  readonly workspaceId?: string;
+  readonly ownerId?: string;
+  readonly generation: number;
+  readonly envelope: StudioPackageEnvelope;
+  readonly baseVersionId?: string;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
+  readonly [extra: string]: unknown;
+}
+
+/**
+ * `POST /package-drafts` request body. `packageKey` is trimmed, limited to
+ * 200 characters, and may contain only letters, numbers, dash, underscore, or
+ * dot. Omit `itemId` to let the server allocate a new Studio content item;
+ * omit `ownerId` to use the authenticated actor id.
+ */
+export interface StudioPackageDraftCreateRequest {
+  readonly packageKey: string;
+  readonly workspaceId?: string;
+  readonly ownerId?: string;
+  readonly itemId?: string;
+  readonly envelope: StudioPackageEnvelope;
+}
+
+/**
+ * `PUT /package-drafts/{draftId}` request body. `workspaceId` uses replace
+ * semantics: omit it or send an empty string to clear the stored workspace.
+ * Omit `ownerId` to preserve the existing owner. Omit `generation` to update
+ * from the current server-loaded generation (last-write-wins); include the
+ * last-seen `generation` for strict optimistic-concurrency protection — a
+ * stale value throws {@link HonuaStudioError} with
+ * `code: "generation-conflict"` (`409`).
+ */
+export interface StudioPackageDraftReplaceRequest {
+  readonly packageKey: string;
+  readonly workspaceId?: string;
+  readonly ownerId?: string;
+  readonly envelope: StudioPackageEnvelope;
+  readonly generation?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Preview
+// ---------------------------------------------------------------------------
+
+/**
+ * `POST /package-drafts/{draftId}/preview-plan` response. `gp`, `etl`, and
+ * `workflow` drafts return `requiresJob: true, synchronous: false`; every
+ * other family returns `requiresJob: false, synchronous: true`.
+ */
+export interface StudioPreviewPlan {
+  readonly requiresJob: boolean;
+  readonly synchronous: boolean;
+  readonly steps: readonly string[];
+  readonly [extra: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Content versions
+// ---------------------------------------------------------------------------
+
+/**
+ * An immutable Studio content version. Never edited in place — call
+ * `versions.reopen` to continue work as a new mutable draft.
+ */
+export interface StudioContentVersion {
+  readonly versionId: string;
+  readonly itemId: string;
+  readonly family: HonuaStudioPackageFamily | (string & {});
+  readonly versionNumber: number;
+  readonly contentHash: string;
+  readonly envelope: StudioPackageEnvelope;
+  readonly validation?: StudioValidationSummary;
+  readonly dependencies?: readonly StudioDependencyRef[];
+  readonly provenance?: readonly StudioProvenanceRef[];
+  readonly baseDraftId?: string;
+  readonly createdAt?: string;
+  readonly createdBy?: string;
+  readonly [extra: string]: unknown;
+}
+
+/** `GET /content-items/{itemId}/versions` response — empty `versions` when none exist. */
+export interface StudioContentVersionListResponse {
+  readonly itemId: string;
+  readonly versions: readonly StudioContentVersion[];
+  readonly [extra: string]: unknown;
+}
+
+/** `POST /content-items/{itemId}/version-comparisons` request body. */
+export interface StudioVersionComparisonRequest {
+  readonly baseVersionId: string;
+  readonly compareVersionId: string;
+}
+
+/** Added/removed/unchanged partition for one comparison facet. */
+export interface StudioVersionComparisonDiff<T> {
+  readonly added?: readonly T[];
+  readonly removed?: readonly T[];
+  readonly unchanged?: readonly T[];
+  readonly [extra: string]: unknown;
+}
+
+/**
+ * `POST /content-items/{itemId}/version-comparisons` response — compares two
+ * immutable versions by content hash, dependencies, validation, and
+ * provenance. The exact diff shape is not yet OpenAPI-pinned server-side;
+ * the documented facets are typed here and every field keeps its own open
+ * index signature so an unrecognized server addition still round-trips.
+ */
+export interface StudioVersionComparison {
+  readonly itemId: string;
+  readonly baseVersionId: string;
+  readonly compareVersionId: string;
+  readonly contentHashChanged: boolean;
+  readonly dependencies?: StudioVersionComparisonDiff<StudioDependencyRef>;
+  readonly provenance?: StudioVersionComparisonDiff<StudioProvenanceRef>;
+  readonly validation?: {
+    readonly base?: StudioValidationSummary;
+    readonly compare?: StudioValidationSummary;
+    readonly [extra: string]: unknown;
+  };
+  readonly [extra: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Publication requests
+// ---------------------------------------------------------------------------
+
+/**
+ * `pending` is reserved for later asynchronous publication execution and is
+ * not emitted by the API service today.
+ */
+export type StudioPublicationRequestStatus = "accepted" | "rejected" | "pending" | (string & {});
+
+/**
+ * `POST /content-items/{itemId}/versions/{versionId}/publish-requests`
+ * request body. `intent` overrides the version envelope's
+ * `publicationIntent` when supplied; an invalid override fails with `400`
+ * before a request is persisted. `warningAcknowledgment` is optional audit
+ * text for `warning`-status versions.
+ */
+export interface StudioPublicationRequestInput {
+  readonly intent?: StudioPublicationIntent;
+  readonly warningAcknowledgment?: string;
+  readonly [extra: string]: unknown;
+}
+
+/**
+ * A persisted publication request. Versions whose captured validation status
+ * is `invalid` still produce a durable request with `status: "rejected"` and
+ * do not move the published pointer; `valid`/`warning` versions are
+ * `"accepted"` and do move it.
+ */
+export interface StudioPublicationRequest {
+  readonly requestId: string;
+  readonly itemId: string;
+  readonly versionId: string;
+  readonly status: StudioPublicationRequestStatus;
+  readonly intent?: StudioPublicationIntent;
+  readonly createdAt?: string;
+  readonly createdBy?: string;
+  readonly [extra: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Reopen
+// ---------------------------------------------------------------------------
+
+/**
+ * `POST /content-items/{itemId}/versions/{versionId}/reopen` request body.
+ * No fields are documented as required; this is intentionally open for a
+ * future owner/workspace override.
+ */
+export interface StudioReopenVersionRequest {
+  readonly ownerId?: string;
+  readonly workspaceId?: string;
+  readonly [extra: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Rollback requests
+// ---------------------------------------------------------------------------
+
+/** Which content-item pointer(s) a rollback request moves. */
+export type StudioRollbackPointer = "current" | "published" | "both";
+
+/** `POST /content-items/{itemId}/rollback-requests` request body. */
+export interface StudioRollbackRequestInput {
+  readonly versionId: string;
+  readonly pointer: StudioRollbackPointer;
+  readonly message?: string;
+  readonly [extra: string]: unknown;
+}
+
+/** The Studio content item's current/published version pointers. */
+export interface StudioContentItemPointers {
+  readonly itemId: string;
+  readonly currentVersionId?: string;
+  readonly publishedVersionId?: string;
+  readonly [extra: string]: unknown;
+}
+
+/** A persisted rollback request, carrying the resulting content-item pointers. */
+export interface StudioRollbackRequest {
+  readonly requestId: string;
+  readonly itemId: string;
+  readonly versionId: string;
+  readonly pointer: StudioRollbackPointer;
+  readonly pointers: StudioContentItemPointers;
+  readonly createdAt?: string;
+  readonly createdBy?: string;
+  readonly [extra: string]: unknown;
+}

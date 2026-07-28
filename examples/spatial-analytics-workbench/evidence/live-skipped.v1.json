@@ -8,7 +8,11 @@
   "reason": "No public GeoServices source configuration was supplied; fixture fallback was not substituted.",
   "observedAt": "2026-05-05T08:00:00.000Z",
   "authMode": "anonymous",
-  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": null },
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.2-beta.0",
+    "gitCommit": null
+  },
   "source": {
     "provider": "configured-geoservices",
     "identity": "spatial-analytics-live-source",
@@ -23,7 +27,15 @@
     "itemCount": null,
     "assertions": []
   },
-  "timing": { "totalMs": null, "firstSuccessfulInteractionMs": null },
-  "degradation": { "state": "unavailable", "reasons": ["live-config-unavailable"] },
+  "timing": {
+    "totalMs": null,
+    "firstSuccessfulInteractionMs": null
+  },
+  "degradation": {
+    "state": "unavailable",
+    "reasons": [
+      "live-config-unavailable"
+    ]
+  },
   "artifacts": []
 }

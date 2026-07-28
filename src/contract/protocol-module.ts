@@ -87,6 +87,47 @@ export interface ProtocolModuleQueryExecuteInput<TCompiled = unknown, TQuery = u
   readonly signal?: AbortSignal;
 }
 
+/** Canonical query-family operations a protocol module may compile and execute. */
+export type ProtocolModuleQueryOperation = "query" | "queryAll" | "queryAggregate";
+
+/**
+ * Type binding for one module's query seam.
+ *
+ * The compiler source identity is deliberately separate from
+ * {@link SourceDescriptor}: deterministic compilers receive a
+ * credential-free, serializable identity rather than a runtime descriptor
+ * or client. The execution query may carry runtime-only values such as an
+ * `AbortSignal`; those values never enter the compiled artifact.
+ */
+export interface ProtocolModuleQueryBinding {
+  readonly source: unknown;
+  readonly compileQuery: unknown;
+  readonly compiled: unknown;
+  readonly executeQuery: unknown;
+}
+
+/** Pure input to a protocol module's deterministic compiler. */
+export interface ProtocolModuleQueryCompileInput<TSource = unknown, TQuery = unknown> {
+  readonly source: TSource;
+  readonly query: TQuery;
+  readonly operation: ProtocolModuleQueryOperation;
+}
+
+/**
+ * Runtime input to a protocol module executor.
+ *
+ * `compiled` is the inspectable, credential-free artifact. Runtime authority
+ * stays on the discovered handle and on dependencies explicitly injected into
+ * the module factory. `signal` is execution state and is never part of the
+ * artifact's deterministic identity.
+ */
+export interface ProtocolModuleQueryExecuteInput<TCompiled = unknown, TQuery = unknown> {
+  readonly compiled: TCompiled;
+  readonly query: TQuery;
+  readonly operation: ProtocolModuleQueryOperation;
+  readonly signal?: AbortSignal;
+}
+
 /**
  * One discovered, disposable protocol-module handle bound to a source
  * descriptor. `adapter` is the same typed escape-hatch value historically

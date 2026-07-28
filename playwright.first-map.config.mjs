@@ -13,7 +13,13 @@ export default defineConfig({
   projects: releaseMatrix
     ? [
         { name: "chromium", use: { browserName: "chromium" } },
-        { name: "firefox", use: { browserName: "firefox" } },
+        // True headless Firefox ships without a compositor, so it can never
+        // create a WebGL context (MapLibre's first-usable-frame "render"
+        // event then never fires; see honua-io/honua-sdk-js#687). Chromium
+        // and WebKit both carry a software-GL fallback and stay headless;
+        // Firefox instead runs headed under the release workflow's virtual
+        // display (xvfb-run), which gives it a real compositor.
+        { name: "firefox", use: { browserName: "firefox", headless: false } },
         { name: "webkit", use: { browserName: "webkit" } },
       ]
     : [{ name: "chromium", use: { browserName: "chromium" } }],

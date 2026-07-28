@@ -73,7 +73,7 @@
     {
       "id": "service-explorer",
       "title": "Universal Service Explorer",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "service-explorer"
     },
     {
@@ -91,7 +91,7 @@
     {
       "id": "imagery-terrain",
       "title": "Imagery and Terrain",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "imagery-cog-quickstart"
     },
     {
@@ -103,7 +103,7 @@
     {
       "id": "arcgis-migration",
       "title": "ArcGIS Migration Workbench",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "migration-workbench"
     }
   ],
@@ -275,7 +275,7 @@
             "npm run demo:ai-spatial-builder:live-evidence"
           ],
           "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-07-24T18:00:00.000Z"
+          "expiresAt": "2026-08-15T18:00:00.000Z"
         }
       },
       "expectedDegradation": "Missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy.",
@@ -418,7 +418,6 @@
         "map",
         "strategy-selection"
       ],
-      "capabilityKeys": [],
       "protocols": [
         "geoservices",
         "pmtiles",
@@ -456,7 +455,8 @@
       "validationProfile": "browser-fixture",
       "validation": [
         "npx playwright test test/playwright/automatic-source-workflow.spec.mjs"
-      ]
+      ],
+      "capabilityKeys": []
     },
     {
       "id": "cesium-route-playback",
@@ -476,11 +476,6 @@
         "route-playback",
         "terrain",
         "three-dimensional"
-      ],
-      "capabilityKeys": [
-        "raster.terrain-rgb",
-        "routing.solve",
-        "serve.3d-tiles-scene"
       ],
       "protocols": [
         "geoservices"
@@ -519,6 +514,11 @@
       "validation": [
         "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
         "npx vitest run test/cesium-route-playback.test.ts"
+      ],
+      "capabilityKeys": [
+        "raster.terrain-rgb",
+        "routing.solve",
+        "serve.3d-tiles-scene"
       ]
     },
     {
@@ -529,9 +529,13 @@
       "track": "recipe",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Keep the workflow and add an isolated resettable live dataset.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "replace",
+        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow.",
+        "targetRelease": "0.2.0-beta.0",
+        "replacement": {
+          "kind": "journey",
+          "id": "planning-permitting"
+        }
       },
       "sourcePath": "examples/edit-workflow-demo",
       "docsPath": "examples/edit-workflow-demo/README.md",
@@ -590,7 +594,7 @@
       "supportTier": "supported",
       "lifecycle": {
         "state": "rework",
-        "reason": "Move browser credential inputs behind a host-mediated flow before recipe promotion.",
+        "reason": "Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion.",
         "targetRelease": "0.2.0-beta.0"
       },
       "sourcePath": "examples/geocoding-quickstart",
@@ -785,12 +789,12 @@
       "title": "Imagery and Terrain journey",
       "summary": "Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles.",
       "sourceKind": "root-example",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "The fixture-first browser workflow, opt-in /cog renderer, pinned live semantic probe, and legacy WMS/Terrain routes now converge on one runnable journey; golden receipt qualification remains intentionally planned."
+        "reason": "Qualified Imagery and Terrain journey with current packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and pinned public STAC/COG live receipts."
       },
       "sourcePath": "examples/imagery-cog-quickstart",
       "docsPath": "examples/imagery-cog-quickstart/README.md",
@@ -847,10 +851,12 @@
         },
         "live": {
           "mode": "public-live",
-          "status": "planned",
+          "status": "executed",
           "commands": [
             "npm run evidence:cog:live"
-          ]
+          ],
+          "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
+          "expiresAt": "2026-08-25T20:47:36.447Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -1098,7 +1104,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-07-24T15:44:54.411Z"
+          "expiresAt": "2026-08-25T20:45:58.688Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1174,12 +1180,12 @@
       "title": "ArcGIS migration workbench",
       "summary": "Scans and transforms ArcGIS application source with auditable compatibility results.",
       "sourceKind": "root-example",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "arcgis-migration",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Canonical deterministic ArcGIS migration evidence workbench."
+        "reason": "Qualified ArcGIS Migration Workbench journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and deterministic-CLI live receipts."
       },
       "sourcePath": "examples/migration-workbench",
       "docsPath": "docs/migration-honua-maplibre.md",
@@ -1214,13 +1220,17 @@
           ]
         },
         "live": {
-          "mode": "unavailable",
-          "status": "not-applicable",
-          "commands": []
+          "mode": "demo-live",
+          "status": "executed",
+          "commands": [
+            "npm run evidence:migration-workbench:live"
+          ],
+          "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
+          "expiresAt": "2026-08-25T20:47:54.208Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
-      "validationProfile": "browser-lab",
+      "validationProfile": "golden-browser",
       "validation": [
         "npm run demo:migration-workbench:typecheck",
         "npm run demo:migration-workbench:build",
@@ -1602,42 +1612,46 @@
     },
     {
       "id": "planning-permitting-workbench",
-      "title": "Planning and permitting workbench",
-      "summary": "Combines parcels, hazards, sketching, editing, and export in a task-oriented application.",
+      "title": "Planning and Permitting journey",
+      "summary": "Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services.",
       "sourceKind": "root-example",
       "track": "lab",
       "journeyId": "planning-permitting",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Retain as the primary complete-application journey and simplify its first task.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Maintain the fixture-first public SDK workflow and source/packed browser gates as the planned planning candidate; golden qualification and live evidence remain explicitly unclaimed."
       },
       "sourcePath": "examples/planning-permitting-workbench",
       "docsPath": "examples/planning-permitting-workbench/README.md",
       "capabilities": [
+        "attachments",
         "editing",
-        "map",
+        "forward-geocode",
+        "geometry",
+        "linked-views",
         "planning",
+        "provenance",
         "query"
       ],
       "capabilityKeys": [
-        "editing.featureserver-edits"
+        "editing.featureserver-edits",
+        "geocoding.forward"
       ],
       "protocols": [
         "geoservices",
         "honua"
       ],
       "renderers": [
-        "maplibre"
+        "none"
       ],
       "data": {
         "mode": "fixture",
         "authMode": "none",
         "config": [],
-        "provenance": "Committed Maui planning fixtures.",
-        "attribution": "Dataset attribution is visible per layer.",
-        "freshness": "Fixture version committed with the repository.",
+        "provenance": "Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.",
+        "attribution": "Honua synthetic Maui planning data; not a current regulatory determination.",
+        "freshness": "Fixture version and generated-at values are committed with the repository; no live freshness claim is made.",
         "configurationStatus": "not-required",
         "configClassifications": []
       },
@@ -1650,16 +1664,19 @@
           ]
         },
         "live": {
-          "mode": "demo-live",
+          "mode": "public-live",
           "status": "planned",
-          "commands": []
+          "commands": [
+            "npm run evidence:planning:live"
+          ]
         }
       },
-      "expectedDegradation": "Mutation and print actions disable with explicit reasons when capabilities are absent.",
+      "expectedDegradation": "Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.",
       "validationProfile": "browser-lab",
       "validation": [
         "npm run demo:planning-workbench:typecheck",
-        "npm run demo:planning-workbench:build"
+        "npm run demo:planning-workbench:build",
+        "npm run test:playwright:planning-workbench"
       ]
     },
     {
@@ -1900,7 +1917,7 @@
             "npm run bench:live"
           ],
           "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-07-26T02:18:02.730Z"
+          "expiresAt": "2026-10-10T02:18:02.730Z"
         }
       },
       "expectedDegradation": "Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile.",
@@ -1980,12 +1997,12 @@
       "title": "Universal service explorer",
       "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "sourceKind": "root-example",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."
+        "reason": "Qualified Universal Service Explorer journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous dual-protocol live receipts."
       },
       "sourcePath": "examples/service-explorer",
       "docsPath": "examples/service-explorer/README.md",
@@ -2042,10 +2059,12 @@
         },
         "live": {
           "mode": "public-live",
-          "status": "planned",
+          "status": "executed",
           "commands": [
             "npm run demo:service-explorer:live-evidence"
-          ]
+          ],
+          "evidencePath": "samples/evidence/service-explorer/live.v1.json",
+          "expiresAt": "2026-08-25T20:48:34.517Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
@@ -2077,9 +2096,6 @@
         "filtering",
         "selection",
         "temporal"
-      ],
-      "capabilityKeys": [
-        "temporal.filtering"
       ],
       "protocols": [
         "honua"
@@ -2116,6 +2132,9 @@
       "validationProfile": "browser-lab",
       "validation": [
         "npx playwright test test/playwright/shared-renderer-state.spec.mjs"
+      ],
+      "capabilityKeys": [
+        "temporal.filtering"
       ]
     },
     {
@@ -2127,7 +2146,7 @@
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Canonical terra-draw binding demo for the Esri widget-cliff sketch gap."
+        "reason": "Retain as the focused terra-draw drawing, snapping, undo, and edit-submission recipe; the planning journey owns the end-to-end planning workflow."
       },
       "sourcePath": "examples/sketch-editing",
       "docsPath": "examples/sketch-editing/README.md",
@@ -2341,7 +2360,7 @@
             "npm run demo:spatial-analytics:live-evidence"
           ],
           "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-07-24T08:00:00.000Z"
+          "expiresAt": "2026-08-01T08:00:00.000Z"
         }
       },
       "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on.",
@@ -2851,7 +2870,7 @@
       "id": "editing",
       "route": "demo-editing.html",
       "ownership": "sdk-projection",
-      "sampleId": "edit-workflow-demo"
+      "sampleId": "planning-permitting-workbench"
     },
     {
       "id": "esri-leaflet",

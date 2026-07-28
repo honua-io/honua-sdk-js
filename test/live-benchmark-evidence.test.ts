@@ -1,6 +1,28 @@
+import fs from "node:fs";
+
+import addFormats from "ajv-formats";
+import Ajv2020 from "ajv/dist/2020.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { collectLiveEvidence, toSampleEvidence } from "../scripts/live-benchmark-evidence.mjs";
+import {
+  INCIDENT_SKIP_RECONNECT_OUTCOMES,
+  LIVE_SKIP_REASON_CODES,
+  collectLiveEvidence,
+  toSampleEvidence,
+} from "../scripts/live-benchmark-evidence.mjs";
+
+const ajv = new Ajv2020.default({ strict: false, allErrors: true });
+addFormats.default(ajv);
+const readSchema = (relativePath: string) =>
+  JSON.parse(fs.readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8"));
+ajv.addSchema(readSchema("samples/contract/v1/schemas/sample-evidence.schema.json"));
+const validateReport = ajv.compile(readSchema("bench/live-evidence.schema.json"));
+
+function expectReportValid(report: unknown): void {
+  const valid = validateReport(report);
+  if (!valid) throw new Error(`schema validation failed: ${JSON.stringify(validateReport.errors?.slice(0, 4))}`);
+  expect(valid).toBe(true);
+}
 
 describe("live benchmark evidence", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -115,6 +137,179 @@ describe("live benchmark evidence", () => {
     });
   });
 
+  it("classifies an enabled capability with an empty incident dataset as its own honest skip", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) =>
+        liveFixtureResponse(input, { realtime: true, incidentSnapshot: { features: [] } }),
+      ),
+    );
+
+    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
+    const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
+
+    expect(incident).toMatchObject({
+      status: "skipped",
+      skipReasonCode: "incident-demo-dataset-empty",
+      skipReason: expect.stringContaining("zero features"),
+      sampleEvidence: {
+        sampleId: "realtime-incident-dashboard",
+        status: "skipped",
+        degradation: { state: "unavailable" },
+        realtime: { reconnectOutcome: "not-attempted-demo-dataset-empty" },
+      },
+    });
+    expect(incident?.skipReason).toContain("812");
+    expect(sampleEvidenceOf(incident).degradation.reasons).toContain("incident-demo-dataset-empty");
+    // The empty-dataset skip must stay distinguishable from the capability skip.
+    expect(incident?.skipReasonCode).not.toBe("realtime-capability-disabled");
+    expect(sampleEvidenceOf(incident).realtime.reconnectOutcome).not.toBe("not-attempted-capability-unavailable");
+    expectReportValid(report);
+  });
+
+  it("proceeds with the live journey when the incident snapshot carries features", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) =>
+        liveFixtureResponse(input, { realtime: true, secretCursor: "cursor-1" }),
+      ),
+    );
+
+    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
+    const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
+
+    expect(incident).toMatchObject({
+      status: "passed",
+      checks: { snapshotFeatureCount: 1 },
+      sampleEvidence: { status: "executed", semantics: { itemCount: 1 } },
+    });
+    expect(incident?.skipReasonCode).toBeUndefined();
+  });
+
+  it("keeps a capability-disabled snapshot on the existing capability skip", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) =>
+        liveFixtureResponse(input, { realtime: false, capabilityDisabled: true, incidentSnapshot: { features: [] } }),
+      ),
+    );
+
+    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
+    const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
+
+    expect(incident).toMatchObject({
+      status: "skipped",
+      skipReasonCode: "realtime-capability-disabled",
+      skipReason: expect.stringContaining("requires Pro"),
+      sampleEvidence: {
+        status: "skipped",
+        realtime: { reconnectOutcome: "not-attempted-capability-unavailable" },
+      },
+    });
+  });
+
+  it.each([
+    ["an error status", { incidentSnapshotStatus: 500 }],
+    ["an error payload behind HTTP 200", { incidentSnapshot: { error: { code: 400, message: "Invalid where" } } }],
+    ["a schema mismatch", { incidentSnapshot: { features: "not-an-array" } }],
+  ])("keeps %s a failure rather than a skip", async (_label, overrides) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => liveFixtureResponse(input, { realtime: true, ...overrides })),
+    );
+
+    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
+    const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
+
+    expect(incident?.status).toBe("failed");
+    expect(incident?.skipReasonCode).toBeUndefined();
+    expect(incident?.sampleEvidence).toMatchObject({
+      status: "failed",
+      degradation: { state: "unexpected" },
+    });
+    expect(sampleEvidenceOf(incident).degradation.reasons).not.toContain("incident-demo-dataset-empty");
+    expect(report.run.status).toBe("failed");
+  });
+
+  it("keeps a snapshot timeout a failure rather than a skip", async () => {
+    // The producer aborts the snapshot request on its own timer; the observable
+    // effect on the probe is an AbortError from fetch, which must stay failed.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(input instanceof Request ? input.url : input.toString());
+        if (url.pathname.endsWith("/FeatureServer/0/query") && url.pathname.includes("maui-incidents")) {
+          throw Object.assign(new Error("The operation was aborted"), { name: "AbortError" });
+        }
+        return liveFixtureResponse(input, { realtime: true });
+      }),
+    );
+
+    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
+    const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
+
+    expect(incident).toMatchObject({ status: "failed", error: expect.stringContaining("aborted") });
+    expect(incident?.skipReasonCode).toBeUndefined();
+  });
+
+  it("publishes a distinct reconnect outcome for an operator-requested skip", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => liveFixtureResponse(input, { realtime: true })),
+    );
+
+    const report = await collectLiveEvidence({
+      HONUA_BENCH_LIVE_ENABLED: "true",
+      HONUA_BENCH_LIVE_SKIP_HONUA_REASON: "Demo tenant is mid-migration",
+      HONUA_BENCH_LIVE_SKIP_AWS_REASON: "Not under test",
+    });
+    const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
+
+    expect(incident).toMatchObject({
+      status: "skipped",
+      skipReasonCode: "operator-requested-skip",
+      skipReason: "Demo tenant is mid-migration",
+      realtime: { reconnectOutcome: "not-attempted-operator-skip" },
+      sampleEvidence: { realtime: { reconnectOutcome: "not-attempted-operator-skip" } },
+    });
+    // An operator skip is not a capability finding and must never claim to be one.
+    expect(sampleEvidenceOf(incident).realtime.reconnectOutcome).not.toBe("not-attempted-capability-unavailable");
+    expectReportValid(report);
+  });
+
+  it("gives every skip condition its own reconnect outcome", async () => {
+    const outcomes = Object.entries(INCIDENT_SKIP_RECONNECT_OUTCOMES);
+    const codes = Object.values(LIVE_SKIP_REASON_CODES);
+
+    // Every code is mapped, so no skip can fall through to a vaguer default.
+    expect(outcomes.map(([code]) => code).sort()).toEqual([...codes].sort());
+    expect(INCIDENT_SKIP_RECONNECT_OUTCOMES["operator-requested-skip"]).toBe("not-attempted-operator-skip");
+    expect(INCIDENT_SKIP_RECONNECT_OUTCOMES["incident-demo-dataset-empty"]).toBe("not-attempted-demo-dataset-empty");
+  });
+
+  it("rejects a skipped target that carries no typed reason code", async () => {
+    const report = await collectLiveEvidence({ GITHUB_EVENT_NAME: "pull_request" });
+    expectReportValid(report);
+
+    const untyped = structuredClone(report);
+    const skipped = untyped.targets.find((target) => target.status === "skipped");
+    expect(skipped?.skipReasonCode).toBe("live-probes-disabled");
+    delete skipped?.skipReasonCode;
+
+    expect(validateReport(untyped)).toBe(false);
+    expect(JSON.stringify(validateReport.errors)).toContain("skipReasonCode");
+
+    const unknownCode = structuredClone(report);
+    const target = unknownCode.targets.find((candidate) => candidate.status === "skipped");
+    if (target) target.skipReasonCode = "invented-code" as never;
+    expect(validateReport(unknownCode)).toBe(false);
+
+    const untypedReconnect = structuredClone(report);
+    const incident = untypedReconnect.targets.find((candidate) => candidate.realtime);
+    if (incident?.realtime) incident.realtime.reconnectOutcome = "not-attempted-something-new" as never;
+    expect(validateReport(untypedReconnect)).toBe(false);
+  });
+
   it("uses an opaque cursor for reconnect without publishing it in evidence", async () => {
     const secretCursor = "opaque-secret-cursor";
     vi.stubGlobal(
@@ -137,12 +332,23 @@ describe("live benchmark evidence", () => {
   });
 });
 
+function sampleEvidenceOf(target: { sampleEvidence: Record<string, unknown> } | undefined): any {
+  return target?.sampleEvidence;
+}
+
 function liveFixtureResponse(
   input: RequestInfo | URL,
-  options: { realtime: boolean; secretCursor?: string },
+  options: {
+    realtime: boolean;
+    secretCursor?: string;
+    capabilityDisabled?: boolean;
+    incidentSnapshot?: unknown;
+    incidentSnapshotStatus?: number;
+  },
 ): Response {
   const url = new URL(input instanceof Request ? input.url : input.toString());
   if (url.pathname.endsWith("/streaming/features/capabilities")) {
+    if (options.capabilityDisabled) return json({ enabled: false, minimumEdition: "Pro" });
     return options.realtime
       ? json({ enabled: true, serverVersion: "test" })
       : new Response("not found", { status: 404 });
@@ -157,7 +363,15 @@ function liveFixtureResponse(
     });
     return new Response(`data: ${payload}\n\n`, { headers: { "content-type": "text/event-stream" } });
   }
-  if (url.pathname.endsWith("/FeatureServer/0/query")) return json({ features: [{ attributes: { id: 1 } }] });
+  if (url.pathname.endsWith("/FeatureServer/0/query")) {
+    if (options.incidentSnapshotStatus !== undefined) {
+      return new Response(JSON.stringify({ error: { code: options.incidentSnapshotStatus } }), {
+        status: options.incidentSnapshotStatus,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return json(options.incidentSnapshot ?? { features: [{ attributes: { id: 1 } }] });
+  }
   if (url.pathname.endsWith("/api/v1/admin/capabilities")) return json({ data: { serverVersion: "test" } });
   if (url.pathname.endsWith("/rest/services/maui-parcels/FeatureServer/1")) {
     return json({

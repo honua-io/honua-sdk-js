@@ -345,8 +345,11 @@
       "type": "object",
       "required": ["format", "schemaVersion", "publication", "sampleIds"],
       "properties": {
-        "format": { "const": "honua.sdk.sample-bundles.v1" },
-        "schemaVersion": { "const": 1 },
+        "format": {
+          "description": "Format of the bundle manifest this projection points at. Generation always emits `honua.sdk.sample-bundles.v2` (honua-io/honua-sdk-js#656); `...v1` remains accepted only so the currently-committed samples/dist/honua-site-samples.v2.json -- generated before the cutover and deliberately not resealed by a feature PR, per the derived-artifact decoupling policy in docs/sample-bundles.md -- stays schema-valid until the next regenerate-derived-artifacts.yml run. Tighten back to a v2 const once that reseal has landed.",
+          "enum": ["honua.sdk.sample-bundles.v1", "honua.sdk.sample-bundles.v2"]
+        },
+        "schemaVersion": { "enum": [1, 2] },
         "publication": {
           "type": "object",
           "required": ["repo", "releaseTag", "manifestAsset", "bundleAsset"],
@@ -361,6 +364,50 @@
         "sampleIds": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "published": {
+          "type": "array",
+          "description": "Per-bundle publication truth for every id in sampleIds, so a gallery card can state a bundle's runtime prerequisites without fetching the bundle manifest (honua-io/honua-sdk-js#656 REQ-004/REQ-005). A `requires-host-fixture-service` entry must never be presented as runnable unless the embedding host also serves its hostFixtureRoutes.",
+          "items": {
+            "type": "object",
+            "required": ["id", "runnability", "hostFixtureRoutes"],
+            "properties": {
+              "id": { "type": "string" },
+              "runnability": { "type": "string", "enum": ["standalone", "requires-host-fixture-service"] },
+              "hostFixtureRoutes": { "type": "array", "items": { "type": "string", "pattern": "^/" } }
+            },
+            "additionalProperties": false
+          }
+        },
+        "excluded": {
+          "type": "array",
+          "description": "Every catalog sample id not in sampleIds, with a machine-readable exclusion reason (honua-io/honua-sdk-js#656 REQ-004).",
+          "items": {
+            "type": "object",
+            "required": ["id", "category", "reason"],
+            "properties": {
+              "id": { "type": "string" },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "needs-prepare-step",
+                  "requires-api-key",
+                  "requires-live-backend",
+                  "requires-companion-server",
+                  "replay-mode-undecided",
+                  "agent-shaped",
+                  "non-browser-app",
+                  "non-runtime-sample",
+                  "lifecycle-not-active",
+                  "legacy-unsafe-configuration",
+                  "unsupported-support-tier",
+                  "audit-pending"
+                ]
+              },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false

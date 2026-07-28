@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://honua.io/schemas/sdk/sample-bundles.v1.schema.json",
-  "title": "Honua SDK sample browser bundle publication manifest v1",
-  "description": "Per-sample static browser bundle inventory published for the samples gallery to embed (honua-io/honua-sdk-js#642, completing honua-io/honua-sdk-js#401 REQ-003's publication leg).",
+  "$id": "https://honua.io/schemas/sdk/sample-bundles.v2.schema.json",
+  "title": "Honua SDK sample browser bundle publication manifest v2",
+  "description": "Per-sample static browser bundle inventory published for the samples gallery to embed (honua-io/honua-sdk-js#642, completing honua-io/honua-sdk-js#401 REQ-003's publication leg). v2 (honua-io/honua-sdk-js#656) adds the per-bundle publication truth a consumer needs to embed a bundle honestly -- `runtimeHosting`, `runnability`, `hostFixtureRoutes`, `support`, `lifecycle` -- and the manifest-level `excluded` inventory. Because both the manifest object and every sample object are `additionalProperties: false`, adding those fields is a breaking change in both directions, so v1 is retired rather than extended; see docs/sample-bundles.md for the migration.",
   "type": "object",
-  "required": ["format", "schemaVersion", "build", "samples"],
+  "required": ["format", "schemaVersion", "build", "samples", "excluded"],
   "properties": {
-    "format": { "const": "honua.sdk.sample-bundles.v1" },
-    "schemaVersion": { "const": 1 },
+    "format": { "const": "honua.sdk.sample-bundles.v2" },
+    "schemaVersion": { "const": 2 },
     "build": {
       "type": "object",
       "required": ["node", "lockfileSha256"],
@@ -21,21 +21,84 @@
       "type": "array",
       "minItems": 1,
       "items": { "$ref": "#/$defs/sample" }
+    },
+    "excluded": {
+      "type": "array",
+      "description": "Every samples/catalog.v2.json entry not in `samples`, with a machine-readable exclusion reason (honua-io/honua-sdk-js#656 REQ-004).",
+      "items": { "$ref": "#/$defs/excludedSample" }
     }
   },
   "additionalProperties": false,
   "$defs": {
     "sample": {
       "type": "object",
-      "required": ["id", "entrypoint", "dataMode", "configDefaults", "builtFrom", "files"],
+      "required": [
+        "id",
+        "entrypoint",
+        "dataMode",
+        "configDefaults",
+        "runtimeHosting",
+        "runnability",
+        "hostFixtureRoutes",
+        "support",
+        "lifecycle",
+        "builtFrom",
+        "files"
+      ],
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
         "entrypoint": { "type": "string", "minLength": 1 },
         "dataMode": { "type": "string", "enum": ["fixture", "hybrid", "public-live", "live"] },
         "configDefaults": {
           "type": "object",
-          "description": "Declared browser-public config surface for this sample (samples/catalog.v2.json data.config). A null value means the build applied no override and the sample's own committed fixture-mode default (or scenario fallback) was used.",
+          "description": "The sample's browser-public config surface: exactly the samples/catalog.v2.json `data.configClassifications` entries whose `exposure` is `browser-public`. Server-only settings in `data.config` are deliberately excluded -- they can never be influenced by a static bundle and must not be published here. A null value means the build applied no override and the sample's own committed fixture-mode default (or scenario fallback) was used.",
           "additionalProperties": { "type": ["string", "null"] }
+        },
+        "runtimeHosting": {
+          "type": "string",
+          "description": "Audited classification of how this sample's default build obtains the data it renders (honua-io/honua-sdk-js#656 REQ-001). Only the two publishable kinds can appear on a built bundle.",
+          "enum": ["self-contained", "same-origin-fixture-service"]
+        },
+        "runnability": {
+          "type": "string",
+          "description": "Whether this bundle runs from any static host on its own (`standalone`) or only where the embedding host also serves `hostFixtureRoutes` (`requires-host-fixture-service`). Consumers must not present a `requires-host-fixture-service` bundle as runnable without those prerequisites.",
+          "enum": ["standalone", "requires-host-fixture-service"]
+        },
+        "hostFixtureRoutes": {
+          "type": "array",
+          "description": "Same-origin path prefixes the embedding host must serve for this bundle to complete its fixture journey. Each entry matches its own exact path and everything beneath it as a path-segment prefix, so `/fixtures/cog/` covers `/fixtures/cog/assets/x` but `/fixtures/cog` never covers `/fixtures/cognition`. Entries must account for URLs the journey derives from fixture responses (for example STAC asset hrefs resolved against the item URL), not just the routes it requests first. Always empty for `runnability: standalone`.",
+          "items": { "type": "string", "pattern": "^/" }
+        },
+        "support": {
+          "type": "object",
+          "description": "Support truth copied from samples/catalog.v2.json so a consumer never infers maturity from the existence of a bundle (honua-io/honua-sdk-js#656 REQ-005).",
+          "required": ["tier", "track", "validationProfile"],
+          "properties": {
+            "tier": { "type": "string", "minLength": 1 },
+            "track": { "type": "string", "minLength": 1 },
+            "validationProfile": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "lifecycle": {
+          "type": "object",
+          "description": "Lifecycle truth (and replacement metadata when the catalog declares one) copied from samples/catalog.v2.json (honua-io/honua-sdk-js#656 REQ-005).",
+          "required": ["state", "reason"],
+          "properties": {
+            "state": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 },
+            "targetRelease": { "type": "string", "minLength": 1 },
+            "replacement": {
+              "type": "object",
+              "required": ["kind", "id"],
+              "properties": {
+                "kind": { "type": "string", "minLength": 1 },
+                "id": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
         },
         "builtFrom": {
           "type": "object",
@@ -51,6 +114,32 @@
           "minItems": 1,
           "items": { "$ref": "#/$defs/file" }
         }
+      },
+      "additionalProperties": false
+    },
+    "excludedSample": {
+      "type": "object",
+      "required": ["id", "category", "reason"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "category": {
+          "type": "string",
+          "enum": [
+            "needs-prepare-step",
+            "requires-api-key",
+            "requires-live-backend",
+            "requires-companion-server",
+            "replay-mode-undecided",
+            "agent-shaped",
+            "non-browser-app",
+            "non-runtime-sample",
+            "lifecycle-not-active",
+            "legacy-unsafe-configuration",
+            "unsupported-support-tier",
+            "audit-pending"
+          ]
+        },
+        "reason": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     },

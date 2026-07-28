@@ -77,6 +77,10 @@ const EVIDENCE_LOCK_OWNER_FORMAT = "honua.sdk.sample-evidence-lock-owner.v1";
 const UUID_V4 = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const evidenceLockStates = new WeakMap();
 
+function derivedArtifactsRelaxed() {
+  return /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "");
+}
+
 function fail(message) {
   throw new Error(message);
 }
@@ -145,6 +149,7 @@ export function parseRunnerArgs(argv) {
     kitOnly: false,
     dryRun: false,
     json: false,
+    qualificationBootstrapAlso: undefined,
   };
   let sdkModeSeen = false;
   for (let index = 1; index < argv.length; index += 1) {
@@ -156,9 +161,16 @@ export function parseRunnerArgs(argv) {
       options[key] = true;
       continue;
     }
-    if (!["--sample", "--track", "--sdk-mode", "--gate"].includes(flag)) fail(`unknown option: ${flag}`);
+    if (!["--sample", "--track", "--sdk-mode", "--gate", "--qualification-bootstrap-also"].includes(flag)) {
+      fail(`unknown option: ${flag}`);
+    }
     const value = parseFlagValue(argv, index, flag);
     index += 1;
+    if (flag === "--qualification-bootstrap-also") {
+      if (options.qualificationBootstrapAlso !== undefined) fail(`duplicate option: ${flag}`);
+      options.qualificationBootstrapAlso = value.split(",").map((id) => id.trim());
+      continue;
+    }
     const key = flag === "--sample" ? "sampleId" : flag === "--track" ? "track" : flag === "--gate" ? "gate" : "sdkMode";
     if (key === "sdkMode") {
       if (sdkModeSeen) fail(`duplicate option: ${flag}`);
@@ -176,6 +188,17 @@ export function parseRunnerArgs(argv) {
   if (options.allowLive && action !== "evidence") fail("--allow-live is only valid for evidence");
   if (["dev", "evidence"].includes(action) && !options.sampleId) fail(`${action} requires --sample`);
   if (options.kitOnly && ["dev", "evidence"].includes(action)) fail(`--kit is not supported by ${action}`);
+  if (options.qualificationBootstrapAlso) {
+    if (action !== "evidence" || options.gate !== undefined) {
+      fail("--qualification-bootstrap-also is only valid for a full evidence run (no --gate)");
+    }
+    if (options.qualificationBootstrapAlso.some((id) => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id))) {
+      fail("--qualification-bootstrap-also is invalid");
+    }
+    if (new Set(options.qualificationBootstrapAlso).size !== options.qualificationBootstrapAlso.length) {
+      fail("--qualification-bootstrap-also contains a duplicate sample id");
+    }
+  }
   return options;
 }
 
@@ -248,7 +271,22 @@ export async function validateSelection(selection, options = {}) {
     const expectedIds = selection.samples.filter((sample) => sample.validationProfile === profile.id).map((sample) => sample.id);
     if (!sameJson(profile.sampleIds, expectedIds)) fail(`${profile.id}: profile sampleIds do not exactly match samples`);
   }
-  if (options.expectedSelection && !sameJson(selection, options.expectedSelection)) fail("generated sample selection is stale or modified");
+  if (options.expectedSelection && !sameJson(selection, options.expectedSelection)) {
+    const scopedSampleId = options.scopeGeneratedProjectionFreshnessToSampleId;
+    const scopedSample = selection.samples.find((sample) => sample.id === scopedSampleId);
+    const expectedScopedSample = options.expectedSelection.samples.find((sample) => sample.id === scopedSampleId);
+    const scopedSampleMatches =
+      typeof scopedSampleId === "string" &&
+      scopedSample !== undefined &&
+      expectedScopedSample !== undefined &&
+      sameJson(scopedSample, expectedScopedSample);
+    if (
+      (typeof scopedSampleId === "string" && !scopedSampleMatches) ||
+      (typeof scopedSampleId !== "string" && options.deferGeneratedProjectionFreshness !== true)
+    ) {
+      fail("generated sample selection is stale or modified");
+    }
+  }
   return selection;
 }
 
@@ -385,10 +423,14 @@ export function selectSamples(selection, options, kitIds) {
   return [...selection.samples];
 }
 
-function commandsForAction(sample, action) {
+export function commandsForAction(sample, action, kitSample) {
   const commands = sample.commandPlan.validation.commands.map(parseSampleCommand);
   if (action === "verify") return commands;
-  return commands.filter((argv) => classifySampleCommand(argv) === action);
+  const selected = commands.filter((argv) => classifySampleCommand(argv) === action);
+  if (action === "test" && selected.length === 0 && kitSample) {
+    return [["npm", "run", kitSample.playwrightScript]];
+  }
+  return selected;
 }
 
 export { expectedGateCommand };
@@ -560,18 +602,51 @@ async function readInputs(options) {
     readFile(PACKAGE_PATH, "utf8").then(JSON.parse),
     import("./sample-contract.mjs"),
   ]);
-  const qualificationBootstrapSampleId =
+  const autoQualificationBootstrapSampleId =
     options.action === "evidence" &&
     options.gate === undefined &&
     catalog.samples.some((sample) => sample.id === options.sampleId && sample.track === "golden")
       ? options.sampleId
       : undefined;
-  await contract.validateCatalog(catalog, packageJson, { qualificationBootstrapSampleId });
+  if (options.qualificationBootstrapAlso && autoQualificationBootstrapSampleId === undefined) {
+    // `--sample` must itself derive a qualification bootstrap exemption (a
+    // full evidence run targeting a golden-track sample) before it can name
+    // other golden samples to exempt too. Without this, an evidence run for
+    // an unrelated, non-golden `--sample` could pass `--qualification-
+    // bootstrap-also` to exempt golden samples' receipt freshness without
+    // this run ever producing replacement receipts for them — a freshness-
+    // gate bypass (honua-io/honua-sdk-js#735).
+    fail(
+      `--qualification-bootstrap-also requires --sample to itself be a golden qualification bootstrap target ` +
+        `(a full evidence run for a golden-track sample); ${options.sampleId} is not, so this run cannot exempt ` +
+        "other golden samples' receipt freshness",
+    );
+  }
+  // `--qualification-bootstrap-also` names every other golden sample that is
+  // simultaneously being requalified against this exact source, alongside the
+  // single sample this invocation targets. Without it, only the one target is
+  // exempted, which is circular whenever more than one golden sample needs
+  // fresh receipts at once (honua-io/honua-sdk-js#735; see PR #653).
+  const qualificationBootstrapSampleIds = [
+    ...(autoQualificationBootstrapSampleId ? [autoQualificationBootstrapSampleId] : []),
+    ...(options.qualificationBootstrapAlso ?? []),
+  ];
+  const relaxDerivedArtifacts = derivedArtifactsRelaxed();
+  await contract.validateCatalog(catalog, packageJson, {
+    qualificationBootstrapSampleId: qualificationBootstrapSampleIds.length > 0 ? qualificationBootstrapSampleIds : undefined,
+    relaxDerivedArtifacts,
+  });
   const expectedSelection = contract.generateCiSelection(catalog);
   await validateSelection(selection, {
     packageScripts: packageJson.scripts,
     projectRoot: PROJECT_ROOT,
     expectedSelection,
+    // The committed selection is regenerated and strictly revalidated on trunk.
+    // PR CI still validates its complete structure and executable command plan.
+    deferGeneratedProjectionFreshness: relaxDerivedArtifacts,
+    // Evidence capture can precede global projection regeneration, but only an
+    // exact current entry for the selected sample is safe to execute.
+    scopeGeneratedProjectionFreshnessToSampleId: options.action === "evidence" ? options.sampleId : undefined,
   });
   const validatedKit = await validateKit(kit, selection, packageJson.scripts, { projectRoot: PROJECT_ROOT });
   return { selection, catalog, packageJson, kit: validatedKit };
@@ -773,7 +848,7 @@ async function executeAction(sample, action, context) {
     });
     return;
   }
-  const commands = commandsForAction(sample, action);
+  const commands = commandsForAction(sample, action, context.kitSample);
   if (commands.length === 0 && action !== "verify") fail(`${sample.id} declares no ${action} command`);
   let packedTypechecked = false;
   for (const argv of commands) {
@@ -3142,7 +3217,7 @@ export async function main(argv = process.argv.slice(2)) {
             )
           : options.action === "dev"
             ? [["npx", "--no-install", "vite", "--config", inputs.kit.get(sample.id)?.viteConfig ?? `${sample.sourcePath}/vite.config.ts`]]
-            : commandsForAction(sample, options.action),
+            : commandsForAction(sample, options.action, inputs.kit.get(sample.id)),
     }));
     process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
     return;

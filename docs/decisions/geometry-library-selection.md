@@ -12,11 +12,15 @@ directions — the same tension recorded in
 - **`must_follow` on the ticket:** "curate and re-export tree-shaken
   `@turf/*` + `proj4` — do **not** reimplement algorithms."
 - **Project dependency policy:** the core `@honua/sdk-js` package has
-  exactly **one** runtime dependency by deliberate design
-  (`@maplibre/maplibre-gl-style-spec`). Everything heavier
+  exactly **one stable-core capability** runtime dependency by deliberate
+  design (`@maplibre/maplibre-gl-style-spec`). Everything heavier
   (`maplibre-gl`, `cesium`, `@bufbuild/*`, `@connectrpc/*`) is an
-  **optional peer dependency**, pulled in only by the subpaths that
-  need it.
+  **optional peer dependency**, pulled in only by the subpaths that need it.
+  The manifest also carries the bounded `@honua/honua-migrate` dependency for
+  deprecated migration forwarders. Its third direct dependency,
+  `@mapbox/jsonlint-lines-primitives@2.0.2`, is a temporary pin of the
+  style-spec package's existing parser, needed to preserve Node 20 engine
+  compatibility.
 
 The first says wrap turf/proj4. The second says do not grow the core
 package's hard-dependency surface.
@@ -60,7 +64,9 @@ This mirrors the established `maplibre-gl` / `cesium` precedent:
 
 - **Unified `@honua/sdk-js`:** turf packages + `proj4` are declared as
   **optional `peerDependencies`** (`peerDependenciesMeta.optional = true`).
-  The hard-`dependencies` count stays at exactly **one**. Consumers of the
+  Geometry adds no direct dependency: the existing three remain style-spec,
+  the deprecated migration forwarder, and the temporary parser pin described
+  above. Consumers of the
   `@honua/sdk-js/geometry` subpath install the turf/proj4 peers the same way
   `@honua/sdk-js/map` consumers install `maplibre-gl`.
 - **Split `@honua/geometry`:** turf packages + `proj4` are **regular

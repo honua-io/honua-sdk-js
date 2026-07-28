@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadCurrentPullRequestDisposition } from "../../scripts/lib/github-pr-issue-disposition.mjs";
 import {
+  DERIVED_ARTIFACT_EXEMPTION,
   PullRequestDispositionError,
   automationExemption,
   parsePullRequestDisposition,
@@ -149,17 +150,20 @@ function expectFailure(code, action) {
 
 describe("pull request issue disposition policy", () => {
   it("keeps the required workflow pinned, least-privilege, and bound to trusted base code", () => {
-    const workflow = fs.readFileSync(
-      path.join(root, ".github/workflows/pr-issue-disposition.yml"),
-      "utf8",
-    );
+    const workflow = fs
+      .readFileSync(path.join(root, ".github/workflows/pr-issue-disposition.yml"), "utf8")
+      .replaceAll("\r\n", "\n");
     assert.match(workflow, /^  pull_request:\n/mu);
+    assert.match(workflow, /^  workflow_dispatch:\n/mu);
     assert.doesNotMatch(workflow, /pull_request_target/u);
     assert.match(workflow, /^  contents: read\n  issues: read\n  pull-requests: read$/mu);
     assert.doesNotMatch(workflow, /(?:write|secrets:)/u);
     assert.match(workflow, /actions\/checkout@[0-9a-f]{40}/u);
     assert.match(workflow, /actions\/setup-node@[0-9a-f]{40}/u);
-    assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.base\.ref \}\}/u);
+    assert.match(
+      workflow,
+      /ref: \$\{\{ github\.event\.pull_request\.base\.ref \|\| github\.event\.repository\.default_branch \}\}/u,
+    );
     assert.doesNotMatch(workflow, /pull_request\.base\.sha/u);
     assert.match(workflow, /path: trusted-policy/u);
     assert.match(workflow, /persist-credentials: false/u);
@@ -167,8 +171,55 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /name: PR Issue Disposition/u);
   });
 
+  it("routes regeneration through an exact, strictly checked automation PR", () => {
+    const workflow = fs
+      .readFileSync(path.join(root, ".github/workflows/regenerate-derived-artifacts.yml"), "utf8")
+      .replaceAll("\r\n", "\n");
+    assert.match(workflow, /^  workflow_dispatch:$/mu);
+    assert.match(
+      workflow,
+      /^  commit-and-validate:\n    name: Publish artifacts PR \+ gate strict validation[\s\S]*?^      pull-requests: write$/mu,
+    );
+    assert.match(workflow, /branch="automation\/derived-artifacts-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/u);
+    assert.match(workflow, /gh pr create/u);
+    const prCreation = workflow.indexOf("gh pr create");
+    const strictDispatch = workflow.indexOf("name: Dispatch strict CI for regeneration PR");
+    const nativeApproval = workflow.indexOf("name: Approve native checks for regeneration PR");
+    const requiredCheckWait = workflow.indexOf('gh pr checks "$PR_NUMBER"');
+    assert.ok(
+      prCreation >= 0 &&
+        strictDispatch > prCreation &&
+        nativeApproval > strictDispatch &&
+        requiredCheckWait > nativeApproval,
+    );
+    assert.match(workflow, /gh workflow run ci\.yml[\s\S]*--ref "\$BRANCH"/u);
+    assert.doesNotMatch(workflow, /gh workflow run pr-issue-disposition\.yml/u);
+    assert.match(workflow, /gh run view "\$STRICT_CI_RUN_ID"[\s\S]*--json headSha/u);
+    assert.match(workflow, /gh run watch "\$STRICT_CI_RUN_ID"[\s\S]*--exit-status/u);
+    assert.match(workflow, /gh run list[\s\S]*--event pull_request/u);
+    assert.match(workflow, /\.headSha == \$generated/u);
+    assert.match(workflow, /actions\/runs\/\$run_id\/approve/u);
+    assert.match(workflow, /\["SDK CI","PR issue disposition","Schema sync gate","Security"\]/u);
+    assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --watch --fail-fast/u);
+    assert.match(workflow, /current_trunk="\$\(git rev-parse refs\/remotes\/origin\/trunk\)"/u);
+    assert.match(workflow, /gh pr merge "\$PR_NUMBER"[\s\S]*--merge[\s\S]*--match-head-commit "\$GENERATED"/u);
+    assert.match(workflow, /gh workflow run regenerate-derived-artifacts\.yml --repo "\$GITHUB_REPOSITORY" --ref trunk/u);
+    const migrationGeneration = workflow.indexOf("name: Regenerate migration-workbench artifacts");
+    const llmsGeneration = workflow.indexOf("name: Regenerate llms.txt and comparison page");
+    const comparisonCommand = workflow.indexOf("npm run docs:comparison", llmsGeneration);
+    const llmsCommand = workflow.indexOf("npm run docs:llms", llmsGeneration);
+    const llmsVerification = workflow.indexOf("name: Verify llms.txt freshness before publication");
+    assert.ok(migrationGeneration >= 0 && llmsGeneration > migrationGeneration);
+    assert.ok(comparisonCommand > llmsGeneration && llmsCommand > comparisonCommand);
+    assert.ok(llmsVerification > llmsGeneration);
+    assert.match(workflow, /name: Verify llms\.txt freshness before publication[\s\S]*run: npm run verify:llms/u);
+    assert.doesNotMatch(workflow, /git push origin "\$generated:refs\/heads\/trunk"/u);
+  });
+
   it("emits Release Please checks only from pinned code on a trusted trunk push", () => {
-    const workflow = fs.readFileSync(path.join(root, ".github/workflows/release-please.yml"), "utf8");
+    const workflow = fs
+      .readFileSync(path.join(root, ".github/workflows/release-please.yml"), "utf8")
+      .replaceAll("\r\n", "\n");
     const usesLines = workflow.split("\n").filter((line) => /^\s*(?:-\s*)?uses:/u.test(line));
     const actionUses = [...workflow.matchAll(/^\s*(?:-\s*)?uses:\s+([^\s#]+)(?:\s+#.*)?$/gmu)].map(
       (match) => match[1],
@@ -357,6 +408,48 @@ describe("pull request issue disposition policy", () => {
       }),
       null,
     );
+  });
+
+  it("exempts only the exact derived-artifact automation identity", () => {
+    const fixture = {
+      repository,
+      body: "",
+      authorLogin: "github-actions[bot]",
+      authorType: "Bot",
+      headRefName: "automation/derived-artifacts-29712056688-1",
+      headSha: "a".repeat(40),
+      headRepository: repository,
+      baseRefName: "trunk",
+      baseSha: "b".repeat(40),
+      baseRepository: repository,
+      title: "chore(evidence): regenerate derived artifacts",
+    };
+    assert.equal(automationExemption(fixture), DERIVED_ARTIFACT_EXEMPTION);
+    assert.deepEqual(validatePullRequestDisposition(fixture), {
+      status: "exempt",
+      exemption: DERIVED_ARTIFACT_EXEMPTION,
+      closes: [],
+      refs: [],
+    });
+
+    for (const override of [
+      { authorLogin: "octocat[bot]" },
+      { authorType: "User" },
+      { headRefName: "automation/derived-artifacts-29712056688" },
+      { headRefName: "automation/derived-artifacts-29712056688-1-extra" },
+      { title: "chore(evidence): regenerate derived artifacts lookalike" },
+      { baseRefName: "release/next" },
+      { baseSha: "not-a-commit" },
+      { headSha: "not-a-commit" },
+      { headRepository: "mallory/honua-sdk-js" },
+      { baseRepository: "mallory/honua-sdk-js" },
+    ]) {
+      assert.equal(
+        automationExemption({ ...fixture, ...override }),
+        null,
+        `unexpected exemption for ${JSON.stringify(override)}`,
+      );
+    }
   });
 
   it("returns an explicit exemption without issue metadata", () => {
@@ -682,6 +775,41 @@ describe("pull request issue disposition CLI", () => {
       });
       assert.equal(result.status, 0, result.stderr);
       assert.match(result.stdout, /Exempt: Dependabot dependency update/u);
+
+      fs.writeFileSync(
+        metadataPath,
+        JSON.stringify({
+          repository,
+          pullRequestNumber: 601,
+          body: "",
+          authorLogin: "github-actions[bot]",
+          authorType: "Bot",
+          headRefName: "automation/derived-artifacts-29712056688-1",
+          headSha: "c".repeat(40),
+          headRepository: repository,
+          baseRefName: "trunk",
+          baseSha: "d".repeat(40),
+          baseRepository: repository,
+          title: "chore(evidence): regenerate derived artifacts",
+          issues: [],
+          closingIssueNumbers: [],
+        }),
+      );
+      const dispatched = spawnSync(
+        process.execPath,
+        [
+          cli,
+          "--repository",
+          repository,
+          "--pull-request",
+          "601",
+          "--metadata",
+          metadataPath,
+        ],
+        { cwd: root, encoding: "utf8", env: { PATH: process.env.PATH } },
+      );
+      assert.equal(dispatched.status, 0, dispatched.stderr);
+      assert.match(dispatched.stdout, /Exempt: Derived-artifact regeneration/u);
     } finally {
       fs.rmSync(temporaryRoot, { recursive: true, force: true });
     }

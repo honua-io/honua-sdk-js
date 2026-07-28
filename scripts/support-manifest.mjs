@@ -548,14 +548,19 @@ function lifecycleCounts(manifest) {
 
 export function renderReadmeReleaseSection(manifest, packageJson) {
   const counts = lifecycleCounts(manifest);
-  return `**Release status: ${manifest.sdk.releaseStatus}** (\`${packageJson.version}\`). The ${counts.supported}-entrypoint stable tier is frozen and guarded
+  return `**Release status: ${manifest.sdk.releaseStatus}** (\`${packageJson.version}\`). The ${counts.supported}-entrypoint stable tier is frozen and guarded <!-- x-release-please-version -->
 by an API-surface gate; ${counts.experimental} experimental subpaths may change before 1.0, and
 ${counts.deprecated} deprecated compatibility subpaths have explicit removal versions. See
 [\`config/support-manifest.v1.json\`](./config/support-manifest.v1.json) for the versioned support truth,
 [\`config/public-surface.json\`](./config/public-surface.json) for its generated package projection,
 [\`support/projections/sdk-support.v1.json\`](./support/projections/sdk-support.v1.json) for the generic
 site/sample consumer contract, and
-[the scope decision](./docs/decisions/scope-split-and-1.0.md).`;
+[the scope decision](./docs/decisions/scope-split-and-1.0.md).
+
+This README tracks the current development branch. The version above is its
+package baseline, not a claim that every capability described here is already
+present in the npm artifact with that version. For published behavior, use the
+[tagged release documentation](./docs/documentation-versions.md).`;
 }
 
 function supportClaim(manifest, id) {
@@ -586,6 +591,7 @@ claim, execution mode, and evidence link.`;
 
 export function renderInstallSupportSection(manifest) {
   const counts = lifecycleCounts(manifest);
+  const ceilings = manifest.packageLifecycle.ceilings;
   return `## Generated support status
 
 The versioned source of truth is [\`config/support-manifest.v1.json\`](./config/support-manifest.v1.json).
@@ -595,7 +601,16 @@ of package lifecycle: raw endpoint support, facade requirements, execution mode,
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
-for both honua.io and the canonical \`samples/catalog.v2.json\` inventory.`;
+for both honua.io and the canonical \`samples/catalog.v2.json\` inventory.
+
+The reviewed package-root ceilings are ${ceilings.rootRuntimeExports} runtime
+exports and ${ceilings.rootTypeExports} declaration exports. The exact inventory
+and generated migration table come from
+[\`config/root-surface.json\`](./config/root-surface.json). This guide tracks the
+current development branch; its package baseline can match the latest release
+while the branch contains unreleased work. Use the
+[tagged release documentation](./docs/documentation-versions.md) for the
+published artifact.`;
 }
 
 export function buildSupportProjection(manifest, packageJson) {

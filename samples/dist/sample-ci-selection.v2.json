@@ -15,7 +15,7 @@
     {
       "id": "service-explorer",
       "title": "Universal Service Explorer",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "service-explorer"
     },
     {
@@ -33,7 +33,7 @@
     {
       "id": "imagery-terrain",
       "title": "Imagery and Terrain",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "imagery-cog-quickstart"
     },
     {
@@ -45,7 +45,7 @@
     {
       "id": "arcgis-migration",
       "title": "ArcGIS Migration Workbench",
-      "status": "planned",
+      "status": "qualified",
       "candidateSampleId": "migration-workbench"
     }
   ],
@@ -84,7 +84,6 @@
         "cesium-route-playback",
         "kepler-analytics",
         "mcp-gis-assistant",
-        "migration-workbench",
         "nl-map-control",
         "overture-geoparquet",
         "planning-permitting-workbench",
@@ -137,6 +136,7 @@
       "sampleIds": [
         "imagery-cog-quickstart",
         "maplibre-quickstart",
+        "migration-workbench",
         "service-explorer"
       ]
     },
@@ -219,7 +219,7 @@
         "targetMode": "authenticated",
         "status": "skipped",
         "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
-        "expiresAt": "2026-07-24T18:00:00.000Z"
+        "expiresAt": "2026-08-15T18:00:00.000Z"
       }
     },
     {
@@ -504,7 +504,7 @@
     {
       "id": "imagery-cog-quickstart",
       "sourcePath": "examples/imagery-cog-quickstart",
-      "track": "recipe",
+      "track": "golden",
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
       "validationProfile": "golden-browser",
@@ -547,7 +547,9 @@
       },
       "liveEvidence": {
         "mode": "public-live",
-        "status": "planned"
+        "status": "executed",
+        "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
+        "expiresAt": "2026-08-25T20:47:36.447Z"
       }
     },
     {
@@ -633,7 +635,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-07-24T15:44:54.411Z"
+        "expiresAt": "2026-08-25T20:45:58.688Z"
       }
     },
     {
@@ -679,19 +681,19 @@
     {
       "id": "migration-workbench",
       "sourcePath": "examples/migration-workbench",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "arcgis-migration",
       "supportTier": "supported",
-      "validationProfile": "browser-lab",
+      "validationProfile": "golden-browser",
       "gates": {
         "packedBuild": true,
         "browser": true,
         "accessibility": true,
         "console": true,
         "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
+        "screenshot": true,
+        "performance": true,
+        "liveEvidence": true
       },
       "commandPlan": {
         "validation": {
@@ -710,12 +712,16 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": []
+          "commands": [
+            "npm run evidence:migration-workbench:live"
+          ]
         }
       },
       "liveEvidence": {
-        "mode": "unavailable",
-        "status": "not-applicable"
+        "mode": "demo-live",
+        "status": "executed",
+        "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
+        "expiresAt": "2026-08-25T20:47:54.208Z"
       }
     },
     {
@@ -904,7 +910,8 @@
           "execution": "automatic",
           "commands": [
             "npm run demo:planning-workbench:typecheck",
-            "npm run demo:planning-workbench:build"
+            "npm run demo:planning-workbench:build",
+            "npm run test:playwright:planning-workbench"
           ]
         },
         "fixtureEvidence": {
@@ -915,11 +922,13 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": []
+          "commands": [
+            "npm run evidence:planning:live"
+          ]
         }
       },
       "liveEvidence": {
-        "mode": "demo-live",
+        "mode": "public-live",
         "status": "planned"
       }
     },
@@ -1049,7 +1058,7 @@
         "targetMode": "demo-live",
         "status": "skipped",
         "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
-        "expiresAt": "2026-07-26T02:18:02.730Z"
+        "expiresAt": "2026-10-10T02:18:02.730Z"
       }
     },
     {
@@ -1095,7 +1104,7 @@
     {
       "id": "service-explorer",
       "sourcePath": "examples/service-explorer",
-      "track": "lab",
+      "track": "golden",
       "journeyId": "service-explorer",
       "supportTier": "supported",
       "validationProfile": "golden-browser",
@@ -1136,7 +1145,9 @@
       },
       "liveEvidence": {
         "mode": "public-live",
-        "status": "planned"
+        "status": "executed",
+        "evidencePath": "samples/evidence/service-explorer/live.v1.json",
+        "expiresAt": "2026-08-25T20:48:34.517Z"
       }
     },
     {
@@ -1265,7 +1276,7 @@
         "targetMode": "public-live",
         "status": "skipped",
         "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
-        "expiresAt": "2026-07-24T08:00:00.000Z"
+        "expiresAt": "2026-08-01T08:00:00.000Z"
       }
     },
     {

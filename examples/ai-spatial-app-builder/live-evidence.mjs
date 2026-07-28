@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { liveEvidenceOutputContract } from "../../scripts/lib/live-evidence-output.mjs";
@@ -8,6 +8,7 @@ const outputContract = liveEvidenceOutputContract(
   "ai-spatial-app-builder",
   "test-results/ai-spatial-app-builder-live-evidence.json",
 );
+const packageJson = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
 
 const observedAt = new Date().toISOString();
 const proposalEndpoint = process.env.HONUA_AGENT_HOST_URL;
@@ -21,8 +22,8 @@ const baseEvidence = {
   observedAt,
   authMode: "host-mediated",
   sdk: {
-    package: "@honua/sdk-js",
-    version: "0.1.0-beta.0",
+    package: packageJson.name,
+    version: packageJson.version,
     gitCommit: outputContract.sourceRevision ?? null,
   },
   provenance: null,

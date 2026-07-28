@@ -27,6 +27,7 @@ const dataset = createDataset({
 });
 
 const source = dataset.source("parcels-wfs")!;
+// Deprecated WFS-native compatibility text retained for migrations.
 const result = await source.query({ where: "STATE = 'CA' AND ACRES > 10" });
 ```
 

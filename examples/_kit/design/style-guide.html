@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Honua sample design language — style guide</title>
+<link rel="stylesheet" href="./tokens.css" />
+<link rel="stylesheet" href="./components.css" />
+<style>
+  /* Style-guide chrome only. Specimens use the shared classes unmodified. */
+  body {
+    margin: 0;
+    font-family: var(--hn-font-ui);
+    font-size: var(--hn-text-body);
+    line-height: var(--hn-leading-body);
+    color: var(--hn-ink);
+    background: var(--hn-page);
+  }
+  .guide {
+    max-width: 84rem;
+    margin: 0 auto;
+    padding: var(--hn-space-6) var(--hn-space-5) var(--hn-space-8);
+  }
+  .guide-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--hn-space-4);
+    padding-bottom: var(--hn-space-5);
+    border-bottom: 1px solid var(--hn-line-strong);
+    margin-bottom: var(--hn-space-6);
+  }
+  .guide-mark {
+    display: inline-grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin-bottom: var(--hn-space-3);
+    border: 1.5px solid var(--hn-accent);
+    border-radius: 50%;
+    color: var(--hn-accent);
+    font-family: var(--hn-font-mono);
+    font-weight: 700;
+  }
+  .theme-switch { display: flex; gap: var(--hn-space-1); }
+  section.spec { margin-bottom: var(--hn-space-7); }
+  .spec > h2 {
+    margin: 0 0 var(--hn-space-1);
+    font-family: var(--hn-font-display);
+    font-size: var(--hn-text-h2);
+    font-weight: 650;
+    letter-spacing: var(--hn-tracking-heading);
+  }
+  .spec > p.spec-note {
+    margin: 0 0 var(--hn-space-4);
+    max-width: 60rem;
+    color: var(--hn-ink-secondary);
+    font-size: var(--hn-text-sm);
+  }
+  /* Dual-theme frames: the source specimen is cloned into both at load. */
+  .frames { display: grid; grid-template-columns: 1fr 1fr; gap: var(--hn-space-4); }
+  @media (max-width: 64rem) { .frames { grid-template-columns: 1fr; } }
+  .frame { border: 1px solid var(--hn-line-strong); border-radius: var(--hn-radius-lg); overflow: hidden; }
+  .frame-caption {
+    padding: var(--hn-space-1) var(--hn-space-3);
+    font-family: var(--hn-font-mono);
+    font-size: var(--hn-text-register);
+    font-weight: 600;
+    letter-spacing: var(--hn-tracking-register);
+    text-transform: uppercase;
+    color: var(--hn-ink-muted);
+    background: var(--hn-surface-sunken);
+    border-bottom: 1px solid var(--hn-line);
+  }
+  .frame-surface { padding: var(--hn-space-5); background: var(--hn-page); color: var(--hn-ink); }
+  .spec-demo[hidden] { display: none; }
+
+  /* Specimen layout helpers (guide-local, not part of the design language). */
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hn-space-3); }
+  .stack { display: grid; gap: var(--hn-space-3); }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: var(--hn-space-2); }
+  .swatch { border: 1px solid var(--hn-line-strong); border-radius: var(--hn-radius); overflow: hidden; background: var(--hn-surface); }
+  .swatch-fill { height: 3rem; }
+  .swatch dl { margin: 0; padding: var(--hn-space-2) var(--hn-space-3); }
+  .swatch dt { font-family: var(--hn-font-mono); font-size: var(--hn-text-register); letter-spacing: 0.04em; color: var(--hn-ink-secondary); }
+  .swatch dd { margin: 2px 0 0; font-size: var(--hn-text-xs); color: var(--hn-ink-muted); }
+  .type-row { display: grid; grid-template-columns: 9rem 1fr; align-items: baseline; gap: var(--hn-space-4); padding: var(--hn-space-2) 0; border-top: 1px solid var(--hn-line); }
+  .type-row:first-child { border-top: 0; }
+
+  /* Simulated busy basemap for the over-map legibility test (CSS only),
+   * built from the basemap-harmonization tokens so it re-tints per theme. */
+  .fake-basemap {
+    position: relative;
+    min-height: 24rem;
+    border-radius: var(--hn-radius);
+    overflow: hidden;
+    background:
+      repeating-linear-gradient(64deg, var(--hn-basemap-line) 0 2px, transparent 2px 34px),
+      repeating-linear-gradient(-22deg, var(--hn-basemap-line) 0 3px, transparent 3px 26px),
+      repeating-linear-gradient(12deg, color-mix(in srgb, var(--hn-basemap-line) 60%, var(--hn-basemap-land) 40%) 0 6px, transparent 6px 58px),
+      radial-gradient(circle at 78% 68%, var(--hn-basemap-water) 0 16%, transparent 42%),
+      linear-gradient(var(--hn-basemap-land), var(--hn-basemap-land));
+  }
+  .canvas-label { position: absolute; font-family: var(--hn-font-ui); }
+  .canvas-label--region { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; font-weight: 600; }
+  .canvas-label--place { font-size: 0.8125rem; font-weight: 500; }
+  .no-halo { text-shadow: none; }
+  .ramp-board { display: grid; gap: var(--hn-space-3); padding: var(--hn-space-4); border-radius: var(--hn-radius); background: var(--hn-basemap-land); border: 1px solid var(--hn-basemap-line); }
+  .ramp { display: grid; grid-template-columns: 8.5rem 1fr; align-items: center; gap: var(--hn-space-3); }
+  .ramp .hn-register { color: var(--hn-basemap-label); }
+  .ramp-steps { display: flex; height: 18px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px color-mix(in srgb, var(--hn-basemap-label) 25%, transparent); }
+  .ramp-steps i { flex: 1; }
+
+  /* Guide-local chart geometry (colors/text come from the shared tokens). */
+  .demo-bars { display: grid; gap: var(--hn-space-2); }
+  .demo-bar-row { display: grid; grid-template-columns: 6.5rem 1fr; align-items: center; gap: var(--hn-space-3); }
+  .demo-bar-track { display: grid; gap: 2px; }
+  .demo-bar { position: relative; display: flex; align-items: center; height: 14px; }
+  .demo-bar i {
+    display: block; height: 100%;
+    border-radius: 0 4px 4px 0; /* rounded data-end only; baseline stays square */
+  }
+  .demo-bar em {
+    margin-left: var(--hn-space-1);
+    font-style: normal;
+    font-family: var(--hn-font-mono);
+    font-size: var(--hn-text-register);
+    font-variant-numeric: tabular-nums;
+    color: var(--hn-ink-secondary);
+  }
+  .demo-bar:hover::after {
+    content: attr(data-tip);
+    position: absolute; left: 0; bottom: calc(100% + 4px); z-index: 4;
+    padding: var(--hn-space-1) var(--hn-space-2);
+    background: var(--hn-ink); color: var(--hn-page);
+    border-radius: var(--hn-radius-sm);
+    font-size: var(--hn-text-xs); white-space: nowrap;
+  }
+  .spark { display: block; }
+</style>
+</head>
+<body class="hn-app">
+<a class="hn-skip-link" href="#specimens">Skip to specimens</a>
+<div class="guide">
+  <header class="guide-header">
+    <div>
+      <span class="guide-mark" aria-hidden="true">H</span>
+      <p class="hn-eyebrow">Honua SDK · sample design language · issue #734</p>
+      <h1 class="hn-display">The field-instrument standard for every sample</h1>
+      <p class="hn-lead" style="max-width: 56rem; margin-top: var(--hn-space-3);">
+        One identity for the whole portfolio: chart-paper and basalt surfaces, a single Honua-green accent,
+        and a monospace register voice for everything the UI reads out — coordinates, statuses, field labels.
+        Every specimen below renders from <code>tokens.css</code> + <code>components.css</code> in both themes.
+      </p>
+    </div>
+    <div class="theme-switch" role="group" aria-label="Page theme">
+      <button class="hn-btn hn-btn--sm" type="button" data-set-theme="light">Light</button>
+      <button class="hn-btn hn-btn--sm" type="button" data-set-theme="dark">Dark</button>
+      <button class="hn-btn hn-btn--sm" type="button" data-set-theme="">System</button>
+    </div>
+  </header>
+
+  <main id="specimens">
+
+    <section class="spec">
+      <h2>Color</h2>
+      <p class="spec-note">
+        Semantic tokens only — samples never reference hex. Text pairs meet WCAG AA on their documented
+        surfaces (ratios in README.md); input borders and focus rings clear the 3:1 non-text minimum.
+      </p>
+      <div class="spec-demo">
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-fill" style="background: var(--hn-page)"></div><dl><dt>--hn-page</dt><dd>page plane</dd></dl></div>
+          <div class="swatch"><div class="swatch-fill" style="background: var(--hn-surface)"></div><dl><dt>--hn-surface</dt><dd>panels, cards</dd></dl></div>
+          <div class="swatch"><div class="swatch-fill" style="background: var(--hn-surface-sunken)"></div><dl><dt>--hn-surface-sunken</dt><dd>wells, code</dd></dl></div>
+          <div class="swatch"><div class="swatch-fill" style="background: var(--hn-ink)"></div><dl><dt>--hn-ink</dt><dd>primary text</dd></dl></div>
+          <div class="swatch"><div class="swatch-fill" style="background: var(--hn-ink-secondary)"></div><dl><dt>--hn-ink-secondary</dt><dd>supporting text</dd></dl></div>
+          <div class="swatch"><div class="swatch-fill" style="background: var(--hn-ink-muted)"></div><dl><dt>--hn-ink-muted</dt><dd>labels — AA floor</dd></dl></div>
+          <div class="swatch"><div class="swatch-fill" style="background: var(--hn-accent)"></div><dl><dt>--hn-accent</dt><dd>Honua green</dd></dl></div>
+          <div class="swatch"><div class="swatch-fill" style="background: var(--hn-border-control)"></div><dl><dt>--hn-border-control</dt><dd>3:1 non-text</dd></dl></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h2>Typography</h2>
+      <p class="spec-note">
+        Three voices, all system stacks (samples are network-isolated): a display face for headings, the UI
+        sans for prose, and the monospace register for data readouts. The register — uppercase, letterspaced,
+        11px — is the identity carrier; use it for eyebrows, table headers, badges, and field labels only.
+      </p>
+      <div class="spec-demo">
+        <div>
+          <div class="type-row"><span class="hn-register">display / 650</span><span class="hn-display">Basemap, queried.</span></div>
+          <div class="type-row"><span class="hn-register">h1 · 28</span><span class="hn-h1">Service capabilities</span></div>
+          <div class="type-row"><span class="hn-register">h2 · 22</span><span class="hn-h2">Layer inspection</span></div>
+          <div class="type-row"><span class="hn-register">h3 · 18</span><span class="hn-h3">Attribute schema</span></div>
+          <div class="type-row"><span class="hn-register">lead · 16</span><span class="hn-lead">Connect an endpoint and the explorer derives every capability the service exposes.</span></div>
+          <div class="type-row"><span class="hn-register">body · 14</span><span>Feature queries stream through the protocol-neutral contract, so the same panel works against GeoServices, OGC API, or STAC without branching.</span></div>
+          <div class="type-row"><span class="hn-register">register · 11</span><span class="hn-register">21.3069° N · 157.8583° W · EPSG:4326</span></div>
+          <div class="type-row"><span class="hn-register">coord</span><span class="hn-coord">-157.858300, 21.306900 · z14.2</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h2>Buttons &amp; toolbar</h2>
+      <p class="spec-note">Primary is the single filled control per view. Toolbars float over the map; icon buttons keep a 36px hit target.</p>
+      <div class="spec-demo">
+        <div class="stack">
+          <div class="row">
+            <button class="hn-btn hn-btn--primary" type="button">Run query</button>
+            <button class="hn-btn" type="button">Export GeoJSON</button>
+            <button class="hn-btn hn-btn--quiet" type="button">Reset view</button>
+            <button class="hn-btn hn-btn--danger" type="button">Remove layer</button>
+            <button class="hn-btn" type="button" disabled>Connect</button>
+            <button class="hn-btn hn-btn--sm" type="button">Small</button>
+          </div>
+          <div class="row">
+            <div class="hn-toolbar" role="toolbar" aria-label="Map tools">
+              <div class="hn-toolbar-group">
+                <button class="hn-btn hn-btn--quiet hn-btn--icon" type="button" aria-label="Zoom in">+</button>
+                <button class="hn-btn hn-btn--quiet hn-btn--icon" type="button" aria-label="Zoom out">−</button>
+                <button class="hn-btn hn-btn--quiet hn-btn--icon" type="button" aria-label="Reset bearing">◮</button>
+              </div>
+              <span class="hn-toolbar-sep" aria-hidden="true"></span>
+              <div class="hn-toolbar-group">
+                <button class="hn-btn hn-btn--quiet hn-btn--sm" type="button" aria-pressed="true">Select</button>
+                <button class="hn-btn hn-btn--quiet hn-btn--sm" type="button" aria-pressed="false">Measure</button>
+                <button class="hn-btn hn-btn--quiet hn-btn--sm" type="button" aria-pressed="false">Draw</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h2>Forms</h2>
+      <p class="spec-note">Field labels use the register voice. Errors name the fix, in the interface's voice.</p>
+      <div class="spec-demo">
+        <div class="stack" style="max-width: 34rem;">
+          <div class="hn-field">
+            <label class="hn-field-label" for="sg-endpoint">Service endpoint</label>
+            <input class="hn-input" id="sg-endpoint" type="url" placeholder="https://services.example.com/ogc" />
+            <p class="hn-field-hint">Any GeoServices, OGC API, STAC, WMS, or WFS root.</p>
+          </div>
+          <div class="hn-field">
+            <label class="hn-field-label" for="sg-layer">Layer</label>
+            <select class="hn-select" id="sg-layer">
+              <option>Hydrants (point · 412 features)</option>
+              <option>Parcels (polygon · 12,882 features)</option>
+            </select>
+          </div>
+          <div class="hn-field">
+            <label class="hn-field-label" for="sg-where">Where clause</label>
+            <input class="hn-input" id="sg-where" aria-invalid="true" value="status =! 'open'" />
+            <p class="hn-field-error">Unknown operator "=!". Use "&lt;&gt;" for not-equal.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h2>Badges &amp; chips</h2>
+      <p class="spec-note">Status never rides on color alone — badges carry their label; marks pair with icon + text.</p>
+      <div class="spec-demo">
+        <div class="stack">
+          <div class="row">
+            <span class="hn-badge hn-badge--ok"><span class="hn-badge-dot" aria-hidden="true"></span>Healthy</span>
+            <span class="hn-badge hn-badge--warn"><span class="hn-badge-dot" aria-hidden="true"></span>Degraded</span>
+            <span class="hn-badge hn-badge--serious"><span class="hn-badge-dot" aria-hidden="true"></span>Backlogged</span>
+            <span class="hn-badge hn-badge--critical"><span class="hn-badge-dot" aria-hidden="true"></span>Offline</span>
+            <span class="hn-badge hn-badge--info"><span class="hn-badge-dot" aria-hidden="true"></span>Replay</span>
+            <span class="hn-badge">EPSG:3857</span>
+            <span class="hn-badge hn-badge--ok hn-badge--outline">Fixture mode</span>
+          </div>
+          <div class="row" role="group" aria-label="Layer filters">
+            <button class="hn-chip" type="button" aria-pressed="true">Hydrants</button>
+            <button class="hn-chip" type="button" aria-pressed="false">Parcels</button>
+            <button class="hn-chip" type="button" aria-pressed="false">Flood zones</button>
+            <button class="hn-chip" type="button" aria-pressed="false">Sensor grid</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h2>Data table</h2>
+      <p class="spec-note">Sticky register headers, hover + selected rows, tabular numerals right-aligned with <code>.is-num</code>.</p>
+      <div class="spec-demo">
+        <div class="hn-table-wrap" style="max-height: 15rem;">
+          <table class="hn-table">
+            <thead>
+              <tr><th scope="col">Feature</th><th scope="col">Status</th><th scope="col" class="is-num">Flow (L/s)</th><th scope="col" class="is-num">Inspected</th></tr>
+            </thead>
+            <tbody>
+              <tr aria-selected="true"><td>Hydrant H-1041</td><td><span class="hn-badge hn-badge--ok">Open</span></td><td class="is-num">31.6</td><td class="is-num">2026-06-30</td></tr>
+              <tr><td>Hydrant H-1042</td><td><span class="hn-badge hn-badge--warn">Low PSI</span></td><td class="is-num">12.4</td><td class="is-num">2026-05-11</td></tr>
+              <tr><td>Hydrant H-1055</td><td><span class="hn-badge hn-badge--critical">Fault</span></td><td class="is-num">0.0</td><td class="is-num">2026-07-02</td></tr>
+              <tr><td>Hydrant H-1060</td><td><span class="hn-badge hn-badge--ok">Open</span></td><td class="is-num">28.9</td><td class="is-num">2026-06-18</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h2>Floating panels over the map</h2>
+      <p class="spec-note">
+        The over-map test: translucent blurred surfaces with the neatline corner ticks — the signature —
+        must stay legible on a busy basemap in both themes. The basemap stand-in below is deliberately noisy.
+      </p>
+      <div class="spec-demo">
+        <div class="hn-map-stage fake-basemap">
+          <div class="hn-map-slot hn-map-slot--top-left">
+            <div class="hn-panel hn-panel--floating">
+              <div class="hn-panel-header">
+                <h3 class="hn-panel-title">Layers</h3>
+                <span class="hn-badge hn-badge--ok hn-badge--outline">Live</span>
+              </div>
+              <div class="hn-panel-body">
+                <ul class="hn-legend">
+                  <li class="hn-legend-row"><span class="hn-legend-swatch" style="background: var(--hn-series-1)"></span>Response units</li>
+                  <li class="hn-legend-row"><span class="hn-legend-swatch" style="background: var(--hn-series-2)"></span>Hydrants</li>
+                  <li class="hn-legend-row"><span class="hn-legend-swatch" style="background: var(--hn-series-6)"></span>Road closures</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="hn-map-slot hn-map-slot--top-right">
+            <div class="hn-toolbar" role="toolbar" aria-label="Map controls">
+              <button class="hn-btn hn-btn--quiet hn-btn--icon" type="button" aria-label="Zoom in">+</button>
+              <button class="hn-btn hn-btn--quiet hn-btn--icon" type="button" aria-label="Zoom out">−</button>
+            </div>
+          </div>
+          <div class="hn-map-slot hn-map-slot--bottom-left">
+            <div class="hn-popup" role="dialog" aria-label="Feature details">
+              <p class="hn-eyebrow">Hydrant</p>
+              <h4 class="hn-popup-title">H-1042 · Ala Moana Blvd</h4>
+              <dl>
+                <div class="hn-popup-row"><dt>Status</dt><dd>Low PSI</dd></div>
+                <div class="hn-popup-row"><dt>Flow</dt><dd>12.4 L/s</dd></div>
+                <div class="hn-popup-row"><dt>Position</dt><dd class="hn-coord">21.2907, -157.8501</dd></div>
+              </dl>
+            </div>
+          </div>
+          <div class="hn-map-slot hn-map-slot--bottom-right">
+            <span class="hn-attribution">© OpenStreetMap contributors</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h2>Cartography</h2>
+      <p class="spec-note">
+        On-map data layers use the openly licensed thematic ramps (CARTOColors CC-BY-4.0, viridis CC0) —
+        never the UI chart series. The board shows each ramp on the theme's basemap land tone. Rules that are
+        not optional: the basemap stays desaturated so saturation is reserved for data; at most 6–7 categorical
+        hues at once; and every text run over the canvas carries a halo in the local basemap tone.
+      </p>
+      <div class="spec-demo">
+        <div class="stack">
+          <div class="ramp-board" data-ramps></div>
+          <div class="hn-map-stage fake-basemap" style="min-height: 21rem;">
+            <span class="canvas-label canvas-label--region hn-canvas-text" style="top: 14%; left: 34%;">Kona District</span>
+            <span class="canvas-label canvas-label--place hn-canvas-text" style="top: 44%; left: 12%;">Hōlualoa · haloed</span>
+            <span class="canvas-label canvas-label--place no-halo" style="top: 58%; left: 12%; color: var(--hn-basemap-label);">Unhaloed — never ship</span>
+            <div class="hn-map-slot hn-map-slot--bottom-left">
+              <div class="stack" style="gap: var(--hn-space-2); justify-items: start;">
+                <div class="hn-panel hn-panel--floating">
+                  <div class="hn-panel-body" style="padding: var(--hn-space-3);">
+                    <p class="hn-eyebrow" style="margin-bottom: var(--hn-space-1);">Parcels · assessed value</p>
+                    <ul class="hn-legend">
+                      <li class="hn-legend-row"><span class="hn-legend-swatch" style="background: var(--hn-seq-cool-1)"></span>Lowest<span class="hn-legend-range">0–120k</span></li>
+                      <li class="hn-legend-row"><span class="hn-legend-swatch" style="background: var(--hn-seq-cool-3)"></span>Low<span class="hn-legend-range">120–340k</span></li>
+                      <li class="hn-legend-row"><span class="hn-legend-swatch" style="background: var(--hn-seq-cool-5)"></span>Mid<span class="hn-legend-range">340–780k</span></li>
+                      <li class="hn-legend-row"><span class="hn-legend-swatch" style="background: var(--hn-seq-cool-7)"></span>High<span class="hn-legend-range">780k–2.4M</span></li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="hn-scalebar" aria-label="Map scale">
+                  <span class="hn-scalebar-rule" style="width: 5rem;"></span>
+                  <span class="hn-scalebar-value">500 m</span>
+                </div>
+              </div>
+            </div>
+            <div class="hn-map-slot hn-map-slot--top-right">
+              <div class="hn-popup" role="dialog" aria-label="Parcel details">
+                <p class="hn-eyebrow">Parcel</p>
+                <h4 class="hn-popup-title">TMK 7-5-018-042</h4>
+                <dl>
+                  <div class="hn-popup-row"><dt>Population (2020)</dt><dd>1,204</dd></div>
+                  <div class="hn-popup-row"><dt>Assessed value</dt><dd>$742,000</dd></div>
+                  <div class="hn-popup-row"><dt>Zoning</dt><dd>Residential (R-10)</dd></div>
+                </dl>
+              </div>
+            </div>
+            <div class="hn-map-slot hn-map-slot--bottom-right">
+              <span class="hn-attribution">© OpenStreetMap contributors</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h2>Empty, loading, and error states</h2>
+      <p class="spec-note">
+        Each state gives direction, not mood: an empty screen invites the next action; errors say what happened
+        and how to fix it. The faint contour motif is reserved for empty states.
+      </p>
+      <div class="spec-demo">
+        <div class="stack">
+          <div class="hn-panel">
+            <div class="hn-empty">
+              <h4 class="hn-empty-title">No layers yet</h4>
+              <p>Connect a service endpoint to list its layers here.</p>
+              <button class="hn-btn hn-btn--primary" type="button">Connect a service</button>
+            </div>
+          </div>
+          <div class="row">
+            <span class="hn-loading"><span class="hn-spinner" aria-hidden="true"></span>Querying features…</span>
+            <span class="hn-skeleton" style="width: 12rem; height: 1rem;" aria-hidden="true">…</span>
+            <span class="hn-skeleton" style="width: 7rem; height: 1rem;" aria-hidden="true">…</span>
+          </div>
+          <div class="hn-panel">
+            <div class="hn-error-state">
+              <h4 class="hn-error-title">Tile request failed (HTTP 503)</h4>
+              <p>The tile service is unavailable. Retry, or switch the basemap to the bundled offline style.</p>
+              <div class="row">
+                <button class="hn-btn hn-btn--primary" type="button">Retry</button>
+                <button class="hn-btn" type="button">Use offline basemap</button>
+              </div>
+            </div>
+          </div>
+          <div class="hn-message hn-message--info">Replaying recorded stream: 2026-07-02 14:00–15:00 UTC.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h2>Dashboard surfaces</h2>
+      <p class="spec-note">
+        Stat tiles, thin marks with rounded data-ends and 2px gaps, a legend whenever two or more series
+        appear, and series identity that never repaints on filter. Series colors are validated for CVD
+        separation and surface contrast in both themes (see README.md).
+      </p>
+      <div class="spec-demo">
+        <div class="stack">
+          <div class="row" style="align-items: stretch;">
+            <div class="hn-stat" style="flex: 1; min-width: 10rem;">
+              <span class="hn-stat-label">Active incidents</span>
+              <span class="hn-stat-value">27</span>
+              <span class="hn-stat-delta hn-stat-delta--down">▼ 4 since 14:00</span>
+            </div>
+            <div class="hn-stat" style="flex: 1; min-width: 10rem;">
+              <span class="hn-stat-label">Median response</span>
+              <span class="hn-stat-value">6m 40s</span>
+              <span class="hn-stat-delta hn-stat-delta--up">▲ improving</span>
+            </div>
+            <div class="hn-stat" style="flex: 1; min-width: 12rem;">
+              <span class="hn-stat-label">Stream throughput</span>
+              <span class="hn-stat-value">412<span class="hn-muted" style="font-size: var(--hn-text-sm);"> evt/min</span></span>
+              <svg class="spark" width="120" height="28" viewBox="0 0 120 28" role="img" aria-label="Throughput trend, rising">
+                <polyline points="0,22 18,20 36,23 54,14 72,16 90,9 108,11 120,6" fill="none" stroke="var(--hn-series-1)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="120" cy="6" r="3" fill="var(--hn-series-1)" stroke="var(--hn-viz-surface)" stroke-width="2" />
+              </svg>
+            </div>
+          </div>
+          <figure class="hn-viz" style="margin: 0;">
+            <figcaption>
+              <h4 class="hn-viz-title">Dispatches by district</h4>
+              <ul class="hn-viz-legend">
+                <li><span class="hn-legend-swatch" style="background: var(--hn-series-1)"></span>Fire</li>
+                <li><span class="hn-legend-swatch" style="background: var(--hn-series-2)"></span>Medical</li>
+              </ul>
+            </figcaption>
+            <div class="demo-bars">
+              <div class="demo-bar-row"><span class="hn-viz-axis-label">Downtown</span>
+                <div class="demo-bar-track">
+                  <div class="demo-bar" data-tip="Fire · Downtown · 42" tabindex="0"><i style="width: 84%; background: var(--hn-series-1)"></i><em>42</em></div>
+                  <div class="demo-bar" data-tip="Medical · Downtown · 31" tabindex="0"><i style="width: 62%; background: var(--hn-series-2)"></i><em>31</em></div>
+                </div>
+              </div>
+              <div class="demo-bar-row"><span class="hn-viz-axis-label">Harbor</span>
+                <div class="demo-bar-track">
+                  <div class="demo-bar" data-tip="Fire · Harbor · 28" tabindex="0"><i style="width: 56%; background: var(--hn-series-1)"></i><em>28</em></div>
+                  <div class="demo-bar" data-tip="Medical · Harbor · 35" tabindex="0"><i style="width: 70%; background: var(--hn-series-2)"></i><em>35</em></div>
+                </div>
+              </div>
+              <div class="demo-bar-row"><span class="hn-viz-axis-label">Uplands</span>
+                <div class="demo-bar-track">
+                  <div class="demo-bar" data-tip="Fire · Uplands · 11" tabindex="0"><i style="width: 22%; background: var(--hn-series-1)"></i><em>11</em></div>
+                  <div class="demo-bar" data-tip="Medical · Uplands · 18" tabindex="0"><i style="width: 36%; background: var(--hn-series-2)"></i><em>18</em></div>
+                </div>
+              </div>
+            </div>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h2>Focus &amp; keyboard</h2>
+      <p class="spec-note">
+        Every interactive element shows a 2px accent focus ring, offset 2px (Tab through this page to verify).
+        Reduced-motion preferences disable the shimmer and slow the spinner; durations collapse to 0ms.
+      </p>
+      <div class="spec-demo">
+        <div class="row">
+          <button class="hn-btn hn-btn--primary" type="button">Tab to me</button>
+          <button class="hn-btn" type="button">Then me</button>
+          <input class="hn-input" style="max-width: 14rem;" aria-label="Focus demo input" placeholder="Then this input" />
+          <a href="#specimens">Then this link</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer style="border-top: 1px solid var(--hn-line-strong); padding-top: var(--hn-space-4);" class="hn-muted">
+    <p style="margin: 0; font-size: var(--hn-text-xs);">
+      Honua sample design language · examples/_kit/design · tokens.css + components.css · no external fonts, no CDNs, no framework.
+    </p>
+  </footer>
+</div>
+
+<script>
+  // Build the cartography ramp board before specimens are cloned.
+  const ramps = [
+    ["Prism (categorical)", "hn-carto-cat", 10],
+    ["Safe (CVD-safe)", "hn-carto-safe", 10],
+    ["SunsetDark (seq warm)", "hn-seq-warm", 7],
+    ["Teal (seq cool)", "hn-seq-cool", 7],
+    ["Temps (diverging)", "hn-div", 7],
+    ["viridis (continuous)", "hn-viridis", 7],
+  ];
+  const board = document.querySelector("[data-ramps]");
+  for (const [label, prefix, count] of ramps) {
+    const row = document.createElement("div");
+    row.className = "ramp";
+    const name = document.createElement("span");
+    name.className = "hn-register";
+    name.textContent = label;
+    const steps = document.createElement("div");
+    steps.className = "ramp-steps";
+    for (let i = 1; i <= count; i += 1) {
+      const step = document.createElement("i");
+      step.style.background = `var(--${prefix}-${i})`;
+      steps.append(step);
+    }
+    row.append(name, steps);
+    board.append(row);
+  }
+
+  // Clone each specimen into a light and a dark frame so both themes are
+  // always reviewable side by side. The page-level buttons re-theme the
+  // guide chrome itself via data-theme on <html>.
+  for (const demo of document.querySelectorAll(".spec-demo")) {
+    const frames = document.createElement("div");
+    frames.className = "frames";
+    for (const theme of ["light", "dark"]) {
+      const frame = document.createElement("div");
+      frame.className = "frame";
+      frame.dataset.theme = theme;
+      const caption = document.createElement("div");
+      caption.className = "frame-caption";
+      caption.textContent = theme === "light" ? "Light · chart paper" : "Dark · basalt";
+      const surface = document.createElement("div");
+      surface.className = "frame-surface";
+      surface.append(...[...demo.children].map((child) => child.cloneNode(true)));
+      frame.append(caption, surface);
+      frames.append(frame);
+    }
+    demo.after(frames);
+    demo.hidden = true;
+  }
+
+  for (const button of document.querySelectorAll("[data-set-theme]")) {
+    button.addEventListener("click", () => {
+      const theme = button.dataset.setTheme;
+      if (theme) document.documentElement.dataset.theme = theme;
+      else delete document.documentElement.dataset.theme;
+    });
+  }
+</script>
+</body>
+</html>

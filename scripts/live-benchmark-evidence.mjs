@@ -17,10 +17,47 @@ const TIMEOUT_MS = 30_000;
 const INCIDENT_OBSERVATION_WINDOW_MS = 12_000;
 const PRODUCER_PATH = "scripts/live-benchmark-evidence.mjs";
 
+/**
+ * Machine-readable skip taxonomy for the live lane.
+ *
+ * A skip is only honest when the probe positively established that the live
+ * environment cannot demonstrate the journey. Every other outcome - transport
+ * failure, non-2xx response, timeout, or a response whose shape does not match
+ * the protocol - stays `failed` so an attestation never masks a regression.
+ */
+export const LIVE_SKIP_REASON_CODES = Object.freeze({
+  liveProbesDisabled: "live-probes-disabled",
+  operatorRequested: "operator-requested-skip",
+  realtimeCapabilityProbeUnavailable: "realtime-capability-probe-unavailable",
+  realtimeCapabilityDisabled: "realtime-capability-disabled",
+  incidentDemoDatasetEmpty: "incident-demo-dataset-empty",
+});
+
+/**
+ * Reconnect outcomes carried by the incident sample evidence envelope when the
+ * journey is skipped. The envelope has no free-form code field, so the outcome
+ * string is the machine-readable discriminator a consumer can branch on.
+ *
+ * Every skip code must appear here. A code that falls through to the default
+ * would publish a vaguer outcome than the producer actually knows, and mapping
+ * one onto another condition's outcome would state something untrue.
+ */
+export const INCIDENT_SKIP_RECONNECT_OUTCOMES = Object.freeze({
+  [LIVE_SKIP_REASON_CODES.liveProbesDisabled]: "not-attempted-live-probes-disabled",
+  [LIVE_SKIP_REASON_CODES.operatorRequested]: "not-attempted-operator-skip",
+  [LIVE_SKIP_REASON_CODES.realtimeCapabilityProbeUnavailable]: "not-attempted-capability-unavailable",
+  [LIVE_SKIP_REASON_CODES.realtimeCapabilityDisabled]: "not-attempted-capability-unavailable",
+  [LIVE_SKIP_REASON_CODES.incidentDemoDatasetEmpty]: "not-attempted-demo-dataset-empty",
+});
+
+/** Only reachable if a new skip code is added without mapping it; says no more than it knows. */
+const INCIDENT_DEFAULT_SKIP_RECONNECT_OUTCOME = "not-attempted";
+
 class SkipTargetError extends Error {
-  constructor(message) {
+  constructor(reasonCode, message) {
     super(message);
     this.name = "SkipTargetError";
+    this.reasonCode = reasonCode;
   }
 }
 
@@ -153,8 +190,30 @@ async function observeIncidentDelta(url, headers = {}, observationWindowMs = 12_
   }
 }
 
+/** Realtime block published when the incident journey never started. */
+function incidentSkipRealtime(reasonCode) {
+  return {
+    snapshotAt: null,
+    cursor: null,
+    lagMs: null,
+    observationWindowMs: INCIDENT_OBSERVATION_WINDOW_MS,
+    reconnectOutcome: INCIDENT_SKIP_RECONNECT_OUTCOMES[reasonCode] ?? INCIDENT_DEFAULT_SKIP_RECONNECT_OUTCOME,
+  };
+}
+
+/**
+ * Realtime block for a skipped target. The fallback may be a function so a
+ * target can report a reconnect outcome that matches why it was skipped.
+ */
+function skippedRealtime(definition, reasonCode) {
+  const fallback = definition.realtimeFallback;
+  if (!fallback) return {};
+  return { realtime: typeof fallback === "function" ? fallback(reasonCode) : fallback };
+}
+
 async function probeTarget(definition) {
   if (definition.skipReason) {
+    const reasonCode = definition.skipReasonCode ?? LIVE_SKIP_REASON_CODES.operatorRequested;
     return {
       id: definition.id,
       sampleId: definition.sampleId,
@@ -165,7 +224,8 @@ async function probeTarget(definition) {
       authMode: definition.authMode,
       attribution: definition.attribution,
       skipReason: definition.skipReason,
-      ...(definition.realtimeFallback ? { realtime: definition.realtimeFallback } : {}),
+      skipReasonCode: reasonCode,
+      ...skippedRealtime(definition, reasonCode),
     };
   }
 
@@ -199,7 +259,8 @@ async function probeTarget(definition) {
         startedAt,
         completedAt: new Date().toISOString(),
         skipReason: error.message,
-        ...(definition.realtimeFallback ? { realtime: definition.realtimeFallback } : {}),
+        skipReasonCode: error.reasonCode,
+        ...skippedRealtime(definition, error.reasonCode),
       };
     }
     return {
@@ -226,13 +287,21 @@ export function toSampleEvidence(target, sdk, generatedAt, producerArtifact) {
   const executed = target.status === "passed";
   const failed = target.status === "failed";
   const observedAt = target.freshness?.observedAt ?? target.completedAt ?? generatedAt;
+  const nonExecutedReason = target.error ?? target.skipReason ?? "Live target did not execute.";
+  // The shared envelope has no free-form code field, so the typed skip code is
+  // published as an additional machine-readable degradation reason.
+  const degradationReasons = executed
+    ? []
+    : target.skipReasonCode
+      ? [nonExecutedReason, target.skipReasonCode]
+      : [nonExecutedReason];
   return validateEvidenceEnvelope({
     format: "honua.sdk.sample-evidence.v1",
     schemaVersion: 1,
     sampleId: target.sampleId,
     lane: "live",
     status: executed ? "executed" : failed ? "failed" : "skipped",
-    reason: executed ? null : target.error ?? target.skipReason ?? "Live target did not execute.",
+    reason: executed ? null : nonExecutedReason,
     observedAt,
     authMode: target.authMode,
     sdk,
@@ -264,7 +333,7 @@ export function toSampleEvidence(target, sdk, generatedAt, producerArtifact) {
     },
     degradation: {
       state: executed ? "none" : failed ? "unexpected" : "unavailable",
-      reasons: executed ? [] : [target.error ?? target.skipReason ?? "Live target did not execute."],
+      reasons: degradationReasons,
     },
     ...(target.realtime ? { realtime: target.realtime } : {}),
     artifacts: producerArtifact ? [producerArtifact] : [],
@@ -291,6 +360,7 @@ export async function collectLiveEvidence(env = process.env) {
         authMode: "anonymous",
         attribution: "Honua canonical demo data",
         skipReason: reason,
+        skipReasonCode: LIVE_SKIP_REASON_CODES.liveProbesDisabled,
       },
       {
         id: "honua-demo-incident-realtime",
@@ -302,13 +372,8 @@ export async function collectLiveEvidence(env = process.env) {
         authMode: "anonymous",
         attribution: "Honua demo synthetic incident operations data",
         skipReason: reason,
-        realtime: {
-          snapshotAt: null,
-          cursor: null,
-          lagMs: null,
-          observationWindowMs: INCIDENT_OBSERVATION_WINDOW_MS,
-          reconnectOutcome: "not-attempted-live-probes-disabled",
-        },
+        skipReasonCode: LIVE_SKIP_REASON_CODES.liveProbesDisabled,
+        realtime: incidentSkipRealtime(LIVE_SKIP_REASON_CODES.liveProbesDisabled),
       },
     ];
     return {
@@ -360,13 +425,7 @@ export async function collectLiveEvidence(env = process.env) {
       authMode,
       attribution: "Honua demo synthetic incident operations data",
       skipReason: env.HONUA_BENCH_LIVE_SKIP_HONUA_REASON || undefined,
-      realtimeFallback: {
-        snapshotAt: null,
-        cursor: null,
-        lagMs: null,
-        observationWindowMs: INCIDENT_OBSERVATION_WINDOW_MS,
-        reconnectOutcome: "not-attempted-capability-unavailable",
-      },
+      realtimeFallback: incidentSkipRealtime,
       async run() {
         const capabilitiesUrl = `${honuaBaseUrl}/api/v1/streaming/features/capabilities`;
         let capabilities;
@@ -374,19 +433,41 @@ export async function collectLiveEvidence(env = process.env) {
           capabilities = await requestJson(capabilitiesUrl, authHeaders);
         } catch (error) {
           if (error instanceof HttpStatusError && [403, 404].includes(error.status)) {
-            throw new SkipTargetError(`Realtime capability probe is unavailable (${error.message})`);
+            throw new SkipTargetError(
+              LIVE_SKIP_REASON_CODES.realtimeCapabilityProbeUnavailable,
+              `Realtime capability probe is unavailable (${error.message})`,
+            );
           }
           throw error;
         }
         const advertised = capabilities.body?.data ?? capabilities.body;
         if (advertised?.enabled !== true) {
           throw new SkipTargetError(
+            LIVE_SKIP_REASON_CODES.realtimeCapabilityDisabled,
             `Realtime feature streams are not enabled${advertised?.minimumEdition ? `; requires ${advertised.minimumEdition}` : ""}`,
           );
         }
         const snapshotUrl = `${honuaBaseUrl}/rest/services/maui-incidents/FeatureServer/0/query?where=1%3D1&outFields=*&resultRecordCount=10&f=json`;
         const snapshot = await requestJson(snapshotUrl, authHeaders);
+        // A transport failure, non-2xx status, or timeout already threw above and
+        // stays `failed`. Only the two well-formed shapes are classified here: an
+        // error payload or a non-array `features` member is a genuine failure,
+        // while an authenticated, schema-valid, zero-feature snapshot is an
+        // honest skip because there is nothing for a delta to change.
+        if (snapshot.body?.error) {
+          throw new Error(
+            `Incident snapshot query returned an error payload: ${snapshot.body.error.message ?? snapshot.body.error.code ?? "unspecified"}`,
+          );
+        }
         if (!Array.isArray(snapshot.body?.features)) throw new Error("Incident snapshot did not contain features");
+        if (snapshot.body.features.length === 0) {
+          throw new SkipTargetError(
+            LIVE_SKIP_REASON_CODES.incidentDemoDatasetEmpty,
+            "Realtime feature streams are enabled, but the demo incident feature service returned zero features; " +
+              "a snapshot-plus-delta journey cannot be demonstrated against an empty dataset " +
+              "(seeding tracked by honua-sdk-js#812)",
+          );
+        }
         const streamUrl = new URL(`${honuaBaseUrl}/api/v1/streaming/features`);
         streamUrl.searchParams.set("serviceId", "maui-incidents");
         streamUrl.searchParams.set("layers", "0");

@@ -8,13 +8,22 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 12 experimental,
+It projects 22 supported (documented below as stable), 16 experimental,
 and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
+
+The reviewed package-root ceilings are 45 runtime
+exports and 165 declaration exports. The exact inventory
+and generated migration table come from
+[`config/root-surface.json`](./config/root-surface.json). This guide tracks the
+current development branch; its package baseline can match the latest release
+while the branch contains unreleased work. Use the
+[tagged release documentation](./docs/documentation-versions.md) for the
+published artifact.
 <!-- support-manifest:install-status:end -->
 
 ## Stable subpath entrypoints
@@ -24,7 +33,7 @@ entrypoints are stable across minor versions.
 
 | Subpath | What it gives you |
 |---------|-------------------|
-| `@honua/sdk-js` | Reviewed common `connect → query → explain → mount` surface (37 runtime / 123 declarations) |
+| `@honua/sdk-js` | Reviewed common `connect → query → explain → mount` surface ([exact inventory](./config/root-surface.json)) |
 | `@honua/sdk-js/browser` | Prebuilt browser ESM build of the default barrel (same API as `@honua/sdk-js`) |
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
@@ -66,7 +75,11 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/source-capabilities` | SourceSchemaV2-bound static evidence/CRS validation plus lightweight claimed/observed/effective evaluation, current-source cache checks, bounded strict transport, and dynamic policy/peer/authorization gates; serialized caller data remains potentially sensitive ([guide](./docs/source-capabilities.md)). |
 | `@honua/sdk-js/source-capability-discovery` | Focused GeoServices/OData/WMS/WMTS `connectWithSourceCapabilities()` integration with canonical descriptor replay binding and fresh policy/environment/peer/authorization evaluation. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
+| `@honua/sdk-js/pmtiles-protocol-plugin.js` | The first-party PMTiles `ProtocolModule` packaged as a certifiable `HonuaPluginFactory<"protocol">` — the manifest-advertised plugin entrypoint, resolvable as a package export. |
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
+| `@honua/sdk-js/kepler` | Optional [Kepler.gl workspace bridge](./docs/kepler-workspace-bridge.md): explicit ingestion mappings that avoid a GeoJSON round trip for tabular/point/columnar results, preserved provenance and CRS decisions, a declared linked-state channel table, bounded delta reconciliation, and credential redaction on export. |
+| `@honua/sdk-js/analytics` | Versioned linked-analytics and chart presentation contract: accepted category/histogram/aggregate/time-series artifacts with units, null policy, ordering, and pushdown provenance; deterministic mark/brush sync with shared exploration state; and a small accessible default presentation ([guide](./docs/linked-analytics.md)). Carries no chart adapters, so unused chart peers cost nothing. |
+| `@honua/sdk-js/analytics/uplot` | Reference third-party chart adapter over the optional [µPlot](https://github.com/leeoniya/uPlot) peer, loaded only through a dynamic import at mount time. Proves the analytics contract against a real library ([guide](./docs/linked-analytics.md)). |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
 | `@honua/sdk-js/diagnostics` | Dependency-free diagnostic-bundle validation, sanitization, integrity pinning, and bounded read-only replay used by `honua doctor`. |
 | `@honua/sdk-js/nl-map-control` | Natural-language map control ([safety model + walkthrough](./docs/nl-map-control.md)): compiles NL instructions into serializable, inspectable plans (query-planner IR + agent-tool invocations) via a caller-provided LLM callback; execution accepts plans only, gates mutations behind agent-safety envelopes, and emits receipts. |
@@ -153,6 +166,7 @@ Node-only or REST-only consumer never pays the install cost:
 |-------------|-----------------|
 | MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
 | deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
+| Kepler.gl workspace bridge (`@honua/sdk-js/kepler`) | `npm install @kepler.gl/actions` (plus the Kepler UI packages your app renders) |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
 | gRPC-Web transport (`new HonuaClient({ transport: "grpc-web" })`) | `npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf` |
 | Geometry ops (`@honua/sdk-js/geometry`) | `npm install proj4 @turf/buffer @turf/area …` (only the ops you import) — or use the `@honua/geometry` split package |
@@ -191,6 +205,10 @@ const result = await client.queryFeatures({
 const featureCount = result.features?.length ?? 0;
 console.log(`Found ${featureCount} feature(s)`);
 ```
+
+This quick start uses the raw GeoServices `queryFeatures()` request. Its `where`
+member is GeoServices SQL and is not the deprecated, source-native
+protocol-neutral `Query.where` compatibility member.
 
 Use focused stable subpaths for advanced APIs. The generated
 [`root import migration table`](./docs/root-surface-migration.md) maps every

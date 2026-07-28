@@ -1,6 +1,8 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import "../../shared/maplibre-vite-worker.js";
 
-import maplibregl, { type GeoJSONSource } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import type { GeoJSONSource } from "maplibre-gl";
 
 import {
   createExplorationContext,
@@ -32,6 +34,7 @@ import {
   type IncidentRealtimeDiagnostics,
   initialIncidentRealtimeDiagnostics,
   reconcileIncidentDiagnostics,
+  reconcileIncidentReceiptDiagnostics,
 } from "./diagnostics.js";
 import { HONOLULU_CENTER, INCIDENT_LAYER_ID, INCIDENT_SOURCE_ID, INITIAL_INCIDENTS } from "./fixtures.js";
 import { type IncidentMapLoadTarget, createIncidentLifecycle, initializeIncidentMap } from "./lifecycle.js";
@@ -54,6 +57,11 @@ import {
   statusLabel,
 } from "./projection.js";
 import {
+  createIncidentRealtimeResumeContext,
+  createIncidentRealtimeSession,
+  waitForIncidentRealtimeStatus,
+} from "./realtime-session.js";
+import {
   createIncidentDashboardTransport,
   readIncidentTransportConfig,
   resolveIncidentTransportConfig,
@@ -62,6 +70,7 @@ import { SAFE_DEMO_INCIDENT_ID, evaluateIncidentMutationGuard } from "./safe-edi
 import type { IncidentMutationGuard } from "./safe-edit.js";
 import type { IncidentEditReceipt, IncidentEditRequest, IncidentFeature, IncidentSummary } from "./types.js";
 
+import "../../_kit/design/index.css";
 import "./styles.css";
 
 interface IncidentRuntime {
@@ -92,6 +101,7 @@ interface IncidentRuntime {
   simulateConflict(): Promise<void>;
   resetEdit(): Promise<string | null>;
   duplicateLast(): Promise<void>;
+  reorderLast(): Promise<void>;
   staleCursor(): Promise<void>;
   dispose(): void;
 }
@@ -113,15 +123,25 @@ interface EventLogEntry {
   readonly timestamp: string;
 }
 
+const BACKGROUND_LAYER_ID = "background";
+
+/* The basemap is the stage, the incidents are the actors: every canvas color is
+ * read from the shared design language's cartography tokens so the map re-keys
+ * with the active theme instead of staying a light plate under dark chrome. */
+function designToken(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value.length > 0 ? value : fallback;
+}
+
 const DEFAULT_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {},
   layers: [
     {
-      id: "background",
+      id: BACKGROUND_LAYER_ID,
       type: "background",
       paint: {
-        "background-color": "#e8edf0",
+        "background-color": designToken("--hn-basemap-land", "#f4f5f1"),
       },
     },
   ],
@@ -136,7 +156,8 @@ function getElement<T extends Element>(selector: string): T {
 }
 
 function setText(selector: string, value: string): void {
-  getElement<HTMLElement>(selector).textContent = value;
+  const element = getElement<HTMLElement>(selector);
+  if (element.textContent !== value) element.textContent = value;
 }
 
 function escapeHtml(value: unknown): string {
@@ -186,17 +207,24 @@ function incidentBounds(incidents: readonly IncidentFeature[]): maplibregl.LngLa
   return bounds.isEmpty() ? [fallback, fallback] : bounds;
 }
 
-/** Incident severity styling as a first-class renderer object (issue #497). */
-const severityRenderer = uniqueValueRenderer({
-  field: "severity",
-  values: [
-    { value: "critical", color: "#b91c1c", label: "Critical" },
-    { value: "high", color: "#d97706", label: "High" },
-    { value: "medium", color: "#2563eb", label: "Medium" },
-  ],
-  defaultColor: "#0f766e",
-  defaultLabel: "Low / other",
-});
+/* Incident severity styling as a first-class renderer object (issue #497).
+ * Severity is a status scale, so it paints from the design language's fixed
+ * status marks — the same tokens the queue's severity dots and the map legend
+ * swatches use, which is what keeps the three in sync. Severity is also spelled
+ * out in the queue row, the popup, and the detail rail, so nothing is carried
+ * by hue alone. */
+function severityRenderer() {
+  return uniqueValueRenderer({
+    field: "severity",
+    values: [
+      { value: "critical", color: designToken("--hn-status-critical", "#d03b3b"), label: "Critical" },
+      { value: "high", color: designToken("--hn-status-serious", "#ec835a"), label: "High" },
+      { value: "medium", color: designToken("--hn-status-warn", "#fab219"), label: "Medium" },
+    ],
+    defaultColor: designToken("--hn-status-ok", "#0ca30c"),
+    defaultLabel: "Low / other",
+  });
+}
 
 async function createMap(): Promise<MapHandle> {
   const map = new maplibregl.Map({
@@ -213,7 +241,7 @@ async function createMap(): Promise<MapHandle> {
     });
     // The severity match expression compiles from the renderer object
     // instead of being hand-written (issue #497).
-    const [severityFragment] = severityRenderer.toMapLibre("point");
+    const [severityFragment] = severityRenderer().toMapLibre("point");
     map.addLayer({
       id: INCIDENT_LAYER_ID,
       source: INCIDENT_SOURCE_ID,
@@ -228,7 +256,12 @@ async function createMap(): Promise<MapHandle> {
           ["interpolate", ["linear"], ["get", "affectedAssets"], 0, 7, 18, 13],
         ],
         "circle-opacity": ["case", ["==", ["get", "status"], "resolved"], 0.45, 0.92],
-        "circle-stroke-color": ["case", ["boolean", ["feature-state", "selected"], false], "#0f172a", "#ffffff"],
+        "circle-stroke-color": [
+          "case",
+          ["boolean", ["feature-state", "selected"], false],
+          designToken("--hn-accent", "#0b6b4d"),
+          designToken("--hn-halo", "#f4f5f1"),
+        ],
         "circle-stroke-width": ["case", ["boolean", ["feature-state", "selected"], false], 4, 2],
       },
     });
@@ -244,8 +277,8 @@ async function createMap(): Promise<MapHandle> {
         "text-anchor": "top",
       },
       paint: {
-        "text-color": "#0f172a",
-        "text-halo-color": "#ffffff",
+        "text-color": designToken("--hn-basemap-label", "#46554d"),
+        "text-halo-color": designToken("--hn-halo", "#f4f5f1"),
         "text-halo-width": 1.2,
       },
     });
@@ -279,7 +312,7 @@ function renderConnection(
   authorityBadge.textContent = formatIncidentAuthorityLabel(authority);
   setText("#stream-cursor", state.cursor ?? "-");
   setText("#stream-sequence", state.lastSequence === undefined ? "-" : String(state.lastSequence));
-  setText("#stream-ignored", String(state.ignoredEventCount));
+  setText("#stream-ignored", String(diagnostics.ignoredEventCount));
   setText("#stream-records", String(Object.keys(state.records).length));
   setText("#stream-tombstones", String(Object.keys(state.tombstones).length));
   setText(
@@ -358,7 +391,8 @@ function renderIncidentList(
   list.innerHTML = "";
 
   if (incidents.length === 0) {
-    list.innerHTML = '<div class="empty-state">No incidents match the linked context.</div>';
+    list.innerHTML =
+      '<div class="empty-state">No incidents match the linked context. Clear a filter or pan the map to widen the extent.</div>';
     return;
   }
 
@@ -422,7 +456,10 @@ function createPopupHtml(incident: IncidentFeature): string {
 function renderDetail(incident: IncidentFeature | undefined): void {
   if (!incident) {
     setText("#detail-title", "No selected incident");
-    setText("#detail-subtitle", "Selection is empty.");
+    setText(
+      "#detail-subtitle",
+      "Open an incident from the queue or the map to read its status, assignment, and evidence here.",
+    );
     setText("#detail-id", "-");
     setText("#detail-status", "-");
     setText("#detail-severity", "-");
@@ -603,7 +640,65 @@ function neutralizeRuntimeActions(runtime: IncidentRuntime): void {
   runtime.simulateConflict = async () => undefined;
   runtime.resetEdit = async () => null;
   runtime.duplicateLast = async () => undefined;
+  runtime.reorderLast = async () => undefined;
   runtime.staleCursor = async () => undefined;
+}
+
+/* The design language follows the OS theme; the toggle stamps an explicit
+ * override on <html>. Dark mode is a redesign rather than dark chrome over a
+ * light canvas, so the map's basemap, halo, selection stroke, and label colors
+ * are re-read from the tokens whenever the active theme changes. */
+type ThemePreference = "auto" | "light" | "dark";
+const THEME_SEQUENCE: readonly ThemePreference[] = ["auto", "light", "dark"];
+
+function setupThemeToggle(
+  lifecycle: ReturnType<typeof createIncidentLifecycle>,
+  map: maplibregl.Map,
+  layerIds: readonly string[],
+): void {
+  const toggle = getElement<HTMLButtonElement>("#theme-toggle");
+  const [circleLayerId, labelLayerId] = layerIds;
+  let preference: ThemePreference = "auto";
+
+  const retint = (): void => {
+    if (map.getLayer(BACKGROUND_LAYER_ID)) {
+      map.setPaintProperty(BACKGROUND_LAYER_ID, "background-color", designToken("--hn-basemap-land", "#f4f5f1"));
+    }
+    if (circleLayerId && map.getLayer(circleLayerId)) {
+      map.setPaintProperty(circleLayerId, "circle-stroke-color", [
+        "case",
+        ["boolean", ["feature-state", "selected"], false],
+        designToken("--hn-accent", "#0b6b4d"),
+        designToken("--hn-halo", "#f4f5f1"),
+      ]);
+    }
+    if (labelLayerId && map.getLayer(labelLayerId)) {
+      map.setPaintProperty(labelLayerId, "text-color", designToken("--hn-basemap-label", "#46554d"));
+      map.setPaintProperty(labelLayerId, "text-halo-color", designToken("--hn-halo", "#f4f5f1"));
+    }
+  };
+
+  const apply = (): void => {
+    if (preference === "auto") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = preference;
+    toggle.textContent = `Theme: ${preference}`;
+    retint();
+  };
+
+  const onClick = (): void => {
+    preference = THEME_SEQUENCE[(THEME_SEQUENCE.indexOf(preference) + 1) % THEME_SEQUENCE.length] ?? "auto";
+    apply();
+  };
+  const scheme = matchMedia("(prefers-color-scheme: dark)");
+  const onScheme = (): void => retint();
+  toggle.addEventListener("click", onClick);
+  scheme.addEventListener("change", onScheme);
+  lifecycle.own(() => {
+    toggle.removeEventListener("click", onClick);
+    scheme.removeEventListener("change", onScheme);
+    delete document.documentElement.dataset.theme;
+  });
+  apply();
 }
 
 async function bootstrap(): Promise<void> {
@@ -617,6 +712,7 @@ async function bootstrap(): Promise<void> {
   const staleButton = getElement<HTMLButtonElement>("#mark-stale");
   const refreshButton = getElement<HTMLButtonElement>("#manual-refresh");
   const duplicateButton = getElement<HTMLButtonElement>("#duplicate-event");
+  const reorderButton = getElement<HTMLButtonElement>("#reorder-event");
   const staleCursorButton = getElement<HTMLButtonElement>("#stale-cursor");
   const stageEditButton = getElement<HTMLButtonElement>("#stage-edit");
   const submitEditButton = getElement<HTMLButtonElement>("#submit-edit");
@@ -654,6 +750,7 @@ async function bootstrap(): Promise<void> {
     simulateConflict: async () => undefined,
     resetEdit: async () => null,
     duplicateLast: async () => undefined,
+    reorderLast: async () => undefined,
     staleCursor: async () => undefined,
     dispose: () => undefined,
   };
@@ -675,6 +772,7 @@ async function bootstrap(): Promise<void> {
     const resolvedTransportConfig = await resolveIncidentTransportConfig(readIncidentTransportConfig());
     const { map, layerIds } = await createMap();
     lifecycle.own(() => map.remove());
+    setupThemeToggle(lifecycle, map, layerIds);
     const store = createRealtimeFeatureStore<IncidentFeature>();
     lifecycle.own(() => store.close());
     const incidentTransport = createIncidentDashboardTransport(resolvedTransportConfig);
@@ -751,6 +849,8 @@ async function bootstrap(): Promise<void> {
     let lastSubmittedEdit: IncidentEditRequest | undefined;
     let idempotencySequence = 0;
     let controlQueue: Promise<void> = Promise.resolve();
+    const controlStatusObservation = new AbortController();
+    lifecycle.own(() => controlStatusObservation.abort());
 
     function enqueueControl<T>(operation: () => Promise<T>, disposedValue: T): Promise<T> {
       const result = controlQueue.then(() => (lifecycle.disposed ? disposedValue : operation()));
@@ -775,19 +875,40 @@ async function bootstrap(): Promise<void> {
       return incidentRecords(store.state).find((incident) => incident.id === id);
     }
 
-    function updateEditPanel(): void {
+    function currentMutationGuard(): IncidentMutationGuard {
       const incident = currentIncidentById(selectedIncidentId);
-      latestMutationGuard = evaluateIncidentMutationGuard({
+      return evaluateIncidentMutationGuard({
         lane,
-        live: latestAuthority.authoritative,
+        live: authorityForLane(store.state, lane).authoritative,
         authorized: incidentTransport.controls.authorized,
         safeEditProfile: incidentTransport.controls.safeDemoEditing,
         sourceIdentity: incidentTransport.controls.sourceIdentity,
         incident,
       });
-      setText("#edit-profile", incidentTransport.controls.safeDemoEditing ? "Isolated + resettable" : "Unavailable");
+    }
+
+    function admitMutation(): boolean {
+      latestMutationGuard = currentMutationGuard();
+      if (latestMutationGuard.enabled) return true;
+      setText("#edit-outcome", latestMutationGuard.reason);
+      return false;
+    }
+
+    function updateEditPanel(): void {
+      const incident = currentIncidentById(selectedIncidentId);
+      latestMutationGuard = currentMutationGuard();
+      setText(
+        "#edit-profile",
+        !incidentTransport.controls.safeDemoEditing
+          ? "Unavailable"
+          : incidentTransport.controls.authorized
+            ? "Isolated + resettable"
+            : "Unauthorized",
+      );
       setText("#edit-guard-reason", latestMutationGuard.reason);
       setText("#edit-revision", incident?.revision === undefined ? "-" : String(incident.revision));
+      editStatus.disabled = !latestMutationGuard.enabled;
+      editAssigned.disabled = !latestMutationGuard.enabled;
       stageEditButton.disabled = !latestMutationGuard.enabled;
       submitEditButton.disabled = !latestMutationGuard.enabled || !stagedEdit;
       repeatEditButton.disabled = !latestMutationGuard.enabled || !lastSubmittedEdit;
@@ -797,10 +918,7 @@ async function bootstrap(): Promise<void> {
 
     function stageEdit(): string | null {
       const incident = currentIncidentById(selectedIncidentId);
-      if (!latestMutationGuard.enabled || !incident) {
-        setText("#edit-outcome", latestMutationGuard.reason);
-        return null;
-      }
+      if (!admitMutation() || !incident) return null;
       idempotencySequence += 1;
       stagedEdit = {
         incidentId: incident.id,
@@ -821,10 +939,7 @@ async function bootstrap(): Promise<void> {
 
     function submitEdit(request = stagedEdit): Promise<string | null> {
       return enqueueControl(async () => {
-        if (!request || !latestMutationGuard.enabled) {
-          setText("#edit-outcome", latestMutationGuard.reason);
-          return null;
-        }
+        if (!request || !admitMutation()) return null;
         const receipt = await incidentTransport.controls.edit(request);
         if (lifecycle.disposed) return null;
         lastSubmittedEdit = request;
@@ -838,7 +953,7 @@ async function bootstrap(): Promise<void> {
 
     function repeatEdit(): Promise<string | null> {
       return enqueueControl(async () => {
-        if (!lastSubmittedEdit) return null;
+        if (!lastSubmittedEdit || !admitMutation()) return null;
         const receipt = await incidentTransport.controls.edit(lastSubmittedEdit);
         if (lifecycle.disposed) return null;
         runtime.lastEditOutcome = receipt.outcome;
@@ -850,7 +965,7 @@ async function bootstrap(): Promise<void> {
     function resetEdit(): Promise<string | null> {
       return enqueueControl(async () => {
         const incident = currentIncidentById(selectedIncidentId);
-        if (!incident || !latestMutationGuard.enabled) return null;
+        if (!incident || !admitMutation()) return null;
         idempotencySequence += 1;
         const receipt = await incidentTransport.controls.reset({
           incidentId: incident.id,
@@ -881,8 +996,21 @@ async function bootstrap(): Promise<void> {
       }, undefined);
     }
 
+    function runScenarioStatusAction(
+      action: () => Promise<void>,
+      expectedStatus: RealtimeFeatureState["status"],
+    ): Promise<void> {
+      return enqueueControl(async () => {
+        await action();
+        await waitForIncidentRealtimeStatus(store, expectedStatus, {
+          signal: controlStatusObservation.signal,
+        });
+      }, undefined);
+    }
+
     function simulateConflict(): Promise<void> {
       return enqueueControl(async () => {
+        if (!admitMutation()) return;
         await incidentTransport.controls.simulateConcurrentUpdate();
         if (lifecycle.disposed) return;
         setText("#edit-outcome", "Concurrent update published. Submit the staged edit to observe a revision conflict.");
@@ -995,12 +1123,12 @@ async function bootstrap(): Promise<void> {
     );
     reconnectButton.addEventListener(
       "click",
-      () => startControl(runScenarioAction(() => incidentTransport.controls.reconnect())),
+      () => startControl(runScenarioStatusAction(() => incidentTransport.controls.reconnect(), "reconnecting")),
       controlListenerOptions,
     );
     resumeButton.addEventListener(
       "click",
-      () => startControl(runScenarioAction(() => incidentTransport.controls.resume())),
+      () => startControl(runScenarioStatusAction(() => incidentTransport.controls.resume(), "live")),
       controlListenerOptions,
     );
     staleButton.addEventListener(
@@ -1019,6 +1147,11 @@ async function bootstrap(): Promise<void> {
     duplicateButton.addEventListener(
       "click",
       () => startControl(runScenarioAction(() => incidentTransport.controls.duplicateLast())),
+      controlListenerOptions,
+    );
+    reorderButton.addEventListener(
+      "click",
+      () => startControl(runScenarioAction(() => incidentTransport.controls.reorderLast())),
       controlListenerOptions,
     );
     staleCursorButton.addEventListener(
@@ -1046,6 +1179,7 @@ async function bootstrap(): Promise<void> {
       staleButton,
       refreshButton,
       duplicateButton,
+      reorderButton,
       staleCursorButton,
     ]) {
       button.disabled = !scenarioControlsEnabled;
@@ -1053,14 +1187,15 @@ async function bootstrap(): Promise<void> {
     }
 
     runtime.step = stepScenario;
-    runtime.reconnect = () => runScenarioAction(() => incidentTransport.controls.reconnect());
-    runtime.resume = () => runScenarioAction(() => incidentTransport.controls.resume());
+    runtime.reconnect = () => runScenarioStatusAction(() => incidentTransport.controls.reconnect(), "reconnecting");
+    runtime.resume = () => runScenarioStatusAction(() => incidentTransport.controls.resume(), "live");
     runtime.markStale = () => {
       const lastLiveAt = store.state.lastHeartbeatAt ?? store.state.lastEventAt ?? Date.now();
       store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });
     };
     runtime.refresh = () => runScenarioAction(() => incidentTransport.controls.refresh());
     runtime.duplicateLast = () => runScenarioAction(() => incidentTransport.controls.duplicateLast());
+    runtime.reorderLast = () => runScenarioAction(() => incidentTransport.controls.reorderLast());
     runtime.staleCursor = () => runScenarioAction(() => incidentTransport.controls.staleCursor());
     runtime.stageEdit = stageEdit;
     runtime.submitEdit = () => submitEdit();
@@ -1077,7 +1212,32 @@ async function bootstrap(): Promise<void> {
       });
     }
 
-    store.connect(incidentTransport.transport, incidentTransport.request);
+    const realtimeSession = await createIncidentRealtimeSession({
+      store,
+      transport: incidentTransport.transport,
+      request: incidentTransport.request,
+      context: createIncidentRealtimeResumeContext(incidentTransport.request, {
+        sourceVersion:
+          lane === "fixture-edit" ? "incident-operations-fixture/v1" : `${resolvedTransportConfig.sourceIdentity}/v1`,
+        schemaVersion: "honua.incident-feature/v1",
+        authorizationScopeFingerprint:
+          lane === "fixture-edit"
+            ? incidentTransport.controls.authorized
+              ? "isolated-fixture-edit"
+              : "isolated-fixture-read-only"
+            : "anonymous-read",
+      }),
+      onReceipt(receipt) {
+        if (lifecycle.disposed || receipt.outcome === "applied") return;
+        diagnostics = reconcileIncidentReceiptDiagnostics(diagnostics, store.state, receipt);
+        latestAuthority = authorityForLane(store.state, lane);
+        renderConnection(store.state, latestAuthority, diagnostics, lane, incidentTransport.controls.fallbackReason);
+        runtime.ignoredEventCount = diagnostics.ignoredEventCount;
+        runtime.reconciliationOutcome = diagnostics.reconciliationOutcome;
+      },
+    });
+    lifecycle.own(() => realtimeSession.close());
+    realtimeSession.connect();
 
     tableSelection.select([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, SAFE_DEMO_INCIDENT_ID)], {
       replace: true,

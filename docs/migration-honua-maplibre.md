@@ -14,12 +14,13 @@ called out under [Manual gaps](#manual-gaps).
 ## Canonical migration workbench
 
 [`examples/migration-workbench`](../examples/migration-workbench/README.md)
-is the supported, active browser lab for the complete migration journey. The
-repository build invokes the real `honua-migrate` CLI against the Honua-authored
-`arcgis-source-app` fixture and commits a deterministic report, patch, widget
-guidance, MapLibre assessment, generated compat target, and SHA-256 manifest.
-The browser only projects and revalidates those artifacts; it does not contain
-a second transform, accept uploads, read credentials, or perform cloud import.
+is the qualified `arcgis-migration` golden journey for the complete migration
+experience. The repository build invokes the real `honua-migrate` CLI against
+the Honua-authored `arcgis-source-app` fixture and commits a deterministic
+report, patch, widget guidance, MapLibre assessment, generated compat target,
+and SHA-256 manifest. The browser only projects and revalidates those
+artifacts; it does not contain a second transform, accept uploads, read
+credentials, or perform cloud import.
 
 Use the artifact and browser gates directly, or exercise the same reviewed
 journey through the sample kit in source and packed SDK modes:
@@ -31,10 +32,11 @@ npm run samples:run -- verify --sample migration-workbench --sdk-mode source
 npm run samples:run -- verify --sample migration-workbench --sdk-mode packed
 ```
 
-The catalog exposes this as the planned `arcgis-migration` golden candidate.
-It remains a lab—not a qualified golden card—until current screenshot,
-performance, semantic, and required live receipts satisfy the golden profile;
-gallery qualification is tracked by #550.
+The catalog carries current packed-build, browser, accessibility, console,
+responsive, screenshot, performance, fixture, and live receipts for this
+journey (#549); its live-evidence lane proves liveness by re-running the real
+`honua-migrate` CLI right now, since the workbench itself never makes a
+non-loopback network request. Gallery projection is tracked by #550.
 
 ## How it differs from the other targets
 
@@ -101,7 +103,7 @@ SDK query path and produces a standard `geojson` source MapLibre renders
 natively:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
 import {
   createHonuaFeatureServiceLayer,

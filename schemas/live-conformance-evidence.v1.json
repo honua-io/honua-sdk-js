@@ -1,0 +1,486 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/live-conformance-evidence.v1.json",
+  "title": "Honua JavaScript SDK live-conformance evidence",
+  "description": "Machine-readable, redacted observation of the public SDK journeys (connect -> inspect -> query/render) executed against the reviewed public reference services in config/live-conformance-endpoints.v1.json. Referenced from config/support-manifest.v1.json through the manifestEvidenceId join key.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schemaVersion",
+    "manifestEvidenceId",
+    "lane",
+    "status",
+    "observedAt",
+    "authMode",
+    "redacted",
+    "sdk",
+    "runner",
+    "endpointManifest",
+    "budgets",
+    "totals",
+    "targets"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.live-conformance-evidence.v1" },
+    "schemaVersion": { "const": 1 },
+    "manifestEvidenceId": {
+      "description": "config/support-manifest.v1.json evidence id this artifact satisfies.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "lane": { "const": "live-conformance" },
+    "status": { "enum": ["executed", "degraded", "failed", "skipped"] },
+    "reason": { "type": ["string", "null"] },
+    "observedAt": { "$ref": "#/$defs/dateTime" },
+    "authMode": { "const": "anonymous" },
+    "redacted": {
+      "description": "True when every recorded endpoint identity, request path, and query parameter passed the runner's redaction policy.",
+      "const": true
+    },
+    "sdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "version", "gitCommit"],
+      "properties": {
+        "package": { "const": "@honua/sdk-js" },
+        "version": { "type": "string", "minLength": 1 },
+        "gitCommit": { "oneOf": [{ "type": "string", "pattern": "^[a-f0-9]{40}$" }, { "type": "null" }] }
+      }
+    },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "const": "scripts/live-conformance-evidence.mjs" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "endpointManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "format", "schemaVersion", "revision", "sha256"],
+      "properties": {
+        "path": { "const": "config/live-conformance-endpoints.v1.json" },
+        "format": { "const": "honua.sdk.live-conformance-endpoints.v1" },
+        "schemaVersion": { "const": 1 },
+        "revision": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runTimeoutMs",
+        "targetTimeoutMs",
+        "requestTimeoutMs",
+        "maxRequestsPerTarget",
+        "maxResponseBytes",
+        "maxTotalResponseBytes",
+        "maxRetriesPerRequest",
+        "maxPageSize"
+      ],
+      "properties": {
+        "runTimeoutMs": { "type": "integer", "minimum": 1 },
+        "targetTimeoutMs": { "type": "integer", "minimum": 1 },
+        "requestTimeoutMs": { "type": "integer", "minimum": 1 },
+        "maxRequestsPerTarget": { "type": "integer", "minimum": 1 },
+        "maxResponseBytes": { "type": "integer", "minimum": 1 },
+        "maxTotalResponseBytes": { "type": "integer", "minimum": 1 },
+        "maxRetriesPerRequest": { "type": "integer", "minimum": 0 },
+        "maxPageSize": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targets", "executed", "degraded", "failed", "skipped", "assertions", "requests", "responseBytes"],
+      "properties": {
+        "targets": { "type": "integer", "minimum": 1 },
+        "executed": { "type": "integer", "minimum": 0 },
+        "degraded": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "assertions": { "type": "integer", "minimum": 0 },
+        "requests": { "type": "integer", "minimum": 0 },
+        "responseBytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/target" }
+    }
+  },
+  "$defs": {
+    "dateTime": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "protocol",
+        "status",
+        "journey",
+        "endpoint",
+        "provider",
+        "attribution",
+        "reliability",
+        "owner",
+        "reviewedAt",
+        "reviewExpiresAt",
+        "observedAt",
+        "timing",
+        "traffic",
+        "discovery",
+        "operation",
+        "assertions",
+        "degradation"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "protocol": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["executed", "degraded", "failed", "skipped"] },
+        "journey": { "enum": ["query", "raster-tiles", "ogc-tile", "ogc-map", "process-discovery"] },
+        "endpoint": {
+          "description": "Redacted endpoint identity. Query strings, fragments, and userinfo never appear.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["identity", "origin", "path"],
+          "properties": {
+            "identity": { "type": "string", "pattern": "^[a-z0-9.:-]+(/[^?#\\s]*)?$" },
+            "origin": { "type": "string", "pattern": "^https?://[^?#\\s]+$" },
+            "path": { "type": "string", "pattern": "^/[^?#\\s]*$" }
+          }
+        },
+        "provider": { "type": "string", "minLength": 1 },
+        "attribution": { "type": "string", "minLength": 1 },
+        "reliability": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string", "minLength": 1 },
+        "reviewedAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "reviewExpiresAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "observedAt": { "$ref": "#/$defs/dateTime" },
+        "timing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["totalMs", "discoveryMs", "operationMs"],
+          "properties": {
+            "totalMs": { "type": ["number", "null"], "minimum": 0 },
+            "discoveryMs": { "type": ["number", "null"], "minimum": 0 },
+            "operationMs": { "type": ["number", "null"], "minimum": 0 }
+          }
+        },
+        "traffic": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requests", "responseBytes", "ledger"],
+          "properties": {
+            "requests": { "type": "integer", "minimum": 0 },
+            "responseBytes": { "type": "integer", "minimum": 0 },
+            "ledger": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["method", "path", "status", "bytes", "parameters"],
+                "properties": {
+                  "method": { "enum": ["GET", "HEAD"] },
+                  "path": { "type": "string", "pattern": "^/[^?#\\s]*$" },
+                  "status": { "type": ["integer", "null"] },
+                  "bytes": { "type": "integer", "minimum": 0 },
+                  "mediaType": { "type": ["string", "null"] },
+                  "parameters": {
+                    "description": "Query parameter names, with values retained only for the reviewed non-sensitive allowlist.",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["name", "value"],
+                      "properties": {
+                        "name": { "type": "string", "minLength": 1 },
+                        "value": { "type": ["string", "null"] }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "discovery": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "protocol",
+                "cacheStatus",
+                "sourceId",
+                "sourceCount",
+                "discoveryState",
+                "capabilities",
+                "capabilityDecisions",
+                "conformance",
+                "diagnostics"
+              ],
+              "properties": {
+                "protocol": { "type": "string", "minLength": 1 },
+                "cacheStatus": { "enum": ["bypass", "hit", "miss", "refreshed"] },
+                "sourceId": { "type": ["string", "null"], "minLength": 1 },
+                "sourceCount": { "type": "integer", "minimum": 0 },
+                "discoveryState": { "enum": ["metadata", "declared", "inferred", "unavailable", "mixed"] },
+                "protocolVersion": { "type": ["string", "null"] },
+                "capabilities": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+                "capabilityDecisions": {
+                  "description": "REQ-002: per-operation truth with the discovery evidence kinds behind it, not one protocol boolean.",
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["capability", "effective", "code", "evidenceKinds"],
+                    "properties": {
+                      "capability": { "type": "string", "minLength": 1 },
+                      "effective": { "type": "boolean" },
+                      "code": { "type": "string", "minLength": 1 },
+                      "evidenceKinds": { "type": "array", "items": { "type": "string" } }
+                    }
+                  }
+                },
+                "conformance": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["kind", "classes", "operations"],
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "ogc-features-conformance-classes",
+                        "stac-landing-conformance-classes",
+                        "capabilities-document-operations",
+                        "service-metadata-operations"
+                      ]
+                    },
+                    "classes": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+                    "operations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["name", "available"],
+                        "properties": {
+                          "name": { "type": "string", "minLength": 1 },
+                          "available": { "type": "boolean" },
+                          "formats": { "type": "array", "items": { "type": "string" } },
+                          "reason": { "type": ["string", "null"] }
+                        }
+                      }
+                    }
+                  }
+                },
+                "diagnostics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["code", "severity"],
+                    "properties": {
+                      "code": { "type": "string", "minLength": 1 },
+                      "severity": { "enum": ["info", "warning"] },
+                      "capabilities": { "type": "array", "items": { "type": "string" } }
+                    }
+                  }
+                },
+                "partialReasons": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          ]
+        },
+        "operation": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "capability", "outcome"],
+              "properties": {
+                "kind": {
+                  "enum": ["source-query", "maplibre-raster-tile", "ogc-tile", "ogc-map", "process-discovery"]
+                },
+                "capability": { "type": "string", "minLength": 1 },
+                "outcome": { "type": "string", "minLength": 1 },
+                "itemCount": { "type": ["integer", "null"], "minimum": 0 },
+                "attributeCount": { "type": ["integer", "null"], "minimum": 0 },
+                "geometryPresent": { "type": ["boolean", "null"] },
+                "exceededTransferLimit": { "type": ["boolean", "null"] },
+                "requestedLimit": { "type": ["integer", "null"], "minimum": 1 },
+                "mediaType": { "type": "string", "minLength": 1 },
+                "bytes": { "type": "integer", "minimum": 1 },
+                "signature": { "enum": ["png", "jpeg", "webp", "unknown"] },
+                "tileMatrixSetId": { "type": "string", "minLength": 1 },
+                "tile": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["z", "x", "y"],
+                  "properties": {
+                    "z": { "type": "integer", "minimum": 0 },
+                    "x": { "type": "integer", "minimum": 0 },
+                    "y": { "type": "integer", "minimum": 0 }
+                  }
+                },
+                "width": { "type": "integer", "minimum": 1 },
+                "height": { "type": "integer", "minimum": 1 },
+                "processCount": { "type": "integer", "minimum": 1 },
+                "processId": { "type": "string", "minLength": 1 },
+                "degradedReasons": {
+                  "description": "Result.degraded entries. A non-empty list means the SDK fell back rather than executing natively.",
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "plan": {
+                  "oneOf": [
+                    { "type": "null" },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["available", "capabilityPolicy"],
+                      "properties": {
+                        "available": { "type": "boolean" },
+                        "capabilityPolicy": { "type": "string", "minLength": 1 },
+                        "fidelity": { "type": ["string", "null"] },
+                        "lossCount": { "type": ["integer", "null"], "minimum": 0 },
+                        "requestUpperBound": { "type": ["integer", "null"], "minimum": 0 },
+                        "pushdown": { "type": "array", "items": { "type": "string" } },
+                        "reason": { "type": ["string", "null"] }
+                      }
+                    }
+                  ]
+                },
+                "raster": {
+                  "oneOf": [
+                    { "type": "null" },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["strategy", "tileSize", "tile", "mediaType", "bytes"],
+                      "properties": {
+                        "strategy": { "type": "string", "minLength": 1 },
+                        "tileSize": { "type": "integer", "minimum": 1 },
+                        "tile": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["z", "x", "y"],
+                          "properties": {
+                            "z": { "type": "integer", "minimum": 0 },
+                            "x": { "type": "integer", "minimum": 0 },
+                            "y": { "type": "integer", "minimum": 0 }
+                          }
+                        },
+                        "mediaType": { "type": "string", "minLength": 1 },
+                        "bytes": { "type": "integer", "minimum": 1 },
+                        "signature": { "enum": ["png", "jpeg", "webp", "unknown"] }
+                      }
+                    }
+                  ]
+                },
+                "capabilityGuard": {
+                  "description": "Public-surface proof that an unadvertised operation throws instead of returning empty data.",
+                  "oneOf": [
+                    { "type": "null" },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["capability", "errorName", "sdkCode"],
+                      "properties": {
+                        "capability": { "type": "string", "minLength": 1 },
+                        "errorName": { "type": "string", "minLength": 1 },
+                        "sdkCode": { "type": "string", "minLength": 1 }
+                      }
+                    }
+                  ]
+                },
+                "sourceBoundary": {
+                  "description": "Operation-only proof that connect() rejects the protocol before touching the wire instead of manufacturing a Source.",
+                  "oneOf": [
+                    { "type": "null" },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["errorName", "sdkCode", "requestDelta"],
+                      "properties": {
+                        "errorName": { "type": "string", "minLength": 1 },
+                        "sdkCode": { "type": "string", "minLength": 1 },
+                        "requestDelta": { "type": "integer", "minimum": 0 }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "assertions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "outcome"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+              "outcome": { "enum": ["pass", "fail"] },
+              "detail": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "degradation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "reasons"],
+          "properties": {
+            "state": { "enum": ["none", "unavailable", "capability-gap", "semantic-regression", "muted", "unexpected"] },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["code", "message", "owner", "expiresAt"],
+                "properties": {
+                  "code": {
+                    "enum": [
+                      "live-lane-disabled",
+                      "target-muted",
+                      "mute-metadata-expired",
+                      "endpoint-review-expired",
+                      "endpoint-unreachable",
+                      "endpoint-timeout",
+                      "endpoint-server-error",
+                      "endpoint-rate-limited",
+                      "endpoint-redirect-refused",
+                      "endpoint-client-error",
+                      "budget-exceeded",
+                      "run-cancelled",
+                      "capability-regression",
+                      "semantic-assertion-failed",
+                      "unexpected-error"
+                    ]
+                  },
+                  "message": { "type": "string", "minLength": 1 },
+                  "owner": { "type": "string", "minLength": 1 },
+                  "expiresAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+                  "tracking": { "type": ["string", "null"] }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
