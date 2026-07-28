@@ -2255,7 +2255,7 @@ export class HonuaActionPanelElement<T = Record<string, unknown>> extends HonuaE
     const label = this.getAttribute("label") ?? "Actions";
     const actions = parseActions(this.getAttribute("actions"));
     this.setShadowHtml(`
-      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <style>${baseStyles()}${controlPanelStyles()}${actionPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
@@ -2897,6 +2897,29 @@ function controlPanelStyles(): string {
     }
     p {
       margin: 0;
+    }
+  `;
+}
+
+function actionPanelStyles(): string {
+  return `
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .control-panel {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .control-panel__bar span, .empty { color: CanvasText; }
+      .button-stack button {
+        background: ButtonFace;
+        border: 2px solid ButtonText;
+        color: ButtonText;
+        forced-color-adjust: none;
+      }
+      .button-stack button:disabled {
+        border-color: GrayText;
+        color: GrayText;
+      }
     }
   `;
 }
