@@ -609,19 +609,33 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/accessibility.test.ts"],
         note: "The swipe divider declares forced-colors and prefers-contrast rules that preserve the divider and handle boundary using ButtonText/Canvas system colors, asserted from the emitted shadow stylesheet.",
       },
+      {
+        ids: ["controls.layer-list"],
+        evidence: ["test/controls/layer-list.test.ts"],
+        note: "The native layer list declares forced-colors and prefers-contrast rules that preserve checked-row distinction with a CanvasText outline and unseeded-row distinction with GrayText, asserted from the component stylesheet.",
+      },
     ],
     failing: [
       {
-        ids: ALL_IDS.filter((id) => id !== FEATURE_EDITOR && id !== "controls.swipe-control"),
+        ids: ALL_IDS.filter(
+          (id) => id !== FEATURE_EDITOR && id !== "controls.swipe-control" && id !== "controls.layer-list",
+        ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
     ],
   },
 
   "responsive-layout": {
+    passing: [
+      {
+        ids: ["web-components.search"],
+        evidence: ["test/web-components-search-element.test.ts"],
+        note: "The search form uses a shrinkable grid and stacks its submit button full-width below 320px, asserted from the emitted stylesheet for narrow-container behavior.",
+      },
+    ],
     failing: [
       {
-        ids: ALL_IDS,
+        ids: ALL_IDS.filter((id) => id !== "web-components.search"),
         note: "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit.",
       },
     ],

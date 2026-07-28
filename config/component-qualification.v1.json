@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 164,
-    "failing": 123,
+    "passing": 166,
+    "failing": 121,
     "pending": 44,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -593,7 +593,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "high-contrast",
         "responsive-layout",
         "localization",
         "pseudo-locale",
@@ -603,8 +602,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 8,
-        "failing": 6,
+        "passing": 9,
+        "failing": 5,
         "pending": 2,
         "notApplicable": 1
       },
@@ -645,8 +644,11 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/controls/layer-list.test.ts"
+          ],
+          "note": "The native layer list declares forced-colors and prefers-contrast rules that preserve checked-row distinction with a CanvasText outline and unseeded-row distinction with GrayText, asserted from the component stylesheet."
         },
         {
           "gate": "responsive-layout",
@@ -1352,7 +1354,6 @@
       "productionQualified": false,
       "openGates": [
         "high-contrast",
-        "responsive-layout",
         "localization",
         "pseudo-locale",
         "rtl",
@@ -1361,8 +1362,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 9,
-        "failing": 6,
+        "passing": 10,
+        "failing": 5,
         "pending": 2,
         "notApplicable": 0
       },
@@ -1414,8 +1415,11 @@
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-search-element.test.ts"
+          ],
+          "note": "The search form uses a shrinkable grid and stacks its submit button full-width below 320px, asserted from the emitted stylesheet for narrow-container behavior."
         },
         {
           "gate": "localization",
