@@ -91,6 +91,11 @@ describe("web-component accessibility semantics", () => {
       expect(controlCss).toContain("background: Canvas");
       expect(controlCss).toContain("border-color: ButtonText");
     }
+
+    const printCss = shadow(mount("honua-print-export", "Print/export")).querySelector("style")?.textContent ?? "";
+    expect(printCss).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(printCss).toContain("background: Canvas");
+    expect(printCss).toContain("border-color: ButtonText");
   });
 
   it("mounts and disconnects the covered controls without console errors", () => {

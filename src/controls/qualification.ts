@@ -674,6 +674,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-accessibility.test.ts"],
         note: "The measure and sketch controls' shared panels declare forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules, asserted from each emitted stylesheet.",
       },
+      {
+        ids: ["web-components.print-export"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The print/export control declares forced-colors/prefers-contrast system-color rules for its panel and export actions, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -693,7 +698,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "web-components.basemap-control" &&
             id !== "web-components.locate-control" &&
             id !== "web-components.measure-control" &&
-            id !== "web-components.sketch-control",
+            id !== "web-components.sketch-control" &&
+            id !== "web-components.print-export",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
