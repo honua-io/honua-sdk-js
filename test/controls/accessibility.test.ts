@@ -40,12 +40,16 @@ describe("controls accessibility semantics", () => {
   it("exposes the swipe divider as a labelled range", () => {
     const element = mount(new HonuaSwipeControlElement());
     const divider = element.shadowRoot?.querySelector('[role="slider"]');
+    const styles = element.shadowRoot?.querySelector("style")?.textContent ?? "";
 
     expect(divider?.getAttribute("aria-label")).toBe("Compare maps");
     expect(divider?.getAttribute("aria-valuemin")).toBe("0");
     expect(divider?.getAttribute("aria-valuemax")).toBe("100");
     expect(divider?.getAttribute("aria-valuenow")).toBe("50");
     expect(divider?.getAttribute("aria-orientation")).toBe("horizontal");
+    expect(styles).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(styles).toContain("border-color: ButtonText");
+    expect(styles).toContain("outline: 2px solid Canvas");
 
     element.orientation = "horizontal";
     expect(element.shadowRoot?.querySelector('[role="slider"]')?.getAttribute("aria-orientation")).toBe("vertical");

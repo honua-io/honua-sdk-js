@@ -403,5 +403,16 @@ function structuralStyles(): string {
       inset-block-start: 0;
       inset-inline-start: 50%;
     }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .divider {
+        forced-color-adjust: none;
+        border-color: ButtonText;
+      }
+      .handle {
+        background: ButtonText;
+        outline: 2px solid Canvas;
+        outline-offset: 1px;
+      }
+    }
   `;
 }

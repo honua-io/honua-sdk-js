@@ -604,10 +604,15 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [FEATURE_EDITOR_SUITE],
         note: "The feature editor declares forced-colors and prefers-contrast styles for pressed, disabled, native form, invalid, and validation states, with the emitted stylesheet assertions covering system Canvas/Highlight colors and non-color state distinctions.",
       },
+      {
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The swipe divider declares forced-colors and prefers-contrast rules that preserve the divider and handle boundary using ButtonText/Canvas system colors, asserted from the emitted shadow stylesheet.",
+      },
     ],
     failing: [
       {
-        ids: ALL_IDS.filter((id) => id !== FEATURE_EDITOR),
+        ids: ALL_IDS.filter((id) => id !== FEATURE_EDITOR && id !== "controls.swipe-control"),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
     ],
