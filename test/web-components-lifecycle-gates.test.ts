@@ -576,16 +576,34 @@ describe("print/export affordances and semantics", () => {
     for (const kind of ["snapshot", "state"]) {
       const button = root.querySelector<HTMLButtonElement>(`button[data-export-kind="${kind}"]`);
       expect(button, kind).not.toBeNull();
-      expect(button?.disabled, kind).toBe(false);
-      expect(button?.getAttribute("disabled"), kind).toBeNull();
-      expect(button?.getAttribute("aria-disabled"), kind).toBeNull();
       expect(button?.getAttribute("data-export-unavailable"), kind).toBe("true");
       expect(button?.getAttribute("title") ?? "", kind).toContain("adapter");
+      // Deliberately neither disabled nor aria-disabled: both suppress
+      // activation, and activation is how an application learns it needs an
+      // adapter. Unavailability is conveyed by the title and the live region.
+      expect(button?.disabled, kind).toBe(false);
+      expect(button?.hasAttribute("aria-disabled"), kind).toBe(false);
     }
 
     const status = root.querySelector('[role="status"]');
     expect(status?.getAttribute("aria-live")).toBe("polite");
     expect(status?.textContent ?? "").toContain("adapter");
+  });
+
+  it("still reports the unsupported outcome when an unavailable export is activated", async () => {
+    const tracked = trackedController();
+    const element = mount("honua-print-export", tracked.controller);
+    const exports: { kind?: string; exportStatus?: string; errorCode?: string }[] = [];
+    element.addEventListener("honua-export", (event) => exports.push((event as CustomEvent).detail));
+
+    shadowOf(element).querySelector<HTMLButtonElement>('button[data-export-kind="snapshot"]')?.click();
+    await settle();
+
+    // The click is what tells an application it must supply an adapter; a
+    // natively disabled button would have swallowed it silently.
+    expect(exports).toHaveLength(1);
+    expect(exports[0]).toMatchObject({ kind: "snapshot", exportStatus: "unsupported" });
+    expect(exports[0]?.errorCode).toBe("core.capability-not-supported");
   });
 
   it("enables snapshot and state export once an adapter is assigned, and fails closed again when it is cleared", async () => {
@@ -602,10 +620,11 @@ describe("print/export affordances and semantics", () => {
     };
 
     const stateButton = shadowOf(element).querySelector<HTMLButtonElement>('button[data-export-kind="state"]');
-    expect(stateButton?.getAttribute("data-export-unavailable")).toBeNull();
+    expect(stateButton?.hasAttribute("data-export-unavailable")).toBe(false);
     await expect(element.requestExport?.("state")).resolves.toMatchObject({ status: "ready" });
 
     element.exportAdapter = undefined;
+    // Marked unavailable again, and the export itself fails closed again.
     expect(
       shadowOf(element)
         .querySelector<HTMLButtonElement>('button[data-export-kind="state"]')

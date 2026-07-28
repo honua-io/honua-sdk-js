@@ -158,12 +158,6 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     "Planned local materialization exceeds its safety bound",
   ),
   "query.execution.invalid-plan": classification("query", "validation", false, "Query plan is invalid"),
-  "query.execution.wfs-protocol": classification(
-    "query",
-    "protocol",
-    false,
-    "WFS protocol evidence or response is invalid",
-  ),
   "query.execution.plan-context-mismatch": classification(
     "query",
     "validation",
@@ -402,7 +396,7 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     "realtime",
     "validation",
     false,
-    "Realtime reconciliation has been disposed",
+    "Realtime reconciliation controller, cache, or adapter is disposed",
   ),
   "realtime.reconciliation.invalid-option": classification(
     "realtime",

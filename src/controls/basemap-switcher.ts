@@ -333,18 +333,9 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
 }
 
 /**
- * Registers the controls-entry custom elements (`honua-basemap-switcher`,
- * `honua-legend`, `honua-swipe-control`). Invoked automatically on import when
- * a global `customElements` registry is present; call explicitly when using a
- * scoped registry.
- *
- * Registrations are skipped for tag names that are already defined. In
- * particular the `web-components` entry registers its own (controller-driven)
- * `honua-legend`; whichever entry is imported first owns that tag.
- *
- * `honua-layer-list` is intentionally NOT registered here — it collides with
- * the `web-components` kit's own controller-driven `honua-layer-list`, so it is
- * opt-in via {@link defineHonuaLayerList}.
+ * Registers `<honua-basemap-switcher>`. Skipped when the tag is already
+ * defined. Broken out from {@link defineHonuaControls} so the catalog-driven
+ * registry (`./registry.js`) can register this tag individually.
  */
 export function defineHonuaBasemapSwitcher(registry = globalDom.customElements): void {
   if (!registry) return;
@@ -353,6 +344,22 @@ export function defineHonuaBasemapSwitcher(registry = globalDom.customElements):
   }
 }
 
+/**
+ * Registers the controls-entry custom elements that do NOT contend for a tag
+ * with the `web-components` kit: `honua-basemap-switcher` and
+ * `honua-swipe-control`. Invoked automatically on import when a global
+ * `customElements` registry is present; call explicitly when using a scoped
+ * registry.
+ *
+ * `honua-legend` and `honua-layer-list` are intentionally NOT registered here
+ * — both tags also have a controller-driven implementation in the
+ * `web-components` kit, and the `web-components` kit's implementation is that
+ * tag's canonical/default registrant (see `./catalog.js`). Registering both
+ * kits' colliding elements from unguarded module-load side effects made the
+ * winner depend on import order (issue #679); each is opt-in instead, via
+ * {@link defineHonuaLegend} / {@link defineHonuaLayerList}, so claiming the
+ * controls-kit implementation is always an explicit, deterministic choice.
+ */
 export function defineHonuaControls(registry = globalDom.customElements): void {
   if (!registry) return;
   defineHonuaBasemapSwitcher(registry);

@@ -48,8 +48,13 @@
  * presentation, with the text labels carrying the meaning.
  *
  * Note: the `web-components` entry also registers a (controller-driven)
- * `honua-legend` element and is that tag's canonical/default registrant.
- * Call `defineHonuaLegend()` explicitly to claim this implementation.
+ * `honua-legend` element, and is that tag's canonical/default registrant
+ * (see `./catalog.js`) — importing `@honua/sdk-js/controls` alone or
+ * alongside `@honua/sdk-js/web-components`, in either order, never registers
+ * this implementation automatically. Call {@link defineHonuaLegend} (or
+ * `registerComponent("controls.legend")` from `./registry.js`) explicitly,
+ * before anything else claims the tag, to use this map-style-derived element
+ * instead.
  */
 
 import {
@@ -64,8 +69,10 @@ import { HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js"
 import type { HonuaLegendEntry, HonuaLegendMap, HonuaLegendSection, HonuaLegendSwatchShape } from "./types.js";
 
 /**
- * Custom element implementing the legend. Registered explicitly by
- * `defineHonuaLegend`; it is not part of blanket controls registration.
+ * Custom element implementing the legend. Registered as `honua-legend` by
+ * {@link defineHonuaLegend} (opt-in; not part of the blanket
+ * {@link defineHonuaControls} auto-registration — see that function's doc for
+ * why).
  */
 export class HonuaLegendElement extends HTMLElementBase {
   public static get observedAttributes(): string[] {
@@ -320,10 +327,27 @@ export class HonuaLegendElement extends HTMLElementBase {
   }
 }
 
-/** Registers the map-style-derived legend implementation, if requested. */
+/**
+ * Registers the legend custom element (`honua-legend`) with the
+ * map-style-derived, framework-free implementation. Skips the registration
+ * when the tag is already defined.
+ *
+ * Like {@link defineHonuaLayerList}, this is **opt-in** and is NOT run by the
+ * blanket `defineHonuaControls()` / module-load auto-registration — the
+ * `web-components` entry ships its own (controller-driven) `honua-legend`
+ * and is that tag's canonical/default registrant, so a caller who wants this
+ * implementation instead claims the tag explicitly:
+ *
+ * ```ts
+ * import { defineHonuaLegend } from "@honua/sdk-js/controls";
+ * defineHonuaLegend();
+ * ```
+ */
 export function defineHonuaLegend(registry = globalDom.customElements): void {
   if (!registry) return;
-  if (!registry.get("honua-legend")) registry.define("honua-legend", HonuaLegendElement);
+  if (!registry.get("honua-legend")) {
+    registry.define("honua-legend", HonuaLegendElement);
+  }
 }
 
 function normalizeSections(value: readonly (HonuaLegendEntry | HonuaLegendSection)[]): HonuaLegendSection[] {
