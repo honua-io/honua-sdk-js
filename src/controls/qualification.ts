@@ -463,6 +463,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [FEATURE_TABLE_SUITE],
         note: "A full WAI-ARIA grid contract: role=grid/row/columnheader/gridcell with absolute aria-rowcount, aria-colcount, aria-rowindex, and aria-colindex across a virtualized window, aria-rowcount=-1 when the true total is genuinely unknown rather than a fabricated number, aria-sort, aria-selected, aria-busy, a role=status aria-live=polite readout, and placeholder rows that announce nothing they cannot substantiate. The grid's own accessible name (aria-labelledby) is emitted but not asserted.",
       },
+      {
+        ids: ["controls.basemap-switcher", "controls.swipe-control", "controls.layer-list"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The native controls expose explicit accessible structure: a labelled radiogroup with checked radio choices, a labelled slider with bounded value state, and a labelled group containing native checkbox controls paired with their visible labels.",
+      },
     ],
     pendingNote:
       "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract.",

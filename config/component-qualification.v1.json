@@ -127,9 +127,9 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 115,
+    "passing": 118,
     "failing": 131,
-    "pending": 90,
+    "pending": 87,
     "notApplicable": 21,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
@@ -143,7 +143,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "screen-reader-semantics",
         "focus-restoration",
         "high-contrast",
         "responsive-layout",
@@ -157,9 +156,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 3,
+        "passing": 4,
         "failing": 6,
-        "pending": 7,
+        "pending": 6,
         "notApplicable": 1
       },
       "gates": [
@@ -172,8 +171,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "The native controls expose explicit accessible structure: a labelled radiogroup with checked radio choices, a labelled slider with bounded value state, and a labelled group containing native checkbox controls paired with their visible labels."
         },
         {
           "gate": "focus-restoration",
@@ -284,7 +286,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "screen-reader-semantics",
         "focus-restoration",
         "high-contrast",
         "responsive-layout",
@@ -299,9 +300,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 3,
+        "passing": 4,
         "failing": 6,
-        "pending": 7,
+        "pending": 6,
         "notApplicable": 1
       },
       "gates": [
@@ -317,8 +318,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "The native controls expose explicit accessible structure: a labelled radiogroup with checked radio choices, a labelled slider with bounded value state, and a labelled group containing native checkbox controls paired with their visible labels."
         },
         {
           "gate": "focus-restoration",
@@ -573,7 +577,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "screen-reader-semantics",
         "focus-restoration",
         "high-contrast",
         "responsive-layout",
@@ -587,9 +590,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 3,
+        "passing": 4,
         "failing": 6,
-        "pending": 7,
+        "pending": 6,
         "notApplicable": 1
       },
       "gates": [
@@ -602,8 +605,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "The native controls expose explicit accessible structure: a labelled radiogroup with checked radio choices, a labelled slider with bounded value state, and a labelled group containing native checkbox controls paired with their visible labels."
         },
         {
           "gate": "focus-restoration",

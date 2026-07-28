@@ -1,0 +1,60 @@
+// @vitest-environment jsdom
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import { HonuaBasemapSwitcherElement } from "../../src/controls/basemap-switcher.js";
+import { HonuaLayerListElement, defineHonuaLayerList } from "../../src/controls/layer-list.js";
+import { HonuaSwipeControlElement } from "../../src/controls/swipe-control.js";
+
+defineHonuaLayerList();
+
+const mounted: HTMLElement[] = [];
+
+afterEach(() => {
+  for (const element of mounted.splice(0)) element.remove();
+});
+
+function mount<T extends HTMLElement>(element: T): T {
+  document.body.append(element);
+  mounted.push(element);
+  return element;
+}
+
+describe("controls accessibility semantics", () => {
+  it("exposes basemap choices as a named radio group", () => {
+    const element = mount(new HonuaBasemapSwitcherElement());
+    element.bases = [
+      { id: "streets", label: "Streets", kind: "vector", sources: {}, layers: [] },
+      { id: "imagery", label: "Imagery", kind: "raster", sources: {}, layers: [] },
+    ];
+
+    const group = element.shadowRoot?.querySelector('[role="radiogroup"]');
+    const radios = [...(element.shadowRoot?.querySelectorAll('[role="radio"]') ?? [])];
+    expect(group?.getAttribute("aria-label")).toBe("Basemaps");
+    expect(radios.map((radio) => radio.textContent?.trim())).toEqual(["Streets", "Imagery"]);
+    expect(radios.map((radio) => radio.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+  });
+
+  it("exposes the swipe divider as a labelled range", () => {
+    const element = mount(new HonuaSwipeControlElement());
+    const divider = element.shadowRoot?.querySelector('[role="slider"]');
+
+    expect(divider?.getAttribute("aria-label")).toBe("Compare maps");
+    expect(divider?.getAttribute("aria-valuemin")).toBe("0");
+    expect(divider?.getAttribute("aria-valuemax")).toBe("100");
+    expect(divider?.getAttribute("aria-valuenow")).toBe("50");
+  });
+
+  it("exposes layer toggles through a named group and native checkbox labels", () => {
+    const element = mount(new HonuaLayerListElement());
+    element.overlays = [{ id: "roads", label: "Roads", layers: ["roads-layer"] }];
+
+    const root = element.shadowRoot?.querySelector('[role="group"]');
+    const checkbox = element.shadowRoot?.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    const label = element.shadowRoot?.querySelector("label");
+    expect(root?.getAttribute("aria-label")).toBe("Layers");
+    expect(checkbox).not.toBeNull();
+    expect(label?.textContent).toContain("Roads");
+    expect(label?.querySelector('input[type="checkbox"]')).toBe(checkbox);
+  });
+});
