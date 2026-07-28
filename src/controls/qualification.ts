@@ -577,10 +577,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   "reduced-motion": {
-    failing: [
+    passing: [
       {
         ids: CAMERA_MOVING_IDS,
-        note: "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition.",
+        evidence: ["test/runtime/runtime.test.ts"],
+        note: "The shared runtime forces animated bounding-box camera transitions to animate:false when the map container reports prefers-reduced-motion: reduce, covering all four web components that delegate camera commits through this path.",
       },
     ],
     notApplicable: [

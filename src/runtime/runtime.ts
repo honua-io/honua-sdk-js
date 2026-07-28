@@ -92,6 +92,7 @@ export interface MaplibreMap extends FeatureStateMap, MapEventTarget {
     bounds: [[number, number], [number, number]] | [number, number, number, number],
     options?: Record<string, unknown>,
   ): void;
+  getContainer?(): HTMLElement;
   jumpTo?(options: { center?: [number, number]; zoom?: number; bearing?: number; pitch?: number }): void;
   easeTo?(options: Record<string, unknown>): void;
   flyTo?(options: Record<string, unknown>): void;
@@ -900,6 +901,7 @@ export class HonuaMapRuntime {
 
   public setViewState(view: SetViewStateInput): void {
     this.#assertLive();
+    const reducedMotion = this.prefersReducedMotion();
     const bbox = view.bbox ?? this.#packageRef.current.initialView?.bbox;
     if (view.bbox && this.map.fitBounds) {
       const [west, south, east, north] = view.bbox;
@@ -909,7 +911,7 @@ export class HonuaMapRuntime {
           [east, north],
         ],
         {
-          animate: view.animate ?? false,
+          animate: reducedMotion ? false : (view.animate ?? false),
           ...(view.padding !== undefined ? { padding: view.padding } : {}),
         },
       );
@@ -934,6 +936,11 @@ export class HonuaMapRuntime {
         { animate: false },
       );
     }
+  }
+
+  private prefersReducedMotion(): boolean {
+    const view = this.map.getContainer?.().ownerDocument.defaultView;
+    return view?.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   }
 
   /**

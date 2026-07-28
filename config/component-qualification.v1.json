@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 153,
-    "failing": 129,
+    "passing": 157,
+    "failing": 125,
     "pending": 49,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -740,7 +740,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "reduced-motion",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -751,8 +750,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 8,
-        "failing": 7,
+        "passing": 9,
+        "failing": 6,
         "pending": 2,
         "notApplicable": 0
       },
@@ -787,8 +786,11 @@
         {
           "gate": "reduced-motion",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition."
+          "status": "passing",
+          "evidence": [
+            "test/runtime/runtime.test.ts"
+          ],
+          "note": "The shared runtime forces animated bounding-box camera transitions to animate:false when the map container reports prefers-reduced-motion: reduce, covering all four web components that delegate camera commits through this path."
         },
         {
           "gate": "high-contrast",
@@ -1343,7 +1345,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "reduced-motion",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -1354,8 +1355,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 8,
-        "failing": 7,
+        "passing": 9,
+        "failing": 6,
         "pending": 2,
         "notApplicable": 0
       },
@@ -1392,8 +1393,11 @@
         {
           "gate": "reduced-motion",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition."
+          "status": "passing",
+          "evidence": [
+            "test/runtime/runtime.test.ts"
+          ],
+          "note": "The shared runtime forces animated bounding-box camera transitions to animate:false when the map container reports prefers-reduced-motion: reduce, covering all four web components that delegate camera commits through this path."
         },
         {
           "gate": "high-contrast",
@@ -2098,7 +2102,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "reduced-motion",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -2109,8 +2112,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 8,
-        "failing": 7,
+        "passing": 9,
+        "failing": 6,
         "pending": 2,
         "notApplicable": 0
       },
@@ -2145,8 +2148,11 @@
         {
           "gate": "reduced-motion",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition."
+          "status": "passing",
+          "evidence": [
+            "test/runtime/runtime.test.ts"
+          ],
+          "note": "The shared runtime forces animated bounding-box camera transitions to animate:false when the map container reports prefers-reduced-motion: reduce, covering all four web components that delegate camera commits through this path."
         },
         {
           "gate": "high-contrast",
@@ -2252,7 +2258,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "reduced-motion",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -2263,8 +2268,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 8,
-        "failing": 7,
+        "passing": 9,
+        "failing": 6,
         "pending": 2,
         "notApplicable": 0
       },
@@ -2299,8 +2304,11 @@
         {
           "gate": "reduced-motion",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition."
+          "status": "passing",
+          "evidence": [
+            "test/runtime/runtime.test.ts"
+          ],
+          "note": "The shared runtime forces animated bounding-box camera transitions to animate:false when the map container reports prefers-reduced-motion: reduce, covering all four web components that delegate camera commits through this path."
         },
         {
           "gate": "high-contrast",
