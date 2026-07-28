@@ -224,6 +224,48 @@ test("web components compose map, layers, legend, table, search, and editor stat
     await fullscreenButton.press("Enter");
     await expect(page.locator("#event-log")).toHaveText("fullscreen:unsupported");
 
+    await page.evaluate(() => {
+      const controller = {
+        getState: () => ({ status: "ready" }),
+        subscribe: () => ({ remove() {} }),
+        canMeasure: () => true,
+        canSketch: () => true,
+        setMeasureMode: (mode) => Promise.resolve({ mode, status: "ready" }),
+        setSketchMode: (mode) => Promise.resolve({ mode, status: "ready" }),
+      };
+      const measure = document.createElement("honua-measure-control");
+      measure.dataset.keyboardProbe = "measure";
+      measure.controller = controller;
+      measure.addEventListener("honua-measure-change", (event) => {
+        measure.dataset.lastMode = event.detail.mode;
+      });
+      const sketch = document.createElement("honua-sketch-control");
+      sketch.dataset.keyboardProbe = "sketch";
+      sketch.controller = controller;
+      sketch.addEventListener("honua-sketch-change", (event) => {
+        sketch.dataset.lastMode = event.detail.mode;
+      });
+      document.body.append(measure, sketch);
+    });
+    const measureDistance = page.locator("honua-measure-control[data-keyboard-probe='measure']").getByRole("button", {
+      name: "Distance",
+    });
+    await measureDistance.focus();
+    await measureDistance.press("Enter");
+    await expect(page.locator("honua-measure-control[data-keyboard-probe='measure']")).toHaveAttribute(
+      "data-last-mode",
+      "distance",
+    );
+    const sketchPoint = page.locator("honua-sketch-control[data-keyboard-probe='sketch']").getByRole("button", {
+      name: "Point",
+    });
+    await sketchPoint.focus();
+    await sketchPoint.press("Enter");
+    await expect(page.locator("honua-sketch-control[data-keyboard-probe='sketch']")).toHaveAttribute(
+      "data-last-mode",
+      "point",
+    );
+
     const teardown = await page.locator("honua-map").evaluate((element) => {
       element.remove();
       return {
