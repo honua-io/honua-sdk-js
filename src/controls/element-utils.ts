@@ -19,6 +19,7 @@ export const globalDom = globalThis as typeof globalThis & {
   HTMLElement?: typeof HTMLElement;
   CustomEvent?: typeof CustomEvent;
   customElements?: CustomElementRegistry;
+  getComputedStyle?: typeof getComputedStyle;
 };
 
 export const HTMLElementBase: typeof HTMLElement = globalDom.HTMLElement ?? (class {} as unknown as typeof HTMLElement);

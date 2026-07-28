@@ -161,7 +161,9 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
     container.style.clipPath =
       this.orientation === "horizontal"
         ? `inset(${pct} 0 0 0)` // hide the top portion above the divider
-        : `inset(0 0 0 ${pct})`; // hide the left portion before the divider
+        : this.#isRtl()
+          ? `inset(0 ${pct} 0 0)` // hide the right portion before the divider
+          : `inset(0 0 0 ${pct})`; // hide the left portion before the divider
   }
 
   #clearClip(map: HonuaSwipeMap | undefined): void {
@@ -216,11 +218,11 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
     if (!divider?.style) return;
     const pct = `${this.#position}%`;
     if (this.orientation === "horizontal") {
-      divider.style.left = "0";
-      divider.style.top = pct;
+      divider.style.insetInlineStart = "0";
+      divider.style.insetBlockStart = pct;
     } else {
-      divider.style.top = "0";
-      divider.style.left = pct;
+      divider.style.insetBlockStart = "0";
+      divider.style.insetInlineStart = pct;
     }
     divider.classList?.toggle("divider-horizontal", this.orientation === "horizontal");
     divider.setAttribute?.("aria-valuenow", String(this.#position));
@@ -274,22 +276,25 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
           : (event.clientY - rect.top) / rect.height
         : rect.width === 0
           ? 0
-          : (event.clientX - rect.left) / rect.width;
+          : this.#isRtl()
+            ? 1 - (event.clientX - rect.left) / rect.width
+            : (event.clientX - rect.left) / rect.width;
     this.#setPosition(ratio * 100, true);
   }
 
   #onKeyDown(event: KeyboardEvent): void {
     const horizontal = this.orientation === "horizontal";
+    const reverseInlineDirection = !horizontal && this.#isRtl();
     const step = event.shiftKey ? STEP_LARGE : STEP;
     let next: number;
     switch (event.key) {
       case "ArrowRight":
       case "ArrowDown":
-        next = this.#position + step;
+        next = this.#position + (reverseInlineDirection && event.key === "ArrowRight" ? -step : step);
         break;
       case "ArrowLeft":
       case "ArrowUp":
-        next = this.#position - step;
+        next = this.#position - (reverseInlineDirection && event.key === "ArrowLeft" ? -step : step);
         break;
       case "Home":
         next = horizontal ? 100 : 0;
@@ -312,6 +317,13 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
 
   #attr(name: string): string | null {
     return typeof this.getAttribute === "function" ? this.getAttribute(name) : null;
+  }
+
+  #isRtl(): boolean {
+    const explicitDirection = this.#attr("dir")?.toLowerCase();
+    if (explicitDirection === "rtl") return true;
+    if (explicitDirection === "ltr") return false;
+    return globalDom.getComputedStyle?.(this as unknown as Element).direction === "rtl";
   }
 
   #reflectPosition(value: number): void {
@@ -355,7 +367,7 @@ function structuralStyles(): string {
     :host { position: absolute; inset: 0; pointer-events: none; display: block; }
     .divider {
       position: absolute;
-      top: 0;
+      inset-block-start: 0;
       block-size: 100%;
       inline-size: 0;
       border-inline-start: 2px solid currentColor;

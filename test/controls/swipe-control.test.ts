@@ -75,7 +75,7 @@ function makeMap(): HonuaSwipeMap & { container: { style: Record<string, string>
   return { container, getContainer: () => container as unknown as HTMLElement };
 }
 
-function makeElement(): {
+function makeElement(direction?: "rtl" | "ltr"): {
   element: HonuaSwipeControlElement;
   divider: DividerStub;
   attributes: Map<string, string>;
@@ -95,7 +95,7 @@ function makeElement(): {
   };
   Object.assign(element, {
     shadowRoot: shadow,
-    getAttribute: (name: string) => attributes.get(name) ?? null,
+    getAttribute: (name: string) => (name === "dir" ? (direction ?? null) : (attributes.get(name) ?? null)),
     setAttribute: (name: string, value: string) => {
       attributes.set(name, value);
     },
@@ -115,8 +115,36 @@ describe("HonuaSwipeControlElement", () => {
     const { element, divider } = makeElement();
     expect(element.position).toBe(50);
     expect(element.orientation).toBe("vertical");
-    expect(divider.style.left).toBe("50%");
+    expect(divider.style.insetInlineStart).toBe("50%");
     expect(divider.getAttribute("aria-valuenow")).toBe("50");
+  });
+
+  test("uses logical positioning and clips from the inline end in RTL", () => {
+    const { element, divider } = makeElement("rtl");
+    const top = makeMap();
+    element.topMap = top;
+    element.position = 25;
+
+    expect(divider.style.insetBlockStart).toBe("0");
+    expect(divider.style.insetInlineStart).toBe("25%");
+    expect(top.container.style.clipPath).toBe("inset(0 25% 0 0)");
+
+    divider.emit("pointerdown", { pointerId: 1, clientX: 150, clientY: 0, preventDefault() {} });
+    expect(element.position).toBe(25);
+  });
+
+  test("reverses vertical arrow keys in RTL while preserving logical Home and End", () => {
+    const { element, divider } = makeElement("rtl");
+    element.position = 50;
+
+    divider.emit("keydown", { key: "ArrowRight", preventDefault() {} });
+    expect(element.position).toBe(49);
+    divider.emit("keydown", { key: "ArrowLeft", preventDefault() {} });
+    expect(element.position).toBe(50);
+    divider.emit("keydown", { key: "Home", preventDefault() {} });
+    expect(element.position).toBe(0);
+    divider.emit("keydown", { key: "End", preventDefault() {} });
+    expect(element.position).toBe(100);
   });
 
   test("clips the top map and leaves the bottom map untouched", () => {
