@@ -614,6 +614,20 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [LIFECYCLE_HARNESS],
         note: "Covered for the controller lane only. The bounded engine lane is not driven by the harness and no feature-table suite spies on the console, so its query, paging, and conflict paths are unswept.",
       },
+      {
+        ids: [
+          "web-components.map",
+          "web-components.editor",
+          "web-components.chart",
+          "web-components.basemap-control",
+          "web-components.bookmarks",
+          "web-components.locate-control",
+          "web-components.map-status",
+          "web-components.action-panel",
+        ],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither.",
+      },
     ],
     pendingNote:
       "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec.",

@@ -127,9 +127,9 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 126,
+    "passing": 127,
     "failing": 131,
-    "pending": 79,
+    "pending": 78,
     "notApplicable": 21,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
@@ -731,14 +731,13 @@
         "rtl",
         "visual-regression",
         "strict-csp",
-        "zero-console-error",
         "duplicate-listener",
         "memory-leak"
       ],
       "summary": {
-        "passing": 4,
+        "passing": 5,
         "failing": 7,
-        "pending": 6,
+        "pending": 5,
         "notApplicable": 0
       },
       "gates": [
@@ -814,8 +813,11 @@
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -1566,9 +1568,10 @@
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -1863,9 +1866,10 @@
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -2010,9 +2014,10 @@
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -2161,9 +2166,10 @@
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -2310,9 +2316,10 @@
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -3054,9 +3061,10 @@
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -3204,9 +3212,10 @@
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",

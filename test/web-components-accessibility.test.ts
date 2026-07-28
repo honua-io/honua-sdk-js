@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import "../src/web-components/index.js";
 
@@ -74,5 +74,30 @@ describe("web-component accessibility semantics", () => {
 
     const actions = shadow(mount("honua-action-panel", "Actions"));
     expect(actions.querySelector('[role="status"]')?.textContent).toContain("No actions");
+  });
+
+  it("mounts and disconnects the covered controls without console errors", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      for (const tagName of [
+        "honua-map",
+        "honua-editor",
+        "honua-chart",
+        "honua-basemap-control",
+        "honua-bookmarks",
+        "honua-locate-control",
+        "honua-map-status",
+        "honua-action-panel",
+      ]) {
+        mount(tagName, "Console-safe control");
+      }
+      for (const element of mounted.splice(0)) element.remove();
+      expect(error).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
   });
 });
