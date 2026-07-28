@@ -6,6 +6,23 @@ import type { HonuaLayerSpecification } from "../style/index.js";
 
 export type HonuaComponentStatus = "idle" | "loading" | "ready" | "error" | "unsupported";
 
+/**
+ * Caller-supplied messages for `<honua-locate-control>`.
+ *
+ * The control keeps its legacy English defaults when no messages are
+ * supplied, while applications can provide a complete locale without
+ * replacing the element's rendering or event behavior.
+ */
+export interface HonuaLocateControlMessages {
+  readonly actionLabel?: string;
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly initial?: string;
+  readonly requesting?: string;
+  readonly unavailable?: string;
+  readonly applied?: string;
+  readonly error?: (error: unknown) => string;
+}
+
 export interface HonuaLayerModel {
   id: string;
   title: string;

@@ -56,6 +56,7 @@ import type {
   HonuaLayerVisibilityChangeDetail,
   HonuaLegendItem,
   HonuaLocateChangeDetail,
+  HonuaLocateControlMessages,
   HonuaMapClickDetail,
   HonuaMapErrorDetail,
   HonuaMapHoverDetail,
@@ -1700,6 +1701,17 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
 
   #status: HonuaComponentStatus = "idle";
   #message = "";
+  #messages: HonuaLocateControlMessages = {};
+
+  /** Caller-supplied localized labels and state messages. */
+  public get messages(): HonuaLocateControlMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaLocateControlMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
@@ -1710,17 +1722,21 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
     const label = this.getAttribute("label") ?? "Locate";
     const supported = this.hasConfiguredLocation() || Boolean(globalThis.navigator?.geolocation);
     const status = supported ? this.#status : "unsupported";
+    const statusLabel = this.#messages.status?.[status] ?? status;
+    const message =
+      this.#message ||
+      (supported
+        ? (this.#messages.initial ?? "Centers the shared map controller.")
+        : (this.#messages.unavailable ?? "Geolocation is unavailable."));
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(status)}</span>
+          <span>${escapeHtml(statusLabel)}</span>
         </div>
-        <button type="button" data-locate ${supported ? "" : "disabled"}>Use location</button>
-        <p class="empty" role="status">${escapeHtml(
-          supported ? this.#message || "Centers the shared map controller." : "Geolocation is unavailable.",
-        )}</p>
+        <button type="button" data-locate ${supported ? "" : "disabled"}>${escapeHtml(this.#messages.actionLabel ?? "Use location")}</button>
+        <p class="empty" role="status">${escapeHtml(message)}</p>
       </section>
     `);
     this.shadowRoot?.querySelector<HTMLButtonElement>("button[data-locate]")?.addEventListener("click", () => {
@@ -1737,7 +1753,7 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
     const geolocation = globalThis.navigator?.geolocation;
     if (!geolocation) {
       this.#status = "unsupported";
-      this.#message = "Geolocation is unavailable.";
+      this.#message = this.#messages.unavailable ?? "Geolocation is unavailable.";
       this.dispatchTypedEvent<HonuaLocateChangeDetail>("honua-locate-change", {
         status: "unsupported",
         message: this.#message,
@@ -1746,7 +1762,7 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
       return;
     }
     this.#status = "loading";
-    this.#message = "Requesting location.";
+    this.#message = this.#messages.requesting ?? "Requesting location.";
     this.render();
     geolocation.getCurrentPosition(
       (position) => {
@@ -1757,7 +1773,7 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
       },
       (error) => {
         this.#status = "error";
-        this.#message = error.message;
+        this.#message = this.#messages.error?.(error) ?? error.message;
         this.dispatchTypedEvent<HonuaLocateChangeDetail>("honua-locate-change", {
           status: "error",
           error,
@@ -1770,7 +1786,7 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
 
   private applyLocation(viewport: HonuaViewportState): void {
     this.#status = "ready";
-    this.#message = "Location applied.";
+    this.#message = this.#messages.applied ?? "Location applied.";
     this.controller?.setViewport(viewport);
     this.dispatchTypedEvent<HonuaLocateChangeDetail>("honua-locate-change", { status: "ready", viewport });
     this.dispatchTypedEvent<HonuaViewportChangeDetail>("honua-viewport-change", viewport);
