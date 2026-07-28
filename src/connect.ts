@@ -143,6 +143,11 @@ export interface ConnectSourceSchemaProjection {
     entitySet: string,
     context: ConnectSourceSchemaProjectionContext,
   ): SourceSchemaV2Envelope | undefined;
+  stac(context: ConnectSourceSchemaProjectionContext & { readonly protocol: "stac" }): SourceSchemaV2Envelope;
+  geoservicesImage(
+    metadata: Readonly<Record<string, unknown>>,
+    context: ConnectSourceSchemaProjectionContext & { readonly protocol: "geoservices-image-service" },
+  ): SourceSchemaV2Envelope;
   geoParquet(
     profile: GeoParquetSourceProfile,
     context: ConnectSourceSchemaProjectionContext,
@@ -503,7 +508,7 @@ export async function connectWithSourceSchemaProjection(
                       : target.protocol === "ogc-maps"
                         ? await discoverOgcMaps(client, identity, target, options)
                         : target.protocol === "geoservices-image-service"
-                          ? await discoverGeoServicesImage(client, identity, target, options)
+                          ? await discoverGeoServicesImage(client, identity, target, options, sourceSchemaProjection)
                           : target.protocol === "wms" || target.protocol === "wmts"
                             ? await discoverWmsWmtsSources(client, identity, target, options, sourceSchemaProjection)
                             : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
@@ -964,8 +969,9 @@ async function discoverGeoServicesImage(
   identity: DiscoveryCacheIdentity,
   target: ConnectTarget,
   options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
-  const discovered = await discoverGeoServicesImageSources(client, target, options);
+  const discovered = await discoverGeoServicesImageSources(client, target, options, sourceSchemaProjection);
   if (discovered.sources.length === 0) {
     throw new HonuaDiscoveryError(
       "unsupported-protocol",
@@ -1640,6 +1646,15 @@ function applySourceSchemaProjection(
           ? sourceSchemaProjection.wmts(source.metadata, { ...context, protocol: "wmts" })
           : undefined;
         break;
+      case "stac":
+        schemaV2 = sourceSchemaProjection.stac({ ...context, protocol: "stac" });
+        break;
+      case "geoservices-image-service":
+        schemaV2 = sourceSchemaProjection.geoservicesImage(
+          source.metadata && typeof source.metadata === "object" ? source.metadata : Object.freeze({}),
+          { ...context, protocol: "geoservices-image-service" },
+        );
+        break;
       default:
         return source;
     }
@@ -1662,6 +1677,8 @@ function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boole
     protocol === "wmts" ||
     protocol === "geoservices-feature-service" ||
     protocol === "geoservices-map-service" ||
+    protocol === "geoservices-image-service" ||
+    protocol === "stac" ||
     // gRPC FeatureServer discovery routes through the geoservices projection and emits a
     // schemaV2 payload; it must be projection-applicable so cache writes and reads agree
     // (otherwise the first gRPC schema discovery caches an entry every later read rejects).

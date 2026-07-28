@@ -7,7 +7,9 @@ import type { CapabilitySourceEndpointIdentity } from "./source-capability-types
 export type CapabilityDiscoveryProtocol =
   | "geoservices-feature-service"
   | "geoservices-map-service"
+  | "geoservices-image-service"
   | "odata"
+  | "stac"
   | "wms"
   | "wmts";
 
@@ -25,6 +27,20 @@ export function sourceCapabilityEndpointIdentity(
       endpoint: canonicalOdataEntityEndpoint(locator.url, odataEntityPath(locator)),
       protocol,
       sourceId: descriptor.id,
+    });
+  }
+  if (protocol === "stac") {
+    if (typeof locator.collectionId !== "string" && typeof locator.collectionId !== "number") {
+      throw new TypeError("STAC locator.collectionId must be a string or number.");
+    }
+    const sourceId = String(locator.collectionId);
+    if (descriptor.id !== sourceId) {
+      throw new TypeError("STAC descriptor.id must match locator.collectionId.");
+    }
+    return endpointIdentity({
+      endpoint: requiredEndpoint(locator.url),
+      protocol,
+      sourceId,
     });
   }
   if (protocol === "geoservices-feature-service" || protocol === "geoservices-map-service") {
@@ -49,6 +65,17 @@ export function sourceCapabilityEndpointIdentity(
       endpoint: requiredEndpoint(locator.url),
       protocol,
       sourceId: layer,
+    });
+  }
+  if (protocol === "geoservices-image-service") {
+    const serviceId = requiredServiceId(locator.serviceId);
+    if (descriptor.id !== serviceId) {
+      throw new TypeError("GeoServices ImageServer descriptor.id must match locator.serviceId");
+    }
+    return endpointIdentity({
+      endpoint: canonicalGeoServicesImageEndpoint(locator.url, serviceId),
+      protocol,
+      sourceId: serviceId,
     });
   }
   throw new TypeError(
@@ -129,6 +156,34 @@ function canonicalGeoServicesLayerEndpoint(
   }
 
   return `${trimTrailingSlashes(endpoint)}/rest/services/${encodeServiceIdPath(serviceId)}/${serviceType}/${layerId}`;
+}
+
+function canonicalGeoServicesImageEndpoint(rawEndpoint: string, serviceId: string): string {
+  const endpoint = requiredEndpoint(rawEndpoint);
+  const parsed = new URL(endpoint);
+  const segments = trimTrailingSlashes(parsed.pathname).split("/");
+  const imageIndex = segments.length - 1;
+  const advertisedType = segments[imageIndex]?.toLowerCase();
+  if (advertisedType === "imageserver") {
+    const restIndex = findRestServicesPrefix(segments, imageIndex);
+    if (restIndex >= 0) {
+      let advertisedServiceId: string;
+      try {
+        advertisedServiceId = segments
+          .slice(restIndex + 2, imageIndex)
+          .map((segment) => decodeURIComponent(segment))
+          .join("/");
+      } catch {
+        throw new TypeError("GeoServices locator.url contains invalid percent encoding");
+      }
+      if (advertisedServiceId !== serviceId) {
+        throw new TypeError("GeoServices locator.url contradicts locator.serviceId or protocol");
+      }
+    }
+    parsed.pathname = `${segments.slice(0, imageIndex + 1).join("/")}`;
+    return parsed.toString();
+  }
+  return `${trimTrailingSlashes(endpoint)}/rest/services/${encodeServiceIdPath(serviceId)}/ImageServer`;
 }
 
 function findRestServicesPrefix(segments: readonly string[], typeIndex: number): number {

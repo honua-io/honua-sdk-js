@@ -1040,12 +1040,22 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
       // STAC: a catalog/item protocol, not an attribute-schema protocol.
       const stacSource = stac.inspection.sources.find((source) => source.descriptor.id === "imagery")!;
       expect(stacSource.descriptor.schema).toBeUndefined();
-      expect(stacSource.descriptor.schemaV2).toBeUndefined();
+      expect(stacSource.descriptor.schemaV2).toMatchObject({
+        fields: [],
+        key: { state: "none" },
+        geometry: { state: "unknown", reason: "metadata-unavailable" },
+        openContent: "unknown",
+      });
       expect(stacSource.descriptor.capabilities.has("query")).toBe(true);
 
       const geoservicesImageSource = geoservicesImage.inspection.sources[0];
       expect(geoservicesImageSource?.descriptor.schema).toBeDefined();
-      expect(geoservicesImageSource?.descriptor.schemaV2).toBeUndefined();
+      expect(geoservicesImageSource?.descriptor.schemaV2).toMatchObject({
+        fields: [],
+        key: { state: "none" },
+        geometry: { state: "none", reason: "no-geometry-fields" },
+        openContent: "unknown",
+      });
       expect(geoservicesImageSource?.descriptor.schema?.primaryKey).toBe("OBJECTID");
       expect(geoservicesImageSource?.descriptor.capabilities.has("query")).toBe(true);
 

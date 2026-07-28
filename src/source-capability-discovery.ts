@@ -58,12 +58,28 @@ export { sourceCapabilityEndpointIdentity } from "./source-capability-discovery-
 export type { CapabilityDiscoveryProtocol } from "./source-capability-discovery-endpoint.js";
 
 const CAPABILITY_DISCOVERY_PROJECTION_IDENTITY = "honua.source-capability-discovery@1.0";
-const CERTIFIED_PROTOCOLS = new Set(["geoservices-feature-service", "geoservices-map-service", "odata", "wms", "wmts"]);
+const CERTIFIED_PROTOCOLS = new Set([
+  "geoservices-feature-service",
+  "geoservices-map-service",
+  "geoservices-image-service",
+  "odata",
+  "wms",
+  "wmts",
+  "stac",
+]);
 
 /** Connect options accepted by the certified capability-discovery rollout. */
 export type SourceCapabilityConnectOptions = Omit<ConnectOptions, "protocol" | "capabilityPolicy"> & {
   /** `auto` remains structural; WMS/WMTS require a canonical path or SERVICE query. */
-  readonly protocol: "auto" | "geoservices-feature-service" | "geoservices-map-service" | "odata" | "wms" | "wmts";
+  readonly protocol:
+    | "auto"
+    | "geoservices-feature-service"
+    | "geoservices-map-service"
+    | "geoservices-image-service"
+    | "odata"
+    | "wms"
+    | "wmts"
+    | "stac";
 };
 
 /** Fresh dynamic inputs reapplied after every raw discovery-cache read. */
@@ -295,7 +311,7 @@ function assertCertifiedProtocol(protocol: SourceCapabilityConnectOptions["proto
   if (protocol === "auto" || CERTIFIED_PROTOCOLS.has(protocol)) return;
   throw new HonuaDiscoveryError(
     "unsupported-protocol",
-    `Capability-aware discovery is currently certified for GeoServices, OData, WMS, and WMTS, not "${String(protocol)}".`,
+    `Capability-aware discovery is currently certified for GeoServices, OData, STAC, WMS, and WMTS, not "${String(protocol)}".`,
     { protocol },
   );
 }

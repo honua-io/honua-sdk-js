@@ -480,7 +480,7 @@ describe("connectWithSourceCapabilities", () => {
         } as unknown as SourceCapabilityConnectOptions,
         { evaluatedAt: EVALUATED_AT },
       ),
-    ).rejects.toThrow(/currently certified for GeoServices, OData, WMS, and WMTS/);
+    ).rejects.toThrow(/currently certified/);
     await expect(
       connectWithSourceCapabilities(odataOptions("https://example.test/odata"), {
         evaluatedAt: EVALUATED_AT,

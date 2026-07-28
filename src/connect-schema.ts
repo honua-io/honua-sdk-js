@@ -65,6 +65,37 @@ export function wmtsSourceSchemaV2(
   return rasterServiceSourceSchemaV2("wmts", metadata, context, false);
 }
 
+/** Normalize STAC collection metadata without a field inventory yet. */
+export function stacSourceSchemaV2(context: Omit<SchemaNormalizationContext, "protocol">): SourceSchemaV2 {
+  return createSourceSchemaV2({
+    fields: [],
+    key: { state: "none" },
+    geometry: {
+      state: "unknown",
+      reason: "metadata-unavailable",
+      native: nativeReference("stac", "catalog", ["collections"]),
+    },
+    temporal: { state: "none" },
+    openContent: "unknown",
+    provenance: [provenance({ ...context, protocol: "stac" })],
+  });
+}
+
+/** Normalize ImageServer metadata without a complete field inventory yet. */
+export function geoservicesImageSourceSchemaV2(
+  metadata: Readonly<Record<string, unknown>>,
+  context: Omit<SchemaNormalizationContext, "protocol">,
+): SourceSchemaV2 {
+  return createSourceSchemaV2({
+    fields: [],
+    key: { state: "none" },
+    geometry: { state: "none", reason: "no-geometry-fields" },
+    temporal: { state: "none" },
+    openContent: "unknown",
+    provenance: [provenance({ ...context, protocol: "geoservices-image-service" })],
+  });
+}
+
 /** Normalize WFS sources that currently discover only type metadata and capabilities. */
 export function wfsSourceSchemaV2(context: Omit<SchemaNormalizationContext, "protocol">): SourceSchemaV2 {
   return queryLikeSourceSchemaV2(context, "wfs");

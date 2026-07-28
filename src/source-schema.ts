@@ -12,7 +12,9 @@
 import {
   geoParquetSourceSchemaV2,
   geoServicesSourceSchemaV2,
+  geoservicesImageSourceSchemaV2,
   odataSourceSchemaV2,
+  stacSourceSchemaV2,
   wmsSourceSchemaV2,
   wmtsSourceSchemaV2,
 } from "./connect-schema.js";
@@ -26,7 +28,9 @@ import { SOURCE_SCHEMA_V2_CONNECT_PROJECTION } from "./source-schema-connect-pro
 
 export {
   geoParquetSourceSchemaV2,
+  geoservicesImageSourceSchemaV2,
   geoServicesSourceSchemaV2,
+  stacSourceSchemaV2,
   odataSourceSchemaV2,
   wmsSourceSchemaV2,
   wmtsSourceSchemaV2,
