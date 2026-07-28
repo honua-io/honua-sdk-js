@@ -80,6 +80,7 @@ import {
   mapLibreMatrixSetUnavailableReason,
   mapLibreTileMatrixTemplate,
 } from "./connect-raster-evidence.js";
+import { unavailableSourceSchemaState } from "./connect-schema.js";
 import { canonicalizeUrlQuery, hasCredentialQuery, isCredentialQueryName } from "./connect-url-safety.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import { discoverWmsWmtsSources } from "./connect-wms-wmts.js";
@@ -99,7 +100,7 @@ import {
 } from "./contract/discovery.js";
 import type { PmtilesArchiveDescription, PmtilesVectorLayerInfo } from "./contract/pmtiles.js";
 import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
-import type { SchemaIdentity } from "./contract/schema.js";
+import { type SchemaIdentity, parseSchemaIdentity } from "./contract/schema.js";
 import { normalizeCapabilityDescriptor } from "./contract/source-capability-support.js";
 import { createDatasetWithAdapterSeeds } from "./contract/source.js";
 import type {
@@ -147,6 +148,7 @@ export interface ConnectSourceSchemaProjectionContext {
 export interface ConnectSourceSchemaProjection {
   readonly cacheIdentity: string;
   parseCached(value: unknown): SourceSchemaV2Envelope;
+  stac(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
   geoServices(
     metadata: HonuaLayerMetadata,
     context: ConnectSourceSchemaProjectionContext & {
@@ -162,6 +164,18 @@ export interface ConnectSourceSchemaProjection {
     profile: GeoParquetSourceProfile,
     context: ConnectSourceSchemaProjectionContext,
   ): SourceSchemaV2Envelope | undefined;
+  geoservicesImage(
+    metadata: Readonly<Record<string, unknown>>,
+    context: ConnectSourceSchemaProjectionContext & {
+      readonly protocol: "geoservices-image-service";
+    },
+  ): SourceSchemaV2Envelope;
+  pmtiles(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
+  wfs(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
+  ogcFeatures(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
+  ogcRecords(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
+  ogcTiles(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
+  ogcMaps(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
   wms(
     metadata: DiscoverySourceMetadata,
     context: ConnectSourceSchemaProjectionContext & { readonly protocol: "wms" },
@@ -530,25 +544,25 @@ export async function connectWithSourceSchemaProjection(
       target.protocol === "grpc"
         ? await discoverGrpc(client, identity, target, options, sourceSchemaProjection)
         : target.protocol === "ogc-features"
-          ? await discoverOgcFeatures(client, identity, options)
+          ? await discoverOgcFeatures(client, identity, options, sourceSchemaProjection)
           : target.protocol === "stac"
-            ? await discoverStac(client, identity, options, stacPolicy!)
+            ? await discoverStac(client, identity, options, stacPolicy!, sourceSchemaProjection)
             : target.protocol === "wfs"
-              ? await discoverWfs(client, identity, options)
+              ? await discoverWfs(client, identity, options, sourceSchemaProjection)
               : target.protocol === "odata"
                 ? await discoverOdata(client, identity, target, options, sourceSchemaProjection)
                 : target.protocol === "geoparquet"
                   ? await discoverGeoParquet(identity, options, sourceSchemaProjection)
                   : target.protocol === "pmtiles"
-                    ? await discoverPmtiles(client, identity, options, pmtilesLimits)
+                    ? await discoverPmtiles(client, identity, options, pmtilesLimits, sourceSchemaProjection)
                     : target.protocol === "ogc-records"
-                      ? await discoverOgcRecords(client, identity, target, options)
+                      ? await discoverOgcRecords(client, identity, target, options, sourceSchemaProjection)
                       : target.protocol === "ogc-tiles"
-                        ? await discoverOgcTiles(client, identity, target, options)
+                        ? await discoverOgcTiles(client, identity, target, options, sourceSchemaProjection)
                         : target.protocol === "ogc-maps"
-                          ? await discoverOgcMaps(client, identity, target, options)
+                          ? await discoverOgcMaps(client, identity, target, options, sourceSchemaProjection)
                           : target.protocol === "geoservices-image-service"
-                            ? await discoverGeoServicesImage(client, identity, target, options)
+                            ? await discoverGeoServicesImage(client, identity, target, options, sourceSchemaProjection)
                             : target.protocol === "wms" || target.protocol === "wmts"
                               ? await discoverWmsWmtsSources(client, identity, target, options, sourceSchemaProjection)
                               : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
@@ -903,6 +917,7 @@ async function discoverOgcFeatures(
   client: HonuaClient,
   identity: DiscoveryCacheIdentity,
   options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
   const request: HonuaMetadataRequestOptions = {
     ...options.metadata,
@@ -925,6 +940,19 @@ async function discoverOgcFeatures(
   const evidence: readonly DiscoveryCapabilityEvidence[] = Object.freeze([
     Object.freeze({ kind: "metadata" as const, capabilities: Object.freeze(advertised), provenance }),
   ]);
+  const sources = sourceSchemaProjection
+    ? Object.freeze(
+        selected.map((source) =>
+          Object.freeze({
+            ...discoveredOgcSourceSnapshot(identity.endpoint, source),
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "ogc-features", source: identity.endpoint, observedAt: retrievedAt },
+              "OGC API Features collection metadata does not advertise a feature-field schema.",
+            ),
+          }),
+        ),
+      )
+    : Object.freeze(selected.map((source) => discoveredOgcSourceSnapshot(identity.endpoint, source)));
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -932,7 +960,7 @@ async function discoverOgcFeatures(
     protocol: "ogc-features",
     retrievedAt,
     evidence,
-    sources: Object.freeze(selected.map((source) => discoveredOgcSourceSnapshot(identity.endpoint, source))),
+    sources,
   });
 }
 
@@ -941,6 +969,7 @@ async function discoverStac(
   identity: DiscoveryCacheIdentity,
   options: ConnectOptions,
   stacPolicy: StacStaticTraversalPolicy,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
   const request: HonuaMetadataRequestOptions = {
     ...options.metadata,
@@ -965,6 +994,19 @@ async function discoverStac(
       policy: stacPolicy,
       ...(options.collectionId ? { collectionId: options.collectionId } : {}),
     });
+    const source = sourceSchemaProjection
+      ? Object.freeze({
+          ...discovered.source,
+          schemaV2State: unavailableSourceSchemaState(
+            {
+              protocol: "stac",
+              source: identity.endpoint,
+              observedAt: discovered.inspection.root.provenance[0]?.retrievedAt ?? new Date().toISOString(),
+            },
+            "STAC collection metadata does not advertise a feature-field schema.",
+          ),
+        })
+      : discovered.source;
     return Object.freeze({
       version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
       identityKey: identity.key,
@@ -972,7 +1014,7 @@ async function discoverStac(
       protocol: "stac",
       retrievedAt: discovered.inspection.root.provenance[0]?.retrievedAt ?? new Date().toISOString(),
       evidence: Object.freeze([]),
-      sources: Object.freeze([discovered.source]),
+      sources: Object.freeze([source]),
       stacStatic: discovered.inspection,
     });
   }
@@ -1000,6 +1042,19 @@ async function discoverStac(
       provenance,
     }),
   ]);
+  const sources = sourceSchemaProjection
+    ? Object.freeze(
+        selected.map((source) =>
+          Object.freeze({
+            ...discoveredStacSourceSnapshot(identity.endpoint, source),
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "stac", source: identity.endpoint, observedAt: retrievedAt },
+              "STAC collection metadata does not advertise a feature-field schema.",
+            ),
+          }),
+        ),
+      )
+    : Object.freeze(selected.map((source) => discoveredStacSourceSnapshot(identity.endpoint, source)));
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -1007,7 +1062,7 @@ async function discoverStac(
     protocol: "stac",
     retrievedAt,
     evidence,
-    sources: Object.freeze(selected.map((source) => discoveredStacSourceSnapshot(identity.endpoint, source))),
+    sources,
   });
 }
 
@@ -1054,8 +1109,9 @@ async function discoverGeoServicesImage(
   identity: DiscoveryCacheIdentity,
   target: ConnectTarget,
   options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
-  const discovered = await discoverGeoServicesImageSources(client, target, options);
+  const discovered = await discoverGeoServicesImageSources(client, target, options, sourceSchemaProjection);
   if (discovered.sources.length === 0) {
     throw new HonuaDiscoveryError(
       "unsupported-protocol",
@@ -1078,8 +1134,22 @@ async function discoverWfs(
   client: HonuaClient,
   identity: DiscoveryCacheIdentity,
   options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
   const discovered = await discoverWfsSources(client, identity, options);
+  const sources = sourceSchemaProjection
+    ? Object.freeze(
+        discovered.sources.map((source) =>
+          Object.freeze({
+            ...source,
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "wfs", source: source.locator.url, observedAt: discovered.retrievedAt },
+              "WFS GetCapabilities does not advertise a feature-field schema.",
+            ),
+          }),
+        ),
+      )
+    : discovered.sources;
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -1087,7 +1157,7 @@ async function discoverWfs(
     protocol: "wfs",
     retrievedAt: discovered.retrievedAt,
     evidence: discovered.evidence,
-    sources: discovered.sources,
+    sources,
   });
 }
 
@@ -1121,6 +1191,7 @@ async function discoverOgcRecords(
   identity: DiscoveryCacheIdentity,
   target: ConnectTarget,
   options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
   const discovered = await discoverOgcRecordsSources(
     client,
@@ -1129,6 +1200,19 @@ async function discoverOgcRecords(
     target.ogcBasePath ?? "",
     options,
   );
+  const sources = sourceSchemaProjection
+    ? Object.freeze(
+        discovered.sources.map((source) =>
+          Object.freeze({
+            ...source,
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "ogc-records", source: identity.endpoint, observedAt: discovered.retrievedAt },
+              "OGC API Records metadata does not advertise a feature-field schema.",
+            ),
+          }),
+        ),
+      )
+    : discovered.sources;
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -1136,7 +1220,7 @@ async function discoverOgcRecords(
     protocol: "ogc-records",
     retrievedAt: discovered.retrievedAt,
     evidence: discovered.evidence,
-    sources: discovered.sources,
+    sources,
   });
 }
 
@@ -1145,6 +1229,7 @@ async function discoverOgcTiles(
   identity: DiscoveryCacheIdentity,
   target: ConnectTarget,
   options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
   const discovered = await discoverOgcTilesSources(
     client,
@@ -1153,6 +1238,19 @@ async function discoverOgcTiles(
     target.ogcBasePath ?? "",
     options,
   );
+  const sources = sourceSchemaProjection
+    ? Object.freeze(
+        discovered.sources.map((source) =>
+          Object.freeze({
+            ...source,
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "ogc-tiles", source: identity.endpoint, observedAt: discovered.retrievedAt },
+              "OGC API Tiles metadata does not advertise a feature-field schema.",
+            ),
+          }),
+        ),
+      )
+    : discovered.sources;
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -1160,7 +1258,7 @@ async function discoverOgcTiles(
     protocol: "ogc-tiles",
     retrievedAt: discovered.retrievedAt,
     evidence: discovered.evidence,
-    sources: discovered.sources,
+    sources,
   });
 }
 
@@ -1169,6 +1267,7 @@ async function discoverOgcMaps(
   identity: DiscoveryCacheIdentity,
   target: ConnectTarget,
   options: ConnectOptions,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
   const discovered = await discoverOgcMapsSources(
     client,
@@ -1177,6 +1276,19 @@ async function discoverOgcMaps(
     target.ogcBasePath ?? "",
     options,
   );
+  const sources = sourceSchemaProjection
+    ? Object.freeze(
+        discovered.sources.map((source) =>
+          Object.freeze({
+            ...source,
+            schemaV2State: unavailableSourceSchemaState(
+              { protocol: "ogc-maps", source: identity.endpoint, observedAt: discovered.retrievedAt },
+              "OGC API Maps metadata does not advertise a feature-field schema.",
+            ),
+          }),
+        ),
+      )
+    : discovered.sources;
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -1184,7 +1296,7 @@ async function discoverOgcMaps(
     protocol: "ogc-maps",
     retrievedAt: discovered.retrievedAt,
     evidence: discovered.evidence,
-    sources: discovered.sources,
+    sources,
   });
 }
 
@@ -1217,8 +1329,12 @@ async function discoverPmtiles(
   identity: DiscoveryCacheIdentity,
   options: ConnectOptions,
   limits: ReturnType<typeof normalizePmtilesDiscoveryLimits>,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
-  const discovered = await awaitAbortable(discoverPmtilesSources(client, identity, options, limits), options.signal);
+  const discovered = await awaitAbortable(
+    discoverPmtilesSources(client, identity, options, limits, sourceSchemaProjection),
+    options.signal,
+  );
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -1639,7 +1755,16 @@ async function validateSnapshot(
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source schema fields must be an array.");
     }
     let schemaV2: SourceSchemaV2Envelope | undefined;
-    const schemaV2State = source.schemaV2State;
+    let schemaV2State: SchemaIdentity | undefined;
+    if (source.schemaV2State !== undefined) {
+      try {
+        schemaV2State = parseSchemaIdentity(source.schemaV2State);
+      } catch (cause) {
+        throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source schemaV2State is invalid.", undefined, {
+          cause,
+        });
+      }
+    }
     if (source.schemaV2 !== undefined) {
       if (!sourceSchemaProjection || !projectionApplies) {
         throw new HonuaDiscoveryError(
@@ -1653,7 +1778,7 @@ async function validateSnapshot(
           "Cached source cannot carry both schemaV2 and an unavailable schemaV2State.",
         );
       }
-      if (schemaV2State?.state === "known" && schemaV2State.fingerprint !== schemaV2.fingerprint) {
+      if (schemaV2State?.state === "known" && schemaV2State.fingerprint !== source.schemaV2.fingerprint) {
         throw new HonuaDiscoveryError(
           "invalid-discovery-cache",
           "Cached source schemaV2State does not match its schemaV2 fingerprint.",
@@ -1807,8 +1932,16 @@ function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boole
   return (
     protocol === "odata" ||
     protocol === "geoparquet" ||
+    protocol === "stac" ||
+    protocol === "geoservices-image-service" ||
     protocol === "wms" ||
     protocol === "wmts" ||
+    protocol === "wfs" ||
+    protocol === "ogc-features" ||
+    protocol === "ogc-records" ||
+    protocol === "ogc-tiles" ||
+    protocol === "ogc-maps" ||
+    protocol === "pmtiles" ||
     protocol === "geoservices-feature-service" ||
     protocol === "geoservices-map-service" ||
     // gRPC FeatureServer discovery routes through the geoservices projection and emits a
@@ -2247,7 +2380,19 @@ function validateCachedPmtilesBinding(
 ): void {
   assertCachedKeys(
     source as unknown as Record<string, unknown>,
-    ["id", "locator", "title", "description", "crs", "extent", "schema", "schemaV2", "metadata", "evidence"],
+    [
+      "id",
+      "locator",
+      "title",
+      "description",
+      "crs",
+      "extent",
+      "schema",
+      "schemaV2",
+      "schemaV2State",
+      "metadata",
+      "evidence",
+    ],
     "PMTiles source",
   );
   const pmtiles = metadata?.pmtiles;

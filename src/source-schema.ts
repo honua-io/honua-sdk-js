@@ -41,6 +41,7 @@ export {
   cloneSourceSchemaV2,
   createSourceSchemaV2,
   parseSourceSchemaV2,
+  parseSchemaIdentity,
   serializeSourceSchemaV2,
   sourceSchemaIdentity,
   schemaStateBindingFingerprint,

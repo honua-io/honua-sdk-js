@@ -1,5 +1,6 @@
 /** Internal GeoServices URL classification and metadata projection for connect(). */
 
+import { unavailableSourceSchemaState } from "./connect-schema.js";
 import { canonicalizeUrlQuery, deleteQueryNames } from "./connect-url-safety.js";
 import type {
   ConnectDiscoverySourceSnapshot,
@@ -476,6 +477,7 @@ export async function discoverGeoServicesImageSources(
   client: HonuaClient,
   target: ConnectTarget,
   options: GeoServicesDiscoveryOptions,
+  sourceSchemaProjection?: ConnectSourceSchemaProjection,
 ): Promise<GeoServicesImageSourceDiscoveryResult> {
   if (target.protocol !== "geoservices-image-service" || !target.serviceId) {
     throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer discovery requires an image service id.");
@@ -504,7 +506,7 @@ export async function discoverGeoServicesImageSources(
 
   const evidence = imageCapabilityEvidence(outcome.value, target.endpoint, provenance);
   const source = imageSourceExecutable(outcome.value, target.endpoint)
-    ? imageSourceSnapshot(target, outcome.value, evidence)
+    ? imageSourceSnapshot(target, outcome.value, evidence, sourceSchemaProjection)
     : undefined;
   return Object.freeze({
     retrievedAt,
@@ -533,17 +535,25 @@ function imageSourceSnapshot(
   target: ConnectTarget,
   metadata: Readonly<Record<string, unknown>>,
   evidence: readonly DiscoveryCapabilityEvidence[],
+  sourceSchemaProjection?: ConnectSourceSchemaProjection,
 ): ConnectDiscoverySourceSnapshot {
   const serviceId = target.serviceId;
   if (!serviceId) throw new HonuaDiscoveryError("invalid-endpoint", "ImageServer discovery requires a service id.");
   const schema = imageSourceSchema(metadata);
   const title = readImageString(metadata, "name") ?? serviceId.split("/").at(-1) ?? serviceId;
   const description = readImageString(metadata, "serviceDescription") ?? readImageString(metadata, "description");
+  const schemaV2State = sourceSchemaProjection
+    ? unavailableSourceSchemaState(
+        { protocol: "geoservices-image-service", source: target.endpoint },
+        "ImageServer metadata does not advertise a feature-field schema.",
+      )
+    : undefined;
   return Object.freeze({
     id: serviceId,
     locator: Object.freeze({ url: target.clientBaseUrl, serviceId }),
     title,
     ...(description ? { description } : {}),
+    ...(schemaV2State ? { schemaV2State } : {}),
     ...(schema ? { schema } : {}),
     evidence,
   });
@@ -1010,11 +1020,7 @@ export function capabilitiesFromMetadata(
   if ("relationships" in metadata && Array.isArray(metadata.relationships) && metadata.relationships.length > 0) {
     capabilities.add("queryRelated");
   }
-  const hasAttachments =
-    "hasAttachments" in metadata
-      ? metadata.hasAttachments === true
-      : "supportsAttachments" in metadata && metadata.supportsAttachments === true;
-  if (hasAttachments) capabilities.add("attachments");
+  if ("supportsAttachments" in metadata && metadata.supportsAttachments === true) capabilities.add("attachments");
   if (protocol === "geoservices-feature-service") {
     if (["create", "update", "delete", "editing"].some((value) => advertised.has(value))) {
       capabilities.add("applyEdits");

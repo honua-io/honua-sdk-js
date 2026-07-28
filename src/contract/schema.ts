@@ -671,6 +671,25 @@ export function sourceSchemaIdentity(schema: SchemaState): SchemaIdentity {
   return deepFreeze({ state: "unavailable", reason: schema.reason, provenance: cloneProvenance(schema.provenance) });
 }
 
+/** Parse and canonicalize a serialized/object schema identity. */
+export function parseSchemaIdentity(value: unknown): SchemaIdentity {
+  const record = object(toPlainJson(value), "$", ["state", "fingerprint", "reason", "provenance"]);
+  if (record.state === "known") {
+    if (typeof record.fingerprint !== "string" || !SHA256_PATTERN.test(record.fingerprint)) {
+      throw new TypeError("SchemaIdentity.fingerprint must be a lowercase SHA-256 digest");
+    }
+    return deepFreeze({ state: "known", fingerprint: record.fingerprint as Sha256 });
+  }
+  if (!includes(["unavailable"] as const, record.state)) throw new TypeError("SchemaIdentity.state is invalid");
+  if (!includes(["not-requested", "request-failed", "not-advertised", "invalid"] as const, record.reason)) {
+    throw new TypeError("SchemaIdentity.reason is invalid");
+  }
+  return unavailableSchemaIdentity({
+    reason: record.reason,
+    provenance: normalizeProvenanceArray(record.provenance, "$.provenance"),
+  });
+}
+
 /** Return the canonical identity used to bind capability evidence to schema truth. */
 export function schemaStateBindingFingerprint(identity: SchemaIdentity): Sha256 {
   if (identity.state === "known") return identity.fingerprint;
