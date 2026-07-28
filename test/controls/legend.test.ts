@@ -322,6 +322,18 @@ describe("HonuaLegendElement", () => {
     expect(shadow.innerHTML).not.toContain("<Residential");
   });
 
+  test("emits forced-colors and prefers-contrast styles for distinct swatches and labels", () => {
+    const { element, shadow } = makeElement();
+    element.entries = [{ label: "Route", color: { fill: "#1d4ed8", outline: "#0f172a" }, shape: "line" }];
+
+    expect(shadow.innerHTML).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(shadow.innerHTML).toContain(".row { color: CanvasText; }");
+    expect(shadow.innerHTML).toContain("background: CanvasText;");
+    expect(shadow.innerHTML).toContain("border: 1px solid CanvasText;");
+    expect(shadow.innerHTML).toContain("forced-color-adjust: none;");
+    expect(shadow.innerHTML).toContain(".swatch-line { background: CanvasText; border: none; }");
+  });
+
   test("derive mode appends a section parsed from the layer's match expression", () => {
     const { element, attributes, shadow } = makeElement();
     attributes.set("layer", "zoning-districts");
