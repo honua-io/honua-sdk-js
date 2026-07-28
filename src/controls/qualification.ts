@@ -634,6 +634,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-search-element.test.ts"],
         note: "The search component declares forced-colors/prefers-contrast system-color rules for borders and selected suggestions, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["web-components.legend"],
+        evidence: ["test/web-components-legend-element.test.ts"],
+        note: "The web-component legend declares forced-colors/prefers-contrast system-color rules that preserve swatch boundaries and label contrast, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -644,7 +649,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "controls.layer-list" &&
             id !== "controls.basemap-switcher" &&
             id !== "controls.legend" &&
-            id !== "web-components.search",
+            id !== "web-components.search" &&
+            id !== "web-components.legend",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
