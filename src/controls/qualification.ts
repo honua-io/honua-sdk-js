@@ -811,10 +811,20 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/swipe-control.test.ts"],
         note: "The swipe control has no default accessible label and reflects caller-supplied label text through its public property/attribute into aria-label, asserted with French and German labels.",
       },
+      {
+        ids: ["web-components.locate-control"],
+        evidence: ["test/web-components-locate-control.test.ts"],
+        note: "The locate control accepts a caller-supplied label and typed message source for action text, statuses, initial/unavailable copy, and geolocation state messages, asserted with German rendering coverage.",
+      },
     ],
     failing: [
       {
-        ids: allExcept("web-components.search", "controls.basemap-switcher", "controls.swipe-control"),
+        ids: allExcept(
+          "web-components.search",
+          "controls.basemap-switcher",
+          "controls.swipe-control",
+          "web-components.locate-control",
+        ),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
       },
       {
