@@ -468,6 +468,20 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/accessibility.test.ts"],
         note: "The native controls expose explicit accessible structure: a labelled radiogroup with checked radio choices, a labelled slider with bounded value state, and a labelled group containing native checkbox controls paired with their visible labels.",
       },
+      {
+        ids: [
+          "web-components.map",
+          "web-components.editor",
+          "web-components.chart",
+          "web-components.basemap-control",
+          "web-components.bookmarks",
+          "web-components.locate-control",
+          "web-components.map-status",
+          "web-components.action-panel",
+        ],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced.",
+      },
     ],
     pendingNote:
       "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract.",

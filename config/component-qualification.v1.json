@@ -127,9 +127,9 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 118,
+    "passing": 126,
     "failing": 131,
-    "pending": 87,
+    "pending": 79,
     "notApplicable": 21,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
@@ -722,7 +722,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "screen-reader-semantics",
         "focus-restoration",
         "reduced-motion",
         "high-contrast",
@@ -737,9 +736,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 3,
+        "passing": 4,
         "failing": 7,
-        "pending": 7,
+        "pending": 6,
         "notApplicable": 0
       },
       "gates": [
@@ -752,8 +751,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -1471,7 +1473,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "screen-reader-semantics",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -1482,9 +1483,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 6,
+        "passing": 7,
         "failing": 6,
-        "pending": 4,
+        "pending": 3,
         "notApplicable": 1
       },
       "gates": [
@@ -1497,8 +1498,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -1769,7 +1773,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "screen-reader-semantics",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -1780,9 +1783,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 4,
+        "passing": 5,
         "failing": 6,
-        "pending": 4,
+        "pending": 3,
         "notApplicable": 3
       },
       "gates": [
@@ -1795,8 +1798,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -1911,7 +1917,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "screen-reader-semantics",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -1922,9 +1927,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 6,
+        "passing": 7,
         "failing": 6,
-        "pending": 4,
+        "pending": 3,
         "notApplicable": 1
       },
       "gates": [
@@ -1937,8 +1942,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -2059,7 +2067,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "screen-reader-semantics",
         "reduced-motion",
         "high-contrast",
         "responsive-layout",
@@ -2071,9 +2078,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 6,
+        "passing": 7,
         "failing": 7,
-        "pending": 4,
+        "pending": 3,
         "notApplicable": 0
       },
       "gates": [
@@ -2086,8 +2093,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -2208,7 +2218,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "screen-reader-semantics",
         "focus-restoration",
         "reduced-motion",
         "high-contrast",
@@ -2221,9 +2230,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 5,
+        "passing": 6,
         "failing": 8,
-        "pending": 4,
+        "pending": 3,
         "notApplicable": 0
       },
       "gates": [
@@ -2236,8 +2245,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -2951,7 +2963,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "screen-reader-semantics",
         "focus-restoration",
         "high-contrast",
         "responsive-layout",
@@ -2963,9 +2974,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 5,
+        "passing": 6,
         "failing": 7,
-        "pending": 4,
+        "pending": 3,
         "notApplicable": 1
       },
       "gates": [
@@ -2978,8 +2989,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -3097,7 +3111,6 @@
       "productionQualified": false,
       "openGates": [
         "keyboard-behavior",
-        "screen-reader-semantics",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -3108,9 +3121,9 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 6,
+        "passing": 7,
         "failing": 6,
-        "pending": 4,
+        "pending": 3,
         "notApplicable": 1
       },
       "gates": [
@@ -3123,8 +3136,11 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
