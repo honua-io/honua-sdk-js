@@ -53,6 +53,7 @@ import {
   escapeHtml,
   globalDom,
   listenForHonuaMapReady,
+  renderShadowRoot,
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
 import type { HonuaLayerListChangeDetail, HonuaLayerListMap, HonuaLayerListOverlay } from "./types.js";
@@ -268,13 +269,16 @@ export class HonuaLayerListElement extends HTMLElementBase {
   protected render(): void {
     const root = this.shadowRoot;
     if (!root) return;
-    const label = this.label;
-    root.innerHTML = `
-      <style>${structuralStyles()}</style>
+    const label = this.#attr("label") ?? "Layers";
+    renderShadowRoot(
+      root,
+      structuralStyles(),
+      `
       <div part="root" class="root" role="group" aria-label="${escapeAttribute(label)}">
         ${this.#overlays.map((overlay) => this.#renderRow(overlay)).join("")}
       </div>
-    `;
+    `,
+    );
     this.#bindRows(root);
   }
 

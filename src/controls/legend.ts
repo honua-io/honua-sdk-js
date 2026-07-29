@@ -65,6 +65,7 @@ import {
   escapeHtml,
   globalDom,
   listenForHonuaMapReady,
+  renderShadowRoot,
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
 import { HONUA_LEGEND_FALLBACK_LABEL, HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js";
@@ -296,13 +297,16 @@ export class HonuaLegendElement extends HTMLElementBase {
     const root = this.shadowRoot;
     if (!root) return;
     const heading = this.#attr("heading");
-    root.innerHTML = `
-      <style>${structuralStyles()}</style>
+    renderShadowRoot(
+      root,
+      structuralStyles(),
+      `
       <div part="root" class="root">
         ${heading ? `<p part="heading" class="heading">${escapeHtml(heading)}</p>` : ""}
         ${this.sections.map((section) => this.#renderSection(section)).join("")}
       </div>
-    `;
+    `,
+    );
   }
 
   #renderSection(section: HonuaLegendSection): string {
@@ -419,15 +423,17 @@ function renderRow(entry: HonuaLegendEntry): string {
   const fill = typeof entry.color === "string" ? entry.color : entry.color.fill;
   const outline = typeof entry.color === "object" && entry.color !== null ? entry.color.outline : undefined;
   const shape = entry.shape ?? "fill";
-  const swatchStyle = [
-    ...(fill !== undefined ? [`--legend-fill:${fill}`] : []),
-    ...(outline !== undefined ? [`--legend-outline:${outline}`] : []),
-  ].join(";");
+  const fillAttribute = escapeAttribute(fill ?? "transparent");
+  const outlineAttribute = escapeAttribute(outline ?? "none");
+  const mark =
+    shape === "line"
+      ? `<line x1="1" y1="8" x2="15" y2="8" stroke="${fillAttribute}" stroke-width="3" />`
+      : shape === "circle"
+        ? `<circle cx="8" cy="8" r="7" fill="${fillAttribute}" stroke="${outlineAttribute}" />`
+        : `<rect x="1" y="1" width="14" height="14" fill="${fillAttribute}" stroke="${outlineAttribute}" />`;
   return `
     <li part="row" class="row">
-      <span part="swatch" class="swatch swatch-${shape}" aria-hidden="true"${
-        swatchStyle ? ` style="${escapeAttribute(swatchStyle)}"` : ""
-      }></span>
+      <svg part="swatch" class="swatch swatch-${shape}" aria-hidden="true" viewBox="0 0 16 16">${mark}</svg>
       <span part="label" class="label">${escapeHtml(entry.label)}</span>
     </li>
   `;
@@ -467,20 +473,12 @@ function structuralStyles(): string {
       flex: none;
       inline-size: 1em;
       block-size: 1em;
-      box-sizing: border-box;
-      background: var(--legend-fill, transparent);
-      border: 1px solid var(--legend-outline, transparent);
+      overflow: visible;
     }
-    .swatch-line { block-size: 3px; border: none; }
-    .swatch-circle { border-radius: 50%; }
     @media (forced-colors: active), (prefers-contrast: more) {
       .row { color: CanvasText; }
-      .swatch {
-        background: CanvasText;
-        border: 1px solid CanvasText;
-        forced-color-adjust: none;
-      }
-      .swatch-line { background: CanvasText; border: none; }
+      .swatch { color: CanvasText; forced-color-adjust: none; }
+      .swatch > * { forced-color-adjust: none; }
     }
   `;
 }
