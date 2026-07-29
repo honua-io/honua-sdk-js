@@ -316,6 +316,7 @@
     "docs:widget-guide:verify": "npm run build --silent && npm run docs:widget-guide:check",
     "docs:comparison": "node scripts/generate-comparison-page.mjs write",
     "docs:comparison:check": "node --test test/scripts/comparison-page.test.mjs test/scripts/benchmark-time-to-first-map.test.mjs && node scripts/generate-comparison-page.mjs check",
+    "verify:discoverability": "node scripts/verify-package-discoverability.mjs",
     "docs:llms": "node scripts/generate-llms-txt.mjs",
     "docs:site": "node scripts/build-docs-site.mjs",
     "docs:site:build": "npm run docs:api && npm run docs:site",
