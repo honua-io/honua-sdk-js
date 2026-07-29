@@ -141,10 +141,15 @@ test.describe("pseudo-locale component qualification", () => {
             const style = getComputedStyle(node);
             const rect = node.getBoundingClientRect();
             if (rect.width <= 0 || rect.height <= 0 || style.display === "none") continue;
+            const text = node.textContent?.trim() ?? "";
+            if (!text) {
+              if (node.shadowRoot) check(node.shadowRoot, owner);
+              continue;
+            }
             const clips = node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1;
             const truncates = style.textOverflow === "ellipsis" ||
-              (style.whiteSpace === "nowrap" && style.overflow === "hidden" && node.textContent?.trim());
-            if (clips || truncates) failures.push({ owner, tag: node.tagName.toLowerCase(), clips, truncates, text: node.textContent?.trim().slice(0, 120) });
+              (style.whiteSpace === "nowrap" && style.overflow === "hidden");
+            if (clips || truncates) failures.push({ owner, tag: node.tagName.toLowerCase(), clips, truncates, text: text.slice(0, 120) });
             if (node.shadowRoot) check(node.shadowRoot, owner);
           }
         };
