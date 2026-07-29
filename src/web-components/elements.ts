@@ -63,6 +63,7 @@ import type {
   HonuaMapHoverDetail,
   HonuaMapReadyDetail,
   HonuaMeasureChangeDetail,
+  HonuaMeasureControlMessages,
   HonuaMeasureMode,
   HonuaSearchDetail,
   HonuaSearchGeocodeSuggestion,
@@ -1826,6 +1827,17 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
   }
 
   #mode: HonuaMeasureMode = "off";
+  #messages: HonuaMeasureControlMessages = {};
+
+  /** Caller-supplied localized status, action, and empty-state messages. */
+  public get messages(): HonuaMeasureControlMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaMeasureControlMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
@@ -1839,12 +1851,13 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
   protected render(): void {
     const label = this.getAttribute("label") ?? "Measure";
     const enabled = this.controller?.canMeasure() ?? false;
+    const status: HonuaComponentStatus = enabled ? "ready" : "unsupported";
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(enabled ? "ready" : "unsupported")}</span>
+          <span>${escapeHtml(this.#messages.status?.[status] ?? status)}</span>
         </div>
         <div class="segmented" role="group" aria-label="${escapeAttribute(label)}">
           ${(["off", "distance", "area"] as const)
@@ -1852,7 +1865,9 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
               (mode) => `
             <button type="button" data-measure-mode="${mode}" aria-pressed="${String(
               this.#mode === mode,
-            )}"${enabled ? "" : ' aria-disabled="true" disabled'}>${escapeHtml(modeLabel(mode))}</button>
+            )}"${enabled ? "" : ' aria-disabled="true" disabled'}>${escapeHtml(
+              this.#messages.actionLabels?.[mode] ?? modeLabel(mode),
+            )}</button>
           `,
             )
             .join("")}
@@ -1860,7 +1875,10 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
         ${
           enabled
             ? ""
-            : `<p class="empty" role="status">Measurement is disabled because no geometry provider is configured. Pass a \`measurementGeometry\` provider to the controller to enable distance and area measuring.</p>`
+            : `<p class="empty" role="status">${escapeHtml(
+                this.#messages.empty ??
+                  "Measurement is disabled because no geometry provider is configured. Pass a `measurementGeometry` provider to the controller to enable distance and area measuring.",
+              )}</p>`
         }
       </section>
     `);
@@ -1880,6 +1898,7 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
           mode,
           status: "unsupported" as HonuaComponentStatus,
           message:
+            this.#messages.unsupportedMessage ??
             "Measurement requires a geometry provider. Configure `measurementGeometry` on the controller to enable measuring.",
         };
     this.dispatchTypedEvent<HonuaMeasureChangeDetail>("honua-measure-change", detail);

@@ -345,6 +345,7 @@ export type {
   HonuaMapInteractionPoint,
   HonuaMapReadyDetail,
   HonuaMeasureChangeDetail,
+  HonuaMeasureControlMessages,
   HonuaMeasureMode,
   HonuaMeasureProvider,
   HonuaMeasureResult,
