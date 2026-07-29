@@ -64,23 +64,36 @@ export interface HonuaFeatureTableViewModel {
   readonly busy: boolean;
 }
 
+/** Caller-supplied labels and announcements for `<honua-feature-table>`. */
+export interface HonuaFeatureTableMessages {
+  readonly label?: string;
+  readonly count?: (count: HonuaFeatureTableCount) => string;
+  readonly status?: Partial<Readonly<Record<HonuaFeatureTableState, string>>>;
+  readonly state?: (state: HonuaFeatureTableState, count: HonuaFeatureTableCount, message?: string) => string;
+}
+
 /** Human/screen-reader summary of the table's lifecycle state. */
 export function describeFeatureTableState(
   state: HonuaFeatureTableState,
   count: HonuaFeatureTableCount,
   message: string | undefined,
+  messages?: HonuaFeatureTableMessages,
 ): string {
+  if (messages?.state) return messages.state(state, count, message);
+  const countLabel = messages?.count?.(count) ?? describeFeatureTableCount(count);
+  const statusLabel = messages?.status?.[state];
+  if (statusLabel !== undefined) return statusLabel;
   switch (state) {
     case "idle":
       return "Not loaded";
     case "loading":
       return "Loading rows";
     case "ready":
-      return describeFeatureTableCount(count);
+      return countLabel;
     case "partial":
-      return `Partial results — ${describeFeatureTableCount(count)}`;
+      return `Partial results — ${countLabel}`;
     case "stale":
-      return `Stale results — ${message ?? describeFeatureTableCount(count)}`;
+      return `Stale results — ${message ?? countLabel}`;
     case "cancelled":
       return message ?? "The request was cancelled";
     case "unsupported":
@@ -93,21 +106,21 @@ export function describeFeatureTableState(
 /** Project an engine snapshot onto the renderer's view model. */
 export function featureTableViewModel<T>(
   snapshot: HonuaFeatureTableSnapshot<T>,
-  options: { readonly label?: string; readonly rowHeight?: number } = {},
+  options: { readonly label?: string; readonly rowHeight?: number; readonly messages?: HonuaFeatureTableMessages } = {},
 ): HonuaFeatureTableViewModel {
   const columns = snapshot.visibleColumns.length > 0 ? snapshot.visibleColumns : snapshot.columns;
   const rows: HonuaFeatureTableViewRow[] = snapshot.rows.map((row, offset) =>
     row ? viewRow(row, columns, snapshot.selection) : placeholderRow(snapshot.window.startIndex + offset, columns),
   );
   return Object.freeze({
-    label: options.label ?? "Features",
+    label: options.label ?? options.messages?.label ?? "Features",
     state: snapshot.state,
     columns,
     rows: Object.freeze(rows),
     window: snapshot.window,
     ariaRowCount: featureTableAriaRowCount(snapshot.count),
-    countLabel: describeFeatureTableCount(snapshot.count),
-    statusLabel: describeFeatureTableState(snapshot.state, snapshot.count, snapshot.message),
+    countLabel: options.messages?.count?.(snapshot.count) ?? describeFeatureTableCount(snapshot.count),
+    statusLabel: describeFeatureTableState(snapshot.state, snapshot.count, snapshot.message, options.messages),
     sort: snapshot.sort,
     ...(snapshot.focus ? { focus: snapshot.focus } : {}),
     conflicts: snapshot.conflicts,
@@ -125,7 +138,12 @@ export function featureTableViewModel<T>(
  */
 export function legacyFeatureTableViewModel<T>(
   model: HonuaFeatureTableModel<T>,
-  options: { readonly label?: string; readonly rowHeight?: number; readonly selectedFeatureId?: string } = {},
+  options: {
+    readonly label?: string;
+    readonly rowHeight?: number;
+    readonly selectedFeatureId?: string;
+    readonly messages?: HonuaFeatureTableMessages;
+  } = {},
 ): HonuaFeatureTableViewModel {
   const columns = resolveLegacyColumns(model.fields);
   const partial = model.exceededTransferLimit === true;
@@ -147,14 +165,14 @@ export function legacyFeatureTableViewModel<T>(
     }),
   );
   return Object.freeze({
-    label: options.label ?? "Features",
+    label: options.label ?? options.messages?.label ?? "Features",
     state,
     columns,
     rows: Object.freeze(rows),
     window: Object.freeze({ startIndex: 0, endIndex: rows.length }),
     ariaRowCount: featureTableAriaRowCount(count),
-    countLabel: describeFeatureTableCount(count),
-    statusLabel: describeFeatureTableState(state, count, undefined),
+    countLabel: options.messages?.count?.(count) ?? describeFeatureTableCount(count),
+    statusLabel: describeFeatureTableState(state, count, undefined, options.messages),
     sort: Object.freeze([]),
     conflicts: Object.freeze([]),
     rowHeight: options.rowHeight ?? 32,

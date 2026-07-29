@@ -729,4 +729,17 @@ describe("<honua-feature-table> review regressions (PR #801)", () => {
 
     expect(queries).toBe(before);
   });
+
+  it("renders caller-supplied German table labels and lifecycle status", () => {
+    const element = mount();
+    element.messages = {
+      label: "Vorfälle",
+      count: () => "400 Datensätze",
+      status: { idle: "Nicht geladen", loading: "Laden", ready: "Bereit" },
+    };
+    const root = shadow(element);
+    expect(root.querySelector("h2")?.textContent).toBe("Vorfälle");
+    expect(root.querySelector("[data-count]")?.textContent).toBe("400 Datensätze");
+    expect(root.querySelector("[data-status]")?.textContent).toBe("Nicht geladen");
+  });
 });
