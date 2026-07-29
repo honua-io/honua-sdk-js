@@ -816,6 +816,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-locate-control.test.ts"],
         note: "The locate control accepts a caller-supplied label and typed message source for action text, statuses, initial/unavailable copy, and geolocation state messages, asserted with German rendering coverage.",
       },
+      {
+        ids: ["web-components.editor"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The editor accepts caller-supplied action attributes and typed status, selection, editable, and read-only messages, including a reason formatter, asserted with German rendering coverage.",
+      },
     ],
     failing: [
       {
@@ -824,6 +829,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "controls.basemap-switcher",
           "controls.swipe-control",
           "web-components.locate-control",
+          "web-components.editor",
         ),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
       },
