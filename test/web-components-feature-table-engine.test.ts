@@ -408,6 +408,20 @@ describe("result truth (REQ-004)", () => {
     expect(table.snapshot.message).toContain("stable row identity");
   });
 
+  it("reports unsupported when the descriptor explicitly omits query capability", () => {
+    const table = createHonuaFeatureTable<Row>({
+      source: {
+        descriptor: { ...descriptor(), capabilities: new Set(["render"]) },
+        query: async () => ({ features: [], exceededTransferLimit: false }),
+      },
+      sourceId: "incidents",
+      columns: COLUMNS,
+    });
+
+    expect(table.snapshot.state).toBe("unsupported");
+    expect(table.snapshot.message).toContain("canonical `query` capability");
+  });
+
   it("reports unsupported for cursor paging on a source without stream", async () => {
     const table = createHonuaFeatureTable<Row>({
       source: { descriptor: descriptor(), query: async () => ({ features: [], exceededTransferLimit: false }) },
