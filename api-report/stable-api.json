@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 165,
-      "signatureSha256": "dfe838eaa8ad86e42b3914aee7fae8defc6126ae1052dd424e2c261d7cd8bd12",
+      "signatureSha256": "5556cb26598173ed29527531096da58d45ad92eded54c81ae14264049e330036",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -178,7 +178,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 165,
-      "signatureSha256": "dfe838eaa8ad86e42b3914aee7fae8defc6126ae1052dd424e2c261d7cd8bd12",
+      "signatureSha256": "5556cb26598173ed29527531096da58d45ad92eded54c81ae14264049e330036",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -351,7 +351,7 @@
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
       "exportCount": 1179,
-      "signatureSha256": "fc74cbbf95ecda0b56c0899e22e4eef35b3ae055cd5166db1c870e414d008ad5",
+      "signatureSha256": "70bf11b9bac77883f40538b755400de04d23dd5908e9aba029c10e1197bf4930",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -1566,8 +1566,8 @@
     {
       "subpath": "@honua/sdk-js/contract",
       "types": "dist/src/contract/index.d.ts",
-      "exportCount": 450,
-      "signatureSha256": "409f918e41d7cd4257fa302bcb9507f5f5f5f35468e079cac5caffd2e8860b97",
+      "exportCount": 451,
+      "signatureSha256": "bb8b7fa6d403bcc029d7e3fc7a13f6d965bd27dfe5af6f88167334c8c950abde",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -1712,6 +1712,7 @@
         "PaginationSpec — interface",
         "PmtilesArchiveDescription — interface",
         "PmtilesArchiveLike — interface",
+        "PmtilesDecompress — type",
         "PmtilesHeaderLike — interface",
         "PmtilesModuleLike — interface",
         "PmtilesRangeResponse — interface",

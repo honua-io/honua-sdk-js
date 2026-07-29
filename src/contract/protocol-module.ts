@@ -38,6 +38,12 @@ export interface ProtocolModuleDiagnostic {
 
 export interface ProtocolModuleDiscoverOptions {
   readonly signal?: AbortSignal;
+  /**
+   * Stable structural authorization-scope identifiers bound to this handle.
+   * Tokens and credential values are prohibited; implementations retain only
+   * a secret-free derived identity.
+   */
+  readonly authorizationScope?: readonly string[];
 }
 
 /** Canonical query-family operations a protocol module may compile and execute. */
