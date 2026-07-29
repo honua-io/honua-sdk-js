@@ -453,6 +453,14 @@ export interface HonuaLocateChangeDetail {
 
 export type HonuaMeasureMode = "off" | "distance" | "area";
 
+/** Caller-supplied messages for `<honua-measure-control>`. */
+export interface HonuaMeasureControlMessages {
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly actionLabels?: Partial<Readonly<Record<HonuaMeasureMode, string>>>;
+  readonly empty?: string;
+  readonly unsupportedMessage?: string;
+}
+
 /**
  * Minimal duck-typed subset of `maplibre-gl.Map` required by
  * `<honua-measurement>`. Any MapLibre-GL `Map` instance satisfies this
