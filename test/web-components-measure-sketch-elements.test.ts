@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type {
   HonuaMeasureChangeDetail,
+  HonuaMeasureControlMessages,
   HonuaMeasureMode,
   HonuaMeasureProvider,
   HonuaSketchChangeDetail,
+  HonuaSketchControlMessages,
   HonuaSketchMode,
   HonuaSketchProvider,
 } from "../src/web-components/index.js";
@@ -170,6 +172,40 @@ const sketchProvider: HonuaSketchProvider = {
 };
 
 describe("measure and sketch control elements", () => {
+  it("renders German measure status, actions, and empty-state text", async () => {
+    const { HonuaMeasureControlElement } = await loadElements();
+    const element = new HonuaMeasureControlElement() as unknown as {
+      controller?: ControllerStub;
+      messages: HonuaMeasureControlMessages;
+      shadowRoot?: FakeShadowRoot;
+      connectedCallback(): void;
+    };
+    element.messages = {
+      status: { ready: "Bereit", unsupported: "Nicht verfügbar" },
+      actionLabels: { off: "Beenden", distance: "Entfernung", area: "Fläche" },
+      empty: "Messung ist deaktiviert.",
+    };
+    element.controller = { ...baseControllerStub, canMeasure: () => false } as unknown as ControllerStub;
+    element.connectedCallback();
+
+    let html = element.shadowRoot?.innerHTML ?? "";
+    expect(html).toContain("Nicht verfügbar");
+    expect(html).toContain("Messung ist deaktiviert.");
+    expect(html).toContain("Beenden");
+    expect(html).toContain("Entfernung");
+    expect(html).toContain("Fläche");
+
+    element.controller = {
+      ...baseControllerStub,
+      canMeasure: () => true,
+      setMeasureMode: (mode: HonuaMeasureMode) => Promise.resolve({ mode, status: "ready" }),
+    } as unknown as ControllerStub;
+    element.connectedCallback();
+    html = element.shadowRoot?.innerHTML ?? "";
+    expect(html).toContain("Bereit");
+    expect(html).toContain("Beenden");
+  });
+
   it("renders measure modes disabled with a configure-a-provider affordance when none is supplied", async () => {
     const { HonuaMeasureControlElement } = await loadElements();
     const element = new HonuaMeasureControlElement() as unknown as {
@@ -251,5 +287,29 @@ describe("measure and sketch control elements", () => {
     expect(change?.type).toBe("honua-sketch-change");
     expect(change?.detail.status).toBe("ready");
     expect(change?.detail.result?.id).toBe("drawn-1");
+  });
+
+  it("renders German sketch status, actions, and empty-state text", async () => {
+    const { HonuaSketchControlElement } = await loadElements();
+    const element = new HonuaSketchControlElement() as unknown as {
+      controller?: ControllerStub;
+      messages: HonuaSketchControlMessages;
+      shadowRoot?: FakeShadowRoot;
+      connectedCallback(): void;
+    };
+    element.messages = {
+      status: { ready: "Bereit", unsupported: "Nicht verfügbar" },
+      actionLabels: { off: "Beenden", point: "Punkt", line: "Linie", polygon: "Polygon" },
+      empty: "Skizzieren ist deaktiviert.",
+    };
+    element.controller = { ...baseControllerStub, canSketch: () => false } as unknown as ControllerStub;
+    element.connectedCallback();
+
+    const html = element.shadowRoot?.innerHTML ?? "";
+    expect(html).toContain("Nicht verfügbar");
+    expect(html).toContain("Skizzieren ist deaktiviert.");
+    expect(html).toContain("Punkt");
+    expect(html).toContain("Linie");
+    expect(html).toContain("Polygon");
   });
 });

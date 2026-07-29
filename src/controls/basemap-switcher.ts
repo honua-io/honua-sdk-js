@@ -46,6 +46,7 @@ import {
   escapeHtml,
   globalDom,
   listenForHonuaMapReady,
+  renderShadowRoot,
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
 import { defineHonuaSwipeControl } from "./swipe-control.js";
@@ -228,9 +229,12 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
       this.#updateSelectionDom();
       return;
     }
+    const focusedBaseId = root.activeElement?.getAttribute("data-base-id");
     const label = (typeof this.getAttribute === "function" ? this.getAttribute("label") : null) ?? "Basemaps";
-    root.innerHTML = `
-      <style>${structuralStyles()}</style>
+    renderShadowRoot(
+      root,
+      structuralStyles(),
+      `
       <div part="group" class="group" role="radiogroup" aria-label="${escapeAttribute(label)}">
         ${this.bases
           .map(
@@ -249,10 +253,16 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
           )
           .join("")}
       </div>
-    `;
+    `,
+    );
     this.#rendered = true;
     this.#bindGroup(root);
     this.#updateSelectionDom();
+    if (focusedBaseId) {
+      [...root.querySelectorAll<HTMLElement>("[data-base-id]")]
+        .find((radio) => radio.getAttribute("data-base-id") === focusedBaseId)
+        ?.focus({ preventScroll: true });
+    }
   }
 
   #bindGroup(root: ShadowRoot): void {
@@ -290,6 +300,16 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
       case "End":
         nextIndex = radios.length - 1;
         break;
+      case "Enter":
+      case " ": {
+        const focused = radios.find((radio) => radio === event.target);
+        const baseId = focused?.dataset.baseId;
+        if (!baseId) return;
+        event.preventDefault();
+        this.select(baseId);
+        focused.focus();
+        return;
+      }
       default:
         return;
     }
@@ -406,5 +426,16 @@ function structuralStyles(): string {
     :host { display: inline-block; }
     .group { display: inline-flex; flex-wrap: wrap; }
     .radio { font: inherit; cursor: pointer; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .radio[aria-checked="true"] {
+        forced-color-adjust: none;
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+      }
+    }
+    @media (max-width: 240px) {
+      .group { flex-direction: column; inline-size: 100%; }
+      .radio { min-inline-size: 0; max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; }
+    }
   `;
 }

@@ -1,6 +1,7 @@
 import type { HonuaClient } from "../core/client.js";
 import type { MapPackageLocator } from "../runtime/index.js";
 import { createHonuaWebComponentController } from "./controller.js";
+import { renderCspSafeShadowHtml } from "./csp-styles.js";
 import { redactHonuaExportText } from "./export-redaction.js";
 import {
   HONUA_EXPORT_KINDS,
@@ -24,6 +25,7 @@ import type {
   HonuaFeatureTableSnapshot,
 } from "./feature-table-engine.js";
 import {
+  type HonuaFeatureTableMessages,
   featureTableFocusMoveForKey,
   featureTableGridHtml,
   featureTableGridStyles,
@@ -36,39 +38,53 @@ import type {
   CreateHonuaWebComponentControllerOptions,
   HonuaActionDetail,
   HonuaActionPanelAction,
+  HonuaActionPanelMessages,
   HonuaBasemapChangeDetail,
+  HonuaBasemapControlMessages,
   HonuaBookmark,
   HonuaBookmarkChangeDetail,
+  HonuaBookmarksMessages,
+  HonuaChartMessages,
   HonuaChartModel,
   HonuaComponentStatus,
   HonuaControllerReadyDetail,
   HonuaEditChangeDetail,
+  HonuaEditorMessages,
   HonuaEditorModel,
   HonuaExportDetail,
+  HonuaFeatureEditorMessages,
   HonuaFeatureRecord,
   HonuaFeatureTableModel,
   HonuaFilterChangeDetail,
   HonuaFullscreenChangeDetail,
   HonuaGeocodeSelectDetail,
+  HonuaLayerListMessages,
   HonuaLayerModel,
   HonuaLayerOpacityChangeDetail,
   HonuaLayerOrderChangeDetail,
   HonuaLayerVisibilityChangeDetail,
   HonuaLegendItem,
+  HonuaLegendMessages,
   HonuaLocateChangeDetail,
   HonuaLocateControlMessages,
   HonuaMapClickDetail,
   HonuaMapErrorDetail,
   HonuaMapHoverDetail,
+  HonuaMapMessages,
   HonuaMapReadyDetail,
+  HonuaMapStatusMessages,
   HonuaMeasureChangeDetail,
+  HonuaMeasureControlMessages,
   HonuaMeasureMode,
+  HonuaPrintExportMessages,
   HonuaSearchDetail,
   HonuaSearchGeocodeSuggestion,
   HonuaSearchGeocoderLike,
+  HonuaSearchMessages,
   HonuaSearchResult,
   HonuaSelectionChangeDetail,
   HonuaSketchChangeDetail,
+  HonuaSketchControlMessages,
   HonuaSketchMode,
   HonuaViewportChangeDetail,
   HonuaViewportState,
@@ -88,6 +104,7 @@ abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElement
   #controller: HonuaWebComponentController<T> | undefined;
   #unsubscribe: { remove(): void } | undefined;
   #controllerReadyListener: ((event: Event) => void) | undefined;
+  #controllerReadyTarget: EventTarget | undefined;
   protected state: HonuaWebComponentState<T> | undefined;
 
   public get controller(): HonuaWebComponentController<T> | undefined {
@@ -122,8 +139,9 @@ abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElement
     this.#unsubscribe?.remove();
     this.#unsubscribe = undefined;
     if (this.#controllerReadyListener) {
-      this.getRootEventTarget()?.removeEventListener("honua-controller-ready", this.#controllerReadyListener);
+      this.#controllerReadyTarget?.removeEventListener("honua-controller-ready", this.#controllerReadyListener);
       this.#controllerReadyListener = undefined;
+      this.#controllerReadyTarget = undefined;
     }
   }
 
@@ -141,7 +159,7 @@ abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElement
     this.ensureShadowRoot();
     const root = this.shadowRoot ?? this;
     const focus = captureFocus(root);
-    root.innerHTML = html;
+    renderCspSafeShadowHtml(root, html);
     restoreFocus(root, focus);
   }
 
@@ -162,6 +180,7 @@ abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElement
     if (this.#controllerReadyListener) return;
     const target = this.getRootEventTarget();
     if (!target) return;
+    this.#controllerReadyTarget = target;
     this.#controllerReadyListener = (event: Event) => {
       const detail = (event as CustomEvent<HonuaControllerReadyDetail<T>>).detail;
       if (!detail?.controller) return;
@@ -199,6 +218,16 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   #packageLoadToken = 0;
   #packageLoading = false;
   #packageLoadError: string | undefined;
+  #messages: HonuaMapMessages = {};
+
+  public get messages(): HonuaMapMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaMapMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   public get map(): unknown | undefined {
     return this.#renderer?.map;
@@ -273,10 +302,11 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
         this.mapPackage = JSON.parse(newValue) as CreateHonuaWebComponentControllerOptions<T>["mapPackage"];
       } catch {
         this.#packageLoading = false;
-        this.#packageLoadError = "Invalid map-package JSON.";
+        const message = this.#messages.invalidPackage ?? "Invalid map-package JSON.";
+        this.#packageLoadError = message;
         this.dispatchTypedEvent<HonuaMapErrorDetail>("honua-map-error", {
-          error: new Error("Invalid map-package JSON."),
-          message: "Invalid map-package JSON.",
+          error: new Error(message),
+          message,
         });
       }
     }
@@ -317,6 +347,7 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     const viewport = state?.viewport ?? {};
     const visibleLayers = layers.filter((layer) => layer.visible);
     const label = this.getAttribute("label") ?? state?.mapPackage?.mapPackageId ?? "Honua map";
+    const messages = this.#messages;
     const root = this.shadowRoot ?? this;
     if (!root.querySelector?.(".map")) {
       this.setShadowHtml(`
@@ -324,10 +355,10 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
         <section part="map" class="map" role="region" aria-label="${escapeHtml(label)}" tabindex="0">
           <div class="map__chrome">
             <div class="map__title"></div>
-            <div class="map__controls" aria-label="Map controls">
-              <button type="button" class="icon-button" data-zoom="out" aria-label="Zoom out">-</button>
-              <output class="zoom" aria-label="Zoom">0</output>
-              <button type="button" class="icon-button" data-zoom="in" aria-label="Zoom in">+</button>
+            <div class="map__controls" aria-label="${escapeHtml(messages.controlsLabel ?? "Map controls")}">
+              <button type="button" class="icon-button" data-zoom="out" aria-label="${escapeHtml(messages.zoomOutLabel ?? "Zoom out")}">-</button>
+              <output class="zoom" aria-label="${escapeHtml(messages.zoomLabel ?? "Zoom")}">0</output>
+              <button type="button" class="icon-button" data-zoom="in" aria-label="${escapeHtml(messages.zoomInLabel ?? "Zoom in")}">+</button>
             </div>
           </div>
           <div class="map__canvas" part="canvas">
@@ -335,8 +366,8 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
             <div class="map__status" aria-live="polite"></div>
           </div>
           <div class="map__footer">
-            <span data-visible-layers>0 visible</span>
-            <span data-center>No center</span>
+            <span data-visible-layers>${escapeHtml(formatMapVisibleLayers(messages.visibleLayers, 0))}</span>
+            <span data-center>${escapeHtml(messages.noCenter ?? "No center")}</span>
           </div>
         </section>
       `);
@@ -347,8 +378,14 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     nextRoot.querySelector(".map")?.setAttribute("aria-label", label);
     setText(nextRoot.querySelector(".map__title"), label);
     setText(nextRoot.querySelector(".zoom"), String(viewport.zoom?.toFixed?.(1) ?? viewport.zoom ?? 0));
-    setText(nextRoot.querySelector("[data-visible-layers]"), `${String(visibleLayers.length)} visible`);
-    setText(nextRoot.querySelector("[data-center]"), viewport.center ? viewport.center.join(", ") : "No center");
+    setText(
+      nextRoot.querySelector("[data-visible-layers]"),
+      formatMapVisibleLayers(messages.visibleLayers, visibleLayers.length),
+    );
+    setText(
+      nextRoot.querySelector("[data-center]"),
+      viewport.center ? viewport.center.join(", ") : (messages.noCenter ?? "No center"),
+    );
     setText(nextRoot.querySelector(".map__status"), this.mapStatusText(state));
     void this.syncRenderer();
   }
@@ -439,8 +476,8 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   private mapStatusText(state: HonuaWebComponentState<T> | undefined): string {
     if (this.#packageLoadError) return this.#packageLoadError;
     if (state?.mapPackage) return "";
-    if (this.#packageLoading || this.#packageUrl) return "Loading map package";
-    return "No map package";
+    if (this.#packageLoading || this.#packageUrl) return this.#messages.loadingPackage ?? "Loading map package";
+    return this.#messages.noPackage ?? "No map package";
   }
 }
 
@@ -467,6 +504,15 @@ export class HonuaLayerListElement<T = Record<string, unknown>> extends HonuaEle
 
   #dragLayerId: string | undefined;
   #layersOverride: readonly HonuaLayerModel[] | undefined;
+  #messages: HonuaLayerListMessages = {};
+
+  public get messages(): HonuaLayerListMessages {
+    return this.#messages;
+  }
+  public set messages(messages: HonuaLayerListMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   /**
    * The layer rows currently rendered. Headless hosts (for example the
@@ -495,7 +541,7 @@ export class HonuaLayerListElement<T = Record<string, unknown>> extends HonuaEle
 
   protected render(): void {
     const layers = this.layers;
-    const label = this.getAttribute("label") ?? "Layers";
+    const label = this.#messages.label ?? this.getAttribute("label") ?? "Layers";
     const supportsOpacity = typeof this.controller?.setLayerOpacity === "function";
     const supportsReorder = typeof this.controller?.moveLayer === "function";
     this.setShadowHtml(`
@@ -505,7 +551,7 @@ export class HonuaLayerListElement<T = Record<string, unknown>> extends HonuaEle
         <div class="stack" role="list">
           ${
             layers.length === 0
-              ? `<p class="empty">No layers</p>`
+              ? `<p class="empty">${escapeHtml(this.#messages.noLayers ?? "No layers")}</p>`
               : layers
                   .map((layer, index) => this.renderRow(layer, index, layers.length, supportsOpacity, supportsReorder))
                   .join("")
@@ -538,17 +584,17 @@ export class HonuaLayerListElement<T = Record<string, unknown>> extends HonuaEle
           max="100"
           step="1"
           value="${opacityPercent}"
-          aria-label="Opacity"
-          aria-valuetext="${opacityPercent}%"
+          aria-label="${escapeAttribute(this.#messages.opacityLabel ?? "Opacity")}"
+          aria-valuetext="${escapeAttribute(formatLayerOpacityValue(this.#messages.opacityValue, opacityPercent))}"
           data-layer-opacity="${id}"
         />`
       : "";
     const reorder = supportsReorder
       ? `
-        <button type="button" class="move" part="move-up" aria-label="Move up" data-move="up:${id}" ${
+        <button type="button" class="move" part="move-up" aria-label="${escapeAttribute(this.#messages.moveUpLabel ?? "Move up")}" data-move="up:${id}" ${
           index === 0 ? "disabled" : ""
         }>&#9650;</button>
-        <button type="button" class="move" part="move-down" aria-label="Move down" data-move="down:${id}" ${
+        <button type="button" class="move" part="move-down" aria-label="${escapeAttribute(this.#messages.moveDownLabel ?? "Move down")}" data-move="down:${id}" ${
           index === count - 1 ? "disabled" : ""
         }>&#9660;</button>`
       : "";
@@ -673,6 +719,15 @@ export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElemen
   }
 
   #itemsOverride: readonly HonuaLegendItem[] | undefined;
+  #messages: HonuaLegendMessages = {};
+
+  public get messages(): HonuaLegendMessages {
+    return this.#messages;
+  }
+  public set messages(messages: HonuaLegendMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   /**
    * Explicit legend items. When set, these render instead of the controller
@@ -712,23 +767,26 @@ export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElemen
 
   protected render(): void {
     const legend = this.visibleItems;
-    const label = this.getAttribute("label") ?? "Legend";
+    const label = this.#messages.label ?? this.getAttribute("label") ?? "Legend";
+    const swatchStyles = legend
+      .map((item, index) => `.swatch-${index} { --swatch: ${escapeAttribute(item.color ?? "#64748b")}; }`)
+      .join("\n");
     this.setShadowHtml(`
-      <style>${baseStyles()}${listStyles()}${legendStyles()}</style>
+      <style>${baseStyles()}${listStyles()}${legendStyles()}${swatchStyles}</style>
       <section class="panel" part="panel" aria-label="${escapeHtml(label)}">
         <h2>${escapeHtml(label)}</h2>
         <ul class="legend" role="list">
           ${
             legend.length === 0
-              ? `<li class="empty">No legend</li>`
+              ? `<li class="empty">${escapeHtml(this.#messages.noLegend ?? "No legend")}</li>`
               : legend
                   .map(
-                    (item) => `
+                    (item, index) => `
             <li role="listitem" data-legend-item="${escapeAttribute(item.id)}">
               ${
                 item.iconUrl
                   ? `<img class="swatch" alt="" aria-hidden="true" src="${escapeAttribute(item.iconUrl)}" />`
-                  : `<span class="swatch" aria-hidden="true" style="--swatch:${escapeAttribute(item.color ?? "#64748b")}"></span>`
+                  : `<span class="swatch swatch-${index}" aria-hidden="true"></span>`
               }
               <span>${escapeHtml(item.label)}</span>
             </li>
@@ -778,6 +836,15 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   #announcedConflicts = "";
   #tableConnected = false;
   #restoringScroll = false;
+  #messages: HonuaFeatureTableMessages = {};
+
+  public get messages(): HonuaFeatureTableMessages {
+    return this.#messages;
+  }
+  public set messages(messages: HonuaFeatureTableMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   /**
    * The bounded query engine backing this grid. Assigning one switches the
@@ -883,16 +950,17 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   }
 
   protected render(): void {
-    const label = this.getAttribute("label") ?? "Features";
+    const label = this.#messages.label ?? this.getAttribute("label") ?? "Features";
     const rowHeight = this.rowHeight();
     const snapshot = this.#tableSnapshot;
     const viewModel = snapshot
-      ? featureTableViewModel(snapshot, { label, rowHeight })
+      ? featureTableViewModel(snapshot, { label, rowHeight, messages: this.#messages })
       : legacyFeatureTableViewModel(
           this.#model ?? tableModelFromState(this.state, this.sourceId(), this.fields(), this.pageSize()),
           {
             label,
             rowHeight,
+            messages: this.#messages,
             ...(this.state?.selection?.featureId !== undefined
               ? { selectedFeatureId: String(this.state.selection.featureId) }
               : {}),
@@ -1187,6 +1255,15 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
   #suggestTimer: ReturnType<typeof setTimeout> | undefined;
   #suggestToken = 0;
   #geocodeToken = 0;
+  #messages: HonuaSearchMessages = {};
+
+  public get messages(): HonuaSearchMessages {
+    return this.#messages;
+  }
+  public set messages(messages: HonuaSearchMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   /** The geocoding provider powering typeahead + geocode-on-submit. */
   public get geocoder(): HonuaSearchGeocoderLike | undefined {
@@ -1227,9 +1304,9 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
   }
 
   protected render(): void {
-    const label = this.getAttribute("label") ?? "Search";
-    const placeholder = this.getAttribute("placeholder") ?? "Search";
-    const submitLabel = this.submitLabel;
+    const label = this.#messages.label ?? this.getAttribute("label") ?? "Search";
+    const placeholder = this.#messages.placeholder ?? this.getAttribute("placeholder") ?? "Search";
+    const submitLabel = this.#messages.submitLabel ?? this.submitLabel;
     const geocoding = this.#geocoder !== undefined;
     const expanded = geocoding && this.#suggestions.length > 0;
     const comboboxAttributes = geocoding
@@ -1250,7 +1327,9 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
         ${
           geocoding
             ? `<ul class="suggestions" id="honua-search-listbox" role="listbox" aria-label="${escapeAttribute(
-                `${label} suggestions`,
+                typeof this.#messages.suggestionsLabel === "function"
+                  ? this.#messages.suggestionsLabel(label)
+                  : (this.#messages.suggestionsLabel ?? `${label} suggestions`),
               )}"${expanded ? "" : " hidden"}>
           ${this.#suggestions
             .map(
@@ -1368,7 +1447,8 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
       if (token !== this.#suggestToken) return;
       this.#suggestions = [];
       this.#activeIndex = -1;
-      this.#status = error instanceof Error ? error.message : "Suggestions unavailable.";
+      this.#status =
+        error instanceof Error ? error.message : (this.#messages.suggestionsUnavailable ?? "Suggestions unavailable.");
       this.render();
     }
   }
@@ -1404,7 +1484,7 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
       if (token !== this.#geocodeToken) return;
       const candidate = candidates[0];
       if (!candidate) {
-        this.#status = `No results for "${trimmed}".`;
+        this.#status = this.#messages.noResults?.(trimmed) ?? `No results for "${trimmed}".`;
         this.render();
         return;
       }
@@ -1422,7 +1502,12 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
       this.render();
     } catch (error) {
       if (token !== this.#geocodeToken) return;
-      this.#status = error instanceof Error ? error.message : "Geocoding failed.";
+      this.#status =
+        error instanceof Error
+          ? error.message
+          : typeof this.#messages.geocodingFailed === "function"
+            ? this.#messages.geocodingFailed(error)
+            : (this.#messages.geocodingFailed ?? "Geocoding failed.");
       this.render();
     }
   }
@@ -1454,10 +1539,21 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
 
 export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
-    return ["for", "source", "label"];
+    return [
+      "for",
+      "source",
+      "label",
+      "new-label",
+      "save-label",
+      "delete-label",
+      "no-selection-label",
+      "read-only-label",
+      "editable-label",
+    ];
   }
 
   #model: HonuaEditorModel | undefined;
+  #messages: HonuaEditorMessages = {};
 
   public get editorModel(): HonuaEditorModel | undefined {
     return this.#model ?? this.state?.editor;
@@ -1466,6 +1562,76 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
   public set editorModel(model: HonuaEditorModel | undefined) {
     this.#model = model;
     this.render();
+  }
+
+  /** Caller-supplied localized status and read-only messages. */
+  public get messages(): HonuaEditorMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaEditorMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
+
+  /** Text rendered by the create action. Defaults to `"New"`. */
+  public get newLabel(): string {
+    return this.getAttribute("new-label") ?? "New";
+  }
+
+  public set newLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("new-label");
+    else this.setAttribute("new-label", value);
+  }
+
+  /** Text rendered by the save action. Defaults to `"Save"`. */
+  public get saveLabel(): string {
+    return this.getAttribute("save-label") ?? "Save";
+  }
+
+  public set saveLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("save-label");
+    else this.setAttribute("save-label", value);
+  }
+
+  /** Text rendered by the delete action. Defaults to `"Delete"`. */
+  public get deleteLabel(): string {
+    return this.getAttribute("delete-label") ?? "Delete";
+  }
+
+  public set deleteLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("delete-label");
+    else this.setAttribute("delete-label", value);
+  }
+
+  /** Text rendered when no feature is selected. Defaults to `"No selection"`. */
+  public get noSelectionLabel(): string {
+    return this.getAttribute("no-selection-label") ?? "No selection";
+  }
+
+  public set noSelectionLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("no-selection-label");
+    else this.setAttribute("no-selection-label", value);
+  }
+
+  /** Text rendered for a read-only editor without a model-supplied reason. Defaults to `"Read-only"`. */
+  public get readOnlyLabel(): string {
+    return this.getAttribute("read-only-label") ?? "Read-only";
+  }
+
+  public set readOnlyLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("read-only-label");
+    else this.setAttribute("read-only-label", value);
+  }
+
+  /** Text rendered for an editable editor. Defaults to `"Editable"`. */
+  public get editableLabel(): string {
+    return this.getAttribute("editable-label") ?? "Editable";
+  }
+
+  public set editableLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("editable-label");
+    else this.setAttribute("editable-label", value);
   }
 
   public attributeChangedCallback(): void {
@@ -1479,19 +1645,31 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
     const selected = state?.selection?.feature;
     const canUpdate = model.capabilities.canUpdate && !model.capabilities.readOnly;
     const label = this.getAttribute("label") ?? "Editor";
+    const newLabel = this.newLabel;
+    const saveLabel = this.saveLabel;
+    const deleteLabel = this.deleteLabel;
+    const noSelectionLabel = this.noSelectionLabel;
+    const readOnlyLabel = this.readOnlyLabel;
+    const editableLabel = this.editableLabel;
+    const statusLabel = this.#messages.status?.[model.status] ?? model.status;
+    const readOnlyReason = this.#messages.readOnlyReason;
+    const readOnlyMessage =
+      typeof readOnlyReason === "function"
+        ? readOnlyReason(model.capabilities.reason)
+        : (readOnlyReason ?? model.capabilities.reason ?? readOnlyLabel);
     this.setShadowHtml(`
       <style>${baseStyles()}${editorStyles()}</style>
       <section class="editor" part="panel" aria-label="${escapeHtml(label)}">
         <div class="editor__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span data-status>${escapeHtml(model.status)}</span>
+          <span data-status>${escapeHtml(statusLabel)}</span>
         </div>
-        <p class="selection">${escapeHtml(selected?.title ?? "No selection")}</p>
-        <p class="muted">${escapeHtml(model.capabilities.readOnly ? (model.capabilities.reason ?? "Read-only") : "Editable")}</p>
+        <p class="selection">${escapeHtml(selected?.title ?? noSelectionLabel)}</p>
+        <p class="muted">${escapeHtml(model.capabilities.readOnly ? readOnlyMessage : editableLabel)}</p>
         <div class="editor__actions">
-          <button type="button" data-action="new" ${model.capabilities.canCreate && !model.capabilities.readOnly ? "" : "disabled"}>New</button>
-          <button type="button" data-action="save" ${canUpdate ? "" : "disabled"}>Save</button>
-          <button type="button" data-action="delete" ${model.capabilities.canDelete && !model.capabilities.readOnly ? "" : "disabled"}>Delete</button>
+          <button type="button" data-action="new" ${model.capabilities.canCreate && !model.capabilities.readOnly ? "" : "disabled"}>${escapeHtml(newLabel)}</button>
+          <button type="button" data-action="save" ${canUpdate ? "" : "disabled"}>${escapeHtml(saveLabel)}</button>
+          <button type="button" data-action="delete" ${model.capabilities.canDelete && !model.capabilities.readOnly ? "" : "disabled"}>${escapeHtml(deleteLabel)}</button>
         </div>
       </section>
     `);
@@ -1526,6 +1704,15 @@ export class HonuaChartElement<T = Record<string, unknown>> extends HonuaElement
   }
 
   #model: HonuaChartModel | undefined;
+  #messages: HonuaChartMessages = {};
+
+  public get messages(): HonuaChartMessages {
+    return this.#messages;
+  }
+  public set messages(messages: HonuaChartMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   public get chartModel(): HonuaChartModel | undefined {
     return this.#model ?? this.state?.chart;
@@ -1542,29 +1729,34 @@ export class HonuaChartElement<T = Record<string, unknown>> extends HonuaElement
   }
 
   protected render(): void {
-    const model = this.chartModel ?? defaultChartModel(this.getAttribute("label") ?? "Chart");
+    const model = this.chartModel ?? defaultChartModel(this.#messages.label ?? this.getAttribute("label") ?? "Chart");
+    const title = this.#messages.label ?? model.title;
     const max = Math.max(1, ...(model.data ?? []).map((datum) => datum.value));
+    const barStyles = (model.data ?? [])
+      .map(
+        (datum, index) =>
+          `.bar-${index} { --bar: ${(datum.value / max) * 100}%; --bar-color: ${escapeAttribute(datum.color ?? "#2563eb")}; }`,
+      )
+      .join("\n");
     this.setShadowHtml(`
-      <style>${baseStyles()}${chartStyles()}</style>
-      <section class="chart" part="panel" aria-label="${escapeHtml(model.title)}">
-        <h2>${escapeHtml(model.title)}</h2>
+      <style>${baseStyles()}${chartStyles()}${barStyles}</style>
+      <section class="chart" part="panel" aria-label="${escapeHtml(title)}">
+        <h2>${escapeHtml(title)}</h2>
         <div class="bars">
           ${
             model.data?.length
               ? model.data
                   .map(
-                    (datum) => `
+                    (datum, index) => `
             <div class="bar-row">
               <span>${escapeHtml(datum.label)}</span>
-              <span class="bar" style="--bar:${(datum.value / max) * 100}%;--bar-color:${escapeAttribute(
-                datum.color ?? "#2563eb",
-              )}"></span>
+              <span class="bar bar-${index}"></span>
               <strong>${escapeHtml(String(datum.value))}</strong>
             </div>
           `,
                   )
                   .join("")
-              : `<p class="empty">${escapeHtml(model.message ?? "No chart data")}</p>`
+              : `<p class="empty">${escapeHtml(this.#messages.noData ?? model.message ?? "No chart data")}</p>`
           }
         </div>
       </section>
@@ -1578,6 +1770,15 @@ export class HonuaBasemapControlElement<T = Record<string, unknown>> extends Hon
   }
 
   #activeBasemapId: string | undefined;
+  #messages: HonuaBasemapControlMessages = {};
+
+  public get messages(): HonuaBasemapControlMessages {
+    return this.#messages;
+  }
+  public set messages(messages: HonuaBasemapControlMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
@@ -1585,7 +1786,7 @@ export class HonuaBasemapControlElement<T = Record<string, unknown>> extends Hon
   }
 
   protected render(): void {
-    const label = this.getAttribute("label") ?? "Basemaps";
+    const label = this.#messages.label ?? this.getAttribute("label") ?? "Basemaps";
     const basemaps = basemapsFromState(this.state);
     const active = this.#activeBasemapId ?? basemaps.find((basemap) => basemap.visible)?.id ?? basemaps[0]?.id;
     this.setShadowHtml(`
@@ -1593,12 +1794,12 @@ export class HonuaBasemapControlElement<T = Record<string, unknown>> extends Hon
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(basemaps.length >= 2 ? "ready" : "unsupported")}</span>
+          <span>${escapeHtml(this.#messages.status?.[basemaps.length >= 2 ? "ready" : "unsupported"] ?? (basemaps.length >= 2 ? "ready" : "unsupported"))}</span>
         </div>
         ${
           basemaps.length < 2
-            ? `<p class="empty" role="status">At least two basemap layers are required.</p>`
-            : `<div class="segmented" role="group" aria-label="${escapeAttribute(label)}">
+            ? `<p class="empty" role="status">${escapeHtml(this.#messages.unavailable ?? this.#messages.unsupported ?? "At least two basemap layers are required.")}</p>`
+            : `<div class="segmented" role="group" aria-label="${escapeAttribute(this.#messages.groupLabel ?? label)}">
               ${basemaps
                 .map(
                   (basemap) => `
@@ -1638,6 +1839,17 @@ export class HonuaBookmarksElement<T = Record<string, unknown>> extends HonuaEle
     return ["for", "label", "bookmarks"];
   }
 
+  #messages: HonuaBookmarksMessages = {};
+
+  public get messages(): HonuaBookmarksMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaBookmarksMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
+
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
@@ -1646,16 +1858,19 @@ export class HonuaBookmarksElement<T = Record<string, unknown>> extends HonuaEle
   protected render(): void {
     const label = this.getAttribute("label") ?? "Bookmarks";
     const bookmarks = this.bookmarks();
+    const statusLabel =
+      this.#messages.status?.[bookmarks.length > 0 ? "ready" : "unsupported"] ??
+      (bookmarks.length > 0 ? "ready" : "unsupported");
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(bookmarks.length > 0 ? "ready" : "unsupported")}</span>
+          <span>${escapeHtml(statusLabel)}</span>
         </div>
         ${
           bookmarks.length === 0
-            ? `<p class="empty" role="status">No initial view or bookmarks are available.</p>`
+            ? `<p class="empty" role="status">${escapeHtml(this.#messages.empty ?? "No initial view or bookmarks are available.")}</p>`
             : `<div class="button-stack">
               ${bookmarks
                 .map(
@@ -1681,7 +1896,12 @@ export class HonuaBookmarksElement<T = Record<string, unknown>> extends HonuaEle
   private bookmarks(): readonly HonuaBookmark[] {
     const configured = parseBookmarks(this.getAttribute("bookmarks"));
     const home = this.state?.mapPackage?.initialView;
-    return [...(home ? [{ id: "home", label: "Home", viewport: home } satisfies HonuaBookmark] : []), ...configured];
+    return [
+      ...(home
+        ? [{ id: "home", label: this.#messages.homeLabel ?? "Home", viewport: home } satisfies HonuaBookmark]
+        : []),
+      ...configured,
+    ];
   }
 
   private goToBookmark(bookmark: HonuaBookmark): void {
@@ -1735,7 +1955,9 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
           <h2>${escapeHtml(label)}</h2>
           <span>${escapeHtml(statusLabel)}</span>
         </div>
-        <button type="button" data-locate ${supported ? "" : "disabled"}>${escapeHtml(this.#messages.actionLabel ?? "Use location")}</button>
+        <button type="button" data-locate="action" ${supported ? "" : "disabled"}>${escapeHtml(
+          this.#messages.actionLabel ?? "Use location",
+        )}</button>
         <p class="empty" role="status">${escapeHtml(message)}</p>
       </section>
     `);
@@ -1825,6 +2047,17 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
   }
 
   #mode: HonuaMeasureMode = "off";
+  #messages: HonuaMeasureControlMessages = {};
+
+  /** Caller-supplied localized status, action, and empty-state messages. */
+  public get messages(): HonuaMeasureControlMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaMeasureControlMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
@@ -1838,12 +2071,13 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
   protected render(): void {
     const label = this.getAttribute("label") ?? "Measure";
     const enabled = this.controller?.canMeasure() ?? false;
+    const status: HonuaComponentStatus = enabled ? "ready" : "unsupported";
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(enabled ? "ready" : "unsupported")}</span>
+          <span>${escapeHtml(this.#messages.status?.[status] ?? status)}</span>
         </div>
         <div class="segmented" role="group" aria-label="${escapeAttribute(label)}">
           ${(["off", "distance", "area"] as const)
@@ -1851,7 +2085,9 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
               (mode) => `
             <button type="button" data-measure-mode="${mode}" aria-pressed="${String(
               this.#mode === mode,
-            )}"${enabled ? "" : ' aria-disabled="true" disabled'}>${escapeHtml(modeLabel(mode))}</button>
+            )}"${enabled ? "" : ' aria-disabled="true" disabled'}>${escapeHtml(
+              this.#messages.actionLabels?.[mode] ?? modeLabel(mode),
+            )}</button>
           `,
             )
             .join("")}
@@ -1859,7 +2095,10 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
         ${
           enabled
             ? ""
-            : `<p class="empty" role="status">Measurement is disabled because no geometry provider is configured. Pass a \`measurementGeometry\` provider to the controller to enable distance and area measuring.</p>`
+            : `<p class="empty" role="status">${escapeHtml(
+                this.#messages.empty ??
+                  "Measurement is disabled because no geometry provider is configured. Pass a `measurementGeometry` provider to the controller to enable distance and area measuring.",
+              )}</p>`
         }
       </section>
     `);
@@ -1879,6 +2118,7 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
           mode,
           status: "unsupported" as HonuaComponentStatus,
           message:
+            this.#messages.unsupportedMessage ??
             "Measurement requires a geometry provider. Configure `measurementGeometry` on the controller to enable measuring.",
         };
     this.dispatchTypedEvent<HonuaMeasureChangeDetail>("honua-measure-change", detail);
@@ -1900,6 +2140,17 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
   }
 
   #mode: HonuaSketchMode = "off";
+  #messages: HonuaSketchControlMessages = {};
+
+  /** Caller-supplied localized status, action, and empty-state messages. */
+  public get messages(): HonuaSketchControlMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaSketchControlMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
@@ -1913,12 +2164,13 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
   protected render(): void {
     const label = this.getAttribute("label") ?? "Sketch";
     const enabled = this.controller?.canSketch() ?? false;
+    const status: HonuaComponentStatus = enabled ? "ready" : "unsupported";
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(enabled ? "ready" : "unsupported")}</span>
+          <span>${escapeHtml(this.#messages.status?.[status] ?? status)}</span>
         </div>
         <div class="segmented" role="group" aria-label="${escapeAttribute(label)}">
           ${(["off", "point", "line", "polygon"] as const)
@@ -1926,7 +2178,9 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
               (mode) => `
             <button type="button" data-sketch-mode="${mode}" aria-pressed="${String(
               this.#mode === mode,
-            )}"${enabled ? "" : ' aria-disabled="true" disabled'}>${escapeHtml(modeLabel(mode))}</button>
+            )}"${enabled ? "" : ' aria-disabled="true" disabled'}>${escapeHtml(
+              this.#messages.actionLabels?.[mode] ?? modeLabel(mode),
+            )}</button>
           `,
             )
             .join("")}
@@ -1934,7 +2188,10 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
         ${
           enabled
             ? ""
-            : `<p class="empty" role="status">Sketching is disabled because no geometry provider is configured. Pass a \`sketchGeometry\` provider to the controller to enable point, line, and polygon drawing.</p>`
+            : `<p class="empty" role="status">${escapeHtml(
+                this.#messages.empty ??
+                  "Sketching is disabled because no geometry provider is configured. Pass a `sketchGeometry` provider to the controller to enable point, line, and polygon drawing.",
+              )}</p>`
         }
       </section>
     `);
@@ -1954,6 +2211,7 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
           mode,
           status: "unsupported" as HonuaComponentStatus,
           message:
+            this.#messages.unsupportedMessage ??
             "Sketching requires a geometry provider. Configure `sketchGeometry` on the controller to enable drawing.",
         };
     this.dispatchTypedEvent<HonuaSketchChangeDetail<T>>("honua-sketch-change", detail);
@@ -1997,6 +2255,7 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
   #exportAdapter: HonuaExportAdapter | undefined;
   #lastResult: HonuaExportResult | undefined;
   #inFlight: AbortController | undefined;
+  #messages: HonuaPrintExportMessages = {};
   /** Monotonic request generation; only the newest export may publish. */
   #exportGeneration = 0;
 
@@ -2015,6 +2274,16 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
   public set exportAdapter(adapter: HonuaExportAdapter | undefined) {
     if (this.#exportAdapter === adapter) return;
     this.#exportAdapter = adapter;
+    this.render();
+  }
+
+  /** Caller-supplied localized status, action, and unsupported messages. */
+  public get messages(): HonuaPrintExportMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaPrintExportMessages | undefined) {
+    this.#messages = messages ?? {};
     this.render();
   }
 
@@ -2105,14 +2374,16 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
   protected render(): void {
     const label = this.getAttribute("label") ?? "Print and export";
     const available = new Set(this.availableExportKinds());
-    const status = available.size === 0 ? "unsupported" : "ready";
+    const status: HonuaComponentStatus = available.size === 0 ? "unsupported" : "ready";
     const last = this.#lastResult;
     const buttons = (["print", "snapshot", "state"] as const)
       .map((kind) => {
         const enabled = available.has(kind);
+        const actionLabel = this.#messages.actionLabels?.[kind] ?? EXPORT_LABELS[kind];
         const title = enabled
-          ? `${EXPORT_LABELS[kind]} export`
-          : `${EXPORT_LABELS[kind]} export requires an application-supplied export adapter.`;
+          ? `${actionLabel} export`
+          : (this.#messages.unavailable?.[kind] ??
+            `${actionLabel} export requires an application-supplied export adapter.`);
         // Deliberately neither `disabled` nor `aria-disabled`, even when no
         // adapter is assigned. Both suppress activation — assistive technology
         // skips a disabled control, and Playwright treats either as
@@ -2124,7 +2395,7 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
         // which returns `unsupported` with no bytes.
         return `<button type="button" data-export-format="${EXPORT_FORMAT_BY_KIND[kind]}" data-export-kind="${kind}"${
           enabled ? "" : ' data-export-unavailable="true"'
-        } title="${escapeHtml(title)}">${escapeHtml(EXPORT_LABELS[kind])}</button>`;
+        } title="${escapeHtml(title)}">${escapeHtml(actionLabel)}</button>`;
       })
       .join("");
     this.setShadowHtml(`
@@ -2132,10 +2403,12 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(status)}</span>
+          <span>${escapeHtml(this.#messages.status?.[status] ?? status)}</span>
         </div>
         <div class="button-stack">${buttons}</div>
-        <p part="status" role="status" aria-live="polite">${escapeHtml(exportStatusText(last, available))}</p>
+        <p part="status" role="status" aria-live="polite">${escapeHtml(
+          exportStatusText(last, available, this.#messages),
+        )}</p>
       </section>
     `);
     this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-export-kind]").forEach((button) => {
@@ -2160,12 +2433,16 @@ const EXPORT_LABELS: Readonly<Record<HonuaExportKind, string>> = {
  * reporting "ready to export" while two of the three buttons are inert would be
  * exactly the kind of quiet degradation issue #683 exists to remove.
  */
-function exportStatusText(result: HonuaExportResult | undefined, available: ReadonlySet<HonuaExportKind>): string {
+function exportStatusText(
+  result: HonuaExportResult | undefined,
+  available: ReadonlySet<HonuaExportKind>,
+  messages: HonuaPrintExportMessages = {},
+): string {
   if (!result) {
-    if (available.has("snapshot") && available.has("state")) return "Ready to export.";
+    if (available.has("snapshot") && available.has("state")) return messages.ready ?? "Ready to export.";
     return available.size === 0
-      ? "Assign an export adapter to enable export."
-      : "Assign an export adapter to enable snapshot and state export.";
+      ? (messages.adapterRequired ?? "Assign an export adapter to enable export.")
+      : (messages.adapterRequiredForSnapshotState ?? "Assign an export adapter to enable snapshot and state export.");
   }
   if (result.status === "ready") {
     const redacted =
@@ -2215,20 +2492,30 @@ export class HonuaMapStatusElement<T = Record<string, unknown>> extends HonuaEle
     return ["for", "label", "attribution"];
   }
 
+  #messages: HonuaMapStatusMessages = {};
+
+  public get messages(): HonuaMapStatusMessages {
+    return this.#messages;
+  }
+  public set messages(messages: HonuaMapStatusMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
+
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
   }
 
   protected render(): void {
-    const label = this.getAttribute("label") ?? "Map status";
+    const label = this.#messages.label ?? this.getAttribute("label") ?? "Map status";
     const attribution = this.getAttribute("attribution") ?? this.state?.mapPackage?.mapPackageId ?? "Honua";
     this.setShadowHtml(`
       <style>${baseStyles()}${mapStatusStyles()}</style>
       <section class="map-status" part="panel" aria-label="${escapeHtml(label)}">
-        <span aria-label="Approximate scale">${escapeHtml(approximateScale(this.state?.viewport))}</span>
-        <span aria-label="Attribution">${escapeHtml(attribution)}</span>
-        <button type="button" data-fullscreen>Fullscreen</button>
+        <span aria-label="${escapeAttribute(this.#messages.scaleLabel ?? "Approximate scale")}">${escapeHtml(approximateScale(this.state?.viewport))}</span>
+        <span aria-label="${escapeAttribute(this.#messages.attributionLabel ?? "Attribution")}">${escapeHtml(attribution)}</span>
+        <button type="button" data-fullscreen="action">${escapeHtml(this.#messages.fullscreenLabel ?? "Fullscreen")}</button>
       </section>
     `);
     this.shadowRoot?.querySelector<HTMLButtonElement>("button[data-fullscreen]")?.addEventListener("click", () => {
@@ -2245,7 +2532,7 @@ export class HonuaMapStatusElement<T = Record<string, unknown>> extends HonuaEle
       this.dispatchTypedEvent<HonuaFullscreenChangeDetail>("honua-fullscreen-change", {
         fullscreen: false,
         status: "unsupported",
-        message: "Fullscreen is unavailable.",
+        message: this.#messages.fullscreenUnavailable ?? "Fullscreen is unavailable.",
       });
       return;
     }
@@ -2262,24 +2549,37 @@ export class HonuaActionPanelElement<T = Record<string, unknown>> extends HonuaE
     return ["for", "label", "actions"];
   }
 
+  #messages: HonuaActionPanelMessages = {};
+
+  /** Caller-supplied localized panel label, status, and empty-state text. */
+  public get messages(): HonuaActionPanelMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaActionPanelMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
+
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
   }
 
   protected render(): void {
-    const label = this.getAttribute("label") ?? "Actions";
+    const label = this.#messages.label ?? this.getAttribute("label") ?? "Actions";
     const actions = parseActions(this.getAttribute("actions"));
+    const status = actions.length > 0 ? "ready" : "unsupported";
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}${actionPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(actions.length > 0 ? "ready" : "unsupported")}</span>
+          <span>${escapeHtml(this.#messages.status?.[status] ?? status)}</span>
         </div>
         ${
           actions.length === 0
-            ? `<p class="empty" role="status">No actions are configured.</p>`
+            ? `<p class="empty" role="status">${escapeHtml(this.#messages.empty ?? "No actions are configured.")}</p>`
             : `<div class="button-stack">
               ${actions
                 .map(
@@ -2579,6 +2879,12 @@ function escapeAttribute(value: string): string {
   return escapeHtml(value).replace(/'/g, "&#39;");
 }
 
+function formatLayerOpacityValue(format: HonuaLayerListMessages["opacityValue"], percent: number): string {
+  if (typeof format === "function") return format(percent);
+  if (format !== undefined) return format.replace("{percent}", String(percent));
+  return `${percent}%`;
+}
+
 function baseStyles(): string {
   return `
     :host {
@@ -2619,6 +2925,14 @@ function baseStyles(): string {
       width: 1px;
     }
   `;
+}
+
+function formatMapVisibleLayers(format: HonuaMapMessages["visibleLayers"], count: number): string {
+  return typeof format === "function"
+    ? format(count)
+    : format
+      ? format.replace("{count}", String(count))
+      : `${count} visible`;
 }
 
 function mapStyles(): string {
@@ -2695,6 +3009,27 @@ function mapStyles(): string {
     .maplibregl-control-container {
       display: none;
     }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .map {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .map__chrome, .map__footer, .map__status {
+        background: Canvas;
+        color: CanvasText;
+      }
+      .map__canvas { background: Canvas; }
+      .map__controls button { border-color: ButtonText; color: ButtonText; }
+    }
+    @media (max-width: 320px) {
+      .map { min-width: 0; }
+      .map__chrome, .map__footer {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .map__controls { justify-content: space-between; width: 100%; }
+    }
   `;
 }
 
@@ -2736,6 +3071,11 @@ function listStyles(): string {
 
 function legendStyles(): string {
   return `
+    @media (max-width: 320px) {
+      .panel { min-width: 0; }
+      .legend li { align-items: flex-start; min-width: 0; }
+      .legend li > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+    }
     @media (forced-colors: active), (prefers-contrast: more) {
       .legend li { color: CanvasText; }
       .legend .swatch {
@@ -2763,6 +3103,23 @@ function layerListStyles(): string {
     }
     .opacity { flex: 1; min-width: 60px; }
     .move { min-width: 32px; padding: 0; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .layer-row {
+        border-top-color: CanvasText;
+      }
+      .layer-row input[type="checkbox"]:checked + span {
+        color: Highlight;
+      }
+      .layer-row__tools button {
+        border-color: ButtonText;
+      }
+    }
+    @media (max-width: 320px) {
+      .panel { min-width: 0; }
+      .layer-row__tools { flex-wrap: wrap; padding-left: 0; }
+      .opacity { min-width: 0; width: 100%; }
+      .move { flex: 1 1 32px; }
+    }
   `;
 }
 
@@ -2798,6 +3155,17 @@ function tableStyles(): string {
     tr[aria-selected="true"] td { background: #dbeafe; }
     tbody tr[data-feature-id] { cursor: pointer; }
     tbody tr[data-feature-id]:focus { outline: 2px solid var(--honua-ui-accent); outline-offset: -2px; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .table-panel {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .table-panel__bar, th { background: Canvas; color: CanvasText; }
+      th, td { border-top-color: CanvasText; }
+      tr[aria-selected="true"] td { background: Highlight; color: HighlightText; }
+      tbody tr[data-feature-id]:focus { outline-color: Highlight; }
+    }
   `;
 }
 
@@ -2858,6 +3226,13 @@ function searchStyles(): string {
       form { grid-template-columns: minmax(0, 1fr); }
       form button { width: 100%; }
     }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .search, input, button, .suggestions { border-color: CanvasText; }
+      .suggestions [role="option"][aria-selected="true"] {
+        background: Highlight;
+        color: HighlightText;
+      }
+    }
   `;
 }
 
@@ -2876,6 +3251,28 @@ function editorStyles(): string {
     .editor__actions { justify-content: flex-start; }
     .selection { margin-block: 10px 4px; margin-inline: 0; }
     .muted { margin-block: 0 10px; margin-inline: 0; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .editor {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .editor__actions button {
+        border-color: ButtonText;
+        color: ButtonText;
+      }
+    }
+    @media (max-width: 320px) {
+      .editor { min-width: 0; }
+      .editor__bar { align-items: flex-start; flex-direction: column; }
+      .editor__actions { flex-wrap: wrap; }
+      .editor__actions button {
+        flex: 1 1 120px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+        white-space: normal;
+      }
+    }
   `;
 }
 
@@ -2902,6 +3299,20 @@ function chartStyles(): string {
       position: absolute;
       width: var(--bar);
     }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .chart {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .bar { background: ButtonFace; outline: 1px solid ButtonText; }
+      .bar::before { background: Highlight; }
+    }
+    @media (max-width: 320px) {
+      .chart { min-width: 0; }
+      .bar-row { grid-template-columns: minmax(0, 1fr); }
+      .bar { min-width: 0; width: 100%; }
+    }
   `;
 }
 
@@ -2916,15 +3327,24 @@ function controlPanelStyles(): string {
       display: grid;
       gap: 10px;
       min-width: 180px;
+      max-width: 100%;
+      min-inline-size: 0;
       padding-block: 10px;
       padding-inline: 10px;
     }
+    .control-panel > * { min-width: 0; max-width: 100%; }
     button { padding-block: 0; padding-inline: 10px; }
     .control-panel__bar {
       align-items: center;
       display: flex;
       gap: 8px;
       justify-content: space-between;
+      min-width: 0;
+    }
+    .control-panel__bar h2,
+    .control-panel__bar span {
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .control-panel__bar span {
       color: var(--honua-ui-muted);
@@ -2945,8 +3365,10 @@ function controlPanelStyles(): string {
     }
     .segmented button {
       min-width: 0;
+      overflow-wrap: anywhere;
       padding-block: 0;
       padding-inline: 8px;
+      white-space: normal;
     }
     button[aria-pressed="true"] {
       background: var(--honua-ui-accent);
@@ -2955,6 +3377,44 @@ function controlPanelStyles(): string {
     }
     p {
       margin: 0;
+      overflow-wrap: anywhere;
+    }
+    @media (max-width: 240px) {
+      .control-panel {
+        min-width: 0;
+      }
+      .control-panel__bar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .control-panel__bar h2 {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .segmented {
+        grid-template-columns: 1fr;
+      }
+      .button-stack button,
+      .segmented button,
+      .control-panel > button {
+        width: 100%;
+      }
+    }
+    @media (min-width: 241px) and (max-width: 320px) {
+      .segmented { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+    }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .control-panel {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .control-panel__bar span { color: CanvasText; }
+      .button-stack button {
+        background: ButtonFace;
+        border-color: ButtonText;
+        color: ButtonText;
+      }
     }
   `;
 }
@@ -3018,16 +3478,20 @@ function mapStatusStyles(): string {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
       display: flex;
+      direction: inherit;
       flex-wrap: wrap;
       gap: 8px;
       justify-content: space-between;
       min-height: 42px;
-      padding: 6px 8px;
+      padding-block: 6px;
+      padding-inline: 8px;
     }
     span {
       color: var(--honua-ui-muted);
       min-width: 0;
+      text-align: start;
     }
+    .map-status button { text-align: start; }
     @media (forced-colors: active), (prefers-contrast: more) {
       .map-status {
         background: Canvas;
@@ -3051,6 +3515,10 @@ function mapStatusStyles(): string {
         color: MarkText;
       }
       :host([data-status="error"]) .map-status span { color: MarkText; }
+    }
+    @media (max-width: 240px) {
+      .map-status { align-items: flex-start; flex-direction: column; }
+      .map-status button { inline-size: 100%; }
     }
   `;
 }

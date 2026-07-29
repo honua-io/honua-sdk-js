@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { describe, expect, test } from "vitest";
 
 import { HonuaBasemapStyleBinding } from "../../src/controls/basemap-style-binding.js";
@@ -315,6 +317,43 @@ describe("HonuaBasemapStyleBinding", () => {
 });
 
 describe("HonuaBasemapSwitcherElement", () => {
+  test("renders direct radio-group ARIA state and supports keyboard selection", () => {
+    const element = new HonuaBasemapSwitcherElement();
+    document.body.append(element);
+    element.bases = makeBases();
+
+    const group = element.shadowRoot?.querySelector('[role="radiogroup"]');
+    const radios = [...(element.shadowRoot?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])];
+    expect(group?.getAttribute("aria-label")).toBe("Basemaps");
+    expect(radios).toHaveLength(3);
+    expect(radios.map((radio) => radio.getAttribute("aria-checked"))).toEqual(["true", "false", "false"]);
+    expect(radios.map((radio) => radio.tabIndex)).toEqual([0, -1, -1]);
+    expect(radios.map((radio) => radio.textContent?.trim())).toEqual(["Streets", "Imagery", "Terrain"]);
+
+    const press = (radio: HTMLButtonElement, key: string): void => {
+      radio.focus();
+      radio.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key }));
+    };
+
+    press(radios[0]!, "ArrowRight");
+    expect(element.value).toBe("imagery");
+    expect(radios[1]?.getAttribute("aria-checked")).toBe("true");
+    expect(radios.map((radio) => radio.tabIndex)).toEqual([-1, 0, -1]);
+
+    press(radios[1]!, "End");
+    expect(element.value).toBe("terrain");
+    press(radios[2]!, "Home");
+    expect(element.value).toBe("streets");
+    press(radios[0]!, "ArrowLeft");
+    expect(element.value).toBe("terrain");
+    press(radios[2]!, "ArrowUp");
+    expect(element.value).toBe("imagery");
+    press(radios[1]!, "Enter");
+    expect(element.value).toBe("imagery");
+    press(radios[1]!, " ");
+    expect(element.value).toBe("imagery");
+  });
+
   test("is registered for browser registries via defineHonuaControls", () => {
     const defined: Record<string, CustomElementConstructor> = {};
     const registry = {

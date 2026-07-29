@@ -337,6 +337,7 @@ const BROWSER_SPEC = "test/playwright/web-components-basic.spec.mjs";
  * forces these rows to move.
  */
 const DISPLAY_ONLY_IDS = ["web-components.legend", "web-components.chart"] as const;
+const CONTROLS_DISPLAY_ONLY_IDS = ["controls.legend"] as const;
 
 /** Harness tags that carry a real interactive affordance. */
 const INTERACTIVE_HARNESS_IDS = LIFECYCLE_HARNESS_IDS.filter(
@@ -358,13 +359,15 @@ const FOCUS_RESTORING_IDS = [
   "web-components.sketch-control",
   "web-components.print-export",
   "web-components.action-panel",
+  "web-components.locate-control",
+  "web-components.map-status",
   // The search element's *text input* — the case that actually matters — is
   // covered by the harness's dedicated text-field suite.
   "web-components.search",
 ] as const;
 
-/** Harness tags whose focused control is demonstrably lost across a re-render. */
-const FOCUS_LOSING_IDS = ["web-components.locate-control", "web-components.map-status"] as const;
+/** No harness-covered interactive component currently loses focus across a re-render. */
+const FOCUS_LOSING_IDS = [] as const;
 
 /** Components that move the map camera and would need to honour reduced motion. */
 const CAMERA_MOVING_IDS = [
@@ -391,6 +394,32 @@ interface GateDeclaration {
 const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDeclaration>> = {
   "keyboard-behavior": {
     passing: [
+      {
+        ids: ["web-components.map"],
+        evidence: [BROWSER_SPEC],
+        note: "The focused zoom control receives a real Enter key event and produces the same viewport event count as its pointer-activation baseline in the browser fixture.",
+      },
+      {
+        ids: [
+          "web-components.basemap-control",
+          "web-components.bookmarks",
+          "web-components.locate-control",
+          "web-components.print-export",
+          "web-components.action-panel",
+          "web-components.map-status",
+          "web-components.measure-control",
+          "web-components.sketch-control",
+          "web-components.editor",
+          "controls.layer-list",
+        ],
+        evidence: [BROWSER_SPEC],
+        note: "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state.",
+      },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/basemap-switcher.test.ts"],
+        note: "The native basemap switcher dispatches real ArrowLeft/ArrowRight/Home/End navigation events to its radiogroup and activates the focused choice with Enter and Space, asserting focus, checked state, and map selection.",
+      },
       {
         ids: ["web-components.search"],
         evidence: ["test/web-components-search-element.test.ts"],
@@ -420,6 +449,12 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: [FEATURE_EDITOR],
         evidence: [FEATURE_EDITOR_SUITE],
         note: "Ctrl+Z / Ctrl+Shift+Z drive undo and redo and Escape cancels the draft, each dispatched as a real KeyboardEvent with the resulting workflow state asserted. The events are dispatched at the shadow root rather than from a focused control, so the root-level handler is proven but focus-based delivery is not.",
+      },
+    ],
+    notApplicable: [
+      {
+        ids: [...DISPLAY_ONLY_IDS, ...CONTROLS_DISPLAY_ONLY_IDS],
+        note: "These legend and chart components render display-only content and expose no interactive affordance for keyboard operation; adding one would require this row to be re-qualified.",
       },
     ],
     pendingNote:
@@ -468,6 +503,30 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [FEATURE_TABLE_SUITE],
         note: "A full WAI-ARIA grid contract: role=grid/row/columnheader/gridcell with absolute aria-rowcount, aria-colcount, aria-rowindex, and aria-colindex across a virtualized window, aria-rowcount=-1 when the true total is genuinely unknown rather than a fabricated number, aria-sort, aria-selected, aria-busy, a role=status aria-live=polite readout, and placeholder rows that announce nothing they cannot substantiate. The grid's own accessible name (aria-labelledby) is emitted but not asserted.",
       },
+      {
+        ids: ["controls.swipe-control", "controls.layer-list"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The native controls expose explicit accessible structure: a labelled slider with bounded value state and a labelled group containing native checkbox controls paired with their visible labels.",
+      },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/basemap-switcher.test.ts"],
+        note: "The native basemap switcher exposes a labelled radiogroup whose choices have radio roles, stable accessible names, and checked state that tracks the selected basemap.",
+      },
+      {
+        ids: [
+          "web-components.map",
+          "web-components.editor",
+          "web-components.chart",
+          "web-components.basemap-control",
+          "web-components.bookmarks",
+          "web-components.locate-control",
+          "web-components.map-status",
+          "web-components.action-panel",
+        ],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced.",
+      },
     ],
     pendingNote:
       "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract.",
@@ -495,6 +554,26 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [FEATURE_EDITOR_SUITE],
         note: "A reconciling realtime change forces a re-render and the focused field keeps its edited value, its focus, and its caret range. Covered for text inputs only: this element hand-rolls its own captureFocus() keyed on `id` alone rather than using the shared setShadowHtml() helper's id/name/data-* selector, and none of its buttons carry an id, so button focus is silently lost across the same re-render.",
       },
+      {
+        ids: ["controls.basemap-switcher", "controls.swipe-control"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "A focused basemap radio and swipe divider retain focus across their state rerenders.",
+      },
+      {
+        ids: ["web-components.measurement"],
+        evidence: ["test/web-components-measurement-element.test.ts"],
+        note: "The focused measurement mode button retains focus when the mode state rerenders.",
+      },
+      {
+        ids: ["web-components.map"],
+        evidence: [BROWSER_SPEC],
+        note: "A focused zoom control retains focus across repeated controller-driven map state updates in the real MapLibre browser fixture.",
+      },
+      {
+        ids: ["controls.layer-list"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "A focused layer checkbox retains focus across an overlays rerender.",
+      },
     ],
     failing: [
       {
@@ -507,16 +586,21 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: DISPLAY_ONLY_IDS,
         note: "A read-only presentation with no focusable control; there is no active element to preserve. The harness asserts the absence, so adding an affordance moves this row.",
       },
+      {
+        ids: CONTROLS_DISPLAY_ONLY_IDS,
+        note: "The native legend is a read-only list presentation with no focusable control; there is no active element to preserve.",
+      },
     ],
     pendingNote:
       "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there.",
   },
 
   "reduced-motion": {
-    failing: [
+    passing: [
       {
         ids: CAMERA_MOVING_IDS,
-        note: "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition.",
+        evidence: ["test/runtime/runtime.test.ts"],
+        note: "The shared runtime forces animated bounding-box camera transitions to animate:false when the map container reports prefers-reduced-motion: reduce, covering all four web components that delegate camera commits through this path.",
       },
     ],
     notApplicable: [
@@ -528,49 +612,443 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   "high-contrast": {
+    passing: [
+      {
+        ids: [FEATURE_EDITOR],
+        evidence: [FEATURE_EDITOR_SUITE],
+        note: "The feature editor declares forced-colors and prefers-contrast styles for pressed, disabled, native form, invalid, and validation states, with the emitted stylesheet assertions covering system Canvas/Highlight colors and non-color state distinctions.",
+      },
+      {
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The swipe divider declares forced-colors and prefers-contrast rules that preserve the divider and handle boundary using ButtonText/Canvas system colors, asserted from the emitted shadow stylesheet.",
+      },
+      {
+        ids: ["controls.layer-list"],
+        evidence: ["test/controls/layer-list.test.ts"],
+        note: "The native layer list declares forced-colors and prefers-contrast rules that preserve checked-row distinction with a CanvasText outline and unseeded-row distinction with GrayText, asserted from the component stylesheet.",
+      },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The native basemap switcher declares a forced-colors/prefers-contrast Highlight outline for the active radio, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["controls.legend"],
+        evidence: ["test/controls/legend.test.ts"],
+        note: "The native legend declares forced-colors/prefers-contrast system-color rules for swatches and the empty state, asserted from the component stylesheet.",
+      },
+      {
+        ids: ["web-components.search"],
+        evidence: ["test/web-components-search-element.test.ts"],
+        note: "The search component declares forced-colors/prefers-contrast system-color rules for borders and selected suggestions, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.legend"],
+        evidence: ["test/web-components-legend-element.test.ts"],
+        note: "The web-component legend declares forced-colors/prefers-contrast system-color rules that preserve swatch boundaries and label contrast, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.map-status"],
+        evidence: ["test/web-components-map-status-element.test.ts"],
+        note: "The map-status panel declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonText/GrayText/Mark system-color rules for normal, unsupported, error, and action states, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.action-panel"],
+        evidence: ["test/web-components-action-panel-element.test.ts"],
+        note: "The action panel declares forced-colors/prefers-contrast system-color rules for panel, action, empty, and status states, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.layer-list"],
+        evidence: ["test/web-components-layer-list-element.test.ts"],
+        note: "The web-component layer list declares forced-colors/prefers-contrast system-color rules for row boundaries, checked labels, and reorder controls, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.bookmarks"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The bookmarks control panel declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules for its surface and action buttons, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.basemap-control"],
+        evidence: ["test/web-components-basemap-control-element.test.ts"],
+        note: "The web basemap control declares forced-colors/prefers-contrast system-color rules for active radio state and controls, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.locate-control"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The locate control's shared panel declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules for its surface and action, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.measure-control", "web-components.sketch-control"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The measure and sketch controls' shared panels declare forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules, asserted from each emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.print-export"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The print/export control declares forced-colors/prefers-contrast system-color rules for its panel and export actions, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.editor"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The web editor declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonText rules for its panel and native actions, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.measurement"],
+        evidence: ["test/web-components-measurement-element.test.ts"],
+        note: "The measurement element declares forced-colors/prefers-contrast system-color rules for its mode/status surface, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.chart"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The chart declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText/Highlight rules for its panel and bars, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.feature-table"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The feature table declares forced-colors/prefers-contrast Canvas/CanvasText/Highlight rules for panel, headers, selected rows, and focus, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.map"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The map declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonText rules for its panel, chrome, canvas, status, and controls, asserted from the emitted stylesheet.",
+      },
+    ],
     failing: [
       {
-        ids: ALL_IDS,
+        ids: ALL_IDS.filter(
+          (id) =>
+            id !== FEATURE_EDITOR &&
+            id !== "controls.swipe-control" &&
+            id !== "controls.layer-list" &&
+            id !== "controls.basemap-switcher" &&
+            id !== "controls.legend" &&
+            id !== "web-components.search" &&
+            id !== "web-components.legend" &&
+            id !== "web-components.map-status" &&
+            id !== "web-components.action-panel" &&
+            id !== "web-components.layer-list" &&
+            id !== "web-components.bookmarks" &&
+            id !== "web-components.basemap-control" &&
+            id !== "web-components.locate-control" &&
+            id !== "web-components.measure-control" &&
+            id !== "web-components.sketch-control" &&
+            id !== "web-components.print-export" &&
+            id !== "web-components.editor" &&
+            id !== "web-components.measurement" &&
+            id !== "web-components.chart" &&
+            id !== "web-components.feature-table" &&
+            id !== "web-components.map",
+        ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
       },
     ],
   },
 
   "responsive-layout": {
+    passing: [
+      {
+        ids: ["web-components.search"],
+        evidence: ["test/web-components-search-element.test.ts"],
+        note: "The search form uses a shrinkable grid and stacks its submit button full-width below 320px, asserted from the emitted stylesheet for narrow-container behavior.",
+      },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The native basemap switcher stacks its wrapped group and ellipsizes radio labels below 240px, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.map-status"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The map-status row stacks its content and makes the action full-width below 240px, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.feature-table"],
+        evidence: ["test/web-components-feature-table-element.test.ts"],
+        note: "The feature table keeps its panel shrinkable and exposes horizontal scrolling for narrow containers, with an overflow-safe table width, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: [
+          "web-components.basemap-control",
+          "web-components.bookmarks",
+          "web-components.locate-control",
+          "web-components.measure-control",
+          "web-components.sketch-control",
+          "web-components.print-export",
+          "web-components.action-panel",
+        ],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The shared control-panel stylesheet removes its fixed minimum width, stacks the heading, wraps long labels, and makes narrow segmented/action controls full-width below 240px; each covered panel asserts the emitted stylesheet.",
+      },
+      {
+        ids: ["web-components.editor"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The editor panel makes its action row wrap and its buttons shrink below 320px, asserted from the emitted stylesheet.",
+      },
+      {
+        ids: ["controls.swipe-control", "controls.legend", "controls.layer-list"],
+        evidence: [
+          "test/controls/swipe-control.test.ts",
+          "test/controls/legend.test.ts",
+          "test/controls/layer-list.test.ts",
+        ],
+        note: "The native controls constrain their panel and row widths, allow flex children to shrink, and wrap unbroken labels without narrow-container overflow, asserted from each emitted stylesheet.",
+      },
+      {
+        ids: [
+          "web-components.map",
+          "web-components.layer-list",
+          "web-components.legend",
+          "web-components.feature-editor",
+          "web-components.chart",
+          "web-components.measurement",
+        ],
+        evidence: [
+          "test/web-components-map-status-element.test.ts",
+          "test/web-components-layer-list-element.test.ts",
+          "test/web-components-legend-element.test.ts",
+          "test/web-components-feature-editor-element.test.ts",
+          "test/web-components-lifecycle-gates.test.ts",
+          "test/web-components-measurement-element.test.ts",
+        ],
+        note: "The remaining web components emit narrow-container rules that remove fixed minimum widths, stack or wrap controls, and keep bars, layer tools, legends, and measurement content within the available inline size, asserted from focused emitted-style tests.",
+      },
+    ],
     failing: [
       {
-        ids: ALL_IDS,
-        note: "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit.",
+        ids: ALL_IDS.filter(
+          (id) =>
+            id !== "web-components.search" &&
+            id !== "controls.basemap-switcher" &&
+            id !== "web-components.map-status" &&
+            id !== "web-components.feature-table" &&
+            id !== "web-components.basemap-control" &&
+            id !== "web-components.bookmarks" &&
+            id !== "web-components.locate-control" &&
+            id !== "web-components.measure-control" &&
+            id !== "web-components.sketch-control" &&
+            id !== "web-components.print-export" &&
+            id !== "web-components.action-panel" &&
+            id !== "web-components.editor" &&
+            id !== "controls.swipe-control" &&
+            id !== "controls.legend" &&
+            id !== "controls.layer-list" &&
+            id !== "web-components.map" &&
+            id !== "web-components.layer-list" &&
+            id !== "web-components.legend" &&
+            id !== "web-components.feature-editor" &&
+            id !== "web-components.chart" &&
+            id !== "web-components.measurement",
+        ),
+        note: "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists.",
       },
     ],
   },
 
   localization: {
-    failing: [
+    passing: [
       {
-        ids: allExcept("web-components.search"),
-        note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The basemap switcher accepts a caller-supplied non-English group label and emits it as the radiogroup accessible name; individual basemap names are supplied by the base definitions.",
       },
       {
-        ids: ["web-components.search"],
-        note: "The submit action is caller-localizable through the reflected submitLabel property / submit-label attribute, with the legacy English `Search` default preserved and a non-English rendering assertion. The component still owns hard-coded placeholder, suggestion, no-result, and geocoding status strings, so the full localization criterion remains failing for this component.",
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/swipe-control.test.ts"],
+        note: "The swipe control has no default accessible label and reflects caller-supplied label text through its public property/attribute into aria-label, asserted with French and German labels.",
+      },
+      {
+        ids: ["controls.legend"],
+        evidence: ["test/controls/legend.test.ts"],
+        note: "The native legend accepts a caller-supplied accessible label and empty-state fallback text, asserted with German rendering coverage while preserving caller-supplied legend entries.",
+      },
+      {
+        ids: ["controls.layer-list"],
+        evidence: ["test/controls/layer-list.test.ts"],
+        note: "The native layer list accepts caller-supplied accessible, unseeded, and fallback labels, asserted with German rendering coverage while preserving overlay labels supplied by the caller.",
+      },
+      {
+        ids: ["web-components.map"],
+        evidence: ["test/web-components-map-status-element.test.ts"],
+        note: "The map accepts caller-supplied control, zoom, layer-count, center, package-loading, and no-package messages while preserving the map label, asserted with German rendering coverage.",
+      },
+      {
+        ids: ["web-components.locate-control"],
+        evidence: ["test/web-components-locate-control.test.ts"],
+        note: "The locate control accepts a caller-supplied label and typed message source for action text, statuses, initial/unavailable copy, and geolocation state messages, asserted with German rendering coverage.",
+      },
+      {
+        ids: ["web-components.editor"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The editor accepts caller-supplied action attributes and typed status, selection, editable, and read-only messages, including a reason formatter, asserted with German rendering coverage.",
+      },
+      {
+        ids: ["web-components.bookmarks"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The bookmarks component accepts caller-supplied status and empty-state messages, asserted with German rendering coverage while preserving bookmark labels supplied by the caller.",
+      },
+      {
+        ids: ["web-components.action-panel"],
+        evidence: ["test/web-components-action-panel-element.test.ts"],
+        note: "The action panel accepts caller-supplied label, status, and empty-state messages while preserving action labels supplied by the caller, asserted with German rendering coverage.",
+      },
+      {
+        ids: ["web-components.measure-control"],
+        evidence: ["test/web-components-measure-sketch-elements.test.ts"],
+        note: "The measure control accepts caller-supplied status, action, and empty-state messages while preserving mode labels supplied by the caller, asserted with German rendering coverage.",
+      },
+      {
+        ids: ["web-components.print-export"],
+        evidence: ["test/web-components-lifecycle-gates.test.ts"],
+        note: "The print/export control accepts caller-supplied status, action, and unsupported-state messages while preserving export labels supplied by the caller, asserted with German rendering coverage.",
+      },
+      {
+        ids: ["web-components.sketch-control"],
+        evidence: ["test/web-components-measure-sketch-elements.test.ts"],
+        note: "The sketch control accepts caller-supplied status, action, and empty-state messages while preserving tool labels supplied by the caller, asserted with German rendering coverage.",
+      },
+      {
+        ids: [
+          "web-components.layer-list",
+          "web-components.legend",
+          "web-components.feature-table",
+          "web-components.search",
+          "web-components.feature-editor",
+          "web-components.chart",
+          "web-components.basemap-control",
+          "web-components.measurement",
+          "web-components.map-status",
+        ],
+        evidence: ["test/web-components-localization-german.test.ts"],
+        note: "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage.",
+      },
+    ],
+    failing: [
+      {
+        ids: allExcept(
+          "web-components.search",
+          "controls.basemap-switcher",
+          "controls.swipe-control",
+          "controls.legend",
+          "controls.layer-list",
+          "web-components.map",
+          "web-components.locate-control",
+          "web-components.editor",
+          "web-components.bookmarks",
+          "web-components.action-panel",
+          "web-components.measure-control",
+          "web-components.print-export",
+          "web-components.sketch-control",
+          "web-components.layer-list",
+          "web-components.legend",
+          "web-components.feature-table",
+          "web-components.search",
+          "web-components.feature-editor",
+          "web-components.chart",
+          "web-components.basemap-control",
+          "web-components.measurement",
+          "web-components.map-status",
+        ),
+        note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
       },
     ],
   },
 
   "pseudo-locale": {
-    failing: [
+    passing: [
       {
         ids: ALL_IDS,
-        note: "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes.",
+        evidence: ["test/playwright/pseudo-locale.spec.mjs"],
+        note: "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog.",
       },
     ],
   },
 
   rtl: {
+    passing: [
+      {
+        ids: [FEATURE_EDITOR],
+        evidence: [FEATURE_EDITOR_SUITE],
+        note: "The feature editor renders flex/grid surfaces without physical left/right declarations; an explicit dir=rtl fixture asserts the emitted stylesheet remains direction-neutral.",
+      },
+      {
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/swipe-control.test.ts"],
+        note: "The swipe control uses logical divider positioning, reverses inline pointer and keyboard movement in RTL, and asserts the RTL clip path and Home/End semantics in focused tests.",
+      },
+      {
+        ids: ["controls.layer-list"],
+        evidence: ["test/controls/layer-list.test.ts"],
+        note: "The native layer list renders direction-neutral flex rows under an explicit dir=rtl fixture and has no physical left/right style declarations.",
+      },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "The native basemap switcher is rendered with dir=rtl and its emitted structural styles contain no physical left/right declarations.",
+      },
+      {
+        ids: ["controls.legend"],
+        evidence: ["test/controls/legend.test.ts"],
+        note: "The native legend inherits an explicit RTL direction and uses logical label alignment, asserted through its rendered direction and stylesheet coverage.",
+      },
+      {
+        ids: ["web-components.map-status"],
+        evidence: ["test/web-components-map-status-element.test.ts"],
+        note: "The map-status component inherits RTL direction and uses logical padding and start-aligned text, asserted with Arabic rendering and stylesheet coverage.",
+      },
+      {
+        ids: [
+          "web-components.map",
+          "web-components.layer-list",
+          "web-components.legend",
+          "web-components.feature-table",
+          "web-components.chart",
+        ],
+        evidence: ["test/web-components-rtl.test.ts"],
+        note: "The map, layer list, legend, feature table, and chart render under dir=rtl with logical direction, padding, inset, alignment, and chart-fill styles, asserted with Arabic/RTL rendering coverage.",
+      },
+      {
+        ids: [
+          "web-components.search",
+          "web-components.editor",
+          "web-components.basemap-control",
+          "web-components.bookmarks",
+          "web-components.locate-control",
+          "web-components.measure-control",
+          "web-components.measurement",
+          "web-components.sketch-control",
+          "web-components.print-export",
+          "web-components.action-panel",
+        ],
+        evidence: ["test/web-components-rtl-remaining.test.ts"],
+        note: "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage.",
+      },
+    ],
     failing: [
       {
-        ids: allExcept(FEATURE_EDITOR),
+        ids: allExcept(
+          FEATURE_EDITOR,
+          "controls.swipe-control",
+          "controls.layer-list",
+          "controls.basemap-switcher",
+          "controls.legend",
+          "web-components.map-status",
+          "web-components.map",
+          "web-components.layer-list",
+          "web-components.legend",
+          "web-components.feature-table",
+          "web-components.chart",
+          "web-components.search",
+          "web-components.editor",
+          "web-components.basemap-control",
+          "web-components.bookmarks",
+          "web-components.locate-control",
+          "web-components.measure-control",
+          "web-components.measurement",
+          "web-components.sketch-control",
+          "web-components.print-export",
+          "web-components.action-panel",
+        ),
         note: "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl.",
       },
     ],
@@ -584,10 +1062,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   "strict-csp": {
-    failing: [
+    passing: [
       {
         ids: ALL_IDS,
-        note: "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate.",
+        evidence: ["test/playwright/web-components-csp.spec.mjs"],
+        note: "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur.",
       },
     ],
   },
@@ -603,6 +1082,35 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: [FEATURE_TABLE],
         evidence: [LIFECYCLE_HARNESS],
         note: "Covered for the controller lane only. The bounded engine lane is not driven by the harness and no feature-table suite spies on the console, so its query, paging, and conflict paths are unswept.",
+      },
+      {
+        ids: [
+          "web-components.map",
+          "web-components.editor",
+          "web-components.chart",
+          "web-components.basemap-control",
+          "web-components.bookmarks",
+          "web-components.locate-control",
+          "web-components.map-status",
+          "web-components.action-panel",
+        ],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither.",
+      },
+      {
+        ids: ["controls.basemap-switcher", "controls.swipe-control", "controls.legend", "controls.layer-list"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "Each native control is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither.",
+      },
+      {
+        ids: ["web-components.feature-editor"],
+        evidence: ["test/web-components-feature-editor-element.test.ts"],
+        note: "The feature editor is mounted and disconnected while console.error and console.warn are spied; its complete lifecycle emits neither.",
+      },
+      {
+        ids: ["web-components.measurement"],
+        evidence: ["test/web-components-measurement-element.test.ts"],
+        note: "The measurement element is mounted and disconnected while console.error and console.warn are spied; its complete lifecycle emits neither.",
       },
     ],
     pendingNote:
@@ -630,6 +1138,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: ["controls.basemap-switcher"],
         evidence: ["test/controls/basemap-switcher.test.ts"],
         note: "Unbinding the map removes every layer and source the control added, and reconnecting restores the selection.",
+      },
+      {
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/swipe-control.test.ts"],
+        note: "Disconnecting during an active drag removes the pointermove, pointerup, and pointercancel listeners it installed.",
       },
       {
         ids: ["web-components.map"],
@@ -667,11 +1180,40 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: [FEATURE_EDITOR_SUITE],
         note: "One keystroke after four re-renders drives exactly one undo, one redo, and one cancel, asserted by counting workflow invocations rather than resulting state — which is the only way to see this defect class, since surplus undo()/cancel() calls are idempotent no-ops that leave state looking correct. The keydown listener is now bound once per connection on the shadow root instead of on every render (issue #809).",
       },
+      {
+        ids: ["web-components.measurement"],
+        evidence: ["test/web-components-measurement-element.test.ts"],
+        note: "Repeated mode rerenders leave exactly one map click and one double-click listener, proving handlers are not accumulated.",
+      },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "Repeated bases rerenders leave one click handler on the selected radio, evidenced by exactly one change event from one interaction.",
+      },
+      {
+        ids: ["controls.swipe-control"],
+        evidence: ["test/controls/swipe-control.test.ts"],
+        note: "Repeated position rerenders leave one keyboard handler on the divider, evidenced by exactly one change event from one ArrowRight interaction.",
+      },
+      {
+        ids: ["controls.layer-list"],
+        evidence: ["test/controls/accessibility.test.ts"],
+        note: "Repeated overlays rerenders leave one checkbox change handler, evidenced by exactly one change event from one click.",
+      },
+      {
+        ids: ["web-components.map"],
+        evidence: [BROWSER_SPEC],
+        note: "After repeated controller-driven state updates, one zoom click produces the same viewport event count as the pre-update baseline in the real MapLibre browser fixture.",
+      },
     ],
     notApplicable: [
       {
         ids: DISPLAY_ONLY_IDS,
         note: "A read-only presentation that binds no event handler; there is nothing that could accumulate. The harness asserts the absence of any interactive control, so adding one moves this row.",
+      },
+      {
+        ids: CONTROLS_DISPLAY_ONLY_IDS,
+        note: "The native legend binds no event handler because it is a read-only list presentation; there is nothing that could accumulate.",
       },
     ],
     pendingNote:
@@ -679,8 +1221,13 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   "memory-leak": {
-    pendingNote:
-      "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven.",
+    passing: [
+      {
+        ids: ALL_IDS,
+        evidence: ["test/playwright/web-components-memory-leak.spec.mjs"],
+        note: "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable.",
+      },
+    ],
   },
 
   "ssr-import": {

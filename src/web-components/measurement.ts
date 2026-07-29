@@ -35,7 +35,14 @@
  */
 
 import { area as geodesicArea, length as geodesicLength } from "../geometry/index.js";
-import type { HonuaMeasureChangeDetail, HonuaMeasureMode, HonuaMeasureResult, HonuaMeasurementMap } from "./types.js";
+import { renderCspSafeShadowHtml } from "./csp-styles.js";
+import type {
+  HonuaMeasureChangeDetail,
+  HonuaMeasureMode,
+  HonuaMeasureResult,
+  HonuaMeasurementMap,
+  HonuaMeasurementMessages,
+} from "./types.js";
 
 const globalDom = globalThis as typeof globalThis & {
   HTMLElement?: typeof HTMLElement;
@@ -61,6 +68,15 @@ export class HonuaMeasurementElement extends HTMLElementBase {
   #vertices: LngLat[] = [];
   #finished = false;
   #result: HonuaMeasureResult | undefined;
+  #messages: HonuaMeasurementMessages = {};
+
+  public get messages(): HonuaMeasurementMessages {
+    return this.#messages;
+  }
+  public set messages(messages: HonuaMeasurementMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
   #connected = false;
   #disposeMapReadyListener: (() => void) | undefined;
   #clickListener: ((event?: unknown) => void) | undefined;
@@ -365,41 +381,46 @@ export class HonuaMeasurementElement extends HTMLElementBase {
   protected render(): void {
     const root = this.shadowRoot;
     if (!root || !this.#connected) return;
-    const label = this.#attr("label") ?? "Measure";
+    const focusedMode = root.activeElement?.getAttribute("data-measure-mode");
+    const label = this.#messages.label ?? this.#attr("label") ?? "Measure";
     const ready = this.#map !== undefined;
     const sketchActive = this.#mode !== "off" && this.#vertices.length > 0 && !this.#finished;
-    root.innerHTML = `
+    renderCspSafeShadowHtml(
+      root,
+      `
       <style>${structuralStyles()}</style>
       <section class="panel" part="panel" aria-label="${escapeAttribute(label)}">
         <div class="bar">
           <h2>${escapeHtml(label)}</h2>
-          <span class="state">${escapeHtml(ready ? "ready" : "waiting for map")}</span>
+          <span class="state">${escapeHtml(ready ? (this.#messages.ready ?? "ready") : (this.#messages.waitingForMap ?? "waiting for map"))}</span>
         </div>
-        <div class="segmented" role="group" aria-label="${escapeAttribute(`${label} mode`)}">
+        <div class="segmented" role="group" aria-label="${escapeAttribute(this.#messages.modeGroupLabel?.(label) ?? `${label} mode`)}">
           ${(["off", "distance", "area"] as const)
             .map(
               (mode) => `
             <button type="button" part="mode" data-measure-mode="${mode}" aria-pressed="${String(
               this.#mode === mode,
-            )}"${ready || mode === "off" ? "" : " disabled"}>${escapeHtml(modeLabel(mode))}</button>
+            )}"${ready || mode === "off" ? "" : " disabled"}>${escapeHtml(this.#messages.modeLabel?.[mode] ?? modeLabel(mode))}</button>
           `,
             )
             .join("")}
         </div>
         <p class="value" part="value" role="status" aria-live="polite">${escapeHtml(this.#resultText())}</p>
         <div class="actions">
-          <button type="button" part="finish" data-measure-finish${sketchActive ? "" : " disabled"}>Finish</button>
+          <button type="button" part="finish" data-measure-finish${sketchActive ? "" : " disabled"}>${escapeHtml(this.#messages.finish ?? "Finish")}</button>
           <button type="button" part="cancel" data-measure-cancel${
             this.#vertices.length > 0 ? "" : " disabled"
-          }>Cancel</button>
+          }>${escapeHtml(this.#messages.cancel ?? "Cancel")}</button>
         </div>
         <p class="hint">${escapeHtml(
           this.#mode === "off"
-            ? "Pick a mode, then click the map to add vertices."
-            : "Click adds a vertex; double-click or Finish completes; Escape or Cancel discards.",
+            ? (this.#messages.hintOff ?? "Pick a mode, then click the map to add vertices.")
+            : (this.#messages.hintActive ??
+                "Click adds a vertex; double-click or Finish completes; Escape or Cancel discards."),
         )}</p>
       </section>
-    `;
+      `,
+    );
     root.querySelectorAll<HTMLButtonElement>("button[data-measure-mode]").forEach((button) => {
       button.addEventListener("click", () => {
         this.setMode((button.dataset.measureMode ?? "off") as HonuaMeasureMode);
@@ -411,22 +432,41 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     root.querySelector<HTMLButtonElement>("button[data-measure-cancel]")?.addEventListener("click", () => {
       this.cancel();
     });
+    if (focusedMode) {
+      [...root.querySelectorAll<HTMLButtonElement>("[data-measure-mode]")]
+        .find((button) => button.getAttribute("data-measure-mode") === focusedMode)
+        ?.focus({ preventScroll: true });
+    }
   }
 
   #resultText(): string {
     const result = this.#result;
-    if (this.#mode === "off") return "Measurement off.";
+    if (this.#mode === "off") return this.#messages.offStatus ?? "Measurement off.";
     if (!result || this.#vertices.length === 0) {
-      return this.#mode === "distance" ? "Click the map to start a line." : "Click the map to outline an area.";
+      return this.#mode === "distance"
+        ? (this.#messages.startDistance ?? "Click the map to start a line.")
+        : (this.#messages.startArea ?? "Click the map to outline an area.");
     }
     if (this.#mode === "distance") {
-      if (result.distance === undefined) return `${this.#vertices.length} vertex — add another to measure.`;
-      return `Distance: ${formatDistance(result.distance)}${this.#finished ? " (finished)" : ""}`;
+      if (result.distance === undefined) {
+        return (
+          this.#messages.vertexDistance?.(this.#vertices.length) ??
+          `${this.#vertices.length} vertex — add another to measure.`
+        );
+      }
+      const value = formatDistance(result.distance);
+      return (
+        this.#messages.distance?.(value, this.#finished) ?? `Distance: ${value}${this.#finished ? " (finished)" : ""}`
+      );
     }
     if (result.area === undefined) {
-      return `${this.#vertices.length} of 3 vertices needed for an area.`;
+      return (
+        this.#messages.vertexArea?.(this.#vertices.length) ??
+        `${this.#vertices.length} of 3 vertices needed for an area.`
+      );
     }
-    return `Area: ${formatArea(result.area)}${this.#finished ? " (finished)" : ""}`;
+    const value = formatArea(result.area);
+    return this.#messages.area?.(value, this.#finished) ?? `Area: ${value}${this.#finished ? " (finished)" : ""}`;
   }
 
   #dispatchChange(): void {
@@ -535,9 +575,18 @@ function structuralStyles(): string {
     .bar { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
     .state { color: var(--honua-ui-muted); font-size: 12px; }
     .segmented { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); }
+    .segmented button { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
     .actions { display: flex; gap: 6px; }
     .value { margin: 0; }
     .hint { color: var(--honua-ui-muted); font-size: 12px; margin: 0; }
+    @media (max-width: 320px) {
+      .panel { min-width: 0; }
+      .bar { align-items: flex-start; flex-direction: column; }
+      .segmented { grid-template-columns: minmax(0, 1fr); }
+      .actions { flex-wrap: wrap; }
+      .actions button { flex: 1 1 120px; min-width: 0; }
+      .hint { overflow-wrap: anywhere; }
+    }
     @media (forced-colors: active), (prefers-contrast: more) {
       .panel { background: Canvas; border-color: CanvasText; color: CanvasText; }
       .state, .hint { color: GrayText; }

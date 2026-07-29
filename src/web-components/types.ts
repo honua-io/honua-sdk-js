@@ -3,6 +3,7 @@ import type { HonuaTypedFeature } from "../core/types.js";
 import type { HonuaHitTestOptions, HonuaHitTestResult, HonuaPointerInput } from "../interactions/index.js";
 import type { HonuaMapPackage, HonuaMapPackageLegendEntry } from "../runtime/index.js";
 import type { HonuaLayerSpecification } from "../style/index.js";
+import type { HonuaExportKind } from "./export.js";
 
 export type HonuaComponentStatus = "idle" | "loading" | "ready" | "error" | "unsupported";
 
@@ -21,6 +22,145 @@ export interface HonuaLocateControlMessages {
   readonly unavailable?: string;
   readonly applied?: string;
   readonly error?: (error: unknown) => string;
+}
+
+/**
+ * Caller-supplied messages for `<honua-editor>`.
+ *
+ * Status values remain stable in the component model and events, while this
+ * surface lets an application provide localized text for the rendered status
+ * and the generic read-only explanation. A formatter receives the model's
+ * reason so a locale can retain useful source-specific context.
+ */
+export interface HonuaEditorMessages {
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly readOnlyReason?: string | ((reason: string | undefined) => string);
+}
+
+/** Caller-supplied messages for `<honua-bookmarks>`. */
+export interface HonuaBookmarksMessages {
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly empty?: string;
+  readonly homeLabel?: string;
+}
+
+/** Caller-supplied messages for `<honua-map>`. */
+export interface HonuaMapMessages {
+  readonly controlsLabel?: string;
+  readonly zoomInLabel?: string;
+  readonly zoomOutLabel?: string;
+  readonly zoomLabel?: string;
+  readonly visibleLayers?: string | ((count: number) => string);
+  readonly noCenter?: string;
+  readonly loadingPackage?: string;
+  readonly noPackage?: string;
+  readonly invalidPackage?: string;
+}
+
+/** Caller-supplied labels and empty-state text for `<honua-layer-list>`. */
+export interface HonuaLayerListMessages {
+  readonly label?: string;
+  readonly noLayers?: string;
+  readonly opacityLabel?: string;
+  readonly opacityValue?: string | ((percent: number) => string);
+  readonly moveUpLabel?: string;
+  readonly moveDownLabel?: string;
+}
+
+/** Caller-supplied labels and empty-state text for `<honua-legend>`. */
+export interface HonuaLegendMessages {
+  readonly label?: string;
+  readonly noLegend?: string;
+}
+
+export interface HonuaSearchMessages {
+  readonly label?: string;
+  readonly placeholder?: string;
+  readonly submitLabel?: string;
+  readonly suggestionsLabel?: string | ((label: string) => string);
+  readonly noResults?: (query: string) => string;
+  readonly suggestionsUnavailable?: string;
+  readonly geocodingFailed?: string | ((error: unknown) => string);
+}
+
+export interface HonuaFeatureEditorMessages {
+  readonly label?: string;
+  readonly status?: Partial<Readonly<Record<string, string>>>;
+  readonly unsaved?: string;
+  readonly noWorkflow?: string;
+  readonly noFields?: string;
+  readonly operationsLabel?: (label: string) => string;
+  readonly operationLabels?: Partial<Readonly<Record<"create" | "update" | "delete", string>>>;
+  readonly conflictLabel?: string;
+  readonly conflictChoices?: Partial<Readonly<Record<string, string>>>;
+  readonly attributesLabel?: string | ((subtypeName: string | undefined) => string);
+  readonly selectPlaceholder?: string;
+  readonly noneLabel?: string;
+  readonly readOnlyHint?: string;
+  readonly requiredHint?: string;
+  readonly notNullableHint?: string;
+  readonly subtypeHint?: string;
+  readonly geometryLabel?: string;
+  readonly sketchToolsLabel?: (label: string) => string;
+  readonly toolLabels?: Partial<Readonly<Record<string, string>>>;
+  readonly geometryJsonLabel?: string;
+  readonly geometryPlaceholder?: string;
+  readonly applyGeometry?: string;
+  readonly clearGeometry?: string;
+  readonly attachmentsLabel?: string;
+  readonly attachmentsUnsupported?: string;
+  readonly noAttachments?: string;
+  readonly addAttachment?: string;
+  readonly validation?: (fieldCount: number) => string;
+  readonly validationDraft?: string;
+  readonly editActionsLabel?: string;
+  readonly submit?: string;
+  readonly deleteFeature?: string;
+  readonly retry?: string;
+  readonly undo?: string;
+  readonly redo?: string;
+  readonly revert?: string;
+  readonly cancel?: string;
+}
+
+export interface HonuaChartMessages {
+  readonly label?: string;
+  readonly noData?: string;
+}
+
+export interface HonuaBasemapControlMessages {
+  readonly label?: string;
+  readonly groupLabel?: string;
+  readonly status?: Partial<Readonly<Record<"ready" | "unsupported", string>>>;
+  readonly unsupported?: string;
+  readonly unavailable?: string;
+}
+
+export interface HonuaMeasurementMessages {
+  readonly label?: string;
+  readonly modeLabel?: Partial<Readonly<Record<"off" | "distance" | "area", string>>>;
+  readonly ready?: string;
+  readonly waitingForMap?: string;
+  readonly finish?: string;
+  readonly cancel?: string;
+  readonly modeGroupLabel?: (label: string) => string;
+  readonly startDistance?: string;
+  readonly startArea?: string;
+  readonly distance?: (value: string, finished: boolean) => string;
+  readonly area?: (value: string, finished: boolean) => string;
+  readonly vertexDistance?: (count: number) => string;
+  readonly vertexArea?: (count: number) => string;
+  readonly offStatus?: string;
+  readonly hintOff?: string;
+  readonly hintActive?: string;
+}
+
+export interface HonuaMapStatusMessages {
+  readonly label?: string;
+  readonly scaleLabel?: string;
+  readonly attributionLabel?: string;
+  readonly fullscreenLabel?: string;
+  readonly fullscreenUnavailable?: string;
 }
 
 export interface HonuaLayerModel {
@@ -433,6 +573,14 @@ export interface HonuaLocateChangeDetail {
 
 export type HonuaMeasureMode = "off" | "distance" | "area";
 
+/** Caller-supplied messages for `<honua-measure-control>`. */
+export interface HonuaMeasureControlMessages {
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly actionLabels?: Partial<Readonly<Record<HonuaMeasureMode, string>>>;
+  readonly empty?: string;
+  readonly unsupportedMessage?: string;
+}
+
 /**
  * Minimal duck-typed subset of `maplibre-gl.Map` required by
  * `<honua-measurement>`. Any MapLibre-GL `Map` instance satisfies this
@@ -480,6 +628,14 @@ export interface HonuaMeasureChangeDetail {
 }
 
 export type HonuaSketchMode = "off" | "point" | "line" | "polygon";
+
+/** Caller-supplied messages for `<honua-sketch-control>`. */
+export interface HonuaSketchControlMessages {
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly actionLabels?: Partial<Readonly<Record<HonuaSketchMode, string>>>;
+  readonly empty?: string;
+  readonly unsupportedMessage?: string;
+}
 
 /**
  * A drawn sketch feature emitted by a {@link HonuaSketchProvider}.
@@ -581,6 +737,17 @@ export interface HonuaExportDetail {
   errorCode?: string;
 }
 
+/** Caller-supplied messages for `<honua-print-export>`. */
+export interface HonuaPrintExportMessages {
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly actionLabels?: Partial<Readonly<Record<HonuaExportKind, string>>>;
+  /** Accessible explanation shown on actions unavailable without an adapter. */
+  readonly unavailable?: Partial<Readonly<Record<HonuaExportKind, string>>>;
+  readonly ready?: string;
+  readonly adapterRequired?: string;
+  readonly adapterRequiredForSnapshotState?: string;
+}
+
 export interface HonuaFullscreenChangeDetail {
   fullscreen: boolean;
   status: HonuaComponentStatus;
@@ -591,6 +758,12 @@ export interface HonuaActionPanelAction {
   id: string;
   label: string;
   disabled?: boolean;
+}
+
+export interface HonuaActionPanelMessages {
+  label?: string;
+  status?: Partial<Record<HonuaComponentStatus, string>>;
+  empty?: string;
 }
 
 export interface HonuaActionDetail extends HonuaActionPanelAction {

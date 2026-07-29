@@ -107,12 +107,12 @@ describe("<honua-feature-table> bounded lane", () => {
     expect(cells[1]?.textContent).toBe("Incident 1");
   });
 
-  it("keeps the panel shrinkable and exposes horizontal scrolling for narrow containers", () => {
+  it("keeps the panel shrinkable without forcing horizontal overflow", () => {
     const stylesheet = shadow(mount()).querySelector("style")?.textContent ?? "";
 
     expect(stylesheet).toContain(".table-panel { max-width: 100%; min-width: 0; }");
     expect(stylesheet).toContain(".table-wrap { max-width: 100%; overflow-x: auto; overflow-y: auto; }");
-    expect(stylesheet).toContain(".table-wrap table { min-width: max-content; width: 100%; }");
+    expect(stylesheet).toContain(".table-wrap table { min-width: 100%; width: 100%; }");
   });
 
   it("keeps exactly one tabbable cell (roving tabindex)", async () => {
@@ -226,8 +226,9 @@ describe("<honua-feature-table> bounded lane", () => {
     await engine.setScroll({ scrollTop: 100 * 40, rowHeight: 40, viewportHeight: 400 });
 
     const root = shadow(element);
-    expect(root.querySelector<HTMLElement>("[data-leading]")?.style.height).toBe(`${100 * 40}px`);
-    expect(root.querySelector<HTMLElement>("[data-trailing]")?.style.height).toBe(`${(TOTAL - 110) * 40}px`);
+    const stylesheet = [...root.querySelectorAll("style")].map((style) => style.textContent ?? "").join("\n");
+    expect(stylesheet).toContain(`[data-leading] { height: ${100 * 40}px; }`);
+    expect(stylesheet).toContain(`[data-trailing] { height: ${(TOTAL - 110) * 40}px; }`);
   });
 
   it("announces result truth in a polite live region and never fabricates a total", async () => {
@@ -477,7 +478,9 @@ describe("<honua-feature-table> review regressions (PR #801)", () => {
     expect(current?.scrollTop).toBe(100 * 32);
     // And the window actually moved, so the offset is not stale.
     expect(engine.snapshot.window.startIndex).toBe(100);
-    expect(shadow(element).querySelector<HTMLElement>("[data-leading]")?.style.height).toBe(`${100 * 32}px`);
+    expect([...shadow(element).querySelectorAll("style")].map((style) => style.textContent ?? "").join("\n")).toContain(
+      `[data-leading] { height: ${100 * 32}px; }`,
+    );
   });
 
   it("keeps the scroll offset across an unrelated engine publish", async () => {
@@ -728,5 +731,18 @@ describe("<honua-feature-table> review regressions (PR #801)", () => {
     await Promise.resolve();
 
     expect(queries).toBe(before);
+  });
+
+  it("renders caller-supplied German table labels and lifecycle status", () => {
+    const element = mount();
+    element.messages = {
+      label: "Vorfälle",
+      count: () => "400 Datensätze",
+      status: { idle: "Nicht geladen", loading: "Laden", ready: "Bereit" },
+    };
+    const root = shadow(element);
+    expect(root.querySelector("h2")?.textContent).toBe("Vorfälle");
+    expect(root.querySelector("[data-count]")?.textContent).toBe("400 Datensätze");
+    expect(root.querySelector("[data-status]")?.textContent).toBe("Nicht geladen");
   });
 });

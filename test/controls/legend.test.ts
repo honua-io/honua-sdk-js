@@ -298,7 +298,8 @@ describe("HonuaLegendElement", () => {
     expect(shadow.innerHTML).toContain('aria-hidden="true"');
     expect(shadow.innerHTML).toContain("swatch-circle");
     expect(shadow.innerHTML).toContain("swatch-line");
-    expect(shadow.innerHTML).toContain("--legend-fill:#dc2626");
+    expect(shadow.innerHTML).toContain('fill="#dc2626"');
+    expect(shadow.innerHTML).not.toContain('style="');
     expect(shadow.innerHTML).toContain("High priority");
   });
 
@@ -318,7 +319,8 @@ describe("HonuaLegendElement", () => {
     expect(shadow.innerHTML).toContain("Legend");
     expect(shadow.innerHTML).toContain('part="section-title"');
     expect(shadow.innerHTML).toContain("&lt;Residential &amp; Co&gt;");
-    expect(shadow.innerHTML).toContain("--legend-outline:#475569");
+    expect(shadow.innerHTML).toContain('stroke="#475569"');
+    expect(shadow.innerHTML).not.toContain('style="');
     expect(shadow.innerHTML).not.toContain("<Residential");
   });
 
@@ -328,10 +330,28 @@ describe("HonuaLegendElement", () => {
 
     expect(shadow.innerHTML).toContain("@media (forced-colors: active), (prefers-contrast: more)");
     expect(shadow.innerHTML).toContain(".row { color: CanvasText; }");
-    expect(shadow.innerHTML).toContain("background: CanvasText;");
-    expect(shadow.innerHTML).toContain("border: 1px solid CanvasText;");
+    expect(shadow.innerHTML).toContain(".swatch { color: CanvasText; forced-color-adjust: none; }");
     expect(shadow.innerHTML).toContain("forced-color-adjust: none;");
-    expect(shadow.innerHTML).toContain(".swatch-line { background: CanvasText; border: none; }");
+    expect(shadow.innerHTML).toContain(".swatch > * { forced-color-adjust: none; }");
+  });
+
+  test("keeps swatches at the logical inline start under dir=rtl", () => {
+    const { element, attributes, shadow } = makeElement();
+    attributes.set("dir", "rtl");
+    element.entries = [{ label: "Residential", color: "#facc15" }];
+
+    expect(shadow.innerHTML).toContain("flex-direction: row;");
+    expect(shadow.innerHTML).toContain("direction: inherit;");
+    expect(shadow.innerHTML).toContain(".label { text-align: start; }");
+    expect(shadow.innerHTML).toContain("inline-size: 1em;");
+    expect(shadow.innerHTML).toContain("block-size: 1em;");
+    expect(shadow.innerHTML).not.toMatch(/(?:margin|padding|inset|text-align|border)-(?:left|right)\s*:/);
+
+    const swatchIndex = shadow.innerHTML.indexOf('part="swatch"');
+    const labelIndex = shadow.innerHTML.indexOf('part="label"');
+    expect(swatchIndex).toBeGreaterThan(-1);
+    expect(labelIndex).toBeGreaterThan(swatchIndex);
+    expect(shadow.innerHTML).toContain('aria-hidden="true"');
   });
 
   test("emits bounded, wrapping rows for narrow containers", () => {

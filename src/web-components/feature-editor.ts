@@ -43,6 +43,7 @@
 
 import type { EditSketchTool } from "../contract/edit-sketch.js";
 import type { CanonicalFeature } from "../contract/types.js";
+import { renderCspSafeShadowHtml } from "./csp-styles.js";
 import type { HonuaEditorFieldControl, HonuaEditorOperation } from "./feature-editor-model.js";
 import type {
   HonuaFeatureEditorCommit,
@@ -50,6 +51,7 @@ import type {
   HonuaFeatureEditorSnapshot,
   HonuaFeatureEditorWorkflow,
 } from "./feature-editor-workflow.js";
+import type { HonuaFeatureEditorMessages } from "./types.js";
 
 const globalDom = globalThis as typeof globalThis & {
   HTMLElement?: typeof HTMLElement;
@@ -93,6 +95,15 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
    * fire the shortcut N times per keystroke.
    */
   #keydownListener: ((event: Event) => void) | undefined;
+  #messages: HonuaFeatureEditorMessages = {};
+
+  public get messages(): HonuaFeatureEditorMessages {
+    return this.#messages;
+  }
+  public set messages(messages: HonuaFeatureEditorMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   /** The workflow this editor renders. Setting it re-subscribes and re-renders. */
   public get workflow(): HonuaFeatureEditorWorkflow<T> | undefined {
@@ -214,20 +225,20 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     const root = this.shadowRoot;
     if (!root || !this.#connected) return;
     const focus = captureFocus(root);
-    root.innerHTML = this.#html();
+    renderCspSafeShadowHtml(root, this.#html());
     this.#bind(root);
     restoreFocus(root, focus);
   }
 
   #html(): string {
-    const label = this.#attr("label") ?? "Feature editor";
+    const label = this.#messages.label ?? this.#attr("label") ?? "Feature editor";
     const snapshot = this.#snapshot;
     if (!snapshot) {
       return `
         <style>${editorStyles()}</style>
         <section class="panel" part="panel" role="region" aria-label="${escapeAttribute(label)}">
           <div class="bar"><h2>${escapeHtml(label)}</h2></div>
-          <p class="empty" role="status">No edit workflow is attached. Set <code>.workflow</code> to an editable source's workflow.</p>
+          <p class="empty" role="status">${escapeHtml(this.#messages.noWorkflow ?? "No edit workflow is attached. Set .workflow to an editable source's workflow.")}</p>
         </section>
       `;
     }
@@ -236,7 +247,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
       <section class="panel" part="panel" role="region" aria-label="${escapeAttribute(label)}">
         <div class="bar">
           <h2>${escapeHtml(label)}</h2>
-          <span class="state" data-state>${escapeHtml(snapshot.status)}${snapshot.dirty ? " • unsaved" : ""}</span>
+          <span class="state" data-state>${escapeHtml(this.#messages.status?.[snapshot.status] ?? snapshot.status)}${snapshot.dirty ? ` • ${escapeHtml(this.#messages.unsaved ?? "unsaved")}` : ""}</span>
         </div>
         ${this.#operationsHtml(snapshot, label)}
         ${this.#conflictHtml(snapshot)}
@@ -256,7 +267,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
         const active = snapshot.operation === availability.operation && snapshot.status !== "idle";
         const disabled = availability.available ? "" : ' disabled aria-disabled="true"';
         const title = availability.reason ? ` title="${escapeAttribute(availability.reason)}"` : "";
-        return `<button type="button" part="operation" data-operation="${availability.operation}" aria-pressed="${String(active)}"${disabled}${title}>${escapeHtml(OPERATION_LABELS[availability.operation])}</button>`;
+        return `<button type="button" part="operation" data-operation="${availability.operation}" aria-pressed="${String(active)}"${disabled}${title}>${escapeHtml(this.#messages.operationLabels?.[availability.operation] ?? OPERATION_LABELS[availability.operation])}</button>`;
       })
       .join("");
     const blocked = snapshot.operations.filter((availability) => !availability.available && availability.reason);
@@ -266,11 +277,11 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
         : `<ul class="reasons" data-operation-reasons>${blocked
             .map(
               (availability) =>
-                `<li data-operation-reason="${availability.operation}" data-code="${escapeAttribute(availability.code ?? "")}">${escapeHtml(`${OPERATION_LABELS[availability.operation]}: ${availability.reason}`)}</li>`,
+                `<li data-operation-reason="${availability.operation}" data-code="${escapeAttribute(availability.code ?? "")}">${escapeHtml(`${this.#messages.operationLabels?.[availability.operation] ?? OPERATION_LABELS[availability.operation]}: ${availability.reason}`)}</li>`,
             )
             .join("")}</ul>`;
     return `
-      <div class="segmented" role="group" aria-label="${escapeAttribute(`${label} operations`)}">${buttons}</div>
+      <div class="segmented" role="group" aria-label="${escapeAttribute(this.#messages.operationsLabel?.(label) ?? `${label} operations`)}">${buttons}</div>
       ${reasons}
     `;
   }
@@ -287,11 +298,11 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     const choices = conflict.choices
       .map(
         (choice) =>
-          `<button type="button" part="conflict" data-conflict="${choice}">${escapeHtml(CONFLICT_LABELS[choice])}</button>`,
+          `<button type="button" part="conflict" data-conflict="${choice}">${escapeHtml(this.#messages.conflictChoices?.[choice] ?? CONFLICT_LABELS[choice])}</button>`,
       )
       .join("");
     return `
-      <div class="conflict" part="conflict-panel" role="group" aria-label="Resolve conflicting change" data-conflict-panel>
+      <div class="conflict" part="conflict-panel" role="group" aria-label="${escapeAttribute(this.#messages.conflictLabel ?? "Resolve conflicting change")}" data-conflict-panel>
         <p role="alert" data-conflict-reason>${escapeHtml(conflict.reason)}</p>
         ${detail}
         <div class="actions">${choices}</div>
@@ -303,7 +314,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     const form = snapshot.form;
     if (!form) return "";
     if (form.controls.length === 0) {
-      return `<p class="empty" role="status">This source publishes no editable field metadata.</p>`;
+      return `<p class="empty" role="status">${escapeHtml(this.#messages.noFields ?? "This source publishes no editable field metadata.")}</p>`;
     }
     return `
       <fieldset class="fields" part="fields">
@@ -369,19 +380,19 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
       .map((capability) => {
         const disabled = capability.state === "supported" ? "" : ' disabled aria-disabled="true"';
         const title = capability.reason ? ` title="${escapeAttribute(capability.reason)}"` : "";
-        return `<button type="button" part="sketch-tool" data-sketch-tool="${capability.tool}" aria-pressed="${String(sketch.activeTool === capability.tool)}"${disabled}${title}>${escapeHtml(toolLabel(capability.tool))}</button>`;
+        return `<button type="button" part="sketch-tool" data-sketch-tool="${capability.tool}" aria-pressed="${String(sketch.activeTool === capability.tool)}"${disabled}${title}>${escapeHtml(this.#messages.toolLabels?.[capability.tool] ?? toolLabel(capability.tool))}</button>`;
       })
       .join("");
     const text = this.#geometryDraft ?? (sketch.geometry ? JSON.stringify(sketch.geometry) : "");
     return `
       <fieldset class="geometry" part="geometry">
-        <legend>Geometry</legend>
-        <div class="segmented" role="group" aria-label="${escapeAttribute(`${label} sketch tools`)}">${tools}</div>
-        <label for="honua-geometry-json">Geometry (GeoJSON)</label>
+        <legend>${escapeHtml(this.#messages.geometryLabel ?? "Geometry")}</legend>
+        <div class="segmented" role="group" aria-label="${escapeAttribute(this.#messages.sketchToolsLabel?.(label) ?? `${label} sketch tools`)}">${tools}</div>
+        <label for="honua-geometry-json">${escapeHtml(this.#messages.geometryJsonLabel ?? "Geometry (GeoJSON)")}</label>
         <textarea id="honua-geometry-json" data-geometry-json rows="3" spellcheck="false" placeholder='{"type":"Point","coordinates":[0,0]}'>${escapeHtml(text)}</textarea>
         <div class="actions">
-          <button type="button" data-action="apply-geometry">Apply geometry</button>
-          <button type="button" data-action="clear-geometry"${sketch.geometry ? "" : " disabled"}>Clear geometry</button>
+          <button type="button" data-action="apply-geometry">${escapeHtml(this.#messages.applyGeometry ?? "Apply geometry")}</button>
+          <button type="button" data-action="clear-geometry"${sketch.geometry ? "" : " disabled"}>${escapeHtml(this.#messages.clearGeometry ?? "Clear geometry")}</button>
         </div>
         <p class="hint" data-geometry-state>${escapeHtml(geometryStateText(sketch))}</p>
         ${this.#geometryError ? `<p class="error" role="alert" data-geometry-error>${escapeHtml(this.#geometryError)}</p>` : ""}
@@ -394,14 +405,14 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     if (!snapshot.attachmentsSupported) {
       return `
         <fieldset class="attachments" part="attachments">
-          <legend>Attachments</legend>
-          <p class="empty" role="status" data-attachments-unsupported>This source does not support attachments.</p>
+          <legend>${escapeHtml(this.#messages.attachmentsLabel ?? "Attachments")}</legend>
+          <p class="empty" role="status" data-attachments-unsupported>${escapeHtml(this.#messages.attachmentsUnsupported ?? "This source does not support attachments.")}</p>
         </fieldset>
       `;
     }
     const staged =
       snapshot.attachments.length === 0
-        ? '<p class="hint">No attachments staged.</p>'
+        ? `<p class="hint">${escapeHtml(this.#messages.noAttachments ?? "No attachments staged.")}</p>`
         : `<ul class="staged" role="list">${snapshot.attachments
             .map(
               (draft) =>
@@ -412,8 +423,8 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
             .join("")}</ul>`;
     return `
       <fieldset class="attachments" part="attachments">
-        <legend>Attachments</legend>
-        <label for="honua-attachment-file">Add an attachment</label>
+        <legend>${escapeHtml(this.#messages.attachmentsLabel ?? "Attachments")}</legend>
+        <label for="honua-attachment-file">${escapeHtml(this.#messages.addAttachment ?? "Add an attachment")}</label>
         <input type="file" id="honua-attachment-file" data-attachment-input />
         ${staged}
       </fieldset>
@@ -429,8 +440,9 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
         : `<div class="problems" role="alert" data-validation>
             <p>${escapeHtml(
               fieldErrorCount > 0
-                ? `${fieldErrorCount} field${fieldErrorCount === 1 ? "" : "s"} need attention before this edit can be sent.`
-                : "This draft cannot be sent yet.",
+                ? (this.#messages.validation?.(fieldErrorCount) ??
+                    `${fieldErrorCount} field${fieldErrorCount === 1 ? "" : "s"} need attention before this edit can be sent.`)
+                : (this.#messages.validationDraft ?? "This draft cannot be sent yet."),
             )}</p>
             ${formErrors.length > 0 ? `<ul>${formErrors.map((message) => `<li>${escapeHtml(message)}</li>`).join("")}</ul>` : ""}
           </div>`;
@@ -451,15 +463,17 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     const blockedByConflict = snapshot.conflict !== undefined;
     const submitDisabled = !hasDraft || snapshot.busy || blockedByConflict || snapshot.form?.valid === false;
     return `
-      <div class="actions" role="group" aria-label="Edit actions">
+      <div class="actions" role="group" aria-label="${escapeAttribute(this.#messages.editActionsLabel ?? "Edit actions")}">
         <button type="button" part="submit" data-action="submit"${submitDisabled ? " disabled" : ""}>${escapeHtml(
-          snapshot.operation === "delete" ? "Delete feature" : "Submit",
+          snapshot.operation === "delete"
+            ? (this.#messages.deleteFeature ?? "Delete feature")
+            : (this.#messages.submit ?? "Submit"),
         )}</button>
-        <button type="button" data-action="retry"${snapshot.status === "rejected" && !snapshot.busy ? "" : " disabled"}>Retry</button>
-        <button type="button" data-action="undo"${snapshot.undo.canUndo ? "" : " disabled"}>Undo</button>
-        <button type="button" data-action="redo"${snapshot.undo.canRedo ? "" : " disabled"}>Redo</button>
-        <button type="button" data-action="discard"${hasDraft && snapshot.dirty ? "" : " disabled"}>Revert</button>
-        <button type="button" data-action="cancel"${hasDraft && !snapshot.busy ? "" : " disabled"}>Cancel</button>
+        <button type="button" data-action="retry"${snapshot.status === "rejected" && !snapshot.busy ? "" : " disabled"}>${escapeHtml(this.#messages.retry ?? "Retry")}</button>
+        <button type="button" data-action="undo"${snapshot.undo.canUndo ? "" : " disabled"}>${escapeHtml(this.#messages.undo ?? "Undo")}</button>
+        <button type="button" data-action="redo"${snapshot.undo.canRedo ? "" : " disabled"}>${escapeHtml(this.#messages.redo ?? "Redo")}</button>
+        <button type="button" data-action="discard"${hasDraft && snapshot.dirty ? "" : " disabled"}>${escapeHtml(this.#messages.revert ?? "Revert")}</button>
+        <button type="button" data-action="cancel"${hasDraft && !snapshot.busy ? "" : " disabled"}>${escapeHtml(this.#messages.cancel ?? "Cancel")}</button>
       </div>
     `;
   }
@@ -846,6 +860,12 @@ function editorStyles(): string {
       padding: 8px 10px;
     }
     .conflict p { margin: 0; }
+    @media (max-width: 320px) {
+      .panel { min-width: 0; }
+      .bar { align-items: flex-start; flex-direction: column; }
+      .segmented, .actions { width: 100%; }
+      .segmented button, .actions button { flex: 1 1 120px; min-width: 0; }
+    }
     @media (forced-colors: active), (prefers-contrast: more) {
       :host {
         forced-color-adjust: auto;

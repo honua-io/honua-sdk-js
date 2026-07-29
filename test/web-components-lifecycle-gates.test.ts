@@ -7,7 +7,7 @@ import {
   defineHonuaWebComponents,
   listComponentQualifications,
 } from "../src/web-components/index.js";
-import type { HonuaWebComponentController } from "../src/web-components/index.js";
+import type { HonuaPrintExportMessages, HonuaWebComponentController } from "../src/web-components/index.js";
 
 /**
  * Cross-cutting lifecycle qualification gates for the `web-components` kit
@@ -99,6 +99,8 @@ const FOCUS_RESTORING_TAGS = new Set<string>([
   "honua-sketch-control",
   "honua-print-export",
   "honua-action-panel",
+  "honua-locate-control",
+  "honua-map-status",
   // Not `honua-search`: its submit button carries no id/name/data-* so focus on
   // *that* control is lost. Its text input is the case that matters and is
   // covered by the dedicated text-field suite below, which is why the matrix
@@ -568,6 +570,40 @@ describe("superseded exports cannot overwrite a newer one (issue #683 review)", 
 });
 
 describe("print/export affordances and semantics", () => {
+  it("renders German status, actions, and unsupported explanations while preserving label", () => {
+    const tracked = trackedController();
+    const element = mount("honua-print-export", tracked.controller) as HTMLElement & {
+      messages?: HonuaPrintExportMessages;
+    };
+    element.setAttribute("label", "Drucken und Exportieren");
+    element.messages = {
+      status: { ready: "Bereit", unsupported: "Nicht verfügbar" },
+      actionLabels: { print: "Drucken", snapshot: "Bild", state: "Zustand" },
+      unavailable: {
+        print: "Drucken erfordert einen Exportadapter.",
+        snapshot: "Bild erfordert einen Exportadapter.",
+        state: "Zustand erfordert einen Exportadapter.",
+      },
+      adapterRequired: "Exportadapter zuweisen, um Exporte zu aktivieren.",
+      adapterRequiredForSnapshotState: "Exportadapter zuweisen, um Bild und Zustand zu aktivieren.",
+    };
+
+    const root = shadowOf(element);
+    expect(root.querySelector("h2")?.textContent).toBe("Drucken und Exportieren");
+    expect(root.querySelector(".control-panel__bar span")?.textContent).toBe("Bereit");
+    expect(
+      Array.from(root.querySelectorAll<HTMLButtonElement>("button[data-export-kind]")).map((button) =>
+        button.textContent?.trim(),
+      ),
+    ).toEqual(["Drucken", "Bild", "Zustand"]);
+    expect(root.querySelector('[data-export-kind="snapshot"]')?.getAttribute("title")).toBe(
+      "Bild erfordert einen Exportadapter.",
+    );
+    expect(root.querySelector('[role="status"]')?.textContent).toBe(
+      "Exportadapter zuweisen, um Bild und Zustand zu aktivieren.",
+    );
+  });
+
   it("renders snapshot and state export disabled with aria-disabled until an adapter is assigned (screen-reader-semantics)", () => {
     const tracked = trackedController();
     const element = mount("honua-print-export", tracked.controller);
@@ -631,6 +667,18 @@ describe("print/export affordances and semantics", () => {
         ?.getAttribute("data-export-unavailable"),
     ).toBe("true");
     await expect(element.requestExport?.("state")).resolves.toMatchObject({ status: "unsupported" });
+  });
+});
+
+describe("responsive web-component styles", () => {
+  it("emits narrow-container-safe chart rules", () => {
+    const tracked = trackedController();
+    const element = mount("honua-chart", tracked.controller);
+    const stylesheet = shadowOf(element).querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toContain("@media (max-width: 320px)");
+    expect(stylesheet).toContain(".bar-row { grid-template-columns: minmax(0, 1fr); }");
+    expect(stylesheet).toContain(".bar { min-width: 0; width: 100%; }");
   });
 });
 

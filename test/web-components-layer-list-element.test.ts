@@ -58,6 +58,11 @@ describe("<honua-layer-list> (survival tier)", () => {
     expect([...checkboxes].map((input) => input.checked)).toEqual([true, true, false]);
     expect(root.textContent).toContain("Base map");
     expect(root.textContent).toContain("Top overlay");
+    const css = root.querySelector("style")?.textContent ?? "";
+    expect(css).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(css).toContain("border-top-color: CanvasText");
+    expect(css).toContain("color: Highlight");
+    expect(css).toContain("border-color: ButtonText");
   });
 
   it("toggles visibility through the controller and dispatches honua-layer-visibility-change", () => {
@@ -192,5 +197,34 @@ describe("<honua-layer-list> (survival tier)", () => {
     checkbox!.checked = false;
     checkbox!.dispatchEvent(new Event("change"));
     expect(events).toEqual([{ layerId: "roads", visible: false }]);
+  });
+
+  it("emits narrow-container-safe layout rules", () => {
+    const element = mountList(makeController());
+    const stylesheet = shadow(element).querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toContain("@media (max-width: 320px)");
+    expect(stylesheet).toContain(".layer-row__tools { flex-wrap: wrap; padding-left: 0; }");
+    expect(stylesheet).toContain(".opacity { min-width: 0; width: 100%; }");
+  });
+
+  it("renders caller-supplied German labels and ARIA values", () => {
+    const element = mountList(makeController());
+    element.messages = {
+      label: "Ebenen",
+      opacityLabel: "Deckkraft",
+      opacityValue: (percent) => `${percent} Prozent`,
+      moveUpLabel: "Nach oben",
+      moveDownLabel: "Nach unten",
+    };
+    const root = shadow(element);
+    expect(root.querySelector("legend")?.textContent).toBe("Ebenen");
+    expect(root.querySelector<HTMLInputElement>("input[data-layer-opacity]")?.getAttribute("aria-label")).toBe(
+      "Deckkraft",
+    );
+    expect(root.querySelector<HTMLInputElement>("input[data-layer-opacity]")?.getAttribute("aria-valuetext")).toBe(
+      "80 Prozent",
+    );
+    expect(root.querySelector("button[data-move='up:mid']")?.getAttribute("aria-label")).toBe("Nach oben");
   });
 });

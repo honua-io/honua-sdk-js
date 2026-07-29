@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HonuaMeasureChangeDetail, HonuaMeasurementElement } from "../src/web-components/index.js";
 import { defineHonuaWebComponents } from "../src/web-components/index.js";
@@ -98,6 +98,15 @@ describe("<honua-measurement> (survival tier)", () => {
     );
     expect(styles).toContain("button:disabled { color: GrayText; }");
     expect(styles).toContain("button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }");
+  });
+
+  it("emits narrow-container-safe layout rules", () => {
+    const element = mount(makeMap());
+    const styles = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(styles).toContain("@media (max-width: 320px)");
+    expect(styles).toContain(".segmented { grid-template-columns: minmax(0, 1fr); }");
+    expect(styles).toContain(".actions button { flex: 1 1 120px; min-width: 0; }");
   });
 
   it("measures distance from map clicks with the geodesic geometry ops", () => {
@@ -219,6 +228,28 @@ describe("<honua-measurement> (survival tier)", () => {
     expect(element.vertices).toHaveLength(0);
   });
 
+  it("does not accumulate map listeners across repeated mode rerenders", () => {
+    const map = makeMap();
+    const element = mount(map);
+    modeButton(element, "distance").click();
+
+    for (let index = 0; index < 4; index += 1) {
+      modeButton(element, "distance").click();
+    }
+
+    expect(map.listenerCount("click")).toBe(1);
+    expect(map.listenerCount("dblclick")).toBe(1);
+  });
+
+  it("restores focus to the active mode button after a rerender", () => {
+    const map = makeMap();
+    const element = mount(map);
+    const distance = modeButton(element, "distance");
+    distance.focus();
+    element.setMode("distance");
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-measure-mode")).toBe("distance");
+  });
+
   it("stops drawing when disconnected from the DOM", () => {
     const map = makeMap();
     const element = mount(map);
@@ -228,5 +259,19 @@ describe("<honua-measurement> (survival tier)", () => {
     element.remove();
     expect(map.listenerCount("click")).toBe(0);
     expect(map.doubleClickZoom.disabled).toBe(false);
+  });
+
+  it("mounts and disconnects without console errors", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const element = mount(makeMap());
+      element.remove();
+      expect(error).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
   });
 });

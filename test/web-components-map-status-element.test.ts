@@ -2,7 +2,34 @@
 
 import { describe, expect, it } from "vitest";
 
-import { HonuaMapStatusElement } from "../src/web-components/index.js";
+import type { HonuaMapMessages } from "../src/web-components/index.js";
+import { HonuaMapElement, HonuaMapStatusElement } from "../src/web-components/index.js";
+
+describe("<honua-map> localization", () => {
+  it("renders caller-supplied German map messages", () => {
+    const element = new HonuaMapElement();
+    element.messages = {
+      controlsLabel: "Kartennavigation",
+      zoomInLabel: "Vergrößern",
+      zoomOutLabel: "Verkleinern",
+      zoomLabel: "Zoomstufe",
+      visibleLayers: (count) => `${count} sichtbar`,
+      noCenter: "Kein Mittelpunkt",
+      noPackage: "Keine Karte",
+    } satisfies HonuaMapMessages;
+    element.setAttribute("label", "Einsatzkarte");
+    document.body.append(element);
+
+    expect(element.shadowRoot?.querySelector(".map")?.getAttribute("aria-label")).toBe("Einsatzkarte");
+    expect(element.shadowRoot?.querySelector(".map__controls")?.getAttribute("aria-label")).toBe("Kartennavigation");
+    expect(element.shadowRoot?.querySelector('[data-zoom="in"]')?.getAttribute("aria-label")).toBe("Vergrößern");
+    expect(element.shadowRoot?.querySelector('[data-zoom="out"]')?.getAttribute("aria-label")).toBe("Verkleinern");
+    expect(element.shadowRoot?.querySelector(".zoom")?.getAttribute("aria-label")).toBe("Zoomstufe");
+    expect(element.shadowRoot?.querySelector("[data-visible-layers]")?.textContent).toBe("0 sichtbar");
+    expect(element.shadowRoot?.querySelector("[data-center]")?.textContent).toBe("Kein Mittelpunkt");
+    expect(element.shadowRoot?.querySelector(".map__status")?.textContent).toBe("Keine Karte");
+  });
+});
 
 describe("<honua-map-status> high-contrast styles", () => {
   it("preserves status text, state meaning, and action distinction with system colors", () => {
@@ -23,5 +50,43 @@ describe("<honua-map-status> high-contrast styles", () => {
     expect(stylesheet).toContain("border: 2px solid ButtonText;");
     expect(stylesheet).toContain("color: ButtonText;");
     expect(stylesheet).toContain("forced-color-adjust: none;");
+  });
+});
+
+describe("<honua-map-status> RTL layout", () => {
+  it("inherits RTL direction while preserving logical readout order and labels", () => {
+    const element = new HonuaMapStatusElement();
+    element.setAttribute("dir", "rtl");
+    element.setAttribute("label", "حالة الخريطة");
+    element.setAttribute("attribution", "بيانات هونوا");
+    document.body.append(element);
+
+    const section = element.shadowRoot?.querySelector("section.map-status");
+    const readouts = section?.querySelectorAll("span");
+    const button = section?.querySelector("button[data-fullscreen]");
+    const stylesheet = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(element.getAttribute("dir")).toBe("rtl");
+    expect(section?.getAttribute("dir")).toBeNull();
+    expect(section?.getAttribute("aria-label")).toBe("حالة الخريطة");
+    expect(readouts?.[0]?.getAttribute("aria-label")).toBe("Approximate scale");
+    expect(readouts?.[1]?.textContent).toBe("بيانات هونوا");
+    expect(button?.textContent).toBe("Fullscreen");
+    expect(stylesheet).toContain("direction: inherit;");
+    expect(stylesheet).toContain("padding-block: 6px;");
+    expect(stylesheet).toContain("padding-inline: 8px;");
+    expect(stylesheet).toContain("text-align: start;");
+  });
+});
+
+describe("<honua-map> responsive styles", () => {
+  it("emits narrow-container-safe chrome and footer rules", () => {
+    const element = new HonuaMapElement();
+    document.body.append(element);
+    const stylesheet = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toContain("@media (max-width: 320px)");
+    expect(stylesheet).toContain(".map__chrome, .map__footer");
+    expect(stylesheet).toContain(".map__controls { justify-content: space-between; width: 100%; }");
   });
 });

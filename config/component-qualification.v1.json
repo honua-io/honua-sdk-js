@@ -127,10 +127,10 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 116,
-    "failing": 131,
-    "pending": 89,
-    "notApplicable": 21,
+    "passing": 310,
+    "failing": 0,
+    "pending": 21,
+    "notApplicable": 26,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
   },
@@ -142,44 +142,41 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "screen-reader-semantics",
-        "focus-restoration",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "zero-console-error",
-        "duplicate-listener",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 3,
-        "failing": 6,
-        "pending": 7,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/controls/basemap-switcher.test.ts"
+          ],
+          "note": "The native basemap switcher dispatches real ArrowLeft/ArrowRight/Home/End navigation events to its radiogroup and activates the focused choice with Enter and Space, asserting focus, checked state, and map selection."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/controls/basemap-switcher.test.ts"
+          ],
+          "note": "The native basemap switcher exposes a labelled radiogroup whose choices have radio roles, stable accessible names, and checked state that tracks the selected basemap."
         },
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "A focused basemap radio and swipe divider retain focus across their state rerenders."
         },
         {
           "gate": "reduced-motion",
@@ -190,32 +187,47 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "The native basemap switcher declares a forced-colors/prefers-contrast Highlight outline for the active radio, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "The native basemap switcher stacks its wrapped group and ellipsizes radio labels below 240px, asserted from the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "The basemap switcher accepts a caller-supplied non-English group label and emits it as the radiogroup accessible name; individual basemap names are supplied by the base definitions."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "The native basemap switcher is rendered with dir=rtl and its emitted structural styles contain no physical left/right declarations."
         },
         {
           "gate": "visual-regression",
@@ -226,14 +238,20 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "Each native control is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -247,14 +265,20 @@
         {
           "gate": "duplicate-listener",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "Repeated bases rerenders leave one click handler on the selected radio, evidenced by exactly one change event from one interaction."
         },
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -284,24 +308,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "screen-reader-semantics",
-        "focus-restoration",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "zero-console-error",
-        "deterministic-disposal",
-        "duplicate-listener",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 3,
-        "failing": 6,
-        "pending": 7,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -317,14 +329,20 @@
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "The native controls expose explicit accessible structure: a labelled slider with bounded value state and a labelled group containing native checkbox controls paired with their visible labels."
         },
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "A focused basemap radio and swipe divider retain focus across their state rerenders."
         },
         {
           "gate": "reduced-motion",
@@ -335,32 +353,49 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "The swipe divider declares forced-colors and prefers-contrast rules that preserve the divider and handle boundary using ButtonText/Canvas system colors, asserted from the emitted shadow stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/controls/layer-list.test.ts",
+            "test/controls/legend.test.ts",
+            "test/controls/swipe-control.test.ts"
+          ],
+          "note": "The native controls constrain their panel and row widths, allow flex children to shrink, and wrap unbroken labels without narrow-container overflow, asserted from each emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/controls/swipe-control.test.ts"
+          ],
+          "note": "The swipe control has no default accessible label and reflects caller-supplied label text through its public property/attribute into aria-label, asserted with French and German labels."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/controls/swipe-control.test.ts"
+          ],
+          "note": "The swipe control uses logical divider positioning, reverses inline pointer and keyboard movement in RTL, and asserts the RTL clip path and Home/End semantics in focused tests."
         },
         {
           "gate": "visual-regression",
@@ -371,32 +406,47 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "Each native control is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "Nothing asserts what this component releases when it is disconnected."
+          "status": "passing",
+          "evidence": [
+            "test/controls/swipe-control.test.ts"
+          ],
+          "note": "Disconnecting during an active drag removes the pointermove, pointerup, and pointercancel listeners it installed."
         },
         {
           "gate": "duplicate-listener",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+          "status": "passing",
+          "evidence": [
+            "test/controls/swipe-control.test.ts"
+          ],
+          "note": "Repeated position rerenders leave one keyboard handler on the divider, evidenced by exactly one change event from one ArrowRight interaction."
         },
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -426,31 +476,20 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "focus-restoration",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "zero-console-error",
-        "duplicate-listener",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 4,
-        "failing": 6,
-        "pending": 6,
-        "notApplicable": 1
+        "passing": 12,
+        "failing": 0,
+        "pending": 1,
+        "notApplicable": 4
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "not-applicable",
+          "note": "These legend and chart components render display-only content and expose no interactive affordance for keyboard operation; adding one would require this row to be re-qualified."
         },
         {
           "gate": "screen-reader-semantics",
@@ -465,8 +504,8 @@
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+          "status": "not-applicable",
+          "note": "The native legend is a read-only list presentation with no focusable control; there is no active element to preserve."
         },
         {
           "gate": "reduced-motion",
@@ -477,32 +516,49 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/controls/legend.test.ts"
+          ],
+          "note": "The native legend declares forced-colors/prefers-contrast system-color rules for swatches and the empty state, asserted from the component stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/controls/layer-list.test.ts",
+            "test/controls/legend.test.ts",
+            "test/controls/swipe-control.test.ts"
+          ],
+          "note": "The native controls constrain their panel and row widths, allow flex children to shrink, and wrap unbroken labels without narrow-container overflow, asserted from each emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/controls/legend.test.ts"
+          ],
+          "note": "The native legend accepts a caller-supplied accessible label and empty-state fallback text, asserted with German rendering coverage while preserving caller-supplied legend entries."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/controls/legend.test.ts"
+          ],
+          "note": "The native legend inherits an explicit RTL direction and uses logical label alignment, asserted through its rendered direction and stylesheet coverage."
         },
         {
           "gate": "visual-regression",
@@ -513,14 +569,20 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "Each native control is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -535,14 +597,17 @@
         {
           "gate": "duplicate-listener",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+          "status": "not-applicable",
+          "note": "The native legend binds no event handler because it is a read-only list presentation; there is nothing that could accumulate."
         },
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -572,44 +637,41 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "screen-reader-semantics",
-        "focus-restoration",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "zero-console-error",
-        "duplicate-listener",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 3,
-        "failing": 6,
-        "pending": 7,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "The native controls expose explicit accessible structure: a labelled slider with bounded value state and a labelled group containing native checkbox controls paired with their visible labels."
         },
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "A focused layer checkbox retains focus across an overlays rerender."
         },
         {
           "gate": "reduced-motion",
@@ -620,32 +682,49 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/controls/layer-list.test.ts"
+          ],
+          "note": "The native layer list declares forced-colors and prefers-contrast rules that preserve checked-row distinction with a CanvasText outline and unseeded-row distinction with GrayText, asserted from the component stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/controls/layer-list.test.ts",
+            "test/controls/legend.test.ts",
+            "test/controls/swipe-control.test.ts"
+          ],
+          "note": "The native controls constrain their panel and row widths, allow flex children to shrink, and wrap unbroken labels without narrow-container overflow, asserted from each emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/controls/layer-list.test.ts"
+          ],
+          "note": "The native layer list accepts caller-supplied accessible, unseeded, and fallback labels, asserted with German rendering coverage while preserving overlay labels supplied by the caller."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/controls/layer-list.test.ts"
+          ],
+          "note": "The native layer list renders direction-neutral flex rows under an explicit dir=rtl fixture and has no physical left/right style declarations."
         },
         {
           "gate": "visual-regression",
@@ -656,14 +735,20 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "Each native control is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -678,14 +763,20 @@
         {
           "gate": "duplicate-listener",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+          "status": "passing",
+          "evidence": [
+            "test/controls/accessibility.test.ts"
+          ],
+          "note": "Repeated overlays rerenders leave one checkbox change handler, evidenced by exactly one change event from one click."
         },
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -715,81 +806,100 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "screen-reader-semantics",
-        "focus-restoration",
-        "reduced-motion",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "zero-console-error",
-        "duplicate-listener",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 3,
-        "failing": 7,
-        "pending": 7,
+        "passing": 16,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 0
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The focused zoom control receives a real Enter key event and produces the same viewport event count as its pointer-activation baseline in the browser fixture."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "A focused zoom control retains focus across repeated controller-driven map state updates in the real MapLibre browser fixture."
         },
         {
           "gate": "reduced-motion",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition."
+          "status": "passing",
+          "evidence": [
+            "test/runtime/runtime.test.ts"
+          ],
+          "note": "The shared runtime forces animated bounding-box camera transitions to animate:false when the map container reports prefers-reduced-motion: reduce, covering all four web components that delegate camera commits through this path."
         },
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The map declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonText rules for its panel, chrome, canvas, status, and controls, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts",
+            "test/web-components-layer-list-element.test.ts",
+            "test/web-components-legend-element.test.ts",
+            "test/web-components-lifecycle-gates.test.ts",
+            "test/web-components-map-status-element.test.ts",
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "The remaining web components emit narrow-container rules that remove fixed minimum widths, stack or wrap controls, and keep bars, layer tools, legends, and measurement content within the available inline size, asserted from focused emitted-style tests."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-map-status-element.test.ts"
+          ],
+          "note": "The map accepts caller-supplied control, zoom, layer-count, center, package-loading, and no-package messages while preserving the map label, asserted with German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl.test.ts"
+          ],
+          "note": "The map, layer list, legend, feature table, and chart render under dir=rtl with logical direction, padding, inset, alignment, and chart-fill styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -800,14 +910,20 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -821,14 +937,20 @@
         {
           "gate": "duplicate-listener",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "After repeated controller-driven state updates, one zoom click produces the same viewport event count as the pre-update baseline in the real MapLibre browser fixture."
         },
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -858,19 +980,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 8,
-        "failing": 6,
-        "pending": 2,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -910,32 +1025,52 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-layer-list-element.test.ts"
+          ],
+          "note": "The web-component layer list declares forced-colors/prefers-contrast system-color rules for row boundaries, checked labels, and reorder controls, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts",
+            "test/web-components-layer-list-element.test.ts",
+            "test/web-components-legend-element.test.ts",
+            "test/web-components-lifecycle-gates.test.ts",
+            "test/web-components-map-status-element.test.ts",
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "The remaining web components emit narrow-container rules that remove fixed minimum widths, stack or wrap controls, and keep bars, layer tools, legends, and measurement content within the available inline size, asserted from focused emitted-style tests."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-localization-german.test.ts"
+          ],
+          "note": "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl.test.ts"
+          ],
+          "note": "The map, layer list, legend, feature table, and chart render under dir=rtl with logical direction, padding, inset, alignment, and chart-fill styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -946,8 +1081,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -979,8 +1117,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1010,28 +1151,20 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 5,
-        "failing": 6,
-        "pending": 3,
-        "notApplicable": 3
+        "passing": 12,
+        "failing": 0,
+        "pending": 1,
+        "notApplicable": 4
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "not-applicable",
+          "note": "These legend and chart components render display-only content and expose no interactive affordance for keyboard operation; adding one would require this row to be re-qualified."
         },
         {
           "gate": "screen-reader-semantics",
@@ -1058,32 +1191,52 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-legend-element.test.ts"
+          ],
+          "note": "The web-component legend declares forced-colors/prefers-contrast system-color rules that preserve swatch boundaries and label contrast, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts",
+            "test/web-components-layer-list-element.test.ts",
+            "test/web-components-legend-element.test.ts",
+            "test/web-components-lifecycle-gates.test.ts",
+            "test/web-components-map-status-element.test.ts",
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "The remaining web components emit narrow-container rules that remove fixed minimum widths, stack or wrap controls, and keep bars, layer tools, legends, and measurement content within the available inline size, asserted from focused emitted-style tests."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-localization-german.test.ts"
+          ],
+          "note": "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl.test.ts"
+          ],
+          "note": "The map, layer list, legend, feature table, and chart render under dir=rtl with logical direction, padding, inset, alignment, and chart-fill styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -1094,8 +1247,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -1124,8 +1280,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1155,19 +1314,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 8,
-        "failing": 6,
-        "pending": 2,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -1209,32 +1361,47 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The feature table declares forced-colors/prefers-contrast Canvas/CanvasText/Highlight rules for panel, headers, selected rows, and focus, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-table-element.test.ts"
+          ],
+          "note": "The feature table keeps its panel shrinkable and exposes horizontal scrolling for narrow containers, with an overflow-safe table width, asserted from the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-localization-german.test.ts"
+          ],
+          "note": "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl.test.ts"
+          ],
+          "note": "The map, layer list, legend, feature table, and chart render under dir=rtl with logical direction, padding, inset, alignment, and chart-fill styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -1245,8 +1412,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -1280,8 +1450,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1311,20 +1484,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "reduced-motion",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 8,
-        "failing": 7,
-        "pending": 2,
+        "passing": 16,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 0
       },
       "gates": [
@@ -1360,38 +1525,56 @@
         {
           "gate": "reduced-motion",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition."
+          "status": "passing",
+          "evidence": [
+            "test/runtime/runtime.test.ts"
+          ],
+          "note": "The shared runtime forces animated bounding-box camera transitions to animate:false when the map container reports prefers-reduced-motion: reduce, covering all four web components that delegate camera commits through this path."
         },
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-search-element.test.ts"
+          ],
+          "note": "The search component declares forced-colors/prefers-contrast system-color rules for borders and selected suggestions, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-search-element.test.ts"
+          ],
+          "note": "The search form uses a shrinkable grid and stacks its submit button full-width below 320px, asserted from the emitted stylesheet for narrow-container behavior."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "The submit action is caller-localizable through the reflected submitLabel property / submit-label attribute, with the legacy English `Search` default preserved and a non-English rendering assertion. The component still owns hard-coded placeholder, suggestion, no-result, and geocoding status strings, so the full localization criterion remains failing for this component."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-localization-german.test.ts"
+          ],
+          "note": "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -1402,8 +1585,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -1435,8 +1621,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1466,35 +1655,32 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "screen-reader-semantics",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 6,
-        "failing": 6,
-        "pending": 4,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -1514,32 +1700,47 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web editor declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonText rules for its panel and native actions, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The editor panel makes its action row wrap and its buttons shrink below 320px, asserted from the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The editor accepts caller-supplied action attributes and typed status, selection, editable, and read-only messages, including a reason formatter, asserted with German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -1550,17 +1751,21 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -1583,8 +1788,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1614,20 +1822,12 @@
       "supportTier": "production-tier",
       "productionQualified": false,
       "openGates": [
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "zero-console-error",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 7,
-        "failing": 5,
-        "pending": 4,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -1667,32 +1867,52 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "The feature editor declares forced-colors and prefers-contrast styles for pressed, disabled, native form, invalid, and validation states, with the emitted stylesheet assertions covering system Canvas/Highlight colors and non-color state distinctions."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts",
+            "test/web-components-layer-list-element.test.ts",
+            "test/web-components-legend-element.test.ts",
+            "test/web-components-lifecycle-gates.test.ts",
+            "test/web-components-map-status-element.test.ts",
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "The remaining web components emit narrow-container rules that remove fixed minimum widths, stack or wrap controls, and keep bars, layer tools, legends, and measurement content within the available inline size, asserted from focused emitted-style tests."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-localization-german.test.ts"
+          ],
+          "note": "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No verdict rather than a known failure, which is the honest distinction for this component: unlike the rest of the kit its styles declare no physical left/right offsets at all, so it is not demonstrably RTL-hostile. It also uses no logical properties and nothing renders it under dir=rtl, so it is simply unverified."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "The feature editor renders flex/grid surfaces without physical left/right declarations; an explicit dir=rtl fixture asserts the emitted stylesheet remains direction-neutral."
         },
         {
           "gate": "visual-regression",
@@ -1703,14 +1923,20 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts"
+          ],
+          "note": "The feature editor is mounted and disconnected while console.error and console.warn are spied; its complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -1733,8 +1959,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1764,35 +1993,29 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "screen-reader-semantics",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 4,
-        "failing": 6,
-        "pending": 4,
-        "notApplicable": 3
+        "passing": 12,
+        "failing": 0,
+        "pending": 1,
+        "notApplicable": 4
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "not-applicable",
+          "note": "These legend and chart components render display-only content and expose no interactive affordance for keyboard operation; adding one would require this row to be re-qualified."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -1809,32 +2032,52 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The chart declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText/Highlight rules for its panel and bars, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts",
+            "test/web-components-layer-list-element.test.ts",
+            "test/web-components-legend-element.test.ts",
+            "test/web-components-lifecycle-gates.test.ts",
+            "test/web-components-map-status-element.test.ts",
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "The remaining web components emit narrow-container rules that remove fixed minimum widths, stack or wrap controls, and keep bars, layer tools, legends, and measurement content within the available inline size, asserted from focused emitted-style tests."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-localization-german.test.ts"
+          ],
+          "note": "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl.test.ts"
+          ],
+          "note": "The map, layer list, legend, feature table, and chart render under dir=rtl with logical direction, padding, inset, alignment, and chart-fill styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -1845,17 +2088,21 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -1875,8 +2122,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1906,35 +2156,32 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "screen-reader-semantics",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 6,
-        "failing": 6,
-        "pending": 4,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -1954,32 +2201,47 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-basemap-control-element.test.ts"
+          ],
+          "note": "The web basemap control declares forced-colors/prefers-contrast system-color rules for active radio state and controls, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The shared control-panel stylesheet removes its fixed minimum width, stacks the heading, wraps long labels, and makes narrow segmented/action controls full-width below 240px; each covered panel asserts the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-localization-german.test.ts"
+          ],
+          "note": "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -1990,17 +2252,21 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -2023,8 +2289,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2054,36 +2323,32 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "screen-reader-semantics",
-        "reduced-motion",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 6,
-        "failing": 7,
-        "pending": 4,
+        "passing": 16,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 0
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -2097,38 +2362,56 @@
         {
           "gate": "reduced-motion",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition."
+          "status": "passing",
+          "evidence": [
+            "test/runtime/runtime.test.ts"
+          ],
+          "note": "The shared runtime forces animated bounding-box camera transitions to animate:false when the map container reports prefers-reduced-motion: reduce, covering all four web components that delegate camera commits through this path."
         },
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The bookmarks control panel declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules for its surface and action buttons, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The shared control-panel stylesheet removes its fixed minimum width, stacks the heading, wraps long labels, and makes narrow segmented/action controls full-width below 240px; each covered panel asserts the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The bookmarks component accepts caller-supplied status and empty-state messages, asserted with German rendering coverage while preserving bookmark labels supplied by the caller."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2139,17 +2422,21 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -2172,8 +2459,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2203,79 +2493,95 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "screen-reader-semantics",
-        "focus-restoration",
-        "reduced-motion",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 5,
-        "failing": 8,
-        "pending": 4,
+        "passing": 16,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 0
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Focus is lost across a re-render, asserted by the harness rather than assumed: this element's control carries no id, name, or non-empty data-* attribute, so the base class's focusSelector() cannot find it again after innerHTML is replaced. The search element's submit button has the same defect, though its text input (the case that matters) is covered."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-lifecycle-gates.test.ts"
+          ],
+          "note": "The shared setShadowHtml() capture/restore path is asserted per tag: the focused control survives a controller-driven re-render. For the search element the covered case is its text input, which additionally keeps its typed value and selection range."
         },
         {
           "gate": "reduced-motion",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "This component moves the map camera (viewport commit, search result pan/zoom, bookmark navigation, locate fly-to) without consulting prefers-reduced-motion, so a user who has asked for reduced motion still gets an animated camera transition."
+          "status": "passing",
+          "evidence": [
+            "test/runtime/runtime.test.ts"
+          ],
+          "note": "The shared runtime forces animated bounding-box camera transitions to animate:false when the map container reports prefers-reduced-motion: reduce, covering all four web components that delegate camera commits through this path."
         },
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The locate control's shared panel declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules for its surface and action, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The shared control-panel stylesheet removes its fixed minimum width, stacks the heading, wraps long labels, and makes narrow segmented/action controls full-width below 240px; each covered panel asserts the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-locate-control.test.ts"
+          ],
+          "note": "The locate control accepts a caller-supplied label and typed message source for action text, statuses, initial/unavailable copy, and geolocation state messages, asserted with German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2286,17 +2592,21 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -2319,8 +2629,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2350,28 +2663,23 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 7,
-        "failing": 6,
-        "pending": 3,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",
@@ -2400,32 +2708,47 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The measure and sketch controls' shared panels declare forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules, asserted from each emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The shared control-panel stylesheet removes its fixed minimum width, stacks the heading, wraps long labels, and makes narrow segmented/action controls full-width below 240px; each covered panel asserts the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-measure-sketch-elements.test.ts"
+          ],
+          "note": "The measure control accepts caller-supplied status, action, and empty-state messages while preserving mode labels supplied by the caller, asserted with German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2436,8 +2759,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -2469,8 +2795,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2500,22 +2829,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "focus-restoration",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "zero-console-error",
-        "duplicate-listener",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 5,
-        "failing": 6,
-        "pending": 5,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -2540,8 +2859,11 @@
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "The focused measurement mode button retains focus when the mode state rerenders."
         },
         {
           "gate": "reduced-motion",
@@ -2552,32 +2874,52 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "The measurement element declares forced-colors/prefers-contrast system-color rules for its mode/status surface, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-feature-editor-element.test.ts",
+            "test/web-components-layer-list-element.test.ts",
+            "test/web-components-legend-element.test.ts",
+            "test/web-components-lifecycle-gates.test.ts",
+            "test/web-components-map-status-element.test.ts",
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "The remaining web components emit narrow-container rules that remove fixed minimum widths, stack or wrap controls, and keep bars, layer tools, legends, and measurement content within the available inline size, asserted from focused emitted-style tests."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-localization-german.test.ts"
+          ],
+          "note": "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2588,14 +2930,20 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "The measurement element is mounted and disconnected while console.error and console.warn are spied; its complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -2609,14 +2957,20 @@
         {
           "gate": "duplicate-listener",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-measurement-element.test.ts"
+          ],
+          "note": "Repeated mode rerenders leave exactly one map click and one double-click listener, proving handlers are not accumulated."
         },
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2646,28 +3000,23 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 7,
-        "failing": 6,
-        "pending": 3,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",
@@ -2696,32 +3045,47 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The measure and sketch controls' shared panels declare forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText rules, asserted from each emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The shared control-panel stylesheet removes its fixed minimum width, stacks the heading, wraps long labels, and makes narrow segmented/action controls full-width below 240px; each covered panel asserts the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-measure-sketch-elements.test.ts"
+          ],
+          "note": "The sketch control accepts caller-supplied status, action, and empty-state messages while preserving tool labels supplied by the caller, asserted with German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2732,8 +3096,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -2765,8 +3132,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2796,28 +3166,23 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 7,
-        "failing": 6,
-        "pending": 3,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",
@@ -2846,32 +3211,47 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The print/export control declares forced-colors/prefers-contrast system-color rules for its panel and export actions, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The shared control-panel stylesheet removes its fixed minimum width, stacks the heading, wraps long labels, and makes narrow segmented/action controls full-width below 240px; each covered panel asserts the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-lifecycle-gates.test.ts"
+          ],
+          "note": "The print/export control accepts caller-supplied status, action, and unsupported-state messages while preserving export labels supplied by the caller, asserted with German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2882,8 +3262,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -2915,8 +3298,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2946,42 +3332,41 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "screen-reader-semantics",
-        "focus-restoration",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 5,
-        "failing": 7,
-        "pending": 4,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Focus is lost across a re-render, asserted by the harness rather than assumed: this element's control carries no id, name, or non-empty data-* attribute, so the base class's focusSelector() cannot find it again after innerHTML is replaced. The search element's submit button has the same defect, though its text input (the case that matters) is covered."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-lifecycle-gates.test.ts"
+          ],
+          "note": "The shared setShadowHtml() capture/restore path is asserted per tag: the focused control survives a controller-driven re-render. For the search element the covered case is its text input, which additionally keeps its typed value and selection range."
         },
         {
           "gate": "reduced-motion",
@@ -2992,32 +3377,47 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-map-status-element.test.ts"
+          ],
+          "note": "The map-status panel declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonText/GrayText/Mark system-color rules for normal, unsupported, error, and action states, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The map-status row stacks its content and makes the action full-width below 240px, asserted from the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-localization-german.test.ts"
+          ],
+          "note": "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-map-status-element.test.ts"
+          ],
+          "note": "The map-status component inherits RTL direction and uses logical padding and start-aligned text, asserted with Arabic rendering and stylesheet coverage."
         },
         {
           "gate": "visual-regression",
@@ -3028,17 +3428,21 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -3061,8 +3465,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -3092,35 +3499,32 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
-        "screen-reader-semantics",
-        "high-contrast",
-        "responsive-layout",
-        "localization",
-        "pseudo-locale",
-        "rtl",
-        "visual-regression",
-        "strict-csp",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 6,
-        "failing": 6,
-        "pending": 4,
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The web components expose named panels or regions, native action controls with accessible names, and live status content where component state changes are announced."
         },
         {
           "gate": "focus-restoration",
@@ -3140,32 +3544,47 @@
         {
           "gate": "high-contrast",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-action-panel-element.test.ts"
+          ],
+          "note": "The action panel declares forced-colors/prefers-contrast system-color rules for panel, action, empty, and status states, asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "No component declares an @media or @container rule; panel and table layouts are fixed, so narrow containers clip content or force horizontal overflow. The repo's responsive attestation harness is wired to the sample apps, not to the component kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-accessibility.test.ts"
+          ],
+          "note": "The shared control-panel stylesheet removes its fixed minimum width, stacks the heading, wraps long labels, and makes narrow segmented/action controls full-width below 240px; each covered panel asserts the emitted stylesheet."
         },
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-action-panel-element.test.ts"
+          ],
+          "note": "The action panel accepts caller-supplied label, status, and empty-state messages while preserving action labels supplied by the caller, asserted with German rendering coverage."
         },
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -3176,17 +3595,21 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-accessibility.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Each covered web component is mounted and disconnected while console.error and console.warn are spied; the complete lifecycle emits neither."
         },
         {
           "gate": "deterministic-disposal",
@@ -3209,8 +3632,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",

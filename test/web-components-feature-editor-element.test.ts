@@ -207,6 +207,28 @@ describe("<honua-feature-editor> registration", () => {
     expect(css).toContain("background: Canvas");
     expect(css).toContain("border-color: Mark");
   });
+
+  it("renders direction-neutral editor styles under RTL", () => {
+    defineHonuaWebComponents();
+    const element = document.createElement("honua-feature-editor") as HonuaFeatureEditorElement<PermitAttributes>;
+    element.setAttribute("dir", "rtl");
+    document.body.append(element);
+
+    const css = root(element).querySelector("style")?.textContent ?? "";
+    expect(element.getAttribute("dir")).toBe("rtl");
+    expect(css).not.toMatch(/(?:^|[;{])\s*(?:left|right)\s*:/m);
+  });
+
+  it("emits narrow-container-safe layout rules", () => {
+    defineHonuaWebComponents();
+    const element = document.createElement("honua-feature-editor") as HonuaFeatureEditorElement<PermitAttributes>;
+    document.body.append(element);
+
+    const css = root(element).querySelector("style")?.textContent ?? "";
+    expect(css).toContain("@media (max-width: 320px)");
+    expect(css).toContain(".bar { align-items: flex-start; flex-direction: column; }");
+    expect(css).toContain(".segmented button, .actions button { flex: 1 1 120px; min-width: 0; }");
+  });
 });
 
 describe("<honua-feature-editor> schema-derived form", () => {
@@ -630,6 +652,21 @@ describe("<honua-feature-editor> keyboard geometry workflow (NFR-001)", () => {
     root(element).dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
     expect(secondUndo()).toBe(1);
     expect(firstUndo()).toBe(0);
+  });
+
+  it("mounts and disconnects without console errors", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+      const element = mount(workflow);
+      element.remove();
+      expect(error).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
   });
 });
 

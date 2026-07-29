@@ -33,7 +33,7 @@ interface MockMap extends MaplibreMap {
   _featureState: Map<string, Record<string, unknown>>;
 }
 
-function makeMockMap(): MockMap {
+function makeMockMap(reducedMotion = false): MockMap {
   const calls: MockCall[] = [];
   const listeners: MockMap["_listeners"] = [];
   let style: unknown = {};
@@ -88,6 +88,15 @@ function makeMockMap(): MockMap {
     },
     fitBounds(bounds, options) {
       record("fitBounds", [bounds, options]);
+    },
+    getContainer() {
+      return {
+        ownerDocument: {
+          defaultView: {
+            matchMedia: () => ({ matches: reducedMotion }),
+          },
+        },
+      } as unknown as HTMLElement;
     },
     jumpTo(options) {
       record("jumpTo", [options]);
@@ -254,6 +263,19 @@ describe("loadMapPackage", () => {
 });
 
 describe("HonuaMapRuntime", () => {
+  test("suppresses animated camera transitions when reduced motion is requested", async () => {
+    const map = makeMockMap(true);
+    const runtime = await loadMapPackage(makePackage(), map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+    });
+
+    runtime.setViewState({ bbox: [-158, 21, -157, 22], animate: true });
+
+    expect(map._calls.at(-1)).toMatchObject({ method: "fitBounds", args: [{}, { animate: false }] });
+  });
+
   test("getLegend backfills color from composed style", async () => {
     const map = makeMockMap();
     const pkg = makePackage();

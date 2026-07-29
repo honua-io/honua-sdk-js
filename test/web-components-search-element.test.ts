@@ -103,6 +103,9 @@ describe("<honua-search> (survival tier, geocoding lane)", () => {
     expect(css).toContain("@media (max-width: 320px)");
     expect(css).toContain("form { grid-template-columns: minmax(0, 1fr); }");
     expect(css).toContain("form button { width: 100%; }");
+    expect(css).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(css).toContain("background: Highlight");
+    expect(css).toContain("color: HighlightText");
   });
 
   it("debounces suggest calls and renders options", async () => {

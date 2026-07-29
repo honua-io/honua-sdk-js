@@ -14,8 +14,8 @@ import type {
   HonuaBasemapDefinition,
   HonuaBasemapSwitcherChangeDetail,
   HonuaBasemapSwitcherElement,
-  HonuaLegendElement,
 } from "@honua/sdk-js/controls";
+import { HonuaLayerListElement, HonuaLegendElement } from "@honua/sdk-js/controls";
 import {
   type HonuaChartModel,
   type HonuaFeatureRecord,
@@ -27,6 +27,18 @@ import {
 } from "@honua/sdk-js/web-components";
 
 import "./styles.css";
+
+// The browser qualification lane needs to exercise the native controls-kit
+// layer list alongside this demo's canonical web-components registrant. Keep
+// the alternate tag opt-in so the normal sample still demonstrates the public
+// `<honua-layer-list>` tag without changing its ownership.
+if (new URLSearchParams(window.location.search).has("controls-layer-list")) {
+  customElements.define(
+    "honua-controls-layer-list",
+    class HonuaControlsLayerListElement extends HonuaLayerListElement {},
+  );
+  customElements.define("honua-controls-legend", class HonuaControlsLegendElement extends HonuaLegendElement {});
+}
 
 declare global {
   interface Window {
@@ -283,11 +295,39 @@ window.__HONUA_WEB_COMPONENTS_DEMO__ = runtime;
 const map = document.querySelector("honua-map");
 if (!map) throw new Error("Missing honua-map");
 
-map.addEventListener("honua-map-ready", () => {
+const markReady = () => {
+  if (runtime.ready) return;
   runtime.ready = true;
   eventLog.push("ready");
   writeEventLog();
+  window.clearInterval(readinessTimer);
+};
+
+const mapIsReady = () => {
+  const renderedMap = (map as HTMLElement & {
+    map?: { loaded?(): boolean; isStyleLoaded?(): boolean; getLayer?(layerId: string): unknown };
+  }).map;
+  // MapLibre can report the style as loaded while the controller's layers are
+  // still being applied. The controls-kit smoke consumes those layers as soon
+  // as this signal flips, so include the seeded demo layer in the readiness
+  // guard to avoid exposing a transient, disabled control.
+  return Boolean(
+    (renderedMap?.loaded?.() || renderedMap?.isStyleLoaded?.()) && renderedMap?.getLayer?.("incident-points"),
+  );
+};
+
+map.addEventListener("honua-map-ready", markReady);
+
+// The map element may finish its first renderer pass before this module has
+// attached the event listener when the browser loads a packed sample quickly.
+// Reflect an already-loaded renderer so consumers never wait forever on a
+// readiness event that was emitted during element startup.
+queueMicrotask(() => {
+  if (mapIsReady()) markReady();
 });
+const readinessTimer = window.setInterval(() => {
+  if (mapIsReady()) markReady();
+}, 50);
 
 map.addEventListener("honua-map-error", (event) => {
   const detail = (event as CustomEvent<{ message: string }>).detail;

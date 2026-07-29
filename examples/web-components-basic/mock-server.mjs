@@ -27,15 +27,16 @@ function buildDemoIfNeeded() {
   if (result.status !== 0) throw new Error("Failed to build the web components sample.");
 }
 
-function serve(res, filePath) {
+function serve(res, filePath, extraHeaders = {}) {
   res.writeHead(200, {
     "content-type": MIME_TYPES[path.extname(filePath)] ?? "application/octet-stream",
     "cache-control": "no-store",
+    ...extraHeaders,
   });
   res.end(fs.readFileSync(filePath));
 }
 
-export async function startWebComponentsFixtureServer({ build = true } = {}) {
+export async function startWebComponentsFixtureServer({ build = true, headers = {} } = {}) {
   if (build) buildDemoIfNeeded();
 
   const server = http.createServer((req, res) => {
@@ -44,13 +45,13 @@ export async function startWebComponentsFixtureServer({ build = true } = {}) {
     const staticPath = path.join(distRoot, requestedPath);
 
     if (staticPath.startsWith(distRoot) && fs.existsSync(staticPath) && fs.statSync(staticPath).isFile()) {
-      serve(res, staticPath);
+      serve(res, staticPath, headers);
       return;
     }
 
     const indexPath = path.join(distRoot, "index.html");
     if (!path.extname(requestUrl.pathname) && fs.existsSync(indexPath)) {
-      serve(res, indexPath);
+      serve(res, indexPath, headers);
       return;
     }
 
