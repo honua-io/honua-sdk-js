@@ -127,9 +127,9 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 289,
+    "passing": 310,
     "failing": 0,
-    "pending": 42,
+    "pending": 21,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
@@ -142,13 +142,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -275,8 +274,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -306,13 +308,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -441,8 +442,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -472,13 +476,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 11,
+        "passing": 12,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 4
       },
       "gates": [
@@ -600,8 +603,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -631,13 +637,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -767,8 +772,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -798,13 +806,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 15,
+        "passing": 16,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 0
       },
       "gates": [
@@ -939,8 +946,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -970,13 +980,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -1108,8 +1117,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1139,13 +1151,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 11,
+        "passing": 12,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 4
       },
       "gates": [
@@ -1269,8 +1280,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1300,13 +1314,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -1437,8 +1450,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1468,13 +1484,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 15,
+        "passing": 16,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 0
       },
       "gates": [
@@ -1606,8 +1621,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1637,13 +1655,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -1771,8 +1788,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1802,13 +1822,12 @@
       "supportTier": "production-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -1940,8 +1959,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -1971,13 +1993,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 11,
+        "passing": 12,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 4
       },
       "gates": [
@@ -2101,8 +2122,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2132,13 +2156,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -2266,8 +2289,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2297,13 +2323,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 15,
+        "passing": 16,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 0
       },
       "gates": [
@@ -2434,8 +2459,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2465,13 +2493,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 15,
+        "passing": 16,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 0
       },
       "gates": [
@@ -2602,8 +2629,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2633,13 +2663,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -2766,8 +2795,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2797,13 +2829,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -2935,8 +2966,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -2966,13 +3000,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -3099,8 +3132,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -3130,13 +3166,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -3263,8 +3298,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -3294,13 +3332,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -3428,8 +3465,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",
@@ -3459,13 +3499,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "visual-regression",
-        "memory-leak"
+        "visual-regression"
       ],
       "summary": {
-        "passing": 14,
+        "passing": 15,
         "failing": 0,
-        "pending": 2,
+        "pending": 1,
         "notApplicable": 1
       },
       "gates": [
@@ -3593,8 +3632,11 @@
         {
           "gate": "memory-leak",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
         },
         {
           "gate": "ssr-import",

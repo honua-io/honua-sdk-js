@@ -1221,8 +1221,13 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   "memory-leak": {
-    pendingNote:
-      "No WeakRef or heap-retention probe exists for either kit. Deterministic disposal is the necessary precondition and is covered separately; actual non-retention is unproven.",
+    passing: [
+      {
+        ids: ALL_IDS,
+        evidence: ["test/playwright/web-components-memory-leak.spec.mjs"],
+        note: "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable.",
+      },
+    ],
   },
 
   "ssr-import": {

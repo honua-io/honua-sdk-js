@@ -104,6 +104,7 @@ abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElement
   #controller: HonuaWebComponentController<T> | undefined;
   #unsubscribe: { remove(): void } | undefined;
   #controllerReadyListener: ((event: Event) => void) | undefined;
+  #controllerReadyTarget: EventTarget | undefined;
   protected state: HonuaWebComponentState<T> | undefined;
 
   public get controller(): HonuaWebComponentController<T> | undefined {
@@ -138,8 +139,9 @@ abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElement
     this.#unsubscribe?.remove();
     this.#unsubscribe = undefined;
     if (this.#controllerReadyListener) {
-      this.getRootEventTarget()?.removeEventListener("honua-controller-ready", this.#controllerReadyListener);
+      this.#controllerReadyTarget?.removeEventListener("honua-controller-ready", this.#controllerReadyListener);
       this.#controllerReadyListener = undefined;
+      this.#controllerReadyTarget = undefined;
     }
   }
 
@@ -178,6 +180,7 @@ abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElement
     if (this.#controllerReadyListener) return;
     const target = this.getRootEventTarget();
     if (!target) return;
+    this.#controllerReadyTarget = target;
     this.#controllerReadyListener = (event: Event) => {
       const detail = (event as CustomEvent<HonuaControllerReadyDetail<T>>).detail;
       if (!detail?.controller) return;
