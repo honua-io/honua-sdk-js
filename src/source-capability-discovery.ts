@@ -12,6 +12,7 @@
 import {
   type ConnectOptions,
   type ConnectSourceCapabilityProjection,
+  type ConnectSourceProtocolHint,
   type HonuaConnection,
   type HonuaConnectionInspection,
   connectWithSourceSchemaProjection,
@@ -21,7 +22,8 @@ import type {
   DiscoveryCapabilityPolicy,
   SourceDiscoveryInspection,
 } from "./contract/discovery.js";
-import { parseSourceSchemaV2 } from "./contract/schema.js";
+import { parseSourceSchemaV2, schemaStateBindingFingerprint } from "./contract/schema.js";
+import type { SchemaIdentity } from "./contract/schema.js";
 import type { SourceSchemaV2 } from "./contract/schema.js";
 import {
   CAPABILITIES,
@@ -58,12 +60,9 @@ export { sourceCapabilityEndpointIdentity } from "./source-capability-discovery-
 export type { CapabilityDiscoveryProtocol } from "./source-capability-discovery-endpoint.js";
 
 const CAPABILITY_DISCOVERY_PROJECTION_IDENTITY = "honua.source-capability-discovery@1.0";
-const CERTIFIED_PROTOCOLS = new Set(["geoservices-feature-service", "geoservices-map-service", "odata", "wms", "wmts"]);
-
-/** Connect options accepted by the certified capability-discovery rollout. */
+/** Connect options accepted by capability discovery across every source protocol. */
 export type SourceCapabilityConnectOptions = Omit<ConnectOptions, "protocol" | "capabilityPolicy"> & {
-  /** `auto` remains structural; WMS/WMTS require a canonical path or SERVICE query. */
-  readonly protocol: "auto" | "geoservices-feature-service" | "geoservices-map-service" | "odata" | "wms" | "wmts";
+  readonly protocol: ConnectSourceProtocolHint;
 };
 
 /** Fresh dynamic inputs reapplied after every raw discovery-cache read. */
@@ -75,8 +74,12 @@ export interface SourceCapabilityEvaluationOptions extends CapabilityEvaluationC
 }
 
 /** Descriptor refinement returned by the focused capability-aware connection path. */
-export type SourceDescriptorWithCapabilityProfile = Omit<SourceDescriptor, "schemaV2" | "capabilityProfile"> & {
-  readonly schemaV2: SourceSchemaV2;
+export type SourceDescriptorWithCapabilityProfile = Omit<
+  SourceDescriptor,
+  "schemaV2" | "schemaV2State" | "capabilityProfile"
+> & {
+  readonly schemaV2?: SourceSchemaV2;
+  readonly schemaV2State: SchemaIdentity;
   readonly capabilityProfile: CapabilityProfile;
 };
 
@@ -122,7 +125,6 @@ export async function connectWithSourceCapabilities(
   options: SourceCapabilityConnectOptions,
   evaluation: SourceCapabilityEvaluationOptions,
 ): Promise<HonuaConnectionWithCapabilityProfiles> {
-  assertCertifiedProtocol(options.protocol);
   const safeEvaluation = normalizeEvaluationOptions(evaluation);
   const projection = capabilityProjection(safeEvaluation);
   const capabilityPolicy = discoveryPolicy(safeEvaluation.policy);
@@ -174,33 +176,34 @@ function capabilityProjection(evaluation: SourceCapabilityEvaluationOptions): Co
   const projection: ConnectSourceCapabilityProjection = {
     cacheIdentity: CAPABILITY_DISCOVERY_PROJECTION_IDENTITY,
     project(descriptor, resolution, projectionContext) {
-      if (!CERTIFIED_PROTOCOLS.has(descriptor.protocol)) {
-        throw new HonuaDiscoveryError(
-          "unsupported-protocol",
-          `Capability-aware discovery is not certified for protocol "${descriptor.protocol}".`,
-          { protocol: descriptor.protocol },
-        );
-      }
-      if (descriptor.schemaV2 === undefined) {
+      const schemaIdentity =
+        descriptor.schemaV2State ??
+        (descriptor.schemaV2 === undefined
+          ? undefined
+          : ({ state: "known", fingerprint: descriptor.schemaV2.fingerprint } satisfies SchemaIdentity));
+      if (schemaIdentity === undefined) {
         throw new HonuaDiscoveryError(
           "invalid-capability",
-          `Capability-aware discovery requires SourceSchemaV2 metadata for source "${descriptor.id}".`,
+          `Capability-aware discovery requires a schema identity for source "${descriptor.id}".`,
           { sourceId: descriptor.id, protocol: descriptor.protocol },
         );
       }
-      const schema = parseSourceSchemaV2(descriptor.schemaV2);
+      if (schemaIdentity.state === "known" && descriptor.schemaV2 !== undefined) {
+        parseSourceSchemaV2(descriptor.schemaV2);
+      }
+      const sourceFingerprint = schemaStateBindingFingerprint(schemaIdentity);
       const expiresAt = observationExpiry(projectionContext.observedAt, observationTtlMs);
       const entries = resolution.decisions.map((decision) =>
         discoveryEvidenceEntry(
           decision,
           descriptor.protocol,
-          schema.fingerprint,
+          sourceFingerprint,
           projectionContext.observedAt,
           expiresAt,
         ),
       );
       const evidenceProfile = createCapabilityEvidenceProfile(entries, {
-        sourceFingerprint: schema.fingerprint,
+        sourceFingerprint,
         sourceEndpoint: sourceCapabilityEndpointIdentity(descriptor),
       });
       return evaluateCapabilityProfile(evidenceProfile, context);
@@ -289,13 +292,4 @@ function observationExpiry(observedAt: string, ttlMs: number): string {
       { cause },
     );
   }
-}
-
-function assertCertifiedProtocol(protocol: SourceCapabilityConnectOptions["protocol"]): void {
-  if (protocol === "auto" || CERTIFIED_PROTOCOLS.has(protocol)) return;
-  throw new HonuaDiscoveryError(
-    "unsupported-protocol",
-    `Capability-aware discovery is currently certified for GeoServices, OData, WMS, and WMTS, not "${String(protocol)}".`,
-    { protocol },
-  );
 }

@@ -1,0 +1,154 @@
+{
+  "$schema": "./connect-parity-matrix.schema.json",
+  "version": "1.0",
+  "requiredSemanticFields": [
+    "id",
+    "locator",
+    "schemaState",
+    "geometry",
+    "crs",
+    "time",
+    "limits",
+    "formats",
+    "capabilities",
+    "attribution",
+    "provenance",
+    "freshness"
+  ],
+  "lifecycleCases": [
+    "cache-hit",
+    "refresh",
+    "abort",
+    "timeout",
+    "partial-metadata-failure",
+    "malformed-cache",
+    "authorization-scope-isolation"
+  ],
+  "sourceProtocols": [
+    {
+      "protocol": "grpc",
+      "fixture": "connect-grpc",
+      "sourceKind": "feature",
+      "equivalence": "honua-facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "capabilities", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "geoservices-feature-service",
+      "fixture": "connect-geoservices-feature",
+      "sourceKind": "feature",
+      "equivalence": "honua-facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "geoservices-map-service",
+      "fixture": "connect-geoservices-map",
+      "sourceKind": "raster",
+      "equivalence": "honua-facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "geoservices-image-service",
+      "fixture": "connect-geoservices-image",
+      "sourceKind": "raster",
+      "equivalence": "honua-facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "ogc-features",
+      "fixture": "connect-ogc-features",
+      "sourceKind": "feature",
+      "equivalence": "honua-facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "stac",
+      "fixture": "connect-stac",
+      "sourceKind": "catalog",
+      "equivalence": "facade-vs-static",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "time", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "wfs",
+      "fixture": "connect-wfs",
+      "sourceKind": "feature",
+      "equivalence": "facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "odata",
+      "fixture": "connect-odata",
+      "sourceKind": "feature",
+      "equivalence": "facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "pmtiles",
+      "fixture": "connect-pmtiles",
+      "sourceKind": "archive",
+      "equivalence": "static-asset",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "geoparquet",
+      "fixture": "connect-geoparquet",
+      "sourceKind": "feature",
+      "equivalence": "static-asset",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "ogc-records",
+      "fixture": "connect-ogc-records",
+      "sourceKind": "catalog",
+      "equivalence": "honua-facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "time", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "ogc-tiles",
+      "fixture": "connect-ogc-tiles",
+      "sourceKind": "tiles",
+      "equivalence": "honua-facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "ogc-maps",
+      "fixture": "connect-ogc-maps",
+      "sourceKind": "raster",
+      "equivalence": "honua-facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "wms",
+      "fixture": "connect-wms",
+      "sourceKind": "raster",
+      "equivalence": "honua-facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    },
+    {
+      "protocol": "wmts",
+      "fixture": "connect-wmts",
+      "sourceKind": "tiles",
+      "equivalence": "honua-facade-vs-raw",
+      "semanticFields": ["id", "locator", "schemaState", "geometry", "crs", "limits", "formats", "capabilities", "attribution", "provenance", "freshness"],
+      "lifecycleCases": ["cache-hit", "refresh", "abort", "timeout", "partial-metadata-failure", "malformed-cache", "authorization-scope-isolation"]
+    }
+  ],
+  "operationOnly": [
+    { "protocol": "geoservices-geometry-service", "fixture": "connect-geoservices-geometry", "sourceKind": "operation-only", "lifecycleCases": ["cache-hit", "refresh", "abort", "malformed-cache"] },
+    { "protocol": "geoservices-gp-service", "fixture": "connect-geoservices-gp", "sourceKind": "operation-only", "lifecycleCases": ["cache-hit", "refresh", "abort", "malformed-cache"] },
+    { "protocol": "ogc-processes", "fixture": "connect-ogc-processes", "sourceKind": "operation-only", "lifecycleCases": ["cache-hit", "refresh", "abort", "malformed-cache"] }
+  ]
+}

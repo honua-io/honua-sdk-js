@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { capabilitiesFromMetadata } from "../src/connect-geoservices.js";
 import {
   type ConnectDiscoveryCache,
   type ConnectDiscoverySnapshot,
@@ -220,6 +221,28 @@ function odataDiscoveryFetch(
 }
 
 describe("connect", () => {
+  it("prefers canonical GeoServices hasAttachments and falls back only when absent", () => {
+    const canonical = {
+      capabilities: "Query",
+      hasAttachments: true,
+      supportsAttachments: false,
+    };
+    expect(capabilitiesFromMetadata("geoservices-feature-service", canonical)).toContain("attachments");
+
+    const legacy = {
+      capabilities: "Query",
+      supportsAttachments: true,
+    };
+    expect(capabilitiesFromMetadata("geoservices-feature-service", legacy)).toContain("attachments");
+
+    const canonicalFalse = {
+      capabilities: "Query",
+      hasAttachments: false,
+      supportsAttachments: true,
+    };
+    expect(capabilitiesFromMetadata("geoservices-feature-service", canonicalFalse)).not.toContain("attachments");
+  });
+
   it("discovers reviewed OGC Features descriptors without inventing adapter defaults", async () => {
     const fetchFn = discoveryFetch();
     const connection = await connect({
