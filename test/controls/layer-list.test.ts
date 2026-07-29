@@ -189,6 +189,17 @@ describe("HonuaLayerListElement", () => {
     expect(shadow.innerHTML).toContain(".row[data-not-seeded] { color: GrayText");
   });
 
+  test("emits bounded, wrapping rows for narrow containers", () => {
+    const { element, shadow } = makeElement();
+    element.connect(makeMockMap({ "parcels-fill": {}, "incident-points": {} }));
+    element.overlays = [{ id: "parcels", label: "A-very-long-unbroken-layer-label", layers: ["parcels-fill"] }];
+
+    expect(shadow.innerHTML).toContain("min-width: 0;");
+    expect(shadow.innerHTML).toContain("max-width: 100%;");
+    expect(shadow.innerHTML).toContain("overflow-wrap: anywhere;");
+    expect(shadow.innerHTML).not.toContain("overflow: hidden");
+  });
+
   test("setVisible writes visibility on every overlay layer and emits change", () => {
     const { element, events } = makeElement();
     const map = makeMockMap({ "parcels-fill": {}, "parcels-outline": {}, "incident-points": {} });
