@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { runNpmScriptSync } from "./lib/npm-cli.mjs";
 import { prepareSdkArtifact } from "./lib/prepared-sdk-artifact.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -26,13 +26,12 @@ if (!mode || process.argv.length > 3) {
       projectRoot,
       mode,
       runBuild: () => {
-        const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
         // Standalone `prepare:test-sdk` is not itself one of the heavy names
         // recognized by the shared host semaphore. Delegate cache misses to
         // exact `npm run build`; its force-build owner then invokes the
         // internal compiler while inheriting the reentrant lock marker.
         const buildScript = mode === "build-if-needed" ? "build" : "compile";
-        const result = spawnSync(npmCommand, ["run", buildScript, "--silent"], {
+        const result = runNpmScriptSync(buildScript, {
           cwd: projectRoot,
           encoding: "utf8",
           stdio: ["ignore", "pipe", "pipe"],

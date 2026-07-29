@@ -7,6 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { runNpmScriptSync, runNpmSync } from "./lib/npm-cli.mjs";
+
 const sdkRoot = path.resolve(import.meta.dirname, "..");
 const migratePackageRoot = path.resolve(
   process.argv[2] ?? process.env.HONUA_MIGRATE_PACKAGE_ROOT ?? "../honua-migrate/packages/javascript",
@@ -31,11 +33,35 @@ function run(command, args, options = {}) {
 }
 
 function runNpm(args, options = {}) {
-  const npmExecPath = process.env.npm_execpath;
-  if (npmExecPath && fs.existsSync(npmExecPath)) {
-    return run(process.execPath, [npmExecPath, ...args], options);
+  const result = runNpmSync(args, {
+    cwd: options.cwd,
+    encoding: "utf8",
+    env: options.env ?? process.env,
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      `npm ${args.join(" ")} failed (${result.status ?? "spawn error"})\n${result.stdout ?? ""}${result.stderr ?? ""}`,
+      { cause: result.error },
+    );
   }
-  return run(process.platform === "win32" ? "npm.cmd" : "npm", args, options);
+  return result;
+}
+
+function runNpmScript(script, options = {}) {
+  const result = runNpmScriptSync(script, {
+    cwd: options.cwd,
+    encoding: "utf8",
+    env: options.env ?? process.env,
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      `npm run ${script} failed (${result.status ?? "spawn error"})\n${result.stdout ?? ""}${result.stderr ?? ""}`,
+      { cause: result.error },
+    );
+  }
+  return result;
 }
 
 function readJson(file) {
@@ -63,7 +89,7 @@ try {
   fs.mkdirSync(sdkArtifacts);
   fs.mkdirSync(consumerRoot);
 
-  runNpm(["run", "build", "--silent"], { cwd: migratePackageRoot });
+  runNpmScript("build", { cwd: migratePackageRoot });
   run(process.execPath, [path.join(sdkRoot, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"], {
     cwd: sdkRoot,
   });

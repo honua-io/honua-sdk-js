@@ -1,10 +1,10 @@
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
+import { runNpmScriptSync } from "../../scripts/lib/npm-cli.mjs";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
@@ -19,13 +19,10 @@ const MIME_TYPES = {
 };
 
 function buildDemoIfNeeded() {
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(npmCommand, ["run", "demo:edit-workflow:build", "--silent"], {
+  const result = runNpmScriptSync("demo:edit-workflow:build", {
     cwd: projectRoot,
     stdio: "inherit",
     env: createFixtureBuildEnvironment(),
-    // Node's CVE-2024-27980 hardening rejects spawning .cmd shims without a shell.
-    shell: process.platform === "win32",
   });
   if (result.status !== 0) throw new Error("Failed to build the Edit Workflow sample.");
 }

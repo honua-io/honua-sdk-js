@@ -23,7 +23,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "clean": "rm -rf dist coverage",
+    "clean": "node scripts/clean-output.mjs",
     "build": "npm run clean --silent && tsc -p tsconfig.json",
     "prepack": "npm run build --silent",
     "typecheck": "tsc --noEmit",

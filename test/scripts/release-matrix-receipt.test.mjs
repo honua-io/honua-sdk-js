@@ -577,6 +577,12 @@ async function goldenEvidenceCopy(catalog, label) {
   return { directory, receiptRoot };
 }
 
+function qualifiedGoldenSampleIds(catalog) {
+  return catalog.goldenJourneys
+    .filter((journey) => journey.status === "qualified")
+    .map((journey) => journey.candidateSampleId);
+}
+
 // Fault injection through the exact path `npm run samples:verify` runs
 // (scripts/sample-contract.mjs check -> validateCatalog): an injected failing
 // receipt has to turn the First Map golden qualification red, and removing it
@@ -591,7 +597,14 @@ for (const derivedRelax of [false, true]) {
     const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
     const { directory, receiptRoot } = await goldenEvidenceCopy(catalog, "honua-release-matrix-evidence-");
     const injected = path.join(receiptRoot, sampleId, "release-matrix.v1.json");
-    const options = { receiptRoot, verifyCheckout: false };
+    const options = {
+      receiptRoot,
+      verifyCheckout: false,
+      // These fixtures copy reviewed receipts but intentionally validate
+      // feature-branch source. Isolate that expected producer drift so every
+      // assertion below reaches the independent release-matrix gate.
+      qualificationBootstrapSampleId: qualifiedGoldenSampleIds(catalog),
+    };
     const validate = () => withDerivedArtifactsRelax(derivedRelax, () => validateCatalog(catalog, packageJson, options));
     try {
       // No receipt at all: the lane is not established and validation passes.
@@ -659,6 +672,9 @@ for (const derivedRelax of [false, true]) {
         receiptRoot,
         verifyCheckout: false,
         releaseMatrixLaneRegistryPath: "test/fixtures/release-matrix/established-lanes.v1.json",
+        // Qualification-receipt bootstrap cannot exempt release-matrix
+        // evidence; the failing/missing assertions below prove that boundary.
+        qualificationBootstrapSampleId: qualifiedGoldenSampleIds(catalog),
       };
       const validate = (options) =>
         withDerivedArtifactsRelax(derivedRelax, () => validateCatalog(catalog, packageJson, options));
@@ -701,7 +717,11 @@ for (const derivedRelax of [false, true]) {
 
       // Without the establishment record the same deletion is only a note, which
       // is exactly today's pre-first-receipt trunk state.
-      await validate({ receiptRoot, verifyCheckout: false });
+      await validate({
+        receiptRoot,
+        verifyCheckout: false,
+        qualificationBootstrapSampleId: qualifiedGoldenSampleIds(catalog),
+      });
 
       // Reseal green: qualified again, no manual edit.
       await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);

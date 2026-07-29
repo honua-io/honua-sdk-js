@@ -2,11 +2,10 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
 
 import { expect, test } from "@playwright/test";
 
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+import { runNpmSync } from "../../scripts/lib/npm-cli.mjs";
 
 function getProjectRoot() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -18,7 +17,7 @@ function getExampleRoot(projectRoot) {
 
 function buildExample(projectRoot) {
   const exampleRoot = getExampleRoot(projectRoot);
-  const result = spawnSync(npmCommand, ["--prefix", exampleRoot, "run", "build"], {
+  const result = runNpmSync(["--prefix", exampleRoot, "run", "build"], {
     cwd: projectRoot,
     encoding: "utf8"
   });

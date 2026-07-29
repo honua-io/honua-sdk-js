@@ -36,7 +36,7 @@
  *   npm run samples:bundles:verify  # re-hash an existing manifest + files
  */
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -44,6 +44,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+
+import { runNpmSync } from "./lib/npm-cli.mjs";
 
 const require = createRequire(import.meta.url);
 const Ajv2020 = require("ajv/dist/2020").default;
@@ -778,10 +780,9 @@ async function buildSample(
   const exampleDist = path.join(PROJECT_ROOT, "examples", id, "dist");
   await rm(exampleDist, { recursive: true, force: true });
 
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   // "--base ./" makes Vite emit relative asset URLs so bundles work when
   // served under per-sample subpaths (samples.honua.io/sdk/<id>/app/).
-  const result = spawnSync(npmCommand, ["run", buildScript, "--silent", "--", "--base", "./"], {
+  const result = runNpmSync(["run", buildScript, "--silent", "--", "--base", "./"], {
     cwd: PROJECT_ROOT,
     encoding: "utf8",
     env: fixtureBuildEnv(),
