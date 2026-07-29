@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 211,
-    "failing": 78,
+    "passing": 214,
+    "failing": 75,
     "pending": 42,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -302,15 +302,14 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "responsive-layout",
         "pseudo-locale",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 11,
-        "failing": 3,
+        "passing": 12,
+        "failing": 2,
         "pending": 2,
         "notApplicable": 1
       },
@@ -360,8 +359,13 @@
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+          "status": "passing",
+          "evidence": [
+            "test/controls/layer-list.test.ts",
+            "test/controls/legend.test.ts",
+            "test/controls/swipe-control.test.ts"
+          ],
+          "note": "The native controls constrain their panel and row widths, allow flex children to shrink, and wrap unbroken labels without narrow-container overflow, asserted from each emitted stylesheet."
         },
         {
           "gate": "localization",
@@ -460,7 +464,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "responsive-layout",
         "localization",
         "pseudo-locale",
         "visual-regression",
@@ -468,8 +471,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 7,
-        "failing": 4,
+        "passing": 8,
+        "failing": 3,
         "pending": 2,
         "notApplicable": 4
       },
@@ -514,8 +517,13 @@
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+          "status": "passing",
+          "evidence": [
+            "test/controls/layer-list.test.ts",
+            "test/controls/legend.test.ts",
+            "test/controls/swipe-control.test.ts"
+          ],
+          "note": "The native controls constrain their panel and row widths, allow flex children to shrink, and wrap unbroken labels without narrow-container overflow, asserted from each emitted stylesheet."
         },
         {
           "gate": "localization",
@@ -609,7 +617,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "responsive-layout",
         "localization",
         "pseudo-locale",
         "visual-regression",
@@ -617,8 +624,8 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 10,
-        "failing": 4,
+        "passing": 11,
+        "failing": 3,
         "pending": 2,
         "notApplicable": 1
       },
@@ -668,8 +675,13 @@
         {
           "gate": "responsive-layout",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+          "status": "passing",
+          "evidence": [
+            "test/controls/layer-list.test.ts",
+            "test/controls/legend.test.ts",
+            "test/controls/swipe-control.test.ts"
+          ],
+          "note": "The native controls constrain their panel and row widths, allow flex children to shrink, and wrap unbroken labels without narrow-container overflow, asserted from each emitted stylesheet."
         },
         {
           "gate": "localization",

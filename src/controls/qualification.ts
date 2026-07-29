@@ -785,6 +785,15 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-accessibility.test.ts"],
         note: "The editor panel makes its action row wrap and its buttons shrink below 320px, asserted from the emitted stylesheet.",
       },
+      {
+        ids: ["controls.swipe-control", "controls.legend", "controls.layer-list"],
+        evidence: [
+          "test/controls/swipe-control.test.ts",
+          "test/controls/legend.test.ts",
+          "test/controls/layer-list.test.ts",
+        ],
+        note: "The native controls constrain their panel and row widths, allow flex children to shrink, and wrap unbroken labels without narrow-container overflow, asserted from each emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -801,7 +810,10 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "web-components.sketch-control" &&
             id !== "web-components.print-export" &&
             id !== "web-components.action-panel" &&
-            id !== "web-components.editor",
+            id !== "web-components.editor" &&
+            id !== "controls.swipe-control" &&
+            id !== "controls.legend" &&
+            id !== "controls.layer-list",
         ),
         note: "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists.",
       },
