@@ -397,7 +397,7 @@ export function featureTableGridStyles(): string {
     .table-panel__bar { gap: 8px; min-width: 0; }
     .table-panel__bar h2 { min-width: 0; overflow-wrap: anywhere; }
     .table-wrap { max-width: 100%; overflow-x: auto; overflow-y: auto; }
-    .table-wrap table { min-width: max-content; width: 100%; }
+    .table-wrap table { min-width: 100%; width: 100%; }
     .table-panel__bar .count { color: var(--honua-ui-muted); font-variant-numeric: tabular-nums; }
     .status {
       color: var(--honua-ui-muted);
@@ -435,6 +435,14 @@ export function featureTableGridStyles(): string {
       height: 8px;
       opacity: 0.6;
       width: 60%;
+    }
+    @media (max-width: 320px) {
+      .table-wrap th,
+      .table-wrap td {
+        overflow-wrap: anywhere;
+        text-overflow: clip;
+        white-space: normal;
+      }
     }
   `;
 }

@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 268,
-    "failing": 21,
+    "passing": 289,
+    "failing": 0,
     "pending": 42,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -142,13 +142,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -216,8 +215,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -304,13 +306,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -380,8 +381,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -468,13 +472,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 10,
-        "failing": 1,
+        "passing": 11,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 4
       },
@@ -539,8 +542,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -625,13 +631,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -701,8 +706,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -790,13 +798,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 14,
-        "failing": 1,
+        "passing": 15,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 0
       },
@@ -872,8 +879,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -960,13 +970,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1039,8 +1048,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -1127,13 +1139,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 10,
-        "failing": 1,
+        "passing": 11,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 4
       },
@@ -1201,8 +1212,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -1286,13 +1300,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1362,8 +1375,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -1452,13 +1468,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 14,
-        "failing": 1,
+        "passing": 15,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 0
       },
@@ -1531,8 +1546,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -1619,13 +1637,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1693,8 +1710,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -1782,13 +1802,12 @@
       "supportTier": "production-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1861,8 +1880,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -1949,13 +1971,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 10,
-        "failing": 1,
+        "passing": 11,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 4
       },
@@ -2022,8 +2043,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -2108,13 +2132,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2182,8 +2205,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -2271,13 +2297,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 14,
-        "failing": 1,
+        "passing": 15,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 0
       },
@@ -2348,8 +2373,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -2437,13 +2465,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 14,
-        "failing": 1,
+        "passing": 15,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 0
       },
@@ -2514,8 +2541,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -2603,13 +2633,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2677,8 +2706,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -2765,13 +2797,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2844,8 +2875,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -2932,13 +2966,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -3006,8 +3039,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -3094,13 +3130,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -3168,8 +3203,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -3256,13 +3294,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -3330,8 +3367,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",
@@ -3419,13 +3459,12 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "pseudo-locale",
         "visual-regression",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 1,
+        "passing": 14,
+        "failing": 0,
         "pending": 2,
         "notApplicable": 1
       },
@@ -3493,8 +3532,11 @@
         {
           "gate": "pseudo-locale",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
         },
         {
           "gate": "rtl",

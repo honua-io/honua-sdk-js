@@ -575,6 +575,7 @@ function structuralStyles(): string {
     .bar { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
     .state { color: var(--honua-ui-muted); font-size: 12px; }
     .segmented { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); }
+    .segmented button { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
     .actions { display: flex; gap: 6px; }
     .value { margin: 0; }
     .hint { color: var(--honua-ui-muted); font-size: 12px; margin: 0; }

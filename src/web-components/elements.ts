@@ -3261,8 +3261,14 @@ function editorStyles(): string {
     }
     @media (max-width: 320px) {
       .editor { min-width: 0; }
+      .editor__bar { align-items: flex-start; flex-direction: column; }
       .editor__actions { flex-wrap: wrap; }
-      .editor__actions button { flex: 1 1 120px; min-width: 0; }
+      .editor__actions button {
+        flex: 1 1 120px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+        white-space: normal;
+      }
     }
   `;
 }
@@ -3347,8 +3353,10 @@ function controlPanelStyles(): string {
     }
     .segmented button {
       min-width: 0;
+      overflow-wrap: anywhere;
       padding-block: 0;
       padding-inline: 8px;
+      white-space: normal;
     }
     button[aria-pressed="true"] {
       background: var(--honua-ui-accent);
@@ -3378,6 +3386,9 @@ function controlPanelStyles(): string {
       .control-panel > button {
         width: 100%;
       }
+    }
+    @media (min-width: 241px) and (max-width: 320px) {
+      .segmented { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
     }
     @media (forced-colors: active), (prefers-contrast: more) {
       .control-panel {

@@ -955,10 +955,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   "pseudo-locale": {
-    failing: [
+    passing: [
       {
         ids: ALL_IDS,
-        note: "Blocked on the localization gate: with no externalized messages there is nothing to render under a pseudo-locale, and the fixed layouts have no tested tolerance for the ~35% string growth real translation causes.",
+        evidence: ["test/playwright/pseudo-locale.spec.mjs"],
+        note: "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog.",
       },
     ],
   },

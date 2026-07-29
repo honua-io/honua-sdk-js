@@ -8,7 +8,6 @@ const qualification = JSON.parse(
   fs.readFileSync(path.resolve("config/component-qualification.v1.json"), "utf8"),
 );
 const CATALOG_COMPONENTS = qualification.components;
-const FULL_GATE_ENABLED = process.env.HONUA_PSEUDO_LOCALE_GATE === "true";
 
 // The fixture uses the canonical web-components implementation for contested
 // tags. The controls layer-list is mounted under its explicit test alias; the
@@ -45,8 +44,13 @@ test.describe("pseudo-locale component qualification", () => {
   test("renders every catalog component and exercises expanded labels", async ({ page }) => {
     const server = await startWebComponentsFixtureServer();
     try {
+      await page.setViewportSize({ width: 280, height: 720 });
       await page.goto(`${server.url}?controls-layer-list=1`);
-      await expect.poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.ready === true)).toBe(true);
+      // The fixture intentionally uses same-origin mock data. The demo's ready
+      // flag depends on network-backed startup, so the component qualification
+      // lane waits for the custom elements to mount rather than gating on demo
+      // data readiness.
+      await page.waitForTimeout(500);
 
       await page.evaluate(() => {
         const map = document.querySelector("honua-map");
@@ -76,6 +80,7 @@ test.describe("pseudo-locale component qualification", () => {
 
       const result = await page.evaluate(({ hosts, ids }) => {
         const localize = (value) => {
+          if (!/\p{L}/u.test(value)) return value;
           const accents = { a: "á", e: "ë", i: "ï", o: "ö", u: "ü", A: "Á", E: "Ë", I: "Ï", O: "Ö", U: "Ü" };
           const expanded = [...value].map((character) => accents[character] ?? character).join("");
           return `［${expanded}${"·".repeat(Math.max(0, Math.ceil([...value].length * 1.35) - [...expanded].length))}］`;
@@ -131,6 +136,7 @@ test.describe("pseudo-locale component qualification", () => {
         const check = (root, owner) => {
           for (const node of root.querySelectorAll("*")) {
             if (node.tagName === "STYLE" || node.tagName === "SCRIPT") continue;
+            if (node.classList.contains("sr-only")) continue;
             const style = getComputedStyle(node);
             const rect = node.getBoundingClientRect();
             if (rect.width <= 0 || rect.height <= 0 || style.display === "none") continue;
@@ -155,14 +161,7 @@ test.describe("pseudo-locale component qualification", () => {
       );
       expect(result.mounted).toHaveLength(componentIds().length);
       expect(result.expandedCount).toBeGreaterThan(20);
-      if (FULL_GATE_ENABLED) {
-        expect(result.failures, JSON.stringify(result.failures, null, 2)).toEqual([]);
-      } else {
-        // The current production components are known to have open pseudo-locale
-        // failures. Keep the probe green while making that gap observable; CI or
-        // a local qualification run can set the opt-in flag to enforce the gate.
-        expect(result.failures.length).toBeGreaterThan(0);
-      }
+      expect(result.failures, JSON.stringify(result.failures, null, 2)).toEqual([]);
     } finally {
       await server.close();
     }
