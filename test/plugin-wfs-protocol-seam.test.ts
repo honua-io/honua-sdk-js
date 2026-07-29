@@ -644,6 +644,39 @@ describe("WFS query-capable protocol-module seam (#823)", () => {
     expect(featureRequests).toBe(1);
   });
 
+  it("uses the legacy GeoJSON fallback when GetFeature output formats are empty", async () => {
+    let getFeatureUrl: URL | undefined;
+    const emptyFormats = wfsCapabilitiesXml()
+      .replace(/\s*<ows:Value>application\/geo\+json<\/ows:Value>/, "")
+      .replace(/\s*<ows:Value>application\/gml\+xml; version=3\.2<\/ows:Value>/, "");
+    const client = makeMockClient({
+      routes: [
+        [
+          "/wfs",
+          (url) => {
+            const request = url.searchParams.get("request");
+            if (request === "GetCapabilities") return xmlResponse(emptyFormats);
+            if (request === "GetFeature") {
+              getFeatureUrl = url;
+              return jsonResponse(wfsGeoJsonResponse(PARCEL_FEATURES.slice(0, 1)));
+            }
+            return new Response("not found", { status: 404 });
+          },
+        ],
+      ],
+    });
+    const module = wfsProtocolModule(client);
+    const handle = module.discover(descriptor);
+    if (handle instanceof Promise) throw new Error("WFS discovery must remain synchronous");
+    const ir = createQueryIr({ descriptor });
+    const compiled = module.compile({ source: ir.source, query: ir.query, operation: "query" });
+
+    await expect(module.execute(handle, { compiled, operation: "query", query: {} })).resolves.toMatchObject({
+      features: [{ attributes: { OBJECTID: 1 } }],
+    });
+    expect(getFeatureUrl?.searchParams.get("outputFormat")).toBe("application/geo+json");
+  });
+
   it("fails closed before GetFeature when version, type, namespace, CRS, or output evidence is incomplete", async () => {
     const cases = [
       {
