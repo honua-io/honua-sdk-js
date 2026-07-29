@@ -826,6 +826,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-accessibility.test.ts"],
         note: "The bookmarks component accepts caller-supplied status and empty-state messages, asserted with German rendering coverage while preserving bookmark labels supplied by the caller.",
       },
+      {
+        ids: ["web-components.action-panel"],
+        evidence: ["test/web-components-action-panel-element.test.ts"],
+        note: "The action panel accepts caller-supplied label, status, and empty-state messages while preserving action labels supplied by the caller, asserted with German rendering coverage.",
+      },
     ],
     failing: [
       {
@@ -836,6 +841,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "web-components.locate-control",
           "web-components.editor",
           "web-components.bookmarks",
+          "web-components.action-panel",
         ),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
       },
