@@ -6,6 +6,7 @@ import type {
   HonuaMeasureMode,
   HonuaMeasureProvider,
   HonuaSketchChangeDetail,
+  HonuaSketchControlMessages,
   HonuaSketchMode,
   HonuaSketchProvider,
 } from "../src/web-components/index.js";
@@ -286,5 +287,29 @@ describe("measure and sketch control elements", () => {
     expect(change?.type).toBe("honua-sketch-change");
     expect(change?.detail.status).toBe("ready");
     expect(change?.detail.result?.id).toBe("drawn-1");
+  });
+
+  it("renders German sketch status, actions, and empty-state text", async () => {
+    const { HonuaSketchControlElement } = await loadElements();
+    const element = new HonuaSketchControlElement() as unknown as {
+      controller?: ControllerStub;
+      messages: HonuaSketchControlMessages;
+      shadowRoot?: FakeShadowRoot;
+      connectedCallback(): void;
+    };
+    element.messages = {
+      status: { ready: "Bereit", unsupported: "Nicht verfügbar" },
+      actionLabels: { off: "Beenden", point: "Punkt", line: "Linie", polygon: "Polygon" },
+      empty: "Skizzieren ist deaktiviert.",
+    };
+    element.controller = { ...baseControllerStub, canSketch: () => false } as unknown as ControllerStub;
+    element.connectedCallback();
+
+    const html = element.shadowRoot?.innerHTML ?? "";
+    expect(html).toContain("Nicht verfügbar");
+    expect(html).toContain("Skizzieren ist deaktiviert.");
+    expect(html).toContain("Punkt");
+    expect(html).toContain("Linie");
+    expect(html).toContain("Polygon");
   });
 });

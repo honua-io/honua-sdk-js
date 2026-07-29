@@ -490,6 +490,14 @@ export interface HonuaMeasureChangeDetail {
 
 export type HonuaSketchMode = "off" | "point" | "line" | "polygon";
 
+/** Caller-supplied messages for `<honua-sketch-control>`. */
+export interface HonuaSketchControlMessages {
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly actionLabels?: Partial<Readonly<Record<HonuaSketchMode, string>>>;
+  readonly empty?: string;
+  readonly unsupportedMessage?: string;
+}
+
 /**
  * A drawn sketch feature emitted by a {@link HonuaSketchProvider}.
  */

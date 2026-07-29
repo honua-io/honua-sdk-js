@@ -72,6 +72,7 @@ import type {
   HonuaSearchResult,
   HonuaSelectionChangeDetail,
   HonuaSketchChangeDetail,
+  HonuaSketchControlMessages,
   HonuaSketchMode,
   HonuaViewportChangeDetail,
   HonuaViewportState,
@@ -1921,6 +1922,17 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
   }
 
   #mode: HonuaSketchMode = "off";
+  #messages: HonuaSketchControlMessages = {};
+
+  /** Caller-supplied localized status, action, and empty-state messages. */
+  public get messages(): HonuaSketchControlMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaSketchControlMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
@@ -1934,12 +1946,13 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
   protected render(): void {
     const label = this.getAttribute("label") ?? "Sketch";
     const enabled = this.controller?.canSketch() ?? false;
+    const status: HonuaComponentStatus = enabled ? "ready" : "unsupported";
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(enabled ? "ready" : "unsupported")}</span>
+          <span>${escapeHtml(this.#messages.status?.[status] ?? status)}</span>
         </div>
         <div class="segmented" role="group" aria-label="${escapeAttribute(label)}">
           ${(["off", "point", "line", "polygon"] as const)
@@ -1947,7 +1960,9 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
               (mode) => `
             <button type="button" data-sketch-mode="${mode}" aria-pressed="${String(
               this.#mode === mode,
-            )}"${enabled ? "" : ' aria-disabled="true" disabled'}>${escapeHtml(modeLabel(mode))}</button>
+            )}"${enabled ? "" : ' aria-disabled="true" disabled'}>${escapeHtml(
+              this.#messages.actionLabels?.[mode] ?? modeLabel(mode),
+            )}</button>
           `,
             )
             .join("")}
@@ -1955,7 +1970,10 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
         ${
           enabled
             ? ""
-            : `<p class="empty" role="status">Sketching is disabled because no geometry provider is configured. Pass a \`sketchGeometry\` provider to the controller to enable point, line, and polygon drawing.</p>`
+            : `<p class="empty" role="status">${escapeHtml(
+                this.#messages.empty ??
+                  "Sketching is disabled because no geometry provider is configured. Pass a `sketchGeometry` provider to the controller to enable point, line, and polygon drawing.",
+              )}</p>`
         }
       </section>
     `);
@@ -1975,6 +1993,7 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
           mode,
           status: "unsupported" as HonuaComponentStatus,
           message:
+            this.#messages.unsupportedMessage ??
             "Sketching requires a geometry provider. Configure `sketchGeometry` on the controller to enable drawing.",
         };
     this.dispatchTypedEvent<HonuaSketchChangeDetail<T>>("honua-sketch-change", detail);
