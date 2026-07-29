@@ -245,9 +245,8 @@ function createBoundCapabilityEvidenceProfile(
 function createSourceDescriptorMatcher(expectedFingerprint: Sha256): CapabilitySourceDescriptorMatcher {
   return (descriptor: Pick<SourceDescriptor, "id" | "protocol" | "locator">): boolean => {
     try {
-      return (
-        createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(descriptor)) === expectedFingerprint
-      );
+      const identity = sourceCapabilityEndpointIdentity(descriptor);
+      return createCapabilitySourceEndpointFingerprint(identity) === expectedFingerprint;
     } catch {
       return false;
     }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Query, Result, SortSpec, SourceDescriptor } from "../src/contract/index.js";
+import type { Capability, Query, Result, SortSpec, SourceDescriptor } from "../src/contract/index.js";
 import { createExplorationContext } from "../src/exploration/index.js";
 import type { FilterClause } from "../src/filter-registry/index.js";
 import type { QueryExecutionPlan } from "../src/query-planner/index.js";
@@ -42,12 +42,12 @@ interface Fixture {
   rowsServed: number;
 }
 
-function descriptor(): SourceDescriptor {
+function descriptor(capabilities: readonly Capability[] = ["query", "stream"]): SourceDescriptor {
   return {
     id: "incidents",
     protocol: "geoservices-feature-service",
     locator: { url: "https://example.test/FeatureServer/0" },
-    capabilities: new Set(["query", "stream"]),
+    capabilities: new Set(capabilities),
     schema: { primaryKey: "OBJECTID" },
   };
 }
@@ -66,6 +66,7 @@ function makeFixture(
   options: {
     readonly totalRows?: number;
     readonly reportTotalCount?: boolean;
+    readonly capabilities?: readonly Capability[];
     readonly rows?: (index: number) => Row;
   } = {},
 ): Fixture {
@@ -76,7 +77,7 @@ function makeFixture(
     requests,
     rowsServed: 0,
     source: {
-      descriptor: descriptor(),
+      descriptor: descriptor(options.capabilities),
       async query(request?: Query<Row>): Promise<Result<Row>> {
         requests.push(request ?? {});
         const offset = request?.pagination?.offset ?? 0;
@@ -408,6 +409,20 @@ describe("result truth (REQ-004)", () => {
     expect(table.snapshot.message).toContain("stable row identity");
   });
 
+  it("reports unsupported when the descriptor explicitly omits query capability", () => {
+    const table = createHonuaFeatureTable<Row>({
+      source: {
+        descriptor: { ...descriptor(), capabilities: new Set(["render"]) },
+        query: async () => ({ features: [], exceededTransferLimit: false }),
+      },
+      sourceId: "incidents",
+      columns: COLUMNS,
+    });
+
+    expect(table.snapshot.state).toBe("unsupported");
+    expect(table.snapshot.message).toContain("canonical `query` capability");
+  });
+
   it("reports unsupported for cursor paging on a source without stream", async () => {
     const table = createHonuaFeatureTable<Row>({
       source: { descriptor: descriptor(), query: async () => ({ features: [], exceededTransferLimit: false }) },
@@ -634,6 +649,18 @@ describe("bounded export (REQ-001)", () => {
 
     expect(result.rowCount).toBe(2);
     expect(JSON.parse(result.content).map((row: { id: number }) => row.id)).toEqual([2, 5]);
+  });
+
+  it("fails closed without querying when the descriptor omits query", async () => {
+    const fixture = makeFixture({ capabilities: ["stream"] });
+    const table = makeTable(fixture);
+
+    const result = await table.export({ format: "json", selectionOnly: false });
+
+    expect(result.rowCount).toBe(0);
+    expect(result.content).toBe("[]");
+    expect(table.snapshot.state).toBe("unsupported");
+    expect(fixture.requests).toHaveLength(0);
   });
 
   it("quotes CSV cells that contain the delimiter or a quote", async () => {
