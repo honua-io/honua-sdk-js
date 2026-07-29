@@ -2803,39 +2803,56 @@ function tableStyles(): string {
 
 function searchStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .search {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
       min-width: 0;
-      padding: 10px;
+      padding-block: 10px;
+      padding-inline: 10px;
       width: 100%;
     }
+    form button { padding-block: 0; padding-inline: 10px; }
     form { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; }
     input {
       border: 1px solid var(--honua-ui-border);
       border-radius: 6px;
       min-height: 32px;
       min-width: 0;
-      padding: 0 9px;
+      padding-block: 0;
+      padding-inline: 9px;
     }
-    .results { display: grid; gap: 6px; list-style: none; margin: 10px 0 0; padding: 0; }
-    .results button { text-align: left; width: 100%; }
+    .results {
+      display: grid;
+      gap: 6px;
+      list-style: none;
+      margin-block-start: 10px;
+      margin-inline: 0;
+      padding: 0;
+    }
+    .results button { text-align: start; width: 100%; }
     .suggestions {
       border: 1px solid var(--honua-ui-border);
       border-radius: 6px;
       display: grid;
       list-style: none;
-      margin: 6px 0 0;
+      margin-block-start: 6px;
+      margin-inline: 0;
       overflow: hidden;
       padding: 0;
     }
     .suggestions[hidden] { display: none; }
-    .suggestions [role="option"] { cursor: pointer; padding: 6px 9px; }
+    .suggestions [role="option"] {
+      cursor: pointer;
+      padding-block: 6px;
+      padding-inline: 9px;
+    }
     .suggestions [role="option"][aria-selected="true"] {
       background: var(--honua-ui-accent);
       color: var(--honua-ui-accent-fg);
     }
-    .status { color: var(--honua-ui-muted); margin: 6px 0 0; }
+    .status { color: var(--honua-ui-muted); margin-block-start: 6px; margin-inline: 0; }
     .status:empty { display: none; }
     @media (max-width: 320px) {
       form { grid-template-columns: minmax(0, 1fr); }
@@ -2846,15 +2863,19 @@ function searchStyles(): string {
 
 function editorStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .editor {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
-      padding: 10px;
+      padding-block: 10px;
+      padding-inline: 10px;
     }
+    button { padding-block: 0; padding-inline: 10px; }
     .editor__bar, .editor__actions { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
     .editor__actions { justify-content: flex-start; }
-    .selection { margin: 10px 0 4px; }
-    .muted { margin: 0 0 10px; }
+    .selection { margin-block: 10px 4px; margin-inline: 0; }
+    .muted { margin-block: 0 10px; margin-inline: 0; }
   `;
 }
 
@@ -2886,6 +2907,8 @@ function chartStyles(): string {
 
 function controlPanelStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .control-panel {
       background: var(--honua-ui-bg);
       border: 1px solid var(--honua-ui-border);
@@ -2893,8 +2916,10 @@ function controlPanelStyles(): string {
       display: grid;
       gap: 10px;
       min-width: 180px;
-      padding: 10px;
+      padding-block: 10px;
+      padding-inline: 10px;
     }
+    button { padding-block: 0; padding-inline: 10px; }
     .control-panel__bar {
       align-items: center;
       display: flex;
@@ -2911,7 +2936,7 @@ function controlPanelStyles(): string {
     }
     .button-stack button {
       justify-content: flex-start;
-      text-align: left;
+      text-align: start;
     }
     .segmented {
       display: grid;
@@ -2920,7 +2945,8 @@ function controlPanelStyles(): string {
     }
     .segmented button {
       min-width: 0;
-      padding: 0 8px;
+      padding-block: 0;
+      padding-inline: 8px;
     }
     button[aria-pressed="true"] {
       background: var(--honua-ui-accent);
