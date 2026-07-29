@@ -20,7 +20,7 @@
  */
 
 import type { HonuaClient } from "./client.js";
-import { HonuaHttpError, HonuaWfsExceptionError } from "./errors.js";
+import { HonuaAbortError, HonuaHttpError, HonuaWfsExceptionError } from "./errors.js";
 import {
   type WfsCapabilitiesSnapshot,
   type WfsTransactionSummary,
@@ -32,6 +32,8 @@ import {
 
 const DEFAULT_VERSION = "2.0.0";
 const SERVICE_PARAM = "WFS";
+const WFS_METADATA_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const WFS_FEATURE_MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 
 /** Output formats (lower-cased) the canonical adapter treats as JSON. */
 const JSON_OUTPUT_FORMATS = new Set([
@@ -77,6 +79,22 @@ export interface HonuaWfsOptions {
   version?: string;
 }
 
+interface CapabilitiesFlight {
+  readonly generation: number;
+  readonly identity: object;
+  readonly controller: AbortController;
+  readonly promise: Promise<WfsCapabilitiesSnapshot>;
+  subscribers: number;
+  settled: boolean;
+}
+
+interface CapabilitiesState {
+  generation: number;
+  flight?: CapabilitiesFlight;
+}
+
+const CAPABILITIES_STATES = new WeakMap<HonuaWfs, CapabilitiesState>();
+
 /**
  * Root WFS handle. Holds the capabilities cache and exposes feature-type /
  * stored-query factories.
@@ -89,7 +107,6 @@ export class HonuaWfs {
   /** Counter exposed for tests / diagnostics: how many times capabilities was fetched. */
   public capabilitiesFetches = 0;
 
-  private capabilitiesPromise: Promise<WfsCapabilitiesSnapshot> | undefined;
   private rawCapabilitiesXml: string | undefined;
   private resolvedSnapshot: WfsCapabilitiesSnapshot | undefined;
 
@@ -97,28 +114,66 @@ export class HonuaWfs {
     this.client = options.client;
     this.endpointUrl = options.endpointUrl;
     this.version = options.version ?? DEFAULT_VERSION;
+    CAPABILITIES_STATES.set(this, { generation: 0 });
   }
 
   /**
    * Fetch and cache the GetCapabilities document. Subsequent calls reuse the
    * parsed snapshot. Throws `HonuaWfsExceptionError` on `<ows:ExceptionReport>`.
    */
-  public capabilities(options?: { signal?: AbortSignal }): Promise<WfsCapabilitiesSnapshot> {
-    if (!this.capabilitiesPromise) {
-      this.capabilitiesPromise = this.fetchCapabilities(options).catch((err) => {
-        // Allow retry after a transient failure.
-        this.capabilitiesPromise = undefined;
-        throw err;
+  public async capabilities(options?: { signal?: AbortSignal }): Promise<WfsCapabilitiesSnapshot> {
+    if (options?.signal?.aborted) throw new HonuaAbortError();
+    if (this.resolvedSnapshot) return this.resolvedSnapshot;
+
+    const state = capabilitiesState(this);
+    const generation = state.generation;
+    let flight = state.flight;
+    if (!flight || flight.generation !== generation) {
+      const identity = {};
+      const controller = new AbortController();
+      const promise = this.fetchCapabilities({ signal: controller.signal }).then((fetched) => {
+        // A refresh advances the generation. An older response may still
+        // settle after a transport ignores abort, but it must never repopulate
+        // the cache or become evidence for the new generation.
+        if (state.generation === generation && state.flight?.identity === identity) {
+          this.rawCapabilitiesXml = fetched.xml;
+          this.resolvedSnapshot = fetched.snapshot;
+        }
+        return fetched.snapshot;
       });
+      const nextFlight: CapabilitiesFlight = {
+        generation,
+        identity,
+        controller,
+        promise,
+        subscribers: 0,
+        settled: false,
+      };
+      flight = nextFlight;
+      state.flight = nextFlight;
+      void promise.then(
+        () => {
+          nextFlight.settled = true;
+          if (state.flight === nextFlight) state.flight = undefined;
+        },
+        () => {
+          nextFlight.settled = true;
+          if (state.flight === nextFlight) state.flight = undefined;
+        },
+      );
     }
-    return this.capabilitiesPromise;
+    return subscribeCapabilitiesFlight(state, flight, options?.signal);
   }
 
   /** Discard the cached capabilities snapshot so the next call re-fetches. */
   public refresh(): void {
-    this.capabilitiesPromise = undefined;
+    const state = capabilitiesState(this);
+    state.generation += 1;
+    const staleFlight = state.flight;
+    state.flight = undefined;
     this.rawCapabilitiesXml = undefined;
     this.resolvedSnapshot = undefined;
+    if (staleFlight && !staleFlight.settled) staleFlight.controller.abort();
   }
 
   /**
@@ -159,7 +214,10 @@ export class HonuaWfs {
       version: this.version,
       request: "ListStoredQueries",
     });
-    const requestOptions: { accept: string; signal?: AbortSignal } = { accept: "application/xml, text/xml" };
+    const requestOptions: { accept: string; signal?: AbortSignal; maxResponseBytes: number } = {
+      accept: "application/xml, text/xml",
+      maxResponseBytes: WFS_METADATA_MAX_RESPONSE_BYTES,
+    };
     if (options?.signal) requestOptions.signal = options.signal;
     const { text } = await this.requestText("GET", appendQuery(this.endpointUrl, params), requestOptions);
     return parseListStoredQueriesResponse(text);
@@ -173,11 +231,24 @@ export class HonuaWfs {
   public async requestText(
     method: "GET" | "POST",
     path: string,
-    options: { accept: string; contentType?: string; body?: string; signal?: AbortSignal },
+    options: {
+      accept: string;
+      contentType?: string;
+      body?: string;
+      signal?: AbortSignal;
+      maxResponseBytes?: number;
+    },
   ): Promise<{ text: string; contentType: string; status: number }> {
     try {
-      const requestOptions: { accept: string; contentType?: string; body?: string; signal?: AbortSignal } = {
+      const requestOptions: {
+        accept: string;
+        contentType?: string;
+        body?: string;
+        signal?: AbortSignal;
+        maxResponseBytes: number;
+      } = {
         accept: options.accept,
+        maxResponseBytes: options.maxResponseBytes ?? WFS_METADATA_MAX_RESPONSE_BYTES,
       };
       if (options.contentType !== undefined) requestOptions.contentType = options.contentType;
       if (options.body !== undefined) requestOptions.body = options.body;
@@ -192,10 +263,10 @@ export class HonuaWfs {
   public negotiateOutputFormat(snapshot: WfsCapabilitiesSnapshot): OutputFormatChoice | undefined {
     const formats = snapshot.outputFormatsByOp.get("GetFeature") ?? [];
     for (const format of formats) {
-      if (JSON_OUTPUT_FORMATS.has(format)) return { kind: "json", format };
+      if (JSON_OUTPUT_FORMATS.has(format.toLowerCase())) return { kind: "json", format };
     }
     for (const format of formats) {
-      if (GML_OUTPUT_FORMATS.has(format)) return { kind: "gml", format };
+      if (GML_OUTPUT_FORMATS.has(format.toLowerCase())) return { kind: "gml", format };
     }
     if (formats.length === 0) {
       // Honua Server advertises GeoJSON in OperationsMetadata; absence is
@@ -209,34 +280,132 @@ export class HonuaWfs {
     return { kind: "gml", format: formats[0] };
   }
 
-  private async fetchCapabilities(options?: { signal?: AbortSignal }): Promise<WfsCapabilitiesSnapshot> {
+  private async fetchCapabilities(options?: { signal?: AbortSignal }): Promise<{
+    snapshot: WfsCapabilitiesSnapshot;
+    xml: string;
+  }> {
     this.capabilitiesFetches += 1;
     const params = new URLSearchParams({
       service: SERVICE_PARAM,
       version: this.version,
       request: "GetCapabilities",
     });
-    const requestOptions: { accept: string; signal?: AbortSignal } = { accept: "application/xml, text/xml" };
+    const requestOptions: { accept: string; signal?: AbortSignal; maxResponseBytes: number } = {
+      accept: "application/xml, text/xml",
+      maxResponseBytes: WFS_METADATA_MAX_RESPONSE_BYTES,
+    };
     if (options?.signal) requestOptions.signal = options.signal;
     const { text } = await this.requestText("GET", appendQuery(this.endpointUrl, params), requestOptions);
-    this.rawCapabilitiesXml = text;
-    const snapshot = parseWfsCapabilities(text);
-    canonicalizeOperationUrls(snapshot, this.endpointUrl, this.client.serverBaseUrl);
-    this.resolvedSnapshot = snapshot;
-    return snapshot;
+    const snapshot = canonicalizeOperationUrls(parseWfsCapabilities(text), this.endpointUrl, this.client.serverBaseUrl);
+    return { snapshot, xml: text };
   }
+}
+
+function capabilitiesState(root: HonuaWfs): CapabilitiesState {
+  const state = CAPABILITIES_STATES.get(root);
+  if (!state) throw new TypeError("WFS capabilities state is unavailable");
+  return state;
+}
+
+function subscribeCapabilitiesFlight(
+  state: CapabilitiesState,
+  flight: CapabilitiesFlight,
+  signal: AbortSignal | undefined,
+): Promise<WfsCapabilitiesSnapshot> {
+  flight.subscribers += 1;
+  return new Promise<WfsCapabilitiesSnapshot>((resolve, reject) => {
+    let finished = false;
+    const finish = () => {
+      if (finished) return false;
+      finished = true;
+      signal?.removeEventListener("abort", onCallerAbort);
+      flight.controller.signal.removeEventListener("abort", onGenerationAbort);
+      flight.subscribers -= 1;
+      return true;
+    };
+    const abortOrphanedFlight = () => {
+      if (flight.settled || flight.subscribers !== 0 || flight.controller.signal.aborted) return;
+      if (state.flight === flight) state.flight = undefined;
+      flight.controller.abort();
+    };
+    const onCallerAbort = () => {
+      if (!finish()) return;
+      reject(new HonuaAbortError());
+      abortOrphanedFlight();
+    };
+    const onGenerationAbort = () => {
+      if (!finish()) return;
+      reject(new HonuaAbortError("WFS capabilities discovery was invalidated"));
+    };
+
+    signal?.addEventListener("abort", onCallerAbort, { once: true });
+    flight.controller.signal.addEventListener("abort", onGenerationAbort, { once: true });
+    if (signal?.aborted) onCallerAbort();
+    else if (flight.controller.signal.aborted) onGenerationAbort();
+    flight.promise.then(
+      (snapshot) => {
+        if (!finish()) return;
+        resolve(snapshot);
+      },
+      (error: unknown) => {
+        if (!finish()) return;
+        reject(error);
+      },
+    );
+  });
 }
 
 function canonicalizeOperationUrls(
   snapshot: WfsCapabilitiesSnapshot,
   endpointUrl: string,
   clientBaseUrl: string,
-): void {
+): WfsCapabilitiesSnapshot {
   const capabilitiesEndpoint = new URL(endpointUrl, clientBaseUrl);
-  for (const operation of snapshot.operations.values()) {
-    if (operation.getUrl) operation.getUrl = new URL(operation.getUrl, capabilitiesEndpoint).toString();
-    if (operation.postUrl) operation.postUrl = new URL(operation.postUrl, capabilitiesEndpoint).toString();
-  }
+  const operations = new Map(
+    [...snapshot.operations].map(([name, operation]) => [
+      name,
+      Object.freeze({
+        ...operation,
+        ...(operation.getUrl ? { getUrl: new URL(operation.getUrl, capabilitiesEndpoint).toString() } : {}),
+        ...(operation.postUrl ? { postUrl: new URL(operation.postUrl, capabilitiesEndpoint).toString() } : {}),
+      }),
+    ]),
+  );
+  return Object.freeze({
+    ...snapshot,
+    operations: immutableWfsMap(operations),
+  });
+}
+
+function immutableWfsMap<K, V>(source: ReadonlyMap<K, V>): ReadonlyMap<K, V> {
+  const owned = new Map(source);
+  const view: ReadonlyMap<K, V> = {
+    get size(): number {
+      return owned.size;
+    },
+    get(key: K): V | undefined {
+      return owned.get(key);
+    },
+    has(key: K): boolean {
+      return owned.has(key);
+    },
+    forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: unknown): void {
+      for (const [key, value] of owned) callbackfn.call(thisArg, value, key, view);
+    },
+    entries(): MapIterator<[K, V]> {
+      return owned.entries();
+    },
+    keys(): MapIterator<K> {
+      return owned.keys();
+    },
+    values(): MapIterator<V> {
+      return owned.values();
+    },
+    [Symbol.iterator](): MapIterator<[K, V]> {
+      return owned[Symbol.iterator]();
+    },
+  };
+  return Object.freeze(view);
 }
 
 interface HonuaWfsFeatureTypeOptions {
@@ -280,13 +449,23 @@ export class HonuaWfsFeatureType {
     outputFormat?: string;
     method?: "GET" | "POST";
     body?: string;
+    namespace?: { readonly prefix: string; readonly uri: string };
     signal?: AbortSignal;
   }): Promise<
     { kind: "json"; data: unknown; contentType: string } | { kind: "raw"; text: string; contentType: string }
   > {
     const method = params.method ?? "GET";
     const accept = params.outputFormat ?? "application/geo+json, application/json;q=0.9, application/xml;q=0.5";
-    const requestOptions: { accept: string; contentType?: string; body?: string; signal?: AbortSignal } = { accept };
+    const requestOptions: {
+      accept: string;
+      contentType?: string;
+      body?: string;
+      signal?: AbortSignal;
+      maxResponseBytes: number;
+    } = {
+      accept,
+      maxResponseBytes: WFS_FEATURE_MAX_RESPONSE_BYTES,
+    };
     if (params.signal) requestOptions.signal = params.signal;
     let response: { text: string; contentType: string; status: number };
     if (method === "POST" && params.body !== undefined) {
@@ -300,6 +479,9 @@ export class HonuaWfsFeatureType {
         request: "GetFeature",
         typeNames: this.typeName,
       });
+      if (params.namespace !== undefined) {
+        search.set("NAMESPACES", `xmlns(${params.namespace.prefix},${params.namespace.uri})`);
+      }
       if (params.filter !== undefined) search.set("filter", params.filter);
       if (params.bbox !== undefined) search.set("bbox", params.bbox);
       if (params.propertyName && params.propertyName.length > 0) {
@@ -348,7 +530,10 @@ export class HonuaWfsFeatureType {
     if (params.filter !== undefined) search.set("filter", params.filter);
     if (typeof params.count === "number") search.set("count", String(params.count));
     if (typeof params.startIndex === "number") search.set("startIndex", String(params.startIndex));
-    const requestOptions: { accept: string; signal?: AbortSignal } = { accept: "application/xml, text/xml" };
+    const requestOptions: { accept: string; signal?: AbortSignal; maxResponseBytes: number } = {
+      accept: "application/xml, text/xml",
+      maxResponseBytes: WFS_FEATURE_MAX_RESPONSE_BYTES,
+    };
     if (params.signal) requestOptions.signal = params.signal;
     const { text, contentType } = await this.root.requestText(
       "GET",
@@ -380,6 +565,7 @@ export class HonuaWfsFeatureType {
     count?: number;
     startIndex?: number;
     outputFormat?: string;
+    namespace?: { readonly prefix: string; readonly uri: string };
   }): string {
     const search = new URLSearchParams({
       service: SERVICE_PARAM,
@@ -392,6 +578,9 @@ export class HonuaWfsFeatureType {
     if (typeof params.count === "number") search.set("count", String(params.count));
     if (typeof params.startIndex === "number") search.set("startIndex", String(params.startIndex));
     if (params.outputFormat !== undefined) search.set("outputFormat", params.outputFormat);
+    if (params.namespace !== undefined) {
+      search.set("NAMESPACES", `xmlns(${params.namespace.prefix},${params.namespace.uri})`);
+    }
     return appendQuery(this.root.endpointUrl, search);
   }
 }
@@ -461,7 +650,10 @@ export class HonuaWfsStoredQuery {
       }
     }
     const accept = params.outputFormat ?? "application/geo+json, application/json;q=0.9, application/xml;q=0.5";
-    const requestOptions: { accept: string; signal?: AbortSignal } = { accept };
+    const requestOptions: { accept: string; signal?: AbortSignal; maxResponseBytes: number } = {
+      accept,
+      maxResponseBytes: WFS_FEATURE_MAX_RESPONSE_BYTES,
+    };
     if (params.signal) requestOptions.signal = params.signal;
     const { text, contentType } = await this.root.requestText(
       "GET",

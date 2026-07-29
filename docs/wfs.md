@@ -356,9 +356,25 @@ the protocol escape hatch — there is no top-level
   property is read. The same walker is reused for
   `<ows:ExceptionReport>` and `<wfs:TransactionResponse>` parsing, so
   every WFS XML payload entering the canonical surface is hardened.
+  Metadata responses are capped at 2 MiB before decoding, and the walker
+  separately caps element count, nesting depth, attributes, attribute
+  bytes, and decoded text. GeoJSON feature responses are capped at 32 MiB.
 - The WFS adapter never reaches `fetch` directly; all wire calls go
   through `HonuaClient.requestText`, so the existing interceptor / retry
   / timeout / abort signal pipeline applies.
+- Canonical execution binds exact WFS 2.0 version, feature QName and
+  namespace, advertised GET/POST DCP authority, GeoJSON output format,
+  and advertised filter/response CRSes before `GetFeature`. Qualified
+  GET requests carry `NAMESPACES`; POST queries declare the QName prefix.
+  Filter geometry CRS and response `outSr` stay independent, including
+  WFS/GML authority-axis ordering for geographic CRS identifiers.
+- Capability caching stores settled snapshots only, so cancelling one
+  concurrent caller cannot reject another caller's request. Paged
+  `queryAll()` and `stream()` advance by rows actually returned, continue
+  across server-clamped pages when `numberMatched` proves more data exists,
+  and fail closed if the server stops making progress, returns more rows than
+  the requested count, or would advance beyond JavaScript's safe-integer
+  paging range.
 - WFS responses with content-type `application/xml` containing
   `<ows:ExceptionReport>` are turned into typed
   `HonuaWfsExceptionError` instances (`exceptionCode`, `locator`, and
@@ -367,7 +383,9 @@ the protocol escape hatch — there is no top-level
   `HonuaWfsExceptionError` is also raised when an
   `<ows:ExceptionReport>` arrives wrapped inside a `HonuaHttpError`
   body (the body is sniffed for `ExceptionReport` and re-thrown as
-  the typed error before the failure leaves the adapter).
+  the typed error before the failure leaves the adapter). Malformed GeoJSON
+  and inconsistent paging metadata surface as `HonuaWfsProtocolError`
+  rather than empty successful results.
 
 ## Server compatibility
 

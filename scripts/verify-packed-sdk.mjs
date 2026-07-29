@@ -246,6 +246,114 @@ if (events.join(",") !== "initialize,dispose") throw new Error(\`installed plugi
   run("installed plugin registry lifecycle", process.execPath, ["plugin-registry-smoke.mjs"], {
     cwd: consumerRoot,
   });
+  fs.writeFileSync(
+    path.join(consumerRoot, "wfs-protocol-smoke.mjs"),
+    `import { HonuaClient } from "@honua/sdk-js";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { createQueryIr, wfsProtocolModule } from "@honua/sdk-js/query-planner";
+const calls = [];
+const endpoint = "https://packed.example.test/wfs";
+const capabilities = \`<?xml version="1.0"?>
+<wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:demo="https://packed.example.test/ns/demo" version="2.0.0">
+  <ows:OperationsMetadata><ows:Operation name="GetFeature"><ows:DCP><ows:HTTP><ows:Get/><ows:Post/></ows:HTTP></ows:DCP><ows:Parameter name="outputFormat"><ows:AllowedValues><ows:Value>application/geo+json</ows:Value></ows:AllowedValues></ows:Parameter></ows:Operation></ows:OperationsMetadata>
+  <wfs:FeatureTypeList><wfs:FeatureType><wfs:Name>demo:parcels</wfs:Name><wfs:DefaultCRS>urn:ogc:def:crs:EPSG::4326</wfs:DefaultCRS><wfs:OtherCRS>urn:ogc:def:crs:EPSG::3857</wfs:OtherCRS></wfs:FeatureType></wfs:FeatureTypeList>
+</wfs:WFS_Capabilities>\`;
+const client = new HonuaClient({
+  baseUrl: "https://packed.example.test",
+  fetchFn(input) {
+    const url = new URL(String(input));
+    const request = url.searchParams.get("request");
+    calls.push(url);
+    if (request === "GetCapabilities") {
+      return Promise.resolve(new Response(capabilities, { headers: { "Content-Type": "application/xml" } }));
+    }
+    if (request === "GetFeature") {
+      return Promise.resolve(new Response(JSON.stringify({
+        type: "FeatureCollection",
+        features: [{ type: "Feature", id: 1, properties: { id: 1 }, geometry: null }],
+        numberMatched: 1,
+      }), { headers: { "Content-Type": "application/geo+json" } }));
+    }
+    return Promise.resolve(new Response("not found", { status: 404 }));
+  },
+});
+const descriptor = {
+  id: "packed-wfs",
+  protocol: "wfs",
+  locator: { url: endpoint, typeName: "demo:parcels", featureNamespace: "https://packed.example.test/ns/demo" },
+  capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
+};
+const module = wfsProtocolModule(client);
+const handle = module.discover(descriptor);
+if (handle instanceof Promise) throw new Error("installed WFS discovery unexpectedly performed I/O");
+if (calls.length !== 0) throw new Error("installed WFS discovery performed I/O");
+const ir = createQueryIr({
+  descriptor,
+  query: { pagination: { limit: 1 } },
+});
+const compiled = module.compile({
+  source: ir.source,
+  query: ir.query,
+  operation: "query",
+});
+if (compiled.compiler !== "wfs-2.0-protocol-query-v1" || compiled.operation !== "query") {
+  throw new Error("installed WFS compiler artifact mismatch");
+}
+const result = await module.execute(handle, { compiled, operation: "query", query: {} });
+const requests = calls.map((url) => url.searchParams.get("request"));
+if (result.features[0]?.attributes.id !== 1 || requests.join(",") !== "GetCapabilities,GetFeature") {
+  throw new Error("installed WFS protocol execution mismatch");
+}
+if (calls[1]?.searchParams.get("NAMESPACES") !== "xmlns(demo,https://packed.example.test/ns/demo)") {
+  throw new Error("installed WFS qualified type namespace binding mismatch");
+}
+
+const alphaToken = "alpha-packed-secret";
+const betaToken = "beta-packed-secret";
+const alphaDescriptor = {
+  ...descriptor,
+  locator: { ...descriptor.locator, url: \`\${endpoint}?token=\${alphaToken}\` },
+};
+const betaDescriptor = {
+  ...descriptor,
+  locator: { ...descriptor.locator, url: \`\${endpoint}?token=\${betaToken}\` },
+};
+const betaHandle = module.discover(betaDescriptor);
+if (betaHandle instanceof Promise) throw new Error("installed WFS authority discovery unexpectedly performed I/O");
+const alphaIr = createQueryIr({ descriptor: alphaDescriptor });
+const alphaCompiled = module.compile({
+  source: alphaIr.source,
+  query: alphaIr.query,
+  operation: "query",
+});
+const artifactJson = JSON.stringify(alphaCompiled);
+if (artifactJson.includes(alphaToken) || artifactJson.includes(betaToken)) {
+  throw new Error("installed WFS compiler artifact retained credential query material");
+}
+const callsBeforeAuthorityCheck = calls.length;
+await module.execute(betaHandle, { compiled: alphaCompiled, operation: "query", query: {} }).then(
+  () => { throw new Error("installed WFS cross-authority artifact executed"); },
+  (error) => {
+    if (!(error instanceof TypeError) || !/authority/.test(error.message)) throw error;
+  },
+);
+if (calls.length !== callsBeforeAuthorityCheck) {
+  throw new Error("installed WFS cross-authority rejection performed I/O");
+}
+await betaHandle.dispose();
+await handle.dispose();
+await handle.dispose();
+await module.execute(handle, { compiled, operation: "query", query: {} }).then(
+  () => { throw new Error("installed WFS disposed handle executed"); },
+  (error) => {
+    if (!(error instanceof TypeError) || !/disposed/.test(error.message)) throw error;
+  },
+);
+`,
+  );
+  run("installed WFS protocol module", process.execPath, ["wfs-protocol-smoke.mjs"], {
+    cwd: consumerRoot,
+  });
 
   fs.copyFileSync(
     path.join(projectRoot, "test", "fixtures", "pmtiles", "sample-vector.pmtiles"),
@@ -320,6 +428,15 @@ if (described?.tileKind !== "mvt" || ranges.length !== 1) {
     path.join(consumerRoot, "types-smoke.ts"),
     typeSmokeSource(packageJson.name, entrypoints),
   );
+  fs.writeFileSync(
+    path.join(consumerRoot, "wfs-protocol-types.ts"),
+    `import type { HonuaClient } from "@honua/sdk-js";
+import { type WfsProtocolModule, wfsProtocolModule } from "@honua/sdk-js/query-planner";
+declare const client: HonuaClient;
+const module: WfsProtocolModule = wfsProtocolModule(client);
+void module;
+`,
+  );
   fs.copyFileSync(
     path.join(projectRoot, "test", "root-surface", "moved-types.ts"),
     path.join(consumerRoot, "root-migration-types.ts"),
@@ -342,7 +459,7 @@ if (described?.tileKind !== "mvt" || ranges.length !== 1) {
           target: "ES2022",
           types: [],
         },
-        files: ["types-smoke.ts", "root-migration-types.ts", "root-golden.ts"],
+        files: ["types-smoke.ts", "wfs-protocol-types.ts", "root-migration-types.ts", "root-golden.ts"],
       },
       null,
       2,
@@ -424,7 +541,7 @@ if (described?.tileKind !== "mvt" || ranges.length !== 1) {
   );
 
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} realtimeConformance=full-10-scenario-matrix:sse+websocket+odata geocoding=runtime pmtilesConnect=bounded-range rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal registryInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} realtimeConformance=full-10-scenario-matrix:sse+websocket+odata geocoding=runtime pmtilesConnect=bounded-range wfsProtocol=runtime+types+authority rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal registryInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(
