@@ -59,40 +59,62 @@ describe("WFS query planning", () => {
     expect(plan.steps[0]).toMatchObject({
       engine: "remote",
       compiled: {
-        compiler: "wfs-2.0-get-feature-v1",
+        compiler: "wfs-2.0-protocol-query-v1",
+        operation: "query",
+        endpoint: "https://geo.example.test/wfs",
         typeName: "cad:parcels",
+        method: "GET",
         propertyName: ["parcel_id", "status", "the_geom"],
-        sortBy: "parcel_id DESC",
+        sortBy: "parcel_id D",
         startIndex: 5,
         count: 25,
       },
     });
     const step = plan.steps[0];
-    if (!step || step.engine !== "remote" || step.compiled.compiler !== "wfs-2.0-get-feature-v1") {
+    if (!step || step.engine !== "remote" || step.compiled.compiler !== "wfs-2.0-protocol-query-v1") {
       throw new Error("expected WFS remote step");
     }
     expect(step.compiled.filter).toContain("<fes:And>");
     expect(step.compiled.filter).toContain("A&amp;B");
     expect(step.compiled.filter).toContain("<fes:BBOX>");
     expect(JSON.stringify(plan)).not.toContain("secret");
+    const legacy = compileWfsQuery(plan.ir.source, plan.ir.query);
+    expect(legacy).toMatchObject({
+      compiler: "wfs-2.0-get-feature-v1",
+      sortBy: "parcel_id DESC",
+      count: 25,
+    });
   });
 
   it("fails closed for unsupported FES and permits only explicit bounded local aggregation", () => {
     expect(() =>
       explainQuery({ descriptor: wfsDescriptor(), query: { where: "UPPER(status) = 'OPEN'" } }),
     ).toThrowError(expect.objectContaining({ code: "unsupported-query" }));
-    expect(() =>
-      explainQuery({
-        descriptor: wfsDescriptor(),
-        query: {
-          spatialFilter: {
-            geometry: { xmin: -158, ymin: 20, xmax: -157, ymax: 21 },
-            geometryType: "esriGeometryEnvelope",
+    const spatialResponseCrs = explainQuery({
+      descriptor: wfsDescriptor(),
+      query: {
+        spatialFilter: {
+          geometry: {
+            xmin: -158,
+            ymin: 20,
+            xmax: -157,
+            ymax: 21,
+            spatialReference: { wkid: 4326 },
           },
-          outSr: "EPSG:3857",
+          geometryType: "esriGeometryEnvelope",
         },
-      }),
-    ).toThrowError(expect.objectContaining({ code: "unsupported-query" }));
+        outSr: "EPSG:3857",
+      },
+    });
+    expect(spatialResponseCrs.steps[0]).toMatchObject({
+      compiled: {
+        compiler: "wfs-2.0-protocol-query-v1",
+        operation: "query",
+        bbox: "20,-158,21,-157,urn:ogc:def:crs:EPSG::4326",
+        filterSrsName: "urn:ogc:def:crs:EPSG::4326",
+        srsName: "EPSG:3857",
+      },
+    });
 
     const responseCrs = explainQuery({
       descriptor: wfsDescriptor(),
@@ -110,7 +132,7 @@ describe("WFS query planning", () => {
     expect(plan.steps[0]).toMatchObject({
       engine: "remote",
       operation: "queryAll",
-      compiled: { compiler: "wfs-2.0-get-feature-v1", count: 101 },
+      compiled: { compiler: "wfs-2.0-protocol-query-v1", operation: "queryAll", count: 101 },
     });
     expect(() =>
       explainQuery({

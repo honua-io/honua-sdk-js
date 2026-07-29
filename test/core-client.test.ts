@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaAbortError, HonuaClient, HonuaHttpError, HonuaTimeoutError } from "../src/index.js";
+import { HonuaAbortError, HonuaClient, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "../src/index.js";
 
 describe("HonuaClient", () => {
   it("preserves cache mode and exposes every physical pipelineFetch attempt", async () => {
@@ -1458,6 +1458,106 @@ describe("HonuaClient", () => {
     const response = await client.listServices();
     expect(afterPayload).toEqual({ services: [{ id: "default" }] });
     expect(response).toMatchObject({ services: [{ id: "default" }] });
+  });
+
+  it("admits bounded text before after interceptors and preserves response semantics", async () => {
+    let payload = "x".repeat(1024);
+    const afterBodies: string[] = [];
+    const afterSemantics: Array<{
+      url: string;
+      status: number;
+      statusText: string;
+      type: Response["type"];
+      redirected: boolean;
+      contentType: string | null;
+    }> = [];
+    const errors: unknown[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      interceptors: [
+        {
+          after: async ({ response }) => {
+            afterSemantics.push({
+              url: response.url,
+              status: response.status,
+              statusText: response.statusText,
+              type: response.type,
+              redirected: response.redirected,
+              contentType: response.headers.get("content-type"),
+            });
+            afterBodies.push(await response.text());
+          },
+          error: ({ error }) => {
+            errors.push(error);
+          },
+        },
+      ],
+      fetchFn: async () => {
+        const response = new Response(payload, {
+          status: 200,
+          statusText: "Reviewed",
+          headers: { "Content-Type": "application/xml" },
+        });
+        Object.defineProperties(response, {
+          url: { configurable: true, value: "https://example.test/wfs?request=GetFeature" },
+          type: { configurable: true, value: "cors" },
+          redirected: { configurable: true, value: true },
+        });
+        return response;
+      },
+    });
+
+    await expect(
+      client.requestText("GET", "/wfs?request=GetFeature", {
+        accept: "application/xml",
+        maxResponseBytes: 1024,
+      }),
+    ).resolves.toEqual({ text: payload, contentType: "application/xml", status: 200 });
+    expect(afterBodies).toEqual([payload]);
+    expect(afterSemantics).toEqual([
+      {
+        url: "https://example.test/wfs?request=GetFeature",
+        status: 200,
+        statusText: "Reviewed",
+        type: "cors",
+        redirected: true,
+        contentType: "application/xml",
+      },
+    ]);
+
+    payload = "x".repeat(1025);
+    await expect(
+      client.requestText("GET", "/wfs?request=GetPropertyValue", {
+        accept: "application/xml",
+        maxResponseBytes: 1024,
+      }),
+    ).rejects.toBeInstanceOf(HonuaNetworkError);
+    expect(afterBodies).toHaveLength(1);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(HonuaNetworkError);
+  });
+
+  it("keeps bounded text timeouts active through nonsettling after hooks", async () => {
+    const errors: unknown[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      timeoutMs: 10,
+      interceptors: [
+        {
+          after: () => new Promise<void>(() => undefined),
+          error: ({ error }) => {
+            errors.push(error);
+          },
+        },
+      ],
+      fetchFn: async () => new Response("bounded", { status: 200 }),
+    });
+
+    await expect(
+      client.requestText("GET", "/wfs", { accept: "application/xml", maxResponseBytes: 1024 }),
+    ).rejects.toBeInstanceOf(HonuaTimeoutError);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(HonuaTimeoutError);
   });
 
   it("invokes only error interceptors for HTTP error responses", async () => {

@@ -306,6 +306,46 @@ Issue #655 adds the first query-capable built-in:
   handle-bound execution, and idempotent disposal without sharing OData or SDK
   internal implementation.
 
+Issue #823 migrates WFS 2.0 through that proven query seam:
+
+- `wfsProtocolModule(client)` owns synchronous feature-type discovery,
+  credential-free deterministic FES/KVP compilation, lazy GetCapabilities
+  evidence, negotiated GeoJSON output, advertised GET/POST DCP routing, and
+  canonical `query` / `queryAll` execution. `wfsSource()` routes `query`,
+  `queryAll`, and bounded page streaming through the same module while
+  preserving the existing `HonuaWfsFeatureType` escape hatch.
+- Planner dispatch and module consumers call the exact
+  `wfsProtocolQueryCompiler` hook. Executable
+  `wfs-2.0-protocol-query-v1` artifacts bind the operation, canonical
+  endpoint/type identity, method, paging, projection, sorting, CRS, and FES or
+  bbox intent without carrying credentials, signals, clients, negotiated
+  formats, or transport objects. The legacy operation-neutral
+  `compileWfsQuery()` output remains unchanged. Persisted
+  `wfs-2.0-get-feature-v1` plans are first integrity-checked against that
+  legacy compiler, then rebuilt through the operation-bound compiler before
+  parsing, serialization, or execution; the unchanged `1.0` plan version never
+  silently changes the meaning of an existing snapshot.
+- Execution accepts only handles discovered by that module instance and rejects
+  operation swaps, endpoint/type substitution, credential-query or
+  authorization-scope substitution, paging-context drift, invalid method
+  selection, and disposed handles before network I/O. Artifacts retain only a
+  secret-free authority digest. Runtime cancellation, capability/output
+  evidence, and client authority remain on the handle; only settled capability
+  snapshots are cached, so concurrent callers retain independent cancellation.
+- Before `GetFeature`, execution binds exact WFS 2.0 version, feature QName and
+  namespace, advertised DCP method/authority, GeoJSON output spelling, and
+  advertised filter/response CRS evidence. GET-only servers never receive a
+  POST; qualified GET and POST requests carry their required namespace binding.
+  Filter geometry CRS is compiled independently from response `outSr`, including
+  authority-axis ordering. Bounded XML/GeoJSON reads, bounded XML parsing,
+  strict GeoJSON projection, and zero-progress detection fail closed.
+- `test/plugin-wfs-protocol-seam.test.ts` certifies the same factory through
+  public contract/query-planner/plugin entrypoints and covers compiler parity,
+  persistence, built-in query-family behavior, authority isolation,
+  cancellation, typed capability failures, and repeated disposal. The packed
+  SDK gate also imports, types, compiles, executes, and disposes the installed
+  WFS module.
+
 ### Remaining protocol-module migration assessment
 
 Issue #655 proves the versioned query seam; it does not turn the remainder into
@@ -314,7 +354,6 @@ children of the adapter-extensibility epic:
 
 | Recommended child scope | Remaining adapters | Why it stays separate |
 | --- | --- | --- |
-| Filter-encoding query adapter | WFS 2.0 | FES, output negotiation, namespace and semantic-compiler evidence need one parity review |
 | HTTP feature query adapters | OGC API Features; GeoServices feature/map/image | Pagination, aggregation, edits, and capability negotiation are wider than the OData proof |
 | Opaque/local execution adapters | GeoParquet | Resource-handle authority, optional DuckDB peer loading, worker lifecycle, and v1/v2 compiled artifacts must move together |
 | RPC query adapter | gRPC FeatureService | Generated protobuf/connect peers and transport disposal have distinct bundle and authority constraints |
