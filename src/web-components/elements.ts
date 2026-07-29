@@ -2623,6 +2623,8 @@ function baseStyles(): string {
 
 function mapStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .map {
       background: #dbeafe;
       border: 1px solid var(--honua-ui-border);
@@ -2638,7 +2640,8 @@ function mapStyles(): string {
       display: flex;
       gap: 8px;
       justify-content: space-between;
-      padding: 8px 10px;
+      padding-block: 8px;
+      padding-inline: 10px;
     }
     .map__controls { align-items: center; display: flex; gap: 6px; }
     .icon-button { min-width: 32px; padding: 0; }
@@ -2672,18 +2675,19 @@ function mapStyles(): string {
       position: absolute;
     }
     .map__renderer .maplibregl-canvas {
-      left: 0;
+      inset-block-start: 0;
+      inset-inline-start: 0;
       position: absolute;
-      top: 0;
     }
     .map__status {
       background: rgba(255,255,255,0.86);
       border-radius: 6px;
       color: var(--honua-ui-muted);
-      left: 10px;
-      padding: 4px 7px;
+      inset-block-start: 10px;
+      inset-inline-start: 10px;
+      padding-block: 4px;
+      padding-inline: 7px;
       position: absolute;
-      top: 10px;
       z-index: 1;
     }
     .map__status:empty { display: none; }
@@ -2696,17 +2700,27 @@ function mapStyles(): string {
 
 function listStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .panel {
       background: var(--honua-ui-bg);
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
       margin: 0;
-      padding: 10px;
+      padding-block: 10px;
+      padding-inline: 10px;
     }
-    legend { font-weight: 650; padding: 0 4px; }
+    legend { font-weight: 650; padding-block: 0; padding-inline: 4px; }
     .stack { display: grid; gap: 8px; }
     .check-row { align-items: center; display: flex; gap: 8px; min-height: 28px; }
-    .legend { display: grid; gap: 8px; list-style: none; margin: 10px 0 0; padding: 0; }
+    .legend {
+      display: grid;
+      gap: 8px;
+      list-style: none;
+      margin-block-start: 10px;
+      margin-inline: 0;
+      padding: 0;
+    }
     .legend li { align-items: center; display: flex; gap: 8px; min-height: 24px; }
     .swatch {
       background: var(--swatch);
@@ -2745,7 +2759,7 @@ function layerListStyles(): string {
       align-items: center;
       display: flex;
       gap: 6px;
-      padding-left: 24px;
+      padding-inline-start: 24px;
     }
     .opacity { flex: 1; min-width: 60px; }
     .move { min-width: 32px; padding: 0; }
@@ -2754,6 +2768,8 @@ function layerListStyles(): string {
 
 function tableStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .table-panel {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
@@ -2764,15 +2780,17 @@ function tableStyles(): string {
       background: var(--honua-ui-surface);
       display: flex;
       justify-content: space-between;
-      padding: 8px 10px;
+      padding-block: 8px;
+      padding-inline: 10px;
     }
     .table-wrap { max-height: 300px; overflow: auto; }
     table { border-collapse: collapse; min-width: 100%; table-layout: fixed; }
     th, td {
       border-top: 1px solid var(--honua-ui-border);
       overflow: hidden;
-      padding: 7px 9px;
-      text-align: left;
+      padding-block: 7px;
+      padding-inline: 9px;
+      text-align: start;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -2842,10 +2860,13 @@ function editorStyles(): string {
 
 function chartStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .chart {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
-      padding: 10px;
+      padding-block: 10px;
+      padding-inline: 10px;
     }
     .bars { display: grid; gap: 8px; margin-top: 10px; }
     .bar-row { align-items: center; display: grid; gap: 8px; grid-template-columns: minmax(70px, 1fr) 3fr auto; }
@@ -2854,7 +2875,9 @@ function chartStyles(): string {
       background: var(--bar-color);
       border-radius: inherit;
       content: "";
-      inset: 0 auto 0 0;
+      inset-block: 0;
+      inset-inline-end: auto;
+      inset-inline-start: 0;
       position: absolute;
       width: var(--bar);
     }
