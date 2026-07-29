@@ -553,6 +553,9 @@ const CANCELLED_MESSAGE = "The table refresh was cancelled.";
 const NO_IDENTITY_FIELD_MESSAGE =
   "A stable row identity is required. Set `identityField` (or the source descriptor's `schema.primaryKey`) so selection, focus, and realtime reconciliation survive paging.";
 
+const QUERY_CAPABILITY_MESSAGE =
+  "The source does not advertise the canonical `query` capability, so a feature table cannot claim that bounded paging is supported.";
+
 const IDENTITY_REQUIRED_HINT =
   "Every row must carry a string or number identity value, or selection and realtime reconciliation cannot survive paging.";
 
@@ -585,6 +588,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   const authorizationScope: readonly string[] = Object.freeze([...(options.authorizationScope ?? [])]);
   const returnGeometry = options.returnGeometry ?? false;
   const identityField = options.identityField ?? options.source.descriptor?.schema?.primaryKey;
+  const queryCapabilityAdvertised = options.source.descriptor?.capabilities?.has("query");
 
   const listeners = new Set<(snapshot: HonuaFeatureTableSnapshot<T>) => void>();
   const pages = new Map<number, CachedPage<T>>();
@@ -604,13 +608,16 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   let selection: readonly HonuaFeatureTableRowKey[] = Object.freeze([]);
   let focus: HonuaFeatureTableFocus | undefined;
   let window: HonuaFeatureTableWindow = Object.freeze({ startIndex: 0, endIndex: 0 });
-  let state: HonuaFeatureTableState = identityField && !misconfiguredPageSize ? "idle" : "unsupported";
+  let state: HonuaFeatureTableState =
+    identityField && !misconfiguredPageSize && queryCapabilityAdvertised !== false ? "idle" : "unsupported";
   let stale = false;
   let message: string | undefined = !identityField
     ? NO_IDENTITY_FIELD_MESSAGE
-    : misconfiguredPageSize
-      ? `\`budgets.pageSize\` (${budgets.pageSize}) exceeds \`budgets.maxCachedRows\` (${budgets.maxCachedRows}), so ${PAGE_SIZE_HINT}`
-      : undefined;
+    : queryCapabilityAdvertised === false
+      ? QUERY_CAPABILITY_MESSAGE
+      : misconfiguredPageSize
+        ? `\`budgets.pageSize\` (${budgets.pageSize}) exceeds \`budgets.maxCachedRows\` (${budgets.maxCachedRows}), so ${PAGE_SIZE_HINT}`
+        : undefined;
   /** Set when a bounded operation had to give something up; survives a successful run. */
   let budgetNotice: string | undefined;
   let error: unknown;
@@ -1370,6 +1377,16 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
 
   async function runExport(request: HonuaFeatureTableExportRequest): Promise<HonuaFeatureTableExport> {
     const fields = orderedFields();
+    if (currentState() === "unsupported") {
+      return Object.freeze({
+        format: request.format,
+        content: request.format === "csv" ? toCsv([], fields, columns) : toJson([], fields, columns),
+        rowCount: 0,
+        truncated: false,
+        columns: Object.freeze([...fields]),
+        evidence,
+      });
+    }
     const ceiling = Math.max(0, Math.min(request.maxRows ?? budgets.maxExportRows, budgets.maxExportRows));
     const rows: HonuaFeatureTableRow<T>[] = [];
     let limit: HonuaFeatureTableBudgetKind | undefined =
