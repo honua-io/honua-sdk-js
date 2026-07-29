@@ -307,6 +307,7 @@ export type {
 export type {
   HonuaActionDetail,
   HonuaActionPanelAction,
+  HonuaActionPanelMessages,
   HonuaBasemapChangeDetail,
   HonuaBookmark,
   HonuaBookmarkChangeDetail,
