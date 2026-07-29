@@ -297,6 +297,7 @@ const markReady = () => {
   runtime.ready = true;
   eventLog.push("ready");
   writeEventLog();
+  window.clearInterval(readinessTimer);
 };
 
 map.addEventListener("honua-map-ready", markReady);
@@ -309,6 +310,10 @@ queueMicrotask(() => {
   const renderedMap = (map as HTMLElement & { map?: { loaded?(): boolean } }).map;
   if (renderedMap?.loaded?.()) markReady();
 });
+const readinessTimer = window.setInterval(() => {
+  const renderedMap = (map as HTMLElement & { map?: { loaded?(): boolean } }).map;
+  if (renderedMap?.loaded?.()) markReady();
+}, 50);
 
 map.addEventListener("honua-map-error", (event) => {
   const detail = (event as CustomEvent<{ message: string }>).detail;

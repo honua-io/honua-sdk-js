@@ -3327,9 +3327,12 @@ function controlPanelStyles(): string {
       display: grid;
       gap: 10px;
       min-width: 180px;
+      max-width: 100%;
+      min-inline-size: 0;
       padding-block: 10px;
       padding-inline: 10px;
     }
+    .control-panel > * { min-width: 0; max-width: 100%; }
     button { padding-block: 0; padding-inline: 10px; }
     .control-panel__bar {
       align-items: center;
@@ -3374,6 +3377,7 @@ function controlPanelStyles(): string {
     }
     p {
       margin: 0;
+      overflow-wrap: anywhere;
     }
     @media (max-width: 240px) {
       .control-panel {
