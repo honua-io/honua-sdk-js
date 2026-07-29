@@ -101,4 +101,13 @@ describe("<honua-legend> (survival tier)", () => {
     expect(stylesheet).toContain("border: 2px solid CanvasText;");
     expect(stylesheet).toContain("forced-color-adjust: none;");
   });
+
+  it("emits narrow-container-safe legend rules", () => {
+    const element = mountLegend(makeController());
+    const stylesheet = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toContain("@media (max-width: 320px)");
+    expect(stylesheet).toContain(".legend li { align-items: flex-start; min-width: 0; }");
+    expect(stylesheet).toContain("overflow-wrap: anywhere;");
+  });
 });

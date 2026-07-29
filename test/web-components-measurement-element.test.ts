@@ -100,6 +100,15 @@ describe("<honua-measurement> (survival tier)", () => {
     expect(styles).toContain("button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }");
   });
 
+  it("emits narrow-container-safe layout rules", () => {
+    const element = mount(makeMap());
+    const styles = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(styles).toContain("@media (max-width: 320px)");
+    expect(styles).toContain(".segmented { grid-template-columns: minmax(0, 1fr); }");
+    expect(styles).toContain(".actions button { flex: 1 1 120px; min-width: 0; }");
+  });
+
   it("measures distance from map clicks with the geodesic geometry ops", () => {
     const map = makeMap();
     const element = mount(map);

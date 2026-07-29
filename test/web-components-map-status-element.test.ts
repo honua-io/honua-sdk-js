@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { HonuaMapStatusElement } from "../src/web-components/index.js";
+import { HonuaMapElement, HonuaMapStatusElement } from "../src/web-components/index.js";
 
 describe("<honua-map-status> high-contrast styles", () => {
   it("preserves status text, state meaning, and action distinction with system colors", () => {
@@ -23,5 +23,17 @@ describe("<honua-map-status> high-contrast styles", () => {
     expect(stylesheet).toContain("border: 2px solid ButtonText;");
     expect(stylesheet).toContain("color: ButtonText;");
     expect(stylesheet).toContain("forced-color-adjust: none;");
+  });
+});
+
+describe("<honua-map> responsive styles", () => {
+  it("emits narrow-container-safe chrome and footer rules", () => {
+    const element = new HonuaMapElement();
+    document.body.append(element);
+    const stylesheet = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toContain("@media (max-width: 320px)");
+    expect(stylesheet).toContain(".map__chrome, .map__footer");
+    expect(stylesheet).toContain(".map__controls { justify-content: space-between; width: 100%; }");
   });
 });

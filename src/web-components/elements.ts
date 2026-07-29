@@ -2763,6 +2763,14 @@ function mapStyles(): string {
     .maplibregl-control-container {
       display: none;
     }
+    @media (max-width: 320px) {
+      .map { min-width: 0; }
+      .map__chrome, .map__footer {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .map__controls { justify-content: space-between; width: 100%; }
+    }
   `;
 }
 
@@ -2794,6 +2802,11 @@ function listStyles(): string {
 
 function legendStyles(): string {
   return `
+    @media (max-width: 320px) {
+      .panel { min-width: 0; }
+      .legend li { align-items: flex-start; min-width: 0; }
+      .legend li > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+    }
     @media (forced-colors: active), (prefers-contrast: more) {
       .legend li { color: CanvasText; }
       .legend .swatch {
@@ -2821,6 +2834,12 @@ function layerListStyles(): string {
     }
     .opacity { flex: 1; min-width: 60px; }
     .move { min-width: 32px; padding: 0; }
+    @media (max-width: 320px) {
+      .panel { min-width: 0; }
+      .layer-row__tools { flex-wrap: wrap; padding-left: 0; }
+      .opacity { min-width: 0; width: 100%; }
+      .move { flex: 1 1 32px; }
+    }
   `;
 }
 
@@ -2929,6 +2948,11 @@ function chartStyles(): string {
       inset: 0 auto 0 0;
       position: absolute;
       width: var(--bar);
+    }
+    @media (max-width: 320px) {
+      .chart { min-width: 0; }
+      .bar-row { grid-template-columns: minmax(0, 1fr); }
+      .bar { min-width: 0; width: 100%; }
     }
   `;
 }

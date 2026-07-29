@@ -846,6 +846,12 @@ function editorStyles(): string {
       padding: 8px 10px;
     }
     .conflict p { margin: 0; }
+    @media (max-width: 320px) {
+      .panel { min-width: 0; }
+      .bar { align-items: flex-start; flex-direction: column; }
+      .segmented, .actions { width: 100%; }
+      .segmented button, .actions button { flex: 1 1 120px; min-width: 0; }
+    }
     @media (forced-colors: active), (prefers-contrast: more) {
       :host {
         forced-color-adjust: auto;
