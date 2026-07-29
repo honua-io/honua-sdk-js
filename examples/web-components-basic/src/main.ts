@@ -33,8 +33,11 @@ import "./styles.css";
 // the alternate tag opt-in so the normal sample still demonstrates the public
 // `<honua-layer-list>` tag without changing its ownership.
 if (new URLSearchParams(window.location.search).has("controls-layer-list")) {
-  customElements.define("honua-controls-layer-list", HonuaLayerListElement);
-  customElements.define("honua-controls-legend", HonuaLegendElement);
+  customElements.define(
+    "honua-controls-layer-list",
+    class HonuaControlsLayerListElement extends HonuaLayerListElement {},
+  );
+  customElements.define("honua-controls-legend", class HonuaControlsLegendElement extends HonuaLegendElement {});
 }
 
 declare global {
@@ -302,9 +305,15 @@ const markReady = () => {
 
 const mapIsReady = () => {
   const renderedMap = (map as HTMLElement & {
-    map?: { loaded?(): boolean; isStyleLoaded?(): boolean };
+    map?: { loaded?(): boolean; isStyleLoaded?(): boolean; getLayer?(layerId: string): unknown };
   }).map;
-  return Boolean(renderedMap?.loaded?.() || renderedMap?.isStyleLoaded?.());
+  // MapLibre can report the style as loaded while the controller's layers are
+  // still being applied. The controls-kit smoke consumes those layers as soon
+  // as this signal flips, so include the seeded demo layer in the readiness
+  // guard to avoid exposing a transient, disabled control.
+  return Boolean(
+    (renderedMap?.loaded?.() || renderedMap?.isStyleLoaded?.()) && renderedMap?.getLayer?.("incident-points"),
+  );
 };
 
 map.addEventListener("honua-map-ready", markReady);
