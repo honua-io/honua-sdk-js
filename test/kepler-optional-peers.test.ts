@@ -25,7 +25,10 @@ describe("Kepler optional-peer boundary", () => {
     for (const file of files) {
       const source = await readFile(file, "utf8");
       for (const peer of KEPLER_PEERS) {
-        const staticImport = new RegExp(`^\\s*import\\s+(?!\\()(?:(?![\\r\\n]).)*[\\"']${peer.replaceAll(".", "\\.")}[\\"']`, "m");
+        const staticImport = new RegExp(
+          `^\\s*import\\s+(?!\\()(?:(?![\\r\\n]).)*[\\"']${peer.replaceAll(".", "\\.")}[\\"']`,
+          "m",
+        );
         if (staticImport.test(source)) violations.push(`${path.relative(ROOT, file)} imports ${peer}`);
       }
     }
