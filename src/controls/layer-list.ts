@@ -31,7 +31,10 @@
  * - `overlays` — JSON array of {@link HonuaLayerListOverlay} (the `overlays`
  *   property is preferred for non-trivial configs).
  * - `for` — id of the map-providing element, see Wiring.
- * - `label` — accessible name of the list (default "Layers").
+ * - `label` — accessible name of the list (default "Layers"); reflects the
+ *   `label` property.
+ * - `not-seeded-label` — fallback text for the disabled-row badge (default
+ *   "Not seeded"); reflects `notSeededLabel`.
  * - `auto-refresh` — boolean; see Reactivity.
  *
  * ## CSS parts
@@ -62,7 +65,7 @@ import type { HonuaLayerListChangeDetail, HonuaLayerListMap, HonuaLayerListOverl
  */
 export class HonuaLayerListElement extends HTMLElementBase {
   public static get observedAttributes(): string[] {
-    return ["overlays", "for", "label", "auto-refresh"];
+    return ["overlays", "for", "label", "not-seeded-label", "auto-refresh"];
   }
 
   #map: HonuaLayerListMap | undefined;
@@ -87,6 +90,28 @@ export class HonuaLayerListElement extends HTMLElementBase {
   /** Wires the list to a MapLibre map. Equivalent to setting `.map`. */
   public connect(map: HonuaLayerListMap): void {
     this.map = map;
+  }
+
+  /** Accessible name of the list. Reflects the `label` attribute. */
+  public get label(): string {
+    return this.#attr("label") ?? "Layers";
+  }
+
+  public set label(value: string | undefined) {
+    if (typeof this.setAttribute !== "function") return;
+    if (value === undefined) this.removeAttribute?.("label");
+    else this.setAttribute("label", value);
+  }
+
+  /** Fallback text for an overlay whose style layers are not seeded. */
+  public get notSeededLabel(): string {
+    return this.#attr("not-seeded-label") ?? "Not seeded";
+  }
+
+  public set notSeededLabel(value: string | undefined) {
+    if (typeof this.setAttribute !== "function") return;
+    if (value === undefined) this.removeAttribute?.("not-seeded-label");
+    else this.setAttribute("not-seeded-label", value);
   }
 
   /** The registered overlay definitions. */
@@ -152,7 +177,7 @@ export class HonuaLayerListElement extends HTMLElementBase {
       else this.#subscribeStyledata();
       return;
     }
-    // "label" only changes the rendering.
+    // "label" / "not-seeded-label" only change the rendering.
     this.render();
   }
 
@@ -245,7 +270,7 @@ export class HonuaLayerListElement extends HTMLElementBase {
     const root = this.shadowRoot;
     if (!root) return;
     const focusedOverlayId = root.activeElement?.getAttribute("data-overlay-id");
-    const label = this.#attr("label") ?? "Layers";
+    const label = this.label;
     renderShadowRoot(
       root,
       structuralStyles(),
@@ -269,7 +294,9 @@ export class HonuaLayerListElement extends HTMLElementBase {
     const attribution = overlay.attribution
       ? `<span part="attribution" class="attribution">${escapeHtml(overlay.attribution)}</span>`
       : "";
-    const badge = seeded ? "" : `<span part="badge" class="badge"><slot name="not-seeded">Not seeded</slot></span>`;
+    const badge = seeded
+      ? ""
+      : `<span part="badge" class="badge"><slot name="not-seeded">${escapeHtml(this.notSeededLabel)}</slot></span>`;
     return `
       <label part="row" class="row" data-overlay-id="${escapeAttribute(overlay.id)}"${seeded ? "" : " data-not-seeded"}>
         <input

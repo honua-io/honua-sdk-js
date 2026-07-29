@@ -388,6 +388,19 @@ describe("HonuaLegendElement", () => {
     expect(shadow.innerHTML.indexOf("High priority")).toBeLessThan(shadow.innerHTML.indexOf("Residential"));
   });
 
+  test("renders a caller-supplied German fallback label in derive mode", () => {
+    const { element, attributes, shadow } = makeElement();
+    element.layer = "zoning-districts";
+    element.fallbackLabel = "Sonstige";
+    element.connect(makeZoningMap());
+
+    expect(element.fallbackLabel).toBe("Sonstige");
+    expect(attributes.get("fallback-label")).toBe("Sonstige");
+    expect(element.sections[0]?.entries.map((entry) => entry.label)).toContain("Sonstige");
+    expect(shadow.innerHTML).toContain("Sonstige");
+    expect(shadow.innerHTML).not.toContain(">Other<");
+  });
+
   test("derive failures degrade gracefully: explicit sections keep rendering and deriveError is exposed", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { element, attributes, shadow } = makeElement();

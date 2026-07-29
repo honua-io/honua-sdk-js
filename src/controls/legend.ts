@@ -33,6 +33,8 @@
  * - `for` — id of the map-providing element.
  * - `layer` — style layer id to derive entries from.
  * - `layer-title` — optional title rendered above the derived section.
+ * - `fallback-label` — label for a derived expression's fallback branch
+ *   (default "Other"); reflects `fallbackLabel`.
  * - `heading` — optional heading rendered above the whole legend.
  * - `follow-layer-visibility` — boolean; hide a section while its source
  *   layer's `visibility` layout property is `"none"` (sections carry the
@@ -66,7 +68,7 @@ import {
   renderShadowRoot,
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
-import { HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js";
+import { HONUA_LEGEND_FALLBACK_LABEL, HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js";
 import type { HonuaLegendEntry, HonuaLegendMap, HonuaLegendSection, HonuaLegendSwatchShape } from "./types.js";
 
 /**
@@ -77,7 +79,7 @@ import type { HonuaLegendEntry, HonuaLegendMap, HonuaLegendSection, HonuaLegendS
  */
 export class HonuaLegendElement extends HTMLElementBase {
   public static get observedAttributes(): string[] {
-    return ["for", "layer", "layer-title", "heading", "follow-layer-visibility", "auto-refresh"];
+    return ["for", "layer", "layer-title", "fallback-label", "heading", "follow-layer-visibility", "auto-refresh"];
   }
 
   #map: HonuaLegendMap | undefined;
@@ -104,6 +106,17 @@ export class HonuaLegendElement extends HTMLElementBase {
   /** Wires the legend to a MapLibre map. Equivalent to setting `.map`. */
   public connect(map: HonuaLegendMap): void {
     this.map = map;
+  }
+
+  /** Label for a derived expression's fallback branch. Reflects `fallback-label`. */
+  public get fallbackLabel(): string {
+    return this.#attr("fallback-label") ?? HONUA_LEGEND_FALLBACK_LABEL;
+  }
+
+  public set fallbackLabel(value: string | undefined) {
+    if (typeof this.setAttribute !== "function") return;
+    if (value === undefined) this.removeAttribute?.("fallback-label");
+    else this.setAttribute("fallback-label", value);
   }
 
   /**
@@ -183,7 +196,7 @@ export class HonuaLegendElement extends HTMLElementBase {
       this.#resolveMapFromContext();
       return;
     }
-    if (name === "layer" || name === "layer-title") {
+    if (name === "layer" || name === "layer-title" || name === "fallback-label") {
       this.refresh();
       return;
     }
@@ -223,7 +236,9 @@ export class HonuaLegendElement extends HTMLElementBase {
       return;
     }
     try {
-      this.#derivedEntries = deriveLegendEntries(map, layerId);
+      this.#derivedEntries = deriveLegendEntries(map, layerId).map((entry) =>
+        entry.label === HONUA_LEGEND_FALLBACK_LABEL ? { ...entry, label: this.fallbackLabel } : entry,
+      );
       this.#deriveError = undefined;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
