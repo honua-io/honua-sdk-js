@@ -37,6 +37,12 @@ Use these env vars for scheduled smoke and cross-sample cloud configuration:
 | `HONUA_CLOUD_DEMO_BEARER_TOKEN` | Optional bearer token for cloud smoke and non-browser service checks. |
 | `HONUA_CLOUD_DEMO_METADATA_TTL_MS` | Metadata freshness budget used by demos that expose cache state. Default: `900000`. |
 | `HONUA_CLOUD_DEMO_SUMMARY_FILE` | Optional JSON summary path for scheduled cloud smoke output. |
+| `HONUA_CLOUD_DEMO_MANIFEST_URL` | HTTPS URL published by `honua-demo#19` for `demo-services.v1.json`; when set, the staging lane requires a byte-for-byte match with the vendored manifest. |
+
+The default fixture lane never fetches the published manifest. The staging or
+scheduled cloud-demo lane enables the drift check by setting
+`HONUA_CLOUD_DEMO_MANIFEST_URL`; the check fails closed on network errors,
+non-HTTPS URLs, or any byte difference.
 
 Browser samples keep sample-specific `VITE_*` variables because Vite only
 exposes those names to client code.

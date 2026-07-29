@@ -27,7 +27,9 @@ const manifest = JSON.parse(
 ) as CloudDemoManifest;
 
 const baseUrl = readEnv(manifest.globalEnv.baseUrl);
+const manifestUrl = readEnv("HONUA_CLOUD_DEMO_MANIFEST_URL");
 const cloudIt = baseUrl ? it : it.skip;
+const manifestIt = manifestUrl ? it : it.skip;
 
 function readEnv(name: string | undefined): string | undefined {
   if (!name) return undefined;
@@ -52,6 +54,19 @@ function writeSummary(summary: Record<string, unknown>): void {
 }
 
 describe("cloud demo services staging smoke", () => {
+  manifestIt("matches the vendored manifest to the published demo-services.v1.json", async () => {
+    expect(new URL(manifestUrl as string).protocol).toBe("https:");
+    const published = await fetch(manifestUrl as string);
+    const publishedBytes = Buffer.from(await published.arrayBuffer());
+    expect(
+      published.ok,
+      `GET ${manifestUrl} returned ${published.status}: ${publishedBytes.toString("utf8").slice(0, 200)}`,
+    ).toBe(true);
+
+    const vendoredBytes = fs.readFileSync(path.join(process.cwd(), "examples", "cloud-demo-services.json"));
+    expect(publishedBytes).toEqual(vendoredBytes);
+  });
+
   it("validates writable smoke guards before any live edit path can run", () => {
     const writable = manifest.profiles.find((profile) => profile.mode === "writable-guarded");
     expect(writable?.writeSafeguards).toBeDefined();
