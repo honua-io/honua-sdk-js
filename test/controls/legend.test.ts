@@ -334,6 +334,16 @@ describe("HonuaLegendElement", () => {
     expect(shadow.innerHTML).toContain(".swatch-line { background: CanvasText; border: none; }");
   });
 
+  test("emits bounded, wrapping rows for narrow containers", () => {
+    const { element, shadow } = makeElement();
+    element.entries = [{ label: "A-very-long-unbroken-legend-label", color: "#1d4ed8" }];
+
+    expect(shadow.innerHTML).toContain("min-width: 0;");
+    expect(shadow.innerHTML).toContain("max-width: 100%;");
+    expect(shadow.innerHTML).toContain("overflow-wrap: anywhere;");
+    expect(shadow.innerHTML).not.toContain("overflow: hidden");
+  });
+
   test("derive mode appends a section parsed from the layer's match expression", () => {
     const { element, attributes, shadow } = makeElement();
     attributes.set("layer", "zoning-districts");

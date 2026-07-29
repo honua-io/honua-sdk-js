@@ -375,10 +375,30 @@ function cssEscape(value: string): string {
 /** Structural-only styles; theme via `::part(root)`, `::part(row)`, `::part(checkbox)`, ... */
 function structuralStyles(): string {
   return `
-    :host { display: block; }
+    :host {
+      display: block;
+      box-sizing: border-box;
+      min-width: 0;
+      max-width: 100%;
+    }
     .root { display: flex; flex-direction: column; }
-    .row { display: flex; align-items: center; gap: 0.5em; }
+    .root, .row {
+      box-sizing: border-box;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      overflow-wrap: anywhere;
+    }
     .checkbox { flex: none; }
+    .label, .attribution, .badge {
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
     .badge { font-size: 0.75em; }
     [data-not-seeded] { cursor: not-allowed; }
     @media (forced-colors: active), (prefers-contrast: more) {

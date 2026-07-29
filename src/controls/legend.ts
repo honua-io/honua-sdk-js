@@ -421,11 +421,33 @@ function renderRow(entry: HonuaLegendEntry): string {
 /** Structural-only styles; theme via `::part(root)`, `::part(row)`, `::part(swatch)`, ... */
 function structuralStyles(): string {
   return `
-    :host { display: block; }
+    :host {
+      display: block;
+      box-sizing: border-box;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .root, .section, .rows {
+      box-sizing: border-box;
+      min-width: 0;
+      max-width: 100%;
+    }
     .heading, .section-title { margin: 0; }
     .section { margin: 0; }
     .rows { list-style: none; margin: 0; padding: 0; }
-    .row { display: flex; align-items: center; gap: 0.5em; }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+    .heading, .section-title, .label {
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
     .swatch {
       flex: none;
       inline-size: 1em;

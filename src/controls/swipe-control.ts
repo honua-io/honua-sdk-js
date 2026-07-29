@@ -372,12 +372,25 @@ function clampPercent(value: number): number {
 /** Structural-only styles; theme via `::part(divider)` / `::part(handle)`. */
 function structuralStyles(): string {
   return `
-    :host { position: absolute; inset: 0; pointer-events: none; display: block; }
+    :host {
+      position: absolute;
+      inset: 0;
+      display: block;
+      box-sizing: border-box;
+      min-width: 0;
+      max-width: 100%;
+      min-height: 0;
+      max-height: 100%;
+      pointer-events: none;
+    }
     .divider {
       position: absolute;
       top: 0;
       block-size: 100%;
       inline-size: 0;
+      box-sizing: border-box;
+      max-width: 100%;
+      max-height: 100%;
       border-inline-start: 2px solid currentColor;
       transform: translateX(-1px);
       cursor: ew-resize;

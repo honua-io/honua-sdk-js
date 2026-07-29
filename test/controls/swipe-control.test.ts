@@ -92,9 +92,10 @@ function makeElement(): {
   const divider = makeDivider();
   const rect = { left: 0, top: 0, width: 200, height: 100 };
   const shadow = {
-    set innerHTML(_value: string) {
-      /* rendered string is irrelevant; the divider stub is resolved below */
+    set innerHTML(value: string) {
+      this._innerHTML = value;
     },
+    _innerHTML: "",
     querySelector: (selector: string) => (selector === ".divider" ? divider : null),
   };
   Object.assign(element, {
@@ -122,6 +123,21 @@ describe("HonuaSwipeControlElement", () => {
     expect(divider.style.left).toBe("50%");
     expect(divider.getAttribute("aria-valuenow")).toBe("50");
     expect(divider.getAttribute("aria-label")).toBeNull();
+  });
+
+  test("emits bounded sizing for narrow containers without changing divider interaction", () => {
+    const { element } = makeElement();
+    const shadow = element.shadowRoot as unknown as { _innerHTML: string };
+
+    expect(shadow._innerHTML).toContain("min-width: 0;");
+    expect(shadow._innerHTML).toContain("max-width: 100%;");
+    expect(shadow._innerHTML).toContain("min-height: 0;");
+    expect(shadow._innerHTML).toContain("max-height: 100%;");
+    expect(shadow._innerHTML).not.toContain("overflow: hidden");
+
+    const top = makeMap();
+    element.connect(top);
+    expect(top.container.style.clipPath).toBe("inset(0 0 0 50%)");
   });
 
   test("uses a caller-supplied non-English label for the public API and ARIA name", () => {
