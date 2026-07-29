@@ -871,10 +871,21 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/accessibility.test.ts"],
         note: "The native basemap switcher is rendered with dir=rtl and its emitted structural styles contain no physical left/right declarations.",
       },
+      {
+        ids: ["controls.legend"],
+        evidence: ["test/controls/legend.test.ts"],
+        note: "The native legend inherits an explicit RTL direction and uses logical label alignment, asserted through its rendered direction and stylesheet coverage.",
+      },
     ],
     failing: [
       {
-        ids: allExcept(FEATURE_EDITOR, "controls.swipe-control", "controls.layer-list", "controls.basemap-switcher"),
+        ids: allExcept(
+          FEATURE_EDITOR,
+          "controls.swipe-control",
+          "controls.layer-list",
+          "controls.basemap-switcher",
+          "controls.legend",
+        ),
         note: "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl.",
       },
     ],

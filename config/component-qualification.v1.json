@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 204,
-    "failing": 85,
+    "passing": 205,
+    "failing": 84,
     "pending": 42,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -463,14 +463,13 @@
         "responsive-layout",
         "localization",
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 6,
-        "failing": 5,
+        "passing": 7,
+        "failing": 4,
         "pending": 2,
         "notApplicable": 4
       },
@@ -533,8 +532,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/controls/legend.test.ts"
+          ],
+          "note": "The native legend inherits an explicit RTL direction and uses logical label alignment, asserted through its rendered direction and stylesheet coverage."
         },
         {
           "gate": "visual-regression",
