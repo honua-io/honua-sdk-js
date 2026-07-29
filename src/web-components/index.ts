@@ -320,6 +320,7 @@ export type {
   HonuaEditCapabilities,
   HonuaEditChangeDetail,
   HonuaEditRequest,
+  HonuaEditorMessages,
   HonuaEditorModel,
   HonuaExportDetail,
   HonuaFeatureRecord,

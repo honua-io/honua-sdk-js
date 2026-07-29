@@ -23,6 +23,19 @@ export interface HonuaLocateControlMessages {
   readonly error?: (error: unknown) => string;
 }
 
+/**
+ * Caller-supplied messages for `<honua-editor>`.
+ *
+ * Status values remain stable in the component model and events, while this
+ * surface lets an application provide localized text for the rendered status
+ * and the generic read-only explanation. A formatter receives the model's
+ * reason so a locale can retain useful source-specific context.
+ */
+export interface HonuaEditorMessages {
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly readOnlyReason?: string | ((reason: string | undefined) => string);
+}
+
 export interface HonuaLayerModel {
   id: string;
   title: string;
