@@ -371,8 +371,18 @@ function statusText(model: HonuaFeatureTableViewModel): string {
 /** Grid styles layered on top of the kit's shared `tableStyles()`. */
 export function featureTableGridStyles(): string {
   return `
+    .table-panel { max-width: 100%; min-width: 0; }
+    .table-panel__bar { gap: 8px; min-width: 0; }
+    .table-panel__bar h2 { min-width: 0; overflow-wrap: anywhere; }
+    .table-wrap { max-width: 100%; overflow-x: auto; overflow-y: auto; }
+    .table-wrap table { min-width: max-content; width: 100%; }
     .table-panel__bar .count { color: var(--honua-ui-muted); font-variant-numeric: tabular-nums; }
-    .status { color: var(--honua-ui-muted); margin: 0; padding: 4px 10px; }
+    .status {
+      color: var(--honua-ui-muted);
+      margin: 0;
+      padding-block: 4px;
+      padding-inline: 10px;
+    }
     .status:empty { display: none; }
     .spacer { width: 1px; }
     [role="columnheader"] button {
@@ -384,7 +394,7 @@ export function featureTableGridStyles(): string {
       font: inherit;
       font-weight: 650;
       padding: 0;
-      text-align: left;
+      text-align: start;
       width: 100%;
     }
     [role="columnheader"][aria-sort="ascending"] button::after { content: " \\2191"; }

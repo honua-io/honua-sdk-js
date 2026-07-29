@@ -56,6 +56,7 @@ import type {
   HonuaLayerVisibilityChangeDetail,
   HonuaLegendItem,
   HonuaLocateChangeDetail,
+  HonuaLocateControlMessages,
   HonuaMapClickDetail,
   HonuaMapErrorDetail,
   HonuaMapHoverDetail,
@@ -713,7 +714,7 @@ export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElemen
     const legend = this.visibleItems;
     const label = this.getAttribute("label") ?? "Legend";
     this.setShadowHtml(`
-      <style>${baseStyles()}${listStyles()}</style>
+      <style>${baseStyles()}${listStyles()}${legendStyles()}</style>
       <section class="panel" part="panel" aria-label="${escapeHtml(label)}">
         <h2>${escapeHtml(label)}</h2>
         <ul class="legend" role="list">
@@ -1174,7 +1175,7 @@ function cssEscape(value: string): string {
  */
 export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
-    return ["for", "source", "placeholder", "label", "debounce", "zoom"];
+    return ["for", "source", "placeholder", "label", "submit-label", "debounce", "zoom"];
   }
 
   #query = "";
@@ -1201,6 +1202,20 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
     this.render();
   }
 
+  /**
+   * Text rendered in the form's submit button. Defaults to `"Search"` for
+   * compatibility with the original markup. The property reflects the
+   * `submit-label` attribute so either caller API can supply localized text.
+   */
+  public get submitLabel(): string {
+    return this.getAttribute("submit-label") ?? "Search";
+  }
+
+  public set submitLabel(value: string | undefined) {
+    if (value === undefined) this.removeAttribute("submit-label");
+    else this.setAttribute("submit-label", value);
+  }
+
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
@@ -1214,6 +1229,7 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
   protected render(): void {
     const label = this.getAttribute("label") ?? "Search";
     const placeholder = this.getAttribute("placeholder") ?? "Search";
+    const submitLabel = this.submitLabel;
     const geocoding = this.#geocoder !== undefined;
     const expanded = geocoding && this.#suggestions.length > 0;
     const comboboxAttributes = geocoding
@@ -1229,7 +1245,7 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
           <input id="honua-search-input" name="q" value="${escapeAttribute(this.#query)}" placeholder="${escapeAttribute(
             placeholder,
           )}" autocomplete="off"${comboboxAttributes} />
-          <button type="submit">Search</button>
+          <button type="submit">${escapeHtml(submitLabel)}</button>
         </form>
         ${
           geocoding
@@ -1573,7 +1589,7 @@ export class HonuaBasemapControlElement<T = Record<string, unknown>> extends Hon
     const basemaps = basemapsFromState(this.state);
     const active = this.#activeBasemapId ?? basemaps.find((basemap) => basemap.visible)?.id ?? basemaps[0]?.id;
     this.setShadowHtml(`
-      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <style>${baseStyles()}${controlPanelStyles()}${basemapControlStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
@@ -1685,6 +1701,17 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
 
   #status: HonuaComponentStatus = "idle";
   #message = "";
+  #messages: HonuaLocateControlMessages = {};
+
+  /** Caller-supplied localized labels and state messages. */
+  public get messages(): HonuaLocateControlMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaLocateControlMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
@@ -1695,17 +1722,21 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
     const label = this.getAttribute("label") ?? "Locate";
     const supported = this.hasConfiguredLocation() || Boolean(globalThis.navigator?.geolocation);
     const status = supported ? this.#status : "unsupported";
+    const statusLabel = this.#messages.status?.[status] ?? status;
+    const message =
+      this.#message ||
+      (supported
+        ? (this.#messages.initial ?? "Centers the shared map controller.")
+        : (this.#messages.unavailable ?? "Geolocation is unavailable."));
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(status)}</span>
+          <span>${escapeHtml(statusLabel)}</span>
         </div>
-        <button type="button" data-locate ${supported ? "" : "disabled"}>Use location</button>
-        <p class="empty" role="status">${escapeHtml(
-          supported ? this.#message || "Centers the shared map controller." : "Geolocation is unavailable.",
-        )}</p>
+        <button type="button" data-locate ${supported ? "" : "disabled"}>${escapeHtml(this.#messages.actionLabel ?? "Use location")}</button>
+        <p class="empty" role="status">${escapeHtml(message)}</p>
       </section>
     `);
     this.shadowRoot?.querySelector<HTMLButtonElement>("button[data-locate]")?.addEventListener("click", () => {
@@ -1722,7 +1753,7 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
     const geolocation = globalThis.navigator?.geolocation;
     if (!geolocation) {
       this.#status = "unsupported";
-      this.#message = "Geolocation is unavailable.";
+      this.#message = this.#messages.unavailable ?? "Geolocation is unavailable.";
       this.dispatchTypedEvent<HonuaLocateChangeDetail>("honua-locate-change", {
         status: "unsupported",
         message: this.#message,
@@ -1731,7 +1762,7 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
       return;
     }
     this.#status = "loading";
-    this.#message = "Requesting location.";
+    this.#message = this.#messages.requesting ?? "Requesting location.";
     this.render();
     geolocation.getCurrentPosition(
       (position) => {
@@ -1742,7 +1773,7 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
       },
       (error) => {
         this.#status = "error";
-        this.#message = error.message;
+        this.#message = this.#messages.error?.(error) ?? error.message;
         this.dispatchTypedEvent<HonuaLocateChangeDetail>("honua-locate-change", {
           status: "error",
           error,
@@ -1755,7 +1786,7 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
 
   private applyLocation(viewport: HonuaViewportState): void {
     this.#status = "ready";
-    this.#message = "Location applied.";
+    this.#message = this.#messages.applied ?? "Location applied.";
     this.controller?.setViewport(viewport);
     this.dispatchTypedEvent<HonuaLocateChangeDetail>("honua-locate-change", { status: "ready", viewport });
     this.dispatchTypedEvent<HonuaViewportChangeDetail>("honua-viewport-change", viewport);
@@ -2240,7 +2271,7 @@ export class HonuaActionPanelElement<T = Record<string, unknown>> extends HonuaE
     const label = this.getAttribute("label") ?? "Actions";
     const actions = parseActions(this.getAttribute("actions"));
     this.setShadowHtml(`
-      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <style>${baseStyles()}${controlPanelStyles()}${actionPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
@@ -2592,6 +2623,8 @@ function baseStyles(): string {
 
 function mapStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .map {
       background: #dbeafe;
       border: 1px solid var(--honua-ui-border);
@@ -2607,7 +2640,8 @@ function mapStyles(): string {
       display: flex;
       gap: 8px;
       justify-content: space-between;
-      padding: 8px 10px;
+      padding-block: 8px;
+      padding-inline: 10px;
     }
     .map__controls { align-items: center; display: flex; gap: 6px; }
     .icon-button { min-width: 32px; padding: 0; }
@@ -2641,18 +2675,19 @@ function mapStyles(): string {
       position: absolute;
     }
     .map__renderer .maplibregl-canvas {
-      left: 0;
+      inset-block-start: 0;
+      inset-inline-start: 0;
       position: absolute;
-      top: 0;
     }
     .map__status {
       background: rgba(255,255,255,0.86);
       border-radius: 6px;
       color: var(--honua-ui-muted);
-      left: 10px;
-      padding: 4px 7px;
+      inset-block-start: 10px;
+      inset-inline-start: 10px;
+      padding-block: 4px;
+      padding-inline: 7px;
       position: absolute;
-      top: 10px;
       z-index: 1;
     }
     .map__status:empty { display: none; }
@@ -2665,17 +2700,27 @@ function mapStyles(): string {
 
 function listStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .panel {
       background: var(--honua-ui-bg);
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
       margin: 0;
-      padding: 10px;
+      padding-block: 10px;
+      padding-inline: 10px;
     }
-    legend { font-weight: 650; padding: 0 4px; }
+    legend { font-weight: 650; padding-block: 0; padding-inline: 4px; }
     .stack { display: grid; gap: 8px; }
     .check-row { align-items: center; display: flex; gap: 8px; min-height: 28px; }
-    .legend { display: grid; gap: 8px; list-style: none; margin: 10px 0 0; padding: 0; }
+    .legend {
+      display: grid;
+      gap: 8px;
+      list-style: none;
+      margin-block-start: 10px;
+      margin-inline: 0;
+      padding: 0;
+    }
     .legend li { align-items: center; display: flex; gap: 8px; min-height: 24px; }
     .swatch {
       background: var(--swatch);
@@ -2686,6 +2731,19 @@ function listStyles(): string {
       width: 24px;
     }
     img.swatch { object-fit: cover; }
+  `;
+}
+
+function legendStyles(): string {
+  return `
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .legend li { color: CanvasText; }
+      .legend .swatch {
+        background: Canvas;
+        border: 2px solid CanvasText;
+        forced-color-adjust: none;
+      }
+    }
   `;
 }
 
@@ -2701,7 +2759,7 @@ function layerListStyles(): string {
       align-items: center;
       display: flex;
       gap: 6px;
-      padding-left: 24px;
+      padding-inline-start: 24px;
     }
     .opacity { flex: 1; min-width: 60px; }
     .move { min-width: 32px; padding: 0; }
@@ -2710,6 +2768,8 @@ function layerListStyles(): string {
 
 function tableStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .table-panel {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
@@ -2720,15 +2780,17 @@ function tableStyles(): string {
       background: var(--honua-ui-surface);
       display: flex;
       justify-content: space-between;
-      padding: 8px 10px;
+      padding-block: 8px;
+      padding-inline: 10px;
     }
     .table-wrap { max-height: 300px; overflow: auto; }
     table { border-collapse: collapse; min-width: 100%; table-layout: fixed; }
     th, td {
       border-top: 1px solid var(--honua-ui-border);
       overflow: hidden;
-      padding: 7px 9px;
-      text-align: left;
+      padding-block: 7px;
+      padding-inline: 9px;
+      text-align: start;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -2741,61 +2803,91 @@ function tableStyles(): string {
 
 function searchStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .search {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
-      padding: 10px;
+      min-width: 0;
+      padding-block: 10px;
+      padding-inline: 10px;
+      width: 100%;
     }
-    form { display: grid; gap: 8px; grid-template-columns: minmax(120px, 1fr) auto; }
+    form button { padding-block: 0; padding-inline: 10px; }
+    form { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; }
     input {
       border: 1px solid var(--honua-ui-border);
       border-radius: 6px;
       min-height: 32px;
       min-width: 0;
-      padding: 0 9px;
+      padding-block: 0;
+      padding-inline: 9px;
     }
-    .results { display: grid; gap: 6px; list-style: none; margin: 10px 0 0; padding: 0; }
-    .results button { text-align: left; width: 100%; }
+    .results {
+      display: grid;
+      gap: 6px;
+      list-style: none;
+      margin-block-start: 10px;
+      margin-inline: 0;
+      padding: 0;
+    }
+    .results button { text-align: start; width: 100%; }
     .suggestions {
       border: 1px solid var(--honua-ui-border);
       border-radius: 6px;
       display: grid;
       list-style: none;
-      margin: 6px 0 0;
+      margin-block-start: 6px;
+      margin-inline: 0;
       overflow: hidden;
       padding: 0;
     }
     .suggestions[hidden] { display: none; }
-    .suggestions [role="option"] { cursor: pointer; padding: 6px 9px; }
+    .suggestions [role="option"] {
+      cursor: pointer;
+      padding-block: 6px;
+      padding-inline: 9px;
+    }
     .suggestions [role="option"][aria-selected="true"] {
       background: var(--honua-ui-accent);
       color: var(--honua-ui-accent-fg);
     }
-    .status { color: var(--honua-ui-muted); margin: 6px 0 0; }
+    .status { color: var(--honua-ui-muted); margin-block-start: 6px; margin-inline: 0; }
     .status:empty { display: none; }
+    @media (max-width: 320px) {
+      form { grid-template-columns: minmax(0, 1fr); }
+      form button { width: 100%; }
+    }
   `;
 }
 
 function editorStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .editor {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
-      padding: 10px;
+      padding-block: 10px;
+      padding-inline: 10px;
     }
+    button { padding-block: 0; padding-inline: 10px; }
     .editor__bar, .editor__actions { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
     .editor__actions { justify-content: flex-start; }
-    .selection { margin: 10px 0 4px; }
-    .muted { margin: 0 0 10px; }
+    .selection { margin-block: 10px 4px; margin-inline: 0; }
+    .muted { margin-block: 0 10px; margin-inline: 0; }
   `;
 }
 
 function chartStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .chart {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
-      padding: 10px;
+      padding-block: 10px;
+      padding-inline: 10px;
     }
     .bars { display: grid; gap: 8px; margin-top: 10px; }
     .bar-row { align-items: center; display: grid; gap: 8px; grid-template-columns: minmax(70px, 1fr) 3fr auto; }
@@ -2804,7 +2896,9 @@ function chartStyles(): string {
       background: var(--bar-color);
       border-radius: inherit;
       content: "";
-      inset: 0 auto 0 0;
+      inset-block: 0;
+      inset-inline-end: auto;
+      inset-inline-start: 0;
       position: absolute;
       width: var(--bar);
     }
@@ -2813,6 +2907,8 @@ function chartStyles(): string {
 
 function controlPanelStyles(): string {
   return `
+    :host { direction: inherit; }
+    :host([dir="rtl"]) { direction: rtl; }
     .control-panel {
       background: var(--honua-ui-bg);
       border: 1px solid var(--honua-ui-border);
@@ -2820,8 +2916,10 @@ function controlPanelStyles(): string {
       display: grid;
       gap: 10px;
       min-width: 180px;
-      padding: 10px;
+      padding-block: 10px;
+      padding-inline: 10px;
     }
+    button { padding-block: 0; padding-inline: 10px; }
     .control-panel__bar {
       align-items: center;
       display: flex;
@@ -2838,7 +2936,7 @@ function controlPanelStyles(): string {
     }
     .button-stack button {
       justify-content: flex-start;
-      text-align: left;
+      text-align: start;
     }
     .segmented {
       display: grid;
@@ -2847,7 +2945,8 @@ function controlPanelStyles(): string {
     }
     .segmented button {
       min-width: 0;
-      padding: 0 8px;
+      padding-block: 0;
+      padding-inline: 8px;
     }
     button[aria-pressed="true"] {
       background: var(--honua-ui-accent);
@@ -2856,6 +2955,57 @@ function controlPanelStyles(): string {
     }
     p {
       margin: 0;
+    }
+  `;
+}
+
+function basemapControlStyles(): string {
+  return `
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .control-panel {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .control-panel__bar span, .empty { color: CanvasText; }
+      .segmented button {
+        background: ButtonFace;
+        border: 2px solid ButtonText;
+        color: ButtonText;
+        forced-color-adjust: none;
+      }
+      .segmented button[aria-pressed="true"] {
+        background: Highlight;
+        border-color: Highlight;
+        color: HighlightText;
+      }
+      .segmented button:focus-visible {
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+      }
+    }
+  `;
+}
+
+function actionPanelStyles(): string {
+  return `
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .control-panel {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .control-panel__bar span, .empty { color: CanvasText; }
+      .button-stack button {
+        background: ButtonFace;
+        border: 2px solid ButtonText;
+        color: ButtonText;
+        forced-color-adjust: none;
+      }
+      .button-stack button:disabled {
+        border-color: GrayText;
+        color: GrayText;
+      }
     }
   `;
 }
@@ -2877,6 +3027,30 @@ function mapStatusStyles(): string {
     span {
       color: var(--honua-ui-muted);
       min-width: 0;
+    }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .map-status {
+        background: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+      }
+      .map-status span { color: CanvasText; }
+      .map-status button {
+        background: ButtonFace;
+        border: 2px solid ButtonText;
+        color: ButtonText;
+        forced-color-adjust: none;
+      }
+      :host([data-status="unsupported"]) .map-status {
+        border-color: GrayText;
+        color: GrayText;
+      }
+      :host([data-status="unsupported"]) .map-status span { color: GrayText; }
+      :host([data-status="error"]) .map-status {
+        border-color: Mark;
+        color: MarkText;
+      }
+      :host([data-status="error"]) .map-status span { color: MarkText; }
     }
   `;
 }

@@ -127,9 +127,9 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 115,
+    "passing": 116,
     "failing": 131,
-    "pending": 90,
+    "pending": 89,
     "notApplicable": 21,
     "productionQualifiedComponents": 0,
     "productionTierComponents": 1
@@ -858,7 +858,6 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "keyboard-behavior",
         "high-contrast",
         "responsive-layout",
         "localization",
@@ -869,17 +868,20 @@
         "memory-leak"
       ],
       "summary": {
-        "passing": 7,
+        "passing": 8,
         "failing": 6,
-        "pending": 3,
+        "pending": 2,
         "notApplicable": 1
       },
       "gates": [
         {
           "gate": "keyboard-behavior",
           "requirement": "REQ-004",
-          "status": "pending",
-          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The controller-driven layer list is exercised in Chromium with a focused visibility checkbox activated by Space and a focused reorder button activated by Enter; controller visibility/order state and the re-rendered shadow rows are asserted."
         },
         {
           "gate": "screen-reader-semantics",
@@ -1377,7 +1379,7 @@
           "gate": "localization",
           "requirement": "REQ-004",
           "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "note": "The submit action is caller-localizable through the reflected submitLabel property / submit-label attribute, with the legacy English `Search` default preserved and a non-English rendering assertion. The component still owns hard-coded placeholder, suggestion, no-result, and geocoding status strings, so the full localization criterion remains failing for this component."
         },
         {
           "gate": "pseudo-locale",
