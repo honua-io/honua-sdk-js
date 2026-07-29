@@ -300,6 +300,16 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
       case "End":
         nextIndex = radios.length - 1;
         break;
+      case "Enter":
+      case " ": {
+        const focused = radios.find((radio) => radio === event.target);
+        const baseId = focused?.dataset.baseId;
+        if (!baseId) return;
+        event.preventDefault();
+        this.select(baseId);
+        focused.focus();
+        return;
+      }
       default:
         return;
     }
