@@ -213,7 +213,10 @@ export const HONUA_CONNECT_ADAPTER_VERSION = "honua-connect@7";
 /** Normalized facade projection version used to invalidate cached snapshots. */
 export const HONUA_CONNECT_PROJECTION_VERSION = "honua-connect-source-descriptor@3";
 
+/** Protocol hint accepted by generic endpoint classification, including unsupported operation-only protocols. */
 export type ConnectProtocolHint = Protocol | "auto";
+/** Protocol hint accepted by the source-backed {@link ConnectOptions} discovery facade. */
+export type ConnectSourceProtocolHint = ConnectResolvedProtocol | "auto";
 export type ConnectCacheStatus = "bypass" | "hit" | "miss" | "refreshed";
 
 export interface ConnectDiscoveryCacheContext {
@@ -281,7 +284,7 @@ export interface ConnectOptions {
   /** OGC API, STAC API, WFS 2.0, WMS/WMTS, or canonical GeoServices URL. */
   readonly endpoint: string | URL;
   /** Protocol hint. `auto` recognizes canonical GeoServices URL structure without probing. */
-  readonly protocol: ConnectProtocolHint;
+  readonly protocol: ConnectSourceProtocolHint;
   /** Restrict discovery to one collection while retaining the service root URL. */
   readonly collectionId?: string;
   /** Restrict WFS discovery to one feature type or WMS/WMTS discovery to one named layer. */

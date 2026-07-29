@@ -58,14 +58,53 @@ export function sourceCapabilityEndpointIdentity(
       sourceId: layer,
     });
   }
+  if (protocol === "wfs") {
+    return endpointIdentity({
+      endpoint: fallbackEndpoint(locator),
+      protocol,
+      sourceId: requiredLocatorCoordinate(descriptor.id, locator.typeName, "WFS locator.typeName"),
+    });
+  }
+  if (
+    protocol === "ogc-features" ||
+    protocol === "ogc-records" ||
+    protocol === "ogc-tiles" ||
+    protocol === "ogc-maps"
+  ) {
+    return endpointIdentity({
+      endpoint: fallbackEndpoint(locator),
+      protocol,
+      sourceId: requiredLocatorCoordinate(descriptor.id, locator.collectionId, `${protocol} locator.collectionId`),
+    });
+  }
+  if (protocol === "stac" && locator.collectionId !== undefined) {
+    return endpointIdentity({
+      endpoint: fallbackEndpoint(locator),
+      protocol,
+      sourceId: requiredLocatorCoordinate(descriptor.id, locator.collectionId, "STAC locator.collectionId"),
+    });
+  }
   return endpointIdentity({
-    endpoint:
-      typeof locator.basePath === "string"
-        ? new URL(locator.basePath, requiredEndpoint(locator.url)).toString()
-        : requiredEndpoint(locator.url),
+    endpoint: fallbackEndpoint(locator),
     protocol,
     sourceId: descriptor.id,
   });
+}
+
+function fallbackEndpoint(locator: SourceDescriptor["locator"]): string {
+  return typeof locator.basePath === "string"
+    ? new URL(locator.basePath, requiredEndpoint(locator.url)).toString()
+    : requiredEndpoint(locator.url);
+}
+
+function requiredLocatorCoordinate(descriptorId: string, value: unknown, path: string): string {
+  if (typeof value !== "string" || value.length === 0 || value.trim() !== value) {
+    throw new TypeError(`${path} must be a non-empty trimmed source coordinate`);
+  }
+  if (descriptorId !== value) {
+    throw new TypeError(`Source descriptor.id must match ${path}`);
+  }
+  return value;
 }
 
 function requiredRasterLayer(value: unknown, protocol: "wms" | "wmts"): string {

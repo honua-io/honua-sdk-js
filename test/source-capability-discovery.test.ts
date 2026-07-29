@@ -315,6 +315,36 @@ describe("capability discovery endpoint binding", () => {
       sourceId: "counties",
     });
 
+    for (const protocol of ["ogc-features", "ogc-records", "ogc-tiles", "ogc-maps"] as const) {
+      const descriptor = {
+        id: "parcels",
+        protocol,
+        locator: { url: "https://example.test/ogc", collectionId: "parcels" },
+      } satisfies EndpointDescriptorFixture;
+      const alternate = {
+        ...descriptor,
+        locator: { ...descriptor.locator, collectionId: "roads" },
+      } satisfies EndpointDescriptorFixture;
+      expect(sourceCapabilityEndpointIdentity(descriptor).sourceId).toBe("parcels");
+      expect(() => sourceCapabilityEndpointIdentity(alternate)).toThrow(/must match .*collectionId/);
+      expect(
+        createCapabilitySourceEndpointFingerprint(
+          sourceCapabilityEndpointIdentity({
+            ...descriptor,
+            id: "roads",
+            locator: { ...descriptor.locator, collectionId: "roads" },
+          }),
+        ),
+      ).not.toBe(createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(descriptor)));
+    }
+
+    expect(() =>
+      sourceCapabilityEndpointIdentity({
+        ...wfs,
+        locator: { ...wfs.locator, typeName: "ne:ne_10m_admin_0_lakes" },
+      }),
+    ).toThrow(/must match .*typeName/);
+
     const geoparquet: EndpointDescriptorFixture = {
       id: "places",
       protocol: "geoparquet",

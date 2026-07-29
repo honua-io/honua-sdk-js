@@ -1021,7 +1021,7 @@ export function capabilitiesFromMetadata(
     capabilities.add("queryRelated");
   }
   const hasAttachments =
-    "hasAttachments" in metadata
+    "hasAttachments" in metadata && metadata.hasAttachments !== undefined
       ? metadata.hasAttachments === true
       : "supportsAttachments" in metadata && metadata.supportsAttachments === true;
   if (hasAttachments) capabilities.add("attachments");
