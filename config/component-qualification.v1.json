@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 227,
-    "failing": 62,
+    "passing": 237,
+    "failing": 52,
     "pending": 42,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -1430,14 +1430,13 @@
       "openGates": [
         "localization",
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 11,
-        "failing": 4,
+        "passing": 12,
+        "failing": 3,
         "pending": 2,
         "notApplicable": 0
       },
@@ -1513,8 +1512,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -1590,14 +1592,13 @@
       "productionQualified": false,
       "openGates": [
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 11,
-        "failing": 3,
+        "passing": 12,
+        "failing": 2,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1671,8 +1672,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2068,14 +2072,13 @@
       "openGates": [
         "localization",
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 10,
-        "failing": 4,
+        "passing": 11,
+        "failing": 3,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2146,8 +2149,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2224,14 +2230,13 @@
       "productionQualified": false,
       "openGates": [
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 3,
+        "passing": 13,
+        "failing": 2,
         "pending": 2,
         "notApplicable": 0
       },
@@ -2308,8 +2313,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2386,14 +2394,13 @@
       "productionQualified": false,
       "openGates": [
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 3,
+        "passing": 13,
+        "failing": 2,
         "pending": 2,
         "notApplicable": 0
       },
@@ -2470,8 +2477,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2548,14 +2558,13 @@
       "productionQualified": false,
       "openGates": [
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 11,
-        "failing": 3,
+        "passing": 12,
+        "failing": 2,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2629,8 +2638,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2707,14 +2719,13 @@
       "openGates": [
         "localization",
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 10,
-        "failing": 4,
+        "passing": 11,
+        "failing": 3,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2790,8 +2801,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -2867,14 +2881,13 @@
       "productionQualified": false,
       "openGates": [
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 11,
-        "failing": 3,
+        "passing": 12,
+        "failing": 2,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2948,8 +2961,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -3025,14 +3041,13 @@
       "productionQualified": false,
       "openGates": [
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 11,
-        "failing": 3,
+        "passing": 12,
+        "failing": 2,
         "pending": 2,
         "notApplicable": 1
       },
@@ -3106,8 +3121,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
@@ -3342,14 +3360,13 @@
       "productionQualified": false,
       "openGates": [
         "pseudo-locale",
-        "rtl",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 11,
-        "failing": 3,
+        "passing": 12,
+        "failing": 2,
         "pending": 2,
         "notApplicable": 1
       },
@@ -3423,8 +3440,11 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
         },
         {
           "gate": "visual-regression",
