@@ -35,6 +35,7 @@
  */
 
 import { area as geodesicArea, length as geodesicLength } from "../geometry/index.js";
+import { renderCspSafeShadowHtml } from "./csp-styles.js";
 import type {
   HonuaMeasureChangeDetail,
   HonuaMeasureMode,
@@ -384,7 +385,9 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     const label = this.#messages.label ?? this.#attr("label") ?? "Measure";
     const ready = this.#map !== undefined;
     const sketchActive = this.#mode !== "off" && this.#vertices.length > 0 && !this.#finished;
-    root.innerHTML = `
+    renderCspSafeShadowHtml(
+      root,
+      `
       <style>${structuralStyles()}</style>
       <section class="panel" part="panel" aria-label="${escapeAttribute(label)}">
         <div class="bar">
@@ -416,7 +419,8 @@ export class HonuaMeasurementElement extends HTMLElementBase {
                 "Click adds a vertex; double-click or Finish completes; Escape or Cancel discards."),
         )}</p>
       </section>
-    `;
+      `,
+    );
     root.querySelectorAll<HTMLButtonElement>("button[data-measure-mode]").forEach((button) => {
       button.addEventListener("click", () => {
         this.setMode((button.dataset.measureMode ?? "off") as HonuaMeasureMode);

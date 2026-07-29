@@ -14,9 +14,8 @@ import type {
   HonuaBasemapDefinition,
   HonuaBasemapSwitcherChangeDetail,
   HonuaBasemapSwitcherElement,
-  HonuaLegendElement,
 } from "@honua/sdk-js/controls";
-import { HonuaLayerListElement } from "@honua/sdk-js/controls";
+import { HonuaLayerListElement, HonuaLegendElement } from "@honua/sdk-js/controls";
 import {
   type HonuaChartModel,
   type HonuaFeatureRecord,
@@ -35,6 +34,7 @@ import "./styles.css";
 // `<honua-layer-list>` tag without changing its ownership.
 if (new URLSearchParams(window.location.search).has("controls-layer-list")) {
   customElements.define("honua-controls-layer-list", HonuaLayerListElement);
+  customElements.define("honua-controls-legend", HonuaLegendElement);
 }
 
 declare global {

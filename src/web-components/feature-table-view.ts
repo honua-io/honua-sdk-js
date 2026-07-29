@@ -273,6 +273,10 @@ export function featureTableGridHtml(model: HonuaFeatureTableViewModel): string 
   const hasFocus = model.rows.some((row) => row.key === focusedRow);
 
   return `
+    <style>
+      [data-leading] { height: ${leading}px; }
+      [data-trailing] { height: ${trailing}px; }
+    </style>
     <section class="table-panel" part="panel">
       <div class="table-panel__bar">
         <h2 id="honua-ft-label">${escapeHtml(model.label)}</h2>
@@ -280,7 +284,7 @@ export function featureTableGridHtml(model: HonuaFeatureTableViewModel): string 
       </div>
       <p class="status" data-status role="status" aria-live="polite">${escapeHtml(statusText(model))}</p>
       <div class="table-wrap" data-scroller>
-        <div class="spacer" data-leading style="height:${leading}px"></div>
+        <div class="spacer" data-leading></div>
         <table
           role="grid"
           aria-labelledby="honua-ft-label"
@@ -325,7 +329,7 @@ export function featureTableGridHtml(model: HonuaFeatureTableViewModel): string 
             }
           </tbody>
         </table>
-        <div class="spacer" data-trailing style="height:${trailing}px"></div>
+        <div class="spacer" data-trailing></div>
       </div>
     </section>
   `;

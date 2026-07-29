@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 247,
-    "failing": 42,
+    "passing": 268,
+    "failing": 21,
     "pending": 42,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -144,12 +144,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -238,8 +237,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -304,12 +306,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -400,8 +401,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -466,12 +470,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 9,
-        "failing": 2,
+        "passing": 10,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 4
       },
@@ -557,8 +560,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -621,12 +627,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -717,8 +722,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -784,12 +792,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 2,
+        "passing": 14,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 0
       },
@@ -886,8 +893,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -952,12 +962,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1051,8 +1060,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -1117,12 +1129,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 9,
-        "failing": 2,
+        "passing": 10,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 4
       },
@@ -1211,8 +1222,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -1274,12 +1288,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1370,8 +1383,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -1438,12 +1454,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 2,
+        "passing": 14,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 0
       },
@@ -1537,8 +1552,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -1603,12 +1621,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1697,8 +1714,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -1764,12 +1784,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -1863,8 +1882,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -1929,12 +1951,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 9,
-        "failing": 2,
+        "passing": 10,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 4
       },
@@ -2022,8 +2043,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -2086,12 +2110,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2180,8 +2203,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -2247,12 +2273,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 2,
+        "passing": 14,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 0
       },
@@ -2344,8 +2369,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -2411,12 +2439,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 13,
-        "failing": 2,
+        "passing": 14,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 0
       },
@@ -2508,8 +2535,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -2575,12 +2605,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2669,8 +2698,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -2735,12 +2767,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2834,8 +2865,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -2900,12 +2934,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -2994,8 +3027,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -3060,12 +3096,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -3154,8 +3189,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -3220,12 +3258,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -3314,8 +3351,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",
@@ -3381,12 +3421,11 @@
       "openGates": [
         "pseudo-locale",
         "visual-regression",
-        "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 2,
+        "passing": 13,
+        "failing": 1,
         "pending": 2,
         "notApplicable": 1
       },
@@ -3475,8 +3514,11 @@
         {
           "gate": "strict-csp",
           "requirement": "REQ-005",
-          "status": "failing",
-          "note": "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
         },
         {
           "gate": "zero-console-error",

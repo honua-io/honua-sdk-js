@@ -43,6 +43,7 @@
 
 import type { EditSketchTool } from "../contract/edit-sketch.js";
 import type { CanonicalFeature } from "../contract/types.js";
+import { renderCspSafeShadowHtml } from "./csp-styles.js";
 import type { HonuaEditorFieldControl, HonuaEditorOperation } from "./feature-editor-model.js";
 import type {
   HonuaFeatureEditorCommit,
@@ -224,7 +225,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     const root = this.shadowRoot;
     if (!root || !this.#connected) return;
     const focus = captureFocus(root);
-    root.innerHTML = this.#html();
+    renderCspSafeShadowHtml(root, this.#html());
     this.#bind(root);
     restoreFocus(root, focus);
   }

@@ -1061,10 +1061,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   "strict-csp": {
-    failing: [
+    passing: [
       {
         ids: ALL_IDS,
-        note: "Every render assigns shadowRoot.innerHTML with an inline <style> block, which a policy without style-src 'unsafe-inline' blocks — the component would render unstyled. Some templates also carry inline style attributes. No test serves the components under a policy, so this is a code-level finding rather than an enforced gate.",
+        evidence: ["test/playwright/web-components-csp.spec.mjs"],
+        note: "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur.",
       },
     ],
   },

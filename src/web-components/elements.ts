@@ -1,6 +1,7 @@
 import type { HonuaClient } from "../core/client.js";
 import type { MapPackageLocator } from "../runtime/index.js";
 import { createHonuaWebComponentController } from "./controller.js";
+import { renderCspSafeShadowHtml } from "./csp-styles.js";
 import { redactHonuaExportText } from "./export-redaction.js";
 import {
   HONUA_EXPORT_KINDS,
@@ -156,7 +157,7 @@ abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElement
     this.ensureShadowRoot();
     const root = this.shadowRoot ?? this;
     const focus = captureFocus(root);
-    root.innerHTML = html;
+    renderCspSafeShadowHtml(root, html);
     restoreFocus(root, focus);
   }
 
@@ -764,8 +765,11 @@ export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElemen
   protected render(): void {
     const legend = this.visibleItems;
     const label = this.#messages.label ?? this.getAttribute("label") ?? "Legend";
+    const swatchStyles = legend
+      .map((item, index) => `.swatch-${index} { --swatch: ${escapeAttribute(item.color ?? "#64748b")}; }`)
+      .join("\n");
     this.setShadowHtml(`
-      <style>${baseStyles()}${listStyles()}${legendStyles()}</style>
+      <style>${baseStyles()}${listStyles()}${legendStyles()}${swatchStyles}</style>
       <section class="panel" part="panel" aria-label="${escapeHtml(label)}">
         <h2>${escapeHtml(label)}</h2>
         <ul class="legend" role="list">
@@ -774,12 +778,12 @@ export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElemen
               ? `<li class="empty">${escapeHtml(this.#messages.noLegend ?? "No legend")}</li>`
               : legend
                   .map(
-                    (item) => `
+                    (item, index) => `
             <li role="listitem" data-legend-item="${escapeAttribute(item.id)}">
               ${
                 item.iconUrl
                   ? `<img class="swatch" alt="" aria-hidden="true" src="${escapeAttribute(item.iconUrl)}" />`
-                  : `<span class="swatch" aria-hidden="true" style="--swatch:${escapeAttribute(item.color ?? "#64748b")}"></span>`
+                  : `<span class="swatch swatch-${index}" aria-hidden="true"></span>`
               }
               <span>${escapeHtml(item.label)}</span>
             </li>
@@ -1725,8 +1729,14 @@ export class HonuaChartElement<T = Record<string, unknown>> extends HonuaElement
     const model = this.chartModel ?? defaultChartModel(this.#messages.label ?? this.getAttribute("label") ?? "Chart");
     const title = this.#messages.label ?? model.title;
     const max = Math.max(1, ...(model.data ?? []).map((datum) => datum.value));
+    const barStyles = (model.data ?? [])
+      .map(
+        (datum, index) =>
+          `.bar-${index} { --bar: ${(datum.value / max) * 100}%; --bar-color: ${escapeAttribute(datum.color ?? "#2563eb")}; }`,
+      )
+      .join("\n");
     this.setShadowHtml(`
-      <style>${baseStyles()}${chartStyles()}</style>
+      <style>${baseStyles()}${chartStyles()}${barStyles}</style>
       <section class="chart" part="panel" aria-label="${escapeHtml(title)}">
         <h2>${escapeHtml(title)}</h2>
         <div class="bars">
@@ -1734,12 +1744,10 @@ export class HonuaChartElement<T = Record<string, unknown>> extends HonuaElement
             model.data?.length
               ? model.data
                   .map(
-                    (datum) => `
+                    (datum, index) => `
             <div class="bar-row">
               <span>${escapeHtml(datum.label)}</span>
-              <span class="bar" style="--bar:${(datum.value / max) * 100}%;--bar-color:${escapeAttribute(
-                datum.color ?? "#2563eb",
-              )}"></span>
+              <span class="bar bar-${index}"></span>
               <strong>${escapeHtml(String(datum.value))}</strong>
             </div>
           `,

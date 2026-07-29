@@ -226,8 +226,9 @@ describe("<honua-feature-table> bounded lane", () => {
     await engine.setScroll({ scrollTop: 100 * 40, rowHeight: 40, viewportHeight: 400 });
 
     const root = shadow(element);
-    expect(root.querySelector<HTMLElement>("[data-leading]")?.style.height).toBe(`${100 * 40}px`);
-    expect(root.querySelector<HTMLElement>("[data-trailing]")?.style.height).toBe(`${(TOTAL - 110) * 40}px`);
+    const stylesheet = [...root.querySelectorAll("style")].map((style) => style.textContent ?? "").join("\n");
+    expect(stylesheet).toContain(`[data-leading] { height: ${100 * 40}px; }`);
+    expect(stylesheet).toContain(`[data-trailing] { height: ${(TOTAL - 110) * 40}px; }`);
   });
 
   it("announces result truth in a polite live region and never fabricates a total", async () => {
@@ -477,7 +478,9 @@ describe("<honua-feature-table> review regressions (PR #801)", () => {
     expect(current?.scrollTop).toBe(100 * 32);
     // And the window actually moved, so the offset is not stale.
     expect(engine.snapshot.window.startIndex).toBe(100);
-    expect(shadow(element).querySelector<HTMLElement>("[data-leading]")?.style.height).toBe(`${100 * 32}px`);
+    expect([...shadow(element).querySelectorAll("style")].map((style) => style.textContent ?? "").join("\n")).toContain(
+      `[data-leading] { height: ${100 * 32}px; }`,
+    );
   });
 
   it("keeps the scroll offset across an unrelated engine publish", async () => {
