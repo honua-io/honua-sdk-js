@@ -3,6 +3,7 @@ import type { HonuaTypedFeature } from "../core/types.js";
 import type { HonuaHitTestOptions, HonuaHitTestResult, HonuaPointerInput } from "../interactions/index.js";
 import type { HonuaMapPackage, HonuaMapPackageLegendEntry } from "../runtime/index.js";
 import type { HonuaLayerSpecification } from "../style/index.js";
+import type { HonuaExportKind } from "./export.js";
 
 export type HonuaComponentStatus = "idle" | "loading" | "ready" | "error" | "unsupported";
 
@@ -587,6 +588,17 @@ export interface HonuaExportDetail {
   redactionCount?: number;
   /** Registered SDK error code, when the export did not succeed. */
   errorCode?: string;
+}
+
+/** Caller-supplied messages for `<honua-print-export>`. */
+export interface HonuaPrintExportMessages {
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly actionLabels?: Partial<Readonly<Record<HonuaExportKind, string>>>;
+  /** Accessible explanation shown on actions unavailable without an adapter. */
+  readonly unavailable?: Partial<Readonly<Record<HonuaExportKind, string>>>;
+  readonly ready?: string;
+  readonly adapterRequired?: string;
+  readonly adapterRequiredForSnapshotState?: string;
 }
 
 export interface HonuaFullscreenChangeDetail {

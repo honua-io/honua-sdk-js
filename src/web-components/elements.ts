@@ -65,6 +65,7 @@ import type {
   HonuaMeasureChangeDetail,
   HonuaMeasureControlMessages,
   HonuaMeasureMode,
+  HonuaPrintExportMessages,
   HonuaSearchDetail,
   HonuaSearchGeocodeSuggestion,
   HonuaSearchGeocoderLike,
@@ -2017,6 +2018,7 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
   #exportAdapter: HonuaExportAdapter | undefined;
   #lastResult: HonuaExportResult | undefined;
   #inFlight: AbortController | undefined;
+  #messages: HonuaPrintExportMessages = {};
   /** Monotonic request generation; only the newest export may publish. */
   #exportGeneration = 0;
 
@@ -2035,6 +2037,16 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
   public set exportAdapter(adapter: HonuaExportAdapter | undefined) {
     if (this.#exportAdapter === adapter) return;
     this.#exportAdapter = adapter;
+    this.render();
+  }
+
+  /** Caller-supplied localized status, action, and unsupported messages. */
+  public get messages(): HonuaPrintExportMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaPrintExportMessages | undefined) {
+    this.#messages = messages ?? {};
     this.render();
   }
 
@@ -2125,14 +2137,16 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
   protected render(): void {
     const label = this.getAttribute("label") ?? "Print and export";
     const available = new Set(this.availableExportKinds());
-    const status = available.size === 0 ? "unsupported" : "ready";
+    const status: HonuaComponentStatus = available.size === 0 ? "unsupported" : "ready";
     const last = this.#lastResult;
     const buttons = (["print", "snapshot", "state"] as const)
       .map((kind) => {
         const enabled = available.has(kind);
+        const actionLabel = this.#messages.actionLabels?.[kind] ?? EXPORT_LABELS[kind];
         const title = enabled
-          ? `${EXPORT_LABELS[kind]} export`
-          : `${EXPORT_LABELS[kind]} export requires an application-supplied export adapter.`;
+          ? `${actionLabel} export`
+          : (this.#messages.unavailable?.[kind] ??
+            `${actionLabel} export requires an application-supplied export adapter.`);
         // Deliberately neither `disabled` nor `aria-disabled`, even when no
         // adapter is assigned. Both suppress activation — assistive technology
         // skips a disabled control, and Playwright treats either as
@@ -2144,7 +2158,7 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
         // which returns `unsupported` with no bytes.
         return `<button type="button" data-export-format="${EXPORT_FORMAT_BY_KIND[kind]}" data-export-kind="${kind}"${
           enabled ? "" : ' data-export-unavailable="true"'
-        } title="${escapeHtml(title)}">${escapeHtml(EXPORT_LABELS[kind])}</button>`;
+        } title="${escapeHtml(title)}">${escapeHtml(actionLabel)}</button>`;
       })
       .join("");
     this.setShadowHtml(`
@@ -2152,10 +2166,12 @@ export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaE
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(status)}</span>
+          <span>${escapeHtml(this.#messages.status?.[status] ?? status)}</span>
         </div>
         <div class="button-stack">${buttons}</div>
-        <p part="status" role="status" aria-live="polite">${escapeHtml(exportStatusText(last, available))}</p>
+        <p part="status" role="status" aria-live="polite">${escapeHtml(
+          exportStatusText(last, available, this.#messages),
+        )}</p>
       </section>
     `);
     this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-export-kind]").forEach((button) => {
@@ -2180,12 +2196,16 @@ const EXPORT_LABELS: Readonly<Record<HonuaExportKind, string>> = {
  * reporting "ready to export" while two of the three buttons are inert would be
  * exactly the kind of quiet degradation issue #683 exists to remove.
  */
-function exportStatusText(result: HonuaExportResult | undefined, available: ReadonlySet<HonuaExportKind>): string {
+function exportStatusText(
+  result: HonuaExportResult | undefined,
+  available: ReadonlySet<HonuaExportKind>,
+  messages: HonuaPrintExportMessages = {},
+): string {
   if (!result) {
-    if (available.has("snapshot") && available.has("state")) return "Ready to export.";
+    if (available.has("snapshot") && available.has("state")) return messages.ready ?? "Ready to export.";
     return available.size === 0
-      ? "Assign an export adapter to enable export."
-      : "Assign an export adapter to enable snapshot and state export.";
+      ? (messages.adapterRequired ?? "Assign an export adapter to enable export.")
+      : (messages.adapterRequiredForSnapshotState ?? "Assign an export adapter to enable snapshot and state export.");
   }
   if (result.status === "ready") {
     const redacted =
