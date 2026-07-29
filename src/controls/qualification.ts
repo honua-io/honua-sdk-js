@@ -876,6 +876,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/controls/legend.test.ts"],
         note: "The native legend inherits an explicit RTL direction and uses logical label alignment, asserted through its rendered direction and stylesheet coverage.",
       },
+      {
+        ids: ["web-components.map-status"],
+        evidence: ["test/web-components-map-status-element.test.ts"],
+        note: "The map-status component inherits RTL direction and uses logical padding and start-aligned text, asserted with Arabic rendering and stylesheet coverage.",
+      },
     ],
     failing: [
       {
@@ -885,6 +890,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "controls.layer-list",
           "controls.basemap-switcher",
           "controls.legend",
+          "web-components.map-status",
         ),
         note: "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl.",
       },
