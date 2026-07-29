@@ -3,7 +3,6 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { startWebComponentsFixtureServer } from "../../examples/web-components-basic/mock-server.mjs";
-import { pseudoLocalize } from "../helpers/pseudo-locale.mjs";
 
 const qualification = JSON.parse(
   fs.readFileSync(path.resolve("config/component-qualification.v1.json"), "utf8"),
@@ -40,12 +39,6 @@ const HOSTS = {
 
 function componentIds() {
   return CATALOG_COMPONENTS.map(({ id }) => id);
-}
-
-function visible(element) {
-  const style = getComputedStyle(element);
-  const rect = element.getBoundingClientRect();
-  return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
 }
 
 test.describe("pseudo-locale component qualification", () => {
