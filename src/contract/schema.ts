@@ -17,6 +17,7 @@ import { PROTOCOLS, type Protocol } from "./types.js";
 
 export { SOURCE_SCHEMA_V2_KIND, SOURCE_SCHEMA_V2_VERSION } from "./schema-envelope.js";
 export const SOURCE_SCHEMA_V2_FINGERPRINT_DOMAIN = "honua:schema:2.0" as const;
+export const SOURCE_SCHEMA_STATE_FINGERPRINT_DOMAIN = "honua:schema-state:1.0" as const;
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const EXTENSION_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9_-]*\.)+[A-Za-z0-9][A-Za-z0-9_-]*$/;
@@ -668,6 +669,43 @@ export function sourceSchemaIdentity(schema: SchemaState): SchemaIdentity {
     throw new TypeError("SchemaState.reason is invalid");
   }
   return deepFreeze({ state: "unavailable", reason: schema.reason, provenance: cloneProvenance(schema.provenance) });
+}
+
+/** Parse and canonicalize a serialized/object schema identity. */
+export function parseSchemaIdentity(value: unknown): SchemaIdentity {
+  const record = object(toPlainJson(value), "$", ["state", "fingerprint", "reason", "provenance"]);
+  if (record.state === "known") {
+    if (typeof record.fingerprint !== "string" || !SHA256_PATTERN.test(record.fingerprint)) {
+      throw new TypeError("SchemaIdentity.fingerprint must be a lowercase SHA-256 digest");
+    }
+    return deepFreeze({ state: "known", fingerprint: record.fingerprint as Sha256 });
+  }
+  if (!includes(["unavailable"] as const, record.state)) throw new TypeError("SchemaIdentity.state is invalid");
+  if (!includes(["not-requested", "request-failed", "not-advertised", "invalid"] as const, record.reason)) {
+    throw new TypeError("SchemaIdentity.reason is invalid");
+  }
+  return unavailableSchemaIdentity({
+    reason: record.reason,
+    provenance: normalizeProvenanceArray(record.provenance, "$.provenance"),
+  });
+}
+
+/** Return the canonical identity used to bind capability evidence to schema truth. */
+export function schemaStateBindingFingerprint(identity: SchemaIdentity): Sha256 {
+  if (identity.state === "known") return identity.fingerprint;
+  return sha256(`${SOURCE_SCHEMA_STATE_FINGERPRINT_DOMAIN}\n${canonicalStringify(toJsonValue(identity))}`) as Sha256;
+}
+
+/** Build an immutable unavailable schema identity for discovery/cache projections. */
+export function unavailableSchemaIdentity(input: {
+  readonly reason: Extract<SchemaIdentity, { readonly state: "unavailable" }>["reason"];
+  readonly provenance: NonEmptyReadonlyArray<MetadataProvenance>;
+}): SchemaIdentity {
+  return deepFreeze({
+    state: "unavailable",
+    reason: input.reason,
+    provenance: cloneProvenance(input.provenance),
+  });
 }
 
 /** @internal Adapter boundary for degrading malformed CRS metadata without losing its enclosing schema. */

@@ -18,11 +18,13 @@ import {
   type LogicalType,
   type MetadataProvenance,
   type NativeTypeReference,
+  type SchemaIdentity,
   type SourceGeometrySchema,
   type SourceProtocol,
   type SourceSchemaV2,
   type TemporalSchema,
   createSourceSchemaV2,
+  unavailableSchemaIdentity,
   validateSourceCrsDefinition,
 } from "./contract/schema.js";
 import type { Protocol } from "./contract/types.js";
@@ -94,6 +96,23 @@ export interface SchemaNormalizationContext {
   readonly source: string;
   readonly observedAt?: string;
   readonly validator?: MetadataProvenance["validator"];
+}
+
+/** Build an honest unavailable identity for protocols that do not advertise fields. */
+export function unavailableSourceSchemaState(context: SchemaNormalizationContext, detail: string): SchemaIdentity {
+  return unavailableSchemaIdentity({
+    reason: "not-advertised",
+    provenance: [
+      {
+        method: "unavailable",
+        protocol: context.protocol,
+        source: context.source,
+        ...(context.observedAt ? { observedAt: context.observedAt } : {}),
+        ...(context.validator ? { validator: context.validator } : {}),
+        detail,
+      },
+    ],
+  });
 }
 
 /** Normalize a GeoServices layer document while leaving legacy `.schema` untouched. */

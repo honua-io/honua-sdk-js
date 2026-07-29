@@ -1,15 +1,10 @@
-import type { SourceDescriptor } from "./contract/types.js";
+import type { Protocol, SourceDescriptor } from "./contract/types.js";
 import { encodeServiceIdPath, trimTrailingSlashes } from "./core/path-utils.js";
 import { normalizeCapabilitySourceEndpoint } from "./source-capability-endpoint.js";
 import type { CapabilitySourceEndpointIdentity } from "./source-capability-types.js";
 
 /** Protocols whose descriptor-to-endpoint replay binding is certified by capability discovery. */
-export type CapabilityDiscoveryProtocol =
-  | "geoservices-feature-service"
-  | "geoservices-map-service"
-  | "odata"
-  | "wms"
-  | "wmts";
+export type CapabilityDiscoveryProtocol = Protocol;
 
 /**
  * Reconstruct the smallest credential-free source endpoint from one resolved
@@ -40,6 +35,18 @@ export function sourceCapabilityEndpointIdentity(
       sourceId: descriptor.id,
     });
   }
+  if (protocol === "grpc") {
+    const serviceId = requiredServiceId(locator.serviceId);
+    const layerId = locator.layerId;
+    if (!Number.isSafeInteger(layerId) || (layerId as number) < 0) {
+      throw new TypeError("gRPC locator.layerId must be a non-negative safe integer");
+    }
+    return endpointIdentity({
+      endpoint: canonicalGeoServicesLayerEndpoint(locator.url, serviceId, "FeatureServer", layerId as number),
+      protocol,
+      sourceId: descriptor.id,
+    });
+  }
   if (protocol === "wms" || protocol === "wmts") {
     const layer = requiredRasterLayer(locator.typeName, protocol);
     if (descriptor.id !== layer) {
@@ -51,9 +58,53 @@ export function sourceCapabilityEndpointIdentity(
       sourceId: layer,
     });
   }
-  throw new TypeError(
-    `Capability discovery endpoint binding is not certified for protocol "${String(protocol)}"; use the protocol rollout issue for that adapter.`,
-  );
+  if (protocol === "wfs") {
+    return endpointIdentity({
+      endpoint: fallbackEndpoint(locator),
+      protocol,
+      sourceId: requiredLocatorCoordinate(descriptor.id, locator.typeName, "WFS locator.typeName"),
+    });
+  }
+  if (
+    protocol === "ogc-features" ||
+    protocol === "ogc-records" ||
+    protocol === "ogc-tiles" ||
+    protocol === "ogc-maps"
+  ) {
+    return endpointIdentity({
+      endpoint: fallbackEndpoint(locator),
+      protocol,
+      sourceId: requiredLocatorCoordinate(descriptor.id, locator.collectionId, `${protocol} locator.collectionId`),
+    });
+  }
+  if (protocol === "stac" && locator.collectionId !== undefined) {
+    return endpointIdentity({
+      endpoint: fallbackEndpoint(locator),
+      protocol,
+      sourceId: requiredLocatorCoordinate(descriptor.id, locator.collectionId, "STAC locator.collectionId"),
+    });
+  }
+  return endpointIdentity({
+    endpoint: fallbackEndpoint(locator),
+    protocol,
+    sourceId: descriptor.id,
+  });
+}
+
+function fallbackEndpoint(locator: SourceDescriptor["locator"]): string {
+  return typeof locator.basePath === "string"
+    ? new URL(locator.basePath, requiredEndpoint(locator.url)).toString()
+    : requiredEndpoint(locator.url);
+}
+
+function requiredLocatorCoordinate(descriptorId: string, value: unknown, path: string): string {
+  if (typeof value !== "string" || value.length === 0 || value.trim() !== value) {
+    throw new TypeError(`${path} must be a non-empty trimmed source coordinate`);
+  }
+  if (descriptorId !== value) {
+    throw new TypeError(`Source descriptor.id must match ${path}`);
+  }
+  return value;
 }
 
 function requiredRasterLayer(value: unknown, protocol: "wms" | "wmts"): string {

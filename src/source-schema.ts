@@ -35,13 +35,17 @@ export type { SchemaNormalizationContext } from "./connect-schema.js";
 
 export {
   SOURCE_SCHEMA_V2_FINGERPRINT_DOMAIN,
+  SOURCE_SCHEMA_STATE_FINGERPRINT_DOMAIN,
   SOURCE_SCHEMA_V2_KIND,
   SOURCE_SCHEMA_V2_VERSION,
   cloneSourceSchemaV2,
   createSourceSchemaV2,
   parseSourceSchemaV2,
+  parseSchemaIdentity,
   serializeSourceSchemaV2,
   sourceSchemaIdentity,
+  schemaStateBindingFingerprint,
+  unavailableSchemaIdentity,
 } from "./contract/schema.js";
 export type * from "./contract/schema.js";
 

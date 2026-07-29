@@ -4,6 +4,7 @@ import {
 } from "../source-capability-registry.js";
 import type { CapabilityId, CapabilityProfile } from "../source-capability-types.js";
 import { sourceSchemaV2EnvelopeFingerprint } from "./schema-envelope.js";
+import { schemaStateBindingFingerprint } from "./schema.js";
 import {
   CAPABILITIES,
   type Capability,
@@ -21,11 +22,25 @@ export function normalizeCapabilityDescriptor(descriptor: SourceDescriptor): Sou
   if (!isRegisteredCapabilityProfile(profile)) {
     throw new TypeError(`Source "${descriptor.id}" capabilityProfile must be evaluated or parsed by this SDK instance`);
   }
-  if (descriptor.schemaV2 === undefined) {
+  const schemaIdentity =
+    descriptor.schemaV2State ??
+    (descriptor.schemaV2 === undefined
+      ? undefined
+      : { state: "known" as const, fingerprint: sourceSchemaV2EnvelopeFingerprint(descriptor.schemaV2) });
+  if (schemaIdentity === undefined) {
     throw new TypeError(`Source "${descriptor.id}" capabilityProfile requires a matching schemaV2 identity`);
   }
-  const schemaFingerprint = sourceSchemaV2EnvelopeFingerprint(descriptor.schemaV2);
-  if (profile.sourceFingerprint !== schemaFingerprint) {
+  if (schemaIdentity.state === "unavailable" && descriptor.schemaV2 !== undefined) {
+    throw new TypeError(`Source "${descriptor.id}" unavailable schema state cannot include schemaV2`);
+  }
+  if (
+    schemaIdentity.state === "known" &&
+    descriptor.schemaV2 !== undefined &&
+    schemaIdentity.fingerprint !== sourceSchemaV2EnvelopeFingerprint(descriptor.schemaV2)
+  ) {
+    throw new TypeError(`Source "${descriptor.id}" schemaV2State does not match its schemaV2 fingerprint`);
+  }
+  if (profile.sourceFingerprint !== schemaStateBindingFingerprint(schemaIdentity)) {
     throw new TypeError(`Source "${descriptor.id}" capabilityProfile does not match its schemaV2 fingerprint`);
   }
   if (!matchesRegisteredCapabilityProfileSource(profile, descriptor)) {
