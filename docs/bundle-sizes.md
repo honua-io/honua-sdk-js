@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-29 at commit `1b695837`._
+_Generated 2026-07-29 at commit `63385552`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -16,8 +16,8 @@ _Generated 2026-07-29 at commit `1b695837`._
 | `/honua` | 864.3 KiB | 937.2 KiB | 231.8 KiB | 251.0 KiB |
 | `/contract` | 326.0 KiB | 352.8 KiB | 86.8 KiB | 94.1 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 845.1 KiB | 925.5 KiB | 187.7 KiB | 206.0 KiB |
-| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.9 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 878.5 KiB | 961.8 KiB | 197.1 KiB | 215.6 KiB |
+| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 878.3 KiB | 961.8 KiB | 197.1 KiB | 215.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 59.1 KiB | 62.6 KiB | 18.2 KiB | 19.3 KiB |
 | `/agent-tools` | 35.0 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.8 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |

@@ -12,6 +12,7 @@ interface ConnectParityMatrix {
     readonly protocol: string;
     readonly fixture: string;
     readonly sourceKind: string;
+    readonly equivalence: string;
     readonly semanticFields: readonly string[];
     readonly lifecycleCases: readonly string[];
   }[];
@@ -54,6 +55,9 @@ describe("portable connect parity matrix", () => {
     expect(requiredSemanticFields.size).toBe(matrix.requiredSemanticFields.length);
     expect(requiredLifecycleCases.size).toBe(matrix.lifecycleCases.length);
     for (const entry of matrix.sourceProtocols) {
+      expect(entry.equivalence.length).toBeGreaterThan(0);
+      expect(new Set(entry.semanticFields).size).toBe(entry.semanticFields.length);
+      expect(new Set(entry.lifecycleCases).size).toBe(entry.lifecycleCases.length);
       expect(entry.semanticFields.length).toBeGreaterThan(0);
       expect(entry.lifecycleCases.length).toBeGreaterThan(0);
       expect(entry.semanticFields.every((field) => requiredSemanticFields.has(field))).toBe(true);
@@ -61,6 +65,22 @@ describe("portable connect parity matrix", () => {
       expect(entry.semanticFields).toContain("schemaState");
       expect(entry.semanticFields).toContain("capabilities");
       expect(entry.semanticFields).toContain("provenance");
+    }
+
+    const coveredSemanticFields = new Set(matrix.sourceProtocols.flatMap((entry) => entry.semanticFields));
+    const coveredLifecycleCases = new Set(matrix.sourceProtocols.flatMap((entry) => entry.lifecycleCases));
+    expect([...requiredSemanticFields].every((field) => coveredSemanticFields.has(field))).toBe(true);
+    expect([...requiredLifecycleCases].every((lifecycleCase) => coveredLifecycleCases.has(lifecycleCase))).toBe(true);
+  });
+
+  it("retains the reviewed operation-only boundary and validates its lifecycle vocabulary", () => {
+    const expectedOperationOnly = ["geoservices-geometry-service", "geoservices-gp-service", "ogc-processes"];
+    expect(matrix.operationOnly.map((entry) => entry.protocol).sort()).toEqual(expectedOperationOnly.sort());
+
+    const lifecycleCases = new Set(matrix.lifecycleCases);
+    for (const entry of matrix.operationOnly) {
+      expect(new Set(entry.lifecycleCases).size).toBe(entry.lifecycleCases.length);
+      expect(entry.lifecycleCases.every((lifecycleCase) => lifecycleCases.has(lifecycleCase))).toBe(true);
     }
   });
 
