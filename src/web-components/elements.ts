@@ -39,6 +39,7 @@ import type {
   HonuaBasemapChangeDetail,
   HonuaBookmark,
   HonuaBookmarkChangeDetail,
+  HonuaBookmarksMessages,
   HonuaChartModel,
   HonuaComponentStatus,
   HonuaControllerReadyDetail,
@@ -1732,6 +1733,17 @@ export class HonuaBookmarksElement<T = Record<string, unknown>> extends HonuaEle
     return ["for", "label", "bookmarks"];
   }
 
+  #messages: HonuaBookmarksMessages = {};
+
+  public get messages(): HonuaBookmarksMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaBookmarksMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
+
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
@@ -1740,16 +1752,19 @@ export class HonuaBookmarksElement<T = Record<string, unknown>> extends HonuaEle
   protected render(): void {
     const label = this.getAttribute("label") ?? "Bookmarks";
     const bookmarks = this.bookmarks();
+    const statusLabel =
+      this.#messages.status?.[bookmarks.length > 0 ? "ready" : "unsupported"] ??
+      (bookmarks.length > 0 ? "ready" : "unsupported");
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(bookmarks.length > 0 ? "ready" : "unsupported")}</span>
+          <span>${escapeHtml(statusLabel)}</span>
         </div>
         ${
           bookmarks.length === 0
-            ? `<p class="empty" role="status">No initial view or bookmarks are available.</p>`
+            ? `<p class="empty" role="status">${escapeHtml(this.#messages.empty ?? "No initial view or bookmarks are available.")}</p>`
             : `<div class="button-stack">
               ${bookmarks
                 .map(
@@ -1775,7 +1790,12 @@ export class HonuaBookmarksElement<T = Record<string, unknown>> extends HonuaEle
   private bookmarks(): readonly HonuaBookmark[] {
     const configured = parseBookmarks(this.getAttribute("bookmarks"));
     const home = this.state?.mapPackage?.initialView;
-    return [...(home ? [{ id: "home", label: "Home", viewport: home } satisfies HonuaBookmark] : []), ...configured];
+    return [
+      ...(home
+        ? [{ id: "home", label: this.#messages.homeLabel ?? "Home", viewport: home } satisfies HonuaBookmark]
+        : []),
+      ...configured,
+    ];
   }
 
   private goToBookmark(bookmark: HonuaBookmark): void {

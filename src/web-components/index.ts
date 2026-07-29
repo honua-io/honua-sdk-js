@@ -310,6 +310,7 @@ export type {
   HonuaBasemapChangeDetail,
   HonuaBookmark,
   HonuaBookmarkChangeDetail,
+  HonuaBookmarksMessages,
   CreateHonuaWebComponentControllerOptions,
   HonuaChartDatum,
   HonuaChartModel,

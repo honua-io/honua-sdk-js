@@ -36,6 +36,13 @@ export interface HonuaEditorMessages {
   readonly readOnlyReason?: string | ((reason: string | undefined) => string);
 }
 
+/** Caller-supplied messages for `<honua-bookmarks>`. */
+export interface HonuaBookmarksMessages {
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  readonly empty?: string;
+  readonly homeLabel?: string;
+}
+
 export interface HonuaLayerModel {
   id: string;
   title: string;

@@ -126,6 +126,22 @@ describe("web-component accessibility semantics", () => {
     expect(shadow(element).querySelector(".muted")?.textContent).toBe("Nur Lesen: Quelle ist schreibgeschützt");
   });
 
+  it("renders caller-supplied localized bookmark messages", () => {
+    const element = mount("honua-bookmarks", "Lesezeichen") as HTMLElement & {
+      messages: { status?: { unsupported?: string }; empty?: string };
+    };
+    element.messages = {
+      status: { unsupported: "Nicht verfügbar" },
+      empty: "Keine gespeicherten Ansichten verfügbar.",
+    };
+
+    expect(shadow(element).querySelector("h2")?.textContent).toBe("Lesezeichen");
+    expect(shadow(element).querySelector(".control-panel__bar span")?.textContent).toBe("Nicht verfügbar");
+    expect(shadow(element).querySelector("p[role='status']")?.textContent).toBe(
+      "Keine gespeicherten Ansichten verfügbar.",
+    );
+  });
+
   it("gives the chart a named panel and heading", () => {
     const root = shadow(mount("honua-chart", "Incident counts"));
     expect(root.querySelector(".chart")?.getAttribute("aria-label")).toBe("Incident counts");

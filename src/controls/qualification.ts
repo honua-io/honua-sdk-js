@@ -821,6 +821,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-accessibility.test.ts"],
         note: "The editor accepts caller-supplied action attributes and typed status, selection, editable, and read-only messages, including a reason formatter, asserted with German rendering coverage.",
       },
+      {
+        ids: ["web-components.bookmarks"],
+        evidence: ["test/web-components-accessibility.test.ts"],
+        note: "The bookmarks component accepts caller-supplied status and empty-state messages, asserted with German rendering coverage while preserving bookmark labels supplied by the caller.",
+      },
     ],
     failing: [
       {
@@ -830,6 +835,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "controls.swipe-control",
           "web-components.locate-control",
           "web-components.editor",
+          "web-components.bookmarks",
         ),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
       },
