@@ -345,6 +345,41 @@ describe("capability discovery endpoint binding", () => {
       }),
     ).toThrow(/must match .*typeName/);
 
+    expect(() =>
+      sourceCapabilityEndpointIdentity({
+        ...wfs,
+        locator: { ...wfs.locator, typeName: undefined },
+      }),
+    ).toThrow(/must be a non-empty trimmed source coordinate/);
+    expect(() =>
+      sourceCapabilityEndpointIdentity({
+        ...ogcFeatures,
+        locator: { ...ogcFeatures.locator, collectionId: " parcels" },
+      }),
+    ).toThrow(/must be a non-empty trimmed source coordinate/);
+
+    const stac: EndpointDescriptorFixture = {
+      id: "imagery",
+      protocol: "stac",
+      locator: { url: "https://example.test/stac", collectionId: "imagery" },
+    };
+    expect(sourceCapabilityEndpointIdentity(stac).sourceId).toBe("imagery");
+    expect(() =>
+      sourceCapabilityEndpointIdentity({
+        ...stac,
+        locator: { ...stac.locator, collectionId: "roads" },
+      }),
+    ).toThrow(/must match .*collectionId/);
+    expect(
+      createCapabilitySourceEndpointFingerprint(
+        sourceCapabilityEndpointIdentity({
+          ...stac,
+          id: "roads",
+          locator: { ...stac.locator, collectionId: "roads" },
+        }),
+      ),
+    ).not.toBe(createCapabilitySourceEndpointFingerprint(sourceCapabilityEndpointIdentity(stac)));
+
     const geoparquet: EndpointDescriptorFixture = {
       id: "places",
       protocol: "geoparquet",

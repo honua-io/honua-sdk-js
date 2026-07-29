@@ -12,6 +12,7 @@
 import {
   type ConnectOptions,
   type ConnectSourceCapabilityProjection,
+  type ConnectSourceProtocolHint,
   type HonuaConnection,
   type HonuaConnectionInspection,
   connectWithSourceSchemaProjection,
@@ -61,7 +62,7 @@ export type { CapabilityDiscoveryProtocol } from "./source-capability-discovery-
 const CAPABILITY_DISCOVERY_PROJECTION_IDENTITY = "honua.source-capability-discovery@1.0";
 /** Connect options accepted by capability discovery across every source protocol. */
 export type SourceCapabilityConnectOptions = Omit<ConnectOptions, "protocol" | "capabilityPolicy"> & {
-  readonly protocol: ConnectOptions["protocol"];
+  readonly protocol: ConnectSourceProtocolHint;
 };
 
 /** Fresh dynamic inputs reapplied after every raw discovery-cache read. */
