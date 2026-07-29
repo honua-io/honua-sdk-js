@@ -46,6 +46,7 @@ import {
   escapeHtml,
   globalDom,
   listenForHonuaMapReady,
+  renderShadowRoot,
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
 import { defineHonuaSwipeControl } from "./swipe-control.js";
@@ -230,8 +231,10 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
     }
     const focusedBaseId = root.activeElement?.getAttribute("data-base-id");
     const label = (typeof this.getAttribute === "function" ? this.getAttribute("label") : null) ?? "Basemaps";
-    root.innerHTML = `
-      <style>${structuralStyles()}</style>
+    renderShadowRoot(
+      root,
+      structuralStyles(),
+      `
       <div part="group" class="group" role="radiogroup" aria-label="${escapeAttribute(label)}">
         ${this.bases
           .map(
@@ -250,7 +253,8 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
           )
           .join("")}
       </div>
-    `;
+    `,
+    );
     this.#rendered = true;
     this.#bindGroup(root);
     this.#updateSelectionDom();

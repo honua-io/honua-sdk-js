@@ -20,6 +20,7 @@ export const globalDom = globalThis as typeof globalThis & {
   CustomEvent?: typeof CustomEvent;
   customElements?: CustomElementRegistry;
   getComputedStyle?: typeof getComputedStyle;
+  CSSStyleSheet?: typeof CSSStyleSheet;
 };
 
 export const HTMLElementBase: typeof HTMLElement = globalDom.HTMLElement ?? (class {} as unknown as typeof HTMLElement);
@@ -93,4 +94,29 @@ export function escapeHtml(value: string): string {
 
 export function escapeAttribute(value: string): string {
   return escapeHtml(value);
+}
+
+interface ShadowRenderRoot {
+  innerHTML: string;
+  adoptedStyleSheets?: CSSStyleSheet[];
+}
+
+const adoptedSheets = new WeakMap<object, CSSStyleSheet>();
+
+/** Render controls with a constructable stylesheet when CSP-safe DOM APIs exist. */
+export function renderShadowRoot(root: ShadowRenderRoot, cssText: string, markup: string): void {
+  const StyleSheet = globalDom.CSSStyleSheet;
+  if (StyleSheet && Array.isArray(root.adoptedStyleSheets) && typeof StyleSheet.prototype.replaceSync === "function") {
+    let sheet = adoptedSheets.get(root);
+    if (!sheet) {
+      sheet = new StyleSheet();
+      adoptedSheets.set(root, sheet);
+      root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+    }
+    sheet.replaceSync(cssText);
+    root.innerHTML = markup;
+    return;
+  }
+
+  root.innerHTML = `<style>${cssText}</style>${markup}`;
 }

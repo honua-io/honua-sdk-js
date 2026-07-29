@@ -298,7 +298,8 @@ describe("HonuaLegendElement", () => {
     expect(shadow.innerHTML).toContain('aria-hidden="true"');
     expect(shadow.innerHTML).toContain("swatch-circle");
     expect(shadow.innerHTML).toContain("swatch-line");
-    expect(shadow.innerHTML).toContain("--legend-fill:#dc2626");
+    expect(shadow.innerHTML).toContain('fill="#dc2626"');
+    expect(shadow.innerHTML).not.toContain('style="');
     expect(shadow.innerHTML).toContain("High priority");
   });
 
@@ -318,7 +319,8 @@ describe("HonuaLegendElement", () => {
     expect(shadow.innerHTML).toContain("Legend");
     expect(shadow.innerHTML).toContain('part="section-title"');
     expect(shadow.innerHTML).toContain("&lt;Residential &amp; Co&gt;");
-    expect(shadow.innerHTML).toContain("--legend-outline:#475569");
+    expect(shadow.innerHTML).toContain('stroke="#475569"');
+    expect(shadow.innerHTML).not.toContain('style="');
     expect(shadow.innerHTML).not.toContain("<Residential");
   });
 
@@ -328,10 +330,9 @@ describe("HonuaLegendElement", () => {
 
     expect(shadow.innerHTML).toContain("@media (forced-colors: active), (prefers-contrast: more)");
     expect(shadow.innerHTML).toContain(".row { color: CanvasText; }");
-    expect(shadow.innerHTML).toContain("background: CanvasText;");
-    expect(shadow.innerHTML).toContain("border: 1px solid CanvasText;");
+    expect(shadow.innerHTML).toContain(".swatch { color: CanvasText; forced-color-adjust: none; }");
     expect(shadow.innerHTML).toContain("forced-color-adjust: none;");
-    expect(shadow.innerHTML).toContain(".swatch-line { background: CanvasText; border: none; }");
+    expect(shadow.innerHTML).toContain(".swatch > * { forced-color-adjust: none; }");
   });
 
   test("derive mode appends a section parsed from the layer's match expression", () => {
