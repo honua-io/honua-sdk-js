@@ -504,9 +504,11 @@ function structuralStyles(): string {
       --honua-ui-accent-fg: #ffffff;
       box-sizing: border-box;
       color: var(--honua-ui-fg);
+      direction: inherit;
       display: block;
       font: 14px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
+    :host([dir="rtl"]) { direction: rtl; }
     *, *::before, *::after { box-sizing: inherit; }
     button {
       border: 1px solid var(--honua-ui-border);
@@ -532,8 +534,10 @@ function structuralStyles(): string {
       display: grid;
       gap: 10px;
       min-width: 180px;
-      padding: 10px;
+      padding-block: 10px;
+      padding-inline: 10px;
     }
+    button { padding-block: 0; padding-inline: 10px; }
     .bar { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
     .state { color: var(--honua-ui-muted); font-size: 12px; }
     .segmented { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); }
