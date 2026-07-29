@@ -84,8 +84,11 @@ const SITE_CONSUMER_V3_FIXTURE_PATH =
 const SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-fixture.schema.json";
 const FIXTURE_BUILD_ENVIRONMENT_HELPER = "../../scripts/lib/fixture-build-environment.mjs";
+const NPM_CLI_HELPER = "../../scripts/lib/npm-cli.mjs";
+const FIXTURE_BUILD_OPTION_NAMES = new Set(["cwd", "env", "stdio", "timeout"]);
 const REVIEWED_FIXTURE_HARNESS_IMPORTS = new Set([
   FIXTURE_BUILD_ENVIRONMENT_HELPER,
+  NPM_CLI_HELPER,
   "../../samples/scenarios/index.mjs",
 ]);
 const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
@@ -283,7 +286,7 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
       generatorPath: "examples/spatial-analytics-workbench/live-evidence.mjs",
       dependencies: {
         build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
-        clean: "rm -rf dist",
+        clean: "node scripts/clean-dist.mjs",
         compile: "npm run clean --silent && tsc -p tsconfig.json",
       },
     },
@@ -295,7 +298,7 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
       generatorPath: "examples/service-explorer/live-evidence.mjs",
       dependencies: {
         build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
-        clean: "rm -rf dist",
+        clean: "node scripts/clean-dist.mjs",
         compile: "npm run clean --silent && tsc -p tsconfig.json",
       },
     },
@@ -336,7 +339,7 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
       generatorPath: "scripts/cog-live-evidence.mjs",
       dependencies: {
         build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
-        clean: "rm -rf dist",
+        clean: "node scripts/clean-dist.mjs",
         compile: "npm run clean --silent && tsc -p tsconfig.json",
       },
     },
@@ -348,7 +351,7 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
       generatorPath: "scripts/planning-live-evidence.mjs",
       dependencies: {
         build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
-        clean: "rm -rf dist",
+        clean: "node scripts/clean-dist.mjs",
         compile: "npm run clean --silent && tsc -p tsconfig.json",
       },
     },
@@ -1708,10 +1711,6 @@ function isConstVariableDeclaration(declaration) {
   );
 }
 
-function isNpmExecutable(command) {
-  return /(?:^|[/\\])npm(?:\.cmd)?$/i.test(command);
-}
-
 function childExecutableName(command) {
   return command.split(/[\\/]/).at(-1)?.toLowerCase() ?? "";
 }
@@ -1731,6 +1730,7 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
   const fixtureEnvironmentImports = new Set();
   const getBuiltinModuleImports = new Set();
   const moduleObjectImports = new Set();
+  const npmScriptImports = new Set();
   const processObjectImports = new Set();
   const variableDeclarations = [];
   const functionNodes = new Set();
@@ -1910,6 +1910,21 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
             fixtureEnvironmentImports.add(element);
           }
         }
+      }
+    }
+    if (moduleName === NPM_CLI_HELPER) {
+      const bindings = importClause?.namedBindings;
+      invariant(
+        !importClause?.name && bindings && ts.isNamedImports(bindings),
+        `${file}: npm CLI helper must use a named import`,
+      );
+      for (const element of bindings.elements) {
+        const importedName = element.propertyName?.text ?? element.name.text;
+        invariant(
+          importedName === "runNpmScriptSync",
+          `${file}: fixture build harnesses may import only runNpmScriptSync from the npm CLI helper`,
+        );
+        npmScriptImports.add(element);
       }
     }
   }
@@ -2351,6 +2366,11 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
         !property.name || !ts.isComputedPropertyName(property.name),
         `${file}: fixture build option names must be static`,
       );
+      const name = property.name && propertyName(property.name);
+      invariant(
+        name && FIXTURE_BUILD_OPTION_NAMES.has(name),
+        `${file}: unsupported fixture build option ${name ?? "unknown"}`,
+      );
     }
     const environmentProperties = options.properties.filter(
       (property) => property.name && propertyName(property.name) === "env",
@@ -2409,6 +2429,17 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
           `${file}: fixture build harnesses cannot dynamically load unreviewed local or data modules`,
         );
       }
+      if (isImportedIdentity(node.expression, npmScriptImports, "npm script launch")) {
+        const scripts = node.arguments[0] ? resolveFiniteStrings(node.arguments[0]) : undefined;
+        invariant(
+          node.arguments.length === 2 &&
+            scripts?.length === 1 &&
+            /^demo:[a-z0-9-]+:build(?::offline)?$/.test(scripts[0]),
+          `${file}: unsupported fixture npm script invocation`,
+        );
+        validateFixtureEnvironment(node.arguments[1]);
+        buildScripts.push(scripts[0]);
+      }
       const api = resolveChildProcessApi(node.expression);
       if (api) {
         if (api === "exec" || api === "execSync") {
@@ -2437,19 +2468,7 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
             values.some((value) => /(?:^|[^a-z0-9-])demo:[a-z0-9-]+:build(?:$|[^a-z0-9-])/i.test(value)),
           );
           if (buildCandidates.length > 0) {
-            invariant(
-              api === "spawnSync" &&
-                commands.every(isNpmExecutable) &&
-                argv.length === 1 &&
-                buildCandidates.length === 1 &&
-                buildCandidates[0].length === 3 &&
-                buildCandidates[0][0] === "run" &&
-                /^demo:[a-z0-9-]+:build(?::offline)?$/.test(buildCandidates[0][1]) &&
-                buildCandidates[0][2] === "--silent",
-              `${file}: unsupported fixture build invocation`,
-            );
-            validateFixtureEnvironment(node.arguments[2]);
-            buildScripts.push(buildCandidates[0][1]);
+            throw new Error(`${file}: fixture builds must use runNpmScriptSync`);
           } else {
             invariant(
               isBoundedNonBuildLaunch(commands, argv),
@@ -2533,6 +2552,26 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
     ts.forEachChild(node, assertChildProcessReferencesDoNotEscape);
   };
   assertChildProcessReferencesDoNotEscape(sourceFile);
+
+  const assertNpmScriptReferencesDoNotEscape = (node) => {
+    if (ts.isIdentifier(node) && !isDeclarationOrPropertyName(node)) {
+      if (isImportedIdentity(node, npmScriptImports, "npm script launch")) {
+        const expression = outerTransparentExpression(node);
+        const parent = expression.parent;
+        const isDirectCall = ts.isCallExpression(parent) && parent.expression === expression;
+        const isConstAlias =
+          ts.isVariableDeclaration(parent) &&
+          parent.initializer === expression &&
+          isConstVariableDeclaration(parent);
+        invariant(
+          isDirectCall || isConstAlias,
+          `${file}: npm script launch functions cannot escape direct calls or const aliases`,
+        );
+      }
+    }
+    ts.forEachChild(node, assertNpmScriptReferencesDoNotEscape);
+  };
+  assertNpmScriptReferencesDoNotEscape(sourceFile);
 
   if (expectedBuildScript !== undefined) {
     invariant(

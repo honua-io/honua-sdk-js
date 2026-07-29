@@ -8,18 +8,22 @@ import { fileURLToPath } from "node:url";
 
 import { build } from "vite";
 
+import { runNpmSync } from "./lib/npm-cli.mjs";
+
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-first-map-copy-pack-"));
 const appRoot = fs.mkdtempSync(path.join(projectRoot, ".first-map-copyability-"));
 
 function run(label, command, args) {
-  const result = spawnSync(command, args, {
+  const options = {
     cwd: projectRoot,
     encoding: "utf8",
     env: process.env,
     maxBuffer: 64 * 1024 * 1024,
     timeout: 120_000,
-  });
+  };
+  const result =
+    command === "npm" ? runNpmSync(args, options) : spawnSync(command, args, options);
   if (result.error || result.status !== 0) {
     const detail = [result.error?.message, result.stdout?.trim(), result.stderr?.trim()].filter(Boolean).join("\n");
     throw new Error(`${label} failed${result.status === null ? "" : ` (exit ${result.status})`}: ${detail}`);
@@ -90,7 +94,11 @@ try {
       2,
     )}\n`,
   );
-  run("fresh Vite TypeScript consumer", "npx", ["--no-install", "tsc", "-p", path.join(appRoot, "tsconfig.json")]);
+  run(
+    "fresh Vite TypeScript consumer",
+    process.execPath,
+    [path.join(projectRoot, "node_modules", "typescript", "bin", "tsc"), "-p", path.join(appRoot, "tsconfig.json")],
+  );
   await build({
     configFile: false,
     root: appRoot,

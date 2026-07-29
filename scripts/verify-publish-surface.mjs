@@ -22,24 +22,31 @@
  * publish workflow immediately before `npm publish`.
  */
 
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { scanBinaryArtifactFiles } from "./lib/binary-artifact-policy.mjs";
+import { runNpmSync } from "./lib/npm-cli.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
 
 function packFilePaths(directory) {
-  const report = JSON.parse(
-    execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
-      cwd: directory,
-      encoding: "utf8",
-      maxBuffer: 64 * 1024 * 1024,
-    }),
-  );
+  const result = runNpmSync(["pack", "--dry-run", "--json", "--ignore-scripts"], {
+    cwd: directory,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) {
+    const detail = [result.error?.message, result.stdout?.trim(), result.stderr?.trim()]
+      .filter(Boolean)
+      .join("\n");
+    throw new Error(`npm pack exited ${result.status ?? "with a spawn error"}: ${detail}`, {
+      cause: result.error,
+    });
+  }
+  const report = JSON.parse(result.stdout);
   return new Set((report[0]?.files ?? []).map((file) => file.path));
 }
 

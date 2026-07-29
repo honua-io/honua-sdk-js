@@ -1,10 +1,10 @@
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { startSampleFixtureHarness } from "../../samples/scenarios/index.mjs";
 import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
+import { runNpmScriptSync } from "../../scripts/lib/npm-cli.mjs";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
@@ -22,8 +22,7 @@ function buildDemoIfNeeded(timeoutMs) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 600_000) {
     throw new Error("Quickstart fixture build timeout must be between 1000 and 600000ms.");
   }
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(npmCommand, ["run", "demo:quickstart:build", "--silent"], {
+  const result = runNpmScriptSync("demo:quickstart:build", {
     cwd: projectRoot,
     stdio: "inherit",
     env: createFixtureBuildEnvironment(FIXTURE_BUILD_ENV),

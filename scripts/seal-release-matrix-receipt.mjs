@@ -23,7 +23,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   buildReleaseMatrixReceipt,
@@ -133,7 +133,7 @@ async function main(argv) {
   );
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (fileURLToPath(import.meta.url) === fileURLToPath(pathToFileURL(path.resolve(process.argv[1] ?? "")))) {
   main(process.argv.slice(2)).catch((error) => {
     process.stderr.write(
       `release-matrix receipt sealing failed: ${error instanceof Error ? error.stack : String(error)}\n`,

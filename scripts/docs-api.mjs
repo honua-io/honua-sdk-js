@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -8,6 +7,7 @@ import {
   loadPublicSurface,
   sourceFileForExport,
 } from "./lib/public-surface.mjs";
+import { runNpxSync } from "./lib/npm-cli.mjs";
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
 const surface = loadPublicSurface();
@@ -19,8 +19,7 @@ const sources = [
   ),
 ];
 
-const result = spawnSync(
-  "npx",
+const result = runNpxSync(
   [
     "--yes",
     "typedoc@^0.26",

@@ -11,19 +11,22 @@ import { fileURLToPath } from "node:url";
 import { build } from "vite";
 
 import { startSampleFixtureHarness } from "../samples/scenarios/index.mjs";
+import { runNpmSync } from "./lib/npm-cli.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-first-map-pack-"));
 let bundleRoot;
 
 function run(label, command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const spawnOptions = {
     cwd: options.cwd ?? projectRoot,
     encoding: "utf8",
     env: process.env,
     maxBuffer: 64 * 1024 * 1024,
     timeout: options.timeout ?? 120_000,
-  });
+  };
+  const result =
+    command === "npm" ? runNpmSync(args, spawnOptions) : spawnSync(command, args, spawnOptions);
   if (result.error || result.status !== 0) {
     const detail = [result.error?.message, result.stdout?.trim(), result.stderr?.trim()].filter(Boolean).join("\n");
     throw new Error(`${label} failed${result.status === null ? "" : ` (exit ${result.status})`}: ${detail}`);
