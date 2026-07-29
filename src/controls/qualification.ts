@@ -794,6 +794,25 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ],
         note: "The native controls constrain their panel and row widths, allow flex children to shrink, and wrap unbroken labels without narrow-container overflow, asserted from each emitted stylesheet.",
       },
+      {
+        ids: [
+          "web-components.map",
+          "web-components.layer-list",
+          "web-components.legend",
+          "web-components.feature-editor",
+          "web-components.chart",
+          "web-components.measurement",
+        ],
+        evidence: [
+          "test/web-components-map-status-element.test.ts",
+          "test/web-components-layer-list-element.test.ts",
+          "test/web-components-legend-element.test.ts",
+          "test/web-components-feature-editor-element.test.ts",
+          "test/web-components-lifecycle-gates.test.ts",
+          "test/web-components-measurement-element.test.ts",
+        ],
+        note: "The remaining web components emit narrow-container rules that remove fixed minimum widths, stack or wrap controls, and keep bars, layer tools, legends, and measurement content within the available inline size, asserted from focused emitted-style tests.",
+      },
     ],
     failing: [
       {
@@ -813,7 +832,13 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "web-components.editor" &&
             id !== "controls.swipe-control" &&
             id !== "controls.legend" &&
-            id !== "controls.layer-list",
+            id !== "controls.layer-list" &&
+            id !== "web-components.map" &&
+            id !== "web-components.layer-list" &&
+            id !== "web-components.legend" &&
+            id !== "web-components.feature-editor" &&
+            id !== "web-components.chart" &&
+            id !== "web-components.measurement",
         ),
         note: "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists.",
       },
@@ -831,6 +856,16 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: ["controls.swipe-control"],
         evidence: ["test/controls/swipe-control.test.ts"],
         note: "The swipe control has no default accessible label and reflects caller-supplied label text through its public property/attribute into aria-label, asserted with French and German labels.",
+      },
+      {
+        ids: ["controls.legend"],
+        evidence: ["test/controls/legend.test.ts"],
+        note: "The native legend accepts a caller-supplied accessible label and empty-state fallback text, asserted with German rendering coverage while preserving caller-supplied legend entries.",
+      },
+      {
+        ids: ["controls.layer-list"],
+        evidence: ["test/controls/layer-list.test.ts"],
+        note: "The native layer list accepts caller-supplied accessible, unseeded, and fallback labels, asserted with German rendering coverage while preserving overlay labels supplied by the caller.",
       },
       {
         ids: ["web-components.locate-control"],
@@ -874,6 +909,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "web-components.search",
           "controls.basemap-switcher",
           "controls.swipe-control",
+          "controls.legend",
+          "controls.layer-list",
           "web-components.locate-control",
           "web-components.editor",
           "web-components.bookmarks",
