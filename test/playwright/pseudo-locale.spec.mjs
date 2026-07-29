@@ -145,7 +145,10 @@ test.describe("pseudo-locale component qualification", () => {
               if (node.shadowRoot) check(node.shadowRoot, owner);
               continue;
             }
-            const clips = node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1;
+            const scrollsHorizontally = style.overflowX === "auto" || style.overflowX === "scroll";
+            const scrollsVertically = style.overflowY === "auto" || style.overflowY === "scroll";
+            const clips = (node.scrollWidth > node.clientWidth + 1 && !scrollsHorizontally) ||
+              (node.scrollHeight > node.clientHeight + 1 && !scrollsVertically);
             const truncates = style.textOverflow === "ellipsis" ||
               (style.whiteSpace === "nowrap" && style.overflow === "hidden");
             if (clips || truncates) failures.push({ owner, tag: node.tagName.toLowerCase(), clips, truncates, text: text.slice(0, 120) });
