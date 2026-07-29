@@ -36,7 +36,7 @@
     "sourceProtocol": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["protocol", "fixture", "sourceKind", "semanticFields", "lifecycleCases"],
+      "required": ["protocol", "fixture", "sourceKind", "semanticFields", "lifecycleCases", "equivalence"],
       "properties": {
         "protocol": { "type": "string", "minLength": 1 },
         "fixture": { "type": "string", "minLength": 1 },
