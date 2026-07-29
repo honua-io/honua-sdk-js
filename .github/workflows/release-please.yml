@@ -200,7 +200,7 @@ jobs:
       # the required context here so bot commits never need PR approval while
       # keeping check publication out of the release job's token.
       - name: Check out trusted disposition policy
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
           path: trusted-policy
