@@ -44,7 +44,7 @@
  * @module
  */
 
-import { HTMLElementBase, escapeAttribute, globalDom } from "./element-utils.js";
+import { HTMLElementBase, escapeAttribute, globalDom, renderShadowRoot } from "./element-utils.js";
 import type { HonuaSwipeChangeDetail, HonuaSwipeMap, HonuaSwipeOrientation } from "./types.js";
 
 const DEFAULT_POSITION = 50;
@@ -202,8 +202,10 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
     }
     const label = this.#label();
     const ariaLabel = label === null ? "" : ` aria-label="${escapeAttribute(label)}"`;
-    root.innerHTML = `
-      <style>${structuralStyles()}</style>
+    renderShadowRoot(
+      root,
+      structuralStyles(),
+      `
       <div
         part="divider"
         class="divider"
@@ -217,7 +219,8 @@ export class HonuaSwipeControlElement extends HTMLElementBase {
       >
         <span part="handle" class="handle" aria-hidden="true"></span>
       </div>
-    `;
+    `,
+    );
     this.#rendered = true;
     this.#bindDivider(root);
     this.#updateDividerDom();
