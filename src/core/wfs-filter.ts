@@ -22,6 +22,7 @@
  */
 
 import type { SpatialFilter } from "./spatial-filter.js";
+import { type WfsAxisOrder, requireWfsAxisOrder } from "./wfs-axis-order.js";
 
 /**
  * Sentinel used by the `where` compiler when the input contains a construct
@@ -136,49 +137,24 @@ function envelopeToPolygonGml(
   srsName: string | undefined,
 ): string {
   const srsAttr = srsName ? ` srsName=${attr(srsName)}` : "";
-  const latLon = srsAxisIsLatLon(srsName);
-  const c = (x: number, y: number) => formatCoord(x, y, latLon);
+  const axisOrder = requireWfsAxisOrder(srsName);
+  const c = (x: number, y: number) => formatCoord(x, y, axisOrder);
   const ring = `${c(xmin, ymin)} ${c(xmax, ymin)} ${c(xmax, ymax)} ${c(xmin, ymax)} ${c(xmin, ymin)}`;
   return `<gml:Polygon${srsAttr}><gml:exterior><gml:LinearRing><gml:posList>${ring}</gml:posList></gml:LinearRing></gml:exterior></gml:Polygon>`;
 }
 
 /**
- * Well-known geographic (latitude/longitude) EPSG codes. In URN
- * (`urn:ogc:def:crs:EPSG::4326`) or OGC-HTTP
- * (`http://www.opengis.net/def/crs/EPSG/0/4326`) form, WFS 2.0 / GML 3.2 require
- * authority axis order — latitude,longitude — for these CRSes, whereas the
- * legacy short `EPSG:4326` form and `CRS84` stay longitude,latitude. Projected
- * CRSes (easting,northing) already match the canonical x,y order, so they are
- * intentionally excluded.
+ * Serialize a WFS 2.0 BBOX KVP in the authority axis order of its input CRS.
+ * Canonical geometries remain x/y; only the wire tuple is swapped.
  */
-const LATLON_GEOGRAPHIC_EPSG = new Set<number>([
-  4326, 4979, 4258, 4269, 4267, 4203, 4283, 4759, 4490, 4674, 4617, 4612, 4619, 4668, 4555,
-]);
-
-/**
- * Decide whether a `srsName` implies latitude,longitude axis order. Defaults to
- * longitude,latitude (the canonical x,y order) for the legacy short EPSG form,
- * CRS84, unknown codes, and an absent srsName — preserving existing behavior and
- * avoiding regressions for callers that already supply lon,lat-oriented CRSes.
- */
-function srsAxisIsLatLon(srsName: string | undefined): boolean {
-  if (!srsName) return false;
-  const value = srsName.trim();
-  // CRS84 / CRS:84 are explicitly longitude,latitude regardless of form.
-  if (/(?:^|[:/])CRS:?84$/i.test(value) || /CRS84/i.test(value)) return false;
-  // URN form: urn:ogc:def:crs:EPSG::4326 (the version segment may be empty).
-  const urn = value.match(/^urn:[\w-]+:def:crs:EPSG:[^:]*:(\d+)$/i);
-  // OGC HTTP form: http://www.opengis.net/def/crs/EPSG/0/4326
-  const http = value.match(/def\/crs\/EPSG\/[^/]+\/(\d+)$/i);
-  const code = urn?.[1] ?? http?.[1];
-  // The legacy short "EPSG:4326" form keeps GIS-conventional lon,lat order.
-  if (!code) return false;
-  return LATLON_GEOGRAPHIC_EPSG.has(Number(code));
+export function formatWfsBboxKvp(xmin: number, ymin: number, xmax: number, ymax: number, srsName?: string): string {
+  const coordinates = requireWfsAxisOrder(srsName) === "yx" ? [ymin, xmin, ymax, xmax] : [xmin, ymin, xmax, ymax];
+  return `${coordinates.join(",")}${srsName ? `,${srsName}` : ""}`;
 }
 
 /** Serialize a coordinate pair honoring the resolved CRS axis order. */
-function formatCoord(x: number, y: number, latLon: boolean): string {
-  return latLon ? `${y} ${x}` : `${x} ${y}`;
+function formatCoord(x: number, y: number, axisOrder: WfsAxisOrder): string {
+  return axisOrder === "yx" ? `${y} ${x}` : `${x} ${y}`;
 }
 
 function mapSpatialRel(rel: SpatialFilter["spatialRel"]): FesSpatialOp | undefined {
@@ -293,8 +269,8 @@ function attr(value: string): string {
 
 function envelopeGml(env: { xmin: number; ymin: number; xmax: number; ymax: number; srsName?: string }): string {
   const srsAttr = env.srsName ? ` srsName=${attr(env.srsName)}` : "";
-  const latLon = srsAxisIsLatLon(env.srsName);
-  return `<gml:Envelope${srsAttr}><gml:lowerCorner>${formatCoord(env.xmin, env.ymin, latLon)}</gml:lowerCorner><gml:upperCorner>${formatCoord(env.xmax, env.ymax, latLon)}</gml:upperCorner></gml:Envelope>`;
+  const axisOrder = requireWfsAxisOrder(env.srsName);
+  return `<gml:Envelope${srsAttr}><gml:lowerCorner>${formatCoord(env.xmin, env.ymin, axisOrder)}</gml:lowerCorner><gml:upperCorner>${formatCoord(env.xmax, env.ymax, axisOrder)}</gml:upperCorner></gml:Envelope>`;
 }
 
 /**
@@ -309,13 +285,13 @@ function geometryToGml(
   srsName: string | undefined,
 ): string | undefined {
   const srsAttr = srsName ? ` srsName=${attr(srsName)}` : "";
-  const latLon = srsAxisIsLatLon(srsName);
+  const axisOrder = requireWfsAxisOrder(srsName);
   switch (geometryType) {
     case "esriGeometryPoint": {
       const x = (geometry as { x?: unknown }).x;
       const y = (geometry as { y?: unknown }).y;
       if (typeof x !== "number" || typeof y !== "number") return undefined;
-      return `<gml:Point${srsAttr}><gml:pos>${formatCoord(x, y, latLon)}</gml:pos></gml:Point>`;
+      return `<gml:Point${srsAttr}><gml:pos>${formatCoord(x, y, axisOrder)}</gml:pos></gml:Point>`;
     }
     case "esriGeometryPolyline": {
       const paths = (geometry as { paths?: unknown }).paths;
@@ -324,7 +300,7 @@ function geometryToGml(
       const path = paths[0];
       if (!Array.isArray(path)) return undefined;
       const coords = path
-        .map((p) => (Array.isArray(p) ? formatCoord(p[0], p[1], latLon) : ""))
+        .map((p) => (Array.isArray(p) ? formatCoord(p[0], p[1], axisOrder) : ""))
         .filter(Boolean)
         .join(" ");
       if (!coords) return undefined;
@@ -333,11 +309,11 @@ function geometryToGml(
     case "esriGeometryPolygon": {
       const rings = (geometry as { rings?: unknown }).rings;
       if (!Array.isArray(rings) || rings.length === 0) return undefined;
-      const exterior = ringToPosList(rings[0], latLon);
+      const exterior = ringToPosList(rings[0], axisOrder);
       if (!exterior) return undefined;
       const interiors: string[] = [];
       for (let i = 1; i < rings.length; i += 1) {
-        const inner = ringToPosList(rings[i], latLon);
+        const inner = ringToPosList(rings[i], axisOrder);
         if (!inner) return undefined;
         interiors.push(
           `<gml:interior><gml:LinearRing><gml:posList>${inner}</gml:posList></gml:LinearRing></gml:interior>`,
@@ -350,10 +326,10 @@ function geometryToGml(
   }
 }
 
-function ringToPosList(ring: unknown, latLon: boolean): string | undefined {
+function ringToPosList(ring: unknown, axisOrder: WfsAxisOrder): string | undefined {
   if (!Array.isArray(ring) || ring.length < 3) return undefined;
   return ring
-    .map((p) => (Array.isArray(p) ? formatCoord(p[0], p[1], latLon) : ""))
+    .map((p) => (Array.isArray(p) ? formatCoord(p[0], p[1], axisOrder) : ""))
     .filter(Boolean)
     .join(" ");
 }
@@ -366,11 +342,9 @@ export function geoJsonGeometryToGml(geometry: unknown, srsName: string | undefi
   if (typeof geometry !== "object" || geometry === null) return undefined;
   const geom = geometry as { type?: unknown; coordinates?: unknown };
   const srsAttr = srsName ? ` srsName=${attr(srsName)}` : "";
-  // Honor GML 3.2 axis order for the resolved CRS, mirroring the query-path
-  // emitters: authority (URN/HTTP) forms of geographic CRSes are lat,lon while
-  // the legacy short `EPSG:4326` form and CRS84 stay lon,lat.
-  const latLon = srsAxisIsLatLon(srsName);
-  const c = (p: [number, number]) => formatCoord(p[0], p[1], latLon);
+  // Honor the authority definition for every supported CRS spelling.
+  const axisOrder = requireWfsAxisOrder(srsName);
+  const c = (p: [number, number]) => formatCoord(p[0], p[1], axisOrder);
   switch (geom.type) {
     case "Point": {
       const coord = geom.coordinates as [number, number] | undefined;

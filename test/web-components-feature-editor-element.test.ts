@@ -193,6 +193,20 @@ describe("<honua-feature-editor> registration", () => {
     expect(panel?.getAttribute("aria-label")).toBe("Permit editor");
     expect(root(element).querySelector("[role='status']")?.textContent).toMatch(/No edit workflow/i);
   });
+
+  it("includes high-contrast styles for native control state and validation", () => {
+    defineHonuaWebComponents();
+    const element = document.createElement("honua-feature-editor") as HonuaFeatureEditorElement<PermitAttributes>;
+    document.body.append(element);
+
+    const css = root(element).querySelector("style")?.textContent ?? "";
+    expect(css).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(css).toContain("background: Highlight");
+    expect(css).toContain("outline: 2px solid Highlight");
+    expect(css).toContain("border-style: dashed");
+    expect(css).toContain("background: Canvas");
+    expect(css).toContain("border-color: Mark");
+  });
 });
 
 describe("<honua-feature-editor> schema-derived form", () => {

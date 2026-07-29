@@ -2,10 +2,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+import { runNpmSync } from "./lib/npm-cli.mjs";
+
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptRoot, "..");
 const exampleRoot = path.join(repoRoot, "examples", "kepler-analytics");
@@ -41,7 +41,7 @@ if (!installRequired()) {
   process.exit(0);
 }
 
-const result = spawnSync(npmCommand, ["install", "--prefix", exampleRoot, "--legacy-peer-deps"], {
+const result = runNpmSync(["install", "--prefix", exampleRoot, "--legacy-peer-deps"], {
   cwd: repoRoot,
   stdio: "inherit"
 });

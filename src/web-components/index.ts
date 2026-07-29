@@ -335,6 +335,7 @@ export type {
   HonuaLayerOrderChangeDetail,
   HonuaLayerVisibilityChangeDetail,
   HonuaLegendItem,
+  HonuaLocateControlMessages,
   HonuaLocateChangeDetail,
   HonuaMapClickDetail,
   HonuaMapErrorDetail,

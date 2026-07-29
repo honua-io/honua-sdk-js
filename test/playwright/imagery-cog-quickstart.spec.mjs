@@ -16,7 +16,10 @@ const WORKFLOW_SELECTORS = [
   "#direct-cog-render",
   "#elevation-profile",
 ];
-const BUNDLE_BYTES_BUDGET = 2.5 * 1024 * 1024;
+// The WFS ProtocolModule is part of the synchronous HonuaClient surface used
+// by this sample's /honua entrypoint. Reset the ceiling to the verified
+// post-WFS measurement plus the repository's standard 10% headroom.
+const BUNDLE_BYTES_BUDGET = 2_899_353;
 const HEAP_BYTES_BUDGET = 192 * 1024 * 1024;
 
 test.setTimeout(90_000);

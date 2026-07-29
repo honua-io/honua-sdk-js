@@ -392,6 +392,7 @@ const SAFE_ERROR_NAMES = new Set([
   "HonuaTemporalPlaybackError",
   "HonuaTimeoutError",
   "HonuaWfsExceptionError",
+  "HonuaWfsProtocolError",
   "HonuaWmsCapabilitiesParseError",
   "HonuaWmtsCapabilitiesParseError",
   "NetworkError",

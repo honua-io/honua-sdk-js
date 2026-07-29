@@ -29,13 +29,38 @@ import { HonuaWfsExceptionError } from "./errors.js";
  */
 export interface WfsCapabilitiesFeatureType {
   /** Namespace-qualified type name (e.g. `parcels:lot`). */
-  name: string;
+  readonly name: string;
   /** Optional human-readable title from `Title`. */
-  title?: string;
+  readonly title?: string;
   /** Optional default CRS URI from `DefaultCRS` / `DefaultSRS`. */
-  defaultCrs?: string;
+  readonly defaultCrs?: string;
+  /**
+   * Additional CRS identifiers advertised through `OtherCRS` / `OtherSRS`.
+   * Optional so snapshots constructed against the pre-#823 public shape
+   * remain source-compatible; parser-produced snapshots always populate it.
+   */
+  readonly otherCrs?: readonly string[];
+  /**
+   * Namespace evidence in scope on the QName-bearing `Name` element. An empty
+   * `uri` records a prefixed QName whose binding is missing or explicitly
+   * undeclared, so capability consumers can fail closed without falling back
+   * to an out-of-scope ancestor declaration.
+   *
+   * Optional for source compatibility with manually constructed snapshots;
+   * consumers may fall back to the snapshot's root declarations only when
+   * this element-scoped evidence is absent.
+   */
+  readonly namespace?: {
+    readonly prefix: string;
+    readonly uri: string;
+  };
   /** Optional WGS84 bounding box from `ows:WGS84BoundingBox`. */
-  wgs84BoundingBox?: { xmin: number; ymin: number; xmax: number; ymax: number };
+  readonly wgs84BoundingBox?: {
+    readonly xmin: number;
+    readonly ymin: number;
+    readonly xmax: number;
+    readonly ymax: number;
+  };
 }
 
 /**
@@ -45,9 +70,9 @@ export interface WfsCapabilitiesFeatureType {
  * negotiation.
  */
 export interface WfsCapabilitiesOperation {
-  name: string;
-  methods: ReadonlyArray<"GET" | "POST">;
-  outputFormats: readonly string[];
+  readonly name: string;
+  readonly methods: ReadonlyArray<"GET" | "POST">;
+  readonly outputFormats: readonly string[];
   /**
    * DCP `xlink:href` advertised for the HTTP GET binding of this operation
    * (`ows:DCP/ows:HTTP/ows:Get/@xlink:href`). Raw third-party WFS servers
@@ -55,9 +80,9 @@ export interface WfsCapabilitiesOperation {
    * DIFFERENT operation URL (`/geoserver/wfs`); the adapter must honour it
    * rather than replay the GetCapabilities endpoint path.
    */
-  getUrl?: string;
+  readonly getUrl?: string;
   /** DCP `xlink:href` for the HTTP POST binding (`ows:Post/@xlink:href`). */
-  postUrl?: string;
+  readonly postUrl?: string;
 }
 
 /**
@@ -67,19 +92,19 @@ export interface WfsCapabilitiesOperation {
  */
 export interface WfsCapabilitiesSnapshot {
   /** WFS version string from the root element's `version` attribute. */
-  version?: string;
+  readonly version?: string;
   /** Operations by name (e.g. `GetFeature`, `Transaction`). */
-  operations: ReadonlyMap<string, WfsCapabilitiesOperation>;
-  /** Output formats per operation, lower-cased. */
-  outputFormatsByOp: ReadonlyMap<string, readonly string[]>;
+  readonly operations: ReadonlyMap<string, WfsCapabilitiesOperation>;
+  /** Output formats per operation using the server's exact advertised spelling. */
+  readonly outputFormatsByOp: ReadonlyMap<string, readonly string[]>;
   /** Feature types in declaration order. */
-  featureTypes: readonly WfsCapabilitiesFeatureType[];
+  readonly featureTypes: readonly WfsCapabilitiesFeatureType[];
   /** Namespace declarations advertised on the capabilities root, keyed by prefix. */
-  namespaces: ReadonlyMap<string, string>;
+  readonly namespaces: ReadonlyMap<string, string>;
   /** Spatial / temporal / scalar capability flags from `Filter_Capabilities`. */
-  filterCapabilities: WfsFilterCapabilities;
+  readonly filterCapabilities: WfsFilterCapabilities;
   /** Stored-query identifiers advertised through the `ListStoredQueries` op. */
-  storedQueryNames: readonly string[];
+  readonly storedQueryNames: readonly string[];
 }
 
 /**
@@ -88,9 +113,9 @@ export interface WfsCapabilitiesSnapshot {
  * reads to gate `queryExtent`, `queryAll`, and stored-query routing.
  */
 export interface WfsFilterCapabilities {
-  spatial: readonly string[];
-  scalar: readonly string[];
-  temporal: readonly string[];
+  readonly spatial: readonly string[];
+  readonly scalar: readonly string[];
+  readonly temporal: readonly string[];
 }
 
 /**
@@ -111,8 +136,25 @@ interface ElementNode {
   /** Original prefixed name (kept for diagnostics; not consumed by the parser). */
   qname: string;
   attributes: Attributes;
+  /** Namespace declarations in scope at this exact element. */
+  namespaces: Attributes;
   children: ElementNode[];
   text: string;
+}
+
+/** Fixed allocation ceilings for every WFS metadata XML document. */
+export const WFS_XML_LIMITS = Object.freeze({
+  maxBytes: 2 * 1024 * 1024,
+  maxElements: 12_000,
+  maxDepth: 32,
+  maxAttributesPerElement: 64,
+  maxAttributeBytesPerElement: 64 * 1024,
+  maxTextBytes: 512 * 1024,
+});
+
+interface XmlBudget {
+  elements: number;
+  textBytes: number;
 }
 
 /**
@@ -135,7 +177,7 @@ export function parseWfsCapabilities(xml: string): WfsCapabilitiesSnapshot {
     ? findChildren(findChildOrThrow(root, "OperationsMetadata"), "Operation")
     : [];
   const operations = new Map<string, WfsCapabilitiesOperation>();
-  const outputFormatsByOp = new Map<string, string[]>();
+  const outputFormatsByOp = new Map<string, readonly string[]>();
   for (const op of operationsList) {
     const name = op.attributes.name;
     if (!name) continue;
@@ -164,24 +206,29 @@ export function parseWfsCapabilities(xml: string): WfsCapabilitiesSnapshot {
       for (const allowed of findChildren(param, "AllowedValues")) {
         for (const value of findChildren(allowed, "Value")) {
           const text = value.text.trim();
-          if (text) outputFormats.push(text.toLowerCase());
+          if (text) outputFormats.push(text);
         }
       }
       // Older WFS servers advertise output formats as direct <Value> children
       // of <Parameter> instead of nested in <AllowedValues>.
       for (const value of findChildren(param, "Value")) {
         const text = value.text.trim();
-        if (text) outputFormats.push(text.toLowerCase());
+        if (text) outputFormats.push(text);
       }
     }
-    operations.set(name, {
+    const immutableMethods = Object.freeze([...new Set(methods)] as Array<"GET" | "POST">);
+    const immutableOutputFormats = Object.freeze([...outputFormats]);
+    operations.set(
       name,
-      methods: [...new Set(methods)] as ReadonlyArray<"GET" | "POST">,
-      outputFormats,
-      ...(getUrl !== undefined ? { getUrl } : {}),
-      ...(postUrl !== undefined ? { postUrl } : {}),
-    });
-    outputFormatsByOp.set(name, outputFormats);
+      Object.freeze({
+        name,
+        methods: immutableMethods,
+        outputFormats: immutableOutputFormats,
+        ...(getUrl !== undefined ? { getUrl } : {}),
+        ...(postUrl !== undefined ? { postUrl } : {}),
+      }),
+    );
+    outputFormatsByOp.set(name, immutableOutputFormats);
   }
 
   const featureTypeList = findChild(root, "FeatureTypeList");
@@ -191,11 +238,30 @@ export function parseWfsCapabilities(xml: string): WfsCapabilitiesSnapshot {
       const nameNode = findChild(ft, "Name");
       const titleNode = findChild(ft, "Title");
       const defaultCrsNode = findChild(ft, "DefaultCRS") ?? findChild(ft, "DefaultSRS");
+      const otherCrs = [
+        ...findChildren(ft, "OtherCRS").map((node) => node.text.trim()),
+        ...findChildren(ft, "OtherSRS").map((node) => node.text.trim()),
+      ].filter((value) => value.length > 0);
       const bboxNode = findChild(ft, "WGS84BoundingBox");
       const lowerCorner = bboxNode ? findChild(bboxNode, "LowerCorner") : undefined;
       const upperCorner = bboxNode ? findChild(bboxNode, "UpperCorner") : undefined;
-      const entry: WfsCapabilitiesFeatureType = {
+      const namespace = nameNode ? namespaceBindingForQName(nameNode, nameNode.text.trim()) : undefined;
+      const entry: {
+        name: string;
+        title?: string;
+        defaultCrs?: string;
+        otherCrs: readonly string[];
+        namespace?: { readonly prefix: string; readonly uri: string };
+        wgs84BoundingBox?: {
+          readonly xmin: number;
+          readonly ymin: number;
+          readonly xmax: number;
+          readonly ymax: number;
+        };
+      } = {
         name: nameNode?.text.trim() ?? "",
+        otherCrs: Object.freeze([...otherCrs]),
+        ...(namespace ? { namespace } : {}),
       };
       if (titleNode?.text) entry.title = titleNode.text.trim();
       if (defaultCrsNode?.text) entry.defaultCrs = defaultCrsNode.text.trim();
@@ -203,10 +269,10 @@ export function parseWfsCapabilities(xml: string): WfsCapabilitiesSnapshot {
         const [xmin, ymin] = lowerCorner.text.trim().split(/\s+/).map(Number);
         const [xmax, ymax] = upperCorner.text.trim().split(/\s+/).map(Number);
         if (Number.isFinite(xmin) && Number.isFinite(ymin) && Number.isFinite(xmax) && Number.isFinite(ymax)) {
-          entry.wgs84BoundingBox = { xmin, ymin, xmax, ymax };
+          entry.wgs84BoundingBox = Object.freeze({ xmin, ymin, xmax, ymax });
         }
       }
-      if (entry.name) featureTypes.push(entry);
+      if (entry.name) featureTypes.push(Object.freeze(entry));
     }
   }
 
@@ -217,16 +283,66 @@ export function parseWfsCapabilities(xml: string): WfsCapabilitiesSnapshot {
     if (name.startsWith("xmlns:") && value) namespaces.set(name.slice("xmlns:".length), value);
   }
 
-  const snapshot: WfsCapabilitiesSnapshot = {
-    operations,
-    outputFormatsByOp,
-    featureTypes,
-    namespaces,
-    filterCapabilities,
-    storedQueryNames,
+  return Object.freeze({
+    ...(version ? { version } : {}),
+    operations: immutableMap(operations),
+    outputFormatsByOp: immutableMap(outputFormatsByOp),
+    featureTypes: Object.freeze([...featureTypes]),
+    namespaces: immutableMap(namespaces),
+    filterCapabilities: immutableFilterCapabilities(filterCapabilities),
+    storedQueryNames: Object.freeze([...storedQueryNames]),
+  });
+}
+
+function namespaceBindingForQName(
+  node: ElementNode,
+  qname: string,
+): { readonly prefix: string; readonly uri: string } | undefined {
+  const separator = qname.indexOf(":");
+  if (separator <= 0 || separator === qname.length - 1 || qname.indexOf(":", separator + 1) !== -1) {
+    return undefined;
+  }
+  const prefix = qname.slice(0, separator);
+  return Object.freeze({ prefix, uri: node.namespaces[prefix] ?? "" });
+}
+
+function immutableMap<K, V>(source: ReadonlyMap<K, V>): ReadonlyMap<K, V> {
+  const owned = new Map(source);
+  const view: ReadonlyMap<K, V> = {
+    get size(): number {
+      return owned.size;
+    },
+    get(key: K): V | undefined {
+      return owned.get(key);
+    },
+    has(key: K): boolean {
+      return owned.has(key);
+    },
+    forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: unknown): void {
+      for (const [key, value] of owned) callbackfn.call(thisArg, value, key, view);
+    },
+    entries(): MapIterator<[K, V]> {
+      return owned.entries();
+    },
+    keys(): MapIterator<K> {
+      return owned.keys();
+    },
+    values(): MapIterator<V> {
+      return owned.values();
+    },
+    [Symbol.iterator](): MapIterator<[K, V]> {
+      return owned[Symbol.iterator]();
+    },
   };
-  if (version) (snapshot as { version?: string }).version = version;
-  return snapshot;
+  return Object.freeze(view);
+}
+
+function immutableFilterCapabilities(value: WfsFilterCapabilities): WfsFilterCapabilities {
+  return Object.freeze({
+    spatial: Object.freeze([...value.spatial]),
+    scalar: Object.freeze([...value.scalar]),
+    temporal: Object.freeze([...value.temporal]),
+  });
 }
 
 /**
@@ -388,6 +504,9 @@ export function parseXml(xml: string): ElementNode {
   if (typeof xml !== "string" || xml.length === 0) {
     throw new Error("WFS XML parser: empty document");
   }
+  if (utf8Length(xml) > WFS_XML_LIMITS.maxBytes) {
+    throw new Error(`WFS XML parser: document exceeds the ${WFS_XML_LIMITS.maxBytes}-byte limit`);
+  }
 
   // XXE / external-entity defense: refuse documents that declare a DOCTYPE
   // (which is the only way to introduce ENTITY declarations in XML 1.0).
@@ -404,6 +523,7 @@ export function parseXml(xml: string): ElementNode {
   let i = 0;
   const stack: ElementNode[] = [];
   let root: ElementNode | undefined;
+  const budget: XmlBudget = { elements: 0, textBytes: 0 };
 
   while (i < len) {
     if (stripped[i] === "<") {
@@ -424,7 +544,7 @@ export function parseXml(xml: string): ElementNode {
         if (end === -1) throw new Error("WFS XML parser: unterminated CDATA");
         const text = stripped.slice(i + 9, end);
         const top = stack[stack.length - 1];
-        if (top) top.text += text;
+        if (top) appendXmlText(top, text, budget);
         i = end + 3;
         continue;
       }
@@ -449,16 +569,29 @@ export function parseXml(xml: string): ElementNode {
       const selfClosing = inner.endsWith("/");
       const tagBody = selfClosing ? inner.slice(0, -1).trim() : inner.trim();
       const { name, attributes } = parseTagBody(tagBody);
+      budget.elements += 1;
+      if (budget.elements > WFS_XML_LIMITS.maxElements) {
+        throw new Error(`WFS XML parser: document exceeds the ${WFS_XML_LIMITS.maxElements}-element limit`);
+      }
+      if (stack.length + 1 > WFS_XML_LIMITS.maxDepth) {
+        throw new Error(`WFS XML parser: document exceeds the ${WFS_XML_LIMITS.maxDepth}-level depth limit`);
+      }
       const local = stripPrefix(name);
+      const parent = stack[stack.length - 1];
+      const namespaces = Object.assign(Object.create(null) as Attributes, parent?.namespaces);
+      for (const [attributeName, value] of Object.entries(attributes)) {
+        if (attributeName === "xmlns") namespaces[""] = value;
+        else if (attributeName.startsWith("xmlns:")) namespaces[attributeName.slice("xmlns:".length)] = value;
+      }
       const node: ElementNode = {
         local,
         qname: name,
         attributes,
+        namespaces,
         children: [],
         text: "",
       };
-      const top = stack[stack.length - 1];
-      if (top) top.children.push(node);
+      if (parent) parent.children.push(node);
       else if (root) {
         throw new Error("WFS XML parser: multiple root elements");
       } else {
@@ -472,7 +605,7 @@ export function parseXml(xml: string): ElementNode {
     const next = stripped.indexOf("<", i);
     const text = stripped.slice(i, next === -1 ? len : next);
     const top = stack[stack.length - 1];
-    if (top) top.text += decodeXmlEntities(text);
+    if (top) appendXmlText(top, decodeXmlEntities(text), budget);
     i = next === -1 ? len : next;
   }
 
@@ -519,14 +652,23 @@ function parseTagBody(body: string): { name: string; attributes: Attributes } {
   while (i < trimmed.length && !/\s/.test(trimmed[i])) i += 1;
   const name = trimmed.slice(0, i);
   if (!name) throw new Error("WFS XML parser: missing tag name");
-  const attributes: Attributes = {};
+  const attributes = Object.create(null) as Attributes;
+  let attributeCount = 0;
+  let attributeBytes = 0;
   let j = i;
   while (j < trimmed.length) {
     while (j < trimmed.length && /\s/.test(trimmed[j])) j += 1;
     if (j >= trimmed.length) break;
     const eq = trimmed.indexOf("=", j);
-    if (eq === -1) break;
+    if (eq === -1) throw new Error("WFS XML parser: attribute lacks '='");
     const attrName = trimmed.slice(j, eq).trim();
+    if (attrName.length === 0 || /\s/.test(attrName)) {
+      throw new Error("WFS XML parser: invalid attribute name");
+    }
+    attributeCount += 1;
+    if (attributeCount > WFS_XML_LIMITS.maxAttributesPerElement) {
+      throw new Error("WFS XML parser: element exceeds the bounded attribute count");
+    }
     let k = eq + 1;
     while (k < trimmed.length && /\s/.test(trimmed[k])) k += 1;
     const quote = trimmed[k];
@@ -537,10 +679,31 @@ function parseTagBody(body: string): { name: string; attributes: Attributes } {
     if (close === -1) throw new Error(`WFS XML parser: unterminated attribute value for "${attrName}"`);
     const rawValue = trimmed.slice(k + 1, close);
     const normalizedName = attrName.startsWith("xmlns:") ? attrName : stripPrefix(attrName);
-    attributes[normalizedName] = decodeXmlEntities(rawValue);
+    const value = decodeXmlEntities(rawValue);
+    attributeBytes += utf8Length(attrName) + utf8Length(value);
+    if (attributeBytes > WFS_XML_LIMITS.maxAttributeBytesPerElement) {
+      throw new Error("WFS XML parser: element exceeds the bounded attribute-byte limit");
+    }
+    if (Object.hasOwn(attributes, normalizedName)) {
+      throw new Error(`WFS XML parser: repeated attribute "${normalizedName}"`);
+    }
+    attributes[normalizedName] = value;
     j = close + 1;
   }
   return { name, attributes };
+}
+
+function appendXmlText(node: ElementNode, value: string, budget: XmlBudget): void {
+  if (value.length === 0) return;
+  budget.textBytes += utf8Length(value);
+  if (budget.textBytes > WFS_XML_LIMITS.maxTextBytes) {
+    throw new Error(`WFS XML parser: document exceeds the ${WFS_XML_LIMITS.maxTextBytes}-byte text limit`);
+  }
+  node.text += value;
+}
+
+function utf8Length(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
 }
 
 function stripPrefix(name: string): string {

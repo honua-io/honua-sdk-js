@@ -1,10 +1,10 @@
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
+import { runNpmScriptSync } from "../../scripts/lib/npm-cli.mjs";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
@@ -19,8 +19,7 @@ const MIME_TYPES = {
 };
 
 function buildDemoIfNeeded() {
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(npmCommand, ["run", "demo:unified-ops:build", "--silent"], {
+  const result = runNpmScriptSync("demo:unified-ops:build", {
     cwd: projectRoot,
     stdio: "inherit",
     env: createFixtureBuildEnvironment(),

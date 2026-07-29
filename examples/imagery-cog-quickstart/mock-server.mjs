@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
@@ -7,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
 import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
+import { runNpmScriptSync } from "../../scripts/lib/npm-cli.mjs";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
@@ -321,8 +321,7 @@ const WMS_CAPABILITIES = `<?xml version="1.0" encoding="UTF-8"?>
 </WMS_Capabilities>`;
 
 function buildDemoIfNeeded() {
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(npmCommand, ["run", "demo:imagery-cog:build", "--silent"], {
+  const result = runNpmScriptSync("demo:imagery-cog:build", {
     cwd: projectRoot,
     stdio: "inherit",
     env: createFixtureBuildEnvironment(),
