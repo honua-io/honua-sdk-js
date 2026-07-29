@@ -2,7 +2,34 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { HonuaMapMessages } from "../src/web-components/index.js";
 import { HonuaMapElement, HonuaMapStatusElement } from "../src/web-components/index.js";
+
+describe("<honua-map> localization", () => {
+  it("renders caller-supplied German map messages", () => {
+    const element = new HonuaMapElement();
+    element.messages = {
+      controlsLabel: "Kartennavigation",
+      zoomInLabel: "Vergrößern",
+      zoomOutLabel: "Verkleinern",
+      zoomLabel: "Zoomstufe",
+      visibleLayers: (count) => `${count} sichtbar`,
+      noCenter: "Kein Mittelpunkt",
+      noPackage: "Keine Karte",
+    } satisfies HonuaMapMessages;
+    element.setAttribute("label", "Einsatzkarte");
+    document.body.append(element);
+
+    expect(element.shadowRoot?.querySelector(".map")?.getAttribute("aria-label")).toBe("Einsatzkarte");
+    expect(element.shadowRoot?.querySelector(".map__controls")?.getAttribute("aria-label")).toBe("Kartennavigation");
+    expect(element.shadowRoot?.querySelector('[data-zoom="in"]')?.getAttribute("aria-label")).toBe("Vergrößern");
+    expect(element.shadowRoot?.querySelector('[data-zoom="out"]')?.getAttribute("aria-label")).toBe("Verkleinern");
+    expect(element.shadowRoot?.querySelector(".zoom")?.getAttribute("aria-label")).toBe("Zoomstufe");
+    expect(element.shadowRoot?.querySelector("[data-visible-layers]")?.textContent).toBe("0 sichtbar");
+    expect(element.shadowRoot?.querySelector("[data-center]")?.textContent).toBe("Kein Mittelpunkt");
+    expect(element.shadowRoot?.querySelector(".map__status")?.textContent).toBe("Keine Karte");
+  });
+});
 
 describe("<honua-map-status> high-contrast styles", () => {
   it("preserves status text, state meaning, and action distinction with system colors", () => {

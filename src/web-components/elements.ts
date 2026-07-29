@@ -63,6 +63,7 @@ import type {
   HonuaMapClickDetail,
   HonuaMapErrorDetail,
   HonuaMapHoverDetail,
+  HonuaMapMessages,
   HonuaMapReadyDetail,
   HonuaMeasureChangeDetail,
   HonuaMeasureControlMessages,
@@ -205,6 +206,16 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   #packageLoadToken = 0;
   #packageLoading = false;
   #packageLoadError: string | undefined;
+  #messages: HonuaMapMessages = {};
+
+  public get messages(): HonuaMapMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaMapMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
 
   public get map(): unknown | undefined {
     return this.#renderer?.map;
@@ -279,10 +290,11 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
         this.mapPackage = JSON.parse(newValue) as CreateHonuaWebComponentControllerOptions<T>["mapPackage"];
       } catch {
         this.#packageLoading = false;
-        this.#packageLoadError = "Invalid map-package JSON.";
+        const message = this.#messages.invalidPackage ?? "Invalid map-package JSON.";
+        this.#packageLoadError = message;
         this.dispatchTypedEvent<HonuaMapErrorDetail>("honua-map-error", {
-          error: new Error("Invalid map-package JSON."),
-          message: "Invalid map-package JSON.",
+          error: new Error(message),
+          message,
         });
       }
     }
@@ -323,6 +335,7 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     const viewport = state?.viewport ?? {};
     const visibleLayers = layers.filter((layer) => layer.visible);
     const label = this.getAttribute("label") ?? state?.mapPackage?.mapPackageId ?? "Honua map";
+    const messages = this.#messages;
     const root = this.shadowRoot ?? this;
     if (!root.querySelector?.(".map")) {
       this.setShadowHtml(`
@@ -330,10 +343,10 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
         <section part="map" class="map" role="region" aria-label="${escapeHtml(label)}" tabindex="0">
           <div class="map__chrome">
             <div class="map__title"></div>
-            <div class="map__controls" aria-label="Map controls">
-              <button type="button" class="icon-button" data-zoom="out" aria-label="Zoom out">-</button>
-              <output class="zoom" aria-label="Zoom">0</output>
-              <button type="button" class="icon-button" data-zoom="in" aria-label="Zoom in">+</button>
+            <div class="map__controls" aria-label="${escapeHtml(messages.controlsLabel ?? "Map controls")}">
+              <button type="button" class="icon-button" data-zoom="out" aria-label="${escapeHtml(messages.zoomOutLabel ?? "Zoom out")}">-</button>
+              <output class="zoom" aria-label="${escapeHtml(messages.zoomLabel ?? "Zoom")}">0</output>
+              <button type="button" class="icon-button" data-zoom="in" aria-label="${escapeHtml(messages.zoomInLabel ?? "Zoom in")}">+</button>
             </div>
           </div>
           <div class="map__canvas" part="canvas">
@@ -341,8 +354,8 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
             <div class="map__status" aria-live="polite"></div>
           </div>
           <div class="map__footer">
-            <span data-visible-layers>0 visible</span>
-            <span data-center>No center</span>
+            <span data-visible-layers>${escapeHtml(formatMapVisibleLayers(messages.visibleLayers, 0))}</span>
+            <span data-center>${escapeHtml(messages.noCenter ?? "No center")}</span>
           </div>
         </section>
       `);
@@ -353,8 +366,14 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     nextRoot.querySelector(".map")?.setAttribute("aria-label", label);
     setText(nextRoot.querySelector(".map__title"), label);
     setText(nextRoot.querySelector(".zoom"), String(viewport.zoom?.toFixed?.(1) ?? viewport.zoom ?? 0));
-    setText(nextRoot.querySelector("[data-visible-layers]"), `${String(visibleLayers.length)} visible`);
-    setText(nextRoot.querySelector("[data-center]"), viewport.center ? viewport.center.join(", ") : "No center");
+    setText(
+      nextRoot.querySelector("[data-visible-layers]"),
+      formatMapVisibleLayers(messages.visibleLayers, visibleLayers.length),
+    );
+    setText(
+      nextRoot.querySelector("[data-center]"),
+      viewport.center ? viewport.center.join(", ") : (messages.noCenter ?? "No center"),
+    );
     setText(nextRoot.querySelector(".map__status"), this.mapStatusText(state));
     void this.syncRenderer();
   }
@@ -445,8 +464,8 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   private mapStatusText(state: HonuaWebComponentState<T> | undefined): string {
     if (this.#packageLoadError) return this.#packageLoadError;
     if (state?.mapPackage) return "";
-    if (this.#packageLoading || this.#packageUrl) return "Loading map package";
-    return "No map package";
+    if (this.#packageLoading || this.#packageUrl) return this.#messages.loadingPackage ?? "Loading map package";
+    return this.#messages.noPackage ?? "No map package";
   }
 }
 
@@ -2807,6 +2826,14 @@ function baseStyles(): string {
       width: 1px;
     }
   `;
+}
+
+function formatMapVisibleLayers(format: HonuaMapMessages["visibleLayers"], count: number): string {
+  return typeof format === "function"
+    ? format(count)
+    : format
+      ? format.replace("{count}", String(count))
+      : `${count} visible`;
 }
 
 function mapStyles(): string {

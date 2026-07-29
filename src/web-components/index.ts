@@ -340,6 +340,7 @@ export type {
   HonuaLegendItem,
   HonuaLocateControlMessages,
   HonuaLocateChangeDetail,
+  HonuaMapMessages,
   HonuaMapClickDetail,
   HonuaMapErrorDetail,
   HonuaMapHoverDetail,

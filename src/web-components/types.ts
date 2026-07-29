@@ -44,6 +44,19 @@ export interface HonuaBookmarksMessages {
   readonly homeLabel?: string;
 }
 
+/** Caller-supplied messages for `<honua-map>`. */
+export interface HonuaMapMessages {
+  readonly controlsLabel?: string;
+  readonly zoomInLabel?: string;
+  readonly zoomOutLabel?: string;
+  readonly zoomLabel?: string;
+  readonly visibleLayers?: string | ((count: number) => string);
+  readonly noCenter?: string;
+  readonly loadingPackage?: string;
+  readonly noPackage?: string;
+  readonly invalidPackage?: string;
+}
+
 export interface HonuaLayerModel {
   id: string;
   title: string;

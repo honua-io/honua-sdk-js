@@ -127,8 +127,8 @@
     "components": 21,
     "gates": 17,
     "cells": 357,
-    "passing": 237,
-    "failing": 52,
+    "passing": 238,
+    "failing": 51,
     "pending": 42,
     "notApplicable": 26,
     "productionQualifiedComponents": 0,
@@ -782,15 +782,14 @@
       "supportTier": "survival-tier",
       "productionQualified": false,
       "openGates": [
-        "localization",
         "pseudo-locale",
         "visual-regression",
         "strict-csp",
         "memory-leak"
       ],
       "summary": {
-        "passing": 12,
-        "failing": 3,
+        "passing": 13,
+        "failing": 2,
         "pending": 2,
         "notApplicable": 0
       },
@@ -857,8 +856,11 @@
         {
           "gate": "localization",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+          "status": "passing",
+          "evidence": [
+            "test/web-components-map-status-element.test.ts"
+          ],
+          "note": "The map accepts caller-supplied control, zoom, layer-count, center, package-loading, and no-package messages while preserving the map label, asserted with German rendering coverage."
         },
         {
           "gate": "pseudo-locale",

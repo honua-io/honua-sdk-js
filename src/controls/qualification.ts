@@ -868,6 +868,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "The native layer list accepts caller-supplied accessible, unseeded, and fallback labels, asserted with German rendering coverage while preserving overlay labels supplied by the caller.",
       },
       {
+        ids: ["web-components.map"],
+        evidence: ["test/web-components-map-status-element.test.ts"],
+        note: "The map accepts caller-supplied control, zoom, layer-count, center, package-loading, and no-package messages while preserving the map label, asserted with German rendering coverage.",
+      },
+      {
         ids: ["web-components.locate-control"],
         evidence: ["test/web-components-locate-control.test.ts"],
         note: "The locate control accepts a caller-supplied label and typed message source for action text, statuses, initial/unavailable copy, and geolocation state messages, asserted with German rendering coverage.",
@@ -911,6 +916,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "controls.swipe-control",
           "controls.legend",
           "controls.layer-list",
+          "web-components.map",
           "web-components.locate-control",
           "web-components.editor",
           "web-components.bookmarks",
