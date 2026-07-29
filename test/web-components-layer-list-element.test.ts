@@ -207,4 +207,24 @@ describe("<honua-layer-list> (survival tier)", () => {
     expect(stylesheet).toContain(".layer-row__tools { flex-wrap: wrap; padding-left: 0; }");
     expect(stylesheet).toContain(".opacity { min-width: 0; width: 100%; }");
   });
+
+  it("renders caller-supplied German labels and ARIA values", () => {
+    const element = mountList(makeController());
+    element.messages = {
+      label: "Ebenen",
+      opacityLabel: "Deckkraft",
+      opacityValue: (percent) => `${percent} Prozent`,
+      moveUpLabel: "Nach oben",
+      moveDownLabel: "Nach unten",
+    };
+    const root = shadow(element);
+    expect(root.querySelector("legend")?.textContent).toBe("Ebenen");
+    expect(root.querySelector<HTMLInputElement>("input[data-layer-opacity]")?.getAttribute("aria-label")).toBe(
+      "Deckkraft",
+    );
+    expect(root.querySelector<HTMLInputElement>("input[data-layer-opacity]")?.getAttribute("aria-valuetext")).toBe(
+      "80 Prozent",
+    );
+    expect(root.querySelector("button[data-move='up:mid']")?.getAttribute("aria-label")).toBe("Nach oben");
+  });
 });

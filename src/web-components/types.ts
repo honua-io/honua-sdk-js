@@ -57,6 +57,112 @@ export interface HonuaMapMessages {
   readonly invalidPackage?: string;
 }
 
+/** Caller-supplied labels and empty-state text for `<honua-layer-list>`. */
+export interface HonuaLayerListMessages {
+  readonly label?: string;
+  readonly noLayers?: string;
+  readonly opacityLabel?: string;
+  readonly opacityValue?: string | ((percent: number) => string);
+  readonly moveUpLabel?: string;
+  readonly moveDownLabel?: string;
+}
+
+/** Caller-supplied labels and empty-state text for `<honua-legend>`. */
+export interface HonuaLegendMessages {
+  readonly label?: string;
+  readonly noLegend?: string;
+}
+
+export interface HonuaSearchMessages {
+  readonly label?: string;
+  readonly placeholder?: string;
+  readonly submitLabel?: string;
+  readonly suggestionsLabel?: string | ((label: string) => string);
+  readonly noResults?: (query: string) => string;
+  readonly suggestionsUnavailable?: string;
+  readonly geocodingFailed?: string | ((error: unknown) => string);
+}
+
+export interface HonuaFeatureEditorMessages {
+  readonly label?: string;
+  readonly status?: Partial<Readonly<Record<string, string>>>;
+  readonly unsaved?: string;
+  readonly noWorkflow?: string;
+  readonly noFields?: string;
+  readonly operationsLabel?: (label: string) => string;
+  readonly operationLabels?: Partial<Readonly<Record<"create" | "update" | "delete", string>>>;
+  readonly conflictLabel?: string;
+  readonly conflictChoices?: Partial<Readonly<Record<string, string>>>;
+  readonly attributesLabel?: string | ((subtypeName: string | undefined) => string);
+  readonly selectPlaceholder?: string;
+  readonly noneLabel?: string;
+  readonly readOnlyHint?: string;
+  readonly requiredHint?: string;
+  readonly notNullableHint?: string;
+  readonly subtypeHint?: string;
+  readonly geometryLabel?: string;
+  readonly sketchToolsLabel?: (label: string) => string;
+  readonly toolLabels?: Partial<Readonly<Record<string, string>>>;
+  readonly geometryJsonLabel?: string;
+  readonly geometryPlaceholder?: string;
+  readonly applyGeometry?: string;
+  readonly clearGeometry?: string;
+  readonly attachmentsLabel?: string;
+  readonly attachmentsUnsupported?: string;
+  readonly noAttachments?: string;
+  readonly addAttachment?: string;
+  readonly validation?: (fieldCount: number) => string;
+  readonly validationDraft?: string;
+  readonly editActionsLabel?: string;
+  readonly submit?: string;
+  readonly deleteFeature?: string;
+  readonly retry?: string;
+  readonly undo?: string;
+  readonly redo?: string;
+  readonly revert?: string;
+  readonly cancel?: string;
+}
+
+export interface HonuaChartMessages {
+  readonly label?: string;
+  readonly noData?: string;
+}
+
+export interface HonuaBasemapControlMessages {
+  readonly label?: string;
+  readonly groupLabel?: string;
+  readonly status?: Partial<Readonly<Record<"ready" | "unsupported", string>>>;
+  readonly unsupported?: string;
+  readonly unavailable?: string;
+}
+
+export interface HonuaMeasurementMessages {
+  readonly label?: string;
+  readonly modeLabel?: Partial<Readonly<Record<"off" | "distance" | "area", string>>>;
+  readonly ready?: string;
+  readonly waitingForMap?: string;
+  readonly finish?: string;
+  readonly cancel?: string;
+  readonly modeGroupLabel?: (label: string) => string;
+  readonly startDistance?: string;
+  readonly startArea?: string;
+  readonly distance?: (value: string, finished: boolean) => string;
+  readonly area?: (value: string, finished: boolean) => string;
+  readonly vertexDistance?: (count: number) => string;
+  readonly vertexArea?: (count: number) => string;
+  readonly offStatus?: string;
+  readonly hintOff?: string;
+  readonly hintActive?: string;
+}
+
+export interface HonuaMapStatusMessages {
+  readonly label?: string;
+  readonly scaleLabel?: string;
+  readonly attributionLabel?: string;
+  readonly fullscreenLabel?: string;
+  readonly fullscreenUnavailable?: string;
+}
+
 export interface HonuaLayerModel {
   id: string;
   title: string;
