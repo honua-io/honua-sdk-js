@@ -20,6 +20,7 @@ import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { HonuaExtent, HonuaFieldInfo, HonuaServerCompatibilityFeature, HonuaTypedFeature } from "../core/types.js";
 import type { CapabilityId, CapabilityProfile } from "../source-capability-types.js";
 import type { SourceSchemaV2Envelope } from "./schema-envelope.js";
+import type { SchemaIdentity } from "./schema.js";
 
 // ── Protocol identifiers ──────────────────────────────────────
 
@@ -482,6 +483,8 @@ export interface SourceDescriptor<TProtocol extends string = Protocol> {
    * and inspect the complete schema value.
    */
   schemaV2?: SourceSchemaV2Envelope;
+  /** Explicit schema truth; unavailable states must not be represented by a fabricated schemaV2. */
+  schemaV2State?: SchemaIdentity;
   /**
    * Evaluated, immutable capability truth for this source. When present it is
    * authoritative over the legacy `capabilities` set; the set is retained as

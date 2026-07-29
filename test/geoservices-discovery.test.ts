@@ -786,7 +786,7 @@ describe("GeoServices service discovery", () => {
             protocol: hint,
             authorizationScopeFingerprint: "scope",
             clientOptions: { fetchFn, auth },
-          }),
+          } as never),
         ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "unsupported-protocol" });
       }
       expect(fetchFn).not.toHaveBeenCalled();

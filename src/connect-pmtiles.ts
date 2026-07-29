@@ -1,6 +1,7 @@
 /** Bounded PMTiles static-asset discovery for the top-level connect() workflow. */
 
-import type { ConnectDiscoverySourceSnapshot, ConnectOptions } from "./connect.js";
+import { unavailableSourceSchemaState } from "./connect-schema.js";
+import type { ConnectDiscoverySourceSnapshot, ConnectOptions, ConnectSourceSchemaProjection } from "./connect.js";
 import type {
   DiscoveryCacheIdentity,
   DiscoveryCapabilityEvidence,
@@ -140,6 +141,7 @@ export async function discoverPmtilesSources(
   identity: DiscoveryCacheIdentity,
   options: ConnectOptions,
   limits: PmtilesDiscoveryLimits,
+  sourceSchemaProjection?: ConnectSourceSchemaProjection,
 ): Promise<PmtilesDiscoveryResult> {
   const source = new PipelinePmtilesSource(
     client,
@@ -211,6 +213,7 @@ export async function discoverPmtilesSources(
         }
       : {}),
   });
+  const validator = parsePmtilesValidatorIdentity(normalized.validator);
   const sourceSnapshot: ConnectDiscoverySourceSnapshot = Object.freeze({
     id: "pmtiles",
     locator: Object.freeze({
@@ -221,6 +224,26 @@ export async function discoverPmtilesSources(
           ? { sourceType: "raster" as const }
           : {}),
     }),
+    ...(sourceSchemaProjection
+      ? {
+          schemaV2State: unavailableSourceSchemaState(
+            {
+              protocol: "pmtiles",
+              source: identity.endpoint,
+              observedAt: retrievedAt,
+              ...(validator
+                ? {
+                    validator: {
+                      kind: validator.kind,
+                      value: validator.value,
+                    },
+                  }
+                : {}),
+            },
+            "PMTiles archive metadata does not advertise a feature-field schema.",
+          ),
+        }
+      : {}),
     ...(normalized.attribution ? { title: normalized.attribution } : {}),
     extent: metadata.extent,
     metadata,

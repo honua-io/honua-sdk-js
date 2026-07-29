@@ -2,11 +2,11 @@
  * Cross-protocol descriptor identity matrix (issue #555).
  *
  * `connect()` discovers the same kind of logical resource — a vector
- * "parcels" layer, or a raster/catalog "imagery" resource — through nine
- * different protocol adapters (GeoServices REST, Honua gRPC, OData v4,
- * GeoParquet, WFS 2.0, OGC API Features, WMS, WMTS, and a STAC API). This
- * file proves two things end to end through the real `connect()` /
- * `connectWithSourceSchemaV2()` facade, never by calling a normalizer
+ * "parcels" layer, or a raster/catalog "imagery" resource — through a
+ * modern protocol matrix that includes vector GeoServices and gRPC variants,
+ * OData v4, GeoParquet, WFS 2.0, OGC API Features/Records/Tiles/Maps, WMS,
+ * WMTS, and STAC. This file proves two things end to end through the real
+ * `connect()` / `connectWithSourceSchemaV2()` facade, never by calling a normalizer
  * function directly:
  *
  *  1. Where two protocols carry genuinely equivalent metadata (the same
@@ -17,8 +17,9 @@
  *  2. Where two protocols genuinely differ (GeoParquet never declares a
  *     key; Esri's `geometryType` enum can't distinguish Polygon from
  *     MultiPolygon; OData's wire format allows special float literals;
- *     WFS/OGC Features/WMS/WMTS/STAC never discover a field inventory at
- *     all), the matrix asserts the *documented* difference with a reason,
+ *     GeoServices ImageServer does not emit schemaV2; OGC/WMS/WMTS/WFS/STAC
+ *     do not discover a schemaV2 field inventory), the matrix asserts the
+ *     *documented* difference with a reason,
  *     rather than skipping the protocol or forcing a false equivalence.
  *
  * Endpoint identity, locators, and raw `native` type references are
@@ -53,6 +54,11 @@ const WMTS_CAPABILITIES_XML = readFileSync(
   new URL("./fixtures/backend-agnostic/wmts/capabilities.xml", import.meta.url),
   "utf8",
 );
+const CONNECT_PARITY_MATRIX = JSON.parse(
+  readFileSync(new URL("../config/connect-parity-matrix.v1.json", import.meta.url), "utf8"),
+) as {
+  readonly sourceProtocols: readonly { readonly protocol: ConnectResolvedProtocol }[];
+};
 
 type BaseConnectOptions = Omit<ConnectOptions, "authorizationScopeFingerprint" | "cache" | "refresh" | "signal">;
 
@@ -99,12 +105,65 @@ const PARCELS_PROBE_RESPONSE: HonuaQueryResponse = {
 };
 
 const GEOSERVICES_ENDPOINT = "https://example.test/rest/services/parcels/FeatureServer/0";
+const GEOSERVICES_MAP_ENDPOINT = "https://example.test/rest/services/parcels/MapServer/0";
+const GEOSERVICES_IMAGE_ENDPOINT = "https://example.test/rest/services/elevation/ImageServer";
+const GEOSERVICES_GEOMETRY_ENDPOINT = "https://example.test/rest/services/analysis/GeometryServer";
+const GEOSERVICES_GP_ENDPOINT = "https://example.test/rest/services/tools/GPServer";
+const OGC_PROCESSES_ENDPOINT = "https://example.test/ogc/processes";
+const PMTILES_ENDPOINT = "https://assets.example.test/maps/world.pmtiles";
+const PMTILES_ETAG = '"pmtiles-fixture-v1"';
 
 function geoservicesFetchHandler(layer: HonuaLayerMetadata = PARCELS_LAYER): typeof fetch {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(new Request(input, init).url);
     if (url.pathname === "/rest/services/parcels/FeatureServer/0") return json(layer);
     throw new Error(`Unexpected GeoServices fetch: ${url.pathname}`);
+  }) as typeof fetch;
+}
+
+const PARCELS_MAP_LAYER: HonuaLayerMetadata = {
+  id: 0,
+  name: "Parcels",
+  geometryType: "esriGeometryPolygon",
+  objectIdField: "OBJECTID",
+  capabilities: "Map,Query",
+  spatialReference: { wkid: 4326 },
+  advancedQueryCapabilities: { supportsPagination: true, supportsReturningQueryExtent: true },
+  fields: [
+    { name: "OBJECTID", type: "esriFieldTypeOID" },
+    { name: "NAME", type: "esriFieldTypeString" },
+    { name: "AREA_SQM", type: "esriFieldTypeDouble" },
+  ],
+};
+
+function geoservicesMapFetchHandler(layer: HonuaLayerMetadata = PARCELS_MAP_LAYER): typeof fetch {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(new Request(input, init).url);
+    if (url.pathname === "/rest/services/parcels/MapServer") {
+      return json({ layers: [{ id: 0, name: "Parcels" }] });
+    }
+    if (url.pathname === "/rest/services/parcels/MapServer/0") return json(layer);
+    throw new Error(`Unexpected GeoServices MapServer fetch: ${url.pathname}`);
+  }) as typeof fetch;
+}
+
+const PARCELS_IMAGE_METADATA = {
+  name: "Imagery",
+  capabilities: "Image,Query",
+  objectIdField: "OBJECTID",
+  advancedQueryCapabilities: { supportsPagination: true, supportsReturningQueryExtent: true },
+  fields: [
+    { name: "OBJECTID", type: "esriFieldTypeOID" },
+    { name: "NAME", type: "esriFieldTypeString" },
+    { name: "AREA_SQM", type: "esriFieldTypeDouble" },
+  ],
+};
+
+function geoservicesImageFetchHandler(metadata: unknown = PARCELS_IMAGE_METADATA): typeof fetch {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(new Request(input, init).url);
+    if (url.pathname === "/rest/services/elevation/ImageServer") return json(metadata);
+    throw new Error(`Unexpected GeoServices ImageServer fetch: ${url.pathname}`);
   }) as typeof fetch;
 }
 
@@ -275,6 +334,87 @@ function ogcFeaturesFetchHandler(): typeof fetch {
 // A render/tile-only resource never carries a field inventory at all; this
 // is the deliberately non-equivalent family in the matrix.
 
+const OGC_RECORDS_ENDPOINT = "https://catalog.example/ogc/records";
+const OGC_RECORDS_LANDING = {
+  title: "Test Record Catalog",
+  links: [
+    { rel: "data", href: "./collections" },
+    { rel: "conformance", href: "./conformance" },
+  ],
+};
+const OGC_RECORDS_CONFORMANCE = {
+  conformsTo: ["http://www.opengis.net/spec/ogcapi-records-1/1.0/conf/core"],
+};
+const OGC_RECORDS_COLLECTIONS = {
+  collections: [{ id: "parcels", title: "Parcels", crs: ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"] }],
+};
+
+function ogcRecordsFetchHandler(): typeof fetch {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(new Request(input, init).url);
+    if (url.pathname === "/ogc/records") return json(OGC_RECORDS_LANDING, { ETag: '"records-root-v1"' });
+    if (url.pathname === "/ogc/records/conformance")
+      return json(OGC_RECORDS_CONFORMANCE, { ETag: '"records-conf-v1"' });
+    if (url.pathname === "/ogc/records/collections")
+      return json(OGC_RECORDS_COLLECTIONS, { ETag: '"records-cols-v1"' });
+    throw new Error(`Unexpected OGC Records fetch: ${url.pathname}`);
+  }) as typeof fetch;
+}
+
+const OGC_TILES_ENDPOINT = "https://tiles.example/ogc/tiles";
+const OGC_TILES_LANDING = {
+  title: "Test Tile Service",
+  links: [
+    { rel: "data", href: "./collections" },
+    { rel: "conformance", href: "./conformance" },
+  ],
+};
+const OGC_TILES_CONFORMANCE = {
+  conformsTo: ["http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/core"],
+};
+const OGC_TILES_COLLECTIONS = {
+  collections: [{ id: "parcels", title: "Parcels", crs: ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"] }],
+};
+
+function ogcTilesFetchHandler(): typeof fetch {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(new Request(input, init).url);
+    if (url.pathname === "/ogc/tiles") return json(OGC_TILES_LANDING, { ETag: '"tiles-root-v1"' });
+    if (url.pathname === "/ogc/tiles/conformance") return json(OGC_TILES_CONFORMANCE, { ETag: '"tiles-conf-v1"' });
+    if (url.pathname === "/ogc/tiles/collections") return json(OGC_TILES_COLLECTIONS, { ETag: '"tiles-cols-v1"' });
+    throw new Error(`Unexpected OGC Tiles fetch: ${url.pathname}`);
+  }) as typeof fetch;
+}
+
+const OGC_MAPS_ENDPOINT = "https://maps.example/ogc/maps";
+const OGC_MAPS_LANDING = {
+  title: "Test Map Service",
+  links: [
+    { rel: "data", href: "./collections" },
+    { rel: "conformance", href: "./conformance" },
+  ],
+};
+const OGC_MAPS_CONFORMANCE = {
+  conformsTo: ["http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/core"],
+};
+const OGC_MAPS_COLLECTIONS = {
+  collections: [{ id: "parcels", title: "Parcels", crs: ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"] }],
+};
+
+function ogcMapsFetchHandler(): typeof fetch {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(new Request(input, init).url);
+    if (url.pathname === "/ogc/maps") return json(OGC_MAPS_LANDING, { ETag: '"maps-root-v1"' });
+    if (url.pathname === "/ogc/maps/conformance") return json(OGC_MAPS_CONFORMANCE, { ETag: '"maps-conf-v1"' });
+    if (url.pathname === "/ogc/maps/collections") return json(OGC_MAPS_COLLECTIONS, { ETag: '"maps-cols-v1"' });
+    throw new Error(`Unexpected OGC Maps fetch: ${url.pathname}`);
+  }) as typeof fetch;
+}
+
+// â”€â”€ Raw OGC API / raster families without shared field schema: Records / Tiles / Maps / WMS / WMTS / STAC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+// OGC / WMS-family resources used in the schema-less matrix branch:
+// OGC Records / OGC Tiles / OGC Maps / WMS / WMTS / STAC
 const WMS_ENDPOINT = "https://maps.example/ogc/wms";
 const WMTS_ENDPOINT = "https://maps.example/ogc/wmts";
 
@@ -319,7 +459,44 @@ function stacFetchHandler(): typeof fetch {
   }) as typeof fetch;
 }
 
-// ── Full nine-protocol matrix used by the cache / refresh / cancel / auth-scope suite ──
+function pmtilesFixtureAsset(name = "sample-vector.pmtiles"): Uint8Array {
+  const fixture = readFileSync(new URL(`./fixtures/pmtiles/${name}`, import.meta.url));
+  const asset = new Uint8Array(64 * 1024);
+  asset.set(new Uint8Array(fixture));
+  return asset;
+}
+
+function pmtilesRangeFetch(asset = pmtilesFixtureAsset()) {
+  const calls: Array<{ url: string; range: string | null; authorization: string | null; signal?: AbortSignal }> = [];
+  const fetchFn = vi.fn<typeof fetch>(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    const range = headers.get("range");
+    calls.push({
+      url: input.toString(),
+      range,
+      authorization: headers.get("authorization"),
+      ...(init?.signal ? { signal: init.signal } : {}),
+    });
+    if (!range) return new Response("missing range", { status: 400 });
+    const match = /^bytes=(\d+)-(\d+)$/.exec(range);
+    if (!match) return new Response("invalid range", { status: 400 });
+    const start = Number(match[1]);
+    const end = Number(match[2]);
+    const body = asset.slice(start, end + 1);
+    return new Response(body, {
+      status: 206,
+      headers: {
+        "Content-Type": "application/vnd.pmtiles",
+        "Content-Length": String(body.byteLength),
+        "Content-Range": `bytes ${start}-${end}/${asset.byteLength}`,
+        ETag: PMTILES_ETAG,
+      },
+    });
+  });
+  return { fetchFn, calls };
+}
+
+// Full protocol matrix used by the cache / refresh / cancel / auth-scope suite
 
 interface MatrixCase {
   readonly label: ConnectResolvedProtocol;
@@ -335,6 +512,34 @@ const MATRIX_CASES: readonly MatrixCase[] = [
         options: {
           endpoint: GEOSERVICES_ENDPOINT,
           protocol: "geoservices-feature-service",
+          clientOptions: { fetchFn },
+        },
+        activity: () => (fetchFn as ReturnType<typeof vi.fn>).mock.calls.length,
+      };
+    },
+  },
+  {
+    label: "geoservices-map-service",
+    build() {
+      const fetchFn = geoservicesMapFetchHandler();
+      return {
+        options: {
+          endpoint: GEOSERVICES_MAP_ENDPOINT,
+          protocol: "geoservices-map-service",
+          clientOptions: { fetchFn },
+        },
+        activity: () => (fetchFn as ReturnType<typeof vi.fn>).mock.calls.length,
+      };
+    },
+  },
+  {
+    label: "geoservices-image-service",
+    build() {
+      const fetchFn = geoservicesImageFetchHandler();
+      return {
+        options: {
+          endpoint: GEOSERVICES_IMAGE_ENDPOINT,
+          protocol: "geoservices-image-service",
           clientOptions: { fetchFn },
         },
         activity: () => (fetchFn as ReturnType<typeof vi.fn>).mock.calls.length,
@@ -384,6 +589,36 @@ const MATRIX_CASES: readonly MatrixCase[] = [
     },
   },
   {
+    label: "ogc-records",
+    build() {
+      const fetchFn = ogcRecordsFetchHandler();
+      return {
+        options: { endpoint: OGC_RECORDS_ENDPOINT, protocol: "ogc-records", clientOptions: { fetchFn } },
+        activity: () => (fetchFn as ReturnType<typeof vi.fn>).mock.calls.length,
+      };
+    },
+  },
+  {
+    label: "ogc-tiles",
+    build() {
+      const fetchFn = ogcTilesFetchHandler();
+      return {
+        options: { endpoint: OGC_TILES_ENDPOINT, protocol: "ogc-tiles", clientOptions: { fetchFn } },
+        activity: () => (fetchFn as ReturnType<typeof vi.fn>).mock.calls.length,
+      };
+    },
+  },
+  {
+    label: "ogc-maps",
+    build() {
+      const fetchFn = ogcMapsFetchHandler();
+      return {
+        options: { endpoint: OGC_MAPS_ENDPOINT, protocol: "ogc-maps", clientOptions: { fetchFn } },
+        activity: () => (fetchFn as ReturnType<typeof vi.fn>).mock.calls.length,
+      };
+    },
+  },
+  {
     label: "ogc-features",
     build() {
       const fetchFn = ogcFeaturesFetchHandler();
@@ -419,6 +654,16 @@ const MATRIX_CASES: readonly MatrixCase[] = [
       const fetchFn = stacFetchHandler();
       return {
         options: { endpoint: STAC_ENDPOINT, protocol: "stac", clientOptions: { fetchFn } },
+        activity: () => (fetchFn as ReturnType<typeof vi.fn>).mock.calls.length,
+      };
+    },
+  },
+  {
+    label: "pmtiles",
+    build() {
+      const { fetchFn } = pmtilesRangeFetch();
+      return {
+        options: { endpoint: PMTILES_ENDPOINT, protocol: "pmtiles", clientOptions: { fetchFn } },
         activity: () => (fetchFn as ReturnType<typeof vi.fn>).mock.calls.length,
       };
     },
@@ -459,18 +704,25 @@ function geometryCrsDefinition(schema: SourceSchemaV2) {
 /** Correspondence between each schema-bearing protocol's native field name and its logical role. */
 const PARCELS_FIELD_NAMES = {
   geoservices: { key: "OBJECTID", name: "NAME", area: "AREA_SQM", geometry: "geometry" },
+  geoservicesMap: { key: "OBJECTID", name: "NAME", area: "AREA_SQM", geometry: "geometry" },
   grpc: { key: "OBJECTID", name: "NAME", area: "AREA_SQM", geometry: "geometry" },
   odata: { key: "Id", name: "Name", area: "AreaSqm", geometry: "Geometry" },
   geoparquet: { key: "id", name: "name", area: "area_sqm", geometry: "geometry" },
 } as const;
 
 async function discoverParcelsSchemas() {
-  const [geoservices, grpcConnection, odata, geoparquet] = await Promise.all([
+  const [geoservices, geoservicesMap, grpcConnection, odata, geoparquet] = await Promise.all([
     connectWithSourceSchemaV2({
       endpoint: GEOSERVICES_ENDPOINT,
       protocol: "geoservices-feature-service",
       authorizationScopeFingerprint: "anonymous",
       clientOptions: { fetchFn: geoservicesFetchHandler() },
+    }),
+    connectWithSourceSchemaV2({
+      endpoint: GEOSERVICES_MAP_ENDPOINT,
+      protocol: "geoservices-map-service",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: geoservicesMapFetchHandler() },
     }),
     (async () => {
       const fetchFn = grpcFetchHandler();
@@ -501,6 +753,7 @@ async function discoverParcelsSchemas() {
   ]);
   return {
     geoservices: geoservices.inspection.sources[0]!.descriptor.schemaV2!,
+    geoservicesMap: geoservicesMap.inspection.sources[0]!.descriptor.schemaV2!,
     grpc: grpcConnection.inspection.sources[0]!.descriptor.schemaV2!,
     odata: odata.inspection.sources[0]!.descriptor.schemaV2!,
     geoparquet: geoparquet.inspection.sources[0]!.descriptor.schemaV2!,
@@ -518,11 +771,138 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
     expect(connection.inspection.sources[0]?.descriptor.schemaV2).toBeUndefined();
   });
 
-  describe("semantic field / key / geometry / CRS identity across the four schema-bearing protocols", () => {
-    it("normalizes equivalent string and geometry fields to identical logical kinds across GeoServices, gRPC, OData, and GeoParquet", async () => {
+  it("rejects unsupported operation-oriented protocols when they are explicitly selected", async () => {
+    await expect(
+      connect({
+        endpoint: GEOSERVICES_GEOMETRY_ENDPOINT,
+        // `ogc-processes` is not part of Protocol and requires a cast in this
+        // negative test case to assert the real `connect()` behavior.
+        protocol: "ogc-processes" as never,
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn: vi.fn() },
+      }),
+    ).rejects.toMatchObject({
+      name: "HonuaDiscoveryError",
+      code: "unsupported-protocol",
+    });
+
+    await expect(
+      connect({
+        endpoint: GEOSERVICES_GEOMETRY_ENDPOINT,
+        protocol: "geoservices-geometry-service" as never,
+        authorizationScopeFingerprint: "anonymous",
+      }),
+    ).rejects.toMatchObject({
+      name: "HonuaDiscoveryError",
+      code: "unsupported-protocol",
+    });
+
+    await expect(
+      connect({
+        endpoint: `${GEOSERVICES_GP_ENDPOINT}/Buffer`,
+        protocol: "geoservices-gp-service" as never,
+        authorizationScopeFingerprint: "anonymous",
+      }),
+    ).rejects.toMatchObject({
+      name: "HonuaDiscoveryError",
+      code: "unsupported-protocol",
+    });
+  });
+
+  it("treats operation-oriented GeoServices URLs as unsupported under auto protocol detection", async () => {
+    await expect(
+      connect({
+        endpoint: GEOSERVICES_GEOMETRY_ENDPOINT,
+        protocol: "auto",
+        authorizationScopeFingerprint: "anonymous",
+      }),
+    ).rejects.toMatchObject({
+      name: "HonuaDiscoveryError",
+      code: "unsupported-protocol",
+    });
+
+    await expect(
+      connect({
+        endpoint: `${GEOSERVICES_GP_ENDPOINT}/Buffer`,
+        protocol: "auto",
+        authorizationScopeFingerprint: "anonymous",
+      }),
+    ).rejects.toMatchObject({
+      name: "HonuaDiscoveryError",
+      code: "unsupported-protocol",
+    });
+  });
+
+  it.each([
+    { label: "ogc-processes", protocol: "ogc-processes" as never, endpoint: OGC_PROCESSES_ENDPOINT },
+    {
+      label: "geoservices-geometry-service",
+      protocol: "geoservices-geometry-service" as never,
+      endpoint: GEOSERVICES_GEOMETRY_ENDPOINT,
+    },
+    {
+      label: "geoservices-gp-service",
+      protocol: "geoservices-gp-service" as never,
+      endpoint: `${GEOSERVICES_GP_ENDPOINT}/Buffer`,
+    },
+  ] as const)(
+    "keeps operation-oriented protocols rejected by connect() without cache access: $label",
+    async ({ protocol, endpoint }) => {
+      const cache = spyCache();
+
+      await expect(
+        connect({
+          endpoint,
+          protocol,
+          authorizationScopeFingerprint: "anonymous",
+          cache,
+        }),
+      ).rejects.toMatchObject({
+        name: "HonuaDiscoveryError",
+        code: "unsupported-protocol",
+      });
+
+      expect(cache.get).not.toHaveBeenCalled();
+      expect(cache.set).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    {
+      label: "geometry-service auto protocol",
+      endpoint: GEOSERVICES_GEOMETRY_ENDPOINT,
+    },
+    {
+      label: "gp-service auto protocol",
+      endpoint: `${GEOSERVICES_GP_ENDPOINT}/Buffer`,
+    },
+  ] as const)(
+    "rejects auto-detected operation-oriented protocols before cache lookup and keeps all protocol-specific inputs non-operative: $label",
+    async ({ endpoint }) => {
+      const cache = spyCache();
+
+      await expect(
+        connect({
+          endpoint,
+          protocol: "auto",
+          authorizationScopeFingerprint: "anonymous",
+          cache,
+        }),
+      ).rejects.toMatchObject({
+        name: "HonuaDiscoveryError",
+        code: "unsupported-protocol",
+      });
+
+      expect(cache.get).not.toHaveBeenCalled();
+      expect(cache.set).not.toHaveBeenCalled();
+    },
+  );
+
+  describe("semantic field / key / geometry / CRS identity across the five schema-bearing protocols", () => {
+    it("normalizes equivalent string and geometry fields to identical logical kinds across GeoServices variants, gRPC, OData, and GeoParquet", async () => {
       const schemas = await discoverParcelsSchemas();
 
-      for (const protocol of ["geoservices", "grpc", "odata", "geoparquet"] as const) {
+      for (const protocol of ["geoservices", "geoservicesMap", "grpc", "odata", "geoparquet"] as const) {
         const names = PARCELS_FIELD_NAMES[protocol];
         const schema = schemas[protocol];
         expect(fieldNamed(schema, names.name)?.type).toEqual({ kind: "string" });
@@ -531,11 +911,12 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
       }
     });
 
-    it("normalizes the declared key column to an identical integer kind across GeoServices, gRPC, and OData", async () => {
+    it("normalizes the declared key column to an identical integer kind across GeoServices variants, gRPC, and OData", async () => {
       const schemas = await discoverParcelsSchemas();
       const expectedKeyType = { kind: "integer", bits: 32, signed: true, jsonEncoding: "number" } as const;
 
       expect(fieldNamed(schemas.geoservices, "OBJECTID")?.type).toEqual(expectedKeyType);
+      expect(fieldNamed(schemas.geoservicesMap, "OBJECTID")?.type).toEqual(expectedKeyType);
       expect(fieldNamed(schemas.grpc, "OBJECTID")?.type).toEqual(expectedKeyType);
       expect(fieldNamed(schemas.odata, "Id")?.type).toEqual(expectedKeyType);
       // GeoParquet's "id" column is the SAME logical key by convention, but the
@@ -544,7 +925,7 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
       expect(fieldNamed(schemas.geoparquet, "id")?.type).toEqual(expectedKeyType);
     });
 
-    it("normalizes the same EPSG:4326 geometry CRS to a byte-identical authority definition across GeoServices, gRPC, OData, and GeoParquet", async () => {
+    it("normalizes the same EPSG:4326 geometry CRS to a byte-identical authority definition across GeoServices variants, gRPC, OData, and GeoParquet", async () => {
       const schemas = await discoverParcelsSchemas();
       const expectedDefinition = {
         kind: "authority",
@@ -560,7 +941,7 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
         },
       };
 
-      for (const protocol of ["geoservices", "grpc", "odata", "geoparquet"] as const) {
+      for (const protocol of ["geoservices", "geoservicesMap", "grpc", "odata", "geoparquet"] as const) {
         expect(geometryCrsDefinition(schemas[protocol])).toEqual(expectedDefinition);
       }
     });
@@ -621,12 +1002,14 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
       expect(fieldNamed(schemas.geoparquet, "id")?.roles).toEqual([]);
 
       // ...whereas the same logical column IS the declared, non-nullable key
-      // for the other three protocols.
+      // for the other four protocols.
       expect(schemas.geoservices.key).toEqual({ state: "known", fields: ["OBJECTID"] });
+      expect(schemas.geoservicesMap.key).toEqual({ state: "known", fields: ["OBJECTID"] });
       expect(schemas.grpc.key).toEqual({ state: "known", fields: ["OBJECTID"] });
       expect(schemas.odata.key).toEqual({ state: "known", fields: ["Id"] });
       for (const [protocol, keyField] of [
         ["geoservices", "OBJECTID"],
+        ["geoservicesMap", "OBJECTID"],
         ["grpc", "OBJECTID"],
         ["odata", "Id"],
       ] as const) {
@@ -646,6 +1029,7 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
       const geoservicesGeometry = geometryKnowledge(schemas.geoservices);
       expect(geoservicesGeometry).toEqual({ state: "mixed", types: ["MultiPolygon", "Polygon"] });
       expect(geometryKnowledge(schemas.grpc)).toEqual(geoservicesGeometry);
+      expect(geometryKnowledge(schemas.geoservicesMap)).toEqual(geoservicesGeometry);
 
       // OData's Edm.GeographyPolygon and GeoParquet's declared geometry_types
       // are both unambiguous, so they normalize to a single known type.
@@ -675,50 +1059,84 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
   });
 
   describe("structurally schema-less protocols never invent a field inventory for the same resource", () => {
-    it("carries no legacy schema and no schemaV2 for WFS, OGC Features, WMS, WMTS, or STAC, while advertising vector or render capabilities normally", async () => {
-      const [wfs, ogcFeatures, wms, wmts, stac] = await Promise.all([
-        connectWithSourceSchemaV2({
-          endpoint: WFS_ENDPOINT,
-          protocol: "wfs",
-          authorizationScopeFingerprint: "anonymous",
-          clientOptions: { fetchFn: wfsFetchHandler() },
-        }),
-        connectWithSourceSchemaV2({
-          endpoint: OGC_FEATURES_ENDPOINT,
-          protocol: "ogc-features",
-          authorizationScopeFingerprint: "anonymous",
-          clientOptions: { fetchFn: ogcFeaturesFetchHandler() },
-        }),
-        connectWithSourceSchemaV2({
-          endpoint: WMS_ENDPOINT,
-          protocol: "wms",
-          authorizationScopeFingerprint: "anonymous",
-          clientOptions: { fetchFn: wmsFetchHandler() },
-        }),
-        connectWithSourceSchemaV2({
-          endpoint: WMTS_ENDPOINT,
-          protocol: "wmts",
-          authorizationScopeFingerprint: "anonymous",
-          clientOptions: { fetchFn: wmtsFetchHandler() },
-        }),
-        connectWithSourceSchemaV2({
-          endpoint: STAC_ENDPOINT,
-          protocol: "stac",
-          authorizationScopeFingerprint: "anonymous",
-          clientOptions: { fetchFn: stacFetchHandler() },
-        }),
-      ]);
+    it("carries no legacy schema and explicit unavailable schema state when fields are not advertised", async () => {
+      const [wfs, ogcFeatures, wms, wmts, stac, geoservicesImage, ogcRecords, ogcTiles, ogcMaps, pmtiles] =
+        await Promise.all([
+          connectWithSourceSchemaV2({
+            endpoint: WFS_ENDPOINT,
+            protocol: "wfs",
+            authorizationScopeFingerprint: "anonymous",
+            clientOptions: { fetchFn: wfsFetchHandler() },
+          }),
+          connectWithSourceSchemaV2({
+            endpoint: OGC_FEATURES_ENDPOINT,
+            protocol: "ogc-features",
+            authorizationScopeFingerprint: "anonymous",
+            clientOptions: { fetchFn: ogcFeaturesFetchHandler() },
+          }),
+          connectWithSourceSchemaV2({
+            endpoint: WMS_ENDPOINT,
+            protocol: "wms",
+            authorizationScopeFingerprint: "anonymous",
+            clientOptions: { fetchFn: wmsFetchHandler() },
+          }),
+          connectWithSourceSchemaV2({
+            endpoint: WMTS_ENDPOINT,
+            protocol: "wmts",
+            authorizationScopeFingerprint: "anonymous",
+            clientOptions: { fetchFn: wmtsFetchHandler() },
+          }),
+          connectWithSourceSchemaV2({
+            endpoint: STAC_ENDPOINT,
+            protocol: "stac",
+            authorizationScopeFingerprint: "anonymous",
+            clientOptions: { fetchFn: stacFetchHandler() },
+          }),
+          connectWithSourceSchemaV2({
+            endpoint: GEOSERVICES_IMAGE_ENDPOINT,
+            protocol: "geoservices-image-service",
+            authorizationScopeFingerprint: "anonymous",
+            clientOptions: { fetchFn: geoservicesImageFetchHandler() },
+          }),
+          connectWithSourceSchemaV2({
+            endpoint: OGC_RECORDS_ENDPOINT,
+            protocol: "ogc-records",
+            authorizationScopeFingerprint: "anonymous",
+            clientOptions: { fetchFn: ogcRecordsFetchHandler() },
+          }),
+          connectWithSourceSchemaV2({
+            endpoint: OGC_TILES_ENDPOINT,
+            protocol: "ogc-tiles",
+            authorizationScopeFingerprint: "anonymous",
+            clientOptions: { fetchFn: ogcTilesFetchHandler() },
+          }),
+          connectWithSourceSchemaV2({
+            endpoint: OGC_MAPS_ENDPOINT,
+            protocol: "ogc-maps",
+            authorizationScopeFingerprint: "anonymous",
+            clientOptions: { fetchFn: ogcMapsFetchHandler() },
+          }),
+          connectWithSourceSchemaV2({
+            endpoint: PMTILES_ENDPOINT,
+            protocol: "pmtiles",
+            authorizationScopeFingerprint: "anonymous",
+            clientOptions: { fetchFn: pmtilesRangeFetch().fetchFn },
+          }),
+        ]);
 
-      // WFS and OGC Features: vector protocols, query/stream capable, but
-      // connect() does not (yet) discover a field inventory for either.
+      // WFS and OGC Features: vector protocols. Discovery does not return a
+      // field inventory, so the focused path preserves that fact as an
+      // unavailable identity while retaining vector capabilities.
       const wfsSource = wfs.inspection.sources.find((source) => source.descriptor.id === "parcels")!;
       expect(wfsSource.descriptor.schema).toBeUndefined();
       expect(wfsSource.descriptor.schemaV2).toBeUndefined();
+      expect(wfsSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
       expect(wfsSource.descriptor.capabilities.has("query")).toBe(true);
 
       const ogcSource = ogcFeatures.inspection.sources.find((source) => source.descriptor.id === "parcels")!;
       expect(ogcSource.descriptor.schema).toBeUndefined();
       expect(ogcSource.descriptor.schemaV2).toBeUndefined();
+      expect(ogcSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
       expect(ogcSource.descriptor.capabilities.has("query")).toBe(true);
 
       // WMS and WMTS: render/tile-only protocols. Both explicitly report
@@ -727,24 +1145,54 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
       // metadata), WMTS tiles never carry per-feature attributes at all.
       const wmsSource = wms.inspection.sources.find((source) => source.descriptor.id === "imagery")!;
       expect(wmsSource.descriptor.schema).toBeUndefined();
-      expect(wmsSource.descriptor.schemaV2?.key).toEqual({ state: "none" });
-      expect(wmsSource.descriptor.schemaV2?.geometry).toMatchObject({
-        state: "unknown",
-        reason: "metadata-unavailable",
-      });
-      expect(wmsSource.descriptor.schemaV2?.openContent).toBe("unknown");
+      expect(wmsSource.descriptor.schemaV2).toBeUndefined();
+      expect(wmsSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
 
       const wmtsSource = wmts.inspection.sources.find((source) => source.descriptor.id === "imagery")!;
       expect(wmtsSource.descriptor.schema).toBeUndefined();
-      expect(wmtsSource.descriptor.schemaV2?.key).toEqual({ state: "none" });
-      expect(wmtsSource.descriptor.schemaV2?.geometry).toEqual({ state: "none", reason: "no-geometry-fields" });
-      expect(wmtsSource.descriptor.schemaV2?.openContent).toBe("closed");
+      expect(wmtsSource.descriptor.schemaV2).toBeUndefined();
+      expect(wmtsSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
 
       // STAC: a catalog/item protocol, not an attribute-schema protocol.
       const stacSource = stac.inspection.sources.find((source) => source.descriptor.id === "imagery")!;
       expect(stacSource.descriptor.schema).toBeUndefined();
       expect(stacSource.descriptor.schemaV2).toBeUndefined();
+      expect(stacSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
       expect(stacSource.descriptor.capabilities.has("query")).toBe(true);
+
+      const geoservicesImageSource = geoservicesImage.inspection.sources[0];
+      expect(geoservicesImageSource?.descriptor.schema).toBeDefined();
+      expect(geoservicesImageSource?.descriptor.schemaV2).toBeUndefined();
+      expect(geoservicesImageSource?.descriptor.schemaV2State).toMatchObject({
+        state: "unavailable",
+        reason: "not-advertised",
+      });
+      expect(geoservicesImageSource?.descriptor.schema?.primaryKey).toBe("OBJECTID");
+      expect(geoservicesImageSource?.descriptor.capabilities.has("query")).toBe(true);
+
+      const recordsSource = ogcRecords.inspection.sources.find((source) => source.descriptor.id === "parcels")!;
+      expect(recordsSource.descriptor.schema).toBeUndefined();
+      expect(recordsSource.descriptor.schemaV2).toBeUndefined();
+      expect(recordsSource.descriptor.schemaV2State).toMatchObject({
+        state: "unavailable",
+        reason: "not-advertised",
+      });
+
+      const tilesSource = ogcTiles.inspection.sources.find((source) => source.descriptor.id === "parcels")!;
+      expect(tilesSource.descriptor.schema).toBeUndefined();
+      expect(tilesSource.descriptor.schemaV2).toBeUndefined();
+      expect(tilesSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
+
+      const mapsSource = ogcMaps.inspection.sources.find((source) => source.descriptor.id === "parcels")!;
+      expect(mapsSource.descriptor.schema).toBeUndefined();
+      expect(mapsSource.descriptor.schemaV2).toBeUndefined();
+      expect(mapsSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
+
+      const pmtilesSource = pmtiles.inspection.sources.find((source) => source.descriptor.id === "pmtiles")!;
+      expect(pmtilesSource.descriptor.schema).toBeUndefined();
+      expect(pmtilesSource.descriptor.schemaV2).toBeUndefined();
+      expect(pmtilesSource.descriptor.schemaV2State).toMatchObject({ state: "unavailable", reason: "not-advertised" });
+      expect(pmtilesSource.descriptor.capabilities.has("tiles")).toBe(true);
     });
 
     it("keeps each protocol's native CRS encoding of the same real-world WGS84 area distinct rather than silently coalescing them", async () => {
@@ -782,7 +1230,13 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
     });
   });
 
-  describe("cache / refresh / cancellation / auth-scope isolation hold uniformly across the full nine-protocol matrix", () => {
+  describe("cache / refresh / cancellation / auth-scope isolation hold uniformly across the full protocol matrix", () => {
+    it("executes every source protocol declared by the versioned portable matrix", () => {
+      expect([...MATRIX_CASES].map(({ label }) => label).sort()).toEqual(
+        CONNECT_PARITY_MATRIX.sourceProtocols.map(({ protocol }) => protocol).sort(),
+      );
+    });
+
     it.each(MATRIX_CASES)(
       "$label: a cache hit reapplies capability policy without any new discovery activity",
       async ({ build }) => {
@@ -800,6 +1254,34 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
         expect(activity()).toBe(activityAfterFirst);
       },
     );
+
+    it.each(MATRIX_CASES)("$label: malformed cached schema state is rejected before replay", async ({ build }) => {
+      const { options } = build();
+      let cached: ConnectDiscoverySnapshot | undefined;
+      const cache: ConnectDiscoveryCache = {
+        get: vi.fn(() => cached),
+        set: vi.fn((_identity, snapshot) => {
+          cached = snapshot;
+        }),
+      };
+
+      await connect({ ...options, authorizationScopeFingerprint: "anonymous", cache });
+      expect(cached).toBeDefined();
+      const malformed = structuredClone(cached!) as unknown as {
+        sources: Array<{ schemaV2State?: unknown }>;
+      };
+      malformed.sources[0]!.schemaV2State = {
+        state: "unavailable",
+        reason: "not-advertised",
+        provenance: [],
+      };
+      cached = malformed as unknown as ConnectDiscoverySnapshot;
+
+      await expect(connect({ ...options, authorizationScopeFingerprint: "anonymous", cache })).rejects.toMatchObject({
+        name: "HonuaDiscoveryError",
+        code: "invalid-discovery-cache",
+      });
+    });
 
     it.each(MATRIX_CASES)("$label: refresh always bypasses a cache read and revalidates", async ({ build }) => {
       const { options, activity } = build();
