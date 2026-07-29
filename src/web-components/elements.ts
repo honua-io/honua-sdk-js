@@ -36,6 +36,7 @@ import type {
   CreateHonuaWebComponentControllerOptions,
   HonuaActionDetail,
   HonuaActionPanelAction,
+  HonuaActionPanelMessages,
   HonuaBasemapChangeDetail,
   HonuaBookmark,
   HonuaBookmarkChangeDetail,
@@ -2378,24 +2379,37 @@ export class HonuaActionPanelElement<T = Record<string, unknown>> extends HonuaE
     return ["for", "label", "actions"];
   }
 
+  #messages: HonuaActionPanelMessages = {};
+
+  /** Caller-supplied localized panel label, status, and empty-state text. */
+  public get messages(): HonuaActionPanelMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaActionPanelMessages | undefined) {
+    this.#messages = messages ?? {};
+    this.render();
+  }
+
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
   }
 
   protected render(): void {
-    const label = this.getAttribute("label") ?? "Actions";
+    const label = this.#messages.label ?? this.getAttribute("label") ?? "Actions";
     const actions = parseActions(this.getAttribute("actions"));
+    const status = actions.length > 0 ? "ready" : "unsupported";
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}${actionPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>${escapeHtml(actions.length > 0 ? "ready" : "unsupported")}</span>
+          <span>${escapeHtml(this.#messages.status?.[status] ?? status)}</span>
         </div>
         ${
           actions.length === 0
-            ? `<p class="empty" role="status">No actions are configured.</p>`
+            ? `<p class="empty" role="status">${escapeHtml(this.#messages.empty ?? "No actions are configured.")}</p>`
             : `<div class="button-stack">
               ${actions
                 .map(

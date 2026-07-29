@@ -613,6 +613,12 @@ export interface HonuaActionPanelAction {
   disabled?: boolean;
 }
 
+export interface HonuaActionPanelMessages {
+  label?: string;
+  status?: Partial<Record<HonuaComponentStatus, string>>;
+  empty?: string;
+}
+
 export interface HonuaActionDetail extends HonuaActionPanelAction {
   status: HonuaComponentStatus;
 }
