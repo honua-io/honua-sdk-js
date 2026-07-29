@@ -363,6 +363,7 @@ export type {
   HonuaSelectionChangeDetail,
   HonuaSelectionState,
   HonuaSketchChangeDetail,
+  HonuaSketchControlMessages,
   HonuaSketchMode,
   HonuaSketchProvider,
   HonuaSketchResult,
