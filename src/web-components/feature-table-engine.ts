@@ -1377,6 +1377,16 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
 
   async function runExport(request: HonuaFeatureTableExportRequest): Promise<HonuaFeatureTableExport> {
     const fields = orderedFields();
+    if (currentState() === "unsupported") {
+      return Object.freeze({
+        format: request.format,
+        content: request.format === "csv" ? toCsv([], fields, columns) : toJson([], fields, columns),
+        rowCount: 0,
+        truncated: false,
+        columns: Object.freeze([...fields]),
+        evidence,
+      });
+    }
     const ceiling = Math.max(0, Math.min(request.maxRows ?? budgets.maxExportRows, budgets.maxExportRows));
     const rows: HonuaFeatureTableRow<T>[] = [];
     let limit: HonuaFeatureTableBudgetKind | undefined =
