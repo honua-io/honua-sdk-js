@@ -7,6 +7,19 @@ import { describe, expect, it } from "vitest";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const KEPLER_PEERS = ["@kepler.gl/actions", "react", "react-dom", "redux"] as const;
 
+function staticPeerSpecifiers(source: string): string[] {
+  const specifiers: string[] = [];
+  const staticImports =
+    /\b(?:import|export)\s+(?:(?!\bfrom\b)[\s\S])*?\bfrom\s*["']([^"']+)["']|\bimport\s*["']([^"']+)["']/g;
+  for (const match of source.matchAll(staticImports)) {
+    const specifier = match[1] ?? match[2];
+    if (specifier && KEPLER_PEERS.some((peer) => specifier === peer || specifier.startsWith(`${peer}/`))) {
+      specifiers.push(specifier);
+    }
+  }
+  return specifiers;
+}
+
 async function sourceFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const files: string[] = [];
@@ -24,15 +37,30 @@ describe("Kepler optional-peer boundary", () => {
     const violations: string[] = [];
     for (const file of files) {
       const source = await readFile(file, "utf8");
-      for (const peer of KEPLER_PEERS) {
-        const staticImport = new RegExp(
-          `^\\s*import\\s+(?!\\()(?:(?![\\r\\n]).)*[\\"']${peer.replaceAll(".", "\\.")}[\\"']`,
-          "m",
-        );
-        if (staticImport.test(source)) violations.push(`${path.relative(ROOT, file)} imports ${peer}`);
+      for (const specifier of staticPeerSpecifiers(source)) {
+        violations.push(`${path.relative(ROOT, file)} imports ${specifier}`);
       }
     }
     expect(violations).toEqual([]);
+  });
+
+  it("detects multiline imports, re-exports, and peer subpaths", () => {
+    const source = `
+      import {
+        createElement,
+      } from "react";
+      export {
+        createStore,
+      } from "redux";
+      import jsx from "react/jsx-runtime";
+      export {select} from "@kepler.gl/actions/helpers";
+    `;
+
+    expect(staticPeerSpecifiers(source)).toEqual(["react", "redux", "react/jsx-runtime", "@kepler.gl/actions/helpers"]);
+  });
+
+  it("ignores dynamic peer imports", () => {
+    expect(staticPeerSpecifiers('await import("react");')).toEqual([]);
   });
 
   it("declares the live Kepler action peer optional", async () => {
