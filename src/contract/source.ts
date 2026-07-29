@@ -55,15 +55,7 @@ import type {
   OgcRecordsSearchRequest,
   StacSearchRequest,
 } from "../core/types.js";
-import {
-  type FesNode,
-  UNSUPPORTED_FES,
-  compileSpatialFilter,
-  compileWhere,
-  formatWfsBboxKvp,
-  geoJsonGeometryToGml,
-  serializeFes,
-} from "../core/wfs-filter.js";
+import { geoJsonGeometryToGml } from "../core/wfs-filter.js";
 import type { HonuaWfsFeatureType, OutputFormatChoice } from "../core/wfs.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
@@ -73,7 +65,11 @@ import {
   odataProtocolModule,
   odataProtocolResultFromPage,
 } from "../query-planner/odata-protocol-module.js";
-import { type CanonicalQuery, HonuaQueryPlanningError } from "../query-planner/types.js";
+import {
+  type CanonicalQuery,
+  HonuaQueryPlanningError,
+  type WfsProtocolCompiledQueryV1,
+} from "../query-planner/types.js";
 import {
   HonuaWfsProtocolError,
   assertWfsPageProgress,
@@ -81,11 +77,7 @@ import {
   checkedWfsPageEnd,
   wfsProtocolModule,
 } from "../query-planner/wfs-protocol-module.js";
-import {
-  wfsFilterSrsNameFromGeometry,
-  wfsProtocolMethodForFilter,
-  wfsSrsNameFromOutSr,
-} from "../query-planner/wfs-v1.js";
+import { wfsSrsNameFromOutSr } from "../query-planner/wfs-v1.js";
 import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive, PmtilesArchiveDescription } from "./pmtiles.js";
 import { pmtilesProtocolModule } from "./pmtiles.js";
 import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
@@ -1697,12 +1689,9 @@ export function wfsSource<T>(
         };
         const json = await runGetFeatureJson(
           featureType,
-          typeName,
           choice,
-          pageRequest,
-          drainPageSize,
-          wfsSrsName,
           featureNamespace,
+          compileSourceQuery(pageRequest, "query"),
         );
         const page = computeExtentFromFeatureCollection(json);
         count += page.count;
@@ -1803,12 +1792,9 @@ export function wfsSource<T>(
         };
         const json = await runGetFeatureJson(
           featureType,
-          typeName,
           choice,
-          pageRequest,
-          pageSize,
-          wfsSrsName,
           featureNamespace,
+          compileSourceQuery(pageRequest, "query"),
         );
         const collection = json as { features?: ReadonlyArray<{ id?: unknown }> };
         const features = collection.features ?? [];
@@ -1961,164 +1947,54 @@ function toWfsObjectIdsDrainRequest<T>(request: Query<T> | undefined): Query<T> 
 }
 
 /**
- * Compile `Query.spatialFilter` and the deprecated source-native
- * `Query.where` migration member into a (possibly empty) FES filter and route
- * the request through GET or POST GetFeature based on the URL budget. Returns
- * the decoded GeoJSON FeatureCollection.
+ * Execute a compiler-approved WFS GetFeature request and return its decoded
+ * GeoJSON FeatureCollection. The protocol compiler owns filter, projection,
+ * paging, CRS, and transport selection so legacy drains do not duplicate it.
  */
 async function runGetFeatureJson<T>(
   featureType: HonuaWfsFeatureType,
-  typeName: string,
   choice: OutputFormatChoice,
-  request: Query<T> | undefined,
-  pageSize: number | undefined,
-  defaultFilterSrsName: string | undefined,
   featureNamespace: string | undefined,
+  compiled: WfsProtocolCompiledQueryV1,
 ): Promise<unknown> {
-  const filterNodes: FesNode[] = [];
-  let needsPostBody = false;
-  let bbox: string | undefined;
-  if (request?.where !== undefined && request.where !== "") {
-    const compiled = compileWhere(request.where);
-    if (compiled === UNSUPPORTED_FES) {
-      throw new HonuaCapabilityNotSupportedError(
-        "query",
-        "wfs",
-        `where clause is not expressible in FES; route the request through Source.protocol("wfs") to emit a custom filter`,
-      );
-    }
-    if (compiled.kind !== "and" || compiled.operands.length > 0) {
-      filterNodes.push(compiled);
-    }
-  }
-  if (request?.spatialFilter) {
-    const filterSrsName = wfsFilterSrsNameFromGeometry(request.spatialFilter.geometry, defaultFilterSrsName);
-    const spatialRel = request.spatialFilter.spatialRel;
-    // The `bbox=` KVP and `<fes:BBOX>` both encode envelope-intersects
-    // semantics (OGC 09-026r2). Only take the bbox shortcut when the caller
-    // wants intersects (default), envelope-intersects, or did not specify.
-    // Anything else (Contains, Within, Crosses, Overlaps, Touches) needs an
-    // FES predicate that preserves the requested relation, which means
-    // routing the envelope through compileSpatialFilter so the geometry is
-    // serialized as a polygon under the correct spatial op.
-    const isEnvelopeIntersects =
-      spatialRel === undefined ||
-      spatialRel === "esriSpatialRelIntersects" ||
-      spatialRel === "esriSpatialRelEnvelopeIntersects";
-    if (
-      request.spatialFilter.geometryType === "esriGeometryEnvelope" &&
-      isEnvelopeIntersects &&
-      filterNodes.length === 0 &&
-      request.where === undefined
-    ) {
-      // BBox-only requests are short and travel safely as a `bbox=` KVP, no
-      // FES emission required. Saves a round-trip through XML serialization
-      // and keeps the URL human-debuggable.
-      const env = request.spatialFilter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
-      if (
-        typeof env.xmin === "number" &&
-        typeof env.ymin === "number" &&
-        typeof env.xmax === "number" &&
-        typeof env.ymax === "number"
-      ) {
-        bbox = formatWfsBboxKvp(env.xmin, env.ymin, env.xmax, env.ymax, filterSrsName);
-      }
-    } else {
-      const compiled = compileSpatialFilter(request.spatialFilter, {
-        geometryProperty: DEFAULT_WFS_GEOMETRY_PROPERTY,
-        ...(filterSrsName !== undefined ? { srsName: filterSrsName } : {}),
-      });
-      if (compiled === UNSUPPORTED_FES) {
-        throw new HonuaCapabilityNotSupportedError(
-          "query",
-          "wfs",
-          `spatial filter (geometryType=${request.spatialFilter.geometryType}, spatialRel=${request.spatialFilter.spatialRel ?? "default"}) is not expressible in FES; reach the wire through Source.protocol("wfs")`,
-        );
-      }
-      filterNodes.push(compiled);
-    }
-  }
-
-  const filterXml = filterNodes.length > 0 ? serializeFes(filterNodes, { typeName }) : undefined;
-  if (wfsProtocolMethodForFilter(filterXml) === "POST") needsPostBody = true;
-
-  const params: Parameters<HonuaWfsFeatureType["getFeature"]>[0] = {};
-  const typePrefix = typeName.includes(":") ? typeName.slice(0, typeName.indexOf(":")) : undefined;
+  const typePrefix = compiled.typeName.includes(":")
+    ? compiled.typeName.slice(0, compiled.typeName.indexOf(":"))
+    : undefined;
   const namespace =
     typePrefix !== undefined && featureNamespace !== undefined
       ? { prefix: typePrefix, uri: featureNamespace }
       : undefined;
-  if (namespace !== undefined) params.namespace = namespace;
-  if (bbox !== undefined) params.bbox = bbox;
-  if (filterXml !== undefined && !needsPostBody) params.filter = filterXml;
-  // WFS `propertyName=` drops every property the caller does not list,
-  // including the geometry column. Honor the canonical contract: when
-  // `outFields` is set and `returnGeometry !== false`, append the
-  // geometry property so geometry is preserved; when
-  // `returnGeometry === false`, omit the geometry property; when
-  // `returnGeometry === false` is asked without an `outFields` list,
-  // refuse the request because WFS cannot suppress geometry without
-  // enumerating every non-geometry property — silently widening to
-  // "geometry included" would break the canonical contract.
-  const callerOutFields = request?.outFields && request.outFields.length > 0 ? request.outFields : undefined;
-  const wantsGeometry = request?.returnGeometry !== false;
-  let propertyNames: readonly string[] | undefined;
-  if (callerOutFields !== undefined) {
-    if (wantsGeometry) {
-      const merged = [...callerOutFields];
-      if (!merged.includes(DEFAULT_WFS_GEOMETRY_PROPERTY)) merged.push(DEFAULT_WFS_GEOMETRY_PROPERTY);
-      propertyNames = merged;
-    } else {
-      propertyNames = [...callerOutFields];
-    }
-  } else if (request?.returnGeometry === false) {
-    throw new HonuaCapabilityNotSupportedError(
-      "query",
-      "wfs",
-      `returnGeometry=false requires an explicit outFields list (WFS propertyName cannot suppress geometry without enumerating non-geometry properties); set Query.outFields or reach the wire through Source.protocol("wfs")`,
-    );
-  }
-  if (propertyNames) params.propertyName = [...propertyNames];
-  const sortBy =
-    request?.orderBy && request.orderBy.length > 0
-      ? request.orderBy.map((s) => `${s.field}${s.direction === "desc" ? " D" : " A"}`).join(",")
-      : undefined;
-  if (sortBy !== undefined) params.sortBy = sortBy;
-  if (typeof pageSize === "number" && pageSize > 0) {
-    params.count = pageSize;
-  } else if (typeof request?.pagination?.limit === "number" && request.pagination.limit > 0) {
-    params.count = request.pagination.limit;
-  }
-  if (typeof request?.pagination?.offset === "number" && request.pagination.offset > 0) {
-    params.startIndex = request.pagination.offset;
-  }
-  const srsName = wfsSrsNameFromOutSr(request?.outSr);
-  if (srsName !== undefined) params.srsName = srsName;
-  params.outputFormat = choice.format;
-  if (request?.signal) params.signal = request.signal;
-
-  if (needsPostBody && filterXml !== undefined) {
-    params.method = "POST";
-    const postOptions: Parameters<typeof buildWfsPostGetFeatureBody>[0] = {
-      typeName,
-      filter: filterXml,
-      count: params.count,
-      startIndex: params.startIndex,
+  const params: Parameters<HonuaWfsFeatureType["getFeature"]>[0] = {
+    method: compiled.method,
+    outputFormat: choice.format,
+    ...(namespace !== undefined ? { namespace } : {}),
+    ...(compiled.method === "GET" && compiled.filter !== undefined ? { filter: compiled.filter } : {}),
+    ...(compiled.bbox !== undefined ? { bbox: compiled.bbox } : {}),
+    ...(compiled.propertyName !== undefined ? { propertyName: [...compiled.propertyName] } : {}),
+    ...(compiled.sortBy !== undefined ? { sortBy: compiled.sortBy } : {}),
+    ...(compiled.count !== undefined ? { count: compiled.count } : {}),
+    ...(compiled.startIndex !== undefined && compiled.startIndex > 0 ? { startIndex: compiled.startIndex } : {}),
+    ...(compiled.srsName !== undefined ? { srsName: compiled.srsName } : {}),
+  };
+  if (compiled.method === "POST" && compiled.filter !== undefined) {
+    params.body = buildWfsPostGetFeatureBody({
+      typeName: compiled.typeName,
+      filter: compiled.filter,
+      count: compiled.count,
+      startIndex: compiled.startIndex !== undefined && compiled.startIndex > 0 ? compiled.startIndex : undefined,
       outputFormat: choice.format,
-    };
-    if (propertyNames) postOptions.propertyNames = propertyNames;
-    if (sortBy !== undefined) postOptions.sortBy = sortBy;
-    if (srsName !== undefined) postOptions.srsName = srsName;
-    if (namespace !== undefined) postOptions.namespace = namespace;
-    params.body = buildWfsPostGetFeatureBody(postOptions);
+      ...(namespace !== undefined ? { namespace } : {}),
+      ...(compiled.propertyName !== undefined ? { propertyNames: compiled.propertyName } : {}),
+      ...(compiled.sortBy !== undefined ? { sortBy: compiled.sortBy } : {}),
+      ...(compiled.srsName !== undefined ? { srsName: compiled.srsName } : {}),
+    });
   }
-
   const response = await featureType.getFeature(params);
   if (response.kind !== "json") {
     throw new HonuaCapabilityNotSupportedError(
       "query",
       "wfs",
-      `WFS GetFeature returned ${response.contentType}; canonical surface only carries JSON. Reach raw output through Source.protocol("wfs")`,
+      `WFS GetFeature returned ${response.contentType}; canonical surface only carries JSON. Reach the wire through Source.protocol("wfs")`,
     );
   }
   return response.data;
