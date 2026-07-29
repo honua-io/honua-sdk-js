@@ -156,6 +156,31 @@ try {
     entrypoints,
   });
   if (manifestFailures.length > 0) throw new Error(manifestFailures.join("\n"));
+
+  const analyticsPeer = installedPackageJson.peerDependenciesMeta?.uplot;
+  if (analyticsPeer?.optional !== true) {
+    throw new Error("packed analytics adapter must keep uplot an optional peer");
+  }
+  fs.writeFileSync(
+    path.join(consumerRoot, "analytics-packed-smoke.mjs"),
+    `import { ANALYTICS_CONTRACT_VERSION } from ${JSON.stringify(`${packageJson.name}/analytics`)};
+import { createUplotAnalyticsAdapter } from ${JSON.stringify(`${packageJson.name}/analytics/uplot`)};
+
+if (ANALYTICS_CONTRACT_VERSION !== "1.0") {
+  throw new Error("packed analytics contract version drifted: " + ANALYTICS_CONTRACT_VERSION);
+}
+const adapter = createUplotAnalyticsAdapter();
+if (adapter.contractVersion !== ANALYTICS_CONTRACT_VERSION || adapter.library !== "uPlot") {
+  throw new Error("packed optional analytics adapter does not advertise the shared contract");
+}
+if (!adapter.kinds.includes("time-series") || !adapter.channels.includes("temporal-brush")) {
+  throw new Error("packed optional analytics adapter lost its supported semantics");
+}
+`,
+  );
+  run("installed packed analytics adapter", process.execPath, ["analytics-packed-smoke.mjs"], {
+    cwd: consumerRoot,
+  });
   const peerFixtureCount = linkPeerFixtures(installedPackageJson);
 
   fs.writeFileSync(
