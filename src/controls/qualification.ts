@@ -845,6 +845,16 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-measure-sketch-elements.test.ts"],
         note: "The measure control accepts caller-supplied status, action, and empty-state messages while preserving mode labels supplied by the caller, asserted with German rendering coverage.",
       },
+      {
+        ids: ["web-components.print-export"],
+        evidence: ["test/web-components-lifecycle-gates.test.ts"],
+        note: "The print/export control accepts caller-supplied status, action, and unsupported-state messages while preserving export labels supplied by the caller, asserted with German rendering coverage.",
+      },
+      {
+        ids: ["web-components.sketch-control"],
+        evidence: ["test/web-components-measure-sketch-elements.test.ts"],
+        note: "The sketch control accepts caller-supplied status, action, and empty-state messages while preserving tool labels supplied by the caller, asserted with German rendering coverage.",
+      },
     ],
     failing: [
       {
@@ -857,6 +867,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "web-components.bookmarks",
           "web-components.action-panel",
           "web-components.measure-control",
+          "web-components.print-export",
+          "web-components.sketch-control",
         ),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
       },
