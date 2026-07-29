@@ -125,7 +125,10 @@ export class KernelLifecycle implements AsyncDisposable {
       connection = await this.#connectDelegate({
         ...snapshot,
         endpoint,
-        protocol: snapshot.protocol ?? "auto",
+        // Kernel options retain the broader classification hint for custom
+        // delegates; the standalone connect facade enforces its narrower
+        // source-backed protocol union at runtime.
+        protocol: (snapshot.protocol as ConnectOptions["protocol"] | undefined) ?? "auto",
         authorizationScopeFingerprint,
         capabilityPolicy: this.policy.capabilities,
         cache: this.discoveryCache,
