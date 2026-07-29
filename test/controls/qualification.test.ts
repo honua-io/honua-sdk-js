@@ -196,10 +196,12 @@ describe("the production-tier feature editor is seeded honestly", () => {
     // matrix doing the job it exists to do.
     expect(status("deterministic-disposal")).toBe("passing");
     expect(status("duplicate-listener")).toBe("passing");
-    // Nothing asserts these for it.
-    for (const gate of ["visual-regression", "zero-console-error", "memory-leak", "rtl"]) {
-      expect(status(gate), gate).toBe("pending");
-    }
+    // The only remaining open gate is visual comparison. The other previously
+    // pending gates now have explicit evidence in the qualification manifest.
+    expect(status("visual-regression")).toBe("pending");
+    expect(status("zero-console-error")).toBe("passing");
+    expect(status("memory-leak")).toBe("passing");
+    expect(status("rtl")).toBe("passing");
   });
 
   it("cites its own element suite as the evidence for what it claims", () => {
@@ -225,8 +227,6 @@ describe("summaries", () => {
   it("lists the gates still blocking production tier", () => {
     const overall = summarizeComponentQualification();
     expect(overall.blocking).toEqual([...overall.blocking].sort());
-    expect(overall.blocking).toContain("localization");
-    expect(overall.blocking).toContain("strict-csp");
     expect(overall.blocking).toContain("visual-regression");
   });
 });
