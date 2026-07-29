@@ -3166,16 +3166,20 @@ function mapStatusStyles(): string {
       border: 1px solid var(--honua-ui-border);
       border-radius: 8px;
       display: flex;
+      direction: inherit;
       flex-wrap: wrap;
       gap: 8px;
       justify-content: space-between;
       min-height: 42px;
-      padding: 6px 8px;
+      padding-block: 6px;
+      padding-inline: 8px;
     }
     span {
       color: var(--honua-ui-muted);
       min-width: 0;
+      text-align: start;
     }
+    .map-status button { text-align: start; }
     @media (forced-colors: active), (prefers-contrast: more) {
       .map-status {
         background: Canvas;
