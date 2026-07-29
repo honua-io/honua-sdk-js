@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Query, Result, SortSpec, SourceDescriptor } from "../src/contract/index.js";
+import type { Capability, Query, Result, SortSpec, SourceDescriptor } from "../src/contract/index.js";
 import { createExplorationContext } from "../src/exploration/index.js";
 import type { FilterClause } from "../src/filter-registry/index.js";
 import type { QueryExecutionPlan } from "../src/query-planner/index.js";
@@ -42,12 +42,12 @@ interface Fixture {
   rowsServed: number;
 }
 
-function descriptor(): SourceDescriptor {
+function descriptor(capabilities: readonly Capability[] = ["query", "stream"]): SourceDescriptor {
   return {
     id: "incidents",
     protocol: "geoservices-feature-service",
     locator: { url: "https://example.test/FeatureServer/0" },
-    capabilities: new Set(["query", "stream"]),
+    capabilities: new Set(capabilities),
     schema: { primaryKey: "OBJECTID" },
   };
 }
@@ -67,6 +67,7 @@ function makeFixture(
     readonly totalRows?: number;
     readonly reportTotalCount?: boolean;
     readonly rows?: (index: number) => Row;
+    readonly capabilities?: readonly Capability[];
   } = {},
 ): Fixture {
   const total = options.totalRows ?? TOTAL_ROWS;
@@ -76,7 +77,7 @@ function makeFixture(
     requests,
     rowsServed: 0,
     source: {
-      descriptor: descriptor(),
+      descriptor: descriptor(options.capabilities),
       async query(request?: Query<Row>): Promise<Result<Row>> {
         requests.push(request ?? {});
         const offset = request?.pagination?.offset ?? 0;
@@ -406,6 +407,21 @@ describe("result truth (REQ-004)", () => {
 
     expect(table.snapshot.state).toBe("unsupported");
     expect(table.snapshot.message).toContain("stable row identity");
+  });
+
+  it("fails closed for a source without query capability without issuing a request", async () => {
+    const fixture = makeFixture({ capabilities: ["stream"] });
+    const table = makeTable(fixture);
+
+    expect(table.snapshot.state).toBe("unsupported");
+    expect(table.snapshot.message).toContain("canonical `query` capability");
+
+    const snapshot = await table.refresh();
+    const exported = await table.export({ format: "json" });
+
+    expect(snapshot.state).toBe("unsupported");
+    expect(exported.rowCount).toBe(0);
+    expect(fixture.requests).toHaveLength(0);
   });
 
   it("reports unsupported for cursor paging on a source without stream", async () => {
