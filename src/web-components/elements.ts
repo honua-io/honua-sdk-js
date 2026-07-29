@@ -3336,6 +3336,12 @@ function controlPanelStyles(): string {
       display: flex;
       gap: 8px;
       justify-content: space-between;
+      min-width: 0;
+    }
+    .control-panel__bar h2,
+    .control-panel__bar span {
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .control-panel__bar span {
       color: var(--honua-ui-muted);

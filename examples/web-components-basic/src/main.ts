@@ -292,10 +292,22 @@ window.__HONUA_WEB_COMPONENTS_DEMO__ = runtime;
 const map = document.querySelector("honua-map");
 if (!map) throw new Error("Missing honua-map");
 
-map.addEventListener("honua-map-ready", () => {
+const markReady = () => {
+  if (runtime.ready) return;
   runtime.ready = true;
   eventLog.push("ready");
   writeEventLog();
+};
+
+map.addEventListener("honua-map-ready", markReady);
+
+// The map element may finish its first renderer pass before this module has
+// attached the event listener when the browser loads a packed sample quickly.
+// Reflect an already-loaded renderer so consumers never wait forever on a
+// readiness event that was emitted during element startup.
+queueMicrotask(() => {
+  const renderedMap = (map as HTMLElement & { map?: { loaded?(): boolean } }).map;
+  if (renderedMap?.loaded?.()) markReady();
 });
 
 map.addEventListener("honua-map-error", (event) => {
