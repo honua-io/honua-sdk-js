@@ -969,6 +969,17 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-map-status-element.test.ts"],
         note: "The map-status component inherits RTL direction and uses logical padding and start-aligned text, asserted with Arabic rendering and stylesheet coverage.",
       },
+      {
+        ids: [
+          "web-components.map",
+          "web-components.layer-list",
+          "web-components.legend",
+          "web-components.feature-table",
+          "web-components.chart",
+        ],
+        evidence: ["test/web-components-rtl.test.ts"],
+        note: "The map, layer list, legend, feature table, and chart render under dir=rtl with logical direction, padding, inset, alignment, and chart-fill styles, asserted with Arabic/RTL rendering coverage.",
+      },
     ],
     failing: [
       {
@@ -979,6 +990,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "controls.basemap-switcher",
           "controls.legend",
           "web-components.map-status",
+          "web-components.map",
+          "web-components.layer-list",
+          "web-components.legend",
+          "web-components.feature-table",
+          "web-components.chart",
         ),
         note: "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl.",
       },
