@@ -840,6 +840,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-action-panel-element.test.ts"],
         note: "The action panel accepts caller-supplied label, status, and empty-state messages while preserving action labels supplied by the caller, asserted with German rendering coverage.",
       },
+      {
+        ids: ["web-components.measure-control"],
+        evidence: ["test/web-components-measure-sketch-elements.test.ts"],
+        note: "The measure control accepts caller-supplied status, action, and empty-state messages while preserving mode labels supplied by the caller, asserted with German rendering coverage.",
+      },
     ],
     failing: [
       {
@@ -851,6 +856,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "web-components.editor",
           "web-components.bookmarks",
           "web-components.action-panel",
+          "web-components.measure-control",
         ),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
       },
