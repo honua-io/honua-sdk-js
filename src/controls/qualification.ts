@@ -410,11 +410,15 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "web-components.measure-control",
           "web-components.sketch-control",
           "web-components.editor",
-          "controls.basemap-switcher",
           "controls.layer-list",
         ],
         evidence: [BROWSER_SPEC],
         note: "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state.",
+      },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/basemap-switcher.test.ts"],
+        note: "The native basemap switcher dispatches real ArrowLeft/ArrowRight/Home/End navigation events to its radiogroup and activates the focused choice with Enter and Space, asserting focus, checked state, and map selection.",
       },
       {
         ids: ["web-components.search"],
@@ -500,9 +504,14 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "A full WAI-ARIA grid contract: role=grid/row/columnheader/gridcell with absolute aria-rowcount, aria-colcount, aria-rowindex, and aria-colindex across a virtualized window, aria-rowcount=-1 when the true total is genuinely unknown rather than a fabricated number, aria-sort, aria-selected, aria-busy, a role=status aria-live=polite readout, and placeholder rows that announce nothing they cannot substantiate. The grid's own accessible name (aria-labelledby) is emitted but not asserted.",
       },
       {
-        ids: ["controls.basemap-switcher", "controls.swipe-control", "controls.layer-list"],
+        ids: ["controls.swipe-control", "controls.layer-list"],
         evidence: ["test/controls/accessibility.test.ts"],
-        note: "The native controls expose explicit accessible structure: a labelled radiogroup with checked radio choices, a labelled slider with bounded value state, and a labelled group containing native checkbox controls paired with their visible labels.",
+        note: "The native controls expose explicit accessible structure: a labelled slider with bounded value state and a labelled group containing native checkbox controls paired with their visible labels.",
+      },
+      {
+        ids: ["controls.basemap-switcher"],
+        evidence: ["test/controls/basemap-switcher.test.ts"],
+        note: "The native basemap switcher exposes a labelled radiogroup whose choices have radio roles, stable accessible names, and checked state that tracks the selected basemap.",
       },
       {
         ids: [

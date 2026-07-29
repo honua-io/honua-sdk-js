@@ -159,18 +159,18 @@
           "requirement": "REQ-004",
           "status": "passing",
           "evidence": [
-            "test/playwright/web-components-basic.spec.mjs"
+            "test/controls/basemap-switcher.test.ts"
           ],
-          "note": "The browser fixture dispatches real Space/Enter key events to each component's native checkbox, radio, or button and asserts the resulting layer, basemap, viewport, locate, export, or refresh state."
+          "note": "The native basemap switcher dispatches real ArrowLeft/ArrowRight/Home/End navigation events to its radiogroup and activates the focused choice with Enter and Space, asserting focus, checked state, and map selection."
         },
         {
           "gate": "screen-reader-semantics",
           "requirement": "REQ-004",
           "status": "passing",
           "evidence": [
-            "test/controls/accessibility.test.ts"
+            "test/controls/basemap-switcher.test.ts"
           ],
-          "note": "The native controls expose explicit accessible structure: a labelled radiogroup with checked radio choices, a labelled slider with bounded value state, and a labelled group containing native checkbox controls paired with their visible labels."
+          "note": "The native basemap switcher exposes a labelled radiogroup whose choices have radio roles, stable accessible names, and checked state that tracks the selected basemap."
         },
         {
           "gate": "focus-restoration",
@@ -331,7 +331,7 @@
           "evidence": [
             "test/controls/accessibility.test.ts"
           ],
-          "note": "The native controls expose explicit accessible structure: a labelled radiogroup with checked radio choices, a labelled slider with bounded value state, and a labelled group containing native checkbox controls paired with their visible labels."
+          "note": "The native controls expose explicit accessible structure: a labelled slider with bounded value state and a labelled group containing native checkbox controls paired with their visible labels."
         },
         {
           "gate": "focus-restoration",
@@ -639,7 +639,7 @@
           "evidence": [
             "test/controls/accessibility.test.ts"
           ],
-          "note": "The native controls expose explicit accessible structure: a labelled radiogroup with checked radio choices, a labelled slider with bounded value state, and a labelled group containing native checkbox controls paired with their visible labels."
+          "note": "The native controls expose explicit accessible structure: a labelled slider with bounded value state and a labelled group containing native checkbox controls paired with their visible labels."
         },
         {
           "gate": "focus-restoration",
