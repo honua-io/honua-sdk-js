@@ -300,6 +300,13 @@ const markReady = () => {
   window.clearInterval(readinessTimer);
 };
 
+const mapIsReady = () => {
+  const renderedMap = (map as HTMLElement & {
+    map?: { loaded?(): boolean; isStyleLoaded?(): boolean };
+  }).map;
+  return Boolean(renderedMap?.loaded?.() || renderedMap?.isStyleLoaded?.());
+};
+
 map.addEventListener("honua-map-ready", markReady);
 
 // The map element may finish its first renderer pass before this module has
@@ -307,12 +314,10 @@ map.addEventListener("honua-map-ready", markReady);
 // Reflect an already-loaded renderer so consumers never wait forever on a
 // readiness event that was emitted during element startup.
 queueMicrotask(() => {
-  const renderedMap = (map as HTMLElement & { map?: { loaded?(): boolean } }).map;
-  if (renderedMap?.loaded?.()) markReady();
+  if (mapIsReady()) markReady();
 });
 const readinessTimer = window.setInterval(() => {
-  const renderedMap = (map as HTMLElement & { map?: { loaded?(): boolean } }).map;
-  if (renderedMap?.loaded?.()) markReady();
+  if (mapIsReady()) markReady();
 }, 50);
 
 map.addEventListener("honua-map-error", (event) => {
