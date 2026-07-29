@@ -43,6 +43,7 @@ import type {
   HonuaComponentStatus,
   HonuaControllerReadyDetail,
   HonuaEditChangeDetail,
+  HonuaEditorMessages,
   HonuaEditorModel,
   HonuaExportDetail,
   HonuaFeatureRecord,
@@ -1468,6 +1469,7 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
   }
 
   #model: HonuaEditorModel | undefined;
+  #messages: HonuaEditorMessages = {};
 
   public get editorModel(): HonuaEditorModel | undefined {
     return this.#model ?? this.state?.editor;
@@ -1475,6 +1477,16 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
 
   public set editorModel(model: HonuaEditorModel | undefined) {
     this.#model = model;
+    this.render();
+  }
+
+  /** Caller-supplied localized status and read-only messages. */
+  public get messages(): HonuaEditorMessages {
+    return this.#messages;
+  }
+
+  public set messages(messages: HonuaEditorMessages | undefined) {
+    this.#messages = messages ?? {};
     this.render();
   }
 
@@ -1555,15 +1567,21 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
     const noSelectionLabel = this.noSelectionLabel;
     const readOnlyLabel = this.readOnlyLabel;
     const editableLabel = this.editableLabel;
+    const statusLabel = this.#messages.status?.[model.status] ?? model.status;
+    const readOnlyReason = this.#messages.readOnlyReason;
+    const readOnlyMessage =
+      typeof readOnlyReason === "function"
+        ? readOnlyReason(model.capabilities.reason)
+        : (readOnlyReason ?? model.capabilities.reason ?? readOnlyLabel);
     this.setShadowHtml(`
       <style>${baseStyles()}${editorStyles()}</style>
       <section class="editor" part="panel" aria-label="${escapeHtml(label)}">
         <div class="editor__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span data-status>${escapeHtml(model.status)}</span>
+          <span data-status>${escapeHtml(statusLabel)}</span>
         </div>
         <p class="selection">${escapeHtml(selected?.title ?? noSelectionLabel)}</p>
-        <p class="muted">${escapeHtml(model.capabilities.readOnly ? (model.capabilities.reason ?? readOnlyLabel) : editableLabel)}</p>
+        <p class="muted">${escapeHtml(model.capabilities.readOnly ? readOnlyMessage : editableLabel)}</p>
         <div class="editor__actions">
           <button type="button" data-action="new" ${model.capabilities.canCreate && !model.capabilities.readOnly ? "" : "disabled"}>${escapeHtml(newLabel)}</button>
           <button type="button" data-action="save" ${canUpdate ? "" : "disabled"}>${escapeHtml(saveLabel)}</button>

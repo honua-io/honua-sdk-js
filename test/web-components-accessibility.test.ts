@@ -98,6 +98,34 @@ describe("web-component accessibility semantics", () => {
     expect(shadow(editable).querySelector(".muted")?.textContent).toBe("Bearbeitbar");
   });
 
+  it("renders caller-supplied localized editor status and read-only messages", () => {
+    const element = mount("honua-editor", "Objekte bearbeiten");
+    const editor = element as typeof element & {
+      editorModel: HonuaEditorModel | undefined;
+      messages: {
+        status?: Partial<Record<HonuaEditorModel["status"], string>>;
+        readOnlyReason?: string | ((reason: string | undefined) => string);
+      };
+    };
+    editor.messages = {
+      status: { ready: "Bereit" },
+      readOnlyReason: (reason) => `Nur Lesen: ${reason ?? "kein Grund angegeben"}`,
+    };
+    editor.editorModel = {
+      status: "ready",
+      capabilities: {
+        canCreate: false,
+        canUpdate: false,
+        canDelete: false,
+        readOnly: true,
+        reason: "Quelle ist schreibgeschützt",
+      },
+    };
+
+    expect(shadow(element).querySelector("[data-status]")?.textContent).toBe("Bereit");
+    expect(shadow(element).querySelector(".muted")?.textContent).toBe("Nur Lesen: Quelle ist schreibgeschützt");
+  });
+
   it("gives the chart a named panel and heading", () => {
     const root = shadow(mount("honua-chart", "Incident counts"));
     expect(root.querySelector(".chart")?.getAttribute("aria-label")).toBe("Incident counts");
