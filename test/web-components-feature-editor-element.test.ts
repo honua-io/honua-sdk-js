@@ -218,6 +218,17 @@ describe("<honua-feature-editor> registration", () => {
     expect(element.getAttribute("dir")).toBe("rtl");
     expect(css).not.toMatch(/(?:^|[;{])\s*(?:left|right)\s*:/m);
   });
+
+  it("emits narrow-container-safe layout rules", () => {
+    defineHonuaWebComponents();
+    const element = document.createElement("honua-feature-editor") as HonuaFeatureEditorElement<PermitAttributes>;
+    document.body.append(element);
+
+    const css = root(element).querySelector("style")?.textContent ?? "";
+    expect(css).toContain("@media (max-width: 320px)");
+    expect(css).toContain(".bar { align-items: flex-start; flex-direction: column; }");
+    expect(css).toContain(".segmented button, .actions button { flex: 1 1 120px; min-width: 0; }");
+  });
 });
 
 describe("<honua-feature-editor> schema-derived form", () => {

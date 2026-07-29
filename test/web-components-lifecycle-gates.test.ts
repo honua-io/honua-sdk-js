@@ -670,6 +670,18 @@ describe("print/export affordances and semantics", () => {
   });
 });
 
+describe("responsive web-component styles", () => {
+  it("emits narrow-container-safe chart rules", () => {
+    const tracked = trackedController();
+    const element = mount("honua-chart", tracked.controller);
+    const stylesheet = shadowOf(element).querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toContain("@media (max-width: 320px)");
+    expect(stylesheet).toContain(".bar-row { grid-template-columns: minmax(0, 1fr); }");
+    expect(stylesheet).toContain(".bar { min-width: 0; width: 100%; }");
+  });
+});
+
 describe("harness coverage matches the qualification matrix", () => {
   const SUITE = "test/web-components-lifecycle-gates.test.ts";
 

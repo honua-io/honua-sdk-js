@@ -540,6 +540,14 @@ function structuralStyles(): string {
     .actions { display: flex; gap: 6px; }
     .value { margin: 0; }
     .hint { color: var(--honua-ui-muted); font-size: 12px; margin: 0; }
+    @media (max-width: 320px) {
+      .panel { min-width: 0; }
+      .bar { align-items: flex-start; flex-direction: column; }
+      .segmented { grid-template-columns: minmax(0, 1fr); }
+      .actions { flex-wrap: wrap; }
+      .actions button { flex: 1 1 120px; min-width: 0; }
+      .hint { overflow-wrap: anywhere; }
+    }
     @media (forced-colors: active), (prefers-contrast: more) {
       .panel { background: Canvas; border-color: CanvasText; color: CanvasText; }
       .state, .hint { color: GrayText; }

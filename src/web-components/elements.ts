@@ -2892,6 +2892,14 @@ function mapStyles(): string {
       .map__canvas { background: Canvas; }
       .map__controls button { border-color: ButtonText; color: ButtonText; }
     }
+    @media (max-width: 320px) {
+      .map { min-width: 0; }
+      .map__chrome, .map__footer {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .map__controls { justify-content: space-between; width: 100%; }
+    }
   `;
 }
 
@@ -2923,6 +2931,11 @@ function listStyles(): string {
 
 function legendStyles(): string {
   return `
+    @media (max-width: 320px) {
+      .panel { min-width: 0; }
+      .legend li { align-items: flex-start; min-width: 0; }
+      .legend li > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+    }
     @media (forced-colors: active), (prefers-contrast: more) {
       .legend li { color: CanvasText; }
       .legend .swatch {
@@ -2960,6 +2973,12 @@ function layerListStyles(): string {
       .layer-row__tools button {
         border-color: ButtonText;
       }
+    }
+    @media (max-width: 320px) {
+      .panel { min-width: 0; }
+      .layer-row__tools { flex-wrap: wrap; padding-left: 0; }
+      .opacity { min-width: 0; width: 100%; }
+      .move { flex: 1 1 32px; }
     }
   `;
 }
@@ -3112,6 +3131,11 @@ function chartStyles(): string {
       }
       .bar { background: ButtonFace; outline: 1px solid ButtonText; }
       .bar::before { background: Highlight; }
+    }
+    @media (max-width: 320px) {
+      .chart { min-width: 0; }
+      .bar-row { grid-template-columns: minmax(0, 1fr); }
+      .bar { min-width: 0; width: 100%; }
     }
   `;
 }

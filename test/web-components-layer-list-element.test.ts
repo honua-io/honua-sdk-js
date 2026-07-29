@@ -198,4 +198,13 @@ describe("<honua-layer-list> (survival tier)", () => {
     checkbox!.dispatchEvent(new Event("change"));
     expect(events).toEqual([{ layerId: "roads", visible: false }]);
   });
+
+  it("emits narrow-container-safe layout rules", () => {
+    const element = mountList(makeController());
+    const stylesheet = shadow(element).querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toContain("@media (max-width: 320px)");
+    expect(stylesheet).toContain(".layer-row__tools { flex-wrap: wrap; padding-left: 0; }");
+    expect(stylesheet).toContain(".opacity { min-width: 0; width: 100%; }");
+  });
 });
