@@ -169,6 +169,25 @@ describe("HonuaLayerListElement", () => {
     expect(shadow.innerHTML).toContain("County GIS");
   });
 
+  test("renders caller-supplied German list and unseeded labels", () => {
+    const { element, attributes, shadow } = makeElement();
+    element.label = "Ebenen";
+    element.notSeededLabel = "Nicht geladen";
+    element.attributeChangedCallback("label", null, "Ebenen");
+    element.attributeChangedCallback("not-seeded-label", null, "Nicht geladen");
+    element.connect(makeMockMap({}));
+    element.overlays = [{ id: "parcels", label: "Parzellen", layers: ["parcels-fill"] }];
+
+    expect(element.label).toBe("Ebenen");
+    expect(element.notSeededLabel).toBe("Nicht geladen");
+    expect(attributes.get("label")).toBe("Ebenen");
+    expect(attributes.get("not-seeded-label")).toBe("Nicht geladen");
+    expect(shadow.innerHTML).toContain('aria-label="Ebenen"');
+    expect(shadow.innerHTML).toContain("Parzellen");
+    expect(shadow.innerHTML).toContain("Nicht geladen");
+    expect(shadow.innerHTML).not.toContain("Not seeded");
+  });
+
   test("emits forced-colors and prefers-contrast state styles", () => {
     const { element, shadow } = makeElement();
     element.connect(makeMockMap({ "parcels-fill": {}, "incident-points": {} }));
