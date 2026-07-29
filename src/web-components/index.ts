@@ -349,6 +349,7 @@ export type {
   HonuaMeasureChangeDetail,
   HonuaMeasureControlMessages,
   HonuaMeasureMode,
+  HonuaPrintExportMessages,
   HonuaMeasureProvider,
   HonuaMeasureResult,
   HonuaMeasurementMap,
