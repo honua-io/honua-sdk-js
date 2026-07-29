@@ -335,6 +335,25 @@ describe("HonuaLegendElement", () => {
     expect(shadow.innerHTML).toContain(".swatch > * { forced-color-adjust: none; }");
   });
 
+  test("keeps swatches at the logical inline start under dir=rtl", () => {
+    const { element, attributes, shadow } = makeElement();
+    attributes.set("dir", "rtl");
+    element.entries = [{ label: "Residential", color: "#facc15" }];
+
+    expect(shadow.innerHTML).toContain("flex-direction: row;");
+    expect(shadow.innerHTML).toContain("direction: inherit;");
+    expect(shadow.innerHTML).toContain(".label { text-align: start; }");
+    expect(shadow.innerHTML).toContain("inline-size: 1em;");
+    expect(shadow.innerHTML).toContain("block-size: 1em;");
+    expect(shadow.innerHTML).not.toMatch(/(?:margin|padding|inset|text-align|border)-(?:left|right)\s*:/);
+
+    const swatchIndex = shadow.innerHTML.indexOf('part="swatch"');
+    const labelIndex = shadow.innerHTML.indexOf('part="label"');
+    expect(swatchIndex).toBeGreaterThan(-1);
+    expect(labelIndex).toBeGreaterThan(swatchIndex);
+    expect(shadow.innerHTML).toContain('aria-hidden="true"');
+  });
+
   test("derive mode appends a section parsed from the layer's match expression", () => {
     const { element, attributes, shadow } = makeElement();
     attributes.set("layer", "zoning-districts");

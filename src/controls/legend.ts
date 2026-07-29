@@ -431,7 +431,14 @@ function structuralStyles(): string {
     .heading, .section-title { margin: 0; }
     .section { margin: 0; }
     .rows { list-style: none; margin: 0; padding: 0; }
-    .row { display: flex; align-items: center; gap: 0.5em; }
+    .row {
+      display: flex;
+      flex-direction: row;
+      direction: inherit;
+      align-items: center;
+      gap: 0.5em;
+    }
+    .label { text-align: start; }
     .swatch {
       flex: none;
       inline-size: 1em;
