@@ -90,4 +90,15 @@ describe("<honua-legend> (survival tier)", () => {
     const icon = element.shadowRoot?.querySelector("img.swatch");
     expect(icon?.getAttribute("src")).toBe("data:image/png;base64,QQ==");
   });
+
+  it("emits system-color styles that keep swatches distinct from labels in high contrast", () => {
+    const element = mountLegend(makeController());
+    const stylesheet = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(stylesheet).toContain(".legend li { color: CanvasText; }");
+    expect(stylesheet).toContain("background: Canvas;");
+    expect(stylesheet).toContain("border: 2px solid CanvasText;");
+    expect(stylesheet).toContain("forced-color-adjust: none;");
+  });
 });

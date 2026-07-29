@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+
+import { runNpmSync } from "./lib/npm-cli.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -936,15 +938,14 @@ export const acceptsCompanionSourceDescriptor = (descriptor: CompanionSourceDesc
 }
 
 function runCommand(command, args, cwd) {
-  const result = spawnSync(command, args, {
+  const options = {
     cwd,
     encoding: "utf8",
     env: process.env,
-    // Node >=20.12 refuses to spawn .cmd shims (npm) without a shell
-    // (CVE-2024-27980); same pattern as examples/*/mock-server.mjs. Both
-    // commands ("npm", "node") and their arguments are static strings.
-    shell: process.platform === "win32",
-  });
+    shell: false,
+  };
+  const result =
+    command === "npm" ? runNpmSync(args, options) : spawnSync(command, args, options);
 
   if (result.error) {
     process.stderr.write(`${command} ${args.join(" ")} failed to start: ${result.error.message}\n`);

@@ -169,6 +169,46 @@ describe("HonuaLayerListElement", () => {
     expect(shadow.innerHTML).toContain("County GIS");
   });
 
+  test("renders caller-supplied German list and unseeded labels", () => {
+    const { element, attributes, shadow } = makeElement();
+    element.label = "Ebenen";
+    element.notSeededLabel = "Nicht geladen";
+    element.attributeChangedCallback("label", null, "Ebenen");
+    element.attributeChangedCallback("not-seeded-label", null, "Nicht geladen");
+    element.connect(makeMockMap({}));
+    element.overlays = [{ id: "parcels", label: "Parzellen", layers: ["parcels-fill"] }];
+
+    expect(element.label).toBe("Ebenen");
+    expect(element.notSeededLabel).toBe("Nicht geladen");
+    expect(attributes.get("label")).toBe("Ebenen");
+    expect(attributes.get("not-seeded-label")).toBe("Nicht geladen");
+    expect(shadow.innerHTML).toContain('aria-label="Ebenen"');
+    expect(shadow.innerHTML).toContain("Parzellen");
+    expect(shadow.innerHTML).toContain("Nicht geladen");
+    expect(shadow.innerHTML).not.toContain("Not seeded");
+  });
+
+  test("emits forced-colors and prefers-contrast state styles", () => {
+    const { element, shadow } = makeElement();
+    element.connect(makeMockMap({ "parcels-fill": {}, "incident-points": {} }));
+    element.overlays = makeOverlays();
+
+    expect(shadow.innerHTML).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(shadow.innerHTML).toContain(".row:has(.checkbox:checked) { outline: 2px solid CanvasText");
+    expect(shadow.innerHTML).toContain(".row[data-not-seeded] { color: GrayText");
+  });
+
+  test("emits bounded, wrapping rows for narrow containers", () => {
+    const { element, shadow } = makeElement();
+    element.connect(makeMockMap({ "parcels-fill": {}, "incident-points": {} }));
+    element.overlays = [{ id: "parcels", label: "A-very-long-unbroken-layer-label", layers: ["parcels-fill"] }];
+
+    expect(shadow.innerHTML).toContain("min-width: 0;");
+    expect(shadow.innerHTML).toContain("max-width: 100%;");
+    expect(shadow.innerHTML).toContain("overflow-wrap: anywhere;");
+    expect(shadow.innerHTML).not.toContain("overflow: hidden");
+  });
+
   test("setVisible writes visibility on every overlay layer and emits change", () => {
     const { element, events } = makeElement();
     const map = makeMockMap({ "parcels-fill": {}, "parcels-outline": {}, "incident-points": {} });

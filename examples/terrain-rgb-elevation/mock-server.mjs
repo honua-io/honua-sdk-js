@@ -1,10 +1,10 @@
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
+import { runNpmScriptSync } from "../../scripts/lib/npm-cli.mjs";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
@@ -33,8 +33,7 @@ const FIXTURE_LINE = [
 ];
 
 function buildDemoIfNeeded() {
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(npmCommand, ["run", "demo:terrain-elevation:build", "--silent"], {
+  const result = runNpmScriptSync("demo:terrain-elevation:build", {
     cwd: projectRoot,
     stdio: "inherit",
     env: createFixtureBuildEnvironment({ VITE_HONUA_TERRAIN_SERVICE_ID: serviceId }),

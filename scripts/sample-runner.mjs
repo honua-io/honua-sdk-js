@@ -20,6 +20,16 @@ import {
   isSampleEvidenceRunId,
   SAMPLE_SCREENSHOT_REPORT_FORMAT,
 } from "./lib/sample-gates.mjs";
+import { npmInvocation, npxInvocation } from "./lib/npm-cli.mjs";
+import { PATH_CLI_OWNER_GATE_FLAG } from "./lib/path-cli-runner.mjs";
+import {
+  assignWindowsJobLease,
+  captureProcessIdentity,
+  disposeWindowsJobLease,
+  observeWindowsJobLease,
+  terminateOwnedProcessHandle,
+  terminateProcessTree,
+} from "./lib/process-tree.mjs";
 import {
   captureGateSourceSnapshot,
   createGateReceipt,
@@ -435,14 +445,18 @@ export function commandsForAction(sample, action, kitSample) {
 
 export { expectedGateCommand };
 
-export function commandForSpawn(argv) {
-  const executable = process.platform === "win32" && argv[0] === "npm"
-    ? "npm.cmd"
-    : process.platform === "win32" && argv[0] === "npx"
-      ? "npx.cmd"
-      : argv[0];
-  if (argv[0] === "npm" && argv[1] === "run") return [executable, "run", "--ignore-scripts", ...argv.slice(2)];
-  return [executable, ...argv.slice(1)];
+export function commandForSpawn(argv, runtime) {
+  if (argv[0] === "npm") {
+    const args =
+      argv[1] === "run" ? ["run", "--ignore-scripts", ...argv.slice(2)] : argv.slice(1);
+    const invocation = npmInvocation(args, runtime);
+    return [invocation.command, ...invocation.args];
+  }
+  if (argv[0] === "npx") {
+    const invocation = npxInvocation(argv.slice(1), runtime);
+    return [invocation.command, ...invocation.args];
+  }
+  return [...argv];
 }
 
 export function safeChildEnvironment(overrides = {}, allowedNames = []) {
@@ -472,7 +486,17 @@ export class ChildSupervisor {
 
   async run(argv, options = {}) {
     canonicalCommand(argv);
-    const [executable, ...args] = commandForSpawn(argv);
+    const cwd = options.cwd ?? PROJECT_ROOT;
+    const env = safeChildEnvironment(
+      options.env,
+      options.allowedEnvironmentNames,
+    );
+    const [executable, ...args] = commandForSpawn(argv, { cwd, env });
+    const ownerGated =
+      process.platform === "win32" && (argv[0] === "npm" || argv[0] === "npx");
+    const childArgs = ownerGated
+      ? [args[0], PATH_CLI_OWNER_GATE_FLAG, ...args.slice(1)]
+      : args;
     const startedAt = performance.now();
     const logPath = options.artifactPath;
     if (logPath) await mkdir(path.dirname(logPath), { recursive: true });
@@ -488,24 +512,84 @@ export class ChildSupervisor {
     const done = new Promise((resolve) => {
       resolveDone = resolve;
     });
-    const child = spawn(executable, args, {
-      cwd: options.cwd ?? PROJECT_ROOT,
-      env: safeChildEnvironment(options.env, options.allowedEnvironmentNames),
+    const child = spawn(executable, childArgs, {
+      cwd,
+      env,
       shell: false,
       detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe", ...(ownerGated ? ["ipc"] : [])],
+      windowsHide: ownerGated,
     });
-    this.#children.set(child, { child, done });
+    const ownershipAbort = ownerGated ? new AbortController() : undefined;
+    const identity = captureProcessIdentity(child, {
+      signal: ownershipAbort?.signal,
+    });
+    void identity.catch(() => undefined);
+    const record = {
+      child,
+      done,
+      identity,
+      ownerGated,
+      ownership: undefined,
+      ownershipAbort,
+      stopRequested: false,
+      launch: undefined,
+      termination: undefined,
+    };
+    this.#children.set(child, record);
+    if (ownerGated) {
+      record.launch = (async () => {
+        let ownership;
+        try {
+          const captured = await identity;
+          ownership = await assignWindowsJobLease(child, captured, {
+            signal: record.ownershipAbort.signal,
+          });
+          record.ownership = ownership;
+          if (record.stopRequested) {
+            await disposeWindowsJobLease(ownership);
+            throw new Error("Supervised Windows owner stopped before target launch");
+          }
+          await new Promise((resolve, reject) => {
+            child.send({ kind: "launch" }, (error) =>
+              error ? reject(error) : resolve(),
+            );
+          });
+          void observeWindowsJobLease(ownership).catch((error) => {
+            spawnError ??= error;
+          });
+          return ownership;
+        } catch (error) {
+          let launchError = error;
+          try {
+            if (ownership) {
+              await disposeWindowsJobLease(ownership);
+            } else {
+              await terminateOwnedProcessHandle(child, {
+                signal: "SIGKILL",
+                timeoutMs: 500,
+              });
+            }
+          } catch (cleanupError) {
+            launchError = new AggregateError(
+              [error, cleanupError],
+              "Windows supervised-owner launch cleanup failed",
+            );
+          }
+          throw launchError;
+        }
+      })();
+      void record.launch.catch((error) => {
+        spawnError ??= error;
+      });
+    }
     const append = (channel, bytes) => {
       capturedBytes += bytes.byteLength;
       if (capturedBytes > (options.maxCaptureBytes ?? MAX_CAPTURE_BYTES)) {
         overflow = true;
-        try {
-          this.#kill(child, "SIGKILL");
-        } catch (error) {
+        void this.#kill(record, "SIGKILL").catch((error) => {
           spawnError ??= error;
-          child.kill("SIGKILL");
-        }
+        });
         return;
       }
       const value = bytes.toString();
@@ -529,6 +613,30 @@ export class ChildSupervisor {
       child.once("close", async (code, signal) => {
         if (settled) return;
         settled = true;
+        if (record.ownerGated) {
+          await record.launch.catch((error) => {
+            spawnError ??= error;
+          });
+          if (record.ownership) {
+            try {
+              const disposed = await disposeWindowsJobLease(record.ownership);
+              if (disposed.activeProcesses !== 0) {
+                throw new Error("Windows Job Object retained active processes");
+              }
+            } catch (error) {
+              spawnError ??= error;
+            }
+          }
+        } else {
+          await record.identity.catch((error) => {
+            spawnError ??= error;
+          });
+        }
+        try {
+          await record.termination;
+        } catch (error) {
+          spawnError ??= error;
+        }
         this.#children.delete(child);
         const durationMs = Math.max(0, performance.now() - startedAt);
         if (log) {
@@ -551,43 +659,75 @@ export class ChildSupervisor {
     });
   }
 
-  #kill(child, signal) {
-    if (!child.pid) return;
-    try {
-      if (process.platform === "win32") child.kill(signal);
-      else process.kill(-child.pid, signal);
-    } catch (error) {
-      if (error?.code !== "ESRCH") throw error;
-    }
+  #kill(record, signal, timeoutMs = 5_000) {
+    record.termination ??= (async () => {
+      record.stopRequested = true;
+      record.ownershipAbort?.abort();
+      if (record.ownerGated) {
+        if (!record.ownership) {
+          try {
+            await record.launch;
+          } catch (error) {
+            if (error?.code === "ABORT_ERR") {
+              return { state: "terminated-before-launch" };
+            }
+            throw error;
+          }
+        }
+        return await terminateProcessTree(record.child, record.ownership, {
+          signal,
+          timeoutMs,
+        });
+      }
+      const identity = await record.identity;
+      return await terminateProcessTree(record.child, identity, {
+        signal,
+        timeoutMs,
+      });
+    })();
+    return record.termination;
   }
 
   async stop(signal = "SIGTERM", graceMs = 2_000) {
     const records = [...this.#children.values()];
     if (records.length === 0) return;
     const failures = [];
-    for (const { child } of records) {
-      try {
-        this.#kill(child, signal);
-      } catch (error) {
-        failures.push(error);
+    if (process.platform === "win32") {
+      const terminations = await Promise.allSettled(
+        records.map((record) => this.#kill(record, signal, graceMs)),
+      );
+      for (const result of terminations) {
+        if (result.status === "rejected") failures.push(result.reason);
       }
-    }
-    await Promise.race([
-      Promise.allSettled(records.map(({ done }) => done)),
-      new Promise((resolve) => setTimeout(resolve, graceMs)),
-    ]);
-    const remaining = records.filter(({ child }) => this.#children.has(child));
-    for (const { child } of remaining) {
-      try {
-        this.#kill(child, "SIGKILL");
-      } catch (error) {
-        failures.push(error);
+      await Promise.race([
+        Promise.allSettled(records.map(({ done }) => done)),
+        new Promise((resolve) => setTimeout(resolve, graceMs)),
+      ]);
+    } else {
+      for (const record of records) {
+        try {
+          await this.#kill(record, signal, graceMs);
+        } catch (error) {
+          failures.push(error);
+        }
       }
+      await Promise.race([
+        Promise.allSettled(records.map(({ done }) => done)),
+        new Promise((resolve) => setTimeout(resolve, graceMs)),
+      ]);
+      const remaining = records.filter(({ child }) => this.#children.has(child));
+      for (const record of remaining) {
+        try {
+          process.kill(-record.child.pid, "SIGKILL");
+        } catch (error) {
+          if (error?.code !== "ESRCH") failures.push(error);
+        }
+      }
+      await Promise.race([
+        Promise.allSettled(remaining.map(({ done }) => done)),
+        new Promise((resolve) => setTimeout(resolve, graceMs)),
+      ]);
     }
-    await Promise.race([
-      Promise.allSettled(remaining.map(({ done }) => done)),
-      new Promise((resolve) => setTimeout(resolve, graceMs)),
-    ]);
     const survivors = records.filter(({ child }) => this.#children.has(child));
     if (survivors.length > 0) failures.push(new Error(`${survivors.length} supervised process group(s) survived SIGKILL`));
     if (failures.length > 0) throw new AggregateError(failures, "failed to stop supervised sample processes");

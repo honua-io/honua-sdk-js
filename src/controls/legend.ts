@@ -33,6 +33,8 @@
  * - `for` — id of the map-providing element.
  * - `layer` — style layer id to derive entries from.
  * - `layer-title` — optional title rendered above the derived section.
+ * - `fallback-label` — label for a derived expression's fallback branch
+ *   (default "Other"); reflects `fallbackLabel`.
  * - `heading` — optional heading rendered above the whole legend.
  * - `follow-layer-visibility` — boolean; hide a section while its source
  *   layer's `visibility` layout property is `"none"` (sections carry the
@@ -65,7 +67,7 @@ import {
   listenForHonuaMapReady,
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
-import { HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js";
+import { HONUA_LEGEND_FALLBACK_LABEL, HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js";
 import type { HonuaLegendEntry, HonuaLegendMap, HonuaLegendSection, HonuaLegendSwatchShape } from "./types.js";
 
 /**
@@ -76,7 +78,7 @@ import type { HonuaLegendEntry, HonuaLegendMap, HonuaLegendSection, HonuaLegendS
  */
 export class HonuaLegendElement extends HTMLElementBase {
   public static get observedAttributes(): string[] {
-    return ["for", "layer", "layer-title", "heading", "follow-layer-visibility", "auto-refresh"];
+    return ["for", "layer", "layer-title", "fallback-label", "heading", "follow-layer-visibility", "auto-refresh"];
   }
 
   #map: HonuaLegendMap | undefined;
@@ -103,6 +105,17 @@ export class HonuaLegendElement extends HTMLElementBase {
   /** Wires the legend to a MapLibre map. Equivalent to setting `.map`. */
   public connect(map: HonuaLegendMap): void {
     this.map = map;
+  }
+
+  /** Label for a derived expression's fallback branch. Reflects `fallback-label`. */
+  public get fallbackLabel(): string {
+    return this.#attr("fallback-label") ?? HONUA_LEGEND_FALLBACK_LABEL;
+  }
+
+  public set fallbackLabel(value: string | undefined) {
+    if (typeof this.setAttribute !== "function") return;
+    if (value === undefined) this.removeAttribute?.("fallback-label");
+    else this.setAttribute("fallback-label", value);
   }
 
   /**
@@ -182,7 +195,7 @@ export class HonuaLegendElement extends HTMLElementBase {
       this.#resolveMapFromContext();
       return;
     }
-    if (name === "layer" || name === "layer-title") {
+    if (name === "layer" || name === "layer-title" || name === "fallback-label") {
       this.refresh();
       return;
     }
@@ -222,7 +235,9 @@ export class HonuaLegendElement extends HTMLElementBase {
       return;
     }
     try {
-      this.#derivedEntries = deriveLegendEntries(map, layerId);
+      this.#derivedEntries = deriveLegendEntries(map, layerId).map((entry) =>
+        entry.label === HONUA_LEGEND_FALLBACK_LABEL ? { ...entry, label: this.fallbackLabel } : entry,
+      );
       this.#deriveError = undefined;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -421,11 +436,33 @@ function renderRow(entry: HonuaLegendEntry): string {
 /** Structural-only styles; theme via `::part(root)`, `::part(row)`, `::part(swatch)`, ... */
 function structuralStyles(): string {
   return `
-    :host { display: block; }
+    :host {
+      display: block;
+      box-sizing: border-box;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .root, .section, .rows {
+      box-sizing: border-box;
+      min-width: 0;
+      max-width: 100%;
+    }
     .heading, .section-title { margin: 0; }
     .section { margin: 0; }
     .rows { list-style: none; margin: 0; padding: 0; }
-    .row { display: flex; align-items: center; gap: 0.5em; }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+    .heading, .section-title, .label {
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
     .swatch {
       flex: none;
       inline-size: 1em;
@@ -436,5 +473,14 @@ function structuralStyles(): string {
     }
     .swatch-line { block-size: 3px; border: none; }
     .swatch-circle { border-radius: 50%; }
+    @media (forced-colors: active), (prefers-contrast: more) {
+      .row { color: CanvasText; }
+      .swatch {
+        background: CanvasText;
+        border: 1px solid CanvasText;
+        forced-color-adjust: none;
+      }
+      .swatch-line { background: CanvasText; border: none; }
+    }
   `;
 }

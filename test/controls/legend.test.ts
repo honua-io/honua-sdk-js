@@ -322,6 +322,28 @@ describe("HonuaLegendElement", () => {
     expect(shadow.innerHTML).not.toContain("<Residential");
   });
 
+  test("emits forced-colors and prefers-contrast styles for distinct swatches and labels", () => {
+    const { element, shadow } = makeElement();
+    element.entries = [{ label: "Route", color: { fill: "#1d4ed8", outline: "#0f172a" }, shape: "line" }];
+
+    expect(shadow.innerHTML).toContain("@media (forced-colors: active), (prefers-contrast: more)");
+    expect(shadow.innerHTML).toContain(".row { color: CanvasText; }");
+    expect(shadow.innerHTML).toContain("background: CanvasText;");
+    expect(shadow.innerHTML).toContain("border: 1px solid CanvasText;");
+    expect(shadow.innerHTML).toContain("forced-color-adjust: none;");
+    expect(shadow.innerHTML).toContain(".swatch-line { background: CanvasText; border: none; }");
+  });
+
+  test("emits bounded, wrapping rows for narrow containers", () => {
+    const { element, shadow } = makeElement();
+    element.entries = [{ label: "A-very-long-unbroken-legend-label", color: "#1d4ed8" }];
+
+    expect(shadow.innerHTML).toContain("min-width: 0;");
+    expect(shadow.innerHTML).toContain("max-width: 100%;");
+    expect(shadow.innerHTML).toContain("overflow-wrap: anywhere;");
+    expect(shadow.innerHTML).not.toContain("overflow: hidden");
+  });
+
   test("derive mode appends a section parsed from the layer's match expression", () => {
     const { element, attributes, shadow } = makeElement();
     attributes.set("layer", "zoning-districts");
@@ -344,6 +366,19 @@ describe("HonuaLegendElement", () => {
     expect(shadow.innerHTML).toContain('data-layer="zoning-districts"');
     // Explicit entries render before the derived section.
     expect(shadow.innerHTML.indexOf("High priority")).toBeLessThan(shadow.innerHTML.indexOf("Residential"));
+  });
+
+  test("renders a caller-supplied German fallback label in derive mode", () => {
+    const { element, attributes, shadow } = makeElement();
+    element.layer = "zoning-districts";
+    element.fallbackLabel = "Sonstige";
+    element.connect(makeZoningMap());
+
+    expect(element.fallbackLabel).toBe("Sonstige");
+    expect(attributes.get("fallback-label")).toBe("Sonstige");
+    expect(element.sections[0]?.entries.map((entry) => entry.label)).toContain("Sonstige");
+    expect(shadow.innerHTML).toContain("Sonstige");
+    expect(shadow.innerHTML).not.toContain(">Other<");
   });
 
   test("derive failures degrade gracefully: explicit sections keep rendering and deriveError is exposed", () => {

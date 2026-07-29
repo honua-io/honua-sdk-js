@@ -402,6 +402,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "Escape cancels an in-progress measurement via a real keydown.",
       },
       {
+        ids: ["web-components.layer-list"],
+        evidence: [BROWSER_SPEC],
+        note: "The controller-driven layer list is exercised in Chromium with a focused visibility checkbox activated by Space and a focused reorder button activated by Enter; controller visibility/order state and the re-rendered shadow rows are asserted.",
+      },
+      {
         ids: ["controls.swipe-control"],
         evidence: ["test/controls/swipe-control.test.ts"],
         note: "ArrowLeft/ArrowRight (with and without Shift), Home, and End step the divider and emit change.",
@@ -543,8 +548,12 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   localization: {
     failing: [
       {
-        ids: ALL_IDS,
+        ids: allExcept("web-components.search"),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
+      },
+      {
+        ids: ["web-components.search"],
+        note: "The submit action is caller-localizable through the reflected submitLabel property / submit-label attribute, with the legacy English `Search` default preserved and a non-English rendering assertion. The component still owns hard-coded placeholder, suggestion, no-result, and geocoding status strings, so the full localization criterion remains failing for this component.",
       },
     ],
   },

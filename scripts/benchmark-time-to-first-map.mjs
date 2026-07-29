@@ -36,11 +36,13 @@
  * not guarantees. The comparison page prints the caveats alongside them.
  */
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { runNpmScriptSync, runNpmSync } from "./lib/npm-cli.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_OUTPUT = "test-results/time-to-first-map.json";
@@ -124,26 +126,30 @@ export function validateTtfmEvidence(evidence) {
 }
 
 function runNpm(args, options) {
-  // Prefer invoking npm-cli.js with the current Node binary (available as
-  // npm_execpath whenever this script runs via `npm run bench:ttfm`) — no
-  // shell, fully cross-platform. Fall back to the npm shim otherwise; on
-  // Windows the .cmd shim requires a shell.
-  const execpath = process.env.npm_execpath;
-  const viaNode = execpath && /\.[cm]?js$/.test(execpath);
-  const command = viaNode ? process.execPath : "npm";
-  const commandArgs = viaNode ? [execpath, ...args] : args;
   // stdio "inherit" (no pipes): build tooling such as Vite leaves esbuild
   // service processes alive that would otherwise hold the piped stdout open
   // and hang spawnSync after the command itself has exited.
-  const result = spawnSync(command, commandArgs, {
+  const result = runNpmSync(args, {
     stdio: "inherit",
     timeout: PHASE_TIMEOUT_MS,
-    // All arguments here are fixed tokens plus a mkdtemp cache path.
-    shell: viaNode ? false : process.platform === "win32",
     ...options,
   });
   if (result.status !== 0) {
     throw new Error(`npm ${args.join(" ")} failed (exit ${result.status}${result.error ? `, ${result.error}` : ""})`);
+  }
+  return result;
+}
+
+function runNpmScript(script, options) {
+  const result = runNpmScriptSync(script, {
+    stdio: "inherit",
+    timeout: PHASE_TIMEOUT_MS,
+    ...options,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `npm run ${script} failed (exit ${result.status}${result.error ? `, ${result.error}` : ""})`,
+    );
   }
   return result;
 }
@@ -195,7 +201,7 @@ async function measureBrowserFirstMap(projectDir) {
   const { FIXTURE_BUILD_ENV, startQuickstartFixtureServer } = await import(
     "../examples/maplibre-quickstart/mock-server.mjs"
   );
-  runNpm(["run", "demo:quickstart:build", "--silent"], {
+  runNpmScript("demo:quickstart:build", {
     cwd: ROOT,
     env: {
       ...process.env,
