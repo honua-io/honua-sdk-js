@@ -323,7 +323,7 @@ describe("realtime updates", () => {
       (message, detail) => warnings.push({ message, ...(detail ? { detail } : {}) }),
     );
     const panel = document.createElement("div");
-    const healthy = await linked.present({ id: "healthy", target: panel });
+    const healthy = await linked.present({ id: "healthy", target: panel, preferAdapterId: "honua.default-bars" });
     await linked.present({ id: "failing", headlessOnly: true });
 
     const decision = linked.accept(categoryArtifact(2, 55));
