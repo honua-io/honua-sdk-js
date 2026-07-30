@@ -1,9 +1,10 @@
 /**
  * Storage-neutral contracts for bounded, downloadable offline regions.
  *
- * This experimental entrypoint deliberately does not provide IndexedDB,
- * service-worker, network, or edit-replay implementations. Applications inject
- * a resource loader and an atomic store transaction; the SDK owns deterministic
+ * This experimental entrypoint provides an IndexedDB adapter for browser
+ * persistence, but deliberately does not provide service-worker, network, or
+ * edit-replay implementations. Applications inject a resource loader and an
+ * atomic store transaction; the SDK owns deterministic
  * manifest identity, credential projection, quota admission, integrity checks,
  * cancellation, and progress semantics.
  *
@@ -15,6 +16,8 @@ export {
   downloadOfflineRegion,
   planOfflineRegionAdmission,
 } from "./region.js";
+export { createIndexedDbOfflineRegionStore, IndexedDbOfflineRegionStore } from "./indexeddb.js";
+export type { IndexedDbOfflineRegionStoreOptions } from "./indexeddb.js";
 export {
   DEFAULT_OFFLINE_REGION_MAX_ATTRIBUTIONS,
   DEFAULT_OFFLINE_REGION_MAX_LOGICAL_BYTES,
@@ -29,6 +32,7 @@ export type {
   CreateOfflineRegionManifestInput,
   OfflineRegionAdmissionPlan,
   OfflineRegionBounds,
+  OfflineRegionCacheAdmin,
   OfflineRegionCacheInventory,
   OfflineRegionCommitGuard,
   OfflineRegionDownloadOptions,
@@ -39,6 +43,7 @@ export type {
   OfflineRegionManifestV1,
   OfflineRegionObservation,
   OfflineRegionResourceInput,
+  OfflineRegionResourceRead,
   OfflineRegionResourceKind,
   OfflineRegionResourceLoader,
   OfflineRegionResourceV1,

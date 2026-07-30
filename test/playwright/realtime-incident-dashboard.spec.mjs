@@ -1,8 +1,60 @@
 import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { readFile, realpath } from "node:fs/promises";
+import path from "node:path";
 
 import { startIncidentDashboardFixtureServer } from "../../examples/realtime-incident-dashboard/mock-server.mjs";
 
+const expectedSdkMode = process.env.HONUA_SAMPLE_SDK_MODE ?? "source";
+const expectedEntrypoints = [
+  "@honua/sdk-js/contract",
+  "@honua/sdk-js/exploration",
+  "@honua/sdk-js/honua",
+  "@honua/sdk-js/interactions",
+  "@honua/sdk-js/realtime",
+  "@honua/sdk-js/style",
+];
+
 test.setTimeout(90_000);
+
+async function assertSdkResolution() {
+  const resolutionPath = path.resolve(
+    import.meta.dirname,
+    "../../examples/realtime-incident-dashboard/dist/honua-sample-sdk-resolution.json",
+  );
+  const resolution = JSON.parse(await readFile(resolutionPath, "utf8"));
+  expect(resolution).toMatchObject({
+    format: "honua.sdk.sample-resolution.v1",
+    mode: expectedSdkMode,
+    package: { name: "@honua/sdk-js" },
+  });
+  expect(resolution.entrypoints.map((entry) => entry.specifier).sort()).toEqual([...expectedEntrypoints].sort());
+  expect(resolution.bundle.length).toBeGreaterThan(1);
+
+  if (expectedSdkMode !== "packed") {
+    expect(resolution.entrypoints.every((entry) => entry.hashSubject === "repository-source-entrypoint-file")).toBe(
+      true,
+    );
+    return;
+  }
+
+  const configuredRoot = process.env.HONUA_SAMPLE_SDK_DIR;
+  expect(configuredRoot, "packed Chromium requires the extracted SDK root").toBeTruthy();
+  const sdkRoot = await realpath(configuredRoot);
+  const manifest = JSON.parse(await readFile(path.join(sdkRoot, "package.json"), "utf8"));
+  expect(manifest.name).toBe("@honua/sdk-js");
+  for (const entry of resolution.entrypoints) {
+    const exportKey = entry.specifier === "@honua/sdk-js" ? "." : `./${entry.specifier.slice("@honua/sdk-js/".length)}`;
+    const declaration = manifest.exports[exportKey];
+    const target = typeof declaration === "string" ? declaration : declaration?.default;
+    expect(target).toBe(entry.exportTarget);
+    const absolute = await realpath(path.resolve(sdkRoot, target));
+    expect(absolute.startsWith(`${sdkRoot}${path.sep}`)).toBe(true);
+    const digest = createHash("sha256").update(await readFile(absolute)).digest("hex");
+    expect(digest).toBe(entry.sha256);
+    expect(entry.hashSubject).toBe("packed-published-entrypoint-file");
+  }
+}
 
 test("realtime incident dashboard keeps map, queue, filters, and detail linked", async ({ page }) => {
   const pageErrors = [];
@@ -29,6 +81,7 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
   });
 
   try {
+    await assertSdkResolution();
     const navigation = await page.goto(fixtureServer.url);
     expect(navigation?.headers()["content-security-policy"]).toContain("connect-src 'self'");
 

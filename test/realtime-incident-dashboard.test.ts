@@ -19,7 +19,11 @@ import {
   formatIncidentAccessibleName,
   presentIncidentConnection,
 } from "../examples/realtime-incident-dashboard/src/presentation.js";
-import { applyIncidentProjection, incidentRecords } from "../examples/realtime-incident-dashboard/src/projection.js";
+import {
+  applyIncidentProjection,
+  createIncidentLayerFilter,
+  incidentRecords,
+} from "../examples/realtime-incident-dashboard/src/projection.js";
 import { createFixtureIncidentTransport } from "../examples/realtime-incident-dashboard/src/realtime-fixture.js";
 import {
   type IncidentRealtimeReceipt,
@@ -39,6 +43,14 @@ import {
   evaluateIncidentMutationGuard,
 } from "../examples/realtime-incident-dashboard/src/safe-edit.js";
 import type { IncidentFeature } from "../examples/realtime-incident-dashboard/src/types.js";
+import {
+  UNBOUNDED,
+  acceptHistogramArtifact,
+  analyticsArtifactIdentity,
+  analyticsProvenance,
+  createAnalyticsAdapterRegistry,
+  createAnalyticsLinkedSession,
+} from "../src/analytics/index.js";
 import {
   createExplorationContext,
   selectLinkedViewQueryProjection,
@@ -533,6 +545,77 @@ describe("realtime incident dashboard fixture", () => {
     transport.refresh();
     expect(incidentRecords(store.state)).toHaveLength(7);
 
+    context.dispose();
+  });
+
+  it("carries a linked analytics numeric brush into the incident map filter", () => {
+    const context = createExplorationContext({
+      datasetId: "incident-dashboard-analytics-test",
+      sourceIds: [INCIDENT_SOURCE_ID],
+    });
+    const chartView = context.connectView({ id: "analytics", role: "chart" });
+    const artifact = acceptHistogramArtifact({
+      identity: analyticsArtifactIdentity({
+        artifactId: "incidents-by-eta",
+        sourceId: INCIDENT_SOURCE_ID,
+        planFingerprint: "sha256:incident-eta-fixture",
+        acceptedAt: "2026-05-05T18:00:00.000Z",
+      }),
+      provenance: analyticsProvenance({ computedBy: "server", bounds: UNBOUNDED }),
+      measure: { field: "*", fn: "count", label: "Incidents", unit: "count", unitSystem: "count" },
+      dimension: "etaMinutes",
+      bins: 3,
+      marks: [
+        {
+          key: "eta:0-10",
+          label: "0–10 minutes",
+          value: 2,
+          min: 0,
+          max: 10,
+          boundary: "inclusive-exclusive",
+          bucket: 0,
+        },
+        {
+          key: "eta:10-20",
+          label: "10–20 minutes",
+          value: 3,
+          min: 10,
+          max: 20,
+          boundary: "inclusive-exclusive",
+          bucket: 1,
+        },
+        { key: "eta:20-30", label: "20–30 minutes", value: 1, min: 20, max: 30, boundary: "inclusive", bucket: 2 },
+      ],
+    });
+    const session = createAnalyticsLinkedSession({
+      view: chartView,
+      artifact,
+      registry: createAnalyticsAdapterRegistry(),
+    });
+
+    session.apply({
+      kind: "range-brush",
+      adapterId: "incident-analytics",
+      artifactId: "incidents-by-eta",
+      range: { min: 10, max: 20 },
+    });
+
+    const projection = selectLinkedViewQueryProjection(context.state, { sourceId: INCIDENT_SOURCE_ID });
+    expect(projection.filters).toEqual({
+      "analytics:incidents-by-eta:range": {
+        field: "etaMinutes",
+        operator: "between",
+        value: [10, 20],
+        appliesTo: [INCIDENT_SOURCE_ID],
+      },
+    });
+    expect(createIncidentLayerFilter(projection)).toEqual([
+      "all",
+      ["==", "$type", "Point"],
+      ["all", [">=", "etaMinutes", 10], ["<=", "etaMinutes", 20]],
+    ]);
+
+    session.dispose();
     context.dispose();
   });
 

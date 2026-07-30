@@ -6,6 +6,7 @@ import {
   type DeckGlProjectionRequest,
   HonuaDeckGlAdapterError,
   createDeckGlAdapter,
+  loadDeckGlAdapter,
   loadDeckGlPeers,
 } from "../src/deckgl/index.js";
 
@@ -473,6 +474,17 @@ describe("deck.gl adapter", () => {
 
     await expect(loadDeckGlPeers({ importModule })).resolves.toEqual({ ScatterplotLayer: FakeScatterplotLayer });
     expect(importModule).toHaveBeenCalledWith("@deck.gl/layers");
+  });
+
+  it("creates an adapter lazily from the optional peer and forwards projection limits", async () => {
+    const importModule = vi.fn(async () => ({ ScatterplotLayer: FakeScatterplotLayer }));
+
+    const adapter = await loadDeckGlAdapter({ importModule, limits: { maxRows: 7 } });
+
+    expect(importModule).toHaveBeenCalledOnce();
+    expect(adapter.limits.maxRows).toBe(7);
+    expect(adapter.capabilities).toBe(DECK_GL_CAPABILITIES);
+    adapter.dispose();
   });
 
   it("reports an actionable typed error when the optional peer cannot load", async () => {

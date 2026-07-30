@@ -129,10 +129,32 @@ export interface OfflineRegionStoredRegion {
   readonly pinned?: boolean;
 }
 
+/** A credential-free resource snapshot read from a persistent offline region. */
+export interface OfflineRegionResourceRead {
+  readonly regionId: string;
+  readonly manifest: OfflineRegionManifestV1;
+  readonly resource: OfflineRegionResourceV1;
+  /** Caller-owned bytes; mutating them cannot mutate the persistent store. */
+  readonly bytes: Uint8Array;
+}
+
 export interface OfflineRegionCacheInventory {
   /** Opaque revision changed atomically by every committed store mutation. */
   readonly revision: string;
   readonly regions: readonly OfflineRegionStoredRegion[];
+}
+
+/**
+ * Atomic lifecycle operations for a persistent offline-region cache.
+ * Implementations must advance the inventory revision once for each mutation.
+ */
+export interface OfflineRegionCacheAdmin {
+  /** Remove a region and all of its resources. Returns false when absent. */
+  removeRegion(regionId: string): Promise<boolean>;
+  /** Change whether automatic admission may evict a region. Returns false when unchanged or absent. */
+  setRegionPinned(regionId: string, pinned: boolean): Promise<boolean>;
+  /** Remove all regions expired at or before `now`, returning ids in inventory order. */
+  pruneExpired(now?: Date): Promise<readonly string[]>;
 }
 
 export interface OfflineRegionAdmissionPlan {
@@ -171,6 +193,8 @@ export interface OfflineRegionWriteTransaction {
 /** Storage adapter boundary; no browser or platform storage is selected by the SDK. */
 export interface OfflineRegionStore {
   inventory(): Promise<OfflineRegionCacheInventory>;
+  /** Read one committed resource, or `undefined` when it is absent. */
+  readResource(regionId: string, resourceId: string): Promise<OfflineRegionResourceRead | undefined>;
   beginWrite(regionId: string): Promise<OfflineRegionWriteTransaction>;
 }
 

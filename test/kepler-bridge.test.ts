@@ -53,6 +53,10 @@ function resultRequest(overrides: Partial<KeplerResultProjectionRequest> = {}): 
 }
 
 describe("kepler compatibility range", () => {
+  it("preserves the published bridge contract version", () => {
+    expect(KEPLER_BRIDGE_CONTRACT_VERSION).toBe("1.0");
+  });
+
   it("declares the supported Kepler 3.x range", () => {
     expect(KEPLER_COMPATIBILITY_RANGE).toEqual({ minimum: "3.0.0", exclusiveMaximum: "4.0.0" });
   });

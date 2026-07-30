@@ -77,7 +77,11 @@ export interface CesiumEntityInterval {
 export type CesiumEntityGeometry =
   | { readonly kind: "point"; readonly coordinates: readonly [number, number, number] }
   | { readonly kind: "polyline"; readonly coordinates: readonly (readonly [number, number, number])[] }
-  | { readonly kind: "polygon"; readonly coordinates: readonly (readonly [number, number, number])[] };
+  | {
+      readonly kind: "polygon";
+      readonly coordinates: readonly (readonly [number, number, number])[];
+      readonly holes?: readonly (readonly (readonly [number, number, number])[])[];
+    };
 
 export interface CesiumEntityProjectionItem {
   readonly id: string;
@@ -130,7 +134,7 @@ export interface CesiumEntityRuntimeModule {
   };
   readonly TimeInterval: new (options: { start: unknown; stop: unknown }) => unknown;
   readonly TimeIntervalCollection: new (intervals?: readonly unknown[]) => unknown;
-  readonly PolygonHierarchy: new (positions: readonly unknown[]) => unknown;
+  readonly PolygonHierarchy: new (positions: readonly unknown[], holes?: readonly unknown[]) => unknown;
 }
 
 export type CesiumEntityRuntimeLoader = () => Promise<CesiumEntityRuntimeModule>;
@@ -633,7 +637,16 @@ function materializeEntity(
       ? { position: positions[0], point: { pixelSize: 8 } }
       : item.geometry.kind === "polyline"
         ? { polyline: { positions, width: 2 } }
-        : { polygon: { hierarchy: new cesium.PolygonHierarchy(positions) } };
+        : {
+            polygon: {
+              hierarchy: new cesium.PolygonHierarchy(
+                positions,
+                item.geometry.holes?.map(
+                  (hole) => new cesium.PolygonHierarchy(hole.map((coordinate) => toCartesian(cesium, coordinate))),
+                ),
+              ),
+            },
+          };
   const availability = item.interval
     ? new cesium.TimeIntervalCollection([
         new cesium.TimeInterval({
@@ -672,20 +685,110 @@ function projectGeometry<T>(feature: HonuaTypedFeature<T>): CesiumEntityGeometry
     return coordinates && coordinates.length >= 2 ? { kind: "polyline", coordinates } : undefined;
   }
   if (geometry.type === "Polygon") {
-    const rings = geometry.coordinates;
-    if (!Array.isArray(rings) || rings.length !== 1 || !Object.hasOwn(rings, 0)) return undefined;
-    const coordinates = coordinates3(rings[0]);
-    return coordinates && validRing(coordinates) ? { kind: "polygon", coordinates } : undefined;
+    const rings = polygonRings(geometry.coordinates);
+    return rings
+      ? { kind: "polygon", coordinates: rings.outer, ...(rings.holes.length ? { holes: rings.holes } : {}) }
+      : undefined;
   }
   if (Array.isArray(geometry.paths) && geometry.paths.length === 1 && Object.hasOwn(geometry.paths, 0)) {
     const coordinates = coordinates3(geometry.paths[0]);
     return coordinates && coordinates.length >= 2 ? { kind: "polyline", coordinates } : undefined;
   }
-  if (Array.isArray(geometry.rings) && geometry.rings.length === 1 && Object.hasOwn(geometry.rings, 0)) {
-    const coordinates = coordinates3(geometry.rings[0]);
-    return coordinates && validRing(coordinates) ? { kind: "polygon", coordinates } : undefined;
+  if (Array.isArray(geometry.rings)) {
+    const rings = polygonRings(geometry.rings, true);
+    return rings
+      ? { kind: "polygon", coordinates: rings.outer, ...(rings.holes.length ? { holes: rings.holes } : {}) }
+      : undefined;
   }
   return undefined;
+}
+
+function polygonRings(
+  value: unknown,
+  esriConvention = false,
+):
+  | {
+      readonly outer: readonly (readonly [number, number, number])[];
+      readonly holes: readonly (readonly (readonly [number, number, number])[])[];
+    }
+  | undefined {
+  return polygonRingsWithConvention(value, esriConvention);
+}
+
+function polygonRingsWithConvention(
+  value: unknown,
+  esriConvention: boolean,
+):
+  | {
+      readonly outer: readonly (readonly [number, number, number])[];
+      readonly holes: readonly (readonly (readonly [number, number, number])[])[];
+    }
+  | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index)) return undefined;
+  }
+  const projected = value.map((ring) => {
+    const coordinates = coordinates3(ring);
+    return coordinates && validRing(coordinates) ? coordinates : undefined;
+  });
+  if (projected.some((ring) => ring === undefined)) return undefined;
+  const rings = projected as readonly (readonly (readonly [number, number, number])[])[];
+  if (esriConvention) return classifyEsriPolygonRings(rings);
+  const [outer, ...holes] = rings as [
+    readonly (readonly [number, number, number])[],
+    ...(readonly (readonly (readonly [number, number, number])[])[]),
+  ];
+  return { outer, holes };
+}
+
+function classifyEsriPolygonRings(rings: readonly (readonly (readonly [number, number, number])[])[]):
+  | {
+      readonly outer: readonly (readonly [number, number, number])[];
+      readonly holes: readonly (readonly (readonly [number, number, number])[])[];
+    }
+  | undefined {
+  const exteriors = rings.filter((ring) => signedRingArea(ring) < 0);
+  if (exteriors.length !== 1) return undefined;
+  const outer = exteriors[0];
+  if (!outer) return undefined;
+
+  const holes: (readonly (readonly [number, number, number])[])[] = [];
+  for (const ring of rings) {
+    if (ring === outer) continue;
+    if (signedRingArea(ring) <= 0 || !ringPointInside(ring[0], outer)) return undefined;
+    holes.push(ring);
+  }
+  return { outer, holes };
+}
+
+function signedRingArea(ring: readonly (readonly [number, number, number])[]): number {
+  let area = 0;
+  for (let index = 0; index < ring.length - 1; index += 1) {
+    const current = ring[index];
+    const next = ring[index + 1];
+    if (!current || !next) return 0;
+    area += current[0] * next[1] - next[0] * current[1];
+  }
+  return area / 2;
+}
+
+function ringPointInside(
+  point: readonly [number, number, number] | undefined,
+  ring: readonly (readonly [number, number, number])[],
+): boolean {
+  if (!point) return false;
+  let inside = false;
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index, index += 1) {
+    const current = ring[index];
+    const prior = ring[previous];
+    if (!current || !prior) return false;
+    const intersects =
+      current[1] > point[1] !== prior[1] > point[1] &&
+      point[0] < ((prior[0] - current[0]) * (point[1] - current[1])) / (prior[1] - current[1]) + current[0];
+    if (intersects) inside = !inside;
+  }
+  return inside;
 }
 
 function geometryHasZ(value: unknown): boolean {

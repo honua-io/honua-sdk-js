@@ -30,6 +30,35 @@ describe("split package manifests", () => {
     expect(prepareScript).toContain('packageRoot, "connect-wfs.d.ts"');
   });
 
+  it("verifies discoverability metadata for every generated package", () => {
+    const verifier = fs.readFileSync(path.join(process.cwd(), "scripts/verify-split-packages.mjs"), "utf8");
+    const discoverability = fs.readFileSync(
+      path.join(process.cwd(), "scripts/lib/package-discoverability.mjs"),
+      "utf8",
+    );
+
+    expect(verifier).toContain('"@honua/app-platform"');
+    expect(verifier).toContain("splitPackageDiscoverabilityErrors");
+    expect(discoverability).toContain('"@honua/sdk-esri-compat"');
+    expect(discoverability).toContain('"@honua/app-platform"');
+    expect(discoverability).toContain('"arcgis-migration"');
+    expect(discoverability).toContain('"maplibre"');
+  });
+
+  it("qualifies the installed app-platform component consumer and fail-closed export path", () => {
+    const verifier = fs.readFileSync(path.join(process.cwd(), "scripts/verify-split-packages.mjs"), "utf8");
+    const fixture = fs.readFileSync(
+      path.join(process.cwd(), "test/fixtures/packed-app-platform-component-smoke.mjs"),
+      "utf8",
+    );
+
+    expect(verifier).toContain("packed-app-platform-component-smoke.mjs");
+    expect(fixture).toContain('await import("@honua/app-platform/web-components")');
+    expect(fixture).toContain('"core.capability-not-supported"');
+    expect(fixture).toContain("HonuaFeatureEditorElement");
+    expect(fixture).toContain("packed-consumer-secret");
+  });
+
   it("ships the query planner imported by the React map runtime closure", () => {
     const prepareScript = fs.readFileSync(path.join(process.cwd(), "scripts/prepare-split-packages.mjs"), "utf8");
     const reactPackageFactory = prepareScript.slice(

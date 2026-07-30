@@ -76,6 +76,10 @@ class MemoryOfflineStore implements OfflineRegionStore {
     return { revision: String(this.revision), regions: this.regions.map((region) => ({ ...region })) };
   }
 
+  public async readResource(): Promise<undefined> {
+    return undefined;
+  }
+
   public async beginWrite(): Promise<OfflineRegionWriteTransaction> {
     const pending = new Map<string, Uint8Array>();
     return {
