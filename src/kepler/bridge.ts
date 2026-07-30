@@ -18,6 +18,7 @@
  * @module
  */
 
+import { projectArrowTableToKeplerDataset } from "./ingest-arrow.js";
 import { projectColumnarBatchToKeplerDataset } from "./ingest-columnar.js";
 import { projectRemoteSourceToKepler } from "./ingest-remote.js";
 import { DEFAULT_KEPLER_BRIDGE_LIMITS, normalizeKeplerLimits, projectResultToKeplerDataset } from "./ingest.js";
@@ -32,22 +33,25 @@ import { estimateKeplerRowBytes, keplerDatasetStateFromProjection, reconcileKepl
 import type { KeplerRedactionResult, RedactKeplerExportStateOptions } from "./redaction.js";
 import { redactKeplerExportState } from "./redaction.js";
 import type {
+  KeplerArrowTableProjectionRequest,
   KeplerBridgeCapability,
   KeplerBridgeLimits,
   KeplerColumnarProjectionRequest,
   KeplerCompatibility,
   KeplerDatasetProjection,
   KeplerPeers,
+  KeplerProcessors,
   KeplerProtoDataset,
   KeplerRemoteSourceProjection,
   KeplerRemoteSourceProjectionRequest,
   KeplerResultProjectionRequest,
   KeplerWorkspaceHost,
   LoadKeplerPeersOptions,
+  LoadKeplerProcessorsOptions,
 } from "./types.js";
 import { HonuaKeplerBridgeError, KEPLER_BRIDGE_CONTRACT_VERSION, KEPLER_COMPATIBILITY_RANGE } from "./types.js";
 
-/** Declared ingestion support for bridge contract v1.0. */
+/** Declared ingestion support for bridge contract v1.1. */
 export const KEPLER_BRIDGE_CAPABILITIES: readonly KeplerBridgeCapability[] = Object.freeze([
   Object.freeze({
     strategy: "row-object-direct" as const,
@@ -66,6 +70,13 @@ export const KEPLER_BRIDGE_CAPABILITIES: readonly KeplerBridgeCapability[] = Obj
     supported: true,
     geoJsonRoundTrip: false,
     reason: "Columnar artifact columns are transposed in place into Kepler rows.",
+  }),
+  Object.freeze({
+    strategy: "arrow-table-processor" as const,
+    supported: true,
+    geoJsonRoundTrip: false,
+    reason:
+      "A host-supplied Kepler processArrowTable adapter consumes an Arrow table without an SDK GeoJSON serialization round trip.",
   }),
   Object.freeze({
     strategy: "geojson-column" as const,
@@ -92,7 +103,7 @@ export const KEPLER_BRIDGE_CAPABILITIES: readonly KeplerBridgeCapability[] = Obj
     supported: false,
     geoJsonRoundTrip: false,
     reason:
-      "Kepler's Arrow/GeoArrow ingestion needs the apache-arrow peer and Kepler's own geoarrow field type; it is out of bridge contract v1.0 rather than partially implemented.",
+      "Kepler's Arrow/GeoArrow buffer-preserving path needs the apache-arrow peer and Kepler's own geoarrow field type; it remains outside bridge contract v1.1.",
   }),
 ]);
 
@@ -210,8 +221,47 @@ export async function loadKeplerPeers(options: LoadKeplerPeersOptions): Promise<
   }) as KeplerPeers;
 }
 
+/** Resolve Kepler's optional Arrow processor without importing it in SDK core. */
+export async function loadKeplerProcessors(options: LoadKeplerProcessorsOptions): Promise<KeplerProcessors> {
+  const compatibility = assertKeplerCompatibility(options?.version);
+  let module: unknown;
+  try {
+    module = await (options.importModule ?? defaultImportModule)("@kepler.gl/processors");
+  } catch (cause) {
+    throw new HonuaKeplerBridgeError(
+      "missing-peer",
+      'The Kepler Arrow bridge requires the optional peer "@kepler.gl/processors". Install it or inject KeplerProcessors.',
+      { package: "@kepler.gl/processors" },
+      { cause },
+    );
+  }
+  if (!isRecord(module)) {
+    throw new HonuaKeplerBridgeError(
+      "missing-peer",
+      'The loaded "@kepler.gl/processors" module is not a module object.',
+      {
+        package: "@kepler.gl/processors",
+      },
+    );
+  }
+  const processArrowTable = readFunction(module, "processArrowTable");
+  if (processArrowTable === undefined) {
+    throw new HonuaKeplerBridgeError(
+      "missing-peer",
+      'The loaded "@kepler.gl/processors" module does not export processArrowTable.',
+      { package: "@kepler.gl/processors", export: "processArrowTable" },
+    );
+  }
+  return Object.freeze({
+    version: compatibility.declaredVersion,
+    processArrowTable: processArrowTable as KeplerProcessors["processArrowTable"],
+  });
+}
+
 export interface CreateKeplerWorkspaceBridgeOptions {
   readonly peers: KeplerPeers;
+  /** Optional Kepler processors used by `openArrowTable`. */
+  readonly processors?: KeplerProcessors;
   /** Attach a live Kepler store so `open*` also dispatches. Omit to work payload-only. */
   readonly host?: KeplerWorkspaceHost;
   readonly limits?: Partial<KeplerBridgeLimits>;
@@ -245,6 +295,8 @@ export interface KeplerWorkspaceBridge {
   openResult(request: KeplerResultProjectionRequest): KeplerOpenedDataset;
   /** Open a bounded columnar artifact with no GeoJSON round trip. */
   openColumnarBatch(request: KeplerColumnarProjectionRequest): KeplerOpenedDataset;
+  /** Open an opaque Apache Arrow table through Kepler's optional processor. */
+  openArrowTable(request: KeplerArrowTableProjectionRequest): KeplerOpenedDataset;
   /** Reference a supported remote tile/imagery source. */
   openRemoteSource(request: KeplerRemoteSourceProjectionRequest): KeplerRemoteSourceProjection;
 
@@ -285,6 +337,10 @@ export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridge
     );
   }
   const compatibility = assertKeplerCompatibility(peers.version);
+  const processors = options.processors;
+  if (processors !== undefined && typeof processors.processArrowTable !== "function") {
+    throw new HonuaKeplerBridgeError("missing-peer", "Kepler processors must implement processArrowTable.");
+  }
   const limits = normalizeKeplerLimits(options.limits);
   const host = options.host;
   if (host !== undefined && typeof host.dispatch !== "function") {
@@ -404,6 +460,17 @@ export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridge
     openColumnarBatch(request) {
       assertLive("openColumnarBatch");
       return open(projectColumnarBatchToKeplerDataset(request, limits));
+    },
+    openArrowTable(request) {
+      assertLive("openArrowTable");
+      if (processors === undefined) {
+        throw new HonuaKeplerBridgeError(
+          "missing-peer",
+          'openArrowTable requires the optional "@kepler.gl/processors" peer or an injected KeplerProcessors adapter.',
+          { package: "@kepler.gl/processors" },
+        );
+      }
+      return open(projectArrowTableToKeplerDataset(request, processors, limits));
     },
     openRemoteSource(request) {
       assertLive("openRemoteSource");

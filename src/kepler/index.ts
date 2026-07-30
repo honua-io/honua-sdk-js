@@ -32,6 +32,7 @@ export {
   evaluateKeplerCompatibility,
   KEPLER_BRIDGE_CAPABILITIES,
   loadKeplerPeers,
+  loadKeplerProcessors,
 } from "./bridge.js";
 export type {
   CreateKeplerWorkspaceBridgeOptions,
@@ -63,6 +64,7 @@ export {
   projectResultToKeplerDataset,
 } from "./ingest.js";
 export { projectColumnarBatchToKeplerDataset } from "./ingest-columnar.js";
+export { projectArrowTableToKeplerDataset } from "./ingest-arrow.js";
 export { projectRemoteSourceToKepler } from "./ingest-remote.js";
 
 export {
@@ -146,6 +148,8 @@ export {
 export type {
   HonuaKeplerBridgeErrorCode,
   KeplerAction,
+  KeplerArrowProcessorResult,
+  KeplerArrowTableProjectionRequest,
   KeplerBridgeCapability,
   KeplerBridgeLimits,
   KeplerColumnarProjectionRequest,
@@ -170,6 +174,7 @@ export type {
   KeplerMapStyleEntry,
   KeplerModuleImporter,
   KeplerPeers,
+  KeplerProcessors,
   KeplerProjectionMetrics,
   KeplerProjectionShape,
   KeplerProtoDataset,
@@ -183,4 +188,5 @@ export type {
   KeplerTilesetDescriptor,
   KeplerWorkspaceHost,
   LoadKeplerPeersOptions,
+  LoadKeplerProcessorsOptions,
 } from "./types.js";
