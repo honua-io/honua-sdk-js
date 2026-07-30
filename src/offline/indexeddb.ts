@@ -407,52 +407,88 @@ function recoverDatabase(database: IDBDatabase): Promise<void> {
 
     const regionStore = transaction.objectStore(REGION_STORE);
     const resourceStore = transaction.objectStore(RESOURCE_STORE);
-    const regions = await request<unknown[]>(regionStore.getAll());
-    const validRegionIds = new Set<string>();
+    const regions = new Map<string, { expected: Map<string, number>; seen: Set<string> }>();
     let inspected = 0;
     let bytes = 0;
-    for (const candidate of regions) {
+    await iterateCursor(regionStore, (cursor) => {
       inspected += 1;
       if (inspected > MAX_RECOVERY_RECORDS) throw new Error("IndexedDB recovery record limit exceeded.");
-      const region = candidate as Partial<RegionRecord>;
+      const region = cursor.value as Partial<RegionRecord>;
       if (!isValidRegion(region)) {
-        if (typeof region.id === "string") {
-          regionStore.delete(region.id);
-          await deleteResourcesByRegion(transaction, region.id);
-        }
-        continue;
+        cursor.delete();
+        cursor.continue();
+        return;
       }
-      validRegionIds.add(region.id);
+      const expected = new Map(region.manifest.resources.map((resource) => [resource.id, resource.byteLength]));
+      if (expected.size !== region.manifest.resources.length) {
+        cursor.delete();
+        cursor.continue();
+        return;
+      }
       bytes += region.logicalByteLength;
       if (bytes > MAX_RECOVERY_BYTES) throw new Error("IndexedDB recovery byte limit exceeded.");
-    }
+      regions.set(region.id, { expected, seen: new Set() });
+      cursor.continue();
+    });
 
-    const resources = await request<unknown[]>(resourceStore.getAll());
-    for (const candidate of resources) {
+    await iterateCursor(resourceStore, (cursor) => {
       inspected += 1;
       if (inspected > MAX_RECOVERY_RECORDS) throw new Error("IndexedDB recovery record limit exceeded.");
-      const resource = candidate as Partial<ResourceRecord>;
-      const resourceBytes = resource.bytes instanceof Uint8Array ? resource.bytes.byteLength : 0;
-      bytes += resourceBytes;
-      if (bytes > MAX_RECOVERY_BYTES) throw new Error("IndexedDB recovery byte limit exceeded.");
-      if (!isValidResource(resource) || !validRegionIds.has(resource.regionId)) {
-        if (typeof resource.key === "string") resourceStore.delete(resource.key);
+      const resource = cursor.value as Partial<ResourceRecord>;
+      const region = typeof resource.regionId === "string" ? regions.get(resource.regionId) : undefined;
+      const expectedByteLength = region?.expected.get(resource.resourceId ?? "");
+      if (
+        !isValidResource(resource) ||
+        !region ||
+        region.seen.has(resource.resourceId) ||
+        expectedByteLength === undefined ||
+        resource.key !== resourceKey(resource.regionId, resource.resourceId) ||
+        resource.bytes.byteLength !== expectedByteLength
+      ) {
+        cursor.delete();
+        cursor.continue();
+        return;
+      }
+      region.seen.add(resource.resourceId);
+      cursor.continue();
+    });
+
+    for (const [regionId, region] of regions) {
+      if (region.seen.size !== region.expected.size) {
+        regionStore.delete(regionId);
+        await deleteResourcesByRegion(transaction, regionId);
       }
     }
 
     const stagingStore = transaction.objectStore(STAGING_STORE);
-    const staging = await request<unknown[]>(stagingStore.getAll());
-    for (const candidate of staging) {
+    await iterateCursor(stagingStore, (cursor) => {
       inspected += 1;
       if (inspected > MAX_RECOVERY_RECORDS) throw new Error("IndexedDB recovery record limit exceeded.");
-      const staged = candidate as Partial<StagedResourceRecord>;
-      const stagedBytes = staged.bytes instanceof Uint8Array ? staged.bytes.byteLength : 0;
-      bytes += stagedBytes;
-      if (bytes > MAX_RECOVERY_BYTES) throw new Error("IndexedDB recovery byte limit exceeded.");
+      const staged = cursor.value as Partial<StagedResourceRecord>;
       if (!isValidStagedResource(staged)) {
-        if (typeof staged.key === "string") stagingStore.delete(staged.key);
+        cursor.delete();
       }
-    }
+      cursor.continue();
+    });
+  });
+}
+
+function iterateCursor(source: IDBObjectStore, visit: (cursor: IDBCursorWithValue) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cursorRequest = source.openCursor();
+    cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error("Failed to enumerate IndexedDB records."));
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+      try {
+        visit(cursor);
+      } catch (error) {
+        reject(error);
+      }
+    };
   });
 }
 
