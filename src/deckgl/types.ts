@@ -12,6 +12,35 @@ export type DeckGlLayerKind =
   | "contour"
   | "trips";
 
+/** Execution lanes that an application may offer to the deck.gl adapter. */
+export type DeckGlExecutionStrategy = "gpu-binary" | "cpu-object" | "tile";
+
+export interface DeckGlExecutionAvailability {
+  /** The SDK-owned zero-copy binary projection lane. */
+  readonly gpuBinary?: boolean;
+  /** A caller-owned bounded object renderer. The SDK does not implement this lane. */
+  readonly cpuObject?: boolean;
+  /** A caller-owned tile renderer. The SDK does not implement this lane. */
+  readonly tile?: boolean;
+}
+
+export interface DeckGlExecutionPlanRequest {
+  readonly layer: DeckGlLayerKind;
+  /** Ordered lanes to try. Defaults to `gpu-binary` only. */
+  readonly preferred?: readonly DeckGlExecutionStrategy[];
+  /** Explicit caller/runtime facts; this function never probes a device or imports a renderer. */
+  readonly availability?: DeckGlExecutionAvailability;
+}
+
+export interface DeckGlExecutionPlan {
+  readonly layer: DeckGlLayerKind;
+  readonly execution: DeckGlExecutionStrategy | "unsupported";
+  readonly fallback: DeckGlExecutionStrategy | "none";
+  readonly fidelity: "exact-input" | "bounded-object" | "tile-bounded" | "unsupported";
+  readonly ownership: "sdk" | "caller" | "none";
+  readonly reason: string;
+}
+
 export interface DeckGlCapability {
   readonly layer: DeckGlLayerKind;
   readonly supported: boolean;
