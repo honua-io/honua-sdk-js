@@ -213,11 +213,32 @@ test("IndexedDB schema upgrade backfills legacy staging timestamps", async ({ pa
 test("IndexedDB store supports atomic pinning, expiry pruning, and removal", async ({ page }) => {
   const server = await startServer();
   try {
-    await page.goto(server.url);
+    await page.goto(`${server.url}?mode=empty`);
     const database = await page.evaluate(() => window.__offlineDatabase);
     const result = await page.evaluate(async (name) => {
-      const { createIndexedDbOfflineRegionStore } = await import("/dist/src/offline/index.js");
+      const { createIndexedDbOfflineRegionStore, createOfflineRegionManifest, downloadOfflineRegion } =
+        await import("/dist/src/offline/index.js");
+      const bytes = new TextEncoder().encode("one");
+      const hash = await crypto.subtle.digest("SHA-256", bytes);
+      const integrity = "sha256:" + [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      const manifest = await createOfflineRegionManifest({
+        name: "pinning fixture",
+        sourceId: "fixture",
+        endpoint: "https://example.test/features",
+        authorizationScopeFingerprint: "test-scope",
+        bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1, crs: "EPSG:4326" },
+        sourceVersion: "1",
+        schemaVersion: "1",
+        planVersion: "1",
+        observation: { state: "live", observedAt: "2026-07-29T00:00:00Z" },
+        resources: [{ id: "metadata", kind: "metadata", byteLength: bytes.byteLength, integrity }],
+      });
       const store = createIndexedDbOfflineRegionStore({ name });
+      await downloadOfflineRegion(manifest, {
+        store,
+        logicalQuotaBytes: bytes.byteLength,
+        load: async () => bytes,
+      });
       const before = await store.inventory();
       const regionId = before.regions[0].id;
       const pinned = await store.setRegionPinned(regionId, true);
@@ -317,7 +338,7 @@ async function startServer() {
           const fixture = await fetch("/fixture.json").then((response) => response.json());
           const database = fixture.database;
           window.__offlineDatabase = database;
-          const mode = sessionStorage.getItem("offline-test-mode") ?? "write";
+          const mode = new URL(location.href).searchParams.get("mode") ?? sessionStorage.getItem("offline-test-mode") ?? "write";
           const store = createIndexedDbOfflineRegionStore({ name: database });
           if (mode === "write") {
             const manifest = await createOfflineRegionManifest({
