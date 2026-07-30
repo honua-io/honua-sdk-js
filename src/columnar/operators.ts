@@ -133,13 +133,17 @@ export function createGeoArrowProjectionOperation(
   if (typeof options.id !== "string" || options.id.trim() !== options.id || options.id.length === 0) {
     throw new TypeError("GeoArrow projection id must be a non-empty trimmed string");
   }
-  if (typeof options.schemaId !== "string" || options.schemaId.trim() !== options.schemaId || options.schemaId.length === 0) {
+  if (
+    typeof options.schemaId !== "string" ||
+    options.schemaId.trim() !== options.schemaId ||
+    options.schemaId.length === 0
+  ) {
     throw new TypeError("GeoArrow projection schemaId must be a non-empty trimmed string");
   }
   if (typeof options.identity !== "object" || options.identity === null) {
     throw new TypeError("GeoArrow projection identity must be an object");
   }
-  const columns = options.columns === undefined ? ["geometry"] : [...options.columns];
+  const columns: GeoArrowProjectionColumn[] = options.columns === undefined ? ["geometry"] : [...options.columns];
   const allowed = new Set<GeoArrowProjectionColumn>(["geometry", "temporal", "dictionary", "featureId"]);
   if (columns.length !== new Set(columns).size || columns.some((column) => !allowed.has(column))) {
     throw new TypeError("GeoArrow projection columns must be unique supported column names");
@@ -163,7 +167,7 @@ export function createGeoArrowProjectionOperation(
       throw new TypeError("GeoArrow projection requested a missing feature-id column");
     }
     const decoded = decodeGeoArrowBatch(batch, limits);
-    const geometryValues: GeoArrowGeometryColumnInput["values"] = [];
+    const geometryValues: Array<DecodedGeoArrowRow["geometry"]> = [];
     const temporalValues: Array<bigint | null> = [];
     const dictionaryValues: Array<string | null> = [];
     const featureIdValues: number[] = [];
@@ -188,12 +192,18 @@ export function createGeoArrowProjectionOperation(
       values: geometryValues,
     } as GeoArrowGeometryColumnInput;
     const temporal = wants.has("temporal")
-      ? {
-          field: inspection.temporal!.field,
-          unit: inspection.temporal!.unit,
-          ...(inspection.temporal.timezone === undefined ? {} : { timezone: inspection.temporal.timezone }),
-          values: temporalValues,
-        }
+      ? (() => {
+          const temporalInspection = inspection.temporal;
+          if (temporalInspection === undefined) {
+            throw new TypeError("GeoArrow projection requested a missing temporal column");
+          }
+          return {
+            field: temporalInspection.field,
+            unit: temporalInspection.unit,
+            ...(temporalInspection.timezone === undefined ? {} : { timezone: temporalInspection.timezone }),
+            values: temporalValues,
+          };
+        })()
       : undefined;
     const dictionary = wants.has("dictionary")
       ? { field: inspection.dictionary!.field, ordered: inspection.dictionary!.ordered, values: dictionaryValues }

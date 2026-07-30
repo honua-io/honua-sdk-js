@@ -81,6 +81,27 @@ function batch() {
   }).batch;
 }
 
+function batchWithoutFeatureId() {
+  return createGeoArrowBatch({
+    id: "source-batch-without-feature-id",
+    sequence: 4,
+    schemaId: "points-v1",
+    identity: {
+      ...identity,
+      ordering: { ...identity.ordering, keys: [{ ...identity.ordering.keys[0], field: "class" }] },
+    },
+    geometry: {
+      kind: "point",
+      field: "geometry",
+      values: [[10, 20], [30, 40], null],
+    },
+    dictionary: {
+      field: "class",
+      values: ["keep", "drop", "keep"],
+    },
+  }).batch;
+}
+
 describe("GeoArrow filter worker operation", () => {
   it("filters rows while preserving optional columns and identity", async () => {
     const progress: number[] = [];
@@ -148,7 +169,11 @@ describe("GeoArrow filter worker operation", () => {
 describe("GeoArrow projection worker operation", () => {
   it("retains requested optional columns and assigns the projected identity", async () => {
     const progress: number[] = [];
-    const projectedIdentity = { ...identity, schemaVersion: "points-geometry-class-v2" };
+    const projectedIdentity = {
+      ...identity,
+      schemaVersion: "points-geometry-class-v2",
+      ordering: { ...identity.ordering, keys: [{ ...identity.ordering.keys[0], field: "class" }] },
+    };
     const operation = createGeoArrowProjectionOperation({
       id: "projected-batch",
       schemaId: "points-geometry-class-v2",
@@ -183,7 +208,7 @@ describe("GeoArrow projection worker operation", () => {
     });
 
     await expect(
-      operation(batch(), {
+      operation(batchWithoutFeatureId(), {
         requestId: "request-projection-2",
         signal: new AbortController().signal,
         reportProgress: () => undefined,
