@@ -1252,8 +1252,12 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
     passing: [
       {
         ids: ["web-components.print-export"],
-        evidence: ["test/web-components-export-security.test.ts", "test/web-components-export-review2.test.ts"],
-        note: "The secure-export suites prove explicit-adapter success, fail-closed snapshot/state behavior, credential exclusion from state, bytes, filenames, errors, and provenance, plus idempotent release and cancellation.",
+        evidence: [
+          "test/web-components-export-event-security.test.ts",
+          "test/web-components-export-security.test.ts",
+          "test/web-components-export-review2.test.ts",
+        ],
+        note: "The secure-export suites prove explicit-adapter success, fail-closed snapshot/state behavior, credential exclusion from state, bytes, filenames, errors, event detail, and visible status, plus idempotent release and cancellation.",
       },
     ],
     notApplicable: [
