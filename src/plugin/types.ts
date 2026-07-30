@@ -4,6 +4,9 @@ export const HONUA_PLUGIN_MANIFEST_VERSION = 1 as const;
 /** Version of the host/plugin API described by this package. */
 export const HONUA_PLUGIN_API_VERSION = "1.0" as const;
 
+/** Version of the archived manifest-certification report schema. */
+export const HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION = 1 as const;
+
 export const HONUA_PLUGIN_KINDS = Object.freeze([
   "protocol",
   "source-format",
@@ -236,7 +239,7 @@ export interface HonuaPluginCheckResult {
 
 /** Deterministic JSON-compatible report; it contains no timestamps or host paths. */
 export interface HonuaPluginCertificationReport {
-  readonly reportVersion: 1;
+  readonly reportVersion: typeof HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION;
   /** Integrity digest over every other report field, including both snapshots and hashes. */
   readonly sha256: `sha256:${string}`;
   readonly plugin: { readonly id: string; readonly version: string; readonly kind: string } | null;

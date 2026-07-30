@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   HONUA_PLUGIN_API_VERSION,
   HONUA_PLUGIN_CAPABILITY_REQUIRED_GRANTS,
+  HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION,
   HONUA_PLUGIN_MANIFEST_VERSION,
   type HonuaPluginCertificationHost,
   type HonuaPluginManifest,
@@ -571,5 +572,21 @@ describe("signed certification report verification", () => {
     const verification = verifyHonuaPluginCertificationReport("not json");
     expect(verification.ok).toBe(false);
     expect(verification.status).toBeNull();
+  });
+
+  it("fails closed on an unsupported report schema version", () => {
+    const report = JSON.parse(JSON.stringify(certifyHonuaPluginManifest(manifest, host)));
+    report.reportVersion = HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION + 1;
+    const verification = verifyHonuaPluginCertificationReport(JSON.stringify(report));
+    expect(verification.ok).toBe(false);
+    expect(verification.diagnostics.map((item) => item.code)).toContain("REPORT_VERSION_UNSUPPORTED");
+  });
+
+  it("rejects unknown fields even when a report digest is otherwise valid", () => {
+    const report = JSON.parse(JSON.stringify(certifyHonuaPluginManifest(manifest, host)));
+    report.extra = "not part of report v1";
+    const verification = verifyHonuaPluginCertificationReport(JSON.stringify(report));
+    expect(verification.ok).toBe(false);
+    expect(verification.diagnostics.map((item) => item.code)).toContain("REPORT_UNKNOWN_FIELD");
   });
 });
